@@ -134,7 +134,7 @@ def _send_lead_auto_reply(lead):
     send_mail(
         subject='Got your message — Aspired Websites',
         message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=settings.EMAIL_FROM_CONTACT,
         recipient_list=[lead.email],
         fail_silently=True,
     )
@@ -158,7 +158,7 @@ def _send_lead_internal_notification(lead):
     send_mail(
         subject=f'New Lead: {lead.business_name} — {lead.get_business_type_display()}',
         message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=settings.EMAIL_FROM_MAIN,
         recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
         fail_silently=True,
     )

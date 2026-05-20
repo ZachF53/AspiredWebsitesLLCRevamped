@@ -170,30 +170,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# ── Email — SendGrid SMTP (console fallback in dev) ─────────────────────────
-# Per CLAUDE.md: all transactional + outreach mail goes through SendGrid in
-# production. In development, if no SENDGRID_API_KEY is set we print emails
-# to the console so the contact form / audit flows work without real keys.
+# ── Email — SendGrid SMTP ───────────────────────────────────────────────────
+# Per CLAUDE.md: all transactional + outreach mail goes through SendGrid.
 SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
-DEFAULT_FROM_EMAIL = env(
-    'DEFAULT_FROM_EMAIL',
-    'Zachery Long <zachery@aspiredwebsites.com>',
-)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'apikey'
+EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
 
-if DEBUG and not SENDGRID_API_KEY:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.sendgrid.net'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+# Default sender, plus role-based addresses used throughout the project.
+# All four are sub-addresses of the verified aspiredwebsites.com domain.
+DEFAULT_FROM_EMAIL = 'Zachery Long <zacherylong@aspiredwebsites.com>'
+EMAIL_FROM_MAIN = 'Zachery Long <zacherylong@aspiredwebsites.com>'
+EMAIL_FROM_CONTACT = 'Aspired Websites <contact@aspiredwebsites.com>'
+EMAIL_FROM_NO_REPLY = 'Aspired Websites <no-reply@aspiredwebsites.com>'
+EMAIL_FROM_PASSWORD_RESET = 'Aspired Websites <password-reset@aspiredwebsites.com>'
 
-# Internal address for new-lead notifications.
+# Where new-lead notifications are delivered.
 LEAD_NOTIFICATION_EMAIL = env(
     'LEAD_NOTIFICATION_EMAIL',
-    'zachery@aspiredwebsites.com',
+    'zacherylong@aspiredwebsites.com',
 )
 
 
