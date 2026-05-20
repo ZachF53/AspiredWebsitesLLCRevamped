@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="section">
+    <div class="container container--narrow text-center coming-soon">
+        <span class="badge">Building</span>
+        <h1>{{ page_title }}</h1>
+        <p class="lead">{{ blurb }}</p>
+        <p class="mt-4">
+            <a class="btn btn--primary btn--lg" href="{% url 'public:home' %}">Back to Home</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

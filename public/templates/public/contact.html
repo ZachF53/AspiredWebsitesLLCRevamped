@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Contact — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Get In Touch</span>
+            <h1>Let&rsquo;s <span class="accent">Talk.</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">No pressure. No jargon. Just a straight conversation about what your business needs.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Form + Contact Info ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="contact-grid">
+
+            {# Left: form #}
+            <article class="card">
+                <span class="eyebrow">Send a Message</span>
+                <h2 class="card__title">Tell us about your project</h2>
+
+                <form method="post" class="form contact-form" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="form-error" role="alert">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="{{ form.name.id_for_label }}">Full Name <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<div class="form-field-error">{{ form.name.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.business_name.id_for_label }}">Business Name <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.business_name }}
+                        {% if form.business_name.errors %}<div class="form-field-error">{{ form.business_name.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.business_type.id_for_label }}">Business Type <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.business_type }}
+                        {% if form.business_type.errors %}<div class="form-field-error">{{ form.business_type.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.phone.id_for_label }}">Phone <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.phone }}
+                        {% if form.phone.errors %}<div class="form-field-error">{{ form.phone.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.email.id_for_label }}">Email <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.email }}
+                        {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.source.id_for_label }}">How did you hear about us?</label>
+                        {{ form.source }}
+                        {% if form.source.errors %}<div class="form-field-error">{{ form.source.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.message.id_for_label }}">Message <span class="required" aria-hidden="true">*</span></label>
+                        {{ form.message }}
+                        {% if form.message.errors %}<div class="form-field-error">{{ form.message.errors|join:" " }}</div>{% endif %}
+                    </div>
+
+                    <button type="submit" class="btn-primary btn-block">Send Message &rarr;</button>
+                </form>
+            </article>
+
+            {# Right: contact info #}
+            <aside class="card card--teal">
+                <span class="eyebrow">Direct Contact</span>
+                <h2 class="card__title">Reach us another way</h2>
+
+                <ul class="contact-list">
+                    <li class="contact-list__item">
+                        <span class="contact-list__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        </span>
+                        <div class="contact-list__detail">
+                            <div class="contact-list__label">Phone</div>
+                            <a class="contact-list__value" href="tel:+12108962536">(210) 896-2536</a>
+                        </div>
+                    </li>
+
+                    <li class="contact-list__item">
+                        <span class="contact-list__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7 10-7"/></svg>
+                        </span>
+                        <div class="contact-list__detail">
+                            <div class="contact-list__label">Email</div>
+                            <a class="contact-list__value" href="mailto:zachery@aspiredwebsites.com">zachery@aspiredwebsites.com</a>
+                        </div>
+                    </li>
+
+                    <li class="contact-list__item">
+                        <span class="contact-list__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        </span>
+                        <div class="contact-list__detail">
+                            <div class="contact-list__label">Locations</div>
+                            <span class="contact-list__value">San Antonio, TX &nbsp;&middot;&nbsp; Atlanta, GA</span>
+                        </div>
+                    </li>
+                </ul>
+
+                <hr class="contact-divider" aria-hidden="true">
+
+                <p class="contact-promise">We respond within 24 hours.</p>
+
+                <hr class="contact-divider" aria-hidden="true">
+
+                <p class="contact-cta-prompt">Prefer to book a call directly?</p>
+                {# TODO: wire to scheduler in Phase 3 #}
+                <a class="btn-secondary btn-block" href="#">Schedule a Call</a>
+
+                <hr class="contact-divider" aria-hidden="true">
+
+                {# TODO: link Privacy / Terms once those pages exist #}
+                <p class="contact-fine-print">
+                    By submitting this form you agree to our
+                    <a href="#">Privacy Policy</a> and
+                    <a href="#">Terms of Service</a>.
+                </p>
+            </aside>
+
+        </div>
+    </div>
+</section>
+
+{% endblock %}

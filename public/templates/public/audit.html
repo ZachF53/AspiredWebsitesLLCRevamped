@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Free Website Audit — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Free Website Audit</span>
+            <h1>Find Out What&rsquo;s Costing You <span class="accent">Clients.</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">Enter your URL. Get a real audit in under 30 seconds. No email required to see your results.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Audit Form ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <article class="card audit-form-card">
+            <span class="eyebrow">Run Your Audit</span>
+            <h2 class="card__title">Drop in your site, we&rsquo;ll do the rest</h2>
+
+            <form method="post" class="form audit-form" novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="form-error" role="alert">
+                        {{ form.non_field_errors }}
+                    </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label for="{{ form.url.id_for_label }}">{{ form.url.label }}</label>
+                    {{ form.url }}
+                    {% if form.url.errors %}<div class="form-field-error">{{ form.url.errors|join:" " }}</div>{% endif %}
+                </div>
+
+                <button type="submit" class="btn-primary btn-block">Analyze My Site &rarr;</button>
+
+                <p class="audit-note">
+                    We use Google PageSpeed Insights to generate your report. The audit takes about 20&ndash;30 seconds &mdash; please don&rsquo;t refresh while it runs. Your URL is not stored unless you choose to receive a full email report.
+                </p>
+            </form>
+        </article>
+    </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Custom Websites for Law Firms — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Built for Legal</span>
+            <h1>Custom Websites Built for Law Firms That Want <span class="accent">More Clients</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Hand-coded, security-hardened, and designed specifically for attorneys.
+                We've built law firm sites &mdash; we know what works, what converts,
+                and what the bar requires.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get a Free Law Firm Website Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See Our Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Pain Points ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Sound Familiar?</span>
+            <h2>Is Your Website Costing You Clients?</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
+                </div>
+                <h3>Mobile Speed</h3>
+                <p>Is your site loading slowly on mobile? 70% of legal searches happen on phones. Every second of load time costs you consultations.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <h3>Local Search</h3>
+                <p>Missing from Google local search? Your competitors are showing up on the first page. You're not even in the conversation.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <h3>FindLaw Lock-In</h3>
+                <p>Using FindLaw? You're paying $500&ndash;$1,500 a month for a template you don't own. And they keep the site if you ever leave.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="m9 9 5 12 1.774-5.226L21 14 9 9z"/><path d="M16.071 16.071 19 19"/></svg>
+                </div>
+                <h3>No Clear CTA</h3>
+                <p>No clear call to action? Visitors are landing on your site and leaving without contacting you. That's revenue walking out the door.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Why Lawyers Choose Aspired Websites ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why Choose Us</span>
+            <h2>Built Different. On Purpose.</h2>
+        </div>
+
+        <ul class="bullet-list">
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Built by a CISSP-certified designer with a Master's in Cybersecurity &mdash; your client data is handled seriously from day one</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Hand-coded from scratch &mdash; not a legal template everyone else is using</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Compliant with state bar advertising guidelines &mdash; we verify before anything goes live</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">You own the site completely &mdash; no lock-in, no platform dependency, ever</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Practice area pages built for your specific niches &mdash; family law, personal injury, criminal defense, estate planning, and more</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Google Business Profile setup and optimization included</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Schema markup for law firms &mdash; significantly improves local search rankings</span>
+            </li>
+            <li class="bullet-list__item">
+                <span class="bullet-list__icon" aria-hidden="true">&#9670;</span>
+                <span class="bullet-list__text">Family law firms commonly have 8&ndash;15 practice areas &mdash; we handle all of them</span>
+            </li>
+        </ul>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── FindLaw Comparison ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Honest Comparison</span>
+            <h2>Us vs FindLaw</h2>
+            <p>See exactly what you're getting &mdash; and what you're giving up.</p>
+        </div>
+
+        <div class="compare-table-wrapper">
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Feature</th>
+                        <th scope="col">FindLaw</th>
+                        <th scope="col">Aspired Websites</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Website Type</th>
+                        <td>Template (everyone looks the same)</td>
+                        <td>Hand-coded, fully custom</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Setup Cost</th>
+                        <td>$2,000&ndash;$5,000+</td>
+                        <td>$2,500&ndash;$4,500</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Monthly Ongoing</th>
+                        <td>$500&ndash;$1,500 / mo</td>
+                        <td>$299&ndash;$1,199 / mo</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Turnaround</th>
+                        <td>4&ndash;8 weeks</td>
+                        <td>3&ndash;4 weeks</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">You Own the Site</th>
+                        <td><span class="compare-icon--no" aria-hidden="true">&#10007;</span>No &mdash; locked in</td>
+                        <td><span class="compare-icon--yes" aria-hidden="true">&#10003;</span>Yes &mdash; always</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Personal Service</th>
+                        <td>Ticket-based support</td>
+                        <td>Direct access to your designer</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Security Standards</th>
+                        <td>Basic</td>
+                        <td>CISSP-certified, monthly audits</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Client Portal</th>
+                        <td><span class="compare-icon--no" aria-hidden="true">&#10007;</span>None</td>
+                        <td><span class="compare-icon--yes" aria-hidden="true">&#10003;</span>Full dashboard + tracking</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Cancel Anytime</th>
+                        <td><span class="compare-icon--no" aria-hidden="true">&#10007;</span>Annual contracts</td>
+                        <td><span class="compare-icon--yes" aria-hidden="true">&#10003;</span>Month-to-month</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Law Firm Portfolio ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Our Law Firm Work</span>
+            <h2>Sites We've Built for Legal</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            {# TODO: replace href with real URL and swap gradient for screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-blue" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Law Firm &middot; San Antonio, TX</span>
+                    <h3>Denis Law Group</h3>
+                    <p>A clean, conversion-focused site built for a growing law firm. Mobile-first, fast, and optimized for local search in San Antonio.</p>
+                    <a class="btn-secondary" href="#">View Site</a>
+                </div>
+            </article>
+
+            {# TODO: replace href with real URL and swap gradient for screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-teal" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Law Firm &middot; Atlanta, GA</span>
+                    <h3>Hudson Law Firm</h3>
+                    <blockquote class="card__quote">
+                        &ldquo;Mr. Long worked with us day and night to get the right fit for us. Professional, responsive, and produced an amazing website at a reasonable price.&rdquo;
+                        <cite>&mdash; Kate Whitehead, Hudson Law Firm</cite>
+                    </blockquote>
+                    <a class="btn-secondary" href="#">View Site</a>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Bottom CTA ───────── #}
+<section class="cta-block">
+    <div class="container">
+        <div class="cta-block__inner">
+            <h2>Get Your Free Law Firm Website Audit</h2>
+            <p>We'll analyze your current site &mdash; speed, mobile, SEO, local visibility &mdash; and show you exactly what's costing you clients. No sales pitch. Just real data.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get My Free Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Book a Strategy Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

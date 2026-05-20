@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Client Login — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<section class="section login-page">
+    <div class="container">
+        <article class="card card--featured login-card">
+            <a class="login-card__logo" href="{% url 'public:home' %}" aria-label="Aspired Websites — Home">
+                <img src="{% static 'images/logo.png' %}" alt="Aspired Websites" width="122" height="56">
+            </a>
+
+            <span class="eyebrow">Client Portal</span>
+            <h1 class="login-card__title">Welcome Back</h1>
+            <p class="login-card__subtitle">Log in to track your project and manage your account.</p>
+
+            {# TODO: wire to Django auth in Phase 3 #}
+            <form method="post" class="form login-form" novalidate>
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email"
+                           id="login-email"
+                           name="email"
+                           class="form-control"
+                           placeholder="you@business.com"
+                           autocomplete="email"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password"
+                           id="login-password"
+                           name="password"
+                           class="form-control"
+                           placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+                           autocomplete="current-password"
+                           required>
+                </div>
+
+                <button type="submit" class="btn-primary btn-block">Log In &rarr;</button>
+            </form>
+
+            <p class="login-helper">
+                Don&rsquo;t have an account? Your login is created during onboarding.
+            </p>
+        </article>
+    </div>
+</section>
+
+{% endblock %}

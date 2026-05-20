@@ -1,0 +1,110 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ meta_title|default:"Aspired Websites" }} — Aspired Websites{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses in Texas and Georgia.' }}{% endblock %}">
+    <meta name="theme-color" content="#1A1A1A">
+
+    <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Aspired Websites' }}{% endblock %}">
+    <meta property="og:description" content="{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses.' }}">
+    <meta property="og:type" content="website">
+
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="container">
+            <nav class="nav" aria-label="Primary">
+                <a class="logo" href="{% url 'public:home' %}" aria-label="Aspired Websites — Home">
+                    <img src="{% static 'images/logo.png' %}" alt="Aspired Websites" class="logo-img" width="87" height="40">
+                </a>
+
+                <button class="nav-toggle"
+                        type="button"
+                        aria-label="Toggle navigation menu"
+                        aria-expanded="false"
+                        aria-controls="primary-nav">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+
+                <div class="nav-menu" id="primary-nav">
+                    <ul>
+                        <li><a class="nav-link {% if active_nav == 'home' %}is-active{% endif %}" href="{% url 'public:home' %}">Home</a></li>
+                        <li><a class="nav-link {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                        <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
+                        <li><a class="nav-link {% if active_nav == 'pricing' %}is-active{% endif %}" href="{% url 'public:pricing' %}">Pricing</a></li>
+                        <li><a class="nav-link {% if active_nav == 'contact' %}is-active{% endif %}" href="{% url 'public:contact' %}">Contact</a></li>
+                        <li><a class="nav-link nav-link--cta" href="{% url 'public:login' %}">Client Login</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col footer-brand">
+                    <a class="logo" href="{% url 'public:home' %}">
+                        <span class="logo-mark" aria-hidden="true"></span>
+                        <span class="logo-text">Aspired Websites</span>
+                    </a>
+                    <p>Custom, hand-coded, security-hardened websites for law firms and small businesses.</p>
+                    <p class="footer-locations">San Antonio, TX &nbsp;·&nbsp; Atlanta, GA</p>
+                </div>
+
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="{% url 'public:home' %}#services">Custom Web Design</a></li>
+                        <li><a href="{% url 'public:home' %}#services">Digital Marketing &amp; Social Media</a></li>
+                        <li><a href="{% url 'public:home' %}#services">Search Engine Optimization</a></li>
+                        <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="{% url 'public:home' %}">Home</a></li>
+                        <li><a href="{% url 'public:pricing' %}">Pricing</a></li>
+                        <li><a href="{% url 'public:portfolio' %}">Portfolio</a></li>
+                        <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
+                        <li><a href="{% url 'public:about' %}">About Me</a></li>
+                        <li><a href="{% url 'public:contact' %}">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
+                        <li><a href="tel:+12108962536">(210) 896-2536</a></li>
+                        <li><a href="{% url 'public:login' %}">Client Login</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div>&copy; {% now "Y" %} Aspired Websites LLC. All rights reserved.</div>
+                <div>Hand-coded in San Antonio &amp; Atlanta.</div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/main.js' %}" defer></script>
+    <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

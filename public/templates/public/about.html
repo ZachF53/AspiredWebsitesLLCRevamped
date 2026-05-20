@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}About — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">The Person Behind the Work</span>
+            <h1>Built by Someone Who Takes Your <span class="accent">Security Seriously.</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Bio ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="bio-grid">
+
+            <aside class="card">
+                <div class="bio-photo" aria-hidden="true">
+                    <span class="bio-photo__initials">ZL</span>
+                </div>
+                <h2 class="bio-name">Zachery Long</h2>
+                <p class="bio-title">Founder, Aspired Websites LLC</p>
+                <ul class="credential-pills">
+                    <li class="credential-pill">CISSP Certified</li>
+                    <li class="credential-pill">M.S. Cybersecurity</li>
+                    <li class="credential-pill credential-pill--teal">San Antonio, TX</li>
+                    <li class="credential-pill credential-pill--teal">Atlanta, GA</li>
+                </ul>
+            </aside>
+
+            <div class="bio-prose">
+                <p>I started Aspired Websites because I kept seeing the same problem &mdash; small businesses and law firms paying thousands for cookie-cutter websites that didn&rsquo;t convert and weren&rsquo;t secure.</p>
+                <p>My background is in cybersecurity. I hold a Master&rsquo;s degree in Cybersecurity and a CISSP certification &mdash; the gold standard in the security industry. I bring that same security-first mindset to every website I build.</p>
+                <p>Based in San Antonio, TX and Atlanta, GA, I work directly with every client &mdash; no outsourcing, no handoffs, no disappearing after launch.</p>
+                <p>When you hire Aspired Websites, you get someone who actually understands what it means to protect a business online.</p>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Why Security Matters ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why This Matters</span>
+            <h2>Most Web Designers Don&rsquo;t Think About Security. I Do.</h2>
+        </div>
+
+        <div class="cards">
+            <article class="card card--teal">
+                <h3>Your Website Is a Front Door</h3>
+                <p>Every contact form, every intake submission, every visitor interaction is a potential security exposure. We build with that in mind &mdash; not as an afterthought.</p>
+            </article>
+
+            <article class="card card--teal">
+                <h3>Law Firms Have Ethical Obligations</h3>
+                <p>State bar rules require attorneys to take reasonable measures to protect client data online. Your website is part of that obligation, not separate from it.</p>
+            </article>
+
+            <article class="card card--teal">
+                <h3>Monthly Security Audits &mdash; Included</h3>
+                <p>Every maintenance plan includes monthly automated security scans. Not an upsell. Standard. Because it should be.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Bottom CTA ───────── #}
+<section class="cta-block">
+    <div class="container">
+        <div class="cta-block__inner">
+            <h2>Work With Someone Who Actually Cares.</h2>
+            <p>30-minute call. No pressure. Real answers about your business.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See Our Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

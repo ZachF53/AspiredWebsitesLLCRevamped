@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Message Received — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<section class="section thanks-page">
+    <div class="container container--narrow">
+        <div class="thanks-page__card">
+            <div class="success-checkmark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>
+            </div>
+
+            <h1>Message Received.</h1>
+
+            <p class="lead">We&rsquo;ll be in touch within 24 hours. Check your email for a confirmation.</p>
+
+            <p class="thanks-page__hint">
+                In a hurry? Call or text: <a href="tel:+12108962536">210-896-2536</a>
+            </p>
+
+            <a class="btn-secondary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

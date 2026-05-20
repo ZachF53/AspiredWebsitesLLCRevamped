@@ -91,6 +91,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
+    'core.middleware.SecurityHeadersMiddleware',
 ]
 
 ROOT_URLCONF = 'AspiredWebsitesRevamped.urls'
@@ -169,19 +170,31 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# ── Email — SendGrid SMTP ───────────────────────────────────────────────────
-# Per CLAUDE.md: all transactional + outreach mail goes through SendGrid.
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'apikey'
-EMAIL_HOST_PASSWORD = env('SENDGRID_API_KEY', '')
+# ── Email — SendGrid SMTP (console fallback in dev) ─────────────────────────
+# Per CLAUDE.md: all transactional + outreach mail goes through SendGrid in
+# production. In development, if no SENDGRID_API_KEY is set we print emails
+# to the console so the contact form / audit flows work without real keys.
+SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
 DEFAULT_FROM_EMAIL = env(
     'DEFAULT_FROM_EMAIL',
     'Zachery Long <zachery@aspiredwebsites.com>',
 )
-SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
+
+if DEBUG and not SENDGRID_API_KEY:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'apikey'
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+
+# Internal address for new-lead notifications.
+LEAD_NOTIFICATION_EMAIL = env(
+    'LEAD_NOTIFICATION_EMAIL',
+    'zachery@aspiredwebsites.com',
+)
 
 
 # ── Stripe ──────────────────────────────────────────────────────────────────
@@ -208,6 +221,10 @@ TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', '')
 # ── Google APIs ─────────────────────────────────────────────────────────────
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', '')
+# PageSpeed Insights — Google now requires an API key even for low-volume
+# use. Free tier is 25k queries/day. Create at:
+#   https://console.cloud.google.com/apis/credentials
+GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
 
 
 # ── Meta / Facebook ─────────────────────────────────────────────────────────

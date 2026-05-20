@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Portal Coming Soon — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<section class="section thanks-page">
+    <div class="container container--narrow">
+        <div class="thanks-page__card">
+            <span class="eyebrow">Client Portal</span>
+            <h1>Coming Soon</h1>
+            <p class="lead">The client portal is being built. Check back soon &mdash; or call us directly to chat about your project.</p>
+            <p class="thanks-page__hint">
+                Call or text: <a href="tel:+12108962536">210-896-2536</a>
+            </p>
+            <a class="btn-secondary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

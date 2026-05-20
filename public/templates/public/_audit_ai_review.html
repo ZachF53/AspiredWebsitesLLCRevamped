@@ -1,0 +1,10 @@
+{% if fallback %}
+    <div class="ai-review-fallback">{{ fallback }}</div>
+{% else %}
+    <div class="ai-review-body">
+        {% for paragraph in review_paragraphs %}
+            {% if paragraph %}<p>{{ paragraph }}</p>{% endif %}
+        {% endfor %}
+    </div>
+    <p class="ai-review-attribution">Reviewed by Claude (Anthropic Haiku 4.5)</p>
+{% endif %}

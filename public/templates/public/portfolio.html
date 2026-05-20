@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Our Work</span>
+            <h1>Built From Scratch. <span class="accent">Built to Last.</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">Real sites for real businesses. Hand-coded, mobile-first, built to convert.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Portfolio Grid ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Portfolio</span>
+            <h2>Recent Projects</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            {# TODO: swap gradient placeholder for real screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-blue" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Law Firm &middot; San Antonio, TX</span>
+                    <h3>Denis Law Group</h3>
+                    <p>A conversion-focused law firm website built for a growing practice. Mobile-first, fast-loading, and optimized for local search in San Antonio.</p>
+                    <a class="btn-secondary" href="https://denislawgroup.com/" target="_blank" rel="noopener">View Site</a>
+                </div>
+            </article>
+
+            {# TODO: swap gradient placeholder for real screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-rust" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Food &amp; Events &middot; San Antonio, TX</span>
+                    <h3>Food Trucks of San Antonio</h3>
+                    <p>A vibrant, mobile-first site for San Antonio&rsquo;s food truck community. Event listings, truck profiles, and a location finder.</p>
+                    <a class="btn-secondary" href="https://foodtrucksofsa.com/" target="_blank" rel="noopener">View Site</a>
+                </div>
+            </article>
+
+            {# TODO: swap gradient placeholder for real screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-purple" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Creative Studio &middot; San Antonio, TX</span>
+                    <h3>Moonieful Designs</h3>
+                    <p>A clean portfolio site for a San Antonio creative design studio. Strong project showcase, smooth browsing, and a simple way for new clients to get in touch.</p>
+                    <a class="btn-secondary" href="https://moonieful.com/" target="_blank" rel="noopener">View Site</a>
+                </div>
+            </article>
+
+            {# TODO: swap gradient placeholder for real screenshot #}
+            <article class="card card--with-visual">
+                <div class="card__visual gradient-forest" aria-hidden="true"></div>
+                <div class="card__body">
+                    <span class="pill-tag">Technology</span>
+                    <h3>Burgland Technologies</h3>
+                    <p>A professional tech company site built for credibility and lead generation. Clean, fast, and security-hardened.</p>
+                    <a class="btn-secondary" href="https://burglandtech.com/" target="_blank" rel="noopener">View Site</a>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Bottom CTA ───────── #}
+<section class="cta-block cta-block--deep">
+    <div class="container">
+        <div class="cta-block__inner">
+            <h2>Ready to Be Our Next Case Study?</h2>
+            <p>Your business deserves a site that actually works. Let&rsquo;s build it.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Start Your Project</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Aspired Websites — Custom Websites for Law Firms &amp; Small Businesses{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="hero__eyebrow">CISSP-certified · Texas &amp; Georgia</span>
+            <h1>Custom Websites Built to Work as Hard as <span class="accent">You Do</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Hand-coded, security-hardened websites for law firms and small businesses
+                that turn visitors into clients. No templates. No page builders. No bloat.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn btn--primary btn--lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn btn--outline-light btn--lg" href="{% url 'public:pricing' %}">See Pricing</a>
+            </div>
+            <p class="hero__meta">No annual contracts · 2-week post-launch support · Month-to-month after</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Services ───────── #}
+<section class="section" id="services">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What We Do</span>
+            <h2>Three Services. One Goal: Grow Your Business.</h2>
+            <p>Everything we build is owned by you, written in code we can hand off, and tuned for the clients you actually want.</p>
+        </div>
+
+        <div class="cards">
+            <article class="card">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M9 14h6"/></svg>
+                </div>
+                <h3>Custom Web Design</h3>
+                <p>Hand-coded websites built around your business and your clients. No templates, no drag-and-drop builders, no recycled themes.</p>
+                <a class="card__link" href="{% url 'public:portfolio' %}">See our work </a>
+            </article>
+
+            <article class="card">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M3 21V10"/><path d="M9 21V14"/><path d="M15 21V8"/><path d="M21 21V4"/><path d="M3 21h18"/></svg>
+                </div>
+                <h3>Digital Marketing &amp; Social Media</h3>
+                <p>Get found, get followers, get clients. Content posted on the platforms where your audience actually is — managed monthly.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See plans </a>
+            </article>
+
+            <article class="card">
+                <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+                <h3>Search Engine Optimization</h3>
+                <p>Show up first when people search for the services you offer. Local-first SEO for the cities where your business actually competes.</p>
+                <a class="card__link" href="{% url 'public:audit' %}">Get a free audit </a>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Value props ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why Aspired Websites</span>
+            <h2>Four Things Most Agencies Won't Give You</h2>
+            <p>You get a real cybersecurity engineer at the keyboard, not a template salesman. That changes everything about how the site is built.</p>
+        </div>
+
+        <div class="value-tiles">
+            <div class="value-tile value-tile--featured">
+                <span class="value-tile__badge">Differentiator</span>
+                <div class="value-tile__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.4 8 10 4.5-.6 8-5 8-10V6l-8-4z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+                <h3>Security-First</h3>
+                <p>Built by a CISSP-certified cybersecurity engineer with a Masters in the field. Every site hardened against the threats most agencies don't even know exist.</p>
+            </div>
+
+            <div class="value-tile">
+                <div class="value-tile__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+                </div>
+                <h3>Mobile-Perfect</h3>
+                <p>Every page built mobile-first. Looks and works flawlessly on the phone in your client's hand — because that's where most of them are.</p>
+            </div>
+
+            <div class="value-tile">
+                <div class="value-tile__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="m13 2-3 12h6l-3 8"/></svg>
+                </div>
+                <h3>Speed-Tuned</h3>
+                <p>Lightweight, hand-coded sites that load in under two seconds. No bloated frameworks, no slow page builders, no abandoned visitors.</p>
+            </div>
+
+            <div class="value-tile">
+                <div class="value-tile__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                </div>
+                <h3>Ongoing Support</h3>
+                <p>Need a change? Reply to an email. Two weeks of free post-launch support included. Optional monthly maintenance for everything after.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── How It Works ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>Three Steps from Call to Launch</h2>
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>Book a Call</h3>
+                <p>30 minutes. We learn about your business, your goals, and what your competition is doing wrong.</p>
+            </div>
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>We Build</h3>
+                <p>Custom design, hand-coded site, full SEO setup. You review at every stage and approve before we move on.</p>
+            </div>
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>Launch &amp; Grow</h3>
+                <p>Site goes live. Two weeks of free support included. Optional monthly maintenance keeps your edge sharp.</p>
+            </div>
+        </div>
+
+        <p class="text-center mt-4">
+            <a class="btn btn--primary btn--lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Testimonials ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What Clients Say</span>
+            <h2>Built by Word of Mouth</h2>
+        </div>
+
+        <div class="testimonials">
+            <article class="testimonial">
+                <div class="testimonial__stars" aria-label="5 out of 5 stars">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                </div>
+                <p class="testimonial__quote">&ldquo;Mr. Long went above and beyond to get my website up and running and designed just the way I wanted it to be. Responsibly priced and worth every penny. Sat down with me and showed me several options. HIGHLY RECOMMEND.&rdquo;</p>
+                <div class="testimonial__author">
+                    <div class="testimonial__name">Christopher Chilton</div>
+                    <div class="testimonial__title">Chilton Carpet Cleaning</div>
+                </div>
+            </article>
+
+            <article class="testimonial">
+                <div class="testimonial__stars" aria-label="5 out of 5 stars">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                </div>
+                <p class="testimonial__quote">&ldquo;Mr. Long worked with us day and night to get the right fit for us. Professional, responsive, and produced an amazing website at a reasonable price. We are just thrilled to have found another small business who helps launch other small businesses with this level of professionalism.&rdquo;</p>
+                <div class="testimonial__author">
+                    <div class="testimonial__name">Kate Whitehead</div>
+                    <div class="testimonial__title">Hudson Law Firm</div>
+                </div>
+            </article>
+
+            <article class="testimonial">
+                <div class="testimonial__stars" aria-label="5 out of 5 stars">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                </div>
+                <p class="testimonial__quote">&ldquo;They listened to my ideas and provided valuable suggestions that made sense. The final product exceeded my expectations and I will continue to use their services and refer them to others.&rdquo;</p>
+                <div class="testimonial__author">
+                    <div class="testimonial__name">Miki Roberts</div>
+                    <div class="testimonial__title">Moonieful Designs</div>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Portfolio strip ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Selected Work</span>
+            <h2>Recent Builds</h2>
+        </div>
+
+        <div class="portfolio-strip">
+            {# TODO: Swap placeholder visuals for real project thumbnails #}
+            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
+                <div class="portfolio-item__visual"><span>Denis Law Group</span></div>
+                <div class="portfolio-item__body">
+                    <div class="portfolio-item__type">Law Firm</div>
+                    <div class="portfolio-item__title">Denis Law Group</div>
+                    <p class="portfolio-item__desc">Full website rebuild for a personal-injury practice in San Antonio.</p>
+                </div>
+            </a>
+
+            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
+                <div class="portfolio-item__visual"><span>Food Trucks of SA</span></div>
+                <div class="portfolio-item__body">
+                    <div class="portfolio-item__type">Local Directory</div>
+                    <div class="portfolio-item__title">Food Trucks of SA</div>
+                    <p class="portfolio-item__desc">A searchable directory of San Antonio food trucks — designed for the lunch-rush phone tap.</p>
+                </div>
+            </a>
+
+            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
+                <div class="portfolio-item__visual"><span>Moonieful Designs</span></div>
+                <div class="portfolio-item__body">
+                    <div class="portfolio-item__type">Creative Studio</div>
+                    <div class="portfolio-item__title">Moonieful Designs</div>
+                    <p class="portfolio-item__desc">Portfolio site for a San Antonio creative studio. Quiet, fast, and focused on the work.</p>
+                </div>
+            </a>
+
+            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
+                <div class="portfolio-item__visual"><span>Burgland Tech</span></div>
+                <div class="portfolio-item__body">
+                    <div class="portfolio-item__type">Technology Services</div>
+                    <div class="portfolio-item__title">Burgland Tech</div>
+                    <p class="portfolio-item__desc">B2B technology services site with lead capture and case-study layouts.</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Bottom CTA ───────── #}
+<section class="cta-block">
+    <div class="container">
+        <div class="cta-block__inner">
+            <h2>Ready to Build a Website Your Business Deserves?</h2>
+            <p>Free 30-minute consultation. Hand-coded, security-hardened, built around your business — not a template.</p>
+            <a class="btn btn--primary btn--lg" href="{% url 'public:contact' %}">Schedule a Free Consultation</a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
