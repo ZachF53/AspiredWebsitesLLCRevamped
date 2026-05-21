@@ -32,57 +32,26 @@
         </div>
 
         <div class="cards cards--2col">
-            {# Essential #}
-            <article class="card card--pricing">
-                <span class="card__timeline-badge">Launches in 3 weeks</span>
-                <h3 class="card__title">Essential</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>2,500
-                </div>
-                <p class="card__price-meta">50% upfront &middot; 50% on delivery</p>
-                <ul class="feature-list">
-                    <li>Up to 8 pages</li>
-                    <li>Up to 5 service pages</li>
-                    <li>Mobile responsive</li>
-                    <li>Consultation request form</li>
-                    <li>Google Business Profile setup</li>
-                    <li>Basic on-page SEO</li>
-                    <li>SSL + security hardened</li>
-                    <li>2 rounds of revisions</li>
-                    <li>2-week post-launch support</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-
-            {# Premium (featured) #}
-            <article class="card card--pricing card--featured">
-                <span class="card__badge">Most Popular</span>
-                <span class="card__timeline-badge">Launches in 4 weeks</span>
-                <h3 class="card__title">Premium</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>4,500
-                </div>
-                <p class="card__price-meta">50% upfront &middot; 50% on delivery</p>
-                <ul class="feature-list">
-                    <li>Up to 15 pages</li>
-                    <li>Up to 10 service pages</li>
-                    <li>Everything in Essential</li>
-                    <li>Live chat widget</li>
-                    <li>Advanced lead capture forms</li>
-                    <li>Google Analytics + Search Console</li>
-                    <li>Schema markup for your industry</li>
-                    <li>Speed optimization audit</li>
-                    <li>Competitor analysis included</li>
-                    <li>2-week post-launch support</li>
-                </ul>
-                <a class="btn-primary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
+            {% for tier in builds %}
+                <article class="card card--pricing {% if tier.is_featured %}card--featured{% endif %}">
+                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
+                    {% if tier.timeline_weeks %}<span class="card__timeline-badge">Launches in {{ tier.timeline_weeks }} weeks</span>{% endif %}
+                    <h3 class="card__title">{{ tier.name }}</h3>
+                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    <p class="card__price-meta">50% upfront &middot; 50% on delivery</p>
+                    <ul class="feature-list">
+                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                </article>
+            {% endfor %}
         </div>
 
-        <p class="pricing-note">
-            Additional service pages beyond tier limit: $150&ndash;$200 each
-            &nbsp;&middot;&nbsp; Out-of-scope work: $85/hour
-        </p>
+        {% if addons %}
+            <p class="pricing-note">
+                {% for addon in addons %}{{ addon.name }}: {{ addon.get_price_display }}{% if not forloop.last %} &nbsp;&middot;&nbsp; {% endif %}{% endfor %}
+            </p>
+        {% endif %}
     </div>
 </section>
 
@@ -98,64 +67,17 @@
         </div>
 
         <div class="cards">
-            {# Essentials #}
-            <article class="card card--teal card--pricing">
-                <h3 class="card__title">Essentials</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>299<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>Uptime monitoring 24/7</li>
-                    <li>SSL certificate management</li>
-                    <li>Monthly security patches + updates</li>
-                    <li>Up to 4 hours content updates / month</li>
-                    <li>Monthly performance report</li>
-                    <li>Emergency response within 24 hours</li>
-                    <li>Monthly backup verified</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-
-            {# Growth (featured) #}
-            <article class="card card--pricing card--featured">
-                <span class="card__badge">Most Popular</span>
-                <h3 class="card__title">Growth</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>599<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>Everything in Essentials</li>
-                    <li>Up to 8 hours content updates / month</li>
-                    <li>1 blog post per month</li>
-                    <li>Google Business Profile management</li>
-                    <li>Basic SEO monitoring + recommendations</li>
-                    <li>Plain-English analytics summary</li>
-                    <li>Priority response within 8 hours</li>
-                    <li>Quarterly strategy call (30 min)</li>
-                </ul>
-                <a class="btn-primary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-
-            {# Dominant #}
-            <article class="card card--teal card--pricing">
-                <h3 class="card__title">Dominant</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>1,199<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>Everything in Growth</li>
-                    <li>Up to 12 hours content updates / month</li>
-                    <li>2 blog posts per month</li>
-                    <li>Full SEO management</li>
-                    <li>Competitor rank tracking</li>
-                    <li>Google Ads management</li>
-                    <li>Schema markup updates</li>
-                    <li>Response within 4 hours</li>
-                    <li>Monthly strategy call (45 min)</li>
-                    <li>Quarterly full website audit</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
+            {% for tier in maintenance %}
+                <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
+                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
+                    <h3 class="card__title">{{ tier.name }}</h3>
+                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    <ul class="feature-list">
+                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                </article>
+            {% endfor %}
         </div>
 
         <div class="callout">
@@ -176,53 +98,17 @@
         </div>
 
         <div class="cards">
-            <article class="card card--teal card--pricing">
-                <h3 class="card__title">Basic</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>399<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>3 posts per week</li>
-                    <li>2 platforms (Facebook + LinkedIn)</li>
-                    <li>Google Business Profile posts</li>
-                    <li>Basic engagement monitoring</li>
-                    <li>Monthly summary report</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-
-            <article class="card card--teal card--pricing">
-                <h3 class="card__title">Standard</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>699<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>5 posts per week</li>
-                    <li>3 platforms (Facebook, LinkedIn, Instagram)</li>
-                    <li>Custom graphics on every post</li>
-                    <li>Stories + reels included</li>
-                    <li>Active engagement monitoring</li>
-                    <li>Monthly analytics report</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-
-            <article class="card card--teal card--pricing">
-                <h3 class="card__title">Full Management</h3>
-                <div class="card__price">
-                    <span class="card__price-currency">$</span>999<span class="card__price-unit">/mo</span>
-                </div>
-                <ul class="feature-list">
-                    <li>Daily posting</li>
-                    <li>All major platforms</li>
-                    <li>Custom graphics + short video clips</li>
-                    <li>Engagement monitoring</li>
-                    <li>Comment responses on your behalf</li>
-                    <li>Monthly strategy call</li>
-                    <li>Monthly analytics deep-dive</li>
-                </ul>
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
+            {% for tier in social %}
+                <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
+                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
+                    <h3 class="card__title">{{ tier.name }}</h3>
+                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    <ul class="feature-list">
+                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                </article>
+            {% endfor %}
         </div>
     </div>
 </section>
@@ -230,42 +116,29 @@
 <hr class="section-divider" aria-hidden="true">
 
 {# ───────── Hosting ───────── #}
+{% if hosting %}
 <section class="section">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Hosting</span>
-            <h2>$150 / Year. Flat.</h2>
+            <h2>{{ hosting.get_price_display }}. Flat.</h2>
         </div>
 
-        <div class="feature-row">
-            <div class="feature-row__item">
-                <div class="feature-row__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                </div>
-                <div class="feature-row__title">Your Own Dedicated Server</div>
-                <p class="feature-row__desc">Never shared. Your site, your resources, your security boundary.</p>
-            </div>
-
-            <div class="feature-row__item">
-                <div class="feature-row__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                </div>
-                <div class="feature-row__title">Uptime Monitoring</div>
-                <p class="feature-row__desc">24/7 automated alerts &mdash; we know your site is down before you do.</p>
-            </div>
-
-            <div class="feature-row__item">
-                <div class="feature-row__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v4h10V3"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
-                </div>
-                <div class="feature-row__title">Monthly Backups</div>
-                <p class="feature-row__desc">Verified and tested. Restore from snapshot in minutes if needed.</p>
-            </div>
+        <div class="cards">
+            <article class="card card--teal card--pricing">
+                <h3 class="card__title">{{ hosting.name }}</h3>
+                <div class="card__price">{{ hosting.get_price_display }}</div>
+                <ul class="feature-list">
+                    {% for feature in hosting.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                </ul>
+                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
+            </article>
         </div>
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+{% endif %}
 
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">

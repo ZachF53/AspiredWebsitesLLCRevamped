@@ -285,6 +285,13 @@ def file_upload(request):
 
 # ── Page 5: Revisions ───────────────────────────────────────────────────────
 
+def _hourly_rate():
+    """The out-of-scope hourly rate, from billing AddonPricing (DB-driven)."""
+    from billing.pricing_models import AddonPricing
+    addon = AddonPricing.objects.filter(slug='addon-hourly').first()
+    return f'${addon.price_min:,.0f}' if addon else '$85'
+
+
 @client_required
 def revisions(request):
     profile = request.client_profile
@@ -294,6 +301,7 @@ def revisions(request):
         request, 'revisions',
         revision_list=revision_list,
         form=RevisionForm(),
+        hourly_rate=_hourly_rate(),
     )
     return render(request, 'clients/revisions.html', ctx)
 
@@ -338,6 +346,7 @@ def revision_new(request):
         ctx = _portal_context(
             request, 'revisions', form=form,
             revision_list=list(project.revisions.all()),
+            hourly_rate=_hourly_rate(),
         )
         return render(request, 'clients/revisions.html', ctx)
     return redirect('clients:revisions')

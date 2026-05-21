@@ -1,9 +1,17 @@
-"""Billing models — out-of-scope mini invoices."""
+"""Billing models — out-of-scope mini invoices + pricing tiers."""
 
 from django.db import models
 
 from clients.models import ClientProfile, Project, RevisionRequest
 from core.models import TimestampedModel
+
+# Pricing models live in a separate module — imported here so Django's app
+# registry discovers them (billing/ is the app label).
+from billing.pricing_models import (  # noqa: E402,F401
+    AddonPricing,
+    ServiceTier,
+    TierFeature,
+)
 
 
 class MiniInvoice(TimestampedModel):

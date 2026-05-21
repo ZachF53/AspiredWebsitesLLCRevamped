@@ -1,0 +1,14 @@
+{# HTMX partial — one editable feature bullet row #}
+<div class="pricing-feature-row" id="feature-{{ feature.id }}">
+    <input type="number" name="feature_order_{{ feature.id }}"
+           value="{{ feature.sort_order }}"
+           class="form-control pricing-feature-row__order" aria-label="Sort order">
+    <input type="text" name="feature_text_{{ feature.id }}"
+           value="{{ feature.text }}"
+           class="form-control" placeholder="Feature text">
+    <button type="button" class="btn-secondary btn-sm"
+            hx-post="{% url 'admin_dashboard:pricing_feature_delete' feature.tier_id feature.id %}"
+            hx-target="#feature-{{ feature.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this feature?">Delete</button>
+</div>

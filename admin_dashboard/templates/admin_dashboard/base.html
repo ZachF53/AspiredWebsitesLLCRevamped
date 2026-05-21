@@ -37,6 +37,8 @@
                           class="admin-nav__badge {% if not needs_you_count %}admin-nav__badge--empty{% endif %}"
                           aria-label="{{ needs_you_count }} pending">{{ needs_you_count }}</span>
                 </a>
+                <a class="admin-nav__link {% if active == 'pricing' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:pricing_list' %}">Pricing</a>
                 <a class="admin-nav__link {% if active == 'settings' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:settings' %}">Settings</a>
             </nav>

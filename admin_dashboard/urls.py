@@ -30,4 +30,11 @@ urlpatterns = [
 
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
+
+    # Pricing manager
+    path('pricing/', views.pricing_list, name='pricing_list'),
+    path('pricing/<uuid:tier_id>/edit/', views.pricing_edit, name='pricing_edit'),
+    path('pricing/<uuid:tier_id>/toggle/', views.pricing_toggle, name='pricing_toggle'),
+    path('pricing/<uuid:tier_id>/feature/add/', views.pricing_feature_add, name='pricing_feature_add'),
+    path('pricing/<uuid:tier_id>/feature/<uuid:fid>/delete/', views.pricing_feature_delete, name='pricing_feature_delete'),
 ]

@@ -146,12 +146,12 @@
                     <tr>
                         <th scope="row">Setup Cost</th>
                         <td>$2,000&ndash;$5,000+</td>
-                        <td>$2,500&ndash;$4,500</td>
+                        <td>{{ build_range|default:"Contact us" }}</td>
                     </tr>
                     <tr>
                         <th scope="row">Monthly Ongoing</th>
                         <td>$500&ndash;$1,500 / mo</td>
-                        <td>$299&ndash;$1,199 / mo</td>
+                        <td>{% if maintenance_range %}{{ maintenance_range }} / mo{% else %}Contact us{% endif %}</td>
                     </tr>
                     <tr>
                         <th scope="row">Turnaround</th>

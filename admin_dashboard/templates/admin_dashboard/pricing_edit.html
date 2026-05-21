@@ -1,0 +1,64 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Edit {{ tier.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-pricing">
+    <div class="admin-pricing__head">
+        <h1>Edit Tier — {{ tier.name }}</h1>
+        <p><a href="{% url 'admin_dashboard:pricing_list' %}">&larr; Back to Pricing</a></p>
+    </div>
+
+    <form method="post" class="pricing-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-error" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-group">{{ form.name.label_tag }}{{ form.name }}
+            {% if form.name.errors %}<div class="form-field-error">{{ form.name.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">{{ form.tagline.label_tag }}{{ form.tagline }}</div>
+        <div class="form-group">{{ form.description.label_tag }}{{ form.description }}</div>
+        <div class="form-group">{{ form.price.label_tag }}{{ form.price }}
+            {% if form.price.errors %}<div class="form-field-error">{{ form.price.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">{{ form.price_display.label_tag }}{{ form.price_display }}
+            <p class="form-hint">Leave blank to auto-generate (e.g. &ldquo;$599/month&rdquo;).</p>
+        </div>
+        <div class="form-group">{{ form.stripe_price_id.label_tag }}{{ form.stripe_price_id }}
+            <p class="form-hint">Find this in Stripe Dashboard &rarr; Products &rarr; [Product Name] &rarr; copy the Price ID (starts with <code>price_</code>).</p>
+        </div>
+        <div class="form-group">{{ form.stripe_product_id.label_tag }}{{ form.stripe_product_id }}</div>
+
+        <label class="checkbox-row">{{ form.is_active }}<span>Is Active</span></label>
+        <label class="checkbox-row">{{ form.is_featured }}<span>Is Featured (shows the &ldquo;Most Popular&rdquo; badge)</span></label>
+
+        <div class="form-group">{{ form.sort_order.label_tag }}{{ form.sort_order }}</div>
+
+        {% if is_build %}
+            <h2 class="pricing-form__subhead">Website Build Details</h2>
+            <div class="form-group">{{ form.pages_included.label_tag }}{{ form.pages_included }}</div>
+            <div class="form-group">{{ form.practice_areas_included.label_tag }}{{ form.practice_areas_included }}</div>
+            <div class="form-group">{{ form.timeline_weeks.label_tag }}{{ form.timeline_weeks }}</div>
+        {% endif %}
+
+        <h2 class="pricing-form__subhead">Feature Bullets</h2>
+        <p class="form-hint">The number on the left is the display order. Lower numbers show first.</p>
+        <div id="feature-list">
+            {% for feature in features %}
+                {% include "admin_dashboard/_pricing_feature_row.html" with feature=feature %}
+            {% endfor %}
+        </div>
+        <button type="button" class="btn-secondary btn-sm pricing-add-feature"
+                hx-post="{% url 'admin_dashboard:pricing_feature_add' tier.id %}"
+                hx-target="#feature-list"
+                hx-swap="beforeend">+ Add Feature</button>
+
+        <div class="pricing-form__actions">
+            <button type="submit" class="btn-primary">Save Tier</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:pricing_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -18,14 +18,6 @@ class StripeNotConfigured(RuntimeError):
     """Raised when a Stripe call is attempted without STRIPE_SECRET_KEY set."""
 
 
-# Maintenance plan key -> Stripe recurring Price ID (set in .env).
-PLAN_PRICE_IDS = {
-    'essentials': settings.STRIPE_PRICE_ESSENTIALS,
-    'growth': settings.STRIPE_PRICE_GROWTH,
-    'dominant': settings.STRIPE_PRICE_DOMINANT,
-}
-
-
 def _init():
     if not settings.STRIPE_SECRET_KEY:
         raise StripeNotConfigured('STRIPE_SECRET_KEY is not set in .env')
@@ -102,20 +94,24 @@ def create_final_invoice(client, contract):
     )
 
 
-def create_maintenance_subscription(client, plan):
-    """Create a recurring maintenance subscription. `plan` is a PLAN_PRICE_IDS key."""
+def create_maintenance_subscription(client, plan_slug):
+    """Create a recurring maintenance subscription for a ServiceTier slug."""
+    from billing.pricing_models import ServiceTier
+
     _init()
-    price_id = PLAN_PRICE_IDS.get(plan)
-    if not price_id:
+    tier = ServiceTier.objects.filter(slug=plan_slug, is_active=True).first()
+    if tier is None:
+        raise ValueError(f'No active pricing tier with slug "{plan_slug}".')
+    if not tier.stripe_price_id:
         raise ValueError(
-            f'No Stripe price configured for maintenance plan "{plan}". '
-            f'Set STRIPE_PRICE_* in .env.'
+            f"No Stripe Price ID set for '{tier.name}'. Go to admin dashboard "
+            f"→ Pricing → edit this tier and add the Stripe Price ID."
         )
     customer = create_or_get_customer(client)
     subscription = stripe.Subscription.create(
         customer=customer.id,
-        items=[{'price': price_id}],
-        metadata={'client_profile_id': str(client.id), 'plan': plan},
+        items=[{'price': tier.stripe_price_id}],
+        metadata={'client_profile_id': str(client.id), 'plan': tier.slug},
     )
     client.stripe_subscription_id = subscription.id
     client.save(update_fields=['stripe_subscription_id', 'updated_at'])

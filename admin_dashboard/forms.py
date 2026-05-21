@@ -2,6 +2,7 @@
 
 from django import forms
 
+from billing.pricing_models import ServiceTier
 from outreach.models import Lead, LeadNote
 from outreach.scraper import PRACTICE_AREAS
 
@@ -107,4 +108,39 @@ class LeadNoteForm(forms.ModelForm):
                 'placeholder': 'Add an internal note — what was said, what to follow up on…',
                 'required': True,
             }),
+        }
+
+
+class ServiceTierForm(forms.ModelForm):
+    """Edit a pricing tier from the admin-dashboard pricing manager."""
+
+    class Meta:
+        model = ServiceTier
+        fields = [
+            'name', 'tagline', 'description', 'price', 'price_display',
+            'stripe_price_id', 'stripe_product_id', 'is_active', 'is_featured',
+            'sort_order', 'pages_included', 'practice_areas_included',
+            'timeline_weeks',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'tagline': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'Optional — e.g. "Most Popular"',
+            }),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'price_display': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Leave blank to auto-generate',
+            }),
+            'stripe_price_id': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'price_...',
+            }),
+            'stripe_product_id': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'prod_...',
+            }),
+            'sort_order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'pages_included': forms.NumberInput(attrs={'class': 'form-control'}),
+            'practice_areas_included': forms.NumberInput(attrs={'class': 'form-control'}),
+            'timeline_weeks': forms.NumberInput(attrs={'class': 'form-control'}),
         }

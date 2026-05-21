@@ -20,10 +20,10 @@ from .models import (
 )
 
 
-# Build-package terms: total price + timeline in weeks.
-PACKAGE_TERMS = {
-    'essential_build': {'price': Decimal('2500.00'), 'timeline': 3},
-    'premium_build': {'price': Decimal('4500.00'), 'timeline': 4},
+# Maps a ClientProfile.package value to its billing ServiceTier slug.
+BUILD_PACKAGE_TO_SLUG = {
+    'essential_build': 'website-essential',
+    'premium_build': 'website-premium',
 }
 
 
@@ -31,29 +31,30 @@ PACKAGE_TERMS = {
 def generate_contract(modeladmin, request, queryset):
     """
     Create a Contract for each selected client and email them the signing
-    link. The client's `package` must be a build package (Essential/Premium).
+    link. The client's `package` must be a build package (Essential/Premium)
+    and the matching billing ServiceTier must be seeded.
     """
+    from billing.pricing_models import ServiceTier
+
     created = 0
     for client in queryset:
-        terms = PACKAGE_TERMS.get(client.package)
-        if terms is None:
+        slug = BUILD_PACKAGE_TO_SLUG.get(client.package)
+        tier = ServiceTier.objects.filter(slug=slug).first() if slug else None
+        if tier is None:
             modeladmin.message_user(
                 request,
                 f'{client.firm_name}: set package to Essential or Premium '
-                f'build before generating a contract.',
+                f'build, and run seed_pricing, before generating a contract.',
                 level=messages.WARNING,
             )
             continue
-        price = terms['price']
-        text = generate_contract_text(
-            client, client.package, price, terms['timeline'],
-        )
+        text = generate_contract_text(client, tier.slug)
         contract = Contract.objects.create(
             client=client,
             package=client.package,
-            build_price=price,
-            deposit_amount=(price / 2).quantize(Decimal('0.01')),
-            timeline_weeks=terms['timeline'],
+            build_price=tier.price,
+            deposit_amount=(tier.price / 2).quantize(Decimal('0.01')),
+            timeline_weeks=tier.timeline_weeks or 0,
             contract_text=text,
         )
         sign_url = request.build_absolute_uri(

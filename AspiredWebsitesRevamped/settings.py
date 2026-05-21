@@ -207,10 +207,9 @@ STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', '')
 
-# Maintenance-plan recurring Price IDs — created in the Stripe dashboard.
-STRIPE_PRICE_ESSENTIALS = env('STRIPE_PRICE_ESSENTIALS', '')
-STRIPE_PRICE_GROWTH = env('STRIPE_PRICE_GROWTH', '')
-STRIPE_PRICE_DOMINANT = env('STRIPE_PRICE_DOMINANT', '')
+# Stripe Price IDs now live in the database (billing.ServiceTier.stripe_price_id),
+# managed at /admin-dashboard/pricing/. The STRIPE_PRICE_* vars in .env are
+# legacy seed values only — see `seed_pricing` and `sync_stripe_products`.
 
 
 # ── DigitalOcean ────────────────────────────────────────────────────────────

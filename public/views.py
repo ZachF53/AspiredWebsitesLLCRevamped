@@ -108,6 +108,17 @@ def _coming_soon(request, *, title, blurb, active_nav):
 
 
 def law_firms(request):
+    from billing.pricing_models import ServiceTier
+
+    def _price_range(category):
+        tiers = list(ServiceTier.get_active(category).order_by('price'))
+        if not tiers:
+            return ''
+        low, high = tiers[0].price, tiers[-1].price
+        if low == high:
+            return f'${low:,.0f}'
+        return f'${low:,.0f}–${high:,.0f}'
+
     return render(request, 'public/law_firms.html', {
         'active_nav': 'law_firms',
         'meta_title': 'Custom Websites for Law Firms',
@@ -116,6 +127,8 @@ def law_firms(request):
             'for law firms. CISSP-certified, state bar compliant. '
             'No FindLaw lock-in, no templates.'
         ),
+        'build_range': _price_range('website_build'),
+        'maintenance_range': _price_range('maintenance'),
     })
 
 
@@ -132,14 +145,20 @@ def portfolio(request):
 
 
 def pricing(request):
+    from billing.pricing_models import AddonPricing, ServiceTier
     return render(request, 'public/pricing.html', {
         'active_nav': 'pricing',
         'meta_title': 'Pricing — Aspired Websites',
         'meta_description': (
-            'Transparent pricing. Website builds from $2,500. '
-            'Monthly maintenance from $299. Month-to-month, '
+            'Transparent pricing for website builds, monthly maintenance, '
+            'social media management, and hosting. Month-to-month, '
             'cancel anytime. No annual contracts.'
         ),
+        'builds': ServiceTier.get_active('website_build'),
+        'maintenance': ServiceTier.get_active('maintenance'),
+        'social': ServiceTier.get_active('social_media'),
+        'hosting': ServiceTier.get_active('hosting').first(),
+        'addons': AddonPricing.objects.filter(is_active=True),
     })
 
 

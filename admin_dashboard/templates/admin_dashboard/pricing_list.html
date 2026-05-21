@@ -1,0 +1,81 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Pricing — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-pricing">
+    <div class="admin-pricing__head">
+        <h1>Pricing</h1>
+        <p>Manage every tier, feature bullet, and Stripe Price ID. Changes go live immediately.</p>
+    </div>
+
+    {% if saved %}
+        <div class="pricing-saved-banner" role="status">Saved &ldquo;{{ saved }}&rdquo;.</div>
+    {% endif %}
+
+    {% if missing_stripe %}
+        <div class="pricing-warning-banner" role="alert">
+            &#9888; The following plans have no Stripe Price ID and cannot accept
+            payments:
+            {% for tier in missing_stripe %}{{ tier.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            Add IDs below, or run: <code>python manage.py sync_stripe_products</code>
+        </div>
+    {% endif %}
+
+    {% for group in groups %}
+        <section class="pricing-group">
+            <h2 class="pricing-group__title">{{ group.label }}</h2>
+            {% if group.tiers %}
+                <table class="pricing-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th><th>Price</th><th>Stripe Price ID</th>
+                            <th>Active</th><th>Featured</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tier in group.tiers %}
+                            <tr>
+                                <td>{{ tier.name }}</td>
+                                <td>{{ tier.get_price_display }}</td>
+                                <td>
+                                    {% if tier.stripe_price_id %}
+                                        <code class="pricing-stripe-id">{{ tier.stripe_price_id|truncatechars:22 }}</code>
+                                    {% else %}
+                                        <span class="pricing-stripe-missing">&#9888; Not set</span>
+                                    {% endif %}
+                                </td>
+                                <td>{% include "admin_dashboard/_pricing_toggle.html" with tier=tier field="is_active" value=tier.is_active %}</td>
+                                <td>{% include "admin_dashboard/_pricing_toggle.html" with tier=tier field="is_featured" value=tier.is_featured %}</td>
+                                <td><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:pricing_edit' tier.id %}">Edit</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="pricing-empty">No tiers yet — run <code>python manage.py seed_pricing</code>.</p>
+            {% endif %}
+        </section>
+    {% endfor %}
+
+    <section class="pricing-group">
+        <h2 class="pricing-group__title">Add-Ons</h2>
+        {% if addons %}
+            <table class="pricing-table">
+                <thead><tr><th>Name</th><th>Price</th><th></th></tr></thead>
+                <tbody>
+                    {% for addon in addons %}
+                        <tr>
+                            <td>{{ addon.name }}</td>
+                            <td>{{ addon.get_price_display }}</td>
+                            <td><a class="btn-secondary btn-sm" href="/admin/billing/addonpricing/{{ addon.id }}/change/">Edit</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="pricing-empty">No add-ons.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

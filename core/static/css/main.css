@@ -5045,7 +5045,159 @@ button.htmx-request {
     font-weight: 600;
 }
 
-/* ── 21. Reduced motion ────────────────────────────────────── */
+/* ══ 22. Admin pricing manager ══════════════════════════════ */
+.admin-pricing {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-3);
+}
+
+.admin-pricing__head {
+    margin-bottom: var(--space-3);
+}
+
+.admin-pricing__head h1 {
+    font-size: 1.75rem;
+    margin: 0;
+}
+
+.admin-pricing__head p {
+    color: var(--color-text-muted);
+    margin: 0.25rem 0 0;
+}
+
+.pricing-saved-banner {
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: var(--color-success);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.pricing-warning-banner {
+    background: var(--color-orange);
+    color: #fff;
+    padding: 0.85rem 1.1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    line-height: 1.5;
+}
+
+.pricing-warning-banner code,
+.pricing-empty code {
+    background: rgba(0, 0, 0, 0.25);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.pricing-group {
+    margin-bottom: var(--space-4);
+}
+
+.pricing-group__title {
+    font-size: 1.125rem;
+    margin: 0 0 var(--space-2);
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pricing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+}
+
+.pricing-table th,
+.pricing-table td {
+    text-align: left;
+    padding: 0.65rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.pricing-table th {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+}
+
+.pricing-stripe-id {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+.pricing-stripe-missing {
+    color: var(--color-orange-light);
+    font-weight: 700;
+    font-size: 0.8125rem;
+}
+
+.pricing-empty {
+    color: var(--color-text-muted);
+}
+
+.pricing-toggle {
+    border: 1px solid var(--color-border-strong);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.pricing-toggle--on {
+    background: rgba(74, 222, 128, 0.14);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: var(--color-success);
+}
+
+/* Pricing edit form */
+.pricing-form {
+    max-width: 640px;
+}
+
+.pricing-form__subhead {
+    font-size: 1.0625rem;
+    margin: var(--space-4) 0 var(--space-1);
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pricing-form__actions {
+    margin-top: var(--space-4);
+    display: flex;
+    gap: 0.75rem;
+}
+
+.pricing-feature-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.pricing-feature-row__order {
+    width: 70px;
+    flex-shrink: 0;
+}
+
+.pricing-feature-row input[type="text"] {
+    flex-grow: 1;
+}
+
+.pricing-add-feature {
+    margin-top: 0.5rem;
+}
+
+/* ── 23. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

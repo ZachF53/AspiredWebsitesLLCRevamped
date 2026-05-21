@@ -13,7 +13,7 @@
         <p class="revision-warning {% if project.over_revision_limit %}revision-warning--over{% endif %}">
             {{ project.revision_count }} of {{ project.revision_limit }} included revisions used.
             {% if project.over_revision_limit %}
-                Further revisions are out-of-scope and billed at $85/hour — an invoice
+                Further revisions are out-of-scope and billed at {{ hourly_rate }}/hour — an invoice
                 is sent before work begins.
             {% else %}
                 Your next major revision is your last included one.

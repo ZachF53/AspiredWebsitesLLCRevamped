@@ -2,26 +2,11 @@
 Contract text generator.
 
 generate_contract_text() returns the full website-build agreement as an HTML
-string. The same HTML is shown on the signing page and rendered to the signed
-PDF, so it must be self-contained (no external CSS dependencies).
+string. All pricing and scope numbers are pulled from the billing ServiceTier
+row (looked up by slug) — nothing here is hardcoded.
 """
 
 from decimal import Decimal
-
-
-# Per-package scope. Page counts are the build scope written into the contract.
-PACKAGE_SCOPE = {
-    'essential_build': {
-        'name': 'Essential Website Build',
-        'pages': 5,
-        'practice_area_pages': 2,
-    },
-    'premium_build': {
-        'name': 'Premium Website Build',
-        'pages': 8,
-        'practice_area_pages': 4,
-    },
-}
 
 
 def _money(amount):
@@ -32,20 +17,26 @@ def _money(amount):
     return f'${amount:,.2f}'
 
 
-def generate_contract_text(client, package, price, timeline):
+def generate_contract_text(client, package_slug):
     """
-    Build the full contract HTML.
+    Build the full contract HTML for a client and a website-build tier.
 
     Args:
-        client:   ClientProfile the contract is for.
-        package:  'essential_build' or 'premium_build'.
-        price:    total build price (Decimal/number).
-        timeline: build timeline in weeks (int).
+        client:       ClientProfile the contract is for.
+        package_slug: slug of the billing ServiceTier (e.g. 'website-essential').
     """
-    scope = PACKAGE_SCOPE.get(package, PACKAGE_SCOPE['essential_build'])
-    price = Decimal(price)
+    from billing.pricing_models import AddonPricing, ServiceTier
+
+    tier = ServiceTier.objects.get(slug=package_slug)
+    price = Decimal(tier.price)
     deposit = (price / 2).quantize(Decimal('0.01'))
     final = price - deposit
+    pages = tier.pages_included or 0
+    practice_pages = tier.practice_areas_included or 0
+    timeline = tier.timeline_weeks or 0
+
+    hourly = AddonPricing.objects.filter(slug='addon-hourly').first()
+    hourly_rate = f'${hourly.price_min:,.0f}' if hourly else '$85'
 
     client_name = client.contact_name or client.firm_name
     firm = client.firm_name
@@ -62,9 +53,9 @@ def generate_contract_text(client, package, price, timeline):
   {client_name}.</p>
 
   <h2>2. Scope of Work</h2>
-  <p>Aspired Websites will design and develop a <strong>{scope['name']}</strong> for the
-  Client, consisting of up to <strong>{scope['pages']} pages</strong>, including up to
-  <strong>{scope['practice_area_pages']} practice area pages</strong>. The website will be
+  <p>Aspired Websites will design and develop a <strong>{tier.name}</strong> for the
+  Client, consisting of up to <strong>{pages} pages</strong>, including up to
+  <strong>{practice_pages} practice area pages</strong>. The website will be
   hand-coded, mobile-responsive, and security-hardened. Any work beyond this scope is
   governed by Section 8.</p>
 
@@ -91,7 +82,8 @@ def generate_contract_text(client, package, price, timeline):
   <h2>6. Revisions</h2>
   <p>This Agreement includes <strong>two (2) major revisions</strong>. A major revision is a
   substantive change to layout, structure, or design direction. Additional major revisions,
-  and any minor changes requested after launch, are billed at <strong>$85 per hour</strong>.</p>
+  and any minor changes requested after launch, are billed at
+  <strong>{hourly_rate} per hour</strong>.</p>
 
   <h2>7. Client Assets</h2>
   <p>The Client agrees to provide all required content and assets (text, images, logos,
@@ -101,8 +93,8 @@ def generate_contract_text(client, package, price, timeline):
 
   <h2>8. Scope Creep / Out-of-Scope Work</h2>
   <p>Any work requested outside the scope defined in Section 2 is billed at
-  <strong>$85 per hour</strong>. Out-of-scope work will be quoted and invoiced before that
-  work begins, and is not started until the corresponding invoice is paid.</p>
+  <strong>{hourly_rate} per hour</strong>. Out-of-scope work will be quoted and invoiced
+  before that work begins, and is not started until the corresponding invoice is paid.</p>
 
   <h2>9. Post-Launch Support</h2>
   <p>The build includes <strong>two (2) weeks of free support</strong> beginning on the

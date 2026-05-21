@@ -129,39 +129,10 @@ def sync_file(request, document_id):
 
 # ── Maintenance handoff (Part 8) ────────────────────────────────────────────
 
-MAINTENANCE_PLANS = [
-    {
-        'key': 'essentials', 'name': 'Essentials', 'price': 299, 'popular': False,
-        'features': [
-            'Security updates & patching',
-            'Monthly off-site backups',
-            '24/7 uptime monitoring',
-            'Up to 1 hour of content edits per month',
-            'Email support',
-        ],
-    },
-    {
-        'key': 'growth', 'name': 'Growth', 'price': 599, 'popular': True,
-        'features': [
-            'Everything in Essentials',
-            'Up to 3 hours of content edits per month',
-            'Monthly performance report',
-            'SEO health monitoring',
-            'Priority email support',
-        ],
-    },
-    {
-        'key': 'dominant', 'name': 'Dominant', 'price': 1199, 'popular': False,
-        'features': [
-            'Everything in Growth',
-            'Up to 8 hours of content edits per month',
-            'Monthly strategy call',
-            'Conversion & analytics tracking',
-            'Phone + email support',
-        ],
-    },
-]
-_PLAN_KEYS = {plan['key'] for plan in MAINTENANCE_PLANS}
+def _maintenance_tiers():
+    """Active maintenance ServiceTiers — the DB is the source of truth."""
+    from billing.pricing_models import ServiceTier
+    return ServiceTier.get_active('maintenance')
 
 
 def maintenance_start(request):
@@ -190,7 +161,7 @@ def maintenance_start(request):
 
     return render(request, 'sync/maintenance_start.html', {
         'client': client,
-        'plans': MAINTENANCE_PLANS,
+        'plans': _maintenance_tiers(),
     })
 
 
@@ -211,15 +182,20 @@ def _maintenance_post(request):
         return render(request, 'sync/token_expired.html', {'link_sent': True})
 
     # Case 2 — plan selection.
-    plan = request.POST.get('plan', '')
+    plan_slug = request.POST.get('plan', '')
     if not request.session.get('maintenance_flow_only') or not request.user.is_authenticated:
         return redirect(settings.LOGIN_URL)
     client = ClientProfile.objects.filter(user=request.user).first()
     if client is None:
         return redirect(settings.LOGIN_URL)
-    if plan not in _PLAN_KEYS:
+
+    from billing.pricing_models import ServiceTier
+    tier = ServiceTier.objects.filter(
+        slug=plan_slug, category='maintenance', is_active=True,
+    ).first()
+    if tier is None:
         return render(request, 'sync/maintenance_start.html', {
-            'client': client, 'plans': MAINTENANCE_PLANS,
+            'client': client, 'plans': _maintenance_tiers(),
             'error': 'Please choose a plan to continue.',
         })
 
@@ -227,13 +203,12 @@ def _maintenance_post(request):
     # activation (maintenance_active=True) happens on the invoice.paid webhook.
     try:
         from billing.stripe_helpers import create_maintenance_subscription
-        create_maintenance_subscription(client, plan)
+        create_maintenance_subscription(client, tier.slug)
     except Exception:
         logger.exception('Maintenance subscription not created for %s', client.pk)
 
-    selected = next(p for p in MAINTENANCE_PLANS if p['key'] == plan)
     return render(request, 'sync/maintenance_start.html', {
         'client': client,
-        'plans': MAINTENANCE_PLANS,
-        'selected_plan': selected,
+        'plans': _maintenance_tiers(),
+        'selected_plan': tier,
     })
