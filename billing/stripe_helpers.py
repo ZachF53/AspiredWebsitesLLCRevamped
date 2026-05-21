@@ -1,0 +1,152 @@
+"""
+Stripe integration helpers — customers, build invoices, maintenance subs.
+
+Every public function raises StripeNotConfigured if STRIPE_SECRET_KEY is unset,
+so callers can degrade gracefully in development.
+"""
+
+import logging
+from decimal import Decimal
+
+import stripe
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class StripeNotConfigured(RuntimeError):
+    """Raised when a Stripe call is attempted without STRIPE_SECRET_KEY set."""
+
+
+# Maintenance plan key -> Stripe recurring Price ID (set in .env).
+PLAN_PRICE_IDS = {
+    'essentials': settings.STRIPE_PRICE_ESSENTIALS,
+    'growth': settings.STRIPE_PRICE_GROWTH,
+    'dominant': settings.STRIPE_PRICE_DOMINANT,
+}
+
+
+def _init():
+    if not settings.STRIPE_SECRET_KEY:
+        raise StripeNotConfigured('STRIPE_SECRET_KEY is not set in .env')
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def _cents(amount):
+    """Convert a dollar Decimal/number to integer cents."""
+    return int((Decimal(amount) * 100).to_integral_value())
+
+
+def create_or_get_customer(client):
+    """Return the client's Stripe Customer, creating + storing it if needed."""
+    _init()
+    if client.stripe_customer_id:
+        try:
+            customer = stripe.Customer.retrieve(client.stripe_customer_id)
+            if not customer.get('deleted'):
+                return customer
+        except Exception:
+            logger.warning(
+                'Stripe customer %s not retrievable — creating a new one.',
+                client.stripe_customer_id,
+            )
+    customer = stripe.Customer.create(
+        email=client.user.email,
+        name=client.firm_name,
+        metadata={'client_profile_id': str(client.id)},
+    )
+    client.stripe_customer_id = customer.id
+    client.save(update_fields=['stripe_customer_id', 'updated_at'])
+    return customer
+
+
+def _create_build_invoice(client, contract, kind, description):
+    """Shared deposit/final invoice builder. Stripe auto-emails the invoice."""
+    _init()
+    customer = create_or_get_customer(client)
+    amount = contract.deposit_amount if kind == 'deposit' else contract.final_amount
+    stripe.InvoiceItem.create(
+        customer=customer.id,
+        amount=_cents(amount),
+        currency='usd',
+        description=description,
+    )
+    invoice = stripe.Invoice.create(
+        customer=customer.id,
+        collection_method='send_invoice',
+        days_until_due=7,
+        metadata={
+            'kind': kind,
+            'client_profile_id': str(client.id),
+            'contract_id': str(contract.id),
+        },
+    )
+    invoice = stripe.Invoice.finalize_invoice(invoice.id)
+    stripe.Invoice.send_invoice(invoice.id)
+    return invoice
+
+
+def create_deposit_invoice(client, contract):
+    """Create + send the 50% deposit invoice for a build contract."""
+    label = contract.get_package_display()
+    return _create_build_invoice(
+        client, contract, 'deposit', f'{label} — Deposit (50%)',
+    )
+
+
+def create_final_invoice(client, contract):
+    """Create + send the final 50% invoice for a build contract."""
+    label = contract.get_package_display()
+    return _create_build_invoice(
+        client, contract, 'final', f'{label} — Final Payment',
+    )
+
+
+def create_maintenance_subscription(client, plan):
+    """Create a recurring maintenance subscription. `plan` is a PLAN_PRICE_IDS key."""
+    _init()
+    price_id = PLAN_PRICE_IDS.get(plan)
+    if not price_id:
+        raise ValueError(
+            f'No Stripe price configured for maintenance plan "{plan}". '
+            f'Set STRIPE_PRICE_* in .env.'
+        )
+    customer = create_or_get_customer(client)
+    subscription = stripe.Subscription.create(
+        customer=customer.id,
+        items=[{'price': price_id}],
+        metadata={'client_profile_id': str(client.id), 'plan': plan},
+    )
+    client.stripe_subscription_id = subscription.id
+    client.save(update_fields=['stripe_subscription_id', 'updated_at'])
+    return subscription
+
+
+def cancel_maintenance_subscription(client):
+    """Cancel the client's maintenance subscription at period end."""
+    _init()
+    if client.stripe_subscription_id:
+        stripe.Subscription.modify(
+            client.stripe_subscription_id, cancel_at_period_end=True,
+        )
+    client.maintenance_active = False
+    client.save(update_fields=['maintenance_active', 'updated_at'])
+
+
+def issue_deposit_invoice(contract):
+    """
+    Best-effort deposit invoice send, called right after a contract is signed.
+    Logs and returns None if Stripe is unconfigured — never breaks signing.
+    """
+    try:
+        return create_deposit_invoice(contract.client, contract)
+    except StripeNotConfigured:
+        logger.warning(
+            'Stripe not configured — deposit invoice for contract %s not sent.',
+            contract.pk,
+        )
+    except Exception:
+        logger.exception(
+            'Failed to issue deposit invoice for contract %s', contract.pk,
+        )
+    return None

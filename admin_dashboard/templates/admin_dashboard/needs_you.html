@@ -1,0 +1,19 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Needs You — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Triage</span>
+            <h1 class="admin-page-title">Needs You</h1>
+            <p class="muted">Replies the automation flagged for a human — questions, unclear responses, or hostile ones. Your call on each.</p>
+        </div>
+    </div>
+
+    {% include "admin_dashboard/_needs_you_list.html" %}
+
+</div>
+{% endblock %}

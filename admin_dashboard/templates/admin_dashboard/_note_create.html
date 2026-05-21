@@ -1,0 +1,17 @@
+{# HTMX partial: new note <li> (afterbegin into #notes-list) + OOB textarea reset #}
+{% if new_note %}
+<li class="admin-activity-item admin-activity-item--new">
+    <div class="admin-activity-item__title">Note</div>
+    <div>{{ new_note.note|linebreaksbr }}</div>
+    <div class="admin-activity-item__meta">just now</div>
+</li>
+{% endif %}
+
+{# OOB: replace the textarea, which clears its value #}
+<textarea id="note-input"
+          name="note"
+          class="form-control note-input"
+          rows="3"
+          placeholder="Add an internal note — what was said, what to follow up on…"
+          required
+          hx-swap-oob="true"></textarea>

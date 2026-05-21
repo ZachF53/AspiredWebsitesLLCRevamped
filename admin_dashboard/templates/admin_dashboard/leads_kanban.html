@@ -1,0 +1,23 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Kanban — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container kanban-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Pipeline</span>
+            <h1 class="admin-page-title">Kanban</h1>
+            <p class="muted">Use the dropdown on any card to move a lead between columns. The board re-renders instantly.</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:leads_table' %}">Table View</a>
+            <a class="btn-primary" href="{% url 'admin_dashboard:lead_add' %}">+ Add Lead</a>
+        </div>
+    </div>
+
+    {% include "admin_dashboard/_kanban_board.html" %}
+
+</div>
+{% endblock %}

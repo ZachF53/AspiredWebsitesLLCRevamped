@@ -3,6 +3,131 @@ from django import forms
 from outreach.models import Lead
 
 
+# Form-local choices for the contact form. Values double as display labels
+# (no get_X_display needed) so what's stored on the Lead reads cleanly in
+# email notifications, admin, and the CRM.
+BUSINESS_TYPE_CHOICES = [
+    ('Law Firm', 'Law Firm'),
+    ('Restaurant', 'Restaurant'),
+    ('Contractor', 'Contractor'),
+    ('Retail', 'Retail'),
+    ('Healthcare', 'Healthcare'),
+    ('Technology', 'Technology'),
+    ('Other', 'Other'),
+]
+
+HEARD_ABOUT_CHOICES = [
+    ('Google Search', 'Google Search'),
+    ('Referral', 'Referral'),
+    ('Social Media', 'Social Media'),
+    ('Cold Email', 'Cold Email'),
+    ('Other', 'Other'),
+]
+
+
+class ContactForm(forms.Form):
+    """
+    Public-facing contact form. Saves to a Lead row with source='contact_form'
+    per CLAUDE.md → Data Model Decisions → Contact Form → Lead Mapping.
+
+    Field names match the original Phase 1 form (so the template doesn't
+    need to change), but the save method maps them to the new Lead schema:
+      name          → Lead.attorney_name
+      business_name → Lead.firm_name
+      business_type → Lead.business_type
+      phone         → Lead.phone
+      email         → Lead.email
+      source        → Lead.tags  (how they heard about us)
+      message       → Lead.inquiry_text
+    """
+
+    name = forms.CharField(
+        label='Full Name',
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Jane Smith',
+            'autocomplete': 'name',
+        }),
+    )
+
+    business_name = forms.CharField(
+        label='Business Name',
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Smith & Co.',
+            'autocomplete': 'organization',
+        }),
+    )
+
+    business_type = forms.ChoiceField(
+        label='Business Type',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
+    phone = forms.CharField(
+        label='Phone',
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'type': 'tel',
+            'placeholder': '(210) 555-1234',
+            'autocomplete': 'tel',
+        }),
+    )
+
+    email = forms.EmailField(
+        label='Email',
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'jane@business.com',
+            'autocomplete': 'email',
+        }),
+    )
+
+    source = forms.ChoiceField(
+        label='How did you hear about us?',
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
+    message = forms.CharField(
+        label='Message',
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Tell us about your business and what you need.',
+            'rows': 5,
+        }),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['business_type'].choices = (
+            [('', '— Select business type —')] + BUSINESS_TYPE_CHOICES
+        )
+        self.fields['source'].choices = (
+            [('', '— Optional —')] + HEARD_ABOUT_CHOICES
+        )
+
+    def save_as_lead(self, ip_address=None):
+        """Map cleaned form data to a Lead row and return it."""
+        cleaned = self.cleaned_data
+        return Lead.objects.create(
+            firm_name=cleaned['business_name'],
+            attorney_name=cleaned['name'],
+            business_type=cleaned['business_type'],
+            phone=cleaned['phone'],
+            email=cleaned['email'],
+            inquiry_text=cleaned['message'],
+            tags=cleaned.get('source', ''),
+            source='contact_form',
+            status='new',
+            score=0,
+            ip_address=ip_address,
+        )
+
+
 class AuditForm(forms.Form):
     """Single-field form: visitor enters a URL to audit."""
 
@@ -38,74 +163,3 @@ class AuditEmailForm(forms.Form):
             'required': 'Enter your email to receive the full report.',
         },
     )
-
-
-class ContactForm(forms.ModelForm):
-    """Public-facing contact form. Persists to Lead in outreach app."""
-
-    class Meta:
-        model = Lead
-        fields = [
-            'name',
-            'business_name',
-            'business_type',
-            'phone',
-            'email',
-            'source',
-            'message',
-        ]
-        labels = {
-            'name': 'Full Name',
-            'business_name': 'Business Name',
-            'business_type': 'Business Type',
-            'phone': 'Phone',
-            'email': 'Email',
-            'source': 'How did you hear about us?',
-            'message': 'Message',
-        }
-        widgets = {
-            'name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Jane Smith',
-                'autocomplete': 'name',
-                'maxlength': 120,
-            }),
-            'business_name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Smith & Co.',
-                'autocomplete': 'organization',
-                'maxlength': 200,
-            }),
-            'business_type': forms.Select(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={
-                'class': 'form-control',
-                'type': 'tel',
-                'placeholder': '(210) 555-1234',
-                'autocomplete': 'tel',
-            }),
-            'email': forms.EmailInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'jane@business.com',
-                'autocomplete': 'email',
-            }),
-            'source': forms.Select(attrs={'class': 'form-control'}),
-            'message': forms.Textarea(attrs={
-                'class': 'form-control',
-                'placeholder': 'Tell us about your business and what you need.',
-                'rows': 5,
-            }),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Prepend placeholder option to required choice fields so the user
-        # must explicitly pick something instead of accepting the first item.
-        self.fields['business_type'].choices = (
-            [('', '— Select business type —')]
-            + [c for c in Lead.BUSINESS_TYPE_CHOICES]
-        )
-        self.fields['source'].choices = (
-            [('', '— Optional —')]
-            + [c for c in Lead.SOURCE_CHOICES]
-        )
-        self.fields['source'].required = False

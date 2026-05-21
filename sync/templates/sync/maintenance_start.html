@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Your Maintenance Plan — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Welcome, {{ client.contact_name|default:client.firm_name }}</span>
+            <h1>Your site is live.</h1>
+            <p>Choose a maintenance plan to keep your site secure, updated, and performing.</p>
+        </div>
+
+        {% if selected_plan %}
+            <div class="audit-email-confirmation" role="status">
+                Thanks — your <strong>{{ selected_plan.name }}</strong> plan
+                (${{ selected_plan.price }}/mo) is being set up. You’ll receive
+                payment details by email shortly, and your plan activates as soon
+                as the first payment clears.
+            </div>
+        {% else %}
+            {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+            <div class="maintenance-plans">
+                {% for plan in plans %}
+                    <article class="card plan-card {% if plan.popular %}plan-card--popular{% endif %}">
+                        {% if plan.popular %}<span class="plan-card__badge">Most Popular</span>{% endif %}
+                        <h2 class="plan-card__name">{{ plan.name }}</h2>
+                        <p class="plan-card__price">${{ plan.price }}<span>/mo</span></p>
+                        <ul class="plan-features">
+                            {% for feature in plan.features %}<li>{{ feature }}</li>{% endfor %}
+                        </ul>
+                        <form method="post" action="{% url 'maintenance:start' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="plan" value="{{ plan.key }}">
+                            <button type="submit" class="btn-primary btn-block">Select This Plan &rarr;</button>
+                        </form>
+                    </article>
+                {% endfor %}
+            </div>
+
+            <p class="maintenance-note">Month-to-month. Cancel anytime.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

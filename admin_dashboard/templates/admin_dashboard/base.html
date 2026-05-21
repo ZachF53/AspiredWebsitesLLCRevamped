@@ -1,0 +1,62 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Admin — Aspired Websites{% endblock %}</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    {# htmx-config disables HTMX's auto-injected indicator <style> (blocked by CSP); loading states live in main.css #}
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="admin-body">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="admin-header">
+        <div class="admin-header__inner">
+            <a class="admin-logo" href="{% url 'admin_dashboard:home' %}">
+                <img src="{% static 'images/logo-mark.png' %}" alt="" width="32" height="32">
+                <span>Admin</span>
+            </a>
+
+            <nav class="admin-nav" aria-label="Admin navigation">
+                <a class="admin-nav__link {% if active == 'home' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:home' %}">Dashboard</a>
+                <a class="admin-nav__link {% if active == 'leads' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:leads_table' %}">Leads</a>
+                <a class="admin-nav__link {% if active == 'kanban' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:leads_kanban' %}">Kanban</a>
+                <a class="admin-nav__link {% if active == 'scrape' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:scrape' %}">Scrape</a>
+                <a class="admin-nav__link {% if active == 'needs_you' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:needs_you' %}">
+                    Needs You
+                    <span id="needs-you-badge"
+                          class="admin-nav__badge {% if not needs_you_count %}admin-nav__badge--empty{% endif %}"
+                          aria-label="{{ needs_you_count }} pending">{{ needs_you_count }}</span>
+                </a>
+                <a class="admin-nav__link {% if active == 'settings' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:settings' %}">Settings</a>
+            </nav>
+
+            <div class="admin-user">
+                <span class="admin-user__email">{{ user.email|default:user.username }}</span>
+                <form method="post" action="{% url 'public:logout' %}" class="admin-user__logout">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary btn-sm">Sign Out</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main id="main" class="admin-main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{% static 'js/main.js' %}" defer></script>
+    <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

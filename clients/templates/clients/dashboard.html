@@ -1,0 +1,83 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Welcome back, {{ profile.contact_name|default:profile.firm_name }}.</h1>
+    <p class="portal-page-head__sub">{{ profile.firm_name }}</p>
+</header>
+
+<div class="stat-grid">
+    <article class="stat-card">
+        <span class="stat-card__label">Project Stage</span>
+        <span class="stat-card__value">
+            {% if project %}{{ project.get_stage_display }}{% else %}No project yet{% endif %}
+        </span>
+    </article>
+    <article class="stat-card">
+        <span class="stat-card__label">Revisions Used</span>
+        <span class="stat-card__value">
+            {% if project %}{{ project.revision_count }} of {{ project.revision_limit }}{% else %}&mdash;{% endif %}
+        </span>
+    </article>
+    <article class="stat-card">
+        <span class="stat-card__label">Open Tickets</span>
+        <span class="stat-card__value">{{ open_tickets }}</span>
+    </article>
+    <article class="stat-card">
+        <span class="stat-card__label">Next Invoice</span>
+        <span class="stat-card__value">
+            {% if next_invoice %}${{ next_invoice.amount }}{% else %}None{% endif %}
+        </span>
+        {% if next_invoice %}<span class="stat-card__meta">{{ next_invoice.label }}</span>{% endif %}
+    </article>
+</div>
+
+{% if project %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Project Progress</h2>
+    <ol class="stepper">
+        {% for step in stage_steps %}
+            <li class="stepper__step stepper__step--{{ step.status }}">
+                <span class="stepper__dot" aria-hidden="true">
+                    {% if step.status == 'completed' %}&#10003;{% endif %}
+                </span>
+                <span class="stepper__label">{{ step.label }}</span>
+            </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endif %}
+
+<div class="portal-cols">
+    <section class="portal-section portal-section--grow">
+        <h2 class="portal-section__title">Recent Activity</h2>
+        {% if activity %}
+            <ul class="activity-feed">
+                {% for log in activity %}
+                    <li class="activity-feed__item">
+                        <span class="activity-feed__title">
+                            {% if log.to_stage %}Moved to {{ log.to_stage|capfirst }}{% else %}Update{% endif %}
+                        </span>
+                        {% if log.note %}<span class="activity-feed__note">{{ log.note }}</span>{% endif %}
+                        <span class="activity-feed__date">{{ log.created_at|date:"M j, Y" }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="portal-empty">No activity yet. Updates will appear here as your project moves forward.</p>
+        {% endif %}
+    </section>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Quick Actions</h2>
+        <div class="quick-actions">
+            <a class="quick-action" href="{% url 'clients:revisions' %}">Submit a Revision</a>
+            <a class="quick-action" href="{% url 'clients:files' %}">Upload a File</a>
+            <a class="quick-action" href="{% url 'clients:support' %}">Get Support</a>
+            <a class="quick-action" href="{% url 'clients:invoices' %}">View Invoices</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

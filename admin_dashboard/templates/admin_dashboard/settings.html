@@ -1,0 +1,123 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Outreach Settings — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Configuration</span>
+            <h1 class="admin-page-title">Outreach Settings</h1>
+        </div>
+    </div>
+
+    {% if saved %}
+        <div class="settings-saved" role="status">Settings saved.</div>
+    {% endif %}
+
+    <div class="settings-grid">
+
+        {# ───────── Editable settings form ───────── #}
+        <form method="post" class="settings-form">
+            {% csrf_token %}
+
+            {# Trust level — pure-CSS segmented control + live description #}
+            <section class="admin-card">
+                <h3 class="admin-card__title">Automation Trust Level</h3>
+
+                <div class="trust-control">
+                    <input type="radio" name="trust_level" id="tl-1" value="1" class="trust-radio" {% if config.trust_level == 1 %}checked{% endif %}>
+                    <input type="radio" name="trust_level" id="tl-2" value="2" class="trust-radio" {% if config.trust_level == 2 %}checked{% endif %}>
+                    <input type="radio" name="trust_level" id="tl-3" value="3" class="trust-radio" {% if config.trust_level == 3 %}checked{% endif %}>
+                    <input type="radio" name="trust_level" id="tl-4" value="4" class="trust-radio" {% if config.trust_level == 4 %}checked{% endif %}>
+                    <input type="radio" name="trust_level" id="tl-5" value="5" class="trust-radio" {% if config.trust_level == 5 %}checked{% endif %}>
+
+                    <div class="trust-segments">
+                        <label for="tl-1" class="trust-segment"><span class="trust-segment__num">1</span><span class="trust-segment__name">Manual</span></label>
+                        <label for="tl-2" class="trust-segment"><span class="trust-segment__num">2</span><span class="trust-segment__name">Assisted</span></label>
+                        <label for="tl-3" class="trust-segment"><span class="trust-segment__num">3</span><span class="trust-segment__name">Semi-auto</span></label>
+                        <label for="tl-4" class="trust-segment"><span class="trust-segment__num">4</span><span class="trust-segment__name">Mostly auto</span></label>
+                        <label for="tl-5" class="trust-segment"><span class="trust-segment__num">5</span><span class="trust-segment__name">Autonomous</span></label>
+                    </div>
+
+                    <div class="trust-descriptions">
+                        <p class="trust-desc" data-level="1">You approve every outreach email before it sends.</p>
+                        <p class="trust-desc" data-level="2">Cold emails auto-send. You approve all replies.</p>
+                        <p class="trust-desc" data-level="3">Cold emails and simple replies auto-send.</p>
+                        <p class="trust-desc" data-level="4">Full auto, except flagged replies that come to your Needs You queue.</p>
+                        <p class="trust-desc" data-level="5">Fully autonomous. You just get a morning digest.</p>
+                    </div>
+                </div>
+            </section>
+
+            {# Daily send cap #}
+            <section class="admin-card">
+                <h3 class="admin-card__title">Daily Send Cap</h3>
+                <p class="muted settings-help">Maximum cold outreach emails sent per day. During domain warming this is capped lower automatically (see warming status).</p>
+                <div class="settings-field">
+                    <input type="number" name="daily_send_cap" id="daily-cap"
+                           class="form-control settings-number"
+                           value="{{ config.daily_send_cap }}" min="1" max="500">
+                    <span class="settings-field__suffix">emails / day</span>
+                </div>
+            </section>
+
+            {# Outreach active toggle + CSS-driven warning #}
+            <section class="admin-card">
+                <h3 class="admin-card__title">Outreach Active</h3>
+                <div class="outreach-toggle">
+                    <input type="checkbox" name="outreach_active" id="outreach-active"
+                           class="outreach-toggle__input" {% if config.outreach_active %}checked{% endif %}>
+                    <label for="outreach-active" class="outreach-toggle__switch">
+                        <span class="outreach-toggle__track"><span class="outreach-toggle__thumb"></span></span>
+                        <span class="outreach-toggle__text">Enable automated outreach</span>
+                    </label>
+                    <div class="outreach-toggle__warning" role="alert">
+                        <strong>Heads up —</strong> outreach will not begin until <strong>July 1, 2026</strong>
+                        (domain warming period). Enabling this now will have no effect until that date.
+                    </div>
+                </div>
+            </section>
+
+            <div class="settings-form__actions">
+                <button type="submit" class="btn-primary">Save Settings</button>
+            </div>
+        </form>
+
+        {# ───────── Read-only status panels ───────── #}
+        <aside class="settings-side">
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Domain Warming Status</h3>
+                <dl class="kv">
+                    <dt>Started</dt><dd>{{ warming.start|date:"F j, Y" }}</dd>
+                    <dt>Current</dt><dd>{{ warming.phase }} &middot; Week {{ warming.week_number }}</dd>
+                    <dt>Current cap</dt>
+                    <dd>{% if warming.current_cap %}{{ warming.current_cap }} emails/day{% else %}No warming limit{% endif %}</dd>
+                    <dt>Outreach eligible</dt>
+                    <dd>
+                        {{ warming.eligible|date:"F j, Y" }}
+                        {% if warming.eligible_now %}
+                            <span class="badge-yes">— eligible now</span>
+                        {% else %}
+                            <span class="muted">({{ warming.days_until_eligible }} day{{ warming.days_until_eligible|pluralize }} away)</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Today</h3>
+                <dl class="kv">
+                    <dt>Emails sent</dt><dd>{{ config.emails_sent_today }} / {{ config.daily_send_cap }}</dd>
+                    <dt>Last reset</dt>
+                    <dd>{% if config.last_reset_date %}{{ config.last_reset_date|date:"M j, Y" }}{% else %}&mdash;{% endif %}</dd>
+                </dl>
+                <p class="muted settings-help">The daily counter resets at midnight (Celery beat task, added in a later week).</p>
+            </section>
+
+        </aside>
+    </div>
+</div>
+{% endblock %}

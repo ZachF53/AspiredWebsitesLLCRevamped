@@ -1,0 +1,164 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ lead.firm_name }} — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:leads_table' %}" class="admin-back-link">&larr; All leads</a>
+            </span>
+            <h1 class="admin-page-title">{{ lead.firm_name }}</h1>
+            {% if lead.attorney_name %}<p class="muted">{{ lead.attorney_name }}</p>{% endif %}
+        </div>
+        <div class="admin-page-actions">
+            <span id="lead-status-badge" class="status-badge status-badge--{{ lead.status }}">{{ lead.get_status_display }}</span>
+            <span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span>
+            <span class="score-pill score-pill--{{ lead.temperature }}">{{ lead.score }}/10</span>
+        </div>
+    </div>
+
+    <div class="lead-detail-grid">
+
+        {# ───────── LEFT — Info ───────── #}
+        <aside class="lead-detail-info">
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Contact</h3>
+                <dl class="kv">
+                    {% if lead.email %}<dt>Email</dt><dd><a href="mailto:{{ lead.email }}">{{ lead.email }}</a></dd>{% endif %}
+                    {% if lead.phone %}<dt>Phone</dt><dd><a href="tel:{{ lead.phone }}">{{ lead.phone }}</a></dd>{% endif %}
+                    {% if lead.website %}<dt>Website</dt><dd><a href="{{ lead.website }}" target="_blank" rel="noopener">{{ lead.website }}</a></dd>{% endif %}
+                    {% if lead.address %}<dt>Address</dt><dd>{{ lead.address }}</dd>{% endif %}
+                    {% if lead.city or lead.state %}<dt>City / State</dt><dd>{{ lead.city }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state }}</dd>{% endif %}
+                </dl>
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Business</h3>
+                <dl class="kv">
+                    <dt>Business type</dt><dd>{{ lead.business_type }}</dd>
+                    {% if lead.practice_area %}<dt>Practice area</dt><dd>{{ lead.practice_area }}</dd>{% endif %}
+                    <dt>Source</dt><dd>{{ lead.get_source_display }}</dd>
+                    {% if lead.tags %}<dt>Tags</dt><dd>{{ lead.tags }}</dd>{% endif %}
+                </dl>
+            </section>
+
+            {# ───── HTMX status editor ───── #}
+            <section class="admin-card">
+                <h3 class="admin-card__title">Update status</h3>
+                {% include "admin_dashboard/_status_editor.html" %}
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Google presence</h3>
+                <dl class="kv">
+                    <dt>Rating</dt><dd>{% if lead.google_rating %}&#9733; {{ lead.google_rating }}{% else %}—{% endif %}</dd>
+                    <dt>Reviews</dt><dd>{{ lead.google_review_count }}</dd>
+                    <dt>GBP</dt><dd>{% if lead.has_google_business %}<span class="badge-yes">Yes</span>{% else %}<span class="badge-no">No</span>{% endif %}</dd>
+                </dl>
+            </section>
+
+            {% if lead.audit_run_at %}
+                <section class="admin-card">
+                    <h3 class="admin-card__title">Website audit</h3>
+                    <dl class="kv">
+                        <dt>Performance</dt><dd>{{ lead.website_performance_score|default:"—" }}/100</dd>
+                        <dt>SEO</dt><dd>{{ lead.website_seo_score|default:"—" }}/100</dd>
+                        <dt>Mobile</dt><dd>{{ lead.website_mobile_score|default:"—" }}/100</dd>
+                        <dt>Run at</dt><dd>{{ lead.audit_run_at|date:"M j, Y" }}</dd>
+                    </dl>
+                </section>
+            {% endif %}
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Tracking</h3>
+                <dl class="kv">
+                    <dt>Created</dt><dd>{{ lead.created_at|date:"M j, Y" }}</dd>
+                    <dt>Updated</dt><dd>{{ lead.updated_at|date:"M j, Y" }}</dd>
+                    {% if lead.last_contacted_at %}<dt>Last contacted</dt><dd>{{ lead.last_contacted_at|date:"M j, Y" }}</dd>{% endif %}
+                    {% if lead.ip_address %}<dt>IP</dt><dd><code>{{ lead.ip_address }}</code></dd>{% endif %}
+                </dl>
+            </section>
+        </aside>
+
+        {# ───────── RIGHT — Activity ───────── #}
+        <section class="lead-detail-activity">
+
+            {% if lead.inquiry_text %}
+                <div class="admin-card">
+                    <h3 class="admin-card__title">Visitor message</h3>
+                    <p class="lead-inquiry">{{ lead.inquiry_text|linebreaksbr }}</p>
+                </div>
+            {% endif %}
+
+            {% if lead.notes %}
+                <div class="admin-card">
+                    <h3 class="admin-card__title">Internal note</h3>
+                    <p class="lead-inquiry">{{ lead.notes|linebreaksbr }}</p>
+                </div>
+            {% endif %}
+
+            {# ───── Add note (HTMX) ───── #}
+            <div class="admin-card">
+                <h3 class="admin-card__title">Add Note</h3>
+                <form id="add-note-form"
+                      class="add-note-form"
+                      hx-post="{% url 'admin_dashboard:lead_add_note' lead.pk %}"
+                      hx-target="#notes-list"
+                      hx-swap="afterbegin">
+                    {% csrf_token %}
+                    <textarea id="note-input"
+                              name="note"
+                              class="form-control note-input"
+                              rows="3"
+                              placeholder="Add an internal note — what was said, what to follow up on…"
+                              required></textarea>
+                    <div class="add-note-form__actions">
+                        <button type="submit" class="btn-primary btn-sm">Save Note</button>
+                    </div>
+                </form>
+            </div>
+
+            {# ───── Activity timeline ───── #}
+            <div class="admin-card">
+                <h3 class="admin-card__title">Timeline</h3>
+                <p class="muted">Notes added above appear here immediately. Email composer + AI-drafted reply land in the next iteration.</p>
+
+                <ul id="notes-list" class="admin-activity-list">
+                    {% for n in notes %}
+                        <li class="admin-activity-item">
+                            <div class="admin-activity-item__title">Note</div>
+                            <div>{{ n.note|linebreaksbr }}</div>
+                            <div class="admin-activity-item__meta">{{ n.created_at|date:"M j, Y g:i A" }}</div>
+                        </li>
+                    {% endfor %}
+                </ul>
+
+                {% if emails or replies %}
+                    <ul class="admin-activity-list admin-activity-list--mt">
+                        {% for e in emails %}
+                            <li class="admin-activity-item">
+                                <div class="admin-activity-item__title">Email sent — {{ e.subject }}</div>
+                                <div class="admin-activity-item__meta">step {{ e.sequence_step }} · {{ e.sent_at|date:"M j, Y g:i A" }}{% if e.opened %} · opened{% endif %}{% if e.clicked %} · clicked{% endif %}{% if e.replied %} · replied{% endif %}</div>
+                            </li>
+                        {% endfor %}
+                        {% for r in replies %}
+                            <li class="admin-activity-item">
+                                <div class="admin-activity-item__title">Reply received — {{ r.get_classification_display|default:"unclassified" }}</div>
+                                <div>{{ r.body|truncatewords:40 }}</div>
+                                <div class="admin-activity-item__meta">{{ r.received_at|date:"M j, Y g:i A" }}</div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% elif not notes %}
+                    <p class="muted">No activity recorded yet.</p>
+                {% endif %}
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

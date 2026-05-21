@@ -1,0 +1,7 @@
+{# AI-draft response — swapped into #reply-text-wrap-<pk> via innerHTML. #}
+<textarea name="reply_body"
+          class="form-control needs-you-card__textarea"
+          rows="7"
+          required
+          placeholder="Write your reply, or let AI draft one…">{{ draft }}</textarea>
+{% if error %}<div class="form-field-error">{{ error }}</div>{% endif %}

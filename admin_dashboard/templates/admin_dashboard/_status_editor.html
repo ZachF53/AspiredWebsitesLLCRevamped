@@ -1,0 +1,18 @@
+{# HTMX partial response — swaps both the editor and the header badge (OOB). #}
+<form id="lead-status-editor"
+      class="inline-editor"
+      hx-post="{% url 'admin_dashboard:lead_update_status' lead.pk %}"
+      hx-trigger="change from:select"
+      hx-target="this"
+      hx-swap="outerHTML">
+    {% csrf_token %}
+    <label for="status-select" class="inline-editor__label">Status</label>
+    <select id="status-select" name="status" class="form-control inline-editor__select status-select--{{ lead.status }}">
+        {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if value == lead.status %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</form>
+
+{# OOB swap: keeps the header badge in sync without a full reload #}
+<span id="lead-status-badge" class="status-badge status-badge--{{ lead.status }}" hx-swap-oob="true">{{ lead.get_status_display }}</span>

@@ -1,0 +1,91 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Intake Form{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Intake Form</h1>
+    <p class="portal-page-head__sub">Tell us everything we need to build your site.</p>
+</header>
+
+{% if intake_locked %}
+    <section class="portal-section">
+        <p class="portal-empty">
+            Complete your payment to unlock the intake form. Once your deposit is
+            received, this form becomes available.
+        </p>
+    </section>
+{% else %}
+
+{% include "clients/_intake_progress.html" %}
+
+<form class="intake-form"
+      method="post"
+      action="{% url 'clients:intake_save' %}"
+      hx-post="{% url 'clients:intake_save' %}"
+      hx-trigger="change delay:800ms"
+      hx-target="#intake-progress"
+      hx-swap="outerHTML"
+      hx-encoding="multipart/form-data">
+    {% csrf_token %}
+
+    <section class="portal-section intake-step">
+        <h2 class="portal-section__title">Step 1 — Brand</h2>
+        <div class="form-group">
+            {{ form.brand_colors.label_tag }}{{ form.brand_colors }}
+        </div>
+        <div class="form-group">
+            {{ form.brand_fonts.label_tag }}{{ form.brand_fonts }}
+        </div>
+        <div class="form-group">
+            {{ form.logo.label_tag }}{{ form.logo }}
+        </div>
+    </section>
+
+    <section class="portal-section intake-step">
+        <h2 class="portal-section__title">Step 2 — Photos</h2>
+        <label class="checkbox-row">{{ form.photos_provided }}<span>I can provide headshots / team / office photos</span></label>
+        <div class="form-group">
+            {{ form.photos_note.label_tag }}{{ form.photos_note }}
+        </div>
+    </section>
+
+    <section class="portal-section intake-step">
+        <h2 class="portal-section__title">Step 3 — Website Copy</h2>
+        <div class="form-group">{{ form.about_copy.label_tag }}{{ form.about_copy }}</div>
+        <div class="form-group">{{ form.practice_areas.label_tag }}{{ form.practice_areas }}</div>
+        <div class="form-group">{{ form.attorney_bios.label_tag }}{{ form.attorney_bios }}</div>
+    </section>
+
+    <section class="portal-section intake-step">
+        <h2 class="portal-section__title">Step 4 — References</h2>
+        <div class="form-group">{{ form.reference_sites.label_tag }}{{ form.reference_sites }}</div>
+        <div class="form-group">{{ form.competitors.label_tag }}{{ form.competitors }}</div>
+    </section>
+
+    <section class="portal-section intake-step">
+        <h2 class="portal-section__title">Step 5 — Domain &amp; Access</h2>
+        <div class="form-group">{{ form.domain_name.label_tag }}{{ form.domain_name }}</div>
+        <div class="form-group">{{ form.domain_registrar.label_tag }}{{ form.domain_registrar }}</div>
+        <label class="checkbox-row">{{ form.google_business_access }}<span>I’ve granted Google Business Profile access</span></label>
+        <div class="form-group">{{ form.social_links.label_tag }}{{ form.social_links }}</div>
+    </section>
+</form>
+
+<section class="portal-section intake-step">
+    <h2 class="portal-section__title">Step 6 — Review &amp; Submit</h2>
+    {% if intake.completed %}
+        <p class="support-window support-window--open">
+            Your intake form was submitted{% if intake.completed_at %} on {{ intake.completed_at|date:"F j, Y" }}{% endif %}. Thank you!
+        </p>
+    {% else %}
+        <p>Your answers save automatically as you type. When everything above looks
+           right, submit your intake form below.</p>
+        <form method="post" action="{% url 'clients:intake' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Submit Intake Form</button>
+        </form>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,9 +1,13 @@
 import re
+from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
@@ -12,6 +16,74 @@ from .models import AuditLead
 
 PAGESPEED_API_URL = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 PAGESPEED_TIMEOUT_SECONDS = 45
+
+# Maps our score-dict keys to the audit service's category keys.
+_CATEGORY_KEYS = {
+    'performance':    'performance',
+    'seo':            'seo',
+    'best_practices': 'best-practices',
+    'accessibility':  'accessibility',
+}
+
+_CATEGORY_LABELS = {
+    'performance':    'Performance',
+    'seo':            'SEO',
+    'best_practices': 'Best Practices',
+    'accessibility':  'Accessibility',
+}
+
+_TIER_LABELS = {
+    'strong':     'Strong',
+    'needs-work': 'Needs Work',
+    'critical':   'Critical',
+}
+
+# Plain-English impact statement shown on every result card, keyed by
+# category then score tier.
+_IMPACT_STATEMENTS = {
+    'performance': {
+        'strong':     'Fast load times keep visitors on your site and signal '
+                      'quality to Google.',
+        'needs-work': 'Slow load times are costing you visitors. Most people '
+                      'leave if a site takes more than 3 seconds to load.',
+        'critical':   'Your site is critically slow. Visitors are leaving '
+                      'before they even see your content — and Google is '
+                      'penalizing your ranking.',
+    },
+    'seo': {
+        'strong':     'Your site is well-optimized for search engines. Google '
+                      'can find and rank your pages effectively.',
+        'needs-work': 'Your SEO has gaps that are limiting how often you show '
+                      'up in search results.',
+        'critical':   'Critical SEO issues mean Google struggles to understand '
+                      'and rank your site. You are likely invisible in search.',
+    },
+    'best_practices': {
+        'strong':     'Your site follows web standards and security best '
+                      'practices — a good foundation.',
+        'needs-work': 'Your site has technical issues that affect security '
+                      'and user trust.',
+        'critical':   'Serious technical and security issues detected. These '
+                      'affect both user trust and search rankings.',
+    },
+    'accessibility': {
+        'strong':     'Your site is accessible to all users including those '
+                      'using assistive technology.',
+        'needs-work': 'Some users may have difficulty using your site — this '
+                      'also affects SEO.',
+        'critical':   'Major accessibility barriers detected. A significant '
+                      'portion of visitors cannot fully use your site.',
+    },
+}
+
+
+def _score_tier(score):
+    """Map a 0-100 score to its tier: strong / needs-work / critical."""
+    if score >= 90:
+        return 'strong'
+    if score >= 50:
+        return 'needs-work'
+    return 'critical'
 
 
 def home(request):
@@ -84,10 +156,7 @@ def contact(request):
                 'Please try again later or call/text us directly at 210-896-2536.',
             )
         elif form.is_valid():
-            lead = form.save(commit=False)
-            lead.ip_address = _client_ip(request)
-            lead.status = 'new'
-            lead.save()
+            lead = form.save_as_lead(ip_address=_client_ip(request))
             _send_lead_auto_reply(lead)
             _send_lead_internal_notification(lead)
             return redirect('public:contact_thanks')
@@ -123,7 +192,7 @@ def _client_ip(request):
 
 def _send_lead_auto_reply(lead):
     body = (
-        f'Hi {lead.name},\n\n'
+        f'Hi {lead.attorney_name},\n\n'
         f'Thanks for reaching out — I got your message and will be back in touch '
         f'within 24 hours.\n\n'
         f'In the meantime, feel free to call or text me directly at 210-896-2536.\n\n'
@@ -142,21 +211,21 @@ def _send_lead_auto_reply(lead):
 
 def _send_lead_internal_notification(lead):
     body = (
-        f'New lead from {lead.business_name}.\n\n'
-        f'Name:          {lead.name}\n'
-        f'Business:      {lead.business_name}\n'
-        f'Business type: {lead.get_business_type_display()}\n'
+        f'New lead from {lead.firm_name}.\n\n'
+        f'Name:          {lead.attorney_name}\n'
+        f'Business:      {lead.firm_name}\n'
+        f'Business type: {lead.business_type}\n'
         f'Phone:         {lead.phone}\n'
         f'Email:         {lead.email}\n'
-        f'Source:        {lead.get_source_display() or "Not specified"}\n'
+        f'Heard about:   {lead.tags or "Not specified"}\n'
         f'IP address:    {lead.ip_address or "unknown"}\n'
         f'Submitted at:  {lead.created_at:%Y-%m-%d %H:%M:%S %Z}\n\n'
         f'Message:\n'
         f'{"-" * 60}\n'
-        f'{lead.message}\n'
+        f'{lead.inquiry_text}\n'
     )
     send_mail(
-        subject=f'New Lead: {lead.business_name} — {lead.get_business_type_display()}',
+        subject=f'New Lead: {lead.firm_name} — {lead.business_type}',
         message=body,
         from_email=settings.EMAIL_FROM_MAIN,
         recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
@@ -197,7 +266,7 @@ def audit(request):
             else:
                 request.session['audit_url'] = url
                 request.session['audit_scores'] = result['scores']
-                request.session['audit_issues'] = result['issues']
+                request.session['audit_issues'] = result['issues_by_category']
                 request.session.pop('audit_email_submitted', None)
                 # Drop any AI review cached from a previous audit run.
                 request.session.pop('audit_ai_review', None)
@@ -219,7 +288,9 @@ def audit(request):
 def audit_results(request):
     audit_url = request.session.get('audit_url')
     scores = request.session.get('audit_scores')
-    issues = request.session.get('audit_issues') or []
+    issues_by_category = request.session.get('audit_issues')
+    if not isinstance(issues_by_category, dict):
+        issues_by_category = {}
 
     if not (audit_url and scores):
         return redirect('public:audit')
@@ -235,11 +306,14 @@ def audit_results(request):
                 seo_score=scores['seo'],
                 best_practices_score=scores['best_practices'],
                 accessibility_score=scores['accessibility'],
-                issues=issues,
+                issues=issues_by_category,
                 email=email_form.cleaned_data['email'],
                 ip_address=_client_ip(request),
             )
-            _send_audit_report(audit_url, scores, issues, email_form.cleaned_data['email'])
+            _send_audit_report(
+                audit_url, scores, issues_by_category,
+                email_form.cleaned_data['email'],
+            )
             request.session['audit_email_submitted'] = True
             return redirect('public:audit_results')
 
@@ -257,24 +331,59 @@ def audit_results(request):
         {'label': 'Accessibility',  'score': scores['accessibility'],  'status': status_for(scores['accessibility'])},
     ]
 
-    # Pad the issues list to 3 with positive placeholders
-    issues_padded = list(issues)
-    while len(issues_padded) < 3:
-        issues_padded.append({
-            'title': 'Your site is performing well in this area',
-            'description': 'No significant issues detected — keep doing what you’re doing.',
-            'impact': 'good',
+    # Four detailed result cards — one per category, always shown, in order.
+    result_cards = []
+    for key in ('performance', 'seo', 'best_practices', 'accessibility'):
+        score = scores[key]
+        tier = _score_tier(score)
+        is_clear = score >= 90
+        result_cards.append({
+            'label':      _CATEGORY_LABELS[key],
+            'score':      score,
+            'tier':       tier,
+            'tier_label': _TIER_LABELS[tier],
+            'impact':     _IMPACT_STATEMENTS[key][tier],
+            'is_clear':   is_clear,
+            'issues':     [] if is_clear else (issues_by_category.get(key) or [])[:2],
         })
 
     return render(request, 'public/audit_results.html', {
         'active_nav': 'audit',
         'audit_url': audit_url,
         'score_cards': score_cards,
-        'issues': issues_padded[:3],
+        'result_cards': result_cards,
+        'audit_summary': _audit_summary(audit_url, scores),
         'email_form': email_form,
         'email_submitted': bool(request.session.get('audit_email_submitted')),
         'meta_title': f'Audit Results for {audit_url} — Aspired Websites',
     })
+
+
+def _audit_summary(audit_url, scores):
+    """Build the one-line overall summary shown above the result cards."""
+    parsed = urlparse(audit_url)
+    domain = (parsed.netloc or parsed.path or audit_url).rstrip('/')
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
+    values = list(scores.values())
+    if any(s < 50 for s in values):
+        return {
+            'tier': 'critical',
+            'text': f'{domain} has critical issues that need immediate attention.',
+        }
+    needs_work = sum(1 for s in values if s < 90)
+    if needs_work:
+        noun = 'area' if needs_work == 1 else 'areas'
+        verb = 'needs' if needs_work == 1 else 'need'
+        return {
+            'tier': 'needs-work',
+            'text': f'{domain} has {needs_work} {noun} that {verb} attention.',
+        }
+    return {
+        'tier': 'strong',
+        'text': f'{domain} is performing well across all areas.',
+    }
 
 
 # ── PageSpeed Insights helpers ──────────────────────────────────────────────
@@ -285,8 +394,8 @@ class _PageSpeedError(Exception):
 
 def _run_pagespeed_audit(url):
     """
-    Call Google PageSpeed Insights and return {'scores': {...}, 'issues': [...]}.
-    No API key required for low-volume use (25k queries/day, 1 qps).
+    Run the website audit and return
+    {'scores': {...}, 'issues_by_category': {...}}.
     Raises _PageSpeedError with a user-facing message on failure.
     """
     # PageSpeed returns only the Performance category by default — request
@@ -346,36 +455,66 @@ def _run_pagespeed_audit(url):
         'accessibility':  pct('accessibility'),
     }
 
-    # Surface only "opportunities" — actionable fixes (e.g. "Reduce unused CSS").
-    # This filters out metrics (Speed Index, FCP) and informational diagnostics
-    # which have scores but aren't things the user can directly act on.
-    issues = []
-    for audit_id, audit_data in audits.items():
+    issues_by_category = {
+        key: _category_issues(categories.get(lh_key) or {}, audits)
+        for key, lh_key in _CATEGORY_KEYS.items()
+    }
+
+    return {'scores': scores, 'issues_by_category': issues_by_category}
+
+
+def _category_issues(category, audits):
+    """
+    Pull up to 2 actionable, plain-English issues for one audit category.
+
+    An audit counts as an issue when it failed (score below 0.9) and is
+    something a site owner can act on — a performance "opportunity" or a
+    binary pass/fail check (the form most SEO, accessibility, and
+    best-practice audits take). Metrics and informational diagnostics are
+    skipped: they have scores but aren't directly fixable.
+    """
+    found = []
+    for ref in category.get('auditRefs') or []:
+        audit_data = audits.get(ref.get('id')) or {}
         score = audit_data.get('score')
         if score is None or score >= 0.9:
             continue
         details = audit_data.get('details') or {}
-        if details.get('type') != 'opportunity':
+        actionable = (
+            details.get('type') == 'opportunity'
+            or audit_data.get('scoreDisplayMode') == 'binary'
+        )
+        if not actionable:
             continue
         title = audit_data.get('title')
         if not title:
             continue
-        description = audit_data.get('description', '') or ''
         # Strip markdown link syntax [text](url) → text.
-        clean_desc = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', description).strip()
-        issues.append({
+        description = re.sub(
+            r'\[([^\]]+)\]\([^)]+\)', r'\1', audit_data.get('description') or ''
+        ).strip()
+        found.append({
             'title': title,
-            'description': clean_desc,
+            'description': description,
             'score': score,
-            'impact': 'high' if score < 0.5 else 'medium',
         })
-    issues.sort(key=lambda x: x['score'])
-    return {'scores': scores, 'issues': issues[:3]}
+    found.sort(key=lambda item: item['score'])
+    return found[:2]
+
+
+def _flatten_issues(issues_by_category):
+    """Flatten the per-category issues dict into one ordered list."""
+    if not isinstance(issues_by_category, dict):
+        return []
+    flat = []
+    for key in ('performance', 'seo', 'best_practices', 'accessibility'):
+        flat.extend(issues_by_category.get(key) or [])
+    return flat
 
 
 def audit_ai_review(request):
     """
-    HTMX partial endpoint. Generates (or returns cached) Claude-written
+    HTMX partial endpoint. Generates (or returns cached) AI-written
     plain-English review of the audit results stored in the session.
     Falls back gracefully if the API key is missing or the call fails.
     """
@@ -400,7 +539,7 @@ def audit_ai_review(request):
             ),
         })
 
-    issues = request.session.get('audit_issues') or []
+    issues = _flatten_issues(request.session.get('audit_issues'))
     try:
         review = _generate_ai_audit_review(audit_url, scores, issues)
     except Exception:
@@ -418,7 +557,7 @@ def audit_ai_review(request):
 
 
 def _generate_ai_audit_review(url, scores, issues):
-    """Call Anthropic Claude (Haiku 4.5) for a plain-English audit review."""
+    """Generate a plain-English audit review via the AI agent."""
     # Local import so the public app doesn't hard-depend on anthropic at
     # module load time — keeps Django startup fast and lets the rest of
     # the app run even if the SDK is broken/missing.
@@ -426,10 +565,9 @@ def _generate_ai_audit_review(url, scores, issues):
 
     if issues:
         issue_lines = []
-        for issue in issues[:3]:
-            impact = (issue.get('impact') or '').title()
+        for issue in issues[:8]:
             issue_lines.append(
-                f"- {issue.get('title', '')} ({impact} impact): "
+                f"- {issue.get('title', '')}: "
                 f"{issue.get('description', '')[:220]}"
             )
         issue_block = '\n'.join(issue_lines)
@@ -473,26 +611,23 @@ Write the review now."""
     return message.content[0].text.strip()
 
 
-def _send_audit_report(url, scores, issues, email):
+def _send_audit_report(url, scores, issues_by_category, email):
+    if not isinstance(issues_by_category, dict):
+        issues_by_category = {}
+
     lines = [
         f'Here are the full audit results for {url}:',
         '',
-        f'Performance:    {scores["performance"]}/100',
-        f'SEO:            {scores["seo"]}/100',
-        f'Best Practices: {scores["best_practices"]}/100',
-        f'Accessibility:  {scores["accessibility"]}/100',
-        '',
-        'Top issues:',
     ]
-    for i, issue in enumerate(issues or [], 1):
-        impact = (issue.get('impact') or '').title()
+    for key in ('performance', 'seo', 'best_practices', 'accessibility'):
+        lines.append(f'{_CATEGORY_LABELS[key]}: {scores[key]}/100')
+        for issue in issues_by_category.get(key) or []:
+            lines.append(f'  - {issue.get("title", "")}')
+            if issue.get('description'):
+                lines.append(f'    {issue["description"]}')
         lines.append('')
-        lines.append(f'{i}. {issue.get("title", "")} ({impact} impact)')
-        if issue.get('description'):
-            lines.append(f'   {issue["description"]}')
 
     lines += [
-        '',
         '---',
         '',
         'Want to fix all of this? Book a free 30-minute call:',
@@ -511,16 +646,81 @@ def _send_audit_report(url, scores, issues, email):
     )
 
 
+@ratelimit(key='post:email', rate='5/h', method='POST', block=False)
+@ratelimit(key='ip',         rate='10/h', method='POST', block=False)
 def login_page(request):
-    # TODO: wire to Django auth in Phase 3 — for now POST redirects to a
-    # "portal coming soon" page so the form is testable end-to-end.
+    """
+    Unified login. Admin staff land on /admin-dashboard/, everyone else on
+    the client portal (currently the coming-soon placeholder).
+
+    Auth lookup is by email — we resolve to the actual User by email then
+    authenticate with their username + password (Django's default backend
+    is username-based).
+    """
+    # Already signed in? Bounce them.
+    if request.user.is_authenticated:
+        return _post_login_redirect(request.user, request.GET.get('next', ''))
+
+    error = None
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+
     if request.method == 'POST':
-        return redirect('public:portal_coming_soon')
+        rate_limited = getattr(request, 'limited', False)
+        if rate_limited:
+            error = (
+                'Too many login attempts. Please try again later, '
+                'or call 210-896-2536 if you’re locked out.'
+            )
+        else:
+            email = (request.POST.get('email') or '').strip()
+            password = request.POST.get('password') or ''
+            user = _authenticate_by_email(request, email, password)
+            if user is not None:
+                login(request, user)
+                return _post_login_redirect(user, next_url)
+            error = 'Invalid email or password.'
+
+    is_admin_login = next_url.startswith('/admin-dashboard')
+
     return render(request, 'public/login.html', {
         'active_nav': 'login',
-        'meta_title': 'Client Login — Aspired Websites',
-        'meta_description': 'Client portal login for Aspired Websites projects.',
+        'meta_title': 'Sign In — Aspired Websites',
+        'meta_description': 'Sign in to your Aspired Websites account.',
+        'error': error,
+        'next': next_url,
+        'is_admin_login': is_admin_login,
     })
+
+
+@require_POST
+def logout_view(request):
+    """POST-only logout (modern Django requires POST for CSRF-safe logout)."""
+    logout(request)
+    return redirect('public:home')
+
+
+def _authenticate_by_email(request, email, password):
+    """Look up user by email (case-insensitive), authenticate by username+pw."""
+    if not email or not password:
+        return None
+    User = get_user_model()
+    user_row = User.objects.filter(email__iexact=email).first()
+    if user_row is None:
+        return None
+    return authenticate(request, username=user_row.username, password=password)
+
+
+def _post_login_redirect(user, next_url):
+    """Resolve safe redirect target post-login."""
+    # Honor ?next= if it's a same-origin URL (no open-redirect risk).
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts=None, require_https=False
+    ):
+        return redirect(next_url)
+    # Staff → admin dashboard. Everyone else → client portal.
+    if user.is_staff:
+        return redirect('admin_dashboard:home')
+    return redirect('clients:dashboard')
 
 
 def portal_coming_soon(request):

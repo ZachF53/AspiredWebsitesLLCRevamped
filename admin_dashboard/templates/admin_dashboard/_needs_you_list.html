@@ -1,0 +1,17 @@
+{# Needs You queue list — returned standalone from action endpoints so the board refreshes. #}
+<div id="needs-you-list" class="needs-you-list">
+    {% for reply in replies %}
+        {% include "admin_dashboard/_needs_you_card.html" with reply=reply %}
+    {% empty %}
+        <div class="admin-empty">
+            <p><strong>Inbox zero.</strong> Nothing flagged for you right now.</p>
+            <p><a class="btn-secondary" href="{% url 'admin_dashboard:home' %}">Back to Dashboard</a></p>
+        </div>
+    {% endfor %}
+</div>
+
+{# OOB swap — keep the nav badge in sync without a full reload #}
+<span id="needs-you-badge"
+      class="admin-nav__badge {% if not needs_you_count %}admin-nav__badge--empty{% endif %}"
+      aria-label="{{ needs_you_count }} pending"
+      hx-swap-oob="true">{{ needs_you_count }}</span>

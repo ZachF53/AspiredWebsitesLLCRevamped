@@ -53,6 +53,28 @@
         });
     }
 
+    function initScrapeFormLoading() {
+        // The scrape form blocks for 1-3 minutes — make that obvious.
+        var form = document.querySelector('.scrape-form');
+        if (!form) return;
+        var btn = form.querySelector('button[type="submit"]');
+        var note = form.querySelector('.scrape-form__note');
+        if (!btn) return;
+
+        form.addEventListener('submit', function () {
+            btn.disabled = true;
+            btn.classList.add('is-loading');
+            btn.innerHTML =
+                '<span class="btn__spinner" aria-hidden="true"></span>Scraping…';
+            if (note) {
+                note.classList.add('audit-note--running');
+                note.textContent =
+                    'Scraping in progress — this can take 1–3 minutes. ' +
+                    'Please don’t refresh or close this tab.';
+            }
+        });
+    }
+
     function ready(fn) {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', fn);
@@ -63,4 +85,5 @@
 
     ready(initNavToggle);
     ready(initAuditFormLoading);
+    ready(initScrapeFormLoading);
 })();

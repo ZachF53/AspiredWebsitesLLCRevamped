@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Client Login — Aspired Websites{% endblock %}
+{% block title %}Sign In — Aspired Websites{% endblock %}
 
 {% block content %}
 
@@ -12,13 +12,23 @@
                 <img src="{% static 'images/logo.png' %}" alt="Aspired Websites" width="122" height="56">
             </a>
 
-            <span class="eyebrow">Client Portal</span>
-            <h1 class="login-card__title">Welcome Back</h1>
-            <p class="login-card__subtitle">Log in to track your project and manage your account.</p>
+            {% if is_admin_login %}
+                <span class="eyebrow">Admin Sign In</span>
+                <h1 class="login-card__title">Welcome Back</h1>
+                <p class="login-card__subtitle">Sign in to the admin dashboard.</p>
+            {% else %}
+                <span class="eyebrow">Client Portal</span>
+                <h1 class="login-card__title">Welcome Back</h1>
+                <p class="login-card__subtitle">Log in to track your project and manage your account.</p>
+            {% endif %}
 
-            {# TODO: wire to Django auth in Phase 3 #}
+            {% if error %}
+                <div class="form-error" role="alert">{{ error }}</div>
+            {% endif %}
+
             <form method="post" class="form login-form" novalidate>
                 {% csrf_token %}
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
                 <div class="form-group">
                     <label for="login-email">Email</label>
@@ -28,7 +38,8 @@
                            class="form-control"
                            placeholder="you@business.com"
                            autocomplete="email"
-                           required>
+                           required
+                           autofocus>
                 </div>
 
                 <div class="form-group">
@@ -42,12 +53,22 @@
                            required>
                 </div>
 
-                <button type="submit" class="btn-primary btn-block">Log In &rarr;</button>
+                <div class="login-forgot-row">
+                    <a class="login-forgot-link" href="#">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn-primary btn-block">Sign In &rarr;</button>
             </form>
 
-            <p class="login-helper">
-                Don&rsquo;t have an account? Your login is created during onboarding.
-            </p>
+            {% if is_admin_login %}
+                <p class="login-helper">
+                    Admin access only. Forgot your password? Reset via <a href="/admin/password_reset/">admin reset</a>.
+                </p>
+            {% else %}
+                <p class="login-helper">
+                    Don&rsquo;t have an account? Your login is created during onboarding.
+                </p>
+            {% endif %}
         </article>
     </div>
 </section>

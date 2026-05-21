@@ -1,0 +1,34 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Settings</h1>
+    <p class="portal-page-head__sub">Manage your account preferences.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Account</h2>
+    <dl class="detail-list">
+        <div><dt>Email</dt><dd>{{ profile.user.email }}</dd></div>
+        <div><dt>Firm Name</dt><dd>{{ profile.firm_name }}</dd></div>
+    </dl>
+    <p class="form-hint">To change your email or firm name, contact us at 210-896-2536.</p>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Preferences</h2>
+    <form method="post" action="{% url 'clients:settings' %}" class="settings-form">
+        {% csrf_token %}
+        <div class="form-group">
+            {{ form.phone.label_tag }}{{ form.phone }}
+        </div>
+        <div class="form-group">
+            {{ form.preferred_contact_method.label_tag }}{{ form.preferred_contact_method }}
+        </div>
+        <label class="checkbox-row">{{ form.notify_on_stage_change }}<span>{{ form.notify_on_stage_change.label }}</span></label>
+        <button type="submit" class="btn-primary">Save Settings</button>
+    </form>
+</section>
+{% endblock %}

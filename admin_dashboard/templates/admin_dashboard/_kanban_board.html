@@ -1,0 +1,18 @@
+{# Full kanban board. Returned standalone from lead_kanban_move HTMX endpoint. #}
+<div id="kanban-board" class="kanban-board">
+    {% for col in columns %}
+        <section class="kanban-column kanban-column--{{ col.status }}">
+            <header class="kanban-column__header">
+                <h3 class="kanban-column__title">{{ col.label }}</h3>
+                <span class="kanban-column__count">{{ col.count }}</span>
+            </header>
+            <div class="kanban-column__cards">
+                {% for lead in col.leads %}
+                    {% include "admin_dashboard/_kanban_card.html" with lead=lead status_choices=status_choices %}
+                {% empty %}
+                    <p class="kanban-column__empty">No leads</p>
+                {% endfor %}
+            </div>
+        </section>
+    {% endfor %}
+</div>

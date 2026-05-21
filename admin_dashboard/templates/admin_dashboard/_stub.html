@@ -1,0 +1,19 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ page_title }} — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Building</span>
+            <h1 class="admin-page-title">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <div class="admin-empty">
+        <p>{{ blurb }}</p>
+        <p><a class="btn-secondary" href="{% url 'admin_dashboard:home' %}">Back to Dashboard</a></p>
+    </div>
+</div>
+{% endblock %}

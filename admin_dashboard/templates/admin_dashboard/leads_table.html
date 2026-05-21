@@ -1,0 +1,154 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Leads — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    {# ───────── Header ───────── #}
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Leads</span>
+            <h1 class="admin-page-title">{{ total }} lead{{ total|pluralize }}</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:leads_kanban' %}">Kanban View</a>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:scrape' %}">Run Scraper</a>
+            <a class="btn-primary" href="{% url 'admin_dashboard:lead_add' %}">+ Add Lead</a>
+        </div>
+    </div>
+
+    {# ───────── Filters + search ───────── #}
+    <form class="lead-filter-bar" method="get" action="">
+        <input type="search" name="q" value="{{ q }}"
+               placeholder="Search firm, attorney, city, email, phone…"
+               class="form-control lead-filter-bar__search">
+
+        <select name="status" class="form-control">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="temperature" class="form-control">
+            <option value="">All temps</option>
+            {% for value, label in temperature_choices %}
+                <option value="{{ value }}" {% if temperature_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="state" class="form-control">
+            <option value="">All states</option>
+            {% for st in states %}
+                <option value="{{ st }}" {% if state_filter == st %}selected{% endif %}>{{ st }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="practice_area" class="form-control">
+            <option value="">All practice areas</option>
+            {% for pa in practice_areas %}
+                <option value="{{ pa }}" {% if practice_filter == pa %}selected{% endif %}>{{ pa }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="source" class="form-control">
+            <option value="">All sources</option>
+            {% for value, label in source_choices %}
+                <option value="{{ value }}" {% if source_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="sort" class="form-control">
+            <option value="score"          {% if sort_key == 'score' %}selected{% endif %}>Sort: Score (high → low)</option>
+            <option value="score_asc"      {% if sort_key == 'score_asc' %}selected{% endif %}>Sort: Score (low → high)</option>
+            <option value="newest"         {% if sort_key == 'newest' %}selected{% endif %}>Sort: Newest first</option>
+            <option value="oldest"         {% if sort_key == 'oldest' %}selected{% endif %}>Sort: Oldest first</option>
+            <option value="last_contacted" {% if sort_key == 'last_contacted' %}selected{% endif %}>Sort: Last contacted</option>
+            <option value="firm"           {% if sort_key == 'firm' %}selected{% endif %}>Sort: Firm A → Z</option>
+            <option value="firm_desc"      {% if sort_key == 'firm_desc' %}selected{% endif %}>Sort: Firm Z → A</option>
+        </select>
+
+        <button type="submit" class="btn-primary">Apply</button>
+
+        {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter %}
+            <a href="{% url 'admin_dashboard:leads_table' %}" class="lead-filter-bar__clear">Clear</a>
+        {% endif %}
+    </form>
+
+    {# ───────── Table ───────── #}
+    {% if page.object_list %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th class="lead-table__col-name">Firm</th>
+                        <th>Attorney</th>
+                        <th>Location</th>
+                        <th>Practice</th>
+                        <th class="lead-table__col-score">Score</th>
+                        <th>Temp</th>
+                        <th>Status</th>
+                        <th>Last contacted</th>
+                        <th>Source</th>
+                        <th class="lead-table__col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in page.object_list %}
+                        <tr class="lead-row lead-row--{{ lead.temperature }}">
+                            <td class="lead-table__col-name">
+                                <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="lead-table__firm">{{ lead.firm_name }}</a>
+                                {% if lead.email %}<div class="lead-table__sub">{{ lead.email }}</div>{% endif %}
+                            </td>
+                            <td>{{ lead.attorney_name|default:"—" }}</td>
+                            <td>{% if lead.city or lead.state %}{{ lead.city }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state }}{% else %}—{% endif %}</td>
+                            <td>{{ lead.practice_area|default:"—" }}</td>
+                            <td class="lead-table__col-score"><span class="score-pill score-pill--{{ lead.temperature }}">{{ lead.score }}</span></td>
+                            <td><span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span></td>
+                            <td><span class="status-badge status-badge--{{ lead.status }}">{{ lead.get_status_display }}</span></td>
+                            <td>{% if lead.last_contacted_at %}{{ lead.last_contacted_at|date:"M j" }}{% else %}—{% endif %}</td>
+                            <td><span class="muted">{{ lead.get_source_display }}</span></td>
+                            <td class="lead-table__col-actions">
+                                <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="btn-secondary btn-sm">View</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ───────── Pagination ───────── #}
+        {% if page.has_other_pages %}
+            <nav class="admin-pagination" aria-label="Pagination">
+                <span class="admin-pagination__info">
+                    Page {{ page.number }} of {{ page.paginator.num_pages }} ({{ total }} total)
+                </span>
+                <div class="admin-pagination__links">
+                    {% if page.has_previous %}
+                        <a class="btn-secondary btn-sm" href="?page={{ page.previous_page_number }}{{ filter_qs }}">← Prev</a>
+                    {% endif %}
+                    {% if page.has_next %}
+                        <a class="btn-secondary btn-sm" href="?page={{ page.next_page_number }}{{ filter_qs }}">Next →</a>
+                    {% endif %}
+                </div>
+            </nav>
+        {% endif %}
+
+    {% else %}
+        <div class="admin-empty">
+            {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter %}
+                <p>No leads match your filters.</p>
+                <p><a href="{% url 'admin_dashboard:leads_table' %}">Clear all filters</a></p>
+            {% else %}
+                <p>No leads in the database yet.</p>
+                <p>
+                    <a class="btn-primary" href="{% url 'admin_dashboard:scrape' %}">Run a Scraper</a>
+                    or <a href="{% url 'admin_dashboard:lead_add' %}">add one manually</a>.
+                </p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

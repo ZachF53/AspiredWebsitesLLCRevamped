@@ -1,0 +1,111 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Add Lead — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:leads_table' %}" class="admin-back-link">&larr; All leads</a>
+            </span>
+            <h1 class="admin-page-title">Add Lead</h1>
+            <p class="muted">Manual entry. Source is set to "Manual Entry" automatically. Score is calculated from the signals you provide.</p>
+        </div>
+    </div>
+
+    <form method="post" class="form lead-add-form" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="form-error" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Business</h3>
+            <div class="lead-add-form__grid">
+                <div class="form-group">
+                    <label for="{{ form.firm_name.id_for_label }}">Firm / Business Name <span class="required">*</span></label>
+                    {{ form.firm_name }}
+                    {% if form.firm_name.errors %}<div class="form-field-error">{{ form.firm_name.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.attorney_name.id_for_label }}">Attorney / Contact Name</label>
+                    {{ form.attorney_name }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.practice_area.id_for_label }}">Practice Area</label>
+                    {{ form.practice_area }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.business_type.id_for_label }}">Business Type</label>
+                    {{ form.business_type }}
+                </div>
+            </div>
+        </section>
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Contact</h3>
+            <div class="lead-add-form__grid">
+                <div class="form-group">
+                    <label for="{{ form.email.id_for_label }}">Email</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.phone.id_for_label }}">Phone</label>
+                    {{ form.phone }}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.website.id_for_label }}">Website</label>
+                    {{ form.website }}
+                    {% if form.website.errors %}<div class="form-field-error">{{ form.website.errors|join:" " }}</div>{% endif %}
+                </div>
+            </div>
+        </section>
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Location</h3>
+            <div class="lead-add-form__grid">
+                <div class="form-group">
+                    <label for="{{ form.city.id_for_label }}">City</label>
+                    {{ form.city }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.state.id_for_label }}">State</label>
+                    {{ form.state }}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.address.id_for_label }}">Address</label>
+                    {{ form.address }}
+                </div>
+            </div>
+        </section>
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">CRM</h3>
+            <div class="lead-add-form__grid">
+                <div class="form-group">
+                    <label for="{{ form.status.id_for_label }}">Status</label>
+                    {{ form.status }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.tags.id_for_label }}">Tags</label>
+                    {{ form.tags }}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.notes.id_for_label }}">Internal notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </section>
+
+        <div class="lead-add-form__actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:leads_table' %}">Cancel</a>
+            <button type="submit" class="btn-primary">Save Lead</button>
+        </div>
+    </form>
+
+</div>
+{% endblock %}

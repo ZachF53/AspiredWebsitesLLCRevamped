@@ -16,5 +16,6 @@ urlpatterns = [
     path('audit/results/', views.audit_results, name='audit_results'),
     path('audit/ai-review/', views.audit_ai_review, name='audit_ai_review'),
     path('login/', views.login_page, name='login'),
+    path('logout/', views.logout_view, name='logout'),
     path('portal/coming-soon/', views.portal_coming_soon, name='portal_coming_soon'),
 ]

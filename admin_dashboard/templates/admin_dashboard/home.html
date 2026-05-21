@@ -1,0 +1,118 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Dashboard — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    {# ───────── Page header ───────── #}
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Dashboard</span>
+            <h1 class="admin-page-title">Welcome back, {{ user.first_name|default:user.username }}.</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:scrape' %}">Run Scraper</a>
+            <a class="btn-primary" href="{% url 'admin_dashboard:lead_add' %}">+ Add Lead</a>
+        </div>
+    </div>
+
+    {# ───────── Quick stats ───────── #}
+    <div class="admin-stat-grid">
+        {% for s in stats %}
+            <a class="admin-stat {% if s.urgent %}admin-stat--urgent{% endif %}"
+               href="{% url s.href_name %}{{ s.href_qs|default:'' }}">
+                <span class="admin-stat__label">{{ s.label }}</span>
+                <span class="admin-stat__value">{{ s.value }}</span>
+            </a>
+        {% endfor %}
+    </div>
+
+    {# ───────── Pipeline summary ───────── #}
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <span class="eyebrow">Pipeline</span>
+            <h2>Leads by status</h2>
+        </div>
+        <div class="admin-pipeline">
+            {% for p in pipeline %}
+                <a class="admin-pipeline__item"
+                   href="{% url 'admin_dashboard:leads_table' %}?status={{ p.status }}">
+                    <span class="admin-pipeline__label">{{ p.label }}</span>
+                    <span class="admin-pipeline__count">{{ p.count }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    {# ───────── Two-column activity ───────── #}
+    <div class="admin-two-col">
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <span class="eyebrow">Recent Leads</span>
+                <h2>Last 10 added</h2>
+            </div>
+            {% if recent_leads %}
+                <ul class="admin-activity-list">
+                    {% for lead in recent_leads %}
+                        <li class="admin-activity-item">
+                            <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="admin-activity-item__title">{{ lead.firm_name }}</a>
+                            <div class="admin-activity-item__meta">
+                                {% if lead.city or lead.state %}{{ lead.city }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state }} &middot; {% endif %}
+                                <span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span>
+                                &middot; {{ lead.get_source_display }}
+                                &middot; {{ lead.created_at|timesince }} ago
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted">No leads yet. <a href="{% url 'admin_dashboard:scrape' %}">Run the scraper</a> or <a href="{% url 'admin_dashboard:lead_add' %}">add one manually</a>.</p>
+            {% endif %}
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <span class="eyebrow">Outreach</span>
+                <h2>Recent activity</h2>
+            </div>
+
+            <h3 class="admin-subsection-title">Last 5 emails sent</h3>
+            {% if recent_emails %}
+                <ul class="admin-activity-list">
+                    {% for e in recent_emails %}
+                        <li class="admin-activity-item">
+                            <a href="{% url 'admin_dashboard:lead_detail' e.lead.pk %}" class="admin-activity-item__title">{{ e.subject }}</a>
+                            <div class="admin-activity-item__meta">
+                                to {{ e.lead.firm_name }} &middot; step {{ e.sequence_step }}
+                                &middot; {{ e.sent_at|timesince }} ago
+                                {% if e.replied %} &middot; <span class="status-badge status-badge--replied">replied</span>{% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted">No emails sent yet.</p>
+            {% endif %}
+
+            <h3 class="admin-subsection-title">Unhandled replies</h3>
+            {% if unhandled_replies %}
+                <ul class="admin-activity-list">
+                    {% for r in unhandled_replies %}
+                        <li class="admin-activity-item">
+                            <a href="{% url 'admin_dashboard:needs_you' %}" class="admin-activity-item__title">
+                                {{ r.lead.firm_name }} — {{ r.get_classification_display|default:"unclassified" }}
+                            </a>
+                            <div class="admin-activity-item__meta">{{ r.received_at|timesince }} ago</div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted">Inbox zero. Nothing flagged.</p>
+            {% endif %}
+        </section>
+
+    </div>
+</div>
+{% endblock %}

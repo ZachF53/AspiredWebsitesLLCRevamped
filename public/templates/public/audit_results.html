@@ -32,26 +32,52 @@
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
-{# ───────── Top Issues ───────── #}
+{# ───────── Your Audit Results ───────── #}
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">What We Found</span>
-            <h2>Top Issues Affecting Your Site</h2>
+            <h2>Your Audit Results</h2>
         </div>
 
-        <div class="cards">
-            {% for issue in issues %}
-                <article class="card card--teal audit-issue">
-                    {% if issue.impact == 'high' %}
-                        <span class="audit-impact audit-impact--high">High Impact</span>
-                    {% elif issue.impact == 'medium' %}
-                        <span class="audit-impact audit-impact--medium">Medium Impact</span>
-                    {% else %}
-                        <span class="audit-impact audit-impact--good">All Good</span>
+        <p class="audit-summary-line audit-summary-line--{{ audit_summary.tier }}">
+            {{ audit_summary.text }}
+        </p>
+
+        <div class="audit-results-grid">
+            {% for card in result_cards %}
+                <article class="card audit-result-card audit-result-card--{{ card.tier }}">
+                    <div class="audit-result-card__header">
+                        <h3 class="audit-result-card__category">{{ card.label }}</h3>
+                        <span class="audit-result-badge audit-result-badge--{{ card.tier }}">{{ card.tier_label }}</span>
+                    </div>
+
+                    <p class="audit-result-card__score">
+                        {{ card.score }}<span class="audit-result-card__score-max">/100</span>
+                    </p>
+
+                    <p class="audit-result-card__impact">{{ card.impact }}</p>
+
+                    {% if card.is_clear %}
+                        <p class="audit-result-clear">
+                            <svg class="audit-result-clear__icon" viewBox="0 0 20 20" role="img" aria-label="No issues">
+                                <path d="M4 10.5 L8.5 15 L16 5.5"></path>
+                            </svg>
+                            No significant issues detected in this area.
+                        </p>
+                    {% elif card.issues %}
+                        <ul class="audit-result-issues">
+                            {% for issue in card.issues %}
+                                <li class="audit-result-issue">
+                                    <span class="audit-result-issue__bullet" aria-hidden="true"></span>
+                                    <span class="audit-result-issue__text">
+                                        <strong>{{ issue.title }}</strong>
+                                        {% if issue.description %}<span class="audit-result-issue__desc">{{ issue.description }}</span>{% endif %}
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ul>
                     {% endif %}
-                    <h3>{{ issue.title }}</h3>
-                    <p>{{ issue.description }}</p>
                 </article>
             {% endfor %}
         </div>
@@ -89,13 +115,13 @@
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
-{# ───────── AI Review ───────── #}
+{# ───────── Aspired Websites AI Agents ───────── #}
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">AI Review</span>
+            <span class="eyebrow">Aspired Websites AI Agents</span>
             <h2>What This Means For Your Business</h2>
-            <p>An AI read of your results in plain English — no jargon.</p>
+            <p>Our AI agents read your results in plain English — no jargon.</p>
         </div>
 
         <div class="ai-review">

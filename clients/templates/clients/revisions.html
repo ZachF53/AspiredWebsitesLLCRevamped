@@ -1,0 +1,64 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Revisions{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Revisions</h1>
+    <p class="portal-page-head__sub">Request changes to your project.</p>
+</header>
+
+{% if project %}
+    {% if project.revision_count >= project.revision_limit %}
+        <p class="revision-warning {% if project.over_revision_limit %}revision-warning--over{% endif %}">
+            {{ project.revision_count }} of {{ project.revision_limit }} included revisions used.
+            {% if project.over_revision_limit %}
+                Further revisions are out-of-scope and billed at $85/hour — an invoice
+                is sent before work begins.
+            {% else %}
+                Your next major revision is your last included one.
+            {% endif %}
+        </p>
+    {% endif %}
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Request a Revision</h2>
+        <form method="post" action="{% url 'clients:revision_new' %}" class="revision-form">
+            {% csrf_token %}
+            <div class="form-group">
+                {{ form.description.label_tag }}{{ form.description }}
+                {% if form.description.errors %}<div class="form-field-error">{{ form.description.errors|join:" " }}</div>{% endif %}
+            </div>
+            <label class="checkbox-row">{{ form.is_major }}<span>{{ form.is_major.label }}</span></label>
+            <button type="submit" class="btn-primary">Submit Revision</button>
+        </form>
+    </section>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Your Revisions</h2>
+        {% if revision_list %}
+            <ul class="record-list">
+                {% for rev in revision_list %}
+                    <li class="record-list__item">
+                        <span class="record-list__main">
+                            {{ rev.description }}
+                            <span class="record-list__sub">
+                                Source: {{ rev.get_source_display }}
+                                {% if rev.status == 'out_of_scope' %} · Additional invoice sent{% endif %}
+                            </span>
+                        </span>
+                        <span class="record-list__meta">
+                            <span class="status-pill status-pill--{{ rev.status }}">{{ rev.get_status_display }}</span>
+                            {{ rev.created_at|date:"M j, Y" }}
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="portal-empty">No revision requests yet.</p>
+        {% endif %}
+    </section>
+{% else %}
+    <p class="portal-empty">You need an active project before you can request revisions.</p>
+{% endif %}
+{% endblock %}

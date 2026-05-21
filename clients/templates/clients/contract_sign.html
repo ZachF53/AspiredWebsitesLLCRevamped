@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sign Your Contract — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="contract-wrap">
+            <span class="eyebrow">Your Agreement</span>
+            <h1>Aspired Websites — Website Build Contract</h1>
+            <p class="muted">{{ contract.client.firm_name }}</p>
+
+            {% if already_signed %}
+                <div class="audit-email-confirmation" role="status">
+                    This contract was signed on
+                    {{ contract.signed_at|date:"F j, Y" }} by {{ contract.signed_name }}.
+                    No further action is needed — check your email for your invoice.
+                </div>
+            {% else %}
+                <p>Please read the full agreement below. The sign button activates
+                   once you&rsquo;ve scrolled to the end.</p>
+
+                {% if error %}
+                    <div class="form-error" role="alert">{{ error }}</div>
+                {% endif %}
+
+                <div class="contract-scroll" id="contract-scroll" tabindex="0"
+                     aria-label="Contract text — scroll to read in full">
+                    {{ contract.contract_text|safe }}
+                </div>
+
+                <form method="post" class="contract-sign-form" novalidate>
+                    {% csrf_token %}
+
+                    <div class="form-group">
+                        <label for="signed_name">Signed by &mdash; type your full legal name</label>
+                        <input type="text" id="signed_name" name="signed_name"
+                               class="form-control" autocomplete="name" required>
+                    </div>
+
+                    <label class="contract-agree">
+                        <input type="checkbox" name="agree" value="on" required>
+                        <span>I have read and agree to all terms of this Agreement.</span>
+                    </label>
+
+                    <p class="contract-scroll-hint" id="contract-scroll-hint">
+                        Scroll to the bottom of the agreement above to enable signing.
+                    </p>
+
+                    <button type="submit" class="btn-primary btn-block"
+                            id="contract-sign-btn">Sign &amp; Continue &rarr;</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/contract.js' %}" defer></script>
+{% endblock %}

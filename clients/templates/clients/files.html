@@ -1,0 +1,69 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Files{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Files</h1>
+    <p class="portal-page-head__sub">Documents shared between you and Aspired Websites.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Upload a File</h2>
+    <form method="post" action="{% url 'clients:file_upload' %}" enctype="multipart/form-data" class="upload-form">
+        {% csrf_token %}
+        <div class="form-group">
+            {{ upload_form.file.label_tag }}{{ upload_form.file }}
+            {% if upload_form.file.errors %}<div class="form-field-error">{{ upload_form.file.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+            {{ upload_form.label.label_tag }}{{ upload_form.label }}
+        </div>
+        <button type="submit" class="btn-primary">Upload</button>
+        <p class="form-hint">Any file type, up to 50MB.</p>
+    </form>
+</section>
+
+<div class="portal-cols">
+    <section class="portal-section portal-section--grow">
+        <h2 class="portal-section__title">Documents From Us</h2>
+        {% if docs_to_client %}
+            <ul class="record-list">
+                {% for doc in docs_to_client %}
+                    <li class="record-list__item">
+                        <span class="record-list__main">
+                            {{ doc.label|default:doc.file.name }}
+                            {% if doc.description %}<span class="record-list__sub">{{ doc.description }}</span>{% endif %}
+                        </span>
+                        <span class="record-list__meta">
+                            {{ doc.created_at|date:"M j, Y" }}
+                            <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="portal-empty">No documents from us yet.</p>
+        {% endif %}
+    </section>
+
+    <section class="portal-section portal-section--grow">
+        <h2 class="portal-section__title">Your Uploads</h2>
+        {% if docs_from_client %}
+            <ul class="record-list">
+                {% for doc in docs_from_client %}
+                    <li class="record-list__item">
+                        <span class="record-list__main">{{ doc.label|default:doc.file.name }}</span>
+                        <span class="record-list__meta">
+                            {{ doc.created_at|date:"M j, Y" }}
+                            <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="portal-empty">You haven’t uploaded any files yet.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

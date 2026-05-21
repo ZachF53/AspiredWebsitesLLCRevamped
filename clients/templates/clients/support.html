@@ -1,0 +1,52 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Support{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Support</h1>
+    <p class="portal-page-head__sub">Open a ticket and we’ll get back to you.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">New Support Ticket</h2>
+    <form method="post" action="{% url 'clients:support_new' %}" class="support-form">
+        {% csrf_token %}
+        <div class="form-group">
+            {{ form.subject.label_tag }}{{ form.subject }}
+            {% if form.subject.errors %}<div class="form-field-error">{{ form.subject.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.description.label_tag }}{{ form.description }}
+            {% if form.description.errors %}<div class="form-field-error">{{ form.description.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.priority.label_tag }}{{ form.priority }}
+        </div>
+        <button type="submit" class="btn-primary">Submit Ticket</button>
+    </form>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Your Tickets</h2>
+    {% if tickets %}
+        <ul class="record-list">
+            {% for ticket in tickets %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        {{ ticket.subject }}
+                        <span class="record-list__sub">{{ ticket.description|truncatewords:24 }}</span>
+                    </span>
+                    <span class="record-list__meta">
+                        <span class="status-pill status-pill--priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                        <span class="status-pill status-pill--{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                        {{ ticket.created_at|date:"M j, Y" }}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="portal-empty">No support tickets yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "clients/base.html" %}
+
+{% block title %}My Project{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>My Project</h1>
+    <p class="portal-page-head__sub">{{ profile.firm_name }}</p>
+</header>
+
+{% if not project %}
+    <p class="portal-empty">No active project yet. Your project will appear here once your contract is signed.</p>
+{% else %}
+<div class="portal-cols">
+    <section class="portal-section">
+        <h2 class="portal-section__title">Project Details</h2>
+        <dl class="detail-list">
+            <div><dt>Package</dt><dd>{{ project.get_package_display|default:"—" }}</dd></div>
+            <div><dt>Stage</dt><dd><span class="status-pill status-pill--stage">{{ project.get_stage_display }}</span></dd></div>
+            <div><dt>Payment</dt><dd>{{ project.get_payment_status_display }}</dd></div>
+            <div>
+                <dt>Staging Site</dt>
+                <dd>{% if project.staging_url %}<a href="{{ project.staging_url }}" target="_blank" rel="noopener">{{ project.staging_url }}</a>{% else %}Not available yet{% endif %}</dd>
+            </div>
+            <div>
+                <dt>Live Site</dt>
+                <dd>{% if project.live_url %}<a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a>{% else %}Not launched yet{% endif %}</dd>
+            </div>
+            <div><dt>Launch Date</dt><dd>{{ project.launch_date|date:"F j, Y"|default:"—" }}</dd></div>
+        </dl>
+
+        {% if project.stage == 'live' %}
+            {% if support_window_left and support_window_left > 0 %}
+                <p class="support-window support-window--open">
+                    Free support window: {{ support_window_left }} day{{ support_window_left|pluralize }} remaining.
+                </p>
+            {% else %}
+                <p class="support-window support-window--closed">
+                    Free support window ended{% if project.support_window_ends %} {{ project.support_window_ends|date:"F j, Y" }}{% endif %}.
+                </p>
+            {% endif %}
+        {% endif %}
+    </section>
+
+    <section class="portal-section portal-section--grow">
+        <h2 class="portal-section__title">Stage Timeline</h2>
+        <ol class="timeline">
+            {% for step in timeline %}
+                <li class="timeline__item timeline__item--{{ step.status }}">
+                    <span class="timeline__marker" aria-hidden="true"></span>
+                    <div class="timeline__body">
+                        <span class="timeline__stage">
+                            {{ step.label }}
+                            <span class="timeline__status">{{ step.status }}</span>
+                        </span>
+                        {% if step.date %}<span class="timeline__date">{{ step.date|date:"M j, Y" }}</span>{% endif %}
+                        {% if step.note %}<span class="timeline__note">{{ step.note }}</span>{% endif %}
+                        {% if step.key == 'review' and step.status == 'current' and project.staging_url %}
+                            <a class="timeline__link" href="{{ project.staging_url }}" target="_blank" rel="noopener">View staging site →</a>
+                        {% endif %}
+                    </div>
+                </li>
+            {% endfor %}
+        </ol>
+    </section>
+</div>
+
+<section class="portal-section">
+    <div class="portal-section__head">
+        <h2 class="portal-section__title">Revisions</h2>
+        <a class="btn-secondary btn-sm" href="{% url 'clients:revisions' %}">New Revision</a>
+    </div>
+    {% if project.revision_count >= project.revision_limit %}
+        <p class="revision-warning {% if project.over_revision_limit %}revision-warning--over{% endif %}">
+            {{ project.revision_count }} of {{ project.revision_limit }} included revisions used.
+            {% if project.over_revision_limit %}Further revisions are billed as out-of-scope work.{% endif %}
+        </p>
+    {% endif %}
+    {% if revisions %}
+        <ul class="record-list">
+            {% for rev in revisions %}
+                <li class="record-list__item">
+                    <span class="record-list__main">{{ rev.description }}</span>
+                    <span class="record-list__meta">
+                        <span class="status-pill status-pill--{{ rev.status }}">{{ rev.get_status_display }}</span>
+                        {{ rev.created_at|date:"M j, Y" }}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="portal-empty">No revision requests yet.</p>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

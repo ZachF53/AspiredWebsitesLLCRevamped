@@ -1,0 +1,76 @@
+{# One flagged reply — full thread + reply form + triage actions. #}
+<article class="needs-you-card" id="reply-card-{{ reply.pk }}">
+
+    <header class="needs-you-card__header">
+        <div class="needs-you-card__who">
+            <a href="{% url 'admin_dashboard:lead_detail' reply.lead.pk %}" class="needs-you-card__firm">{{ reply.lead.firm_name }}</a>
+            {% if reply.lead.attorney_name %}
+                <span class="needs-you-card__attorney">{{ reply.lead.attorney_name }}</span>
+            {% endif %}
+        </div>
+        <span class="reply-class reply-class--{{ reply.classification|default:'unclear' }}">
+            {{ reply.get_classification_display|default:"Unclassified" }}
+        </span>
+    </header>
+
+    {# The email we sent #}
+    {% if reply.email_sent %}
+        <div class="email-thread email-thread--sent">
+            <div class="email-thread__label">We sent</div>
+            <div class="email-thread__subject">{{ reply.email_sent.subject }}</div>
+            <div class="email-thread__body">{{ reply.email_sent.body|linebreaksbr }}</div>
+        </div>
+    {% endif %}
+
+    {# Their reply #}
+    <div class="email-thread email-thread--received">
+        <div class="email-thread__label">They replied</div>
+        {% if reply.subject %}<div class="email-thread__subject">{{ reply.subject }}</div>{% endif %}
+        <div class="email-thread__body">{{ reply.body|linebreaksbr }}</div>
+        <div class="email-thread__meta">{{ reply.received_at|date:"M j, Y g:i A" }}</div>
+    </div>
+
+    {# Your reply #}
+    <form class="needs-you-card__reply"
+          hx-post="{% url 'admin_dashboard:needs_you_send' reply.pk %}"
+          hx-target="#needs-you-list"
+          hx-swap="outerHTML">
+        {% csrf_token %}
+        <label class="needs-you-card__reply-label">Your reply</label>
+        <div id="reply-text-wrap-{{ reply.pk }}">
+            <textarea name="reply_body"
+                      class="form-control needs-you-card__textarea"
+                      rows="7"
+                      required
+                      placeholder="Write your reply, or let AI draft one…">{{ reply.ai_suggested_reply }}</textarea>
+        </div>
+        <div class="needs-you-card__actions">
+            <button type="button"
+                    class="btn-secondary btn-sm"
+                    hx-post="{% url 'admin_dashboard:needs_you_draft' reply.pk %}"
+                    hx-target="#reply-text-wrap-{{ reply.pk }}"
+                    hx-swap="innerHTML">
+                Draft with AI
+            </button>
+            <button type="submit" class="btn-primary btn-sm">Send Reply</button>
+        </div>
+    </form>
+
+    {# Secondary triage actions #}
+    <div class="needs-you-card__secondary">
+        <form hx-post="{% url 'admin_dashboard:needs_you_archive' reply.pk %}"
+              hx-target="#needs-you-list"
+              hx-swap="outerHTML"
+              hx-confirm="Archive this reply without sending a response?">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary btn-sm">Archive</button>
+        </form>
+        <form hx-post="{% url 'admin_dashboard:needs_you_unsubscribe' reply.pk %}"
+              hx-target="#needs-you-list"
+              hx-swap="outerHTML"
+              hx-confirm="Add this lead to the PERMANENT suppression list? They will never be contacted again from any sequence.">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary btn-danger btn-sm">Unsubscribe</button>
+        </form>
+    </div>
+</article>

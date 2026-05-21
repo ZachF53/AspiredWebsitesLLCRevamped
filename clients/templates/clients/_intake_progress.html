@@ -1,0 +1,16 @@
+{# HTMX partial — intake progress indicator, swapped on every auto-save #}
+<div id="intake-progress" class="intake-progress">
+    <div class="intake-progress__head">
+        <strong>Step {{ intake_completed_count }} of 6 complete</strong>
+        {% if saved_at %}<span class="intake-progress__saved">Saved &#10003;</span>{% endif %}
+    </div>
+    <progress class="intake-progress__bar" value="{{ intake_percent }}" max="100">{{ intake_percent }}%</progress>
+    <ul class="intake-progress__steps">
+        {% for step in intake_steps %}
+            <li class="{% if step.done %}is-done{% endif %}">
+                <span class="intake-progress__check" aria-hidden="true">{% if step.done %}&#10003;{% endif %}</span>
+                {{ step.number }}. {{ step.label }}
+            </li>
+        {% endfor %}
+    </ul>
+</div>

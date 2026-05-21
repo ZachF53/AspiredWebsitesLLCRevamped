@@ -49,6 +49,12 @@ ALLOWED_HOSTS = env_list(
     ['localhost', '127.0.0.1'],
 )
 
+# Auth — single custom login at /login/ handles both clients (Phase 3 portal)
+# and admins (redirected to /admin-dashboard/ post-login if is_staff).
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/portal/'
+LOGOUT_REDIRECT_URL = '/'
+
 
 # ── Applications ────────────────────────────────────────────────────────────
 DJANGO_APPS = [
@@ -68,6 +74,7 @@ LOCAL_APPS = [
     'core',
     'public',
     'clients',
+    'sync',
     'billing',
     'contracts',
     'outreach',
@@ -200,6 +207,11 @@ STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', '')
 
+# Maintenance-plan recurring Price IDs — created in the Stripe dashboard.
+STRIPE_PRICE_ESSENTIALS = env('STRIPE_PRICE_ESSENTIALS', '')
+STRIPE_PRICE_GROWTH = env('STRIPE_PRICE_GROWTH', '')
+STRIPE_PRICE_DOMINANT = env('STRIPE_PRICE_DOMINANT', '')
+
 
 # ── DigitalOcean ────────────────────────────────────────────────────────────
 DO_API_TOKEN = env('DO_API_TOKEN', '')
@@ -223,6 +235,9 @@ GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', '')
 # use. Free tier is 25k queries/day. Create at:
 #   https://console.cloud.google.com/apis/credentials
 GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
+# Places API — powers the Google Maps lead scraper. See CLAUDE.md →
+# External APIs & Costs.
+GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
 
 
 # ── Meta / Facebook ─────────────────────────────────────────────────────────
@@ -233,6 +248,13 @@ META_APP_SECRET = env('META_APP_SECRET', '')
 # ── LinkedIn ────────────────────────────────────────────────────────────────
 LINKEDIN_CLIENT_ID = env('LINKEDIN_CLIENT_ID', '')
 LINKEDIN_CLIENT_SECRET = env('LINKEDIN_CLIENT_SECRET', '')
+
+
+# ── Moonieful sync bridge ───────────────────────────────────────────────────
+# SYNC_SECRET is the shared HMAC key — set it in local_settings.py (gitignored).
+SYNC_SECRET = env('SYNC_SECRET', '')
+MOONIEFUL_SYNC_URL = env('MOONIEFUL_SYNC_URL', '')
+SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
 
 # ── Celery / Redis ──────────────────────────────────────────────────────────
@@ -262,3 +284,12 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+
+# ── Local overrides ─────────────────────────────────────────────────────────
+# local_settings.py is gitignored — it holds SYNC_SECRET and any machine- or
+# environment-specific overrides. Imported last so it wins.
+try:
+    from local_settings import *  # noqa: F401,F403
+except ImportError:
+    pass

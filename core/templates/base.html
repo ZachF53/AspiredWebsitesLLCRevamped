@@ -11,6 +11,8 @@
     <meta property="og:description" content="{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses.' }}">
     <meta property="og:type" content="website">
 
+    {# Disable HTMX's auto-injected indicator <style> — blocked by our strict CSP. #}
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     {% block extra_head %}{% endblock %}
 </head>

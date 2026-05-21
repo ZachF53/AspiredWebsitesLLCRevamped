@@ -1,0 +1,38 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Invoices{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Invoices</h1>
+    <p class="portal-page-head__sub">Your billing history with Aspired Websites.</p>
+</header>
+
+<section class="portal-section">
+    {% if stripe_error %}
+        <p class="portal-empty">{{ stripe_error }}</p>
+    {% elif invoice_list %}
+        <table class="invoice-table">
+            <thead>
+                <tr><th>Description</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for inv in invoice_list %}
+                    <tr>
+                        <td>{{ inv.description }}</td>
+                        <td>${{ inv.amount }}</td>
+                        <td><span class="status-pill status-pill--{{ inv.status }}">{{ inv.status|capfirst }}</span></td>
+                        <td>{% if inv.created %}{{ inv.created }}{% else %}—{% endif %}</td>
+                        <td class="invoice-table__actions">
+                            {% if inv.pdf_url %}<a class="btn-secondary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Download PDF</a>{% endif %}
+                            {% if inv.is_open and inv.pdf_url %}<a class="btn-primary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Pay Now</a>{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="portal-empty">No invoices yet. Invoices appear here once they’re issued.</p>
+    {% endif %}
+</section>
+{% endblock %}

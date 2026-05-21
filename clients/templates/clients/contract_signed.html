@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Contract Signed — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="section login-page">
+    <div class="container">
+        <article class="card card--featured login-card">
+            <div class="contract-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" aria-label="Signed">
+                    <path d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h1 class="login-card__title">Contract Signed</h1>
+            <p class="login-card__subtitle">
+                Check your email for your invoice. Your project starts the moment
+                your deposit is received.
+            </p>
+            <a class="btn-primary btn-block" href="{% url 'public:home' %}">Back to Home</a>
+        </article>
+    </div>
+</section>
+{% endblock %}

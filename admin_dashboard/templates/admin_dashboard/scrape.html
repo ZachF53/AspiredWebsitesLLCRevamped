@@ -1,0 +1,93 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Run Scraper — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Lead Generation</span>
+            <h1 class="admin-page-title">Run Scraper</h1>
+            <p class="muted">Pull fresh leads from Google Maps or a state bar directory. New leads are auto-scored and de-duplicated on import.</p>
+        </div>
+    </div>
+
+    {# ───────── Results / error ───────── #}
+    {% if error %}
+        <div class="form-error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    {% if results %}
+        <div class="scrape-result" role="status">
+            <div class="scrape-result__headline">
+                Scraper complete &mdash;
+                <strong>{{ results.imported }}</strong> imported
+            </div>
+            <div class="scrape-result__counts">
+                <span class="scrape-stat">{{ results.total }} <em>found</em></span>
+                <span class="scrape-stat scrape-stat--good">{{ results.imported }} <em>imported</em></span>
+                <span class="scrape-stat">{{ results.duplicates }} <em>duplicates</em></span>
+                <span class="scrape-stat">{{ results.suppressed }} <em>suppressed</em></span>
+                <span class="scrape-stat {% if results.errors %}scrape-stat--bad{% endif %}">{{ results.errors }} <em>errors</em></span>
+                {% if results.api_calls %}
+                    <span class="scrape-stat">{{ results.api_calls }} <em>API calls</em></span>
+                {% endif %}
+            </div>
+            {% if results.imported %}
+                <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:leads_table' %}?created=today&sort=newest">
+                    View {{ results.imported }} new lead{{ results.imported|pluralize }} &rarr;
+                </a>
+            {% else %}
+                <p class="muted scrape-result__hint">
+                    Nothing imported. If "found" is also 0, the scraper&rsquo;s selectors may need tuning
+                    against the live site &mdash; see the <code># SELECTOR:</code> markers in outreach/scraper.py.
+                </p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {# ───────── Form ───────── #}
+    <form method="post" class="scrape-form admin-card">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="form-error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="scrape-form__grid">
+            <div class="form-group">
+                <label for="{{ form.source.id_for_label }}">{{ form.source.label }}</label>
+                {{ form.source }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.practice_area.id_for_label }}">{{ form.practice_area.label }}</label>
+                {{ form.practice_area }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
+                {{ form.city }}
+                {% if form.city.errors %}<div class="form-field-error">{{ form.city.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.state.id_for_label }}">{{ form.state.label }}</label>
+                {{ form.state }}
+                <div class="form-help">{{ form.state.help_text }}</div>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.max_results.id_for_label }}">{{ form.max_results.label }}</label>
+                {{ form.max_results }}
+            </div>
+        </div>
+
+        <div class="scrape-form__actions">
+            <button type="submit" class="btn-primary">Run Scraper</button>
+        </div>
+
+        <p class="scrape-form__note muted">
+            A scrape runs a real headless browser and takes <strong>1&ndash;3 minutes</strong>. Don&rsquo;t refresh or close the tab while it runs.
+        </p>
+    </form>
+
+</div>
+{% endblock %}
