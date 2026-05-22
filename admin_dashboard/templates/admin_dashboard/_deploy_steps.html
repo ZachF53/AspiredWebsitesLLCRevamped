@@ -43,6 +43,46 @@ git log --oneline -5{% endverbatim %}</script>
 </details>
 
 <details class="deploy-step" open>
+    <summary>Step 2b — Generate SSH Vault Key (manual, non-Stripe Droplets only)</summary>
+    <p class="deploy-note">Stripe-triggered Droplets get this automatically. Run this only when you provisioned the box yourself (no Stripe webhook fired). Generates an Ed25519 keypair on the server, authorises it for root, captures the private key, and locks down password auth.</p>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s2b"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s2b">{% verbatim %}mkdir -p /root/.ssh && chmod 700 /root/.ssh
+rm -f /root/.ssh/aspired_vault_key /root/.ssh/aspired_vault_key.pub
+ssh-keygen -t ed25519 -N "" -C "aspired-vault" -f /root/.ssh/aspired_vault_key
+touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+sed -i "/aspired-vault/d" /root/.ssh/authorized_keys
+cat /root/.ssh/aspired_vault_key.pub >> /root/.ssh/authorized_keys
+
+# Loopback test — must succeed before locking down password auth.
+ssh -i /root/.ssh/aspired_vault_key \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o BatchMode=yes \
+    -o ConnectTimeout=10 \
+    root@127.0.0.1 true && echo "✓ vault key works"
+
+# Lock down: key-only from now on.
+cat > /etc/ssh/sshd_config.d/99-vault-lockdown.conf << 'EOF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+EOF
+sshd -t && (systemctl reload sshd || systemctl reload ssh)
+passwd -l root
+
+# Print the private key for you to paste into the vault. Copy from
+# the FIRST -----BEGIN line through the LAST -----END line, then close
+# this terminal — the key never goes through this dashboard.
+echo "=== COPY EVERYTHING BETWEEN THE LINES ==="
+cat /root/.ssh/aspired_vault_key
+echo "=== END ==="{% endverbatim %}</script>
+    <p class="deploy-note deploy-note--warn">Paste the printed private key into Vault → {{DOMAIN}} → Add Credential, category <strong>Server / Hosting</strong>, auth type <strong>Private Key</strong>. Do not save the private key anywhere else.</p>
+</details>
+
+<details class="deploy-step" open>
     <summary>Step 3 — Install Dependencies</summary>
     <div class="command-block">
         <button type="button" class="cmd-copy">Copy</button>

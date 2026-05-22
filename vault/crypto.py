@@ -150,3 +150,73 @@ def unwrap_key(wrapped_hex: str):
         return base64.b64decode(inner.encode('utf-8'))
     except Exception:
         return None
+
+
+# ── Server-side provisioning key ────────────────────────────────────────────
+# Used ONLY by automated provisioning (e.g. Droplet creation) — when no
+# admin PIN session exists. Credentials encrypted with this key are
+# re-encrypted with the PIN-derived key the first time an admin opens them.
+# The derivation uses SYNC_SECRET (already a strong random secret) with a
+# distinct PBKDF2 context so it cannot collide with HMAC sync use.
+
+SERVER_PROVISIONING_SALT = b'vault-server-provisioning'
+
+
+def derive_server_key() -> bytes:
+    """
+    A deterministic 32-byte key derived from settings.SYNC_SECRET via PBKDF2.
+
+    Raises ValueError if SYNC_SECRET is unset, so production never silently
+    uses a predictable key from an empty seed.
+    """
+    if not settings.SYNC_SECRET:
+        raise ValueError(
+            'SYNC_SECRET is not set — cannot derive server provisioning key.')
+    return hashlib.pbkdf2_hmac(
+        'sha256',
+        settings.SYNC_SECRET.encode('utf-8'),
+        SERVER_PROVISIONING_SALT,
+        PBKDF2_ITERATIONS,
+        dklen=32,
+    )
+
+
+# Encrypted fields on a VaultCredential — used by re-encryption.
+_REENCRYPT_FIELDS = (
+    'username_encrypted',
+    'password_encrypted',
+    'url_encrypted',
+    'notes_encrypted',
+    'ssh_host_encrypted',
+    'ssh_username_encrypted',
+    'ssh_password_encrypted',
+    'ssh_private_key_encrypted',
+    'ssh_key_passphrase_encrypted',
+    'totp_secret_encrypted',
+)
+
+
+def reencrypt_credential_with_pin_key(credential, pin_key) -> bool:
+    """
+    Decrypt server-key-encrypted fields and re-encrypt with the PIN key.
+
+    Idempotent — does nothing if the credential is already PIN-encrypted.
+    Returns True if a re-encryption actually happened.
+    """
+    if not credential.encrypted_with_server_key:
+        return False
+    server_key = derive_server_key()
+    changed = []
+    for field in _REENCRYPT_FIELDS:
+        encrypted_val = getattr(credential, field, '')
+        if not encrypted_val:
+            continue
+        plaintext = decrypt_value(encrypted_val, server_key)
+        if not plaintext or plaintext == '[decryption failed]':
+            continue
+        setattr(credential, field, encrypt_value(plaintext, pin_key))
+        changed.append(field)
+    credential.encrypted_with_server_key = False
+    credential.save(update_fields=changed + [
+        'encrypted_with_server_key', 'updated_at'])
+    return True

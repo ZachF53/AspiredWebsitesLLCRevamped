@@ -22,6 +22,13 @@
         </div>
     </div>
 
+    {% if provisioning_reencrypted_count %}
+        <div class="vault-banner vault-banner--info">
+            <strong>{{ provisioning_reencrypted_count }} auto-provisioned credential{{ provisioning_reencrypted_count|pluralize }} secured.</strong>
+            SSH credential{{ provisioning_reencrypted_count|pluralize }} for this server {% if provisioning_reencrypted_count == 1 %}was{% else %}were{% endif %} automatically set up during provisioning. {% if provisioning_reencrypted_count == 1 %}It has{% else %}They have{% endif %} now been re-encrypted with your vault PIN.
+        </div>
+    {% endif %}
+
     {% if groups %}
         {% for group in groups %}
             <details class="vault-catgroup" open>

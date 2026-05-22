@@ -26,6 +26,7 @@ from .crypto import (
     generate_salt,
     hash_pin,
     make_hint,
+    reencrypt_credential_with_pin_key,
     unwrap_key,
     verify_pin,
     wrap_key,
@@ -342,6 +343,18 @@ def client_vault(request, client_id):
     client = get_object_or_404(ClientProfile, id=client_id)
     vault, _ = ClientVault.objects.get_or_create(client=client)
 
+    # Re-encrypt any server-key-encrypted credentials (auto-provisioned
+    # before any admin had unlocked the vault) under the PIN key now that
+    # we have it. Idempotent — does nothing once the flag is cleared.
+    provisioning_reencrypted_count = 0
+    for cred in vault.credentials.filter(encrypted_with_server_key=True):
+        try:
+            if reencrypt_credential_with_pin_key(cred, key):
+                provisioning_reencrypted_count += 1
+        except Exception:
+            logger.exception(
+                'vault: failed to re-encrypt %s under PIN key', cred.pk)
+
     groups = []
     for cat_key, cat_label in VaultCredential.CATEGORY_CHOICES:
         items = []
@@ -364,6 +377,7 @@ def client_vault(request, client_id):
         'client': client,
         'vault': vault,
         'groups': groups,
+        'provisioning_reencrypted_count': provisioning_reencrypted_count,
         'seconds_remaining': _seconds_remaining(request),
     })
 

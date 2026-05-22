@@ -5743,6 +5743,21 @@ button.htmx-request {
 .vault-muted { color: var(--color-text-muted); }
 .vault-foot { margin-top: var(--space-3); font-size: 0.875rem; }
 
+/* One-time info banner — e.g. auto-provisioned credentials secured. */
+.vault-banner {
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+.vault-banner--info {
+    background: rgba(13, 148, 136, 0.12);
+    border: 1px solid rgba(13, 148, 136, 0.3);
+    color: var(--color-text);
+}
+.vault-banner strong { margin-right: 0.25rem; }
+
 /* Expiry overlay */
 .vault-expired-overlay {
     position: fixed;
