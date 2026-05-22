@@ -6228,6 +6228,17 @@ button.htmx-request {
     flex-wrap: wrap;
     margin-top: var(--space-2);
 }
+.cl-import-note {
+    margin: 0.75rem 0 0;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    background: rgba(56, 139, 253, 0.08);
+    border: 1px solid rgba(56, 139, 253, 0.22);
+    border-radius: 8px;
+}
+.cl-import-note strong { color: var(--color-text); }
 
 /* Portal — Activity Log */
 .cl-portal-head {

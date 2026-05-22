@@ -1109,11 +1109,13 @@ def changelog_import(request):
     if step == 'save' and client and parsed:
         today = timezone.localdate()
         for title in parsed:
+            # Imported deploy steps land as an internal audit trail — staff
+            # flip individual entries visible to surface them to the client.
             SiteChangelogEntry.objects.create(
                 client=client,
                 change_type='deployment',
                 title=title,
-                is_client_visible=True,
+                is_client_visible=False,
                 date_of_change=today,
             )
         return redirect('admin_dashboard:client_changelog', client_id=client.id)

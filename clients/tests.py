@@ -322,6 +322,7 @@ class AdminChangelogTests(TestCase):
         })
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Running migrations')
+        self.assertContains(resp, 'Imported entries are internal by default')
         self.assertEqual(SiteChangelogEntry.objects.count(), 0)
         # Save — creates one entry per [n/n] step.
         resp = self.client.post(url, {
@@ -335,6 +336,9 @@ class AdminChangelogTests(TestCase):
         self.assertTrue(SiteChangelogEntry.objects.filter(
             change_type='deployment',
             title='Pulling latest code from GitHub...').exists())
+        # Imported entries are internal by default — never auto-shown.
+        self.assertEqual(
+            SiteChangelogEntry.objects.filter(is_client_visible=True).count(), 0)
 
     def test_import_preview_keeps_add_form_action(self):
         """After a preview re-render the main entry form must still post to
