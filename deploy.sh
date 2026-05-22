@@ -61,5 +61,16 @@ else
     exit 1
 fi
 
+# ── Optional: log this deployment to a client's site changelog ──────────────
+# Uncomment and set CLIENT_ID to record a "Deployment" entry in that client's
+# portal Activity Log every time this script runs.
+# CLIENT_ID=""
+# if [ -n "$CLIENT_ID" ]; then
+#     $PYTHON $APP_DIR/manage.py log_deployment "$CLIENT_ID" \
+#         --title "Site updated — $(date +%Y-%m-%d)" \
+#         --description "Latest code, migrations, and static files deployed." \
+#         2>&1 | tee -a $LOG
+# fi
+
 echo "Deploy completed: $(date)" | tee -a $LOG
 echo "========================================" | tee -a $LOG

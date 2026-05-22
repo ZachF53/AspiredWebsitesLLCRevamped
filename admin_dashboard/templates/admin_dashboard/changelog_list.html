@@ -1,0 +1,124 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if single_client %}{{ single_client.firm_name }} — Changelog{% else %}Changelog{% endif %} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            {% if single_client %}
+                <span class="eyebrow">
+                    <a href="{% url 'admin_dashboard:changelog_list' %}" class="admin-back-link">&larr; All changelog</a>
+                </span>
+                <h1 class="admin-page-title">{{ single_client.firm_name }} — Changelog</h1>
+            {% else %}
+                <span class="eyebrow">Site Changelog</span>
+                <h1 class="admin-page-title">{{ entries|length }} entr{{ entries|length|pluralize:"y,ies" }}</h1>
+            {% endif %}
+        </div>
+        <div class="admin-page-actions">
+            {% if single_client %}
+                <a class="btn-primary" href="{% url 'admin_dashboard:changelog_add_client' single_client.id %}">+ Add Entry</a>
+            {% else %}
+                <a class="btn-primary" href="{% url 'admin_dashboard:changelog_add' %}">+ Add Entry</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not single_client %}
+        <form class="lead-filter-bar" method="get">
+            <select name="client" class="form-control">
+                <option value="">All clients</option>
+                {% for c in clients %}
+                    <option value="{{ c.id }}" {% if client_filter == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>
+                {% endfor %}
+            </select>
+            <select name="change_type" class="form-control">
+                <option value="">All types</option>
+                {% for value, label in change_type_choices %}
+                    <option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="visible" class="form-control">
+                <option value="">Visible + internal</option>
+                <option value="yes" {% if visible_filter == 'yes' %}selected{% endif %}>Client-visible only</option>
+                <option value="no" {% if visible_filter == 'no' %}selected{% endif %}>Internal only</option>
+            </select>
+            <input type="date" name="from" value="{{ date_from }}" class="form-control" aria-label="From date">
+            <input type="date" name="to" value="{{ date_to }}" class="form-control" aria-label="To date">
+            <button type="submit" class="btn-primary">Apply</button>
+            {% if client_filter or type_filter or visible_filter or date_from or date_to %}
+                <a href="{% url 'admin_dashboard:changelog_list' %}" class="lead-filter-bar__clear">Clear</a>
+            {% endif %}
+        </form>
+    {% endif %}
+
+    {% if entries %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        {% if not single_client %}<th>Client</th>{% endif %}
+                        <th>Type</th>
+                        <th>Title</th>
+                        <th>Visible</th>
+                        <th class="lead-table__col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>{{ entry.date_of_change|date:"M j, Y" }}</td>
+                            {% if not single_client %}
+                                <td>
+                                    <a href="{% url 'admin_dashboard:client_changelog' entry.client.id %}" class="lead-table__firm">{{ entry.client.firm_name }}</a>
+                                </td>
+                            {% endif %}
+                            <td><span class="cl-badge cl-badge--{{ entry.change_type }}">{{ entry.get_change_type_display }}</span></td>
+                            <td>
+                                {{ entry.title }}
+                                {% if entry.description %}<div class="lead-table__sub">{{ entry.description|truncatechars:90 }}</div>{% endif %}
+                            </td>
+                            <td>
+                                {% if entry.is_client_visible %}
+                                    <span class="cl-visible cl-visible--yes" title="Shown to client">&#10003;</span>
+                                {% else %}
+                                    <span class="cl-visible cl-visible--no" title="Internal only">&mdash;</span>
+                                {% endif %}
+                            </td>
+                            <td class="lead-table__col-actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:changelog_edit' entry.id %}">Edit</a>
+                                <form method="post" action="{% url 'admin_dashboard:changelog_delete' entry.id %}" class="cl-delete-form">
+                                    {% csrf_token %}
+                                    {% if single_client %}<input type="hidden" name="next" value="client">{% endif %}
+                                    <button type="submit" class="btn-secondary btn-sm cl-delete-btn"
+                                            data-confirm="Delete this changelog entry permanently?">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            {% if not single_client and client_filter or type_filter or visible_filter or date_from or date_to %}
+                <p>No changelog entries match your filters.</p>
+                <p><a href="{% url 'admin_dashboard:changelog_list' %}">Clear all filters</a></p>
+            {% else %}
+                <p>No changelog entries{% if single_client %} for {{ single_client.firm_name }}{% endif %} yet.</p>
+                <p>
+                    {% if single_client %}
+                        <a class="btn-primary" href="{% url 'admin_dashboard:changelog_add_client' single_client.id %}">+ Add the first entry</a>
+                    {% else %}
+                        <a class="btn-primary" href="{% url 'admin_dashboard:changelog_add' %}">+ Add the first entry</a>
+                    {% endif %}
+                </p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

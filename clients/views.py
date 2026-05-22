@@ -61,6 +61,11 @@ def _portal_context(request, active_nav, **extra):
     open_tickets = profile.tickets.filter(
         status__in=['open', 'in_progress']
     ).count()
+    # Green-dot badge on the Activity Log nav item — new entries in last 7 days.
+    changelog_has_new = profile.changelog_entries.filter(
+        is_client_visible=True,
+        created_at__gte=timezone.now() - timedelta(days=7),
+    ).exists()
     ctx = {
         'profile': profile,
         'project': project,
@@ -69,6 +74,7 @@ def _portal_context(request, active_nav, **extra):
         'intake_incomplete': bool(project) and (intake is None or not intake.completed),
         'pending_revisions': pending_revisions,
         'open_tickets': open_tickets,
+        'changelog_has_new': changelog_has_new,
     }
     ctx.update(extra)
     return ctx
@@ -651,6 +657,61 @@ def portal_credentials_reauth(request):
         'pin_error': (f'Incorrect PIN — {remaining} attempt'
                       f'{"" if remaining == 1 else "s"} left.'),
     })
+
+
+# ── Page 10: Activity Log (client site changelog) ───────────────────────────
+
+@client_required
+def portal_changelog(request):
+    """The client-facing site changelog — grouped by month, month-filterable."""
+    profile = request.client_profile
+    visible = profile.changelog_entries.filter(is_client_visible=True)
+
+    # Month options from the full visible set (newest-first via model Meta).
+    month_options = []
+    seen = set()
+    for change_date in visible.values_list('date_of_change', flat=True):
+        key = change_date.strftime('%Y-%m')
+        if key not in seen:
+            seen.add(key)
+            month_options.append({
+                'value': key,
+                'label': change_date.strftime('%B %Y'),
+            })
+
+    month_filter = request.GET.get('month', '')
+    entries = visible
+    if month_filter:
+        try:
+            year, mon = month_filter.split('-')
+            entries = entries.filter(
+                date_of_change__year=int(year),
+                date_of_change__month=int(mon),
+            )
+        except (ValueError, TypeError):
+            month_filter = ''
+
+    # Group the (already date-ordered) entries by calendar month.
+    grouped = []
+    current = None
+    for entry in entries:
+        key = entry.date_of_change.strftime('%Y-%m')
+        if current is None or current['key'] != key:
+            current = {
+                'key': key,
+                'label': entry.date_of_change.strftime('%B %Y'),
+                'entries': [],
+            }
+            grouped.append(current)
+        current['entries'].append(entry)
+
+    ctx = _portal_context(
+        request, 'changelog',
+        changelog_months=grouped,
+        month_options=month_options,
+        month_filter=month_filter,
+    )
+    return render(request, 'clients/portal_changelog.html', ctx)
 
 
 # ── Page 8: Settings ────────────────────────────────────────────────────────

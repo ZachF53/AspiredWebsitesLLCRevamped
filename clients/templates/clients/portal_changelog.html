@@ -1,0 +1,71 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Activity Log{% endblock %}
+
+{% block portal_content %}
+<div class="portal-changelog">
+    <header class="portal-page-head cl-portal-head">
+        <div>
+            <h1>Activity Log</h1>
+            <p class="portal-page-head__sub">Every update and improvement made to your site.</p>
+        </div>
+        {% if month_options %}
+            <form method="get" class="cl-month-filter">
+                <label for="cl-month" class="cl-month-filter__label">Filter by month</label>
+                <select name="month" id="cl-month" class="form-control" data-autosubmit>
+                    <option value="">All activity</option>
+                    {% for m in month_options %}
+                        <option value="{{ m.value }}" {% if month_filter == m.value %}selected{% endif %}>{{ m.label }}</option>
+                    {% endfor %}
+                </select>
+                <noscript><button type="submit" class="btn-secondary btn-sm">Go</button></noscript>
+            </form>
+        {% endif %}
+    </header>
+
+    {% if changelog_months %}
+        {% for month in changelog_months %}
+            <h2 class="cl-month-head">{{ month.label }}</h2>
+            <div class="cl-entries">
+                {% for entry in month.entries %}
+                    <article class="cl-entry">
+                        <div class="cl-entry__date">
+                            <span class="cl-entry__day">{{ entry.date_of_change|date:"M j" }}</span>
+                            <span class="cl-entry__year">{{ entry.date_of_change|date:"Y" }}</span>
+                        </div>
+                        <div class="cl-entry__body">
+                            <span class="cl-badge cl-badge--{{ entry.change_type }}">{{ entry.get_change_type_display }}</span>
+                            <h3 class="cl-entry__title">{{ entry.title }}</h3>
+                            {% if entry.description %}
+                                <p class="cl-entry__desc">{{ entry.description|linebreaksbr }}</p>
+                            {% endif %}
+                            {% if entry.url_changed %}
+                                <a class="cl-entry__link" href="{{ entry.url_changed }}" target="_blank" rel="noopener">View page &rarr;</a>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="cl-empty">
+            <div class="cl-empty__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            </div>
+            {% if month_filter %}
+                <h2>No activity that month</h2>
+                <p>There's no recorded activity for the month you picked. Try another month or view everything.</p>
+                <a class="btn-secondary btn-sm" href="{% url 'clients:portal_changelog' %}">View all activity</a>
+            {% else %}
+                <h2>No activity logged yet</h2>
+                <p>Your activity log will appear here as work is completed on your site. Every update, improvement, and maintenance task will be recorded here.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/portal-changelog.js' %}" defer></script>
+{% endblock %}

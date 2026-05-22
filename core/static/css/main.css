@@ -6114,7 +6114,245 @@ button.htmx-request {
     border-radius: 6px;
 }
 
-/* ── 28. Reduced motion ────────────────────────────────────── */
+/* ══ 28. Site changelog — admin + client portal ═════════════ */
+
+/* Change-type badge — colour-coded per type */
+.cl-badge {
+    display: inline-block;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.cl-badge--page_added,
+.cl-badge--image_optimization {
+    background: rgba(20, 184, 166, 0.14);
+    color: var(--color-teal-light);
+    border-color: rgba(20, 184, 166, 0.32);
+}
+.cl-badge--page_updated,
+.cl-badge--content_update {
+    background: rgba(56, 139, 253, 0.14);
+    color: #79c0ff;
+    border-color: rgba(56, 139, 253, 0.32);
+}
+.cl-badge--security_patch {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.36);
+}
+.cl-badge--dependency_update,
+.cl-badge--bug_fix {
+    background: rgba(232, 101, 10, 0.14);
+    color: var(--color-orange-light);
+    border-color: rgba(232, 101, 10, 0.32);
+}
+.cl-badge--blog_published,
+.cl-badge--performance {
+    background: rgba(74, 222, 128, 0.13);
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+.cl-badge--seo_update {
+    background: rgba(167, 139, 250, 0.16);
+    color: #c4b5fd;
+    border-color: rgba(167, 139, 250, 0.34);
+}
+.cl-badge--deployment {
+    background: rgba(148, 163, 184, 0.14);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.3);
+}
+/* .cl-badge--other uses the muted base */
+
+/* Admin — list table */
+.cl-visible { font-weight: 700; }
+.cl-visible--yes { color: var(--color-success); }
+.cl-visible--no { color: var(--color-text-muted); }
+.cl-delete-form { display: inline; }
+
+/* Admin — add/edit form */
+.cl-form-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+    .cl-form-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+.cl-form-grid .form-group--full { grid-column: 1 / -1; }
+
+.cl-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.cl-check input { width: 16px; height: 16px; accent-color: var(--color-orange); }
+
+/* Admin — deploy.sh bulk import */
+.cl-import { margin-top: var(--space-3); }
+.cl-import code {
+    background: rgba(255, 255, 255, 0.07);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+.cl-import-preview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin: var(--space-2) 0;
+}
+.cl-import-preview__head { margin: 0 0 0.5rem; font-size: 0.875rem; }
+.cl-import-list { list-style: none; margin: 0; padding: 0; }
+.cl-import-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    font-size: 0.875rem;
+}
+.cl-import-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: var(--space-2);
+}
+
+/* Portal — Activity Log */
+.cl-portal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.cl-month-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.cl-month-filter__label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+.cl-month-filter .form-control { min-width: 170px; }
+
+.cl-month-head {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-teal-light);
+    margin: var(--space-4) 0 var(--space-2);
+}
+.cl-month-head:first-of-type { margin-top: var(--space-2); }
+
+.cl-entries {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.cl-entry {
+    display: flex;
+    gap: var(--space-3);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-teal);
+    border-radius: 12px;
+    padding: var(--space-3);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cl-entry:hover {
+    border-color: rgba(232, 101, 10, 0.45);
+    border-left-color: var(--color-teal);
+    box-shadow: 0 6px 24px rgba(232, 101, 10, 0.12);
+}
+
+.cl-entry__date {
+    flex: 0 0 64px;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+.cl-entry__day { font-weight: 700; color: var(--color-orange-light); }
+.cl-entry__year { font-size: 0.75rem; color: var(--color-text-muted); }
+
+.cl-entry__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+.cl-entry__title { font-size: 1rem; margin: 0; }
+.cl-entry__desc {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+}
+.cl-entry__link {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-orange-light);
+    align-self: flex-start;
+}
+
+.cl-empty {
+    text-align: center;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: var(--space-6) var(--space-3);
+}
+.cl-empty__icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto var(--space-2);
+    color: var(--color-teal-light);
+}
+.cl-empty__icon svg {
+    width: 48px;
+    height: 48px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.cl-empty h2 { margin: 0 0 var(--space-1); font-size: 1.25rem; }
+.cl-empty p {
+    margin: 0 auto var(--space-2);
+    max-width: 420px;
+    color: var(--color-text-muted);
+}
+
+/* Portal — new-activity dot on the sidebar nav item */
+.portal-nav__dot {
+    margin-left: auto;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--color-success);
+    flex-shrink: 0;
+}
+
+/* ── 29. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

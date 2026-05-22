@@ -75,6 +75,18 @@
         });
     }
 
+    function initConfirmActions() {
+        // Any element with data-confirm prompts before its action runs —
+        // used for destructive buttons (delete, etc.). CSP-safe: no inline JS.
+        document.querySelectorAll('[data-confirm]').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                if (!window.confirm(el.getAttribute('data-confirm'))) {
+                    e.preventDefault();
+                }
+            });
+        });
+    }
+
     function ready(fn) {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', fn);
@@ -86,4 +98,5 @@
     ready(initNavToggle);
     ready(initAuditFormLoading);
     ready(initScrapeFormLoading);
+    ready(initConfirmActions);
 })();

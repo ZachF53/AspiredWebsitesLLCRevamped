@@ -16,6 +16,7 @@ from .models import (
     Project,
     ProjectStageLog,
     RevisionRequest,
+    SiteChangelogEntry,
     SupportTicket,
 )
 
@@ -174,4 +175,14 @@ class SupportTicketAdmin(admin.ModelAdmin):
     )
     list_filter = ('status', 'priority', 'billable')
     search_fields = ('subject', 'description', 'client__firm_name')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(SiteChangelogEntry)
+class SiteChangelogEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        'client', 'change_type', 'title', 'date_of_change', 'is_client_visible',
+    )
+    list_filter = ('change_type', 'is_client_visible', 'date_of_change')
+    search_fields = ('client__firm_name', 'title', 'description')
     readonly_fields = ('created_at', 'updated_at')

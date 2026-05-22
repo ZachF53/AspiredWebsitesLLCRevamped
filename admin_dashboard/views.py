@@ -5,6 +5,8 @@ non-staff users). Lead data comes from outreach.Lead.
 """
 
 import datetime
+import re
+import uuid
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -916,4 +918,221 @@ def deploy_log_create(request):
         'deploy',
         logs=DeploymentLog.objects.select_related('client'),
         form=form,
+    ))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Site changelog — per-client website change log
+# ────────────────────────────────────────────────────────────────────────────
+
+# Matches a deploy.sh step line, e.g. "[3/7] Running migrations..."
+_DEPLOY_STEP_RE = re.compile(r'^\s*\[(\d+)/(\d+)\]\s*(.+?)\s*$')
+
+
+def _is_uuid(value):
+    """True if `value` parses as a UUID — guards filters against bad params."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
+def _parse_deploy_log(text):
+    """Pull the '[n/n] description' step lines out of raw deploy.sh output."""
+    steps = []
+    for line in (text or '').splitlines():
+        match = _DEPLOY_STEP_RE.match(line)
+        if match:
+            desc = match.group(3).strip()
+            if desc:
+                steps.append(desc)
+    return steps
+
+
+@admin_required
+def changelog_list(request):
+    """All changelog entries across every client, with filters."""
+    from clients.models import ClientProfile, SiteChangelogEntry
+    from django.utils.dateparse import parse_date
+
+    entries = SiteChangelogEntry.objects.select_related('client')
+
+    client_filter = request.GET.get('client', '')
+    type_filter = request.GET.get('change_type', '')
+    visible_filter = request.GET.get('visible', '')
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+
+    if client_filter and _is_uuid(client_filter):
+        entries = entries.filter(client_id=client_filter)
+    if type_filter:
+        entries = entries.filter(change_type=type_filter)
+    if visible_filter == 'yes':
+        entries = entries.filter(is_client_visible=True)
+    elif visible_filter == 'no':
+        entries = entries.filter(is_client_visible=False)
+    if parse_date(date_from):
+        entries = entries.filter(date_of_change__gte=date_from)
+    if parse_date(date_to):
+        entries = entries.filter(date_of_change__lte=date_to)
+
+    return render(request, 'admin_dashboard/changelog_list.html', _admin_context(
+        'changelog',
+        entries=entries,
+        clients=ClientProfile.objects.order_by('firm_name'),
+        change_type_choices=SiteChangelogEntry.CHANGE_TYPE_CHOICES,
+        client_filter=client_filter,
+        type_filter=type_filter,
+        visible_filter=visible_filter,
+        date_from=date_from,
+        date_to=date_to,
+    ))
+
+
+@admin_required
+def client_changelog(request, client_id):
+    """Changelog entries for a single client."""
+    from clients.models import ClientProfile, SiteChangelogEntry
+    client = get_object_or_404(ClientProfile, id=client_id)
+    return render(request, 'admin_dashboard/changelog_list.html', _admin_context(
+        'changelog',
+        entries=SiteChangelogEntry.objects.filter(client=client),
+        single_client=client,
+        change_type_choices=SiteChangelogEntry.CHANGE_TYPE_CHOICES,
+    ))
+
+
+@admin_required
+def changelog_add(request, client_id=None):
+    """Add a changelog entry — pre-fills the client when client-scoped."""
+    from clients.models import ClientProfile
+    from .forms import SiteChangelogForm
+
+    preset_client = (
+        get_object_or_404(ClientProfile, id=client_id) if client_id else None
+    )
+
+    if request.method == 'POST':
+        form = SiteChangelogForm(request.POST)
+        if form.is_valid():
+            entry = form.save()
+            if client_id:
+                return redirect('admin_dashboard:client_changelog',
+                                client_id=entry.client_id)
+            return redirect('admin_dashboard:changelog_list')
+    else:
+        form = SiteChangelogForm(
+            initial={'client': preset_client} if preset_client else None
+        )
+
+    if client_id:
+        form_action = reverse('admin_dashboard:changelog_add_client',
+                              args=[client_id])
+    else:
+        form_action = reverse('admin_dashboard:changelog_add')
+
+    return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
+        'changelog',
+        form=form,
+        mode='add',
+        preset_client=preset_client,
+        form_action=form_action,
+        clients=ClientProfile.objects.order_by('firm_name'),
+    ))
+
+
+@admin_required
+def changelog_edit(request, entry_id):
+    """Edit an existing changelog entry."""
+    from clients.models import SiteChangelogEntry
+    from .forms import SiteChangelogForm
+
+    entry = get_object_or_404(SiteChangelogEntry, id=entry_id)
+
+    if request.method == 'POST':
+        form = SiteChangelogForm(request.POST, instance=entry)
+        if form.is_valid():
+            form.save()
+            if request.POST.get('next') == 'client':
+                return redirect('admin_dashboard:client_changelog',
+                                client_id=entry.client_id)
+            return redirect('admin_dashboard:changelog_list')
+    else:
+        form = SiteChangelogForm(instance=entry)
+
+    return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
+        'changelog',
+        form=form,
+        mode='edit',
+        entry=entry,
+        form_action=reverse('admin_dashboard:changelog_edit', args=[entry.id]),
+    ))
+
+
+@admin_required
+@require_POST
+def changelog_delete(request, entry_id):
+    """Delete a changelog entry (POST + CSRF only)."""
+    from clients.models import SiteChangelogEntry
+    entry = get_object_or_404(SiteChangelogEntry, id=entry_id)
+    client_id = entry.client_id
+    came_from_client = request.POST.get('next') == 'client'
+    entry.delete()
+    if came_from_client:
+        return redirect('admin_dashboard:client_changelog', client_id=client_id)
+    return redirect('admin_dashboard:changelog_list')
+
+
+@admin_required
+@require_POST
+def changelog_import(request):
+    """
+    Parse pasted deploy.sh output into deployment changelog entries.
+
+    Two-step: `step=preview` parses + shows a preview; `step=save` re-parses
+    the same text and creates one entry per [n/n] step.
+    """
+    from clients.models import ClientProfile, SiteChangelogEntry
+    from .forms import SiteChangelogForm
+
+    raw_log = request.POST.get('raw_log', '')
+    client_id = request.POST.get('import_client', '')
+    step = request.POST.get('step', 'preview')
+
+    client = None
+    if client_id and _is_uuid(client_id):
+        client = ClientProfile.objects.filter(id=client_id).first()
+
+    parsed = _parse_deploy_log(raw_log)
+
+    if step == 'save' and client and parsed:
+        today = timezone.localdate()
+        for title in parsed:
+            SiteChangelogEntry.objects.create(
+                client=client,
+                change_type='deployment',
+                title=title,
+                is_client_visible=True,
+                date_of_change=today,
+            )
+        return redirect('admin_dashboard:client_changelog', client_id=client.id)
+
+    import_error = None
+    if not parsed:
+        import_error = 'No "[n/n]" deploy steps were found in that text.'
+    elif not client:
+        import_error = 'Choose a client to import these steps into.'
+
+    return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
+        'changelog',
+        form=SiteChangelogForm(initial={'client': client} if client else None),
+        mode='add',
+        preset_client=client,
+        form_action=reverse('admin_dashboard:changelog_add'),
+        clients=ClientProfile.objects.order_by('firm_name'),
+        import_preview=parsed,
+        import_raw=raw_log,
+        import_client=client,
+        import_error=import_error,
     ))

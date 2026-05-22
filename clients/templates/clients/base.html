@@ -53,6 +53,11 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     <span>Credentials</span>
                 </a>
+                <a class="portal-nav__link {% if active_portal_nav == 'changelog' %}is-active{% endif %}" href="{% url 'clients:portal_changelog' %}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                    <span>Activity Log</span>
+                    {% if changelog_has_new %}<span class="portal-nav__dot" aria-label="New activity"></span>{% endif %}
+                </a>
                 <a class="portal-nav__link {% if active_portal_nav == 'settings' %}is-active{% endif %}" href="{% url 'clients:settings' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg>
                     <span>Settings</span>

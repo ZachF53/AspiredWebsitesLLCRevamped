@@ -9,6 +9,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from core.models import TimestampedModel
 
@@ -401,4 +402,64 @@ class Contract(TimestampedModel):
     @property
     def final_amount(self):
         return self.build_price - self.deposit_amount
+
+
+class SiteChangelogEntry(TimestampedModel):
+    """
+    A single logged change to a client's live website. Surfaced in the
+    client portal Activity Log unless flagged internal-only.
+    """
+
+    CHANGE_TYPE_CHOICES = [
+        ('page_added', 'Page Added'),
+        ('page_updated', 'Page Updated'),
+        ('security_patch', 'Security Patch'),
+        ('dependency_update', 'Dependency Update'),
+        ('blog_published', 'Blog Post Published'),
+        ('image_optimization', 'Image Optimization'),
+        ('seo_update', 'SEO Update'),
+        ('bug_fix', 'Bug Fix'),
+        ('performance', 'Performance Improvement'),
+        ('deployment', 'Deployment'),
+        ('content_update', 'Content Update'),
+        ('other', 'Other'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='changelog_entries',
+    )
+    change_type = models.CharField(
+        max_length=20, choices=CHANGE_TYPE_CHOICES, default='other',
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text='Short summary shown as the entry label.',
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Optional longer explanation shown on expand.',
+    )
+    url_changed = models.URLField(
+        blank=True,
+        help_text='Optional — the specific page that was changed.',
+    )
+    is_client_visible = models.BooleanField(
+        default=True,
+        help_text='Untick to keep this entry internal — never shown to the client.',
+    )
+    date_of_change = models.DateField(
+        default=timezone.localdate,
+        help_text='Defaults to today; can be backdated.',
+    )
+
+    class Meta:
+        ordering = ['-date_of_change', '-created_at']
+        verbose_name = 'Site Changelog Entry'
+        verbose_name_plural = 'Site Changelog Entries'
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'{self.get_change_type_display()} — '
+                f'{self.date_of_change}')
 

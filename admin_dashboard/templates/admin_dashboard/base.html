@@ -47,6 +47,10 @@
                    href="{% url 'vault:home' %}">
                     <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     Vault</a>
+                <a class="admin-nav__link {% if active == 'changelog' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:changelog_list' %}">
+                    <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                    Changelog</a>
                 <a class="admin-nav__link {% if active == 'settings' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:settings' %}">Settings</a>
             </nav>

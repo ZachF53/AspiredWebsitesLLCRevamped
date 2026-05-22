@@ -3,6 +3,7 @@
 from django import forms
 
 from billing.pricing_models import ServiceTier
+from clients.models import SiteChangelogEntry
 from outreach.models import Lead, LeadNote
 from outreach.scraper import PRACTICE_AREAS
 
@@ -166,3 +167,40 @@ class DeploymentLogForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['client'].required = False
         self.fields['client'].empty_label = '— None —'
+
+
+class SiteChangelogForm(forms.ModelForm):
+    """Add / edit a single client site changelog entry."""
+
+    class Meta:
+        model = SiteChangelogEntry
+        fields = [
+            'client', 'date_of_change', 'change_type', 'title',
+            'description', 'url_changed', 'is_client_visible',
+        ]
+        widgets = {
+            'client': forms.Select(attrs={'class': 'form-control'}),
+            'date_of_change': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'},
+                format='%Y-%m-%d',
+            ),
+            'change_type': forms.Select(attrs={'class': 'form-control'}),
+            'title': forms.TextInput(attrs={
+                'class': 'form-control', 'maxlength': 200,
+                'placeholder': 'Updated practice area pages',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 4,
+                'placeholder': 'Added estate planning and probate pages based '
+                               'on client intake. Updated meta descriptions on '
+                               'all 8 practice area pages.',
+            }),
+            'url_changed': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://clientdomain.com/practice-areas/',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client'].empty_label = '— Select a client —'

@@ -45,4 +45,13 @@ urlpatterns = [
     path('deploy/client/<uuid:client_id>/', views.deploy_client, name='deploy_client'),
     path('deploy/history/', views.deploy_history, name='deploy_history'),
     path('deploy/log/', views.deploy_log_create, name='deploy_log_create'),
+
+    # Site changelog
+    path('changelog/', views.changelog_list, name='changelog_list'),
+    path('changelog/add/', views.changelog_add, name='changelog_add'),
+    path('changelog/import/', views.changelog_import, name='changelog_import'),
+    path('changelog/<uuid:entry_id>/edit/', views.changelog_edit, name='changelog_edit'),
+    path('changelog/<uuid:entry_id>/delete/', views.changelog_delete, name='changelog_delete'),
+    path('clients/<uuid:client_id>/changelog/', views.client_changelog, name='client_changelog'),
+    path('clients/<uuid:client_id>/changelog/add/', views.changelog_add, name='changelog_add_client'),
 ]

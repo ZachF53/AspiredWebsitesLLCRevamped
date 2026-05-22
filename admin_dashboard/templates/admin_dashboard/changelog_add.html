@@ -1,0 +1,123 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}Add{% endif %} Changelog Entry — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:changelog_list' %}" class="admin-back-link">&larr; All changelog</a>
+            </span>
+            <h1 class="admin-page-title">{% if mode == 'edit' %}Edit Changelog Entry{% else %}Add Changelog Entry{% endif %}</h1>
+            {% if preset_client %}<p class="muted">Pre-filled for {{ preset_client.firm_name }}.</p>{% endif %}
+        </div>
+    </div>
+
+    <form method="post" action="{{ form_action }}" class="form" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="form-error" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <section class="admin-card">
+            <div class="cl-form-grid">
+                <div class="form-group">
+                    <label for="{{ form.client.id_for_label }}">Client <span class="required">*</span></label>
+                    {{ form.client }}
+                    {% if form.client.errors %}<div class="form-field-error">{{ form.client.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.date_of_change.id_for_label }}">Date of Change</label>
+                    {{ form.date_of_change }}
+                    {% if form.date_of_change.errors %}<div class="form-field-error">{{ form.date_of_change.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.change_type.id_for_label }}">Change Type</label>
+                    {{ form.change_type }}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.title.id_for_label }}">Title <span class="required">*</span></label>
+                    {{ form.title }}
+                    {% if form.title.errors %}<div class="form-field-error">{{ form.title.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.description.id_for_label }}">Description</label>
+                    {{ form.description }}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.url_changed.id_for_label }}">URL Changed</label>
+                    {{ form.url_changed }}
+                    {% if form.url_changed.errors %}<div class="form-field-error">{{ form.url_changed.errors|join:" " }}</div>{% endif %}
+                </div>
+                <label class="cl-check form-group--full">
+                    {{ form.is_client_visible }}
+                    <span>Show in Client Portal</span>
+                </label>
+            </div>
+        </section>
+
+        <div class="lead-add-form__actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:changelog_list' %}">Cancel</a>
+            <button type="submit" class="btn-primary">{% if mode == 'edit' %}Save Changes{% else %}Save Entry{% endif %}</button>
+        </div>
+    </form>
+
+    {% if mode == 'add' %}
+        <section class="admin-card cl-import">
+            <h3 class="admin-card__title">Import from deploy.sh output</h3>
+            <p class="muted">
+                Paste raw <code>deploy.sh</code> log output — each <code>[n/n]</code>
+                step becomes a Deployment entry.
+            </p>
+
+            {% if import_error %}
+                <div class="form-error" role="alert">{{ import_error }}</div>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_dashboard:changelog_import' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="cl-import-client">Client</label>
+                    <select name="import_client" id="cl-import-client" class="form-control">
+                        <option value="">— Select a client —</option>
+                        {% for c in clients %}
+                            <option value="{{ c.id }}" {% if import_client and import_client.id == c.id %}selected{% endif %}>{{ c.firm_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cl-import-raw">Deploy log output</label>
+                    <textarea name="raw_log" id="cl-import-raw" class="form-control" rows="8"
+                              placeholder="[1/7] Pulling latest code from GitHub...">{{ import_raw }}</textarea>
+                </div>
+
+                {% if import_preview %}
+                    <div class="cl-import-preview">
+                        <p class="cl-import-preview__head">
+                            {{ import_preview|length }} step{{ import_preview|length|pluralize }} parsed{% if import_client %} for <strong>{{ import_client.firm_name }}</strong>{% endif %}:
+                        </p>
+                        <ul class="cl-import-list">
+                            {% for step in import_preview %}
+                                <li><span class="cl-badge cl-badge--deployment">Deployment</span> {{ step }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <div class="cl-import-actions">
+                    {% if import_preview and import_client %}
+                        <button type="submit" name="step" value="save" class="btn-primary">
+                            Confirm &amp; Import {{ import_preview|length }} Entr{{ import_preview|length|pluralize:"y,ies" }}
+                        </button>
+                    {% endif %}
+                    <button type="submit" name="step" value="preview" class="btn-secondary">Parse &amp; Preview</button>
+                </div>
+            </form>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}
