@@ -1,17 +1,20 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}Set Up Two-Factor — Vault{% endblock %}
 
 {% block content %}
 <div class="vault-gate">
     <div class="vault-gate__card vault-gate__card--wide">
-        <div class="vault-icon vault-icon--orange" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
-        <h1>Set Up Two-Factor Authentication</h1>
+        <h1 class="vault-totp-title">
+            <img src="{% static 'images/favicon-32x32.png' %}"
+                 width="32" height="32" alt="" class="vault-totp-title__icon">
+            Set Up Two-Factor Authentication
+        </h1>
         <p class="vault-gate__sub">
-            {{ credential.label }} — scan this QR code with Google
-            Authenticator or Authy.
+            Scan this QR code with your authenticator app. It will appear
+            as <strong>{{ issuer_name }}</strong> &middot; {{ account_name }}.
+            One code unlocks every SSH terminal during your PIN session.
         </p>
 
         {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
@@ -19,8 +22,12 @@
         <img class="totp-qr" alt="TOTP QR code"
              src="data:image/png;base64,{{ qr_code }}">
 
-        <p class="totp-manual">Can't scan? Enter this key manually:</p>
-        <code class="totp-secret">{{ secret }}</code>
+        <p class="totp-manual">Can't scan? Enter these details manually:</p>
+        <dl class="totp-manual-details">
+            <dt>Account</dt><dd>{{ account_name }}</dd>
+            <dt>Key</dt><dd><code class="totp-secret">{{ secret }}</code></dd>
+            <dt>Type</dt><dd>Time-based</dd>
+        </dl>
 
         <form method="post" class="vault-pin-form" id="vault-pin-form">
             {% csrf_token %}

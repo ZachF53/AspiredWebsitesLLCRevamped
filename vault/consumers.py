@@ -21,7 +21,6 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 VAULT_SESSION_HOURS = 1
-SSH_SESSION_MINUTES = 15
 
 
 def _load_private_key(key_text, passphrase):
@@ -61,7 +60,7 @@ class SSHTerminalConsumer(WebsocketConsumer):
         if not vault_key:
             self.close(code=4002)
             return
-        if not self._is_totp_valid():
+        if not self._is_vault_session_valid():
             self.close(code=4004)
             return
 
@@ -274,19 +273,25 @@ class SSHTerminalConsumer(WebsocketConsumer):
             return None
         return unwrap_key(wrapped)
 
-    def _is_totp_valid(self):
-        """Check the TOTP-verified SSH session window from the session dict."""
+    def _is_vault_session_valid(self):
+        """
+        Vault-level gate: the PIN session is still fresh AND the admin
+        has verified vault-level TOTP at least once during it. Both must
+        be true to allow an SSH terminal to open. (If vault-level TOTP
+        is not yet configured — only possible before first enrolment —
+        we refuse, because the terminal page itself would refuse too.)
+        """
         session = self.scope.get('session')
         if not session:
             return False
-        if not session.get(f'ssh_session_{self.cred_id}_verified'):
-            return False
-        raw = session.get(f'ssh_session_{self.cred_id}_verified_at')
-        if not raw:
+        unlocked_at = session.get('vault_unlocked_at')
+        if not unlocked_at:
             return False
         try:
-            verified_at = datetime.fromisoformat(raw)
+            unlocked_time = datetime.fromisoformat(unlocked_at)
         except (TypeError, ValueError):
             return False
-        return timezone.now() <= verified_at + timedelta(
-            minutes=SSH_SESSION_MINUTES)
+        if timezone.now() > unlocked_time + timedelta(
+                hours=VAULT_SESSION_HOURS):
+            return False
+        return bool(session.get('vault_totp_verified'))

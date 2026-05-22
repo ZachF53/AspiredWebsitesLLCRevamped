@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 SESSION_HOURS = 1
 MAX_ATTEMPTS = 5
 LOCKOUT_MINUTES = 30
+PIN_HOLD_MINUTES = 5  # how long a PIN-only verification stays "remembered"
+                      # so the user only has to fix the TOTP field
 
 # Quick-fill templates for the Add Credential page ({firm} is substituted).
 CREDENTIAL_TEMPLATES = [
@@ -84,6 +86,9 @@ def get_vault_key(request):
     if timezone.now() > unlocked_time + timedelta(hours=SESSION_HOURS):
         request.session.pop('vault_unlocked_at', None)
         request.session.pop('vault_key_wrapped', None)
+        # TOTP verification is bound to the same PIN session — drop it too,
+        # so the next unlock requires PIN + TOTP again.
+        request.session.pop('vault_totp_verified', None)
         return None
     return unwrap_key(wrapped)
 
@@ -187,18 +192,24 @@ def vault_home(request):
             'lockout_until': config.lockout_until.isoformat(),
         })
 
-    # PIN entry.
+    # PIN entry (and TOTP, once configured).
     if request.method == 'POST':
         return _handle_pin_entry(request, config)
 
-    # Already unlocked?
-    if get_vault_key(request) is not None:
+    # Already unlocked AND TOTP-verified this session?
+    if get_vault_key(request) is not None and (
+            not config.totp_configured
+            or request.session.get('vault_totp_verified')):
         return _render_vault_home(request)
 
     return render(request, 'vault/enter_pin.html', {
         'active': 'vault',
         'expired': bool(request.session.get('vault_was_unlocked')),
         'next': request.GET.get('next', ''),
+        'totp_required': config.totp_configured,
+        # If a credential is still encrypted under the old per-server scheme
+        # (or just no TOTP at all yet), surface the one-time migration notice.
+        'needs_totp_setup_after_pin': not config.totp_configured,
     })
 
 
@@ -226,52 +237,89 @@ def _handle_pin_setup(request, config):
     _unlock_session(request, key)
     request.session['vault_was_unlocked'] = True
     _log('pin_set', request, note='Vault PIN created.')
-    return redirect('vault:home')
+    # Force vault-level TOTP enrolment before anything else is reachable.
+    return redirect('vault:totp_setup')
 
 
 def _handle_pin_entry(request, config):
+    """
+    Combined PIN + TOTP submission.
+
+    Once TOTP is configured, both must be supplied together. PIN failures
+    still drive the global lockout counter; TOTP failures don't (because
+    the PIN was already correct — a wrong TOTP just re-prompts).
+    """
+    from .totp_helpers import get_decrypted_totp_secret, verify_totp_code
+
     now = timezone.now()
     pin = ''.join(request.POST.get(f'd{i}', '') for i in range(1, 5)).strip()
     if not pin:
         pin = (request.POST.get('pin') or '').strip()
+    totp_code = ''.join(
+        request.POST.get(f't{i}', '') for i in range(1, 7)).strip()
+    if not totp_code:
+        totp_code = (request.POST.get('totp_code') or '').strip()
 
     salt = bytes(config.encryption_salt)
-    if verify_pin(pin, config.pin_hash, salt):
-        config.failed_attempts = 0
-        config.lockout_until = None
-        config.save()
-        key = derive_key(pin, salt)
-        _unlock_session(request, key)
-        request.session['vault_was_unlocked'] = True
-        _log('pin_verified', request, note='Vault unlocked.')
-        next_url = request.POST.get('next') or request.GET.get('next') or ''
-        if next_url.startswith('/admin-dashboard/vault/'):
-            return redirect(next_url)
-        return redirect('vault:home')
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
 
-    # Wrong PIN.
-    config.failed_attempts += 1
-    if config.failed_attempts >= MAX_ATTEMPTS:
-        config.lockout_until = now + timedelta(minutes=LOCKOUT_MINUTES)
-        config.failed_attempts = 0
+    # ── PIN check ───────────────────────────────────────────────────────────
+    if not verify_pin(pin, config.pin_hash, salt):
+        config.failed_attempts += 1
+        if config.failed_attempts >= MAX_ATTEMPTS:
+            config.lockout_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+            config.failed_attempts = 0
+            config.save()
+            _log('pin_locked', request,
+                 note=f'Locked {LOCKOUT_MINUTES} min after '
+                      f'{MAX_ATTEMPTS} failures.')
+            return render(request, 'vault/locked.html', {
+                'active': 'vault',
+                'lockout_until': config.lockout_until.isoformat(),
+            })
         config.save()
-        _log('pin_locked', request,
-             note=f'Locked {LOCKOUT_MINUTES} min after {MAX_ATTEMPTS} failures.')
-        return render(request, 'vault/locked.html', {
+        _log('pin_failed', request,
+             note=f'Failed attempt {config.failed_attempts} of {MAX_ATTEMPTS}.')
+        remaining = MAX_ATTEMPTS - config.failed_attempts
+        return render(request, 'vault/enter_pin.html', {
             'active': 'vault',
-            'lockout_until': config.lockout_until.isoformat(),
+            'pin_error': (f'Incorrect PIN — {remaining} attempt'
+                          f'{"" if remaining == 1 else "s"} remaining '
+                          f'before a {LOCKOUT_MINUTES}-minute lockout.'),
+            'next': next_url,
+            'totp_required': config.totp_configured,
         })
+
+    # PIN good.
+    config.failed_attempts = 0
+    config.lockout_until = None
     config.save()
-    _log('pin_failed', request,
-         note=f'Failed attempt {config.failed_attempts} of {MAX_ATTEMPTS}.')
-    remaining = MAX_ATTEMPTS - config.failed_attempts
-    return render(request, 'vault/enter_pin.html', {
-        'active': 'vault',
-        'error': f'Incorrect PIN — {remaining} attempt'
-                 f'{"" if remaining == 1 else "s"} remaining before a '
-                 f'{LOCKOUT_MINUTES}-minute lockout.',
-        'next': request.POST.get('next', ''),
-    })
+    key = derive_key(pin, salt)
+
+    # ── TOTP check (only if configured) ─────────────────────────────────────
+    if config.totp_configured:
+        secret = get_decrypted_totp_secret(config, key)
+        if not secret or not verify_totp_code(secret, totp_code):
+            _log('pin_failed', request,
+                 note='PIN OK but TOTP code wrong on unlock.')
+            return render(request, 'vault/enter_pin.html', {
+                'active': 'vault',
+                'totp_error': 'Incorrect authenticator code.',
+                'next': next_url,
+                'totp_required': True,
+                # PIN was right — leave its boxes empty so a re-submit
+                # requires both again. (We don't trust a hidden-PIN trick:
+                # the PIN never leaves the form except as 4 digits.)
+            })
+        request.session['vault_totp_verified'] = True
+
+    _unlock_session(request, key)
+    request.session['vault_was_unlocked'] = True
+    _log('pin_verified', request, note='Vault unlocked.')
+
+    if next_url.startswith('/admin-dashboard/vault/'):
+        return redirect(next_url)
+    return redirect('vault:home')
 
 
 def _render_vault_home(request):
@@ -605,128 +653,98 @@ def vault_access_log(request):
     })
 
 
-# ── SSH terminal — TOTP setup, verify, terminal, command library ────────────
+# ── Vault-level TOTP setup + SSH terminal ──────────────────────────────────
 
 @admin_required
-def totp_setup(request, cred_id):
-    """First-run TOTP enrolment for an SSH credential."""
+def totp_setup(request):
+    """
+    Vault-level TOTP enrolment. Runs once, right after PIN setup (or any
+    time TOTP is unconfigured) — the secret lives on the VaultConfig
+    singleton, AES-encrypted with the PIN-derived vault key.
+    """
     key = get_vault_key(request)
     if key is None:
         return redirect(f"{reverse('vault:home')}?next={request.path}")
-    cred = get_object_or_404(
-        VaultCredential, id=cred_id, is_ssh_credential=True)
-    if cred.totp_configured:
-        return redirect('vault:totp_connect', cred_id=cred.id)
+
+    config = VaultConfig.get()
+    if config.totp_configured:
+        # Already enrolled — just send them to the vault home.
+        return redirect('vault:home')
 
     from .totp_helpers import (
         generate_qr_code_base64, generate_totp_secret, get_totp_uri,
-        verify_totp_code,
+        verify_totp_code, ACCOUNT_NAME, ISSUER_NAME,
     )
-    session_key = f'totp_setup_secret_{cred_id}'
+    session_key = 'vault_totp_setup_secret'
 
     error = None
     if request.method == 'POST':
         secret = request.session.get(session_key)
         code = (request.POST.get('code') or '').strip()
         if secret and verify_totp_code(secret, code):
-            cred.totp_secret_encrypted = encrypt_value(secret, key)
-            cred.totp_configured = True
-            cred.save(update_fields=[
+            config.totp_secret_encrypted = encrypt_value(secret, key)
+            config.totp_configured = True
+            config.save(update_fields=[
                 'totp_secret_encrypted', 'totp_configured', 'updated_at'])
             request.session.pop(session_key, None)
+            # Mark this session as TOTP-verified so the admin doesn't have
+            # to immediately re-enter the code they just generated.
+            request.session['vault_totp_verified'] = True
             _log('ssh_totp_setup', request,
-                 client_name=cred.vault.client.firm_name,
-                 credential_label=cred.label, note='SSH TOTP configured.')
-            return redirect('vault:totp_connect', cred_id=cred.id)
+                 note='Vault-level TOTP configured.')
+            return redirect('vault:home')
         error = 'Code incorrect — try again.'
         secret = secret or generate_totp_secret()
     else:
         secret = generate_totp_secret()
 
     request.session[session_key] = secret
-    uri = get_totp_uri(secret, cred.label)
+    uri = get_totp_uri(secret)
     return render(request, 'vault/totp_setup.html', {
         'active': 'vault',
-        'credential': cred,
         'secret': secret,
         'qr_code': generate_qr_code_base64(uri),
         'error': error,
+        'issuer_name': ISSUER_NAME,
+        'account_name': ACCOUNT_NAME,
         'seconds_remaining': _seconds_remaining(request),
     })
 
 
-@admin_required
-def totp_connect(request, cred_id):
-    """Verify a TOTP code to open a 15-minute SSH session."""
-    key = get_vault_key(request)
-    if key is None:
-        return redirect(f"{reverse('vault:home')}?next={request.path}")
-    cred = get_object_or_404(
-        VaultCredential, id=cred_id, is_ssh_credential=True)
-    if not cred.totp_configured:
-        return redirect('vault:totp_setup', cred_id=cred.id)
-
-    from .ssh_helpers import mark_ssh_session_verified
-    from .totp_helpers import get_decrypted_totp_secret, verify_totp_code
-
-    fail_key = f'ssh_totp_fails_{cred_id}'
-    error = None
-    locked = request.session.get(fail_key, 0) >= MAX_ATTEMPTS
-
-    if request.method == 'POST' and not locked:
-        code = ''.join(request.POST.get(f'd{i}', '') for i in range(1, 7)).strip()
-        if not code:
-            code = (request.POST.get('code') or '').strip()
-        secret = get_decrypted_totp_secret(cred, key)
-        if secret and verify_totp_code(secret, code):
-            request.session.pop(fail_key, None)
-            mark_ssh_session_verified(request, str(cred_id))
-            _log('ssh_totp_verified', request,
-                 client_name=cred.vault.client.firm_name,
-                 credential_label=cred.label, note='SSH TOTP verified.')
-            return redirect('vault:terminal', cred_id=cred.id)
-        fails = request.session.get(fail_key, 0) + 1
-        request.session[fail_key] = fails
-        remaining = MAX_ATTEMPTS - fails
-        if remaining <= 0:
-            locked = True
-            error = 'Too many incorrect codes — re-unlock the vault to retry.'
-        else:
-            error = (f'Code incorrect — {remaining} attempt'
-                     f'{"" if remaining == 1 else "s"} left.')
-        _log('pin_failed', request, credential_label=cred.label,
-             note='SSH TOTP code incorrect.')
-
-    return render(request, 'vault/totp_verify.html', {
-        'active': 'vault',
-        'credential': cred,
-        'host_hint': _host_hint(cred, key),
-        'error': error,
-        'locked': locked,
-    })
+def _vault_session_authenticated(request, config):
+    """Vault is unlocked AND (if required) TOTP-verified this session."""
+    if get_vault_key(request) is None:
+        return False
+    if config.totp_configured and not request.session.get(
+            'vault_totp_verified'):
+        return False
+    return True
 
 
 @admin_required
 def terminal(request, cred_id):
-    """The full-screen browser SSH terminal — vault unlocked + TOTP verified."""
+    """
+    Browser SSH terminal. Vault PIN session + vault-level TOTP must both
+    be valid; there is no per-server TOTP step any more. Locked vault
+    redirects back through `enter_pin` with ?next= so unlock comes
+    straight here.
+    """
+    config = VaultConfig.get()
+    if not _vault_session_authenticated(request, config):
+        return redirect(
+            f"{reverse('vault:home')}?next={request.path}")
+
     key = get_vault_key(request)
-    if key is None:
-        return redirect(f"{reverse('vault:home')}?next={request.path}")
     cred = get_object_or_404(
         VaultCredential, id=cred_id, is_ssh_credential=True)
-    if not cred.totp_configured:
-        return redirect('vault:totp_setup', cred_id=cred.id)
-
-    from .ssh_helpers import is_ssh_session_valid, ssh_session_remaining_seconds
-    if not is_ssh_session_valid(request, str(cred_id)):
-        return redirect('vault:totp_connect', cred_id=cred.id)
 
     return render(request, 'vault/terminal.html', {
         'credential': cred,
         'host_hint': _host_hint(cred, key),
         'command_groups': _command_groups(cred),
-        'totp_remaining_seconds': ssh_session_remaining_seconds(
-            request, str(cred_id)),
+        # The vault session timer is the only clock that matters now;
+        # the old per-server 15-minute TOTP window is gone.
+        'totp_remaining_seconds': _seconds_remaining(request),
     })
 
 

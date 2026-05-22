@@ -1,34 +1,26 @@
 """
-SSH terminal session helpers.
+Vault SSH-session helpers.
 
-After a TOTP code is verified, an SSH session is valid for SSH_SESSION_MINUTES.
-The same logic is mirrored in vault/consumers.py (which reads the raw session
-dict from the Channels scope rather than a request).
+Vault-level TOTP means there is no longer a per-credential SSH session
+window. The terminal authority is the vault PIN session itself (1 hour)
+plus the `vault_totp_verified` flag set when the admin enters their
+authenticator code on unlock.
+
+This module wraps that single source of truth in small, request-bound
+helpers so tests can exercise the rule without booting the full view
+stack. The Channels consumer mirrors the same logic against the raw
+session dict in `vault/consumers.py`.
 """
 
 from datetime import datetime, timedelta
 
 from django.utils import timezone
 
-SSH_SESSION_MINUTES = 15
+VAULT_SESSION_HOURS = 1
 
 
-def _verified_key(cred_id):
-    return f'ssh_session_{cred_id}_verified'
-
-
-def _verified_at_key(cred_id):
-    return f'ssh_session_{cred_id}_verified_at'
-
-
-def mark_ssh_session_verified(request, cred_id):
-    """Record a fresh TOTP-verified SSH session for this credential."""
-    request.session[_verified_key(cred_id)] = True
-    request.session[_verified_at_key(cred_id)] = timezone.now().isoformat()
-
-
-def _verified_at(request, cred_id):
-    raw = request.session.get(_verified_at_key(cred_id))
+def _unlocked_at(request):
+    raw = request.session.get('vault_unlocked_at')
     if not raw:
         return None
     try:
@@ -37,25 +29,25 @@ def _verified_at(request, cred_id):
         return None
 
 
-def is_ssh_session_valid(request, cred_id):
-    """True if TOTP was verified for this credential within the last 15 min."""
-    if not request.session.get(_verified_key(cred_id)):
+def is_vault_session_authenticated(request):
+    """
+    True iff the vault PIN session is still fresh AND vault-level TOTP
+    has been verified during it. Both conditions must hold to open an
+    SSH terminal.
+    """
+    unlocked_at = _unlocked_at(request)
+    if unlocked_at is None:
         return False
-    verified_at = _verified_at(request, cred_id)
-    if verified_at is None:
+    if timezone.now() > unlocked_at + timedelta(hours=VAULT_SESSION_HOURS):
         return False
-    if timezone.now() > verified_at + timedelta(minutes=SSH_SESSION_MINUTES):
-        request.session.pop(_verified_key(cred_id), None)
-        request.session.pop(_verified_at_key(cred_id), None)
-        return False
-    return True
+    return bool(request.session.get('vault_totp_verified'))
 
 
-def ssh_session_remaining_seconds(request, cred_id):
-    """Seconds left on the current TOTP session window (0 if none/expired)."""
-    verified_at = _verified_at(request, cred_id)
-    if verified_at is None:
+def vault_session_remaining_seconds(request):
+    """Seconds left on the current vault PIN session (0 if expired)."""
+    unlocked_at = _unlocked_at(request)
+    if unlocked_at is None:
         return 0
-    remaining = (verified_at + timedelta(minutes=SSH_SESSION_MINUTES)
+    remaining = (unlocked_at + timedelta(hours=VAULT_SESSION_HOURS)
                  - timezone.now())
     return max(int(remaining.total_seconds()), 0)

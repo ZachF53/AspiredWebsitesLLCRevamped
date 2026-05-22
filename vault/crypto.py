@@ -193,6 +193,7 @@ def derive_server_key() -> bytes:
 
 
 # Encrypted fields on a VaultCredential — used by re-encryption.
+# NB: vault-level TOTP lives on VaultConfig now, not VaultCredential.
 _REENCRYPT_FIELDS = (
     'username_encrypted',
     'password_encrypted',
@@ -203,7 +204,6 @@ _REENCRYPT_FIELDS = (
     'ssh_password_encrypted',
     'ssh_private_key_encrypted',
     'ssh_key_passphrase_encrypted',
-    'totp_secret_encrypted',
 )
 
 

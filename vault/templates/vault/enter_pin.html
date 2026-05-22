@@ -5,32 +5,61 @@
 
 {% block content %}
 <div class="vault-gate">
-    <div class="vault-gate__card">
+    <div class="vault-gate__card vault-gate__card--wide">
         <div class="vault-icon vault-icon--orange" aria-hidden="true">
             <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <h1>Enter Your Vault PIN</h1>
+        <h1>Unlock Your Vault</h1>
 
-        {% if expired and not error %}
+        {% if expired and not pin_error and not totp_error %}
             <p class="vault-gate__sub">Your vault session expired after 1 hour.</p>
         {% endif %}
-        {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
 
-        <form method="post" class="vault-pin-form" id="vault-pin-form">
+        <form method="post" class="vault-pin-form" id="vault-pin-form" data-totp-required="{{ totp_required|yesno:'1,0' }}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ next }}">
-            <div class="vault-digits">
-                <input class="vault-digit" name="d1" type="text" inputmode="numeric"
-                       maxlength="1" autocomplete="off" aria-label="PIN digit 1" autofocus>
-                <input class="vault-digit" name="d2" type="text" inputmode="numeric"
-                       maxlength="1" autocomplete="off" aria-label="PIN digit 2">
-                <input class="vault-digit" name="d3" type="text" inputmode="numeric"
-                       maxlength="1" autocomplete="off" aria-label="PIN digit 3">
-                <input class="vault-digit" name="d4" type="text" inputmode="numeric"
-                       maxlength="1" autocomplete="off" aria-label="PIN digit 4">
-            </div>
+
+            <section class="vault-step">
+                {% if totp_required %}<p class="vault-step__label">Step 1 — Enter your PIN</p>{% endif %}
+                <div class="vault-digits">
+                    <input class="vault-digit" name="d1" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 1" autofocus>
+                    <input class="vault-digit" name="d2" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+                    <input class="vault-digit" name="d3" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+                    <input class="vault-digit" name="d4" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+                </div>
+                {% if pin_error %}<div class="form-error" role="alert">{{ pin_error }}</div>{% endif %}
+            </section>
+
+            {% if totp_required %}
+                <section class="vault-step">
+                    <p class="vault-step__label">Step 2 — Enter your authenticator code</p>
+                    <p class="vault-step__sub">Open <strong>Aspired Websites Servers</strong> in your authenticator app.</p>
+                    <div class="vault-digits vault-digits--6" id="vault-totp-boxes">
+                        {% for i in "123456" %}
+                            <input class="vault-digit vault-totp-digit" name="t{{ forloop.counter }}"
+                                   type="text" inputmode="numeric" maxlength="1"
+                                   autocomplete="one-time-code"
+                                   aria-label="Code digit {{ forloop.counter }}">
+                        {% endfor %}
+                    </div>
+                    {% if totp_error %}<div class="form-error" role="alert">{{ totp_error }}</div>{% endif %}
+                </section>
+            {% endif %}
+
             <button type="submit" class="btn-primary btn-block">Unlock Vault</button>
         </form>
+
+        {% if needs_totp_setup_after_pin %}
+            <p class="vault-gate__hint vault-gate__hint--upgrade">
+                Two-factor authentication has moved to the vault level — after
+                unlocking with your PIN, you'll be asked to scan a new QR code
+                once. Per-server codes are no longer required.
+            </p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

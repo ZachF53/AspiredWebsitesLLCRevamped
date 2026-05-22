@@ -18,27 +18,61 @@
         });
     });
 
-    // ── PIN digit boxes — auto-advance + auto-submit ─────────────────────
-    var digits = document.querySelectorAll('.vault-digit');
-    if (digits.length) {
-        digits.forEach(function (box, i) {
-            box.addEventListener('input', function () {
-                box.value = box.value.replace(/[^0-9]/g, '').slice(0, 1);
-                if (box.value && i < digits.length - 1) {
-                    digits[i + 1].focus();
-                }
-                var filled = Array.prototype.every.call(digits, function (d) {
-                    return d.value.length === 1;
-                });
-                if (filled) {
-                    var form = document.getElementById('vault-pin-form');
-                    if (form) { form.submit(); }
-                }
+    // ── PIN + TOTP digit boxes — auto-advance + smart auto-submit ────────
+    // The unlock form may have just PIN (4 boxes) or PIN + TOTP (4 + 6).
+    // Within a group: typing advances forward, Backspace on an empty box
+    // hops to the previous one. Auto-submit fires only when EVERY visible
+    // group is fully filled — so the TOTP fields don't trigger a premature
+    // PIN-only POST.
+    var allDigits = document.querySelectorAll('.vault-digit');
+    if (allDigits.length) {
+        // Partition into groups by their nearest .vault-digits wrapper.
+        var groups = [];
+        allDigits.forEach(function (box) {
+            var wrap = box.closest('.vault-digits');
+            var existing = groups.find(function (g) { return g.wrap === wrap; });
+            if (existing) {
+                existing.boxes.push(box);
+            } else {
+                groups.push({ wrap: wrap, boxes: [box] });
+            }
+        });
+
+        var allGroupsFilled = function () {
+            return groups.every(function (g) {
+                return g.boxes.every(function (d) { return d.value.length === 1; });
             });
-            box.addEventListener('keydown', function (e) {
-                if (e.key === 'Backspace' && !box.value && i > 0) {
-                    digits[i - 1].focus();
-                }
+        };
+
+        groups.forEach(function (group) {
+            var boxes = group.boxes;
+            boxes.forEach(function (box, i) {
+                box.addEventListener('input', function () {
+                    box.value = box.value.replace(/[^0-9]/g, '').slice(0, 1);
+                    if (box.value && i < boxes.length - 1) {
+                        boxes[i + 1].focus();
+                    } else if (box.value && i === boxes.length - 1) {
+                        // Last box in this group — jump to first empty box
+                        // in the NEXT group, if any.
+                        var idx = groups.indexOf(group);
+                        var nextGroup = groups[idx + 1];
+                        if (nextGroup) {
+                            var firstEmpty = nextGroup.boxes.find(function (d) {
+                                return !d.value;
+                            });
+                            (firstEmpty || nextGroup.boxes[0]).focus();
+                        }
+                    }
+                    if (allGroupsFilled()) {
+                        var form = document.getElementById('vault-pin-form');
+                        if (form) { form.submit(); }
+                    }
+                });
+                box.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace' && !box.value && i > 0) {
+                        boxes[i - 1].focus();
+                    }
+                });
             });
         });
     }

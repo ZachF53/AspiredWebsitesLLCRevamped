@@ -18,7 +18,9 @@ SINGLETON_ID = uuid.UUID(int=1)
 
 
 class VaultConfig(TimestampedModel):
-    """Singleton — holds the PIN verification hash, salt, and lockout state."""
+    """Singleton — holds the PIN verification hash, salt, lockout state,
+    and the vault-level TOTP secret (one authenticator entry per admin,
+    not one per server)."""
 
     pin_hash = models.CharField(max_length=256, blank=True)
     # 32-byte random salt (set at PIN setup). default=b'' so the singleton row
@@ -27,6 +29,13 @@ class VaultConfig(TimestampedModel):
     pin_set = models.BooleanField(default=False)
     failed_attempts = models.IntegerField(default=0)
     lockout_until = models.DateTimeField(null=True, blank=True)
+
+    # Vault-level TOTP. Secret is AES-256-GCM encrypted with the PIN-derived
+    # vault key, so it is unreadable without an unlocked vault. Verified once
+    # per PIN session; every SSH terminal opened in that session is then
+    # authorised without another code.
+    totp_secret_encrypted = models.TextField(blank=True)
+    totp_configured = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Vault Configuration'
@@ -121,10 +130,6 @@ class VaultCredential(TimestampedModel):
     ssh_password_encrypted = models.TextField(blank=True)
     ssh_private_key_encrypted = models.TextField(blank=True)
     ssh_key_passphrase_encrypted = models.TextField(blank=True)
-
-    # TOTP for elevated SSH access — secret encrypted with the vault key.
-    totp_secret_encrypted = models.TextField(blank=True)
-    totp_configured = models.BooleanField(default=False)
 
     # When True, sensitive fields are encrypted with a VAULT_SERVER_SECRET-
     # derived server key (used by automated Droplet provisioning, before any
