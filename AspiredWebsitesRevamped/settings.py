@@ -71,8 +71,9 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     'django_htmx',
     'channels',
-    'django_otp',
-    'django_otp.plugins.otp_totp',
+    # TOTP is handled directly with pyotp — django_otp is intentionally not
+    # installed. The otp_totp tables from an earlier migration are left
+    # dormant on existing databases (not reversed).
 ]
 
 LOCAL_APPS = [

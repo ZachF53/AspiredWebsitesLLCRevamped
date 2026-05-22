@@ -1,0 +1,33 @@
+<article class="vault-cred vault-cred--editing" id="cmd-{{ cmd.id }}">
+    <form hx-post="{% url 'vault:command_edit' credential.id cmd.id %}"
+          hx-target="#cmd-{{ cmd.id }}" hx-swap="outerHTML">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-error">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="form-group">
+            <label>Label</label>
+            {{ form.label }}
+            {% if form.label.errors %}<div class="form-field-error">{{ form.label.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+            <label>Command</label>
+            {{ form.command }}
+            {% if form.command.errors %}<div class="form-field-error">{{ form.command.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+            <label>Category</label>
+            {{ form.category }}
+        </div>
+        <div class="form-group">
+            <label>Sort order</label>
+            {{ form.sort_order }}
+        </div>
+        <label class="vault-change-flag">{{ form.requires_confirmation }}<span>Require confirmation before running</span></label>
+        <label class="vault-change-flag">{{ form.is_dangerous }}<span>Mark as dangerous</span></label>
+        <div class="vault-cred-form__actions">
+            <button type="submit" class="btn-primary btn-sm">Save</button>
+            <button type="button" class="btn-secondary btn-sm"
+                    hx-get="{% url 'vault:command_row' credential.id cmd.id %}"
+                    hx-target="#cmd-{{ cmd.id }}" hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</article>

@@ -1,0 +1,21 @@
+{% load static %}<article class="vault-cred" id="cmd-{{ cmd.id }}">
+    <div class="vault-cred__head">
+        <span class="vault-cred__label">
+            {{ cmd.label }}
+            {% if cmd.is_dangerous %}<span class="cl-badge cl-badge--security_patch">Dangerous</span>{% endif %}
+            {% if cmd.requires_confirmation %}<span class="cl-badge cl-badge--deployment">Confirm</span>{% endif %}
+        </span>
+        <span class="vault-cred__actions">
+            <button type="button" class="btn-secondary btn-sm"
+                    hx-get="{% url 'vault:command_edit' credential.id cmd.id %}"
+                    hx-target="#cmd-{{ cmd.id }}" hx-swap="outerHTML">Edit</button>
+            <form method="post" class="vault-cred__delete">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="command_id" value="{{ cmd.id }}">
+                <button type="submit" class="btn-secondary btn-sm vault-delete-btn">Delete</button>
+            </form>
+        </span>
+    </div>
+    <code class="vault-cred__value">{{ cmd.command }}</code>
+</article>

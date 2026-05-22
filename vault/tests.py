@@ -194,6 +194,33 @@ class SSHTerminalViewTests(TestCase):
         self.assertTrue(ServerCommandLibrary.objects.filter(
             credential=self.cred, label='List home').exists())
 
+    def test_command_inline_edit(self):
+        cmd = ServerCommandLibrary.objects.create(
+            credential=self.cred, label='Old label', command='ls',
+            category='custom')
+        resp = self.client.get(
+            reverse('vault:command_edit', args=[self.cred.id, cmd.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Old label')
+        resp = self.client.post(
+            reverse('vault:command_edit', args=[self.cred.id, cmd.id]),
+            {'label': 'New label', 'command': 'pwd', 'category': 'custom',
+             'sort_order': 3})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'New label')
+        cmd.refresh_from_db()
+        self.assertEqual(cmd.label, 'New label')
+        self.assertEqual(cmd.command, 'pwd')
+
+    def test_command_row_partial(self):
+        cmd = ServerCommandLibrary.objects.create(
+            credential=self.cred, label='Row test', command='id',
+            category='custom')
+        resp = self.client.get(
+            reverse('vault:command_row', args=[self.cred.id, cmd.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Row test')
+
 
 # ── Consumer module ─────────────────────────────────────────────────────────
 

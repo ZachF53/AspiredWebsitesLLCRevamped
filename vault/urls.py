@@ -22,4 +22,6 @@ urlpatterns = [
     path('<uuid:cred_id>/connect/', views.totp_connect, name='totp_connect'),
     path('<uuid:cred_id>/terminal/', views.terminal, name='terminal'),
     path('<uuid:cred_id>/commands/', views.command_library, name='command_library'),
+    path('<uuid:cred_id>/commands/<uuid:cmd_id>/edit/', views.command_edit, name='command_edit'),
+    path('<uuid:cred_id>/commands/<uuid:cmd_id>/row/', views.command_row, name='command_row'),
 ]

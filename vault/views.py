@@ -747,3 +747,33 @@ def command_library(request, cred_id):
         'command_groups': _command_groups(cred),
         'seconds_remaining': _seconds_remaining(request),
     })
+
+
+@admin_required
+def command_row(request, cred_id, cmd_id):
+    """HTMX — render one command's display row (used for edit-cancel)."""
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    cmd = get_object_or_404(ServerCommandLibrary, id=cmd_id, credential=cred)
+    return render(request, 'vault/_command_row.html',
+                  {'credential': cred, 'cmd': cmd})
+
+
+@admin_required
+def command_edit(request, cred_id, cmd_id):
+    """HTMX inline edit — GET returns the form, POST saves and returns the row."""
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    cmd = get_object_or_404(ServerCommandLibrary, id=cmd_id, credential=cred)
+
+    if request.method == 'POST':
+        form = CommandForm(request.POST, instance=cmd)
+        if form.is_valid():
+            form.save()
+            return render(request, 'vault/_command_row.html',
+                          {'credential': cred, 'cmd': cmd})
+    else:
+        form = CommandForm(instance=cmd)
+
+    return render(request, 'vault/_command_form.html',
+                  {'credential': cred, 'cmd': cmd, 'form': form})
