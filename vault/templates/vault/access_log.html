@@ -1,0 +1,48 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Vault Access Log — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-vault">
+    <div class="vault-header">
+        <div class="vault-header__title">
+            <p class="vault-breadcrumb"><a href="{% url 'vault:home' %}">Vault</a> &rsaquo; Access Log</p>
+            <h1>Vault Access Log</h1>
+        </div>
+    </div>
+
+    <form method="get" class="vault-log-filters">
+        <select name="action" class="form-control">
+            <option value="">All actions</option>
+            {% for value, label in action_choices %}
+                <option value="{{ value }}" {% if value == filter_action %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="client" value="{{ filter_client }}" class="form-control" placeholder="Client name">
+        <input type="date" name="from" value="{{ filter_from }}" class="form-control" aria-label="From date">
+        <input type="date" name="to" value="{{ filter_to }}" class="form-control" aria-label="To date">
+        <button type="submit" class="btn-secondary">Filter</button>
+        <a class="btn-secondary" href="?action={{ filter_action }}&client={{ filter_client }}&from={{ filter_from }}&to={{ filter_to }}&export=csv">Export CSV</a>
+    </form>
+
+    <table class="vault-log-table">
+        <thead>
+            <tr><th>Timestamp</th><th>Action</th><th>Client</th><th>Credential</th><th>IP</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+            {% for entry in logs %}
+                <tr>
+                    <td>{{ entry.created_at|date:"Y-m-d H:i:s" }}</td>
+                    <td><span class="vault-log-action vault-log-action--{{ entry.action }}">{{ entry.get_action_display }}</span></td>
+                    <td>{{ entry.client_name|default:"—" }}</td>
+                    <td>{{ entry.credential_label|default:"—" }}</td>
+                    <td>{{ entry.ip_address|default:"—" }}</td>
+                    <td class="vault-log-note">{{ entry.note|default:"" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="vault-muted">No log entries match.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

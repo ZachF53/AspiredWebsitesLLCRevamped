@@ -131,9 +131,13 @@ def _handle_invoice_paid(event):
 
 
 def _on_deposit_paid(client, project):
-    """Post-deposit onboarding: intake, welcome email, Droplet, reminders."""
+    """Post-deposit onboarding: intake, vault, welcome email, Droplet, reminders."""
     # Activate the intake form (ensure the row exists for the portal).
     IntakeResponse.objects.get_or_create(project=project)
+    # Ensure the client has a credential vault (the ClientProfile post_save
+    # signal also does this — belt and suspenders).
+    from vault.models import ClientVault
+    ClientVault.objects.get_or_create(client=client)
     send_welcome_email(client, project)
     _provision_droplet(client)
     _schedule_intake_reminders(project)

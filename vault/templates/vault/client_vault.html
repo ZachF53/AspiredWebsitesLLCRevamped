@@ -1,0 +1,97 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}{{ client.firm_name }} — Vault{% endblock %}
+
+{% block content %}
+<div class="admin-vault"
+     data-seconds-remaining="{{ seconds_remaining }}"
+     data-csrf="{{ csrf_token }}"
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    <div class="vault-header">
+        <div class="vault-header__title">
+            <p class="vault-breadcrumb">
+                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo; {{ client.firm_name }}
+            </p>
+            <h1>{{ client.firm_name }}</h1>
+        </div>
+        <div class="vault-header__actions">
+            <span class="vault-session">Expires in <strong id="vault-session-countdown">--:--</strong></span>
+            <a class="btn-primary btn-sm" href="{% url 'vault:add_credential' client.id %}">Add Credential +</a>
+        </div>
+    </div>
+
+    {% if groups %}
+        {% for group in groups %}
+            <details class="vault-catgroup" open>
+                <summary>{{ group.label }} <span class="vault-catgroup__count">{{ group.items|length }}</span></summary>
+                <div class="vault-cred-list">
+                    {% for item in group.items %}
+                        <article class="vault-cred"
+                                 data-reveal-url="{% url 'vault:reveal_credential' client.id item.id %}">
+                            <div class="vault-cred__head">
+                                <span class="vault-cred__label">{{ item.label }}</span>
+                                <span class="vault-cat-badge">{{ group.label }}</span>
+                            </div>
+
+                            <div class="vault-cred__grid">
+                                <div class="vault-cred__field">
+                                    <span class="vault-cred__fieldlabel">Username</span>
+                                    <span class="vault-cred__value" data-field="username">{{ item.username_hint }}</span>
+                                </div>
+                                <div class="vault-cred__field">
+                                    <span class="vault-cred__fieldlabel">Password</span>
+                                    <span class="vault-cred__value" data-field="password">{% if item.has_password %}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;{% else %}&mdash;{% endif %}</span>
+                                </div>
+                            </div>
+
+                            <div class="vault-cred__revealrow">
+                                <button type="button" class="vault-reveal btn-secondary btn-sm">Reveal</button>
+                                <div class="vault-reveal-bar" hidden><span></span></div>
+                            </div>
+
+                            {% if item.url %}
+                                <p class="vault-cred__url">
+                                    <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a>
+                                </p>
+                            {% endif %}
+                            {% if item.notes %}
+                                <details class="vault-cred__notes">
+                                    <summary>Notes</summary>
+                                    <p>{{ item.notes }}</p>
+                                </details>
+                            {% endif %}
+
+                            <div class="vault-cred__foot">
+                                {% include "vault/_visibility_toggle.html" with client_id=client.id cred_id=item.id visible=item.visible_to_client %}
+                                <span class="vault-cred__actions">
+                                    <a class="btn-secondary btn-sm" href="{% url 'vault:edit_credential' client.id item.id %}">Edit</a>
+                                    <form method="post" action="{% url 'vault:delete_credential' client.id item.id %}" class="vault-cred__delete">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-secondary btn-sm vault-delete-btn">Delete</button>
+                                    </form>
+                                </span>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            </details>
+        {% endfor %}
+    {% else %}
+        <p class="vault-muted">No credentials stored yet. Click <strong>Add Credential</strong> to store the first one.</p>
+    {% endif %}
+</div>
+
+<div class="vault-expired-overlay" id="vault-expired-overlay" hidden>
+    <div class="vault-expired-overlay__card">
+        <h2>Vault Session Expired</h2>
+        <p>Your vault session has expired. Re-enter your PIN to continue.</p>
+        <button type="button" class="btn-primary" id="vault-reunlock">Re-enter PIN</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

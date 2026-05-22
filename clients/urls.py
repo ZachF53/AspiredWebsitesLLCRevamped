@@ -18,6 +18,7 @@ urlpatterns = [
     path('support/', views.support, name='support'),
     path('support/new/', views.support_new, name='support_new'),
     path('invoices/', views.invoices, name='invoices'),
+    path('credentials/', views.credentials, name='credentials'),
     path('settings/', views.settings_page, name='settings'),
 
     # Contract signing — token-gated, no login required.

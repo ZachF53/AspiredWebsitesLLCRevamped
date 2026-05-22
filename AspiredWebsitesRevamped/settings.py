@@ -81,6 +81,7 @@ LOCAL_APPS = [
     'social',
     'reporting',
     'admin_dashboard',
+    'vault',
     'counselsouth',
 ]
 

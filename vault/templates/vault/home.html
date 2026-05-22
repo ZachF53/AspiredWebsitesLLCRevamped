@@ -1,0 +1,60 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Client Vault — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-vault" data-seconds-remaining="{{ seconds_remaining }}">
+    <div class="vault-header">
+        <div class="vault-header__title">
+            <span class="vault-icon vault-icon--success vault-icon--sm" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            </span>
+            <h1>Client Vault</h1>
+        </div>
+        <div class="vault-session">
+            Vault unlocked — expires in
+            <strong id="vault-session-countdown">--:--</strong>
+        </div>
+    </div>
+
+    <form method="get" class="vault-search">
+        <input type="text" name="q" value="{{ query }}" class="form-control"
+               placeholder="Search by client name…">
+        <button type="submit" class="btn-secondary">Search</button>
+    </form>
+
+    {% if vaults %}
+        <div class="vault-grid">
+            {% for v in vaults %}
+                <article class="vault-card">
+                    <h2 class="vault-card__name">{{ v.client.firm_name }}</h2>
+                    <p class="vault-card__count">{{ v.count }} credential{{ v.count|pluralize }}</p>
+                    {% if v.categories %}
+                        <div class="vault-card__cats">
+                            {% for cat in v.categories %}<span class="vault-cat-badge">{{ cat }}</span>{% endfor %}
+                        </div>
+                    {% endif %}
+                    <a class="btn-primary btn-sm" href="{% url 'vault:client_vault' v.client.id %}">Open &rarr;</a>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="vault-muted">No clients found.</p>
+    {% endif %}
+
+    <p class="vault-foot"><a href="{% url 'vault:access_log' %}">View access log &rarr;</a></p>
+</div>
+
+<div class="vault-expired-overlay" id="vault-expired-overlay" hidden>
+    <div class="vault-expired-overlay__card">
+        <h2>Vault Session Expired</h2>
+        <p>Your vault session has expired. Re-enter your PIN to continue.</p>
+        <button type="button" class="btn-primary" id="vault-reunlock">Re-enter PIN</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

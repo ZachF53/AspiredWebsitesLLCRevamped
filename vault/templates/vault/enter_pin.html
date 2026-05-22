@@ -1,0 +1,40 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Unlock Vault — Admin{% endblock %}
+
+{% block content %}
+<div class="vault-gate">
+    <div class="vault-gate__card">
+        <div class="vault-icon vault-icon--orange" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h1>Enter Your Vault PIN</h1>
+
+        {% if expired and not error %}
+            <p class="vault-gate__sub">Your vault session expired after 1 hour.</p>
+        {% endif %}
+        {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+        <form method="post" class="vault-pin-form" id="vault-pin-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="vault-digits">
+                <input class="vault-digit" name="d1" type="text" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 1" autofocus>
+                <input class="vault-digit" name="d2" type="text" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+                <input class="vault-digit" name="d3" type="text" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+                <input class="vault-digit" name="d4" type="text" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+            </div>
+            <button type="submit" class="btn-primary btn-block">Unlock Vault</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

@@ -457,6 +457,18 @@ def invoices(request):
     return render(request, 'clients/invoices.html', ctx)
 
 
+# ── Page 9: Credentials (vault — client-visible only) ───────────────────────
+
+@client_required
+def credentials(request):
+    profile = request.client_profile
+    from vault.models import ClientVault
+    vault, _ = ClientVault.objects.get_or_create(client=profile)
+    visible = list(vault.credentials.filter(visible_to_client=True))
+    ctx = _portal_context(request, 'credentials', credentials=visible)
+    return render(request, 'clients/credentials.html', ctx)
+
+
 # ── Page 8: Settings ────────────────────────────────────────────────────────
 
 @client_required
