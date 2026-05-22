@@ -6882,6 +6882,209 @@ button.htmx-request {
     color: var(--color-orange-light);
 }
 
+/* ── 31b. Legacy-client onboarding board ───────────────────── */
+.onboarding-warn {
+    padding: 0.9rem 1.1rem;
+    background: rgba(232, 101, 10, 0.12);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    border-radius: 8px;
+    color: var(--color-text);
+    margin-bottom: var(--space-4);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+.onboarding-warn strong { display: block; margin-bottom: 0.2rem; }
+
+.onboarding-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-4);
+}
+
+.onboarding-card {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-left: 5px solid #999;
+    border-radius: 8px;
+    padding: 1.1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+.onboarding-card--teal { border-left-color: #0d9488; }
+.onboarding-card--orange { border-left-color: #E8650A; }
+.onboarding-card--red { border-left-color: #c0392b; }
+
+.onboarding-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+.onboarding-card__title { margin: 0; font-size: 1.05rem; }
+.onboarding-card__sub { margin: 0.25rem 0 0; font-size: 0.8rem; }
+.onboarding-card__progress-num {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #666);
+}
+
+.onboarding-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: #f0f0f0;
+    color: #444;
+    font-size: 0.7rem;
+    margin-right: 0.3rem;
+}
+.onboarding-badge--tester {
+    background: rgba(232, 101, 10, 0.15);
+    color: #b04a00;
+    font-weight: 600;
+}
+
+.onboarding-card__ip {
+    margin: 0;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.onboarding-card__ip code {
+    background: #f5f5f5;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+}
+
+.onboarding-checks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+}
+.onboarding-checks li {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--color-text-muted, #666);
+    flex-wrap: wrap;
+}
+.onboarding-checks li.is-done { color: var(--color-text, #1A1A1A); }
+.onboarding-checks__icon {
+    display: inline-flex;
+    width: 1.1rem;
+    height: 1.1rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #eee;
+    color: #999;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.onboarding-checks li.is-done .onboarding-checks__icon {
+    background: #0d9488;
+    color: #fff;
+}
+.onboarding-checks__detail {
+    width: 100%;
+    margin-left: 1.65rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #666);
+}
+
+.onboarding-card__actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.4rem;
+}
+
+.onboarding-copy {
+    border: 1px solid var(--color-border, #ccc);
+    background: #fff;
+    border-radius: 4px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.onboarding-copy:hover { background: #f5f5f5; }
+
+/* Modal */
+.onboarding-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 6, 20, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 1rem;
+}
+.onboarding-modal[hidden] { display: none; }
+.onboarding-modal__card {
+    background: #fff;
+    border-radius: 8px;
+    max-width: 640px;
+    width: 100%;
+    padding: 1.6rem 1.8rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+.onboarding-modal__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+.onboarding-modal__head h2 { margin: 0; font-size: 1.15rem; }
+.onboarding-modal__close {
+    border: 0;
+    background: none;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.5rem;
+    color: #888;
+}
+.onboarding-cmd {
+    background: #1A1A1A;
+    color: #f5f5f5;
+    padding: 0.7rem 0.9rem;
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.4rem 0 0.9rem;
+    overflow-x: auto;
+}
+.onboarding-cmd code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    flex: 1;
+    word-break: break-all;
+}
+.onboarding-cmd .onboarding-copy {
+    background: #333;
+    color: #fff;
+    border-color: #444;
+    flex-shrink: 0;
+}
+.onboarding-cmd .onboarding-copy:hover { background: #444; }
+.onboarding-modal__hint {
+    font-size: 0.85rem;
+    color: var(--color-text-muted, #666);
+    margin-bottom: 0;
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

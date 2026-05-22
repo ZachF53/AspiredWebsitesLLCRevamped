@@ -1198,6 +1198,100 @@ def client_detail(request, client_id):
 
 
 @admin_required
+def clients_onboarding(request):
+    """
+    Legacy-client onboarding status board — every pre-platform client and
+    what still needs finishing on each (user, live URL, SSH vault key,
+    uptime monitoring, email). Cards are colour-coded by completeness so
+    the most-stale row jumps out first.
+    """
+    from clients.models import ClientProfile, UptimeRecord
+    from vault.models import ClientVault, VaultCredential
+
+    legacy = (
+        ClientProfile.objects
+        .filter(internal_notes__contains='Legacy client')
+        .order_by('firm_name')
+    )
+
+    # Cheap lookups so we don't do N+1 queries inside the template.
+    vault_ids_by_client = {}
+    for cred in VaultCredential.objects.filter(
+            is_ssh_credential=True,
+            vault__client__in=legacy).select_related('vault'):
+        # First SSH credential wins — link straight into it from the card.
+        vault_ids_by_client.setdefault(cred.vault.client_id, cred.id)
+    has_uptime = set(UptimeRecord.objects.filter(
+        client__in=legacy).values_list('client_id', flat=True).distinct())
+
+    cards = []
+    any_missing_key = False
+    any_missing_url = False
+    for client in legacy:
+        live_project = (client.projects.filter(stage='live').first()
+                        or client.projects.first())
+        live_url = (live_project.live_url or '') if live_project else ''
+        # A "real" user account is one that can log in — the seed command
+        # creates inactive placeholder users with unusable passwords for
+        # legacy clients we don't have an email for yet.
+        has_user = bool(
+            client.user
+            and client.user.is_active
+            and client.user.has_usable_password())
+        has_email = bool(client.user and client.user.email)
+        has_live_url = bool(live_url)
+        cred_id = vault_ids_by_client.get(client.id)
+        has_vault_key = cred_id is not None
+        has_uptime_data = has_live_url and (client.id in has_uptime)
+        is_tester = 'Tester: True' in (client.internal_notes or '')
+
+        checks = [has_user, has_live_url, has_vault_key,
+                  has_uptime_data, has_email]
+        done = sum(1 for c in checks if c)
+        if done == len(checks):
+            border = 'teal'
+        elif done == 0:
+            border = 'red'
+        else:
+            border = 'orange'
+
+        if not has_vault_key:
+            any_missing_key = True
+        if not has_live_url:
+            any_missing_url = True
+
+        cards.append({
+            'client': client,
+            'live_url': live_url,
+            'has_user': has_user,
+            'has_email': has_email,
+            'has_live_url': has_live_url,
+            'has_vault_key': has_vault_key,
+            'has_uptime_data': has_uptime_data,
+            'is_tester': is_tester,
+            'cred_id': cred_id,
+            'border': border,
+            'done': done,
+            'total': len(checks),
+        })
+
+    fully_green = sum(1 for c in cards if c['border'] == 'teal')
+    return render(
+        request,
+        'admin_dashboard/clients_onboarding.html',
+        _admin_context(
+            'clients',
+            cards=cards,
+            any_missing_key=any_missing_key,
+            any_missing_url=any_missing_url,
+            total=len(cards),
+            fully_green=fully_green,
+            need_attention=len(cards) - fully_green,
+        ),
+    )
+
+
+@admin_required
 def client_uptime(request, client_id):
     """Uptime detail — 30/60/90-day stats, open alerts, last 50 checks, chart."""
     from clients.models import ClientProfile, UptimeAlert, UptimeRecord

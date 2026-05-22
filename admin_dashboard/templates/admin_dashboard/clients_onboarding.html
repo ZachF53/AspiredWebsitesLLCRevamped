@@ -1,0 +1,128 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Client Onboarding — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Clients</span>
+            <h1 class="admin-page-title">Legacy Client Onboarding</h1>
+            <p class="admin-page-sub">
+                {{ total }} legacy client{{ total|pluralize }} —
+                {{ fully_green }} fully set up,
+                {{ need_attention }} need attention.
+            </p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_list' %}">All clients &rarr;</a>
+        </div>
+    </div>
+
+    {% if any_missing_key or any_missing_url %}
+        <div class="onboarding-warn">
+            <strong>Some legacy clients are not fully set up.</strong>
+            {% if any_missing_key %}One or more {% if any_missing_url %}have no SSH vault key and{% else %}have no SSH vault key.{% endif %}{% endif %}
+            {% if any_missing_url %}One or more have no live URL set.{% endif %}
+            Use the SSH Key Setup button on each card to finish the job.
+        </div>
+    {% endif %}
+
+    {% if cards %}
+        <div class="onboarding-grid">
+            {% for card in cards %}
+                <article class="onboarding-card onboarding-card--{{ card.border }}">
+                    <header class="onboarding-card__head">
+                        <div>
+                            <h2 class="onboarding-card__title">{{ card.client.firm_name }}</h2>
+                            <p class="onboarding-card__sub">
+                                {% if card.client.business_type %}<span class="onboarding-badge">{{ card.client.business_type }}</span>{% endif %}
+                                {% if card.is_tester %}<span class="onboarding-badge onboarding-badge--tester">Tester</span>{% endif %}
+                            </p>
+                        </div>
+                        <div class="onboarding-card__progress">
+                            <span class="onboarding-card__progress-num">{{ card.done }}/{{ card.total }}</span>
+                        </div>
+                    </header>
+
+                    <p class="onboarding-card__ip">
+                        <code>{{ card.client.do_droplet_ip|default:"—" }}</code>
+                        {% if card.client.do_droplet_ip %}
+                            <button type="button" class="onboarding-copy" data-copy="{{ card.client.do_droplet_ip }}" aria-label="Copy IP">Copy</button>
+                        {% endif %}
+                    </p>
+
+                    <ul class="onboarding-checks">
+                        <li class="{% if card.has_user %}is-done{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_user %}✓{% else %}✗{% endif %}</span>
+                            User account
+                        </li>
+                        <li class="{% if card.has_live_url %}is-done{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_live_url %}✓{% else %}✗{% endif %}</span>
+                            Live URL set
+                            {% if card.live_url %}<small class="onboarding-checks__detail">{{ card.live_url }}</small>{% endif %}
+                        </li>
+                        <li class="{% if card.has_vault_key %}is-done{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_vault_key %}✓{% else %}✗{% endif %}</span>
+                            SSH vault key
+                        </li>
+                        <li class="{% if card.has_uptime_data %}is-done{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_uptime_data %}✓{% else %}✗{% endif %}</span>
+                            Uptime monitoring
+                        </li>
+                        <li class="{% if card.has_email %}is-done{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_email %}✓{% else %}✗{% endif %}</span>
+                            Email address
+                        </li>
+                    </ul>
+
+                    <div class="onboarding-card__actions">
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' card.client.id %}">Edit</a>
+                        {% if card.cred_id %}
+                            <a class="btn-secondary btn-sm" href="{% url 'vault:client_vault' card.client.id %}">Vault</a>
+                        {% else %}
+                            <button type="button" class="btn-primary btn-sm onboarding-ssh-btn"
+                                    data-ip="{{ card.client.do_droplet_ip }}"
+                                    data-firm="{{ card.client.firm_name }}">SSH Key Setup</button>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No legacy clients seeded yet. Run <code>python manage.py seed_existing_clients</code>.</p>
+        </div>
+    {% endif %}
+</div>
+
+{# SSH Key Setup modal — populated by JS when a card button is clicked. #}
+<div class="onboarding-modal" id="onboarding-modal" hidden role="dialog" aria-modal="true" aria-labelledby="onboarding-modal-title">
+    <div class="onboarding-modal__card">
+        <header class="onboarding-modal__head">
+            <h2 id="onboarding-modal-title">SSH Key Setup — <span data-modal-firm></span></h2>
+            <button type="button" class="onboarding-modal__close" aria-label="Close">×</button>
+        </header>
+        <p>SSH into this server:</p>
+        <div class="onboarding-cmd">
+            <code data-modal-ssh></code>
+            <button type="button" class="onboarding-copy" data-copy-target="ssh">Copy</button>
+        </div>
+        <p>Then run:</p>
+        <div class="onboarding-cmd">
+            <code data-modal-curl>curl -s https://aspiredwebsites.com/static/scripts/gen_vault_key.sh | bash</code>
+            <button type="button" class="onboarding-copy" data-copy-target="curl">Copy</button>
+        </div>
+        <p class="onboarding-modal__hint">
+            Copy the printed private key and paste it into the vault for this client
+            (Vault &rsaquo; <span data-modal-firm></span> &rsaquo; Add Credential,
+            category <strong>Server / Hosting</strong>, auth type <strong>Private Key</strong>).
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/onboarding.js' %}" defer></script>
+{% endblock %}

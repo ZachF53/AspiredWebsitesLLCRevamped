@@ -9,6 +9,9 @@
             <span class="eyebrow">Clients</span>
             <h1 class="admin-page-title">{{ clients|length }} client{{ clients|length|pluralize }}</h1>
         </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:clients_onboarding' %}">Legacy Onboarding &rarr;</a>
+        </div>
     </div>
 
     <form class="lead-filter-bar" method="get">

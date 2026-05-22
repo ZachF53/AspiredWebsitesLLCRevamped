@@ -55,6 +55,7 @@ urlpatterns = [
 
     # Clients — monitoring hub (Phase 5a)
     path('clients/', views.client_list, name='client_list'),
+    path('clients/onboarding/', views.clients_onboarding, name='clients_onboarding'),
     path('clients/<uuid:client_id>/', views.client_detail, name='client_detail'),
     path('clients/<uuid:client_id>/changelog/', views.client_changelog, name='client_changelog'),
     path('clients/<uuid:client_id>/changelog/add/', views.changelog_add, name='changelog_add_client'),
