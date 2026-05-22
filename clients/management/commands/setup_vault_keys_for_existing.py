@@ -52,11 +52,14 @@ class Command(BaseCommand):
             'dedicated vault key, and store it in the vault.')
 
     def handle(self, *args, **options):
+        # NB: `do_droplet_ip` is a GenericIPAddressField, not a CharField.
+        # `__isnull=False` alone is the right filter — chaining
+        # `.exclude(do_droplet_ip='')` would silently drop every row
+        # (see CLAUDE.md Phase 5a note).
         clients = (
             ClientProfile.objects
             .filter(do_droplet_ip__isnull=False,
                     internal_notes__contains='Legacy client')
-            .exclude(do_droplet_ip='')
             .order_by('firm_name')
         )
 
