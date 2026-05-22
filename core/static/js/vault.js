@@ -145,6 +145,33 @@
                 radio.addEventListener('change', syncAuthType);
             });
         syncAuthType();
+
+        // Block submitting a public key in the private-key field.
+        var credForm = sshFields.closest('form');
+        var keyError = document.getElementById('ssh-key-error');
+        if (credForm && keyError) {
+            credForm.addEventListener('submit', function (e) {
+                keyError.hidden = true;
+                var authChecked = document.querySelector(
+                    'input[name="ssh_auth_type"]:checked');
+                if (!sshCheckbox.checked || !authChecked
+                        || authChecked.value !== 'private_key') {
+                    return;
+                }
+                var keyField = document.getElementById('id_ssh_private_key');
+                if (!keyField) { return; }
+                var value = (keyField.value || '').trim();
+                if (value && value.indexOf('-----BEGIN') !== 0) {
+                    e.preventDefault();
+                    keyError.textContent =
+                        'This looks like a public key. Open your .ssh folder ' +
+                        'and paste the private key file content instead ' +
+                        '(no .pub extension).';
+                    keyError.hidden = false;
+                    keyField.focus();
+                }
+            });
+        }
     }
 
     // ── Credential reveal ────────────────────────────────────────────────

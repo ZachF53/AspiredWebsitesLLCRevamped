@@ -25,9 +25,11 @@ SSH_SESSION_MINUTES = 15
 
 
 def _load_private_key(key_text, passphrase):
-    """Parse a PEM private key, trying the common key types in turn."""
-    for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey,
-                    paramiko.ECDSAKey, paramiko.DSSKey):
+    """
+    Parse a PEM private key, trying the common key types in turn.
+    DSSKey is intentionally omitted — Paramiko 3.x+ dropped it.
+    """
+    for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
         try:
             return key_cls.from_private_key(
                 io.StringIO(key_text), password=passphrase or None)
