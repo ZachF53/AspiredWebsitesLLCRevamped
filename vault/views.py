@@ -252,6 +252,41 @@ def _render_vault_home(request):
     })
 
 
+@admin_required
+@require_POST
+def new_vault(request):
+    """
+    Create a new vault entry by name — for an internal property (your own
+    site, Moonieful, etc.) that didn't arrive through client onboarding.
+    Creates a placeholder, login-disabled User + ClientProfile; the
+    ClientProfile post_save signal then creates the ClientVault.
+    """
+    if get_vault_key(request) is None:
+        return redirect('vault:home')
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        return redirect('vault:home')
+
+    from django.contrib.auth import get_user_model
+    from django.utils.text import slugify
+    User = get_user_model()
+
+    base = 'vault-' + (slugify(name) or 'entry')
+    username = base
+    suffix = 1
+    while User.objects.filter(username=username).exists():
+        username = f'{base}-{suffix}'
+        suffix += 1
+
+    user = User(username=username, is_staff=False, is_active=False)
+    user.set_unusable_password()  # placeholder — this user never logs in
+    user.save()
+    profile = ClientProfile.objects.create(
+        user=user, firm_name=name, business_type='',
+    )
+    return redirect('vault:client_vault', client_id=profile.id)
+
+
 # ── Client vault ────────────────────────────────────────────────────────────
 
 @admin_required

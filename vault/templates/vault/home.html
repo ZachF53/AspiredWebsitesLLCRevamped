@@ -18,11 +18,22 @@
         </div>
     </div>
 
-    <form method="get" class="vault-search">
-        <input type="text" name="q" value="{{ query }}" class="form-control"
-               placeholder="Search by client name…">
-        <button type="submit" class="btn-secondary">Search</button>
-    </form>
+    <div class="vault-toolbar">
+        <form method="get" class="vault-search">
+            <input type="text" name="q" value="{{ query }}" class="form-control"
+                   placeholder="Search by name…">
+            <button type="submit" class="btn-secondary">Search</button>
+        </form>
+        <details class="vault-newvault">
+            <summary class="btn-primary btn-sm">+ New Vault</summary>
+            <form method="post" action="{% url 'vault:new_vault' %}" class="vault-newvault__form">
+                {% csrf_token %}
+                <input type="text" name="name" class="form-control" required
+                       placeholder="Name — e.g. Aspired Websites, Moonieful">
+                <button type="submit" class="btn-primary">Create Vault</button>
+            </form>
+        </details>
+    </div>
 
     {% if vaults %}
         <div class="vault-grid">

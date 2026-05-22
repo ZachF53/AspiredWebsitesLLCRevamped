@@ -8,6 +8,7 @@ app_name = 'vault'
 
 urlpatterns = [
     path('', views.vault_home, name='home'),
+    path('new/', views.new_vault, name='new_vault'),
     path('log/', views.vault_access_log, name='access_log'),
     path('<uuid:client_id>/', views.client_vault, name='client_vault'),
     path('<uuid:client_id>/add/', views.add_credential, name='add_credential'),
