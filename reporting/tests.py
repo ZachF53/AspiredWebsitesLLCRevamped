@@ -1,21 +1,29 @@
-"""Tests for Phase 5a — uptime, GBP sync, keyword tracking, conversions."""
+"""Tests for Phase 5a + 5b reporting features."""
 
 import json
-from datetime import timedelta
+import tempfile
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from clients.models import ClientProfile, Project, UptimeAlert, UptimeRecord
 from reporting.conversion_helpers import conversion_6month_chart, conversion_counts
+from reporting.freshness import calculate_freshness_score
 from reporting.keyword_helpers import keyword_trend, position_class
 from reporting.models import (
+    BlogPost,
+    ChatbotConversation,
+    ClientChatbot,
+    ContentFreshnessReport,
     ConversionEvent,
     GBPSyncCheck,
     KeywordRankRecord,
+    MonthlyReport,
+    NPSSurvey,
     TrackedKeyword,
 )
 from reporting.uptime_helpers import (
@@ -30,10 +38,11 @@ _seq = 0
 
 
 def _client(firm='Test Co', **kw):
-    """Create a ClientProfile with a unique placeholder user."""
+    """Create a ClientProfile with a unique placeholder user (with email)."""
     global _seq
     _seq += 1
-    user = User.objects.create_user(username=f'u{_seq}', password='x')
+    user = User.objects.create_user(
+        username=f'u{_seq}', password='x', email=f'u{_seq}@example.com')
     return ClientProfile.objects.create(user=user, firm_name=firm, **kw)
 
 
@@ -323,3 +332,251 @@ class PortalSeoTests(TestCase):
             self.client.get(reverse('clients:dashboard')).status_code, 200)
         self.assertEqual(
             self.client.get(reverse('clients:project')).status_code, 200)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Phase 5b
+# ════════════════════════════════════════════════════════════════════════════
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class MonthlyReportTests(TestCase):
+
+    def test_generate_creates_and_sends(self):
+        from reporting.tasks import generate_monthly_report
+        cp = _client('Report Co', status='active', maintenance_active=True)
+        ConversionEvent.objects.create(
+            client=cp, event_type='form_submit',
+            event_timestamp=timezone.now())
+        generate_monthly_report(str(cp.id), '2026-04-01')
+        report = MonthlyReport.objects.get(client=cp)
+        self.assertEqual(report.status, 'sent')
+        self.assertTrue(report.pdf_path)
+
+    def test_already_sent_not_regenerated(self):
+        from reporting.tasks import generate_monthly_report
+        cp = _client('Once Co', status='active', maintenance_active=True)
+        MonthlyReport.objects.create(
+            client=cp, report_month=date(2026, 4, 1), status='sent')
+        result = generate_monthly_report(str(cp.id), '2026-04-01')
+        self.assertIn('Already sent', result)
+
+    def test_management_command(self):
+        from django.core.management import call_command
+        _client('Cmd Co', status='active', maintenance_active=True)
+        call_command('send_monthly_reports')
+        self.assertTrue(MonthlyReport.objects.exists())
+
+
+class FreshnessTests(TestCase):
+
+    def test_score_algorithm(self):
+        fresh = calculate_freshness_score({
+            'last_modified': timezone.now() - timedelta(days=5),
+            'word_count': 800, 'is_blog': True, 'has_structured_data': True})
+        self.assertEqual(fresh, 100)  # 40 + 30 + 15 + 15
+        stale = calculate_freshness_score({
+            'last_modified': timezone.now() - timedelta(days=400),
+            'word_count': 50, 'is_blog': False, 'has_structured_data': False})
+        self.assertEqual(stale, 0)
+
+    @patch('reporting.freshness.crawl_site')
+    def test_generate_report(self, mock_crawl):
+        mock_crawl.return_value = [
+            {'url': 'https://x.com/', 'title': 'Home',
+             'last_modified': None, 'word_count': 120,
+             'is_blog': False, 'has_structured_data': False},
+            {'url': 'https://x.com/blog/post/', 'title': 'Post',
+             'last_modified': timezone.now(), 'word_count': 900,
+             'is_blog': True, 'has_structured_data': True},
+        ]
+        cp = _client('Crawl Co', status='active')
+        Project.objects.create(client=cp, stage='live',
+                               live_url='https://x.com')
+        from reporting.tasks import generate_freshness_report
+        generate_freshness_report(str(cp.id))
+        report = ContentFreshnessReport.objects.get(client=cp)
+        self.assertEqual(report.pages_analyzed, 2)
+        self.assertEqual(report.pages_needing_update, 1)  # the thin home page
+
+
+class NPSTests(TestCase):
+
+    def test_eligible_clients_surveyed(self):
+        from reporting.tasks import send_nps_surveys
+        cp = _client('NPS Co', maintenance_active=True)
+        ClientProfile.objects.filter(pk=cp.pk).update(
+            created_at=timezone.now() - timedelta(days=60))
+        send_nps_surveys()
+        self.assertEqual(NPSSurvey.objects.filter(client=cp).count(), 1)
+
+    def test_new_client_not_surveyed(self):
+        from reporting.tasks import send_nps_surveys
+        _client('Fresh Co', maintenance_active=True)  # created just now
+        send_nps_surveys()
+        self.assertEqual(NPSSurvey.objects.count(), 0)
+
+    def test_response_records_score_and_branches(self):
+        cp = _client('Resp Co')
+        survey = NPSSurvey.objects.create(client=cp)
+        url = reverse('nps_response', args=[survey.survey_token, 9])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        survey.refresh_from_db()
+        self.assertEqual(survey.score, 9)
+        # Promoter POST → review prompt.
+        resp = self.client.post(url, {'feedback': 'Great work'})
+        self.assertContains(resp, 'Google review')
+        survey.refresh_from_db()
+        self.assertEqual(survey.response_action_taken, 'review_requested')
+
+    def test_detractor_creates_needs_you(self):
+        cp = _client('Sad Co')
+        survey = NPSSurvey.objects.create(client=cp)
+        url = reverse('nps_response', args=[survey.survey_token, 3])
+        self.client.get(url)
+        self.client.post(url, {'feedback': 'Not happy'})
+        survey.refresh_from_db()
+        self.assertEqual(survey.response_action_taken, 'needs_you_created')
+
+    def test_bad_token_404(self):
+        import uuid as _uuid
+        resp = self.client.get(
+            reverse('nps_response', args=[_uuid.uuid4(), 8]))
+        self.assertEqual(resp.status_code, 404)
+
+
+class TestimonialTests(TestCase):
+
+    def test_request_sent_30_days_after_launch(self):
+        from reporting.tasks import send_testimonial_requests
+        cp = _client('Launch Co')
+        Project.objects.create(
+            client=cp, stage='live',
+            launch_date=timezone.localdate() - timedelta(days=35))
+        send_testimonial_requests()
+        cp.refresh_from_db()
+        self.assertIsNotNone(cp.testimonial_requested_at)
+
+    def test_not_resent(self):
+        from reporting.tasks import send_testimonial_requests
+        cp = _client('Done Co')
+        Project.objects.create(
+            client=cp, stage='live',
+            launch_date=timezone.localdate() - timedelta(days=35))
+        cp.testimonial_requested_at = timezone.now()
+        cp.save()
+        result = send_testimonial_requests()
+        self.assertIn('0 testimonial', result)
+
+
+class BlogTests(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='blogstaff', password='bp', is_staff=True)
+        self.cp = _client('Blog Co')
+        self.client.login(username='blogstaff', password='bp')
+
+    @patch('reporting.ai.claude_complete')
+    def test_generate_creates_review_post(self, mock_ai):
+        mock_ai.side_effect = [
+            '<h2>Top Tips</h2><p>Helpful content here for readers.</p>',
+            'A concise meta description for the post.',
+        ]
+        resp = self.client.post(reverse('admin_dashboard:blog_generate'), {
+            'client': str(self.cp.id),
+            'topic': 'What to do after a car accident',
+            'target_keyword': 'car accident lawyer',
+            'length': 'medium', 'tone': 'professional',
+        })
+        post = BlogPost.objects.get(client=self.cp)
+        self.assertEqual(post.status, 'review')
+        self.assertIn('Top Tips', post.content)
+        self.assertRedirects(resp, reverse(
+            'admin_dashboard:blog_detail', args=[post.id]))
+
+    def test_approve_action(self):
+        post = BlogPost.objects.create(
+            client=self.cp, topic='X', status='review',
+            content='<p>Body</p>', title='X')
+        self.client.post(reverse('admin_dashboard:blog_detail', args=[post.id]), {
+            'action': 'approve', 'title': 'X', 'meta_description': 'm',
+            'content': '<p>Body</p>',
+        })
+        post.refresh_from_db()
+        self.assertEqual(post.status, 'approved')
+        self.assertEqual(post.reviewed_by, 'blogstaff')
+
+    def test_blog_list_renders(self):
+        self.assertEqual(
+            self.client.get(reverse('admin_dashboard:blog_list')).status_code,
+            200)
+
+
+class ChatbotTests(TestCase):
+
+    def setUp(self):
+        self.cp = _client('Chat Co', phone='210-555-0100')
+        self.chatbot = ClientChatbot.objects.create(
+            client=self.cp, is_active=True)
+        self.url = reverse('reporting:chat')
+
+    def _post(self, payload):
+        return self.client.post(
+            self.url, data=json.dumps(payload), content_type='text/plain')
+
+    @patch('reporting.ai.claude_complete')
+    def test_chat_replies_and_logs(self, mock_ai):
+        mock_ai.return_value = 'Happy to help with that!'
+        resp = self._post({
+            'client_id': str(self.cp.id), 'session_id': 'sess-1',
+            'message': 'Do you handle wills?', 'conversation_history': [],
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['response'], 'Happy to help with that!')
+        conv = ChatbotConversation.objects.get(session_id='sess-1')
+        self.assertEqual(len(conv.messages), 2)
+
+    @patch('reporting.ai.claude_complete')
+    def test_lead_detection(self, mock_ai):
+        mock_ai.return_value = 'Thanks!'
+        self._post({
+            'client_id': str(self.cp.id), 'session_id': 'sess-2',
+            'message': 'Call me at jane@example.com', 'conversation_history': [],
+        })
+        conv = ChatbotConversation.objects.get(session_id='sess-2')
+        self.assertTrue(conv.lead_captured)
+        self.assertEqual(conv.visitor_email, 'jane@example.com')
+
+    def test_inactive_chatbot_403(self):
+        self.chatbot.is_active = False
+        self.chatbot.save()
+        resp = self._post({
+            'client_id': str(self.cp.id), 'session_id': 's', 'message': 'hi'})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_config_endpoint(self):
+        resp = self.client.get(reverse(
+            'reporting:chat_config', args=[self.cp.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['active'])
+
+
+class AdminReportingPageTests(TestCase):
+
+    def setUp(self):
+        User.objects.create_user(
+            username='rstaff', password='rp', is_staff=True)
+        self.cp = _client('Page Co')
+        self.client.login(username='rstaff', password='rp')
+
+    def test_pages_render(self):
+        for name in ['reports_list', 'blog_list', 'blog_generate', 'nps_list']:
+            self.assertEqual(
+                self.client.get(reverse(f'admin_dashboard:{name}')).status_code,
+                200, name)
+        for name in ['client_freshness', 'client_chatbot']:
+            self.assertEqual(
+                self.client.get(reverse(
+                    f'admin_dashboard:{name}', args=[self.cp.id])).status_code,
+                200, name)

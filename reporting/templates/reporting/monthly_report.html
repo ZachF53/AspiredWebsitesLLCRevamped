@@ -1,0 +1,228 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Monthly Report — {{ client.firm_name }}</title>
+<style>
+  @page { size: letter; margin: 0; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1A1A1A; margin: 0;
+         font-size: 11pt; line-height: 1.5; }
+  h1, h2, h3 { margin: 0; }
+  a { color: #C45508; }
+
+  .sheet { padding: 0.8in; page-break-after: always; }
+  .sheet:last-child { page-break-after: auto; }
+
+  /* Cover */
+  .cover { background: #070614; color: #FFFFFF; min-height: 10.9in;
+           padding: 1in 0.9in; }
+  .cover__mark { color: #E8650A; font-size: 13pt; font-weight: bold;
+                 letter-spacing: 0.16em; text-transform: uppercase; }
+  .cover__firm { font-size: 34pt; font-weight: bold; margin: 2.2in 0 0.1in; }
+  .cover__title { font-size: 17pt; color: #FF7B1E; }
+  .cover__month { font-size: 14pt; color: #94A3B8; margin-top: 0.1in; }
+  .cover__by { margin-top: 2.4in; color: #94A3B8; font-size: 10pt;
+               border-top: 2px solid #E8650A; padding-top: 0.18in; width: 3.4in; }
+  .cover__by strong { color: #FFFFFF; }
+
+  .eyebrow { color: #E8650A; font-size: 10pt; font-weight: bold;
+             text-transform: uppercase; letter-spacing: 0.12em; }
+  .h-section { font-size: 20pt; margin: 0.05in 0 0.22in; }
+
+  /* Stat boxes */
+  .stat-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  .stat-box { width: 47%; border: 1px solid #E2E2E2; border-radius: 10px;
+              padding: 16px 18px; }
+  .stat-box__label { color: #666666; font-size: 9.5pt; text-transform: uppercase;
+                     letter-spacing: 0.06em; }
+  .stat-box__value { font-size: 26pt; font-weight: bold; margin-top: 4px; }
+  .v-good { color: #1F9D55; } .v-warn { color: #C45508; } .v-bad { color: #D23B3B; }
+
+  .summary { margin-top: 0.28in; background: #F5F5F5; border-left: 4px solid #E8650A;
+             padding: 14px 18px; border-radius: 0 8px 8px 0; font-size: 11.5pt; }
+
+  /* Charts */
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 150px;
+           border-bottom: 2px solid #E2E2E2; margin: 0.2in 0 0.05in; }
+  .chart__bar { flex: 1; background: #E8650A; min-height: 2px;
+                border-radius: 2px 2px 0 0; }
+  .chart__cap { color: #666666; font-size: 9pt; }
+  .wk-chart { display: flex; align-items: flex-end; gap: 18px; height: 150px;
+              border-bottom: 2px solid #E2E2E2; margin: 0.2in 0 0.05in;
+              padding: 0 0.3in; }
+  .wk-col { flex: 1; text-align: center; }
+  .wk-col__bar { background: #E8650A; border-radius: 4px 4px 0 0; min-height: 3px;
+                 margin: 0 auto; width: 60%; }
+  .wk-col__label { color: #666666; font-size: 9pt; margin-top: 4px; }
+  .wk-col__count { font-weight: bold; font-size: 10pt; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 0.15in;
+          font-size: 10pt; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #E2E2E2; }
+  th { background: #F5F5F5; font-size: 9pt; text-transform: uppercase;
+       letter-spacing: 0.05em; color: #666666; }
+
+  .big-pct { font-size: 40pt; font-weight: bold; }
+
+  .cl-row { border-bottom: 1px solid #E2E2E2; padding: 10px 0; }
+  .cl-row__head { font-weight: bold; }
+  .cl-badge { display: inline-block; font-size: 8pt; font-weight: bold;
+              text-transform: uppercase; letter-spacing: 0.05em;
+              padding: 2px 7px; border-radius: 999px; background: #F0F0F0;
+              color: #666666; }
+  .cl-row__date { color: #666666; font-size: 9pt; }
+  .cl-row__desc { color: #444444; font-size: 10pt; margin-top: 3px; }
+  .muted { color: #666666; }
+
+  .back { text-align: center; padding-top: 2.6in; }
+  .back h2 { font-size: 17pt; }
+  .back p { color: #444444; }
+</style>
+</head>
+<body>
+
+  {# ── Cover ── #}
+  <div class="sheet cover">
+    <div class="cover__mark">Aspired Websites LLC</div>
+    <div class="cover__firm">{{ client.firm_name }}</div>
+    <div class="cover__title">Monthly Performance Report</div>
+    <div class="cover__month">{{ report_month|date:"F Y" }}</div>
+    <div class="cover__by">
+      Prepared by <strong>Zachery Long</strong><br>
+      Aspired Websites LLC<br>
+      aspiredwebsites.com &nbsp;|&nbsp; 210-896-2536
+    </div>
+  </div>
+
+  {# ── Executive summary ── #}
+  <div class="sheet">
+    <div class="eyebrow">Executive Summary</div>
+    <h1 class="h-section">Your Site This Month</h1>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-box__label">Uptime</div>
+        <div class="stat-box__value {% if uptime_pct is None %}{% elif uptime_pct >= 99 %}v-good{% elif uptime_pct >= 95 %}v-warn{% else %}v-bad{% endif %}">
+          {% if uptime_pct is None %}N/A{% else %}{{ uptime_pct }}%{% endif %}
+        </div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Avg Response Time</div>
+        <div class="stat-box__value">{% if avg_response_ms %}{{ avg_response_ms }}ms{% else %}N/A{% endif %}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Form Submissions</div>
+        <div class="stat-box__value">{{ form_submissions }}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Phone Clicks</div>
+        <div class="stat-box__value">{{ phone_clicks }}</div>
+      </div>
+    </div>
+    <p class="summary">{{ summary }}</p>
+  </div>
+
+  {# ── Uptime & performance ── #}
+  <div class="sheet">
+    <div class="eyebrow">Uptime &amp; Performance</div>
+    <h1 class="h-section">Reliability</h1>
+    <div class="big-pct {% if uptime_pct is None %}{% elif uptime_pct >= 99 %}v-good{% elif uptime_pct >= 95 %}v-warn{% else %}v-bad{% endif %}">
+      {% if uptime_pct is None %}N/A{% else %}{{ uptime_pct }}%{% endif %}
+    </div>
+    <p class="muted">Uptime over the last 30 days &middot;
+      average response time {% if avg_response_ms %}{{ avg_response_ms }}ms{% else %}N/A{% endif %}.</p>
+    {% if uptime_chart %}
+      <div class="chart">
+        {% for day in uptime_chart %}<div class="chart__bar" style="height: {{ day.bar_h }}%;"></div>{% endfor %}
+      </div>
+      <div class="chart__cap">Daily average response time — last 30 days.</div>
+    {% else %}
+      <p class="muted">Uptime monitoring data will appear here once checks accumulate.</p>
+    {% endif %}
+  </div>
+
+  {# ── Conversions ── #}
+  <div class="sheet">
+    <div class="eyebrow">Conversions</div>
+    <h1 class="h-section">Visitor Activity</h1>
+    <div class="wk-chart">
+      {% for week in weekly_forms %}
+        <div class="wk-col">
+          <div class="wk-col__count">{{ week.count }}</div>
+          <div class="wk-col__bar" style="height: {{ week.bar_h }}%;"></div>
+          <div class="wk-col__label">{{ week.label }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="chart__cap">Form submissions by week.</div>
+    <table>
+      <thead><tr><th>Metric</th><th>This Month</th><th>Last Month</th><th>Change</th></tr></thead>
+      <tbody>
+        {% for row in conversion_counts %}
+          <tr>
+            <td>{{ row.label }}</td>
+            <td>{{ row.this_month }}</td>
+            <td>{{ row.last_month }}</td>
+            <td>{% if row.delta > 0 %}+{{ row.delta }}{% else %}{{ row.delta }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── SEO ── #}
+  {% if keyword_rows %}
+  <div class="sheet">
+    <div class="eyebrow">Search Rankings</div>
+    <h1 class="h-section">SEO</h1>
+    <p class="muted">{{ keywords_on_page_1 }} keyword{{ keywords_on_page_1|pluralize }}
+      ranking on page 1 &middot; {{ keywords_improved }} improved this month.</p>
+    <table>
+      <thead><tr><th>Keyword</th><th>Position</th><th>Change</th><th>Impressions</th></tr></thead>
+      <tbody>
+        {% for row in keyword_rows %}
+          <tr>
+            <td>{{ row.keyword.keyword }}</td>
+            <td>{% if row.position %}#{{ row.position }}{% else %}Not ranked{% endif %}</td>
+            <td>{{ row.trend.symbol }} {{ row.trend.label }}</td>
+            <td>{{ row.impressions }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# ── Work completed ── #}
+  <div class="sheet">
+    <div class="eyebrow">Maintenance</div>
+    <h1 class="h-section">Work Completed This Month</h1>
+    {% if changelog_entries %}
+      {% for entry in changelog_entries %}
+        <div class="cl-row">
+          <div class="cl-row__head">
+            <span class="cl-badge">{{ entry.get_change_type_display }}</span>
+            {{ entry.title }}
+          </div>
+          <div class="cl-row__date">{{ entry.date_of_change|date:"F j, Y" }}</div>
+          {% if entry.description %}<div class="cl-row__desc">{{ entry.description }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">No changes this month — your site is running smoothly.</p>
+    {% endif %}
+  </div>
+
+  {# ── Back ── #}
+  <div class="sheet back">
+    <h2>Questions about this report?</h2>
+    <p>
+      zacherylong@aspiredwebsites.com<br>
+      210-896-2536<br>
+      aspiredwebsites.com
+    </p>
+    <p class="muted">Next report: {{ next_month|date:"F j, Y" }}</p>
+  </div>
+
+</body>
+</html>

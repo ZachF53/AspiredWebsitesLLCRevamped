@@ -1,0 +1,55 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Generate Blog Post — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:blog_list' %}" class="admin-back-link">&larr; All blog posts</a></span>
+            <h1 class="admin-page-title">Generate a Blog Post</h1>
+            <p class="muted">Claude drafts the post; it lands in the review queue for your edits.</p>
+        </div>
+    </div>
+
+    {% if not ai_ready %}
+        <div class="form-error" role="alert">ANTHROPIC_API_KEY is not configured — set it in the environment before generating posts.</div>
+    {% endif %}
+
+    <form method="post" class="form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <section class="admin-card">
+            <div class="cl-form-grid">
+                <div class="form-group form-group--full">
+                    <label for="{{ form.client.id_for_label }}">Client <span class="required">*</span></label>
+                    {{ form.client }}
+                    {% if form.client.errors %}<div class="form-field-error">{{ form.client.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.topic.id_for_label }}">Topic <span class="required">*</span></label>
+                    {{ form.topic }}
+                    {% if form.topic.errors %}<div class="form-field-error">{{ form.topic.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="form-group form-group--full">
+                    <label for="{{ form.target_keyword.id_for_label }}">Target Keyword</label>
+                    {{ form.target_keyword }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.length.id_for_label }}">Post Length</label>
+                    {{ form.length }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.tone.id_for_label }}">Tone</label>
+                    {{ form.tone }}
+                </div>
+            </div>
+        </section>
+        <div class="lead-add-form__actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:blog_list' %}">Cancel</a>
+            <button type="submit" class="btn-primary">Generate with AI</button>
+        </div>
+        <p class="muted">Generation can take 20-40 seconds — please wait after submitting.</p>
+    </form>
+</div>
+{% endblock %}

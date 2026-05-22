@@ -1,0 +1,72 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Monthly Reports — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Reporting</span>
+            <h1 class="admin-page-title">Monthly Reports</h1>
+        </div>
+    </div>
+
+    {% if done %}<div class="deploy-saved-banner" role="status">Report processed.</div>{% endif %}
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Generate a Report Now</h3>
+        <form method="post" action="{% url 'admin_dashboard:report_generate_now' %}" class="lead-filter-bar">
+            {% csrf_token %}
+            <select name="client" class="form-control" required>
+                <option value="">— Select a client —</option>
+                {% for c in clients %}<option value="{{ c.id }}">{{ c.firm_name }}</option>{% endfor %}
+            </select>
+            <input type="date" name="report_month" class="form-control" aria-label="Any day in the report month">
+            <button type="submit" class="btn-primary">Generate &amp; Send</button>
+        </form>
+        <p class="muted">Pick any day in the month to report on — defaults to last month.</p>
+    </section>
+
+    <form class="lead-filter-bar" method="get">
+        <select name="client" class="form-control">
+            <option value="">All clients</option>
+            {% for c in clients %}<option value="{{ c.id }}" {% if client_filter == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>{% endfor %}
+        </select>
+        <select name="status" class="form-control">
+            <option value="">All statuses</option>
+            {% for value, label in statuses %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-primary">Apply</button>
+    </form>
+
+    {% if reports %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead><tr><th>Client</th><th>Month</th><th>Status</th><th>Uptime</th><th>Forms</th><th>Sent</th><th class="lead-table__col-actions">Actions</th></tr></thead>
+                <tbody>
+                    {% for r in reports %}
+                        <tr>
+                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td>{{ r.report_month|date:"F Y" }}</td>
+                            <td><span class="rep-badge rep-badge--{{ r.status }}">{{ r.get_status_display }}</span></td>
+                            <td>{% if r.uptime_30d is not None %}{{ r.uptime_30d }}%{% else %}—{% endif %}</td>
+                            <td>{{ r.form_submissions }}</td>
+                            <td>{{ r.sent_at|date:"M j, Y"|default:"—" }}</td>
+                            <td class="lead-table__col-actions">
+                                {% if r.pdf_path %}<a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:report_download' r.id %}">Download</a>{% endif %}
+                                {% if r.status == 'sent' or r.status == 'ready' %}
+                                    <form method="post" action="{% url 'admin_dashboard:report_resend' r.id %}" class="cl-delete-form">
+                                        {% csrf_token %}<button type="submit" class="btn-secondary btn-sm">Re-send</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty"><p>No monthly reports yet.</p></div>
+    {% endif %}
+</div>
+{% endblock %}

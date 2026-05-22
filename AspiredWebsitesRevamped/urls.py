@@ -4,7 +4,10 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from reporting.views import nps_response
+
 urlpatterns = [
+    path('nps/<uuid:token>/<int:score>/', nps_response, name='nps_response'),
     path('admin/', admin.site.urls),
     path('admin-dashboard/vault/', include('vault.urls')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),

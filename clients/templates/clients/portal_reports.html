@@ -1,0 +1,55 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Monthly Reports</h1>
+    <p class="portal-page-head__sub">Your website's performance, month by month.</p>
+</header>
+
+{% if latest %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">{{ latest.report_month|date:"F Y" }} — Latest</h2>
+        <div class="stat-grid">
+            <article class="stat-card">
+                <span class="stat-card__label">Uptime</span>
+                <span class="stat-card__value">{% if latest.uptime_30d is not None %}{{ latest.uptime_30d }}%{% else %}—{% endif %}</span>
+            </article>
+            <article class="stat-card">
+                <span class="stat-card__label">Avg Response</span>
+                <span class="stat-card__value">{% if latest.avg_response_ms %}{{ latest.avg_response_ms }}ms{% else %}—{% endif %}</span>
+            </article>
+            <article class="stat-card">
+                <span class="stat-card__label">Form Submissions</span>
+                <span class="stat-card__value">{{ latest.form_submissions }}</span>
+            </article>
+            <article class="stat-card">
+                <span class="stat-card__label">Phone Clicks</span>
+                <span class="stat-card__value">{{ latest.phone_clicks }}</span>
+            </article>
+        </div>
+    </section>
+{% endif %}
+
+<section class="portal-section">
+    <h2 class="portal-section__title">All Reports</h2>
+    {% if reports %}
+        <ul class="record-list">
+            {% for r in reports %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        <strong>{{ r.report_month|date:"F Y" }}</strong>
+                        <span class="record-list__sub">Sent {{ r.sent_at|date:"M j, Y" }}</span>
+                    </span>
+                    <span class="record-list__meta">
+                        <a class="btn-secondary btn-sm" href="{% url 'clients:portal_report_download' r.id %}">Download PDF</a>
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="portal-empty">Your monthly reports will appear here. The first one arrives on the 1st of next month.</p>
+    {% endif %}
+</section>
+{% endblock %}

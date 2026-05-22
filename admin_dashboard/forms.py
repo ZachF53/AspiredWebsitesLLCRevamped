@@ -3,10 +3,10 @@
 from django import forms
 
 from billing.pricing_models import ServiceTier
-from clients.models import SiteChangelogEntry
+from clients.models import ClientProfile, SiteChangelogEntry
 from outreach.models import Lead, LeadNote
 from outreach.scraper import PRACTICE_AREAS
-from reporting.models import TrackedKeyword
+from reporting.models import ClientChatbot, TrackedKeyword
 
 from .models import DeploymentLog
 
@@ -205,6 +205,73 @@ class SiteChangelogForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['client'].empty_label = '— Select a client —'
+
+
+class BlogGenerateForm(forms.Form):
+    """Inputs for the AI blog post generator."""
+
+    LENGTH_CHOICES = [
+        ('short', 'Short (~500 words)'),
+        ('medium', 'Medium (~800 words)'),
+        ('long', 'Long (~1200 words)'),
+    ]
+    TONE_CHOICES = [
+        ('professional', 'Professional'),
+        ('conversational', 'Conversational'),
+        ('authoritative', 'Authoritative'),
+    ]
+
+    client = forms.ModelChoiceField(
+        queryset=ClientProfile.objects.order_by('firm_name'),
+        empty_label='— Select a client —',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    topic = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'What to do after a car accident in Texas',
+        }),
+    )
+    target_keyword = forms.CharField(
+        max_length=200, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'personal injury lawyer San Antonio',
+        }),
+    )
+    length = forms.ChoiceField(
+        choices=LENGTH_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    tone = forms.ChoiceField(
+        choices=TONE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
+
+class ChatbotConfigForm(forms.ModelForm):
+    """Per-client chatbot configuration."""
+
+    class Meta:
+        model = ClientChatbot
+        fields = [
+            'is_active', 'greeting_message', 'faq_text', 'system_prompt',
+            'primary_color', 'position',
+        ]
+        widgets = {
+            'greeting_message': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2}),
+            'system_prompt': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 5}),
+            'faq_text': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 6,
+                'placeholder': 'Office hours, common questions and answers, '
+                               'service details — anything the bot should know.'}),
+            'primary_color': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': '#E8650A'}),
+            'position': forms.Select(attrs={'class': 'form-control'}),
+        }
 
 
 class KeywordForm(forms.ModelForm):

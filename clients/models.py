@@ -124,6 +124,11 @@ class ClientProfile(TimestampedModel):
     client_pin_failed_attempts = models.IntegerField(default=0)
     client_pin_lockout_until = models.DateTimeField(null=True, blank=True)
 
+    # ── Video testimonial request (one-time, ~30 days post-launch) ──
+    testimonial_requested_at = models.DateTimeField(null=True, blank=True)
+    testimonial_received = models.BooleanField(default=False)
+    testimonial_url = models.URLField(blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Client Profile'

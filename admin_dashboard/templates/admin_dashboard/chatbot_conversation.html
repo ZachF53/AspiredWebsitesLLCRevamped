@@ -1,0 +1,39 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Conversation — {{ client.firm_name }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_chatbot' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }} chatbot</a></span>
+            <h1 class="admin-page-title">Conversation</h1>
+            <p class="muted">{{ conversation.started_at|date:"M j, Y H:i" }} · session {{ conversation.session_id|truncatechars:16 }}</p>
+        </div>
+    </div>
+
+    {% if conversation.lead_captured %}
+        <section class="admin-card">
+            <h3 class="admin-card__title">Lead Captured</h3>
+            <p>
+                {% if conversation.visitor_name %}Name: {{ conversation.visitor_name }}<br>{% endif %}
+                {% if conversation.visitor_email %}Email: {{ conversation.visitor_email }}<br>{% endif %}
+                {% if conversation.visitor_phone %}Phone: {{ conversation.visitor_phone }}{% endif %}
+            </p>
+        </section>
+    {% endif %}
+
+    <section class="admin-card">
+        <div class="chat-transcript">
+            {% for msg in conversation.messages %}
+                <div class="chat-msg chat-msg--{{ msg.role }}">
+                    <span class="chat-msg__role">{{ msg.role }}</span>
+                    <div class="chat-msg__bubble">{{ msg.content }}</div>
+                </div>
+            {% empty %}
+                <p class="muted">No messages in this conversation.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

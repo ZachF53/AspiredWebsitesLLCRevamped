@@ -1,0 +1,73 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Content Freshness{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <h1 class="admin-page-title">Content Freshness</h1>
+        </div>
+        <div class="admin-page-actions">
+            <form method="post" action="{% url 'admin_dashboard:freshness_generate' client.id %}" class="cl-delete-form">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary">Generate Now</button>
+            </form>
+        </div>
+    </div>
+
+    {% if previous_reports|length > 1 %}
+        <form method="get" class="lead-filter-bar">
+            <select name="report" class="form-control">
+                {% for prev in previous_reports %}
+                    <option value="{{ prev.id }}" {% if report and report.id == prev.id %}selected{% endif %}>{{ prev.generated_at|date:"M j, Y H:i" }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-secondary">View</button>
+        </form>
+    {% endif %}
+
+    {% if report %}
+        <div class="stat-grid">
+            <article class="stat-card"><span class="stat-card__label">Pages Analyzed</span><span class="stat-card__value">{{ report.pages_analyzed }}</span></article>
+            <article class="stat-card"><span class="stat-card__label">Need Update</span><span class="stat-card__value uptime-bad">{{ report.pages_needing_update }}</span></article>
+            <article class="stat-card"><span class="stat-card__label">Generated</span><span class="stat-card__value stat-card__value--sm">{{ report.generated_at|date:"M j, Y" }}</span></article>
+        </div>
+
+        {% if report.report_data %}
+            <div class="lead-table-wrapper">
+                <table class="lead-table">
+                    <thead><tr><th>Page</th><th>Last Modified</th><th>Words</th><th>Score</th><th>Priority</th><th class="lead-table__col-actions">Action</th></tr></thead>
+                    <tbody>
+                        {% for page in report.report_data %}
+                            <tr>
+                                <td><a href="{{ page.url }}" target="_blank" rel="noopener" class="lead-table__firm">{{ page.title|default:page.url }}</a><div class="lead-table__sub">{{ page.url }}</div></td>
+                                <td>{{ page.last_modified|default:"—"|slice:":10" }}</td>
+                                <td>{{ page.word_count_estimate|default:"—" }}</td>
+                                <td><span class="fresh-score fresh-score--{{ page.priority }}">{{ page.freshness_score }}</span></td>
+                                <td><span class="rank rank--{% if page.priority == 'high' %}low{% elif page.priority == 'medium' %}page2{% else %}top{% endif %}">{{ page.priority|capfirst }}</span></td>
+                                <td class="lead-table__col-actions">
+                                    <form method="post" action="{% url 'admin_dashboard:freshness_flag' client.id %}" class="cl-delete-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="url" value="{{ page.url }}">
+                                        <input type="hidden" name="title" value="{{ page.title }}">
+                                        <button type="submit" class="btn-secondary btn-sm">Flag for Update</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="admin-empty"><p>The crawl found no pages — check the client has a live site.</p></div>
+        {% endif %}
+    {% else %}
+        <div class="admin-empty">
+            <p>No freshness report for {{ client.firm_name }} yet.</p>
+            <p class="muted">Click <strong>Generate Now</strong> to crawl the site.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

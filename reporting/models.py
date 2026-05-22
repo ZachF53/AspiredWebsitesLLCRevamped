@@ -1,7 +1,10 @@
 """
-Reporting models — GBP NAP sync checks, keyword rank tracking, and
-conversion-element events. All feed the monthly PDF report and the portal.
+Reporting models — GBP NAP sync checks, keyword rank tracking,
+conversion-element events, monthly reports, content freshness, NPS surveys,
+AI blog posts, and the AI chatbot. All feed the monthly PDF and the portal.
 """
+
+import uuid
 
 from django.db import models
 
@@ -121,3 +124,184 @@ class ConversionEvent(TimestampedModel):
     def __str__(self):
         return (f'{self.client.firm_name} — {self.event_type} — '
                 f'{self.event_timestamp.date()}')
+
+
+class MonthlyReport(TimestampedModel):
+    """A generated monthly performance report PDF for a client."""
+
+    STATUS_CHOICES = [
+        ('generating', 'Generating'),
+        ('ready', 'Ready'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='monthly_reports',
+    )
+    report_month = models.DateField(help_text='First day of the reported month.')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='generating')
+    pdf_path = models.CharField(max_length=500, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    opened = models.BooleanField(default=False)
+    opened_at = models.DateTimeField(null=True, blank=True)
+
+    # Snapshot of the data at generation time.
+    uptime_30d = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+    avg_response_ms = models.IntegerField(null=True, blank=True)
+    keywords_on_page_1 = models.IntegerField(default=0)
+    keywords_improved = models.IntegerField(default=0)
+    form_submissions = models.IntegerField(default=0)
+    phone_clicks = models.IntegerField(default=0)
+    sessions = models.IntegerField(default=0)
+    organic_traffic = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-report_month']
+        unique_together = ['client', 'report_month']
+
+    def __str__(self):
+        return f"{self.client.firm_name} — {self.report_month.strftime('%B %Y')}"
+
+
+class ContentFreshnessReport(TimestampedModel):
+    """An admin-only crawl scoring each page of a client's site for freshness."""
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='freshness_reports',
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+    pages_analyzed = models.IntegerField(default=0)
+    pages_needing_update = models.IntegerField(default=0)
+    # List of {url, title, last_modified, word_count_estimate,
+    #          freshness_score, priority}.
+    report_data = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ['-generated_at']
+        verbose_name = 'Content Freshness Report'
+        verbose_name_plural = 'Content Freshness Reports'
+
+    def __str__(self):
+        return f'{self.client.firm_name} — Freshness — {self.generated_at.date()}'
+
+
+class NPSSurvey(TimestampedModel):
+    """A Net Promoter Score survey sent to a maintenance client."""
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='nps_surveys',
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+    survey_token = models.UUIDField(default=uuid.uuid4, unique=True)
+    score = models.IntegerField(
+        null=True, blank=True, help_text='0-10; null = not yet responded.')
+    feedback = models.TextField(blank=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    response_action_taken = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ['-sent_at']
+        verbose_name = 'NPS Survey'
+        verbose_name_plural = 'NPS Surveys'
+
+    def __str__(self):
+        score = str(self.score) if self.score is not None else 'No response'
+        return f'{self.client.firm_name} — NPS {score}'
+
+
+class BlogPost(TimestampedModel):
+    """An AI-generated blog post draft awaiting staff review."""
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('review', 'Needs Review'),
+        ('approved', 'Approved'),
+        ('published', 'Published'),
+        ('rejected', 'Rejected'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='blog_posts',
+    )
+    topic = models.CharField(max_length=200)
+    target_keyword = models.CharField(max_length=200, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='draft')
+    title = models.CharField(max_length=300, blank=True)
+    content = models.TextField(blank=True, help_text='Full HTML body.')
+    meta_description = models.CharField(max_length=160, blank=True)
+    word_count = models.IntegerField(default=0)
+    generated_by_ai = models.BooleanField(default=True)
+    reviewed_by = models.CharField(max_length=100, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    published_url = models.URLField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.client.firm_name} — {self.topic[:50]}'
+
+
+class ClientChatbot(TimestampedModel):
+    """Per-client AI chatbot configuration."""
+
+    POSITION_CHOICES = [
+        ('bottom-right', 'Bottom Right'),
+        ('bottom-left', 'Bottom Left'),
+    ]
+    DEFAULT_GREETING = (
+        "Hi! I'm here to help answer questions about our services. "
+        "How can I assist you?"
+    )
+
+    client = models.OneToOneField(
+        ClientProfile, on_delete=models.CASCADE, related_name='chatbot',
+    )
+    is_active = models.BooleanField(default=False)
+    greeting_message = models.TextField(default=DEFAULT_GREETING)
+    system_prompt = models.TextField(
+        blank=True, help_text='Built from practice areas + FAQs.')
+    faq_text = models.TextField(
+        blank=True, help_text='Raw FAQ notes used to build the system prompt.')
+    primary_color = models.CharField(max_length=7, default='#E8650A')
+    position = models.CharField(
+        max_length=12, choices=POSITION_CHOICES, default='bottom-right')
+    total_conversations = models.IntegerField(default=0)
+    leads_captured = models.IntegerField(default=0)
+
+    def __str__(self):
+        status = 'Active' if self.is_active else 'Inactive'
+        return f'{self.client.firm_name} — Chatbot ({status})'
+
+
+class ChatbotConversation(TimestampedModel):
+    """A single visitor conversation with a client's chatbot."""
+
+    chatbot = models.ForeignKey(
+        ClientChatbot, on_delete=models.CASCADE, related_name='conversations',
+    )
+    session_id = models.CharField(max_length=100)
+    # [{"role": "user/assistant", "content": "...", "timestamp": "..."}]
+    messages = models.JSONField(default=list)
+    visitor_name = models.CharField(max_length=100, blank=True)
+    visitor_email = models.EmailField(blank=True)
+    visitor_phone = models.CharField(max_length=20, blank=True)
+    lead_captured = models.BooleanField(default=False)
+    started_at = models.DateTimeField(auto_now_add=True)
+    # auto_now so it tracks the most recent message, as the name implies.
+    last_message_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return f'{self.chatbot.client.firm_name} — Chat {self.session_id[:8]}'

@@ -302,6 +302,23 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_conversion_drops',
         'schedule': crontab(hour=8, minute=0, day_of_month=2),  # 2nd, 8am
     },
+    'generate-monthly-reports': {
+        'task': 'reporting.tasks.send_monthly_reports',
+        'schedule': crontab(hour=7, minute=0, day_of_month=1),  # 1st, 7am
+    },
+    'generate-freshness-reports': {
+        'task': 'reporting.tasks.generate_freshness_reports',
+        'schedule': crontab(hour=6, minute=0, day_of_month=1,
+                            month_of_year='1,4,7,10'),          # quarterly
+    },
+    'send-nps-surveys': {
+        'task': 'reporting.tasks.send_nps_surveys',
+        'schedule': crontab(hour=10, minute=0, day_of_week=1),  # Mon 10am
+    },
+    'send-testimonial-requests': {
+        'task': 'reporting.tasks.send_testimonial_requests',
+        'schedule': crontab(hour=10, minute=0, day_of_month=15),  # 15th, 10am
+    },
 }
 
 

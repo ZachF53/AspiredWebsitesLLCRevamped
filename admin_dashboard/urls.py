@@ -66,4 +66,29 @@ urlpatterns = [
     path('clients/<uuid:client_id>/tracker/', views.client_tracker, name='client_tracker'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/flag/', views.gbp_flag, name='gbp_flag'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/resolve/', views.gbp_resolve, name='gbp_resolve'),
+
+    # Phase 5b — monthly reports
+    path('reports/', views.reports_list, name='reports_list'),
+    path('reports/generate/', views.report_generate_now, name='report_generate_now'),
+    path('reports/<uuid:report_id>/resend/', views.report_resend, name='report_resend'),
+    path('reports/<uuid:report_id>/download/', views.report_download, name='report_download'),
+
+    # Phase 5b — content freshness
+    path('clients/<uuid:client_id>/freshness/', views.client_freshness, name='client_freshness'),
+    path('clients/<uuid:client_id>/freshness/generate/', views.freshness_generate, name='freshness_generate'),
+    path('clients/<uuid:client_id>/freshness/flag/', views.freshness_flag, name='freshness_flag'),
+
+    # Phase 5b — NPS
+    path('nps/', views.nps_list, name='nps_list'),
+
+    # Phase 5b — AI blog generator
+    path('blog/', views.blog_list, name='blog_list'),
+    path('blog/generate/', views.blog_generate, name='blog_generate'),
+    path('blog/<uuid:post_id>/', views.blog_detail, name='blog_detail'),
+
+    # Phase 5b — AI chatbot
+    path('clients/<uuid:client_id>/chatbot/', views.client_chatbot, name='client_chatbot'),
+    path('clients/<uuid:client_id>/chatbot/regenerate-prompt/', views.chatbot_regenerate_prompt, name='chatbot_regenerate_prompt'),
+    path('clients/<uuid:client_id>/chatbot/conversations/<uuid:conv_id>/', views.chatbot_conversation, name='chatbot_conversation'),
+    path('clients/<uuid:client_id>/testimonial/', views.testimonial_mark_received, name='testimonial_mark_received'),
 ]

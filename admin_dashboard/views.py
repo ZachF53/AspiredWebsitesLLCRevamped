@@ -11,7 +11,7 @@ import uuid
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1159,9 +1159,9 @@ def client_list(request):
 
 @admin_required
 def client_detail(request, client_id):
-    """Per-client hub — uptime widget, GBP sync status, links to each tool."""
+    """Per-client hub — uptime, GBP, NPS, testimonial, links to each tool."""
     from clients.models import ClientProfile
-    from reporting.models import GBPSyncCheck
+    from reporting.models import GBPSyncCheck, NPSSurvey
     from reporting.uptime_helpers import (
         get_avg_response_time, get_current_status, get_uptime_percentage,
     )
@@ -1177,6 +1177,11 @@ def client_detail(request, client_id):
             seen.add(check.field_name)
             gbp_checks.append(check)
 
+    nps_surveys = list(NPSSurvey.objects.filter(client=client)[:4])
+    latest_nps = next((s for s in nps_surveys if s.score is not None), None)
+    nps_avg = NPSSurvey.objects.filter(
+        client=client, score__isnull=False).aggregate(a=Avg('score'))['a']
+
     return render(request, 'admin_dashboard/client_detail.html', _admin_context(
         'clients',
         client=client,
@@ -1185,6 +1190,10 @@ def client_detail(request, client_id):
         uptime_30=get_uptime_percentage(client, 30),
         avg_response=get_avg_response_time(client, 30),
         gbp_checks=gbp_checks,
+        nps_surveys=nps_surveys,
+        latest_nps=latest_nps,
+        nps_avg=round(nps_avg, 1) if nps_avg is not None else None,
+        freshness_report=client.freshness_reports.first(),
     ))
 
 
@@ -1349,3 +1358,426 @@ def gbp_resolve(request, client_id, check_id):
     check.resolved_at = timezone.now()
     check.save(update_fields=['resolved', 'resolved_at', 'updated_at'])
     return redirect('admin_dashboard:client_detail', client_id=client_id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 5b — monthly reports, freshness, NPS, blog, chatbot
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def reports_list(request):
+    """All monthly reports, with client/status filters + a generate form."""
+    from clients.models import ClientProfile
+    from reporting.models import MonthlyReport
+
+    reports = MonthlyReport.objects.select_related('client')
+    client_filter = request.GET.get('client', '')
+    status_filter = request.GET.get('status', '')
+    if client_filter and _is_uuid(client_filter):
+        reports = reports.filter(client_id=client_filter)
+    if status_filter:
+        reports = reports.filter(status=status_filter)
+
+    return render(request, 'admin_dashboard/reports_list.html', _admin_context(
+        'reports',
+        reports=reports,
+        clients=ClientProfile.objects.order_by('firm_name'),
+        statuses=MonthlyReport.STATUS_CHOICES,
+        client_filter=client_filter,
+        status_filter=status_filter,
+        done=request.GET.get('done', ''),
+    ))
+
+
+@admin_required
+@require_POST
+def report_generate_now(request):
+    """Generate (and send) one client's monthly report immediately."""
+    from datetime import date
+
+    from clients.models import ClientProfile
+    from reporting.tasks import generate_monthly_report
+
+    client_id = request.POST.get('client', '')
+    if not _is_uuid(client_id) or not ClientProfile.objects.filter(
+            id=client_id).exists():
+        return redirect('admin_dashboard:reports_list')
+    try:
+        month = date.fromisoformat(
+            request.POST.get('report_month', '')).replace(day=1)
+    except (ValueError, TypeError):
+        today = timezone.localdate()
+        month = (date(today.year - 1, 12, 1) if today.month == 1
+                 else date(today.year, today.month - 1, 1))
+    generate_monthly_report(client_id, month.isoformat())
+    return redirect(f"{reverse('admin_dashboard:reports_list')}?done=1")
+
+
+@admin_required
+@require_POST
+def report_resend(request, report_id):
+    """Re-send an already-generated monthly report."""
+    from reporting.models import MonthlyReport
+    from reporting.tasks import send_monthly_report_email
+    report = get_object_or_404(MonthlyReport, id=report_id)
+    send_monthly_report_email(report)
+    return redirect(f"{reverse('admin_dashboard:reports_list')}?done=1")
+
+
+@admin_required
+def report_download(request, report_id):
+    """Download a monthly report's generated file."""
+    import os
+
+    from django.http import FileResponse, Http404
+
+    from reporting.models import MonthlyReport
+    report = get_object_or_404(MonthlyReport, id=report_id)
+    abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
+    if not report.pdf_path or not os.path.exists(abs_path):
+        raise Http404('Report file not found.')
+    return FileResponse(
+        open(abs_path, 'rb'), as_attachment=True,
+        filename=os.path.basename(abs_path))
+
+
+@admin_required
+def client_freshness(request, client_id):
+    """Content-freshness report for one client."""
+    from clients.models import ClientProfile
+    from reporting.models import ContentFreshnessReport
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    reports = ContentFreshnessReport.objects.filter(client=client)
+    report_id = request.GET.get('report', '')
+    report = (reports.filter(id=report_id).first() if _is_uuid(report_id)
+              else reports.first())
+    return render(request, 'admin_dashboard/client_freshness.html',
+                  _admin_context(
+                      'clients', client=client, report=report,
+                      previous_reports=list(reports[:12])))
+
+
+@admin_required
+@require_POST
+def freshness_generate(request, client_id):
+    """Run a freshness crawl for one client on demand."""
+    from clients.models import ClientProfile
+    from reporting.tasks import generate_freshness_report
+    client = get_object_or_404(ClientProfile, id=client_id)
+    generate_freshness_report(str(client.id))
+    return redirect('admin_dashboard:client_freshness', client_id=client.id)
+
+
+@admin_required
+@require_POST
+def freshness_flag(request, client_id):
+    """Flag a stale page — logs an internal-only changelog entry."""
+    from clients.models import ClientProfile, SiteChangelogEntry
+    client = get_object_or_404(ClientProfile, id=client_id)
+    url = (request.POST.get('url') or '').strip()
+    title = (request.POST.get('title') or '').strip()
+    SiteChangelogEntry.objects.create(
+        client=client,
+        change_type='content_update',
+        title=f'Content flagged for update: {title or url}'[:200],
+        description=f'Flagged from the content freshness report.\n{url}',
+        is_client_visible=False,
+        url_changed=url[:200],
+    )
+    return redirect('admin_dashboard:client_freshness', client_id=client.id)
+
+
+@admin_required
+def nps_list(request):
+    """All NPS responses across clients, with a score-band filter."""
+    from reporting.models import NPSSurvey
+
+    surveys = NPSSurvey.objects.select_related('client')
+    band = request.GET.get('band', '')
+    if band == 'promoter':
+        surveys = surveys.filter(score__gte=9)
+    elif band == 'passive':
+        surveys = surveys.filter(score__gte=7, score__lte=8)
+    elif band == 'detractor':
+        surveys = surveys.filter(score__lte=6, score__isnull=False)
+    elif band == 'no_response':
+        surveys = surveys.filter(score__isnull=True)
+
+    responded = NPSSurvey.objects.exclude(score__isnull=True)
+    avg = responded.aggregate(a=Avg('score'))['a']
+    return render(request, 'admin_dashboard/nps_list.html', _admin_context(
+        'nps',
+        surveys=list(surveys[:200]),
+        band=band,
+        avg_score=round(avg, 1) if avg is not None else None,
+        response_count=responded.count(),
+    ))
+
+
+# ── AI blog generator ───────────────────────────────────────────────────────
+
+_BLOG_WORD_TARGETS = {'short': 500, 'medium': 800, 'long': 1200}
+
+
+def _blog_system_prompt(client, topic, keyword, length, tone):
+    """The system prompt for AI blog generation."""
+    words = _BLOG_WORD_TARGETS.get(length, 800)
+    biz = client.business_type or 'business'
+    keyword_line = (
+        f'- Naturally include the target keyword "{keyword}" 3-5 times\n'
+        if keyword else '')
+    return (
+        f'You are an expert content writer specializing in {biz} SEO. Write a '
+        f'blog post for {client.firm_name}.\n\n'
+        f'Topic: {topic}\n'
+        f'Target keyword: {keyword or "(none specified)"}\n'
+        f'Length: approximately {words} words\n'
+        f'Tone: {tone}\n\n'
+        'The post should:\n'
+        '- Be informative and helpful to potential clients\n'
+        f'{keyword_line}'
+        f'- Include a clear call to action at the end mentioning '
+        f'{client.firm_name}\n'
+        '- Be formatted as clean HTML with proper heading tags (h2, h3), '
+        'paragraph tags, and a bulleted list where appropriate\n'
+        '- Start with an engaging introduction\n'
+        f'- End with: contact {client.firm_name} at '
+        f'{client.phone or "our office"} for a free consultation\n\n'
+        'Return ONLY the HTML content — no explanations, no markdown fences.'
+    )
+
+
+def _generate_blog_content(post, length, tone):
+    """Run AI generation, populating post.title / content / meta_description."""
+    import re as _re
+
+    from django.utils.html import strip_tags
+
+    from reporting.ai import MODEL_CONTENT, claude_complete
+
+    content = claude_complete(
+        [{'role': 'user',
+          'content': f'Write the blog post about: {post.topic}'}],
+        system=_blog_system_prompt(
+            post.client, post.topic, post.target_keyword, length, tone),
+        model=MODEL_CONTENT, max_tokens=4000,
+    )
+    content = content.replace('```html', '').replace('```', '').strip()
+
+    meta = claude_complete(
+        [{'role': 'user', 'content': (
+            f'Write a 155-character meta description for a blog post. '
+            f'Topic: {post.topic}. '
+            + (f'Include the keyword: {post.target_keyword}. '
+               if post.target_keyword else '')
+            + 'Return only the meta description text, nothing else.')}],
+        model=MODEL_CONTENT, max_tokens=120,
+    )
+
+    post.content = content
+    post.meta_description = meta.strip()[:160]
+    post.word_count = len(strip_tags(content).split())
+    heading = _re.search(r'<h[12][^>]*>(.*?)</h[12]>', content,
+                         _re.IGNORECASE | _re.DOTALL)
+    post.title = (strip_tags(heading.group(1)).strip()[:300]
+                  if heading else post.topic[:300])
+
+
+@admin_required
+def blog_list(request):
+    """All AI blog posts across clients, with client/status filters."""
+    from clients.models import ClientProfile
+    from reporting.models import BlogPost
+
+    posts = BlogPost.objects.select_related('client')
+    client_filter = request.GET.get('client', '')
+    status_filter = request.GET.get('status', '')
+    if client_filter and _is_uuid(client_filter):
+        posts = posts.filter(client_id=client_filter)
+    if status_filter:
+        posts = posts.filter(status=status_filter)
+    return render(request, 'admin_dashboard/blog_list.html', _admin_context(
+        'blog',
+        posts=posts,
+        clients=ClientProfile.objects.order_by('firm_name'),
+        statuses=BlogPost.STATUS_CHOICES,
+        client_filter=client_filter,
+        status_filter=status_filter,
+    ))
+
+
+@admin_required
+def blog_generate(request):
+    """The AI blog post generator form."""
+    from reporting.ai import AIError, AINotConfigured, is_configured
+    from reporting.models import BlogPost
+
+    from .forms import BlogGenerateForm
+
+    if request.method == 'POST':
+        form = BlogGenerateForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+            post = BlogPost(
+                client=cd['client'], topic=cd['topic'],
+                target_keyword=cd['target_keyword'],
+                status='review', generated_by_ai=True)
+            try:
+                _generate_blog_content(post, cd['length'], cd['tone'])
+            except AINotConfigured:
+                form.add_error(None, 'ANTHROPIC_API_KEY is not configured — '
+                                     'set it before generating posts.')
+            except AIError as exc:
+                form.add_error(None, f'AI generation failed: {exc}')
+            else:
+                post.save()
+                return redirect('admin_dashboard:blog_detail', post_id=post.id)
+    else:
+        form = BlogGenerateForm()
+    return render(request, 'admin_dashboard/blog_generate.html', _admin_context(
+        'blog', form=form, ai_ready=is_configured(),
+    ))
+
+
+@admin_required
+def blog_detail(request, post_id):
+    """Review / edit one blog post and run its workflow actions."""
+    from django.utils.html import strip_tags
+
+    from reporting.ai import AIError
+    from reporting.models import BlogPost
+
+    post = get_object_or_404(BlogPost, id=post_id)
+    error = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'save')
+        post.title = (request.POST.get('title') or post.title)[:300]
+        post.meta_description = (request.POST.get('meta_description') or '')[:160]
+        post.content = request.POST.get('content') or post.content
+        post.word_count = len(strip_tags(post.content).split())
+
+        if action == 'approve':
+            post.status = 'approved'
+            post.reviewed_by = request.user.get_username()
+            post.reviewed_at = timezone.now()
+        elif action == 'reject':
+            post.status = 'rejected'
+        elif action == 'publish':
+            post.published_url = (request.POST.get('published_url') or '')[:200]
+            post.status = 'published'
+            post.published_at = timezone.now()
+        elif action == 'regenerate':
+            try:
+                _generate_blog_content(post, 'medium', 'professional')
+                post.status = 'review'
+            except AIError as exc:
+                error = f'Regeneration failed: {exc}'
+
+        post.save()
+        if not error:
+            return redirect('admin_dashboard:blog_detail', post_id=post.id)
+
+    return render(request, 'admin_dashboard/blog_detail.html', _admin_context(
+        'blog', post=post, error=error,
+    ))
+
+
+# ── AI chatbot configuration ────────────────────────────────────────────────
+
+@admin_required
+def client_chatbot(request, client_id):
+    """Configure a client's AI chatbot."""
+    from clients.models import ClientProfile
+    from reporting.models import ClientChatbot
+
+    from .forms import ChatbotConfigForm
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    chatbot, _ = ClientChatbot.objects.get_or_create(client=client)
+
+    if request.method == 'POST':
+        form = ChatbotConfigForm(request.POST, instance=chatbot)
+        if form.is_valid():
+            form.save()
+            return redirect('admin_dashboard:client_chatbot', client_id=client.id)
+    else:
+        form = ChatbotConfigForm(instance=chatbot)
+
+    snippet = (
+        f'<script src="{settings.SITE_BASE_URL}/static/js/aspired-chat.js" '
+        f'data-aspired-client="{client.id}" defer></script>'
+    )
+    return render(request, 'admin_dashboard/client_chatbot.html', _admin_context(
+        'clients',
+        client=client,
+        chatbot=chatbot,
+        form=form,
+        snippet=snippet,
+        conversations=list(chatbot.conversations.all()[:20]),
+    ))
+
+
+@admin_required
+@require_POST
+def chatbot_regenerate_prompt(request, client_id):
+    """Use Claude to write a system prompt from the client's info + FAQs."""
+    from clients.models import ClientProfile
+    from reporting.ai import MODEL_CONTENT, AIError, claude_complete
+    from reporting.models import ClientChatbot
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    chatbot, _ = ClientChatbot.objects.get_or_create(client=client)
+
+    project = client.projects.first()
+    intake = getattr(project, 'intake', None) if project else None
+    practice_areas = getattr(intake, 'practice_areas', '') or ''
+    raw = (
+        f'Business: {client.firm_name}\n'
+        f'Type: {client.business_type or "law firm"}\n'
+        f'Phone: {client.phone or "(not set)"}\n'
+        f'Practice areas / services: {practice_areas or "(not provided)"}\n'
+        f'FAQ notes:\n{chatbot.faq_text or "(none provided)"}'
+    )
+    try:
+        prompt = claude_complete(
+            [{'role': 'user', 'content': (
+                'Write a concise, professional system prompt (3-6 sentences) '
+                'for an AI website chatbot, based on the business info below. '
+                'Describe what the bot helps visitors with and the key facts '
+                'it should know. Return only the prompt text.\n\n' + raw)}],
+            model=MODEL_CONTENT, max_tokens=500,
+        )
+        chatbot.system_prompt = prompt
+        chatbot.save(update_fields=['system_prompt', 'updated_at'])
+    except AIError:
+        logger.exception('Chatbot prompt regeneration failed')
+    return redirect('admin_dashboard:client_chatbot', client_id=client.id)
+
+
+@admin_required
+def chatbot_conversation(request, client_id, conv_id):
+    """Full transcript of one chatbot conversation."""
+    from clients.models import ClientProfile
+    from reporting.models import ChatbotConversation
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    conversation = get_object_or_404(
+        ChatbotConversation, id=conv_id, chatbot__client=client)
+    return render(request, 'admin_dashboard/chatbot_conversation.html',
+                  _admin_context(
+                      'clients', client=client, conversation=conversation))
+
+
+@admin_required
+@require_POST
+def testimonial_mark_received(request, client_id):
+    """Record a received video testimonial against a client."""
+    from clients.models import ClientProfile
+    client = get_object_or_404(ClientProfile, id=client_id)
+    client.testimonial_received = True
+    client.testimonial_url = (request.POST.get('testimonial_url') or '')[:200]
+    client.save(update_fields=[
+        'testimonial_received', 'testimonial_url', 'updated_at'])
+    return redirect('admin_dashboard:client_detail', client_id=client.id)

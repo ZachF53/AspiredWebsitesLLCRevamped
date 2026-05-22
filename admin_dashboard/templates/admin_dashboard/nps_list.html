@@ -1,0 +1,62 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}NPS — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Client Satisfaction</span>
+            <h1 class="admin-page-title">NPS Surveys</h1>
+        </div>
+    </div>
+
+    <div class="stat-grid">
+        <article class="stat-card">
+            <span class="stat-card__label">Average Score</span>
+            <span class="stat-card__value">{% if avg_score is not None %}{{ avg_score }}{% else %}—{% endif %}</span>
+        </article>
+        <article class="stat-card">
+            <span class="stat-card__label">Responses</span>
+            <span class="stat-card__value">{{ response_count }}</span>
+        </article>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <select name="band" class="form-control">
+            <option value="">All responses</option>
+            <option value="promoter" {% if band == 'promoter' %}selected{% endif %}>Promoters (9-10)</option>
+            <option value="passive" {% if band == 'passive' %}selected{% endif %}>Passives (7-8)</option>
+            <option value="detractor" {% if band == 'detractor' %}selected{% endif %}>Detractors (0-6)</option>
+            <option value="no_response" {% if band == 'no_response' %}selected{% endif %}>No response yet</option>
+        </select>
+        <button type="submit" class="btn-primary">Apply</button>
+    </form>
+
+    {% if surveys %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead><tr><th>Client</th><th>Score</th><th>Feedback</th><th>Action</th><th>Sent</th></tr></thead>
+                <tbody>
+                    {% for s in surveys %}
+                        <tr>
+                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a></td>
+                            <td>
+                                {% if s.score is None %}<span class="muted">No response</span>
+                                {% elif s.score >= 9 %}<span class="nps-score nps-score--promoter">{{ s.score }}</span>
+                                {% elif s.score >= 7 %}<span class="nps-score nps-score--passive">{{ s.score }}</span>
+                                {% else %}<span class="nps-score nps-score--detractor">{{ s.score }}</span>{% endif %}
+                            </td>
+                            <td class="muted">{{ s.feedback|truncatechars:80|default:"—" }}</td>
+                            <td class="muted">{{ s.response_action_taken|default:"—" }}</td>
+                            <td>{{ s.sent_at|date:"M j, Y" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty"><p>No NPS surveys{% if band %} in this band{% endif %} yet.</p></div>
+    {% endif %}
+</div>
+{% endblock %}

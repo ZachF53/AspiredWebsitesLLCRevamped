@@ -1,17 +1,18 @@
 """
-Reporting — the public conversion-tracking endpoint.
-
-POST /api/track/ receives events from the on-site aspired-tracker.js snippet.
-It is unauthenticated and CSRF-exempt (external sites post here), rate limited
-per IP, and always answers 200 so it never leaks whether a client_id is real.
+Reporting — public endpoints: conversion tracking, NPS survey responses, and
+the AI chatbot API. The tracking + chatbot endpoints are CSRF-exempt (external
+sites post here), rate limited per IP, and CORS-open.
 """
 
 import hashlib
 import json
+import re
 import uuid
 
 from django.conf import settings
+from django.db.models import F
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
@@ -85,3 +86,208 @@ def track_conversion_event(request):
         ip_hash=_hash_ip(request),
     )
     return _ok()
+
+
+# ── NPS survey response ─────────────────────────────────────────────────────
+
+def _nps_band(score):
+    """Promoter (9-10) / passive (7-8) / detractor (0-6)."""
+    if score is None:
+        return ''
+    if score >= 9:
+        return 'promoter'
+    if score >= 7:
+        return 'passive'
+    return 'detractor'
+
+
+def _nps_take_action(survey):
+    """Run the band-specific follow-up; return the response_action_taken value."""
+    band = _nps_band(survey.score)
+    if band == 'promoter':
+        return 'review_requested'
+    if band == 'detractor':
+        from .tasks import send_admin_alert
+        send_admin_alert(
+            subject=(f'Low NPS from {survey.client.firm_name}: '
+                     f'score {survey.score}'),
+            message=(
+                f'NPS score: {survey.score}/10\n'
+                f'Client: {survey.client.firm_name}\n'
+                f'Feedback: {survey.feedback or "(none given)"}'
+            ),
+        )
+        return 'needs_you_created'
+    return ''
+
+
+def nps_response(request, token, score):
+    """
+    NPS landing page at /nps/<token>/<score>/.
+
+    GET records the score and shows a feedback form; POST saves the feedback,
+    runs the band-specific action, and shows the thank-you screen.
+    """
+    from .models import NPSSurvey
+
+    survey = NPSSurvey.objects.filter(survey_token=token).first()
+    if survey is None or not 0 <= score <= 10:
+        return render(request, 'reporting/nps_landing.html',
+                      {'invalid': True}, status=404)
+
+    if survey.score is None:
+        survey.score = score
+        survey.responded_at = timezone.now()
+        survey.save(update_fields=['score', 'responded_at', 'updated_at'])
+
+    band = _nps_band(survey.score)
+
+    if request.method == 'POST':
+        survey.feedback = (request.POST.get('feedback') or '').strip()
+        survey.response_action_taken = _nps_take_action(survey)
+        survey.save(update_fields=[
+            'feedback', 'response_action_taken', 'updated_at'])
+        return render(request, 'reporting/nps_landing.html', {
+            'survey': survey,
+            'band': band,
+            'submitted': True,
+            'google_review_url': getattr(settings, 'GOOGLE_REVIEW_URL', ''),
+        })
+
+    return render(request, 'reporting/nps_landing.html', {
+        'survey': survey,
+        'band': band,
+        'submitted': False,
+    })
+
+
+# ── AI chatbot ──────────────────────────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
+_PHONE_RE = re.compile(
+    r'\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b')
+
+
+def _build_chat_system_prompt(client, chatbot):
+    """Assemble the chatbot system prompt from the client + chatbot config."""
+    biz = client.business_type or 'business'
+    return (
+        f'You are a helpful assistant for {client.firm_name}, a {biz}.\n\n'
+        f'{chatbot.system_prompt}\n\n'
+        'IMPORTANT RULES:\n'
+        '- You are not a lawyer and cannot give legal advice.\n'
+        '- Always recommend scheduling a consultation for specific legal '
+        'questions.\n'
+        '- Be warm, professional, and helpful.\n'
+        '- If someone seems to have an urgent legal issue, give them the '
+        f"firm's phone number: {client.phone or 'our office'}.\n"
+        '- If the visitor shares their name or asks to book an appointment, '
+        'acknowledge it and offer to have someone follow up.\n'
+        '- Keep responses concise — 2-3 short paragraphs maximum.\n'
+        '- Never make up facts about cases or outcomes.'
+    )
+
+
+def _detect_lead(conversation, message):
+    """Capture an email/phone from a visitor message onto the conversation."""
+    email = _EMAIL_RE.search(message)
+    phone = _PHONE_RE.search(message)
+    if email and not conversation.visitor_email:
+        conversation.visitor_email = email.group(0)[:254]
+    if phone and not conversation.visitor_phone:
+        conversation.visitor_phone = phone.group(0)[:20]
+    if (conversation.visitor_email or conversation.visitor_phone) \
+            and not conversation.lead_captured:
+        conversation.lead_captured = True
+
+
+def chatbot_config(request, client_id):
+    """Public config for the chat widget — greeting, colour, position."""
+    from .models import ClientChatbot
+    chatbot = (ClientChatbot.objects.filter(client_id=client_id).first()
+               if _is_uuid(str(client_id)) else None)
+    if chatbot is None or not chatbot.is_active:
+        return _cors_json({'active': False})
+    return _cors_json({
+        'active': True,
+        'greeting': chatbot.greeting_message,
+        'color': chatbot.primary_color,
+        'position': chatbot.position,
+    })
+
+
+@csrf_exempt
+@require_POST
+@ratelimit(key='ip', rate='20/m', block=True)
+def chatbot_api(request):
+    """Public chatbot endpoint — POST /api/chat/. Returns a Claude reply."""
+    from .ai import MODEL_CHAT, AIError, claude_complete
+    from .models import ChatbotConversation, ClientChatbot
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return _cors_json({'error': 'Bad request'}, status=400)
+    if not isinstance(data, dict):
+        return _cors_json({'error': 'Bad request'}, status=400)
+
+    client_id = data.get('client_id', '')
+    session_id = str(data.get('session_id') or '')[:100]
+    message = str(data.get('message') or '').strip()
+    history = data.get('conversation_history') or []
+
+    if not _is_uuid(client_id) or not session_id or not message:
+        return _cors_json({'error': 'Bad request'}, status=400)
+
+    client = ClientProfile.objects.filter(id=client_id).first()
+    chatbot = getattr(client, 'chatbot', None) if client else None
+    if chatbot is None or not chatbot.is_active:
+        return _cors_json({'error': 'Chatbot unavailable'}, status=403)
+
+    conversation, created = ChatbotConversation.objects.get_or_create(
+        chatbot=chatbot, session_id=session_id, defaults={'messages': []})
+    if created:
+        ClientChatbot.objects.filter(pk=chatbot.pk).update(
+            total_conversations=F('total_conversations') + 1)
+
+    claude_messages = []
+    for item in history[-20:]:
+        if not isinstance(item, dict):
+            continue
+        role, content = item.get('role'), str(item.get('content') or '').strip()
+        if role in ('user', 'assistant') and content:
+            claude_messages.append({'role': role, 'content': content[:4000]})
+    claude_messages.append({'role': 'user', 'content': message[:4000]})
+
+    try:
+        reply = claude_complete(
+            claude_messages,
+            system=_build_chat_system_prompt(client, chatbot),
+            model=MODEL_CHAT, max_tokens=600,
+        )
+    except AIError:
+        reply = (
+            f"Thanks for reaching out! I'm having trouble responding right "
+            f"now — please call {client.phone or 'our office'} and we'll be "
+            f"glad to help."
+        )
+
+    now_iso = timezone.now().isoformat()
+    conversation.messages = (conversation.messages or []) + [
+        {'role': 'user', 'content': message, 'timestamp': now_iso},
+        {'role': 'assistant', 'content': reply, 'timestamp': now_iso},
+    ]
+    was_lead = conversation.lead_captured
+    _detect_lead(conversation, message)
+    conversation.save()
+    if conversation.lead_captured and not was_lead:
+        ClientChatbot.objects.filter(pk=chatbot.pk).update(
+            leads_captured=F('leads_captured') + 1)
+
+    return _cors_json({'response': reply, 'session_id': session_id})
+
+
+def _cors_json(payload, status=200):
+    resp = JsonResponse(payload, status=status)
+    resp['Access-Control-Allow-Origin'] = '*'
+    return resp

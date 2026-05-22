@@ -53,6 +53,12 @@
                    href="{% url 'admin_dashboard:changelog_list' %}">
                     <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
                     Changelog</a>
+                <a class="admin-nav__link {% if active == 'reports' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:reports_list' %}">Reports</a>
+                <a class="admin-nav__link {% if active == 'blog' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:blog_list' %}">Blog</a>
+                <a class="admin-nav__link {% if active == 'nps' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:nps_list' %}">NPS</a>
                 <a class="admin-nav__link {% if active == 'settings' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:settings' %}">Settings</a>
             </nav>

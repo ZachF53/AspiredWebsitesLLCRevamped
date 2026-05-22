@@ -83,6 +83,50 @@
         {% endif %}
     </section>
 
+    {# ── NPS ── #}
+    <section class="admin-card">
+        <h3 class="admin-card__title">Client Satisfaction (NPS)</h3>
+        <div class="mon-widget">
+            <span class="mon-widget__stat">
+                <strong>
+                    {% if latest_nps %}
+                        <span class="nps-score nps-score--{% if latest_nps.score >= 9 %}promoter{% elif latest_nps.score >= 7 %}passive{% else %}detractor{% endif %}">{{ latest_nps.score }}</span>
+                    {% else %}—{% endif %}
+                </strong>
+                <span class="muted">latest score</span>
+            </span>
+            <span class="mon-widget__stat">
+                <strong>{% if nps_avg is not None %}{{ nps_avg }}{% else %}—{% endif %}</strong>
+                <span class="muted">average</span>
+            </span>
+            <span class="mon-widget__stat">
+                <strong>
+                    {% for s in nps_surveys %}{% if s.score is not None %}{{ s.score }}{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}
+                    {% if not nps_surveys %}none yet{% endif %}
+                </strong>
+                <span class="muted">recent history</span>
+            </span>
+        </div>
+    </section>
+
+    {# ── Testimonial ── #}
+    <section class="admin-card">
+        <h3 class="admin-card__title">Video Testimonial</h3>
+        <p class="muted">
+            Requested: {% if client.testimonial_requested_at %}Yes — {{ client.testimonial_requested_at|date:"M j, Y" }}{% else %}Not yet{% endif %}
+            &nbsp;·&nbsp; Received: {% if client.testimonial_received %}Yes{% else %}No{% endif %}
+        </p>
+        {% if client.testimonial_received and client.testimonial_url %}
+            <p><a href="{{ client.testimonial_url }}" target="_blank" rel="noopener">{{ client.testimonial_url }}</a></p>
+        {% endif %}
+        <form method="post" action="{% url 'admin_dashboard:testimonial_mark_received' client.id %}" class="lead-filter-bar">
+            {% csrf_token %}
+            <input type="url" name="testimonial_url" class="form-control" placeholder="Video URL"
+                   value="{{ client.testimonial_url }}">
+            <button type="submit" class="btn-secondary">Mark as Received</button>
+        </form>
+    </section>
+
     {# ── Tool links ── #}
     <section class="admin-card">
         <h3 class="admin-card__title">Monitoring &amp; Reporting</h3>
@@ -91,6 +135,8 @@
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_keywords' client.id %}">Keywords</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_freshness' client.id %}">Content Freshness{% if freshness_report %} ({{ freshness_report.pages_needing_update }} flagged){% endif %}</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_chatbot' client.id %}">Chatbot</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' client.id %}">Changelog</a>
         </div>
     </section>

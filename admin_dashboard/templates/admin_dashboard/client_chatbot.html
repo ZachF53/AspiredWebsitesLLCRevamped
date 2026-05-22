@@ -1,0 +1,100 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Chatbot{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <h1 class="admin-page-title">AI Chatbot</h1>
+            <p class="muted">
+                {{ chatbot.total_conversations }} conversation{{ chatbot.total_conversations|pluralize }}
+                · {{ chatbot.leads_captured }} lead{{ chatbot.leads_captured|pluralize }} captured
+            </p>
+        </div>
+    </div>
+
+    <form method="post" class="form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <section class="admin-card">
+            <label class="cl-check">
+                {{ form.is_active }}
+                <span>Chatbot active (visible on the client's site)</span>
+            </label>
+            <div class="form-group">
+                <label for="{{ form.greeting_message.id_for_label }}">Greeting Message</label>
+                {{ form.greeting_message }}
+            </div>
+            <div class="cl-form-grid">
+                <div class="form-group">
+                    <label for="{{ form.primary_color.id_for_label }}">Primary Colour</label>
+                    {{ form.primary_color }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.position.id_for_label }}">Widget Position</label>
+                    {{ form.position }}
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.faq_text.id_for_label }}">FAQ / Knowledge Notes</label>
+                {{ form.faq_text }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.system_prompt.id_for_label }}">System Prompt</label>
+                {{ form.system_prompt }}
+                {% if form.system_prompt.errors %}<div class="form-field-error">{{ form.system_prompt.errors|join:" " }}</div>{% endif %}
+            </div>
+        </section>
+        <div class="lead-add-form__actions">
+            <button type="submit" class="btn-primary">Save Configuration</button>
+        </div>
+    </form>
+
+    <section class="admin-card">
+        <div class="admin-card__head">
+            <h3 class="admin-card__title">System Prompt Builder</h3>
+            <form method="post" action="{% url 'admin_dashboard:chatbot_regenerate_prompt' client.id %}" class="cl-delete-form">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Regenerate System Prompt</button>
+            </form>
+        </div>
+        <p class="muted">Writes a fresh system prompt with Claude from the FAQ notes,
+           the client's practice areas, and contact details. Save the form first
+           if you've changed the FAQ notes.</p>
+    </section>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Embed Snippet</h3>
+        <textarea id="chatbot-snippet" class="form-control mon-snippet" rows="2" readonly>{{ snippet }}</textarea>
+        <div class="lead-add-form__actions">
+            <button type="button" class="btn-primary" data-copy-target="chatbot-snippet">Copy Snippet</button>
+        </div>
+        <p class="muted">Paste just before <code>&lt;/body&gt;</code> on the client's site.</p>
+    </section>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Recent Conversations</h3>
+        {% if conversations %}
+            <table class="lead-table">
+                <thead><tr><th>Started</th><th>Messages</th><th>Lead</th><th class="lead-table__col-actions">View</th></tr></thead>
+                <tbody>
+                    {% for conv in conversations %}
+                        <tr>
+                            <td>{{ conv.started_at|date:"M j, Y H:i" }}</td>
+                            <td>{{ conv.messages|length }}</td>
+                            <td>{% if conv.lead_captured %}<span class="cl-badge cl-badge--blog_published">Lead</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="lead-table__col-actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:chatbot_conversation' client.id conv.id %}">View</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No conversations yet.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

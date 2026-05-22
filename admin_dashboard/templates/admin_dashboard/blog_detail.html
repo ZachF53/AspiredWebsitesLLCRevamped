@@ -1,0 +1,62 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Review Blog Post — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:blog_list' %}" class="admin-back-link">&larr; All blog posts</a></span>
+            <h1 class="admin-page-title">Review Blog Post</h1>
+            <p class="muted">
+                {{ post.client.firm_name }} ·
+                <span class="rep-badge rep-badge--{{ post.status }}">{{ post.get_status_display }}</span>
+                · {{ post.word_count }} words · Topic: {{ post.topic }}
+            </p>
+        </div>
+    </div>
+
+    {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+    <form method="post" class="form">
+        {% csrf_token %}
+        <section class="admin-card">
+            <div class="form-group">
+                <label for="blog-title">Title</label>
+                <input type="text" id="blog-title" name="title" maxlength="300"
+                       class="form-control" value="{{ post.title }}">
+            </div>
+            <div class="form-group">
+                <label for="blog-meta">Meta Description <span class="muted">(max 160 characters)</span></label>
+                <input type="text" id="blog-meta" name="meta_description" maxlength="160"
+                       class="form-control" value="{{ post.meta_description }}">
+            </div>
+            <div class="form-group">
+                <label for="blog-content">Content (HTML)</label>
+                <textarea id="blog-content" name="content" rows="18"
+                          class="form-control blog-content-area">{{ post.content }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="blog-pub-url">Published URL <span class="muted">(required to mark published)</span></label>
+                <input type="url" id="blog-pub-url" name="published_url" class="form-control"
+                       value="{{ post.published_url }}"
+                       placeholder="https://clientdomain.com/blog/post-slug/">
+            </div>
+        </section>
+
+        <div class="blog-actions">
+            <button type="submit" name="action" value="save" class="btn-secondary">Save Edits</button>
+            <button type="submit" name="action" value="regenerate" class="btn-secondary">Regenerate</button>
+            <button type="submit" name="action" value="approve" class="btn-primary">Approve</button>
+            <button type="submit" name="action" value="publish" class="btn-primary">Mark Published</button>
+            <button type="submit" name="action" value="reject" class="btn-secondary"
+                    data-confirm="Reject this blog post?">Reject</button>
+        </div>
+    </form>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Preview</h3>
+        <div class="blog-preview">{{ post.content|safe }}</div>
+    </section>
+</div>
+{% endblock %}

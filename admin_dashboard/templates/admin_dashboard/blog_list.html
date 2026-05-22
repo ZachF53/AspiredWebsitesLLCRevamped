@@ -1,0 +1,56 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Blog Posts — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Content</span>
+            <h1 class="admin-page-title">AI Blog Posts</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-primary" href="{% url 'admin_dashboard:blog_generate' %}">+ Generate Post</a>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <select name="client" class="form-control">
+            <option value="">All clients</option>
+            {% for c in clients %}<option value="{{ c.id }}" {% if client_filter == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>{% endfor %}
+        </select>
+        <select name="status" class="form-control">
+            <option value="">All statuses</option>
+            {% for value, label in statuses %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-primary">Apply</button>
+    </form>
+
+    {% if posts %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead><tr><th>Client</th><th>Topic</th><th>Status</th><th>Words</th><th>Created</th><th class="lead-table__col-actions">Actions</th></tr></thead>
+                <tbody>
+                    {% for p in posts %}
+                        <tr>
+                            <td>{{ p.client.firm_name }}</td>
+                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:blog_detail' p.id %}">{{ p.topic|truncatechars:60 }}</a></td>
+                            <td><span class="rep-badge rep-badge--{{ p.status }}">{{ p.get_status_display }}</span></td>
+                            <td>{{ p.word_count }}</td>
+                            <td>{{ p.created_at|date:"M j, Y" }}</td>
+                            <td class="lead-table__col-actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:blog_detail' p.id %}">Review</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No blog posts yet.</p>
+            <p><a class="btn-primary" href="{% url 'admin_dashboard:blog_generate' %}">+ Generate the first post</a></p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

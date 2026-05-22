@@ -1,0 +1,47 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quick question — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+</head>
+<body class="nps-body">
+    <main class="nps-card">
+        {% if invalid %}
+            <h1>Survey not found</h1>
+            <p class="nps-muted">This survey link is invalid or has expired.</p>
+        {% elif submitted %}
+            <div class="nps-icon" aria-hidden="true">&#9733;</div>
+            {% if band == 'promoter' %}
+                <h1>We're so glad to hear that!</h1>
+                <p>Thank you for the {{ survey.score }}/10. Would you mind
+                   leaving us a Google review? It helps more than you know.</p>
+                {% if google_review_url %}
+                    <a class="btn-primary btn-block" href="{{ google_review_url }}"
+                       target="_blank" rel="noopener">Leave a Google Review</a>
+                {% endif %}
+            {% elif band == 'passive' %}
+                <h1>Thank you for the feedback</h1>
+                <p>We appreciate your {{ survey.score }}/10. Is there anything
+                   we could do better? Just reply to our email any time.</p>
+            {% else %}
+                <h1>Thank you for being honest</h1>
+                <p>We appreciate your {{ survey.score }}/10 — and we'd love to
+                   make things right. Zachery will be in touch personally.</p>
+            {% endif %}
+        {% else %}
+            <h1>Thanks for your {{ survey.score }}/10</h1>
+            <p class="nps-muted">One quick thing — what's the main reason for
+               your score? (Optional)</p>
+            <form method="post" class="nps-form">
+                {% csrf_token %}
+                <textarea name="feedback" rows="4" class="form-control"
+                          placeholder="Your feedback…"></textarea>
+                <button type="submit" class="btn-primary btn-block">Submit</button>
+            </form>
+        {% endif %}
+    </main>
+</body>
+</html>

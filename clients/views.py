@@ -754,6 +754,46 @@ def portal_seo(request):
     return render(request, 'clients/portal_seo.html', ctx)
 
 
+# ── Page 12: Monthly Reports ────────────────────────────────────────────────
+
+@client_required
+def portal_reports(request):
+    """The client's sent monthly performance reports."""
+    profile = request.client_profile
+    from reporting.models import MonthlyReport
+    reports = list(MonthlyReport.objects.filter(client=profile, status='sent'))
+    ctx = _portal_context(
+        request, 'reports',
+        reports=reports,
+        latest=reports[0] if reports else None,
+    )
+    return render(request, 'clients/portal_reports.html', ctx)
+
+
+@client_required
+def portal_report_download(request, report_id):
+    """Serve a monthly report file to the client who owns it."""
+    import os
+
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+
+    from reporting.models import MonthlyReport
+
+    report = get_object_or_404(
+        MonthlyReport, id=report_id, client=request.client_profile)
+    abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
+    if not report.pdf_path or not os.path.exists(abs_path):
+        raise Http404('Report file not found.')
+    if not report.opened:
+        report.opened = True
+        report.opened_at = timezone.now()
+        report.save(update_fields=['opened', 'opened_at', 'updated_at'])
+    return FileResponse(
+        open(abs_path, 'rb'), as_attachment=True,
+        filename=os.path.basename(abs_path))
+
+
 # ── Page 8: Settings ────────────────────────────────────────────────────────
 
 @client_required
