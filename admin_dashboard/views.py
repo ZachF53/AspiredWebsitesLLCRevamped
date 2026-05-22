@@ -1522,6 +1522,8 @@ _BLOG_WORD_TARGETS = {'short': 500, 'medium': 800, 'long': 1200}
 
 def _blog_system_prompt(client, topic, keyword, length, tone):
     """The system prompt for AI blog generation."""
+    from reporting.ai import client_location_phrase
+
     words = _BLOG_WORD_TARGETS.get(length, 800)
     biz = client.business_type or 'business'
     keyword_line = (
@@ -1529,7 +1531,8 @@ def _blog_system_prompt(client, topic, keyword, length, tone):
         if keyword else '')
     return (
         f'You are an expert content writer specializing in {biz} SEO. Write a '
-        f'blog post for {client.firm_name}.\n\n'
+        f'blog post for {client.firm_name}, a {biz}'
+        f'{client_location_phrase(client)}.\n\n'
         f'Topic: {topic}\n'
         f'Target keyword: {keyword or "(none specified)"}\n'
         f'Length: approximately {words} words\n'
@@ -1622,6 +1625,7 @@ def blog_generate(request):
             post = BlogPost(
                 client=cd['client'], topic=cd['topic'],
                 target_keyword=cd['target_keyword'],
+                requested_length=cd['length'], requested_tone=cd['tone'],
                 status='review', generated_by_ai=True)
             try:
                 _generate_blog_content(post, cd['length'], cd['tone'])
@@ -1670,7 +1674,9 @@ def blog_detail(request, post_id):
             post.published_at = timezone.now()
         elif action == 'regenerate':
             try:
-                _generate_blog_content(post, 'medium', 'professional')
+                _generate_blog_content(
+                    post, post.requested_length or 'medium',
+                    post.requested_tone or 'professional')
                 post.status = 'review'
             except AIError as exc:
                 error = f'Regeneration failed: {exc}'

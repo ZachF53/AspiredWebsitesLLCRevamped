@@ -170,9 +170,11 @@ _PHONE_RE = re.compile(
 
 def _build_chat_system_prompt(client, chatbot):
     """Assemble the chatbot system prompt from the client + chatbot config."""
+    from .ai import client_location_phrase
     biz = client.business_type or 'business'
     return (
-        f'You are a helpful assistant for {client.firm_name}, a {biz}.\n\n'
+        f'You are a helpful assistant for {client.firm_name}, a {biz}'
+        f'{client_location_phrase(client)}.\n\n'
         f'{chatbot.system_prompt}\n\n'
         'IMPORTANT RULES:\n'
         '- You are not a lawyer and cannot give legal advice.\n'

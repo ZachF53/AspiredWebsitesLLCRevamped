@@ -30,6 +30,15 @@ def is_configured():
     return bool(settings.ANTHROPIC_API_KEY)
 
 
+def client_location_phrase(client):
+    """
+    A ' based in City, State' phrase for AI prompts, or '' when the client
+    has no location set. Used by the blog and chatbot system prompts.
+    """
+    parts = [p for p in (client.city, client.state) if p]
+    return f' based in {", ".join(parts)}' if parts else ''
+
+
 def claude_complete(messages, system='', model=MODEL_CHAT, max_tokens=1024):
     """
     Call Claude and return the text of the first content block.

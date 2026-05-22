@@ -226,12 +226,28 @@ class BlogPost(TimestampedModel):
         ('rejected', 'Rejected'),
     ]
 
+    LENGTH_CHOICES = [
+        ('short', 'Short (~500w)'),
+        ('medium', 'Medium (~800w)'),
+        ('long', 'Long (~1200w)'),
+    ]
+    TONE_CHOICES = [
+        ('professional', 'Professional'),
+        ('conversational', 'Conversational'),
+        ('authoritative', 'Authoritative'),
+    ]
+
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='blog_posts',
     )
     topic = models.CharField(max_length=200)
     target_keyword = models.CharField(max_length=200, blank=True)
+    # Original generation parameters — reused by "Regenerate".
+    requested_length = models.CharField(
+        max_length=10, blank=True, choices=LENGTH_CHOICES, default='medium')
+    requested_tone = models.CharField(
+        max_length=20, blank=True, choices=TONE_CHOICES, default='professional')
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='draft')
     title = models.CharField(max_length=300, blank=True)
