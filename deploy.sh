@@ -43,6 +43,7 @@ echo "[6/7] Restarting services..." | tee -a $LOG
 supervisorctl restart aspiredwebsites 2>&1 | tee -a $LOG
 supervisorctl restart aspiredwebsites-celery 2>&1 | tee -a $LOG
 supervisorctl restart aspiredwebsites-celerybeat 2>&1 | tee -a $LOG
+supervisorctl restart aspiredwebsites-daphne 2>&1 | tee -a $LOG
 
 # Step 7 — Verify everything is running
 echo "[7/7] Verifying services..." | tee -a $LOG
