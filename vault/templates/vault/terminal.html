@@ -1,0 +1,64 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Terminal — {{ credential.label }}</title>
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="stylesheet" href="{% static 'js/xterm/xterm.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+</head>
+<body class="term-body">
+<div class="term-wrap"
+     data-cred-id="{{ credential.id }}"
+     data-totp-remaining="{{ totp_remaining_seconds }}"
+     data-vault-url="{% url 'vault:home' %}">
+
+    <div class="term-bar">
+        <div class="term-bar__seg term-bar__seg--left">
+            <strong>{{ credential.label }}</strong>
+            <span class="term-bar__hint">{{ host_hint }}</span>
+        </div>
+        <div class="term-bar__seg term-bar__seg--center">
+            <svg class="term-bar__clock" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            <span id="session-timer">--:--</span>
+        </div>
+        <div class="term-bar__seg term-bar__seg--right">
+            <button type="button" id="cmd-library-btn" class="term-btn term-btn--teal">Command Library</button>
+            <button type="button" id="disconnect-btn" class="term-btn term-btn--danger">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="term-main">
+        <div id="terminal" class="term-screen"></div>
+        <aside id="cmd-sidebar" class="term-cmds">
+            {% for group in command_groups %}
+                <div class="term-cmds__group">
+                    <h3 class="term-cmds__heading">{{ group.label }}</h3>
+                    {% for cmd in group.items %}
+                        <div class="term-cmd">
+                            <div class="term-cmd__label">
+                                {{ cmd.label }}
+                                {% if cmd.is_dangerous %}<span class="term-cmd__danger" title="Dangerous">&#9888;</span>{% endif %}
+                            </div>
+                            <code class="term-cmd__text">{{ cmd.command }}</code>
+                            <button type="button"
+                                    class="term-cmd__run{% if cmd.requires_confirmation %} term-cmd__run--confirm{% endif %}"
+                                    data-command="{{ cmd.command }}"
+                                    data-confirm="{% if cmd.requires_confirmation %}1{% endif %}"
+                                    data-dangerous="{% if cmd.is_dangerous %}1{% endif %}">Run</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% empty %}
+                <p class="term-cmds__empty">No saved commands for this server.</p>
+            {% endfor %}
+        </aside>
+    </div>
+</div>
+
+<script src="{% static 'js/xterm/xterm.js' %}"></script>
+<script src="{% static 'js/xterm/addon-fit.js' %}"></script>
+<script src="{% static 'js/vault-terminal.js' %}"></script>
+</body>
+</html>

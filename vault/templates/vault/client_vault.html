@@ -66,6 +66,10 @@
                             <div class="vault-cred__foot">
                                 {% include "vault/_visibility_toggle.html" with client_id=client.id cred_id=item.id visible=item.visible_to_client %}
                                 <span class="vault-cred__actions">
+                                    {% if item.is_ssh_credential %}
+                                        <a class="btn-primary btn-sm vault-connect-btn" href="{% url 'vault:totp_connect' item.id %}">Connect &rarr;</a>
+                                        <a class="btn-secondary btn-sm" href="{% url 'vault:command_library' item.id %}">Commands</a>
+                                    {% endif %}
                                     <a class="btn-secondary btn-sm" href="{% url 'vault:edit_credential' client.id item.id %}">Edit</a>
                                     <form method="post" action="{% url 'vault:delete_credential' client.id item.id %}" class="vault-cred__delete">
                                         {% csrf_token %}

@@ -58,6 +58,8 @@ LOGOUT_REDIRECT_URL = '/'
 
 # ── Applications ────────────────────────────────────────────────────────────
 DJANGO_APPS = [
+    # 'daphne' must precede staticfiles so runserver serves ASGI in dev.
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -68,6 +70,9 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     'django_htmx',
+    'channels',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
 ]
 
 LOCAL_APPS = [
@@ -121,6 +126,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'AspiredWebsitesRevamped.wsgi.application'
+ASGI_APPLICATION = 'AspiredWebsitesRevamped.asgi.application'
 
 
 # ── Database ────────────────────────────────────────────────────────────────
@@ -318,6 +324,16 @@ CELERY_BEAT_SCHEDULE = {
     'send-testimonial-requests': {
         'task': 'reporting.tasks.send_testimonial_requests',
         'schedule': crontab(hour=10, minute=0, day_of_month=15),  # 15th, 10am
+    },
+}
+
+# ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [REDIS_URL],
+        },
     },
 }
 

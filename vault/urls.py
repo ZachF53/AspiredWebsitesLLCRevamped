@@ -16,4 +16,10 @@ urlpatterns = [
     path('<uuid:client_id>/delete/<uuid:cred_id>/', views.delete_credential, name='delete_credential'),
     path('<uuid:client_id>/reveal/<uuid:cred_id>/', views.reveal_credential, name='reveal_credential'),
     path('<uuid:client_id>/visibility/<uuid:cred_id>/', views.toggle_visibility, name='toggle_visibility'),
+
+    # SSH terminal — TOTP-gated
+    path('<uuid:cred_id>/totp-setup/', views.totp_setup, name='totp_setup'),
+    path('<uuid:cred_id>/connect/', views.totp_connect, name='totp_connect'),
+    path('<uuid:cred_id>/terminal/', views.terminal, name='terminal'),
+    path('<uuid:cred_id>/commands/', views.command_library, name='command_library'),
 ]

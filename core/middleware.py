@@ -28,6 +28,22 @@ CSP_PUBLIC = (
     "object-src 'none'"
 )
 
+# Terminal CSP — the SSH terminal page. Scripts stay strict ('self' only; all
+# terminal JS is external), but style-src allows inline because xterm.js
+# applies dynamic styling at runtime. The page is staff-only and TOTP-gated.
+CSP_TERMINAL = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
 # Relaxed CSP for /admin/ — Django admin uses inline <style> and <script>.
 CSP_ADMIN = (
     "default-src 'self'; "
@@ -75,8 +91,12 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        if request.path.startswith('/admin/'):
+        path = request.path
+        if path.startswith('/admin/'):
             response['Content-Security-Policy'] = CSP_ADMIN
+        elif (path.startswith('/admin-dashboard/vault/')
+              and path.endswith('/terminal/')):
+            response['Content-Security-Policy'] = CSP_TERMINAL
         else:
             response['Content-Security-Policy'] = CSP_PUBLIC
         response['Permissions-Policy'] = PERMISSIONS_POLICY

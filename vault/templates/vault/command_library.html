@@ -1,0 +1,78 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Command Library — {{ credential.label }}{% endblock %}
+
+{% block content %}
+<div class="admin-vault" data-seconds-remaining="{{ seconds_remaining }}">
+    <div class="vault-header">
+        <div class="vault-header__title">
+            <p class="vault-breadcrumb">
+                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo;
+                <a href="{% url 'vault:client_vault' client.id %}">{{ client.firm_name }}</a> &rsaquo;
+                Command Library
+            </p>
+            <h1>{{ credential.label }} — Commands</h1>
+        </div>
+    </div>
+
+    <details class="vault-catgroup" open>
+        <summary>Add a Command</summary>
+        <form method="post" class="vault-cred-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="form-error">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="form-group">
+                <label for="{{ form.label.id_for_label }}">Label</label>
+                {{ form.label }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.command.id_for_label }}">Command</label>
+                {{ form.command }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.category.id_for_label }}">Category</label>
+                {{ form.category }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.sort_order.id_for_label }}">Sort Order</label>
+                {{ form.sort_order }}
+            </div>
+            <label class="vault-change-flag">{{ form.requires_confirmation }}<span>Require confirmation before running</span></label>
+            <label class="vault-change-flag">{{ form.is_dangerous }}<span>Mark as dangerous</span></label>
+            <button type="submit" class="btn-primary">Add Command</button>
+        </form>
+    </details>
+
+    {% for group in command_groups %}
+        <details class="vault-catgroup" open>
+            <summary>{{ group.label }} <span class="vault-catgroup__count">{{ group.items|length }}</span></summary>
+            <div class="vault-cred-list">
+                {% for cmd in group.items %}
+                    <article class="vault-cred">
+                        <div class="vault-cred__head">
+                            <span class="vault-cred__label">
+                                {{ cmd.label }}
+                                {% if cmd.is_dangerous %}<span class="cl-badge cl-badge--security_patch">Dangerous</span>{% endif %}
+                                {% if cmd.requires_confirmation %}<span class="cl-badge cl-badge--deployment">Confirm</span>{% endif %}
+                            </span>
+                            <form method="post" class="vault-cred__delete">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="command_id" value="{{ cmd.id }}">
+                                <button type="submit" class="btn-secondary btn-sm vault-delete-btn">Delete</button>
+                            </form>
+                        </div>
+                        <code class="vault-cred__value">{{ cmd.command }}</code>
+                    </article>
+                {% endfor %}
+            </div>
+        </details>
+    {% empty %}
+        <p class="vault-muted">No commands yet — add one above.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

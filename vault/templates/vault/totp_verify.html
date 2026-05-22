@@ -1,0 +1,48 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Authenticate — Vault{% endblock %}
+
+{% block content %}
+<div class="vault-gate">
+    <div class="vault-gate__card">
+        <div class="vault-icon vault-icon--orange" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h1>Enter Authentication Code</h1>
+        <p class="vault-gate__sub">
+            {{ credential.label }} &middot; {{ host_hint }}<br>
+            Open your authenticator app and enter the 6-digit code.
+        </p>
+
+        {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+        {% if locked %}
+            <p class="vault-locked-timer">
+                Too many incorrect codes. Return to the
+                <a href="{% url 'vault:home' %}">vault</a> and re-enter your PIN.
+            </p>
+        {% else %}
+            <form method="post" class="vault-pin-form" id="vault-pin-form">
+                {% csrf_token %}
+                <div class="vault-digits">
+                    {% for i in "123456" %}
+                        <input class="vault-digit" name="d{{ forloop.counter }}"
+                               type="text" inputmode="numeric" maxlength="1"
+                               autocomplete="off" aria-label="Code digit {{ forloop.counter }}"
+                               {% if forloop.first %}autofocus{% endif %}>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn-primary btn-block">Verify</button>
+            </form>
+            <p class="vault-gate__hint">This session expires 15 minutes after verification.</p>
+        {% endif %}
+
+        <p class="vault-foot"><a href="{% url 'vault:home' %}">&larr; Use a different server</a></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

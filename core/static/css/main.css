@@ -6706,7 +6706,168 @@ button.htmx-request {
 .nps-form { margin-top: var(--space-3); text-align: left; }
 .nps-form .form-control { margin-bottom: var(--space-2); }
 
-/* ── 31. Reduced motion ────────────────────────────────────── */
+/* ══ 31. Phase 6a — SSH terminal + TOTP ═════════════════════ */
+
+.is-hidden { display: none !important; }
+
+/* TOTP setup / verify */
+.vault-gate__card--wide { max-width: 460px; }
+.totp-qr {
+    display: block;
+    width: 200px;
+    height: 200px;
+    margin: var(--space-2) auto;
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 10px;
+}
+.totp-manual {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    margin: var(--space-2) 0 0.25rem;
+}
+.totp-secret {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    letter-spacing: 0.06em;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-bottom: var(--space-3);
+    word-break: break-all;
+}
+.vault-fieldset-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    margin-bottom: 0.3rem;
+}
+
+/* SSH fields in the credential form */
+.vault-ssh-fields {
+    display: none;
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    border: 1px solid rgba(13, 148, 136, 0.3);
+    border-radius: 10px;
+    background: rgba(13, 148, 136, 0.05);
+}
+.vault-ssh-fields.is-visible { display: block; }
+.vault-connect-btn {
+    background: var(--color-teal) !important;
+    border-color: var(--color-teal) !important;
+}
+
+/* ── SSH terminal — full-screen page ── */
+.term-body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: #070614;
+    color: #e8e8e8;
+}
+.term-wrap { display: flex; flex-direction: column; height: 100vh; }
+
+.term-bar {
+    flex-shrink: 0;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    background: #0F172A;
+    border-bottom: 1px solid var(--color-border);
+}
+.term-bar__seg { display: flex; align-items: center; gap: 0.6rem; }
+.term-bar__seg--center { flex: 1; justify-content: center; }
+.term-bar__hint { color: var(--color-text-muted); font-size: 0.8125rem; }
+.term-bar__clock {
+    width: 18px; height: 18px; fill: none;
+    stroke: var(--color-orange); stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+}
+#session-timer {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: var(--color-orange-light);
+}
+.term-timer--low { color: var(--color-danger) !important; }
+
+.term-btn {
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    padding: 0.35rem 0.8rem;
+    border-radius: 7px;
+    border: 1px solid var(--color-border-strong);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text);
+    cursor: pointer;
+}
+.term-btn--teal { border-color: rgba(13,148,136,0.5); color: var(--color-teal-light); }
+.term-btn--danger { border-color: rgba(248,113,113,0.5); color: var(--color-danger); }
+
+.term-main { flex: 1; display: flex; min-height: 0; }
+.term-screen { flex: 1; min-width: 0; padding: 6px 8px; overflow: hidden; }
+
+.term-cmds {
+    width: 290px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: var(--space-2);
+    background: #0B1120;
+    border-left: 1px solid var(--color-border);
+}
+.term-cmds.is-hidden { display: none; }
+.term-cmds__heading {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-orange-light);
+    margin: var(--space-2) 0 0.4rem;
+}
+.term-cmds__empty { color: var(--color-text-muted); font-size: 0.875rem; }
+
+.term-cmd {
+    background: #0F172A;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    margin-bottom: 0.5rem;
+}
+.term-cmd__label { font-weight: 700; font-size: 0.875rem; }
+.term-cmd__danger { color: var(--color-danger); }
+.term-cmd__text {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    word-break: break-all;
+    margin: 0.2rem 0 0.4rem;
+}
+.term-cmd__run {
+    font-family: inherit;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.25rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid rgba(13, 148, 136, 0.5);
+    background: rgba(13, 148, 136, 0.14);
+    color: var(--color-teal-light);
+    cursor: pointer;
+}
+.term-cmd__run--confirm {
+    border-color: rgba(232, 101, 10, 0.5);
+    background: rgba(232, 101, 10, 0.14);
+    color: var(--color-orange-light);
+}
+
+/* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

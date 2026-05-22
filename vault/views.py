@@ -30,8 +30,15 @@ from .crypto import (
     verify_pin,
     wrap_key,
 )
-from .forms import CredentialForm
-from .models import ClientVault, VaultAccessLog, VaultConfig, VaultCredential
+from .forms import CommandForm, CredentialForm
+from .models import (
+    ClientVault,
+    ServerCommandLibrary,
+    SSHSessionLog,
+    VaultAccessLog,
+    VaultConfig,
+    VaultCredential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +127,43 @@ def _sync_client_plain(cred, key):
         cred.client_password_plain = ''
         cred.client_url_plain = ''
         cred.client_notes_plain = ''
+
+
+def _apply_ssh_fields(cred, cd, key):
+    """Encrypt the SSH fields from a CredentialForm onto the credential."""
+    cred.is_ssh_credential = cd.get('is_ssh_credential', False)
+    if not cred.is_ssh_credential:
+        return
+    cred.ssh_host_encrypted = encrypt_value(cd.get('ssh_host', ''), key)
+    cred.ssh_port = cd.get('ssh_port') or 22
+    cred.ssh_username_encrypted = encrypt_value(cd.get('ssh_username', ''), key)
+    cred.ssh_auth_type = cd.get('ssh_auth_type') or 'password'
+    cred.ssh_password_encrypted = encrypt_value(cd.get('ssh_password', ''), key)
+    cred.ssh_private_key_encrypted = encrypt_value(
+        cd.get('ssh_private_key', ''), key)
+    cred.ssh_key_passphrase_encrypted = encrypt_value(
+        cd.get('ssh_key_passphrase', ''), key)
+
+
+def _host_hint(cred, vault_key):
+    """A masked server hint — only the last IP octet, or the bare domain."""
+    host = decrypt_value(cred.ssh_host_encrypted, vault_key)
+    if not host or host == '[decryption failed]':
+        return '(server)'
+    parts = host.split('.')
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        return f'Server ***.***.*.{parts[-1]}'
+    return host
+
+
+def _command_groups(cred):
+    """ServerCommandLibrary entries for a credential, grouped by category."""
+    groups = []
+    for cat_key, cat_label in ServerCommandLibrary.CATEGORY_CHOICES:
+        items = list(cred.commands.filter(category=cat_key))
+        if items:
+            groups.append({'key': cat_key, 'label': cat_label, 'items': items})
+    return groups
 
 
 # ── PIN gate / home ─────────────────────────────────────────────────────────
@@ -310,6 +354,7 @@ def client_vault(request, client_id):
                 'notes': decrypt_value(cred.notes_encrypted, key),
                 'has_password': bool(cred.password_encrypted),
                 'visible_to_client': cred.visible_to_client,
+                'is_ssh_credential': cred.is_ssh_credential,
             })
         if items:
             groups.append({'key': cat_key, 'label': cat_label, 'items': items})
@@ -371,6 +416,7 @@ def add_credential(request, client_id):
                 username_hint=make_hint(cd['username']),
             )
             _sync_client_plain(cred, key)
+            _apply_ssh_fields(cred, cd, key)
             cred.save()
             _log('credential_created', request,
                  client_name=client.firm_name, credential_label=cred.label)
@@ -422,17 +468,32 @@ def edit_credential(request, client_id, cred_id):
             if cd['change_notes']:
                 cred.notes_encrypted = encrypt_value(cd['notes'], key)
             _sync_client_plain(cred, key)
+            _apply_ssh_fields(cred, cd, key)
             cred.save()
             _log('credential_updated', request,
                  client_name=client.firm_name, credential_label=cred.label)
             return redirect('vault:client_vault', client_id=client.id)
     else:
-        form = CredentialForm(initial={
+        initial = {
             'label': cred.label,
             'category': cred.category,
             'sort_order': cred.sort_order,
             'visible_to_client': cred.visible_to_client,
-        })
+            'is_ssh_credential': cred.is_ssh_credential,
+        }
+        if cred.is_ssh_credential:
+            initial.update({
+                'ssh_host': decrypt_value(cred.ssh_host_encrypted, key),
+                'ssh_port': cred.ssh_port,
+                'ssh_username': decrypt_value(cred.ssh_username_encrypted, key),
+                'ssh_auth_type': cred.ssh_auth_type or 'password',
+                'ssh_password': decrypt_value(cred.ssh_password_encrypted, key),
+                'ssh_private_key': decrypt_value(
+                    cred.ssh_private_key_encrypted, key),
+                'ssh_key_passphrase': decrypt_value(
+                    cred.ssh_key_passphrase_encrypted, key),
+            })
+        form = CredentialForm(initial=initial)
 
     return render(request, 'vault/credential_form.html', {
         'active': 'vault',
@@ -527,4 +588,162 @@ def vault_access_log(request):
         'filter_client': client_name,
         'filter_from': date_from,
         'filter_to': date_to,
+    })
+
+
+# ── SSH terminal — TOTP setup, verify, terminal, command library ────────────
+
+@admin_required
+def totp_setup(request, cred_id):
+    """First-run TOTP enrolment for an SSH credential."""
+    key = get_vault_key(request)
+    if key is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    if cred.totp_configured:
+        return redirect('vault:totp_connect', cred_id=cred.id)
+
+    from .totp_helpers import (
+        generate_qr_code_base64, generate_totp_secret, get_totp_uri,
+        verify_totp_code,
+    )
+    session_key = f'totp_setup_secret_{cred_id}'
+
+    error = None
+    if request.method == 'POST':
+        secret = request.session.get(session_key)
+        code = (request.POST.get('code') or '').strip()
+        if secret and verify_totp_code(secret, code):
+            cred.totp_secret_encrypted = encrypt_value(secret, key)
+            cred.totp_configured = True
+            cred.save(update_fields=[
+                'totp_secret_encrypted', 'totp_configured', 'updated_at'])
+            request.session.pop(session_key, None)
+            _log('ssh_totp_setup', request,
+                 client_name=cred.vault.client.firm_name,
+                 credential_label=cred.label, note='SSH TOTP configured.')
+            return redirect('vault:totp_connect', cred_id=cred.id)
+        error = 'Code incorrect — try again.'
+        secret = secret or generate_totp_secret()
+    else:
+        secret = generate_totp_secret()
+
+    request.session[session_key] = secret
+    uri = get_totp_uri(secret, cred.label)
+    return render(request, 'vault/totp_setup.html', {
+        'active': 'vault',
+        'credential': cred,
+        'secret': secret,
+        'qr_code': generate_qr_code_base64(uri),
+        'error': error,
+        'seconds_remaining': _seconds_remaining(request),
+    })
+
+
+@admin_required
+def totp_connect(request, cred_id):
+    """Verify a TOTP code to open a 15-minute SSH session."""
+    key = get_vault_key(request)
+    if key is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    if not cred.totp_configured:
+        return redirect('vault:totp_setup', cred_id=cred.id)
+
+    from .ssh_helpers import mark_ssh_session_verified
+    from .totp_helpers import get_decrypted_totp_secret, verify_totp_code
+
+    fail_key = f'ssh_totp_fails_{cred_id}'
+    error = None
+    locked = request.session.get(fail_key, 0) >= MAX_ATTEMPTS
+
+    if request.method == 'POST' and not locked:
+        code = ''.join(request.POST.get(f'd{i}', '') for i in range(1, 7)).strip()
+        if not code:
+            code = (request.POST.get('code') or '').strip()
+        secret = get_decrypted_totp_secret(cred, key)
+        if secret and verify_totp_code(secret, code):
+            request.session.pop(fail_key, None)
+            mark_ssh_session_verified(request, str(cred_id))
+            _log('ssh_totp_verified', request,
+                 client_name=cred.vault.client.firm_name,
+                 credential_label=cred.label, note='SSH TOTP verified.')
+            return redirect('vault:terminal', cred_id=cred.id)
+        fails = request.session.get(fail_key, 0) + 1
+        request.session[fail_key] = fails
+        remaining = MAX_ATTEMPTS - fails
+        if remaining <= 0:
+            locked = True
+            error = 'Too many incorrect codes — re-unlock the vault to retry.'
+        else:
+            error = (f'Code incorrect — {remaining} attempt'
+                     f'{"" if remaining == 1 else "s"} left.')
+        _log('pin_failed', request, credential_label=cred.label,
+             note='SSH TOTP code incorrect.')
+
+    return render(request, 'vault/totp_verify.html', {
+        'active': 'vault',
+        'credential': cred,
+        'host_hint': _host_hint(cred, key),
+        'error': error,
+        'locked': locked,
+    })
+
+
+@admin_required
+def terminal(request, cred_id):
+    """The full-screen browser SSH terminal — vault unlocked + TOTP verified."""
+    key = get_vault_key(request)
+    if key is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    if not cred.totp_configured:
+        return redirect('vault:totp_setup', cred_id=cred.id)
+
+    from .ssh_helpers import is_ssh_session_valid, ssh_session_remaining_seconds
+    if not is_ssh_session_valid(request, str(cred_id)):
+        return redirect('vault:totp_connect', cred_id=cred.id)
+
+    return render(request, 'vault/terminal.html', {
+        'credential': cred,
+        'host_hint': _host_hint(cred, key),
+        'command_groups': _command_groups(cred),
+        'totp_remaining_seconds': ssh_session_remaining_seconds(
+            request, str(cred_id)),
+    })
+
+
+@admin_required
+def command_library(request, cred_id):
+    """Manage the saved command library for an SSH credential."""
+    key = get_vault_key(request)
+    if key is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+
+    if request.method == 'POST':
+        if request.POST.get('action') == 'delete':
+            ServerCommandLibrary.objects.filter(
+                id=request.POST.get('command_id'), credential=cred).delete()
+            return redirect('vault:command_library', cred_id=cred.id)
+        form = CommandForm(request.POST)
+        if form.is_valid():
+            command = form.save(commit=False)
+            command.credential = cred
+            command.save()
+            return redirect('vault:command_library', cred_id=cred.id)
+    else:
+        form = CommandForm()
+
+    return render(request, 'vault/command_library.html', {
+        'active': 'vault',
+        'client': cred.vault.client,
+        'credential': cred,
+        'form': form,
+        'command_groups': _command_groups(cred),
+        'seconds_remaining': _seconds_remaining(request),
     })

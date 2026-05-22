@@ -119,6 +119,34 @@
         }
     );
 
+    // ── Credential form: SSH section + auth-type toggles ─────────────────
+    var sshCheckbox = document.getElementById('id_is_ssh_credential');
+    var sshFields = document.getElementById('ssh-fields');
+    if (sshCheckbox && sshFields) {
+        var syncSshVisible = function () {
+            sshFields.classList.toggle('is-visible', sshCheckbox.checked);
+        };
+        sshCheckbox.addEventListener('change', syncSshVisible);
+        syncSshVisible();
+
+        var syncAuthType = function () {
+            var checked = document.querySelector(
+                'input[name="ssh_auth_type"]:checked');
+            var isKey = !!checked && checked.value === 'private_key';
+            document.querySelectorAll('.ssh-auth-password').forEach(function (el) {
+                el.classList.toggle('is-hidden', isKey);
+            });
+            document.querySelectorAll('.ssh-auth-key').forEach(function (el) {
+                el.classList.toggle('is-hidden', !isKey);
+            });
+        };
+        document.querySelectorAll('input[name="ssh_auth_type"]').forEach(
+            function (radio) {
+                radio.addEventListener('change', syncAuthType);
+            });
+        syncAuthType();
+    }
+
     // ── Credential reveal ────────────────────────────────────────────────
     var csrf = '';
     var csrfWrap = document.querySelector('.admin-vault[data-csrf]');
