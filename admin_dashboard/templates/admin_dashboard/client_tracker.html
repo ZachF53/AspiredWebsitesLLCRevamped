@@ -1,0 +1,44 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Tracker Snippet{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <h1 class="admin-page-title">Conversion Tracker Snippet</h1>
+            <p class="muted">{{ client.firm_name }}{% if project.live_url %} — {{ project.live_url }}{% endif %}</p>
+        </div>
+    </div>
+
+    <section class="admin-card">
+        <div class="admin-card__head">
+            <h3 class="admin-card__title">Tracking Snippet</h3>
+            <span class="mon-status">
+                {% if last_event %}
+                    <span class="dot dot--up"></span> Last event {{ last_event.event_timestamp|date:"M j, Y H:i" }}
+                {% else %}
+                    <span class="dot dot--unknown"></span> No events received yet
+                {% endif %}
+            </span>
+        </div>
+        <textarea id="tracker-snippet" class="form-control mon-snippet" rows="3" readonly>{{ snippet }}</textarea>
+        <div class="lead-add-form__actions">
+            <button type="button" class="btn-primary" data-copy-target="tracker-snippet">Copy Snippet</button>
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Installation</h3>
+        <ol class="mon-steps">
+            <li>Copy the snippet above.</li>
+            <li>Paste it just before the closing <code>&lt;/body&gt;</code> tag on every page of the client's site.</li>
+            <li>It tracks form submissions, phone-number clicks, and CTA-button clicks automatically — no other setup needed.</li>
+            <li>Events appear on the
+                <a href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions page</a>
+                within a minute of the first interaction.</li>
+        </ol>
+    </section>
+</div>
+{% endblock %}

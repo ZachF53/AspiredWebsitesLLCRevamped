@@ -6,6 +6,7 @@ from billing.pricing_models import ServiceTier
 from clients.models import SiteChangelogEntry
 from outreach.models import Lead, LeadNote
 from outreach.scraper import PRACTICE_AREAS
+from reporting.models import TrackedKeyword
 
 from .models import DeploymentLog
 
@@ -204,3 +205,24 @@ class SiteChangelogForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['client'].empty_label = '— Select a client —'
+
+
+class KeywordForm(forms.ModelForm):
+    """Add a tracked keyword for a client (client is set by the view)."""
+
+    class Meta:
+        model = TrackedKeyword
+        fields = ['keyword', 'target_url', 'notes']
+        widgets = {
+            'keyword': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'estate planning attorney san antonio',
+            }),
+            'target_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://clientdomain.com/estate-planning/',
+            }),
+            'notes': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'Optional note',
+            }),
+        }

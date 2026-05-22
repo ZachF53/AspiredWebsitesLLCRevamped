@@ -18,6 +18,8 @@ from .models import (
     RevisionRequest,
     SiteChangelogEntry,
     SupportTicket,
+    UptimeAlert,
+    UptimeRecord,
 )
 
 
@@ -186,3 +188,23 @@ class SiteChangelogEntryAdmin(admin.ModelAdmin):
     list_filter = ('change_type', 'is_client_visible', 'date_of_change')
     search_fields = ('client__firm_name', 'title', 'description')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(UptimeRecord)
+class UptimeRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        'client', 'is_up', 'status_code', 'response_time_ms', 'checked_at',
+    )
+    list_filter = ('is_up',)
+    search_fields = ('client__firm_name', 'error_message')
+    readonly_fields = ('created_at', 'updated_at', 'checked_at')
+
+
+@admin.register(UptimeAlert)
+class UptimeAlertAdmin(admin.ModelAdmin):
+    list_display = (
+        'client', 'is_resolved', 'alerted_at', 'resolved_at', 'alert_sent',
+    )
+    list_filter = ('is_resolved', 'alert_sent')
+    search_fields = ('client__firm_name',)
+    readonly_fields = ('created_at', 'updated_at', 'alerted_at')

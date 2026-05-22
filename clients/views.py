@@ -157,11 +157,16 @@ def dashboard(request):
             elif project.payment_status == 'deposit_paid':
                 next_invoice = {'label': 'Final payment', 'amount': contract.final_amount}
 
+    from reporting.uptime_helpers import (
+        get_avg_response_time, get_uptime_percentage,
+    )
     ctx = _portal_context(
         request, 'dashboard',
         stage_steps=stage_steps,
         activity=activity,
         next_invoice=next_invoice,
+        uptime_30=get_uptime_percentage(profile, 30),
+        uptime_avg_response=get_avg_response_time(profile, 30),
     )
     return render(request, 'clients/dashboard.html', ctx)
 
@@ -183,11 +188,24 @@ def project_detail(request):
             delta = (project.support_window_ends - timezone.localdate()).days
             support_window_left = delta
 
+    from reporting.uptime_helpers import (
+        get_current_status, get_uptime_chart_data, get_uptime_percentage,
+    )
+    uptime_chart = get_uptime_chart_data(profile, 30)
+    peak_ms = max(
+        (d['avg_response_ms'] or 0 for d in uptime_chart), default=0) or 1
+    for day in uptime_chart:
+        day['bar_h'] = round((day['avg_response_ms'] or 0) / peak_ms * 100)
+
     ctx = _portal_context(
         request, 'project',
         timeline=timeline,
         revisions=revisions,
         support_window_left=support_window_left,
+        uptime_status=get_current_status(profile),
+        uptime_30=get_uptime_percentage(profile, 30),
+        uptime_90=get_uptime_percentage(profile, 90),
+        uptime_chart=uptime_chart,
     )
     return render(request, 'clients/project.html', ctx)
 
@@ -712,6 +730,28 @@ def portal_changelog(request):
         month_filter=month_filter,
     )
     return render(request, 'clients/portal_changelog.html', ctx)
+
+
+# ── Page 11: SEO & Conversions ──────────────────────────────────────────────
+
+@client_required
+def portal_seo(request):
+    """Keyword rankings + conversion activity for the client."""
+    profile = request.client_profile
+    from reporting.conversion_helpers import (
+        conversion_6month_chart, conversion_counts,
+    )
+    from reporting.keyword_helpers import build_keyword_rows, keyword_insight
+
+    rows = build_keyword_rows(profile, active_only=True)
+    ctx = _portal_context(
+        request, 'seo',
+        keyword_rows=rows,
+        keyword_insight=keyword_insight(rows),
+        conversion_counts=conversion_counts(profile),
+        conversion_chart=conversion_6month_chart(profile),
+    )
+    return render(request, 'clients/portal_seo.html', ctx)
 
 
 # ── Page 8: Settings ────────────────────────────────────────────────────────

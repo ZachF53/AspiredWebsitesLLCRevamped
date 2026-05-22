@@ -1,4 +1,5 @@
 {% extends "clients/base.html" %}
+{% load static %}
 
 {% block title %}My Project{% endblock %}
 
@@ -92,5 +93,34 @@
         <p class="portal-empty">No revision requests yet.</p>
     {% endif %}
 </section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Site Uptime</h2>
+    <div class="uptime-row">
+        <span class="mon-status">
+            {% if uptime_status is None %}<span class="dot dot--unknown"></span> Monitoring not started
+            {% elif uptime_status %}<span class="dot dot--up"></span> Online
+            {% else %}<span class="dot dot--down"></span> Offline{% endif %}
+        </span>
+        <span class="uptime-row__stat">
+            <strong>{% if uptime_30 is None %}—{% else %}{{ uptime_30 }}%{% endif %}</strong> 30-day uptime
+        </span>
+        <span class="uptime-row__stat">
+            <strong>{% if uptime_90 is None %}—{% else %}{{ uptime_90 }}%{% endif %}</strong> 90-day uptime
+        </span>
+    </div>
+    {% if uptime_chart %}
+        <span class="mon-spark">
+            {% for d in uptime_chart %}<span class="mon-spark__bar" data-bar-h="{{ d.bar_h }}" title="{{ d.date }}: {{ d.avg_response_ms|default:'—' }}ms"></span>{% endfor %}
+        </span>
+        <p class="portal-page-head__sub uptime-spark-cap">Response time — last 30 days</p>
+    {% else %}
+        <p class="portal-empty">Uptime monitoring will begin once your site is live.</p>
+    {% endif %}
+</section>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/charts.js' %}" defer></script>
 {% endblock %}

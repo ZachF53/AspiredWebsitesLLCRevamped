@@ -271,6 +271,28 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
+# ── Celery beat schedule ────────────────────────────────────────────────────
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    'check-client-uptime': {
+        'task': 'reporting.tasks.check_client_uptime',
+        'schedule': crontab(minute='*/5'),          # every 5 minutes
+    },
+    'check-gbp-sync': {
+        'task': 'reporting.tasks.check_gbp_sync',
+        'schedule': crontab(hour=9, minute=0, day_of_week=1),   # Mon 9am
+    },
+    'check-keyword-ranks': {
+        'task': 'reporting.tasks.check_keyword_ranks',
+        'schedule': crontab(hour=7, minute=0, day_of_week=1),   # Mon 7am
+    },
+    'check-conversion-drops': {
+        'task': 'reporting.tasks.check_conversion_drops',
+        'schedule': crontab(hour=8, minute=0, day_of_month=2),  # 2nd, 8am
+    },
+}
+
 
 # ── Security Headers (CLAUDE.md non-negotiables) ────────────────────────────
 # Applied in production only when DEBUG is False.

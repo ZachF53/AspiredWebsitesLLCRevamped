@@ -1,0 +1,98 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_list' %}" class="admin-back-link">&larr; All clients</a></span>
+            <h1 class="admin-page-title">{{ client.firm_name }}</h1>
+            <p class="muted">
+                {{ client.get_status_display }}
+                {% if project %} · {{ project.get_stage_display }}{% endif %}
+                {% if project.live_url %} · <a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a>{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {# ── Uptime widget ── #}
+    <section class="admin-card">
+        <div class="admin-card__head">
+            <h3 class="admin-card__title">Uptime</h3>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_uptime' client.id %}">View Details &rarr;</a>
+        </div>
+        <div class="mon-widget">
+            <span class="mon-status">
+                {% if uptime_status is None %}
+                    <span class="dot dot--unknown"></span> No data yet
+                {% elif uptime_status %}
+                    <span class="dot dot--up"></span> Up
+                {% else %}
+                    <span class="dot dot--down"></span> Down
+                {% endif %}
+            </span>
+            <span class="mon-widget__stat">
+                <strong>{% if uptime_30 is None %}—{% else %}{{ uptime_30 }}%{% endif %}</strong>
+                <span class="muted">30-day uptime</span>
+            </span>
+            <span class="mon-widget__stat">
+                <strong>{% if avg_response is None %}—{% else %}{{ avg_response }}ms{% endif %}</strong>
+                <span class="muted">avg response</span>
+            </span>
+        </div>
+    </section>
+
+    {# ── GBP sync ── #}
+    <section class="admin-card">
+        <h3 class="admin-card__title">Google Business Profile Sync</h3>
+        {% if gbp_checks %}
+            <table class="lead-table">
+                <thead><tr><th>Field</th><th>Website</th><th>GBP</th><th>Status</th><th class="lead-table__col-actions">Action</th></tr></thead>
+                <tbody>
+                    {% for chk in gbp_checks %}
+                        <tr>
+                            <td>{{ chk.get_field_name_display }}</td>
+                            <td>{{ chk.website_value|default:"—" }}</td>
+                            <td>{{ chk.gbp_value|default:"—" }}</td>
+                            <td>
+                                {% if chk.resolved %}<span class="cl-badge cl-badge--blog_published">Resolved</span>
+                                {% elif chk.is_mismatch %}<span class="cl-badge cl-badge--security_patch">Mismatch</span>
+                                {% else %}<span class="cl-badge cl-badge--deployment">Info</span>{% endif %}
+                            </td>
+                            <td class="lead-table__col-actions">
+                                {% if chk.is_mismatch and not chk.resolved %}
+                                    {% if not chk.flagged_for_fix %}
+                                        <form method="post" action="{% url 'admin_dashboard:gbp_flag' client.id chk.id %}" class="cl-delete-form">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-secondary btn-sm">Flag for Fix</button>
+                                        </form>
+                                    {% else %}<span class="muted">Flagged</span>{% endif %}
+                                    <form method="post" action="{% url 'admin_dashboard:gbp_resolve' client.id chk.id %}" class="cl-delete-form">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-secondary btn-sm">Mark Resolved</button>
+                                    </form>
+                                {% else %}<span class="muted">—</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No GBP sync checks recorded yet. The weekly check runs Mondays at 9am.</p>
+        {% endif %}
+    </section>
+
+    {# ── Tool links ── #}
+    <section class="admin-card">
+        <h3 class="admin-card__title">Monitoring &amp; Reporting</h3>
+        <div class="mon-toollinks">
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_uptime' client.id %}">Uptime</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_keywords' client.id %}">Keywords</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+            <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' client.id %}">Changelog</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

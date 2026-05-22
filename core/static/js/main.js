@@ -87,6 +87,26 @@
         });
     }
 
+    function initCopyButtons() {
+        // [data-copy-target="elementId"] copies that element's value/text.
+        document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var target = document.getElementById(
+                    btn.getAttribute('data-copy-target'));
+                if (!target || !navigator.clipboard) { return; }
+                var text = ('value' in target && target.value !== undefined)
+                    ? target.value : target.textContent;
+                navigator.clipboard.writeText(text).then(function () {
+                    var original = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(function () {
+                        btn.textContent = original;
+                    }, 1500);
+                });
+            });
+        });
+    }
+
     function ready(fn) {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', fn);
@@ -99,4 +119,5 @@
     ready(initAuditFormLoading);
     ready(initScrapeFormLoading);
     ready(initConfirmActions);
+    ready(initCopyButtons);
 })();

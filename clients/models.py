@@ -463,3 +463,48 @@ class SiteChangelogEntry(TimestampedModel):
                 f'{self.get_change_type_display()} — '
                 f'{self.date_of_change}')
 
+
+class UptimeRecord(TimestampedModel):
+    """A single uptime check result for a client's live site."""
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='uptime_records',
+    )
+    checked_at = models.DateTimeField(auto_now_add=True)
+    response_time_ms = models.IntegerField(null=True, blank=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    is_up = models.BooleanField(default=True)
+    error_message = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-checked_at']
+        indexes = [
+            models.Index(fields=['client', 'checked_at']),
+        ]
+
+    def __str__(self):
+        status = 'UP' if self.is_up else 'DOWN'
+        return f'{self.client.firm_name} — {status} — {self.checked_at}'
+
+
+class UptimeAlert(TimestampedModel):
+    """An open / resolved downtime incident — one per outage, no spam."""
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='uptime_alerts',
+    )
+    alerted_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    consecutive_failures = models.IntegerField(default=3)
+    is_resolved = models.BooleanField(default=False)
+    alert_sent = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-alerted_at']
+
+    def __str__(self):
+        status = 'Resolved' if self.is_resolved else 'Active'
+        return f'{self.client.firm_name} — DOWN — {status}'
+

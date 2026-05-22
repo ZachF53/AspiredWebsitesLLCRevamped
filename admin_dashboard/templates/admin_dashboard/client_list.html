@@ -1,0 +1,46 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Clients — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Clients</span>
+            <h1 class="admin-page-title">{{ clients|length }} client{{ clients|length|pluralize }}</h1>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <input type="search" name="q" value="{{ query }}" class="form-control lead-filter-bar__search"
+               placeholder="Search clients by name…">
+        <button type="submit" class="btn-primary">Search</button>
+        {% if query %}<a href="{% url 'admin_dashboard:client_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
+    </form>
+
+    {% if clients %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr><th>Client</th><th>Status</th><th>Package</th><th>Server IP</th><th class="lead-table__col-actions">Monitoring</th></tr>
+                </thead>
+                <tbody>
+                    {% for c in clients %}
+                        <tr>
+                            <td><a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a></td>
+                            <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
+                            <td>{{ c.get_package_display|default:"—" }}</td>
+                            <td>{{ c.do_droplet_ip|default:"—" }}</td>
+                            <td class="lead-table__col-actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' c.id %}">Open &rarr;</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty"><p>No clients found.</p></div>
+    {% endif %}
+</div>
+{% endblock %}

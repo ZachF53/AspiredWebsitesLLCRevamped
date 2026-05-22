@@ -1138,3 +1138,214 @@ def changelog_import(request):
         import_client=client,
         import_error=import_error,
     ))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Clients — list, detail hub, and the Phase 5a monitoring pages
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def client_list(request):
+    """All clients — the entry point to the per-client monitoring tools."""
+    from clients.models import ClientProfile
+    clients = ClientProfile.objects.order_by('firm_name')
+    query = (request.GET.get('q') or '').strip()
+    if query:
+        clients = clients.filter(firm_name__icontains=query)
+    return render(request, 'admin_dashboard/client_list.html', _admin_context(
+        'clients', clients=clients, query=query,
+    ))
+
+
+@admin_required
+def client_detail(request, client_id):
+    """Per-client hub — uptime widget, GBP sync status, links to each tool."""
+    from clients.models import ClientProfile
+    from reporting.models import GBPSyncCheck
+    from reporting.uptime_helpers import (
+        get_avg_response_time, get_current_status, get_uptime_percentage,
+    )
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    project = (client.projects.filter(stage='live').first()
+               or client.projects.first())
+
+    # Latest GBP check per field.
+    gbp_checks, seen = [], set()
+    for check in GBPSyncCheck.objects.filter(client=client):  # -checked_at
+        if check.field_name not in seen:
+            seen.add(check.field_name)
+            gbp_checks.append(check)
+
+    return render(request, 'admin_dashboard/client_detail.html', _admin_context(
+        'clients',
+        client=client,
+        project=project,
+        uptime_status=get_current_status(client),
+        uptime_30=get_uptime_percentage(client, 30),
+        avg_response=get_avg_response_time(client, 30),
+        gbp_checks=gbp_checks,
+    ))
+
+
+@admin_required
+def client_uptime(request, client_id):
+    """Uptime detail — 30/60/90-day stats, open alerts, last 50 checks, chart."""
+    from clients.models import ClientProfile, UptimeAlert, UptimeRecord
+    from reporting.uptime_helpers import (
+        get_avg_response_time, get_current_status, get_uptime_chart_data,
+        get_uptime_percentage,
+    )
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+
+    chart = get_uptime_chart_data(client, 30)
+    max_ms = max((d['avg_response_ms'] or 0 for d in chart), default=0) or 1
+    for day in chart:
+        day['bar_h'] = round((day['avg_response_ms'] or 0) / max_ms * 100)
+
+    return render(request, 'admin_dashboard/client_uptime.html', _admin_context(
+        'clients',
+        client=client,
+        uptime_status=get_current_status(client),
+        uptime_30=get_uptime_percentage(client, 30),
+        uptime_60=get_uptime_percentage(client, 60),
+        uptime_90=get_uptime_percentage(client, 90),
+        avg_response=get_avg_response_time(client, 30),
+        open_alerts=UptimeAlert.objects.filter(client=client, is_resolved=False),
+        records=UptimeRecord.objects.filter(client=client)[:50],
+        chart=chart,
+    ))
+
+
+@admin_required
+def client_keywords(request, client_id):
+    """Keyword rank tracker for one client + add-keyword form."""
+    from clients.models import ClientProfile
+    from reporting.keyword_helpers import build_keyword_rows
+
+    from .forms import KeywordForm
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    return render(request, 'admin_dashboard/client_keywords.html', _admin_context(
+        'clients',
+        client=client,
+        keyword_rows=build_keyword_rows(client),
+        form=KeywordForm(),
+        checked=request.GET.get('checked', ''),
+    ))
+
+
+@admin_required
+@require_POST
+def keyword_add(request, client_id):
+    """Add a tracked keyword for a client."""
+    from clients.models import ClientProfile
+    from reporting.keyword_helpers import build_keyword_rows
+
+    from .forms import KeywordForm
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    form = KeywordForm(request.POST)
+    form.instance.client = client
+    if form.is_valid():
+        # client isn't a form field, so the (client, keyword) unique_together
+        # check is skipped by ModelForm — verify it explicitly here.
+        if client.tracked_keywords.filter(
+                keyword=form.cleaned_data['keyword']).exists():
+            form.add_error(
+                'keyword', 'This keyword is already tracked for this client.')
+        else:
+            form.save()
+            return redirect('admin_dashboard:client_keywords',
+                            client_id=client.id)
+    return render(request, 'admin_dashboard/client_keywords.html', _admin_context(
+        'clients',
+        client=client,
+        keyword_rows=build_keyword_rows(client),
+        form=form,
+    ))
+
+
+@admin_required
+@require_POST
+def keyword_run_check(request, client_id):
+    """
+    Manual 'Run Check Now'. Live ranks need Google Search Console OAuth
+    (Phase 4) — until then this reports the gap rather than failing.
+    """
+    from clients.models import ClientProfile
+    get_object_or_404(ClientProfile, id=client_id)
+    return redirect(
+        f"{reverse('admin_dashboard:client_keywords', args=[client_id])}"
+        f"?checked=gsc_unavailable"
+    )
+
+
+@admin_required
+def client_conversions(request, client_id):
+    """Conversion dashboard — month-over-month counts + recent event log."""
+    from clients.models import ClientProfile
+    from reporting.conversion_helpers import conversion_counts
+    from reporting.models import ConversionEvent
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    return render(request, 'admin_dashboard/client_conversions.html',
+                  _admin_context(
+                      'clients',
+                      client=client,
+                      counts=conversion_counts(client),
+                      events=ConversionEvent.objects.filter(client=client)[:50],
+                  ))
+
+
+@admin_required
+def client_tracker(request, client_id):
+    """Snippet generator — the personalised conversion-tracker <script> tag."""
+    from clients.models import ClientProfile
+    from reporting.models import ConversionEvent
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    snippet = (
+        f'<script src="{settings.SITE_BASE_URL}/static/js/aspired-tracker.js" '
+        f'data-aspired-client="{client.id}" defer></script>'
+    )
+    return render(request, 'admin_dashboard/client_tracker.html', _admin_context(
+        'clients',
+        client=client,
+        snippet=snippet,
+        last_event=ConversionEvent.objects.filter(client=client).first(),
+    ))
+
+
+@admin_required
+@require_POST
+def gbp_flag(request, client_id, check_id):
+    """Flag a GBP mismatch for fixing — logs an internal changelog note."""
+    from clients.models import SiteChangelogEntry
+    from reporting.models import GBPSyncCheck
+
+    check = get_object_or_404(GBPSyncCheck, id=check_id, client_id=client_id)
+    check.flagged_for_fix = True
+    check.save(update_fields=['flagged_for_fix', 'updated_at'])
+    SiteChangelogEntry.objects.create(
+        client=check.client,
+        change_type='other',
+        title=f'GBP mismatch flagged: {check.get_field_name_display()}',
+        description=(f'Website: {check.website_value}\n'
+                     f'GBP: {check.gbp_value}'),
+        is_client_visible=False,
+    )
+    return redirect('admin_dashboard:client_detail', client_id=client_id)
+
+
+@admin_required
+@require_POST
+def gbp_resolve(request, client_id, check_id):
+    """Mark a GBP mismatch resolved."""
+    from reporting.models import GBPSyncCheck
+    check = get_object_or_404(GBPSyncCheck, id=check_id, client_id=client_id)
+    check.resolved = True
+    check.resolved_at = timezone.now()
+    check.save(update_fields=['resolved', 'resolved_at', 'updated_at'])
+    return redirect('admin_dashboard:client_detail', client_id=client_id)

@@ -1,0 +1,75 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}SEO &amp; Conversions{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>SEO &amp; Conversions</h1>
+    <p class="portal-page-head__sub">Keyword rankings and contact activity for your site.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Keyword Rankings</h2>
+    <p class="portal-page-head__sub seo-subnote">Updated weekly via Google Search Console</p>
+
+    {% if keyword_rows %}
+        <ul class="record-list">
+            {% for row in keyword_rows %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        <strong>{{ row.keyword.keyword }}</strong>
+                        <span class="record-list__sub">
+                            {% if row.previous and row.previous.position %}Previous: #{{ row.previous.position }}{% else %}First check{% endif %}
+                            &middot; {{ row.impressions }} impressions &middot; {{ row.clicks }} clicks
+                        </span>
+                    </span>
+                    <span class="record-list__meta seo-rankmeta">
+                        <span class="rank rank--{{ row.position_class }}">{% if row.position %}#{{ row.position }}{% else %}Not ranked{% endif %}</span>
+                        <span class="trend trend--{{ row.trend.css }}">{{ row.trend.symbol }} {{ row.trend.label }}</span>
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+        {% if keyword_insight %}<p class="seo-insight">{{ keyword_insight }}</p>{% endif %}
+    {% else %}
+        <p class="portal-empty">Your keyword rankings will appear here once your SEO tracking is set up.</p>
+    {% endif %}
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Conversion Activity</h2>
+    <p class="portal-page-head__sub seo-subnote">Contact form submissions and calls this month</p>
+
+    <div class="stat-grid stat-grid--3">
+        {% for row in conversion_counts %}
+            <article class="stat-card">
+                <span class="stat-card__label">{{ row.label }}</span>
+                <span class="stat-card__value">{{ row.this_month }}</span>
+                <span class="stat-card__meta">
+                    {% if row.delta > 0 %}<span class="delta delta--up">&uarr; {{ row.delta }} more than last month</span>
+                    {% elif row.delta < 0 %}<span class="delta delta--down">&darr; {{ row.delta|cut:"-" }} fewer than last month</span>
+                    {% else %}<span class="delta delta--same">Same as last month</span>{% endif %}
+                </span>
+            </article>
+        {% endfor %}
+    </div>
+
+    <h3 class="seo-subhead">Form Submissions — Last 6 Months</h3>
+    <div class="mon-barchart">
+        {% for m in conversion_chart %}
+            <div class="mon-barchart__col">
+                <span class="mon-barchart__count">{{ m.count }}</span>
+                <span class="mon-barchart__track">
+                    <span class="mon-barchart__bar" data-bar-h="{{ m.bar_h }}"></span>
+                </span>
+                <span class="mon-barchart__label">{{ m.label }}</span>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/charts.js' %}" defer></script>
+{% endblock %}

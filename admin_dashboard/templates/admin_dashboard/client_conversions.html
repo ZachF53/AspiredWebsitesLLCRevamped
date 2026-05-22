@@ -1,0 +1,53 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Conversions{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <h1 class="admin-page-title">Conversion Activity</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+        </div>
+    </div>
+
+    <div class="stat-grid">
+        {% for row in counts %}
+            <article class="stat-card">
+                <span class="stat-card__label">{{ row.label }}</span>
+                <span class="stat-card__value">{{ row.this_month }}</span>
+                <span class="stat-card__meta">
+                    {% if row.delta > 0 %}<span class="delta delta--up">&uarr; {{ row.delta }} vs last month</span>
+                    {% elif row.delta < 0 %}<span class="delta delta--down">&darr; {{ row.delta|cut:"-" }} vs last month</span>
+                    {% else %}<span class="delta delta--same">Same as last month</span>{% endif %}
+                </span>
+            </article>
+        {% endfor %}
+    </div>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Recent Events</h3>
+        {% if events %}
+            <table class="lead-table">
+                <thead><tr><th>When</th><th>Type</th><th>Element</th><th>Page</th></tr></thead>
+                <tbody>
+                    {% for e in events %}
+                        <tr>
+                            <td>{{ e.event_timestamp|date:"M j, Y H:i" }}</td>
+                            <td><span class="cl-badge cl-badge--deployment">{{ e.get_event_type_display }}</span></td>
+                            <td>{{ e.element_text|default:e.element_id|default:"—" }}</td>
+                            <td class="muted">{{ e.page_title|default:e.page_url|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No conversion events received yet. Install the tracker
+            snippet on the client's site to start collecting events.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

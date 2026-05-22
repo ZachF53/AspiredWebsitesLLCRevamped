@@ -22,6 +22,7 @@ urlpatterns = [
     path('credentials/reauth/', views.portal_credentials_reauth,
          name='credentials_reauth'),
     path('changelog/', views.portal_changelog, name='portal_changelog'),
+    path('seo/', views.portal_seo, name='portal_seo'),
     path('settings/', views.settings_page, name='settings'),
 
     # Contract signing — token-gated, no login required.

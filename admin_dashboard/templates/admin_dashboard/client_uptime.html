@@ -1,0 +1,93 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}{{ client.firm_name }} — Uptime{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <h1 class="admin-page-title">Uptime Monitoring</h1>
+        </div>
+        <div class="admin-page-actions">
+            <span class="mon-status mon-status--lg">
+                {% if uptime_status is None %}<span class="dot dot--unknown"></span> No data
+                {% elif uptime_status %}<span class="dot dot--up"></span> Site is Up
+                {% else %}<span class="dot dot--down"></span> Site is Down{% endif %}
+            </span>
+        </div>
+    </div>
+
+    {% if open_alerts %}
+        <div class="form-error" role="alert">
+            {{ open_alerts|length }} open downtime alert{{ open_alerts|length|pluralize }} —
+            most recent opened {{ open_alerts.0.alerted_at|date:"M j, Y H:i" }}.
+        </div>
+    {% endif %}
+
+    <div class="stat-grid">
+        <article class="stat-card">
+            <span class="stat-card__label">30-Day Uptime</span>
+            {% if uptime_30 is None %}<span class="stat-card__value">No data</span>
+            {% else %}<span class="stat-card__value uptime-{% if uptime_30 >= 99 %}good{% elif uptime_30 >= 95 %}warn{% else %}bad{% endif %}">{{ uptime_30 }}%</span>{% endif %}
+        </article>
+        <article class="stat-card">
+            <span class="stat-card__label">60-Day Uptime</span>
+            {% if uptime_60 is None %}<span class="stat-card__value">No data</span>
+            {% else %}<span class="stat-card__value uptime-{% if uptime_60 >= 99 %}good{% elif uptime_60 >= 95 %}warn{% else %}bad{% endif %}">{{ uptime_60 }}%</span>{% endif %}
+        </article>
+        <article class="stat-card">
+            <span class="stat-card__label">90-Day Uptime</span>
+            {% if uptime_90 is None %}<span class="stat-card__value">No data</span>
+            {% else %}<span class="stat-card__value uptime-{% if uptime_90 >= 99 %}good{% elif uptime_90 >= 95 %}warn{% else %}bad{% endif %}">{{ uptime_90 }}%</span>{% endif %}
+        </article>
+        <article class="stat-card">
+            <span class="stat-card__label">Avg Response (30d)</span>
+            <span class="stat-card__value">{% if avg_response is None %}—{% else %}{{ avg_response }}ms{% endif %}</span>
+        </article>
+    </div>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Response Time — Last 30 Days</h3>
+        {% if chart %}
+            <div class="mon-chart">
+                {% for day in chart %}
+                    <div class="mon-chart__col" title="{{ day.date }}: {{ day.avg_response_ms|default:'—' }}ms, {{ day.uptime_pct }}% up">
+                        <span class="mon-chart__bar" data-bar-h="{{ day.bar_h }}"></span>
+                    </div>
+                {% endfor %}
+            </div>
+            <p class="muted mon-chart__cap">Bar height = average response time. Hover a bar for the day's figures.</p>
+        {% else %}
+            <p class="muted">No checks recorded yet. Uptime is checked every 5 minutes.</p>
+        {% endif %}
+    </section>
+
+    <section class="admin-card">
+        <h3 class="admin-card__title">Recent Checks</h3>
+        {% if records %}
+            <table class="lead-table">
+                <thead><tr><th>Checked</th><th>Status</th><th>Response</th><th>HTTP</th><th>Error</th></tr></thead>
+                <tbody>
+                    {% for r in records %}
+                        <tr>
+                            <td>{{ r.checked_at|date:"M j, Y H:i" }}</td>
+                            <td>{% if r.is_up %}<span class="cl-badge cl-badge--blog_published">UP</span>{% else %}<span class="cl-badge cl-badge--security_patch">DOWN</span>{% endif %}</td>
+                            <td>{% if r.response_time_ms is None %}—{% else %}{{ r.response_time_ms }}ms{% endif %}</td>
+                            <td>{{ r.status_code|default:"—" }}</td>
+                            <td class="muted">{{ r.error_message|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No uptime checks recorded yet.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/charts.js' %}" defer></script>
+{% endblock %}

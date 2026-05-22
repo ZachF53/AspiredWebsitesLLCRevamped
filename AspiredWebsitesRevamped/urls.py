@@ -12,6 +12,7 @@ urlpatterns = [
     path('billing/', include('billing.urls')),
     path('maintenance/', include('sync.maintenance_urls')),
     path('api/sync/', include('sync.urls')),
+    path('api/', include('reporting.urls')),
     path('', include('public.urls', namespace='public')),
 ]
 

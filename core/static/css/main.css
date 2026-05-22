@@ -6363,7 +6363,211 @@ button.htmx-request {
     flex-shrink: 0;
 }
 
-/* ── 29. Reduced motion ────────────────────────────────────── */
+/* ══ 29. Phase 5a — uptime, GBP, keywords, conversions ══════ */
+
+.admin-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+}
+.admin-card__head .admin-card__title { margin-bottom: 0; }
+
+/* Status dot */
+.dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    flex-shrink: 0;
+}
+.dot--up { background: var(--color-success); }
+.dot--down { background: var(--color-danger); }
+.dot--unknown { background: var(--color-text-muted); }
+
+.mon-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+.mon-status--lg { font-size: 1rem; }
+
+/* Uptime widget (admin client detail) */
+.mon-widget {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+.mon-widget__stat { display: flex; flex-direction: column; }
+.mon-widget__stat strong { font-size: 1.25rem; }
+
+/* Tool links (admin client detail) */
+.mon-toollinks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.mon-toollink {
+    padding: 0.5rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border-strong);
+    background: rgba(255, 255, 255, 0.04);
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+.mon-toollink:hover { border-color: var(--color-orange); color: var(--color-orange-light); }
+
+/* Uptime % colour bands */
+.uptime-good { color: var(--color-success); }
+.uptime-warn { color: var(--color-orange-light); }
+.uptime-bad  { color: var(--color-danger); }
+
+/* Admin response-time chart */
+.mon-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 140px;
+    margin-top: var(--space-2);
+}
+.mon-chart__col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.mon-chart__bar {
+    width: 100%;
+    min-height: 2px;
+    height: 0;
+    background: var(--color-orange);
+    border-radius: 2px 2px 0 0;
+}
+.mon-chart__cap { margin-top: 0.5rem; font-size: 0.8125rem; }
+
+/* Portal 6-month bar chart */
+.mon-barchart {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+.mon-barchart__col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+}
+.mon-barchart__count { font-size: 0.8125rem; font-weight: 700; }
+.mon-barchart__track {
+    height: 130px;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.mon-barchart__bar {
+    width: 60%;
+    max-width: 42px;
+    min-height: 3px;
+    height: 0;
+    background: var(--color-orange);
+    border-radius: 5px 5px 0 0;
+}
+.mon-barchart__label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Portal response-time sparkline */
+.mon-spark {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 34px;
+}
+.mon-spark__bar {
+    width: 4px;
+    min-height: 2px;
+    height: 0;
+    background: var(--color-teal-light);
+    border-radius: 2px 2px 0 0;
+}
+
+/* Uptime row (portal project page) */
+.uptime-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+}
+.uptime-row__stat { font-size: 0.9375rem; color: var(--color-text-muted); }
+.uptime-row__stat strong { font-size: 1.125rem; color: var(--color-text); margin-right: 0.25rem; }
+.uptime-spark-cap { margin-top: 0.4rem; }
+
+/* Keyword rank badge */
+.rank {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.rank--top    { color: var(--color-success); border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.1); }
+.rank--page1  { color: var(--color-teal-light); border-color: rgba(20,184,166,0.35); background: rgba(20,184,166,0.1); }
+.rank--page2  { color: var(--color-orange-light); border-color: rgba(232,101,10,0.35); background: rgba(232,101,10,0.1); }
+.rank--low    { color: var(--color-danger); border-color: rgba(248,113,113,0.35); background: rgba(248,113,113,0.1); }
+.rank--muted  { color: var(--color-text-muted); }
+
+/* Keyword trend indicator */
+.trend { font-size: 0.8125rem; font-weight: 700; white-space: nowrap; }
+.trend--up { color: var(--color-success); }
+.trend--down { color: var(--color-danger); }
+.trend--new { color: var(--color-teal-light); }
+.trend--same, .trend--muted { color: var(--color-text-muted); }
+
+/* Month-over-month delta */
+.delta { font-size: 0.8125rem; font-weight: 600; }
+.delta--up { color: var(--color-success); }
+.delta--down { color: var(--color-danger); }
+.delta--same { color: var(--color-text-muted); }
+
+/* 3-up stat grid (portal SEO conversions) */
+@media (min-width: 760px) {
+    .stat-grid--3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Portal SEO page */
+.seo-subnote { margin-top: -0.35rem; margin-bottom: var(--space-3); }
+.seo-rankmeta { flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+.seo-subhead { font-size: 1rem; margin: var(--space-3) 0 var(--space-1); }
+.seo-insight {
+    margin: var(--space-2) 0 0;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.875rem;
+    background: rgba(20, 184, 166, 0.1);
+    border: 1px solid rgba(20, 184, 166, 0.25);
+    border-radius: 8px;
+    color: var(--color-teal-light);
+}
+
+/* Tracker snippet generator */
+.mon-snippet {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8125rem;
+    margin-bottom: var(--space-2);
+}
+.mon-steps { margin: 0; padding-left: 1.2rem; line-height: 1.8; }
+.mon-steps code {
+    background: rgba(255, 255, 255, 0.07);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+/* ── 30. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

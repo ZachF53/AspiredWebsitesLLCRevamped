@@ -32,6 +32,15 @@
         </span>
         {% if next_invoice %}<span class="stat-card__meta">{{ next_invoice.label }}</span>{% endif %}
     </article>
+    <article class="stat-card">
+        <span class="stat-card__label">30-Day Uptime</span>
+        {% if uptime_30 is None %}
+            <span class="stat-card__value">No data yet</span>
+        {% else %}
+            <span class="stat-card__value uptime-{% if uptime_30 >= 99 %}good{% elif uptime_30 >= 95 %}warn{% else %}bad{% endif %}">{{ uptime_30 }}%</span>
+            {% if uptime_avg_response %}<span class="stat-card__meta">Avg response: {{ uptime_avg_response }}ms</span>{% endif %}
+        {% endif %}
+    </article>
 </div>
 
 {% if project %}
