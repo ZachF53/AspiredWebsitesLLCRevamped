@@ -1,11 +1,16 @@
 """Client portal views."""
 
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from vault.crypto import generate_salt, hash_client_pin, verify_client_pin
 
 from .decorators import client_required
 from .emails import send_contract_signed_email
@@ -24,10 +29,19 @@ from .models import (
     Project,
 )
 from .pdf_utils import render_contract_pdf
+from .vault_helpers import (
+    get_client_vault_remaining_seconds,
+    is_client_vault_unlocked,
+    mark_client_vault_unlocked,
+)
 
 logger = logging.getLogger(__name__)
 
 _STAGE_KEYS = [key for key, _ in PROJECT_STAGES]
+
+# Client credentials PIN gate — 5 wrong tries → a 30-minute lockout.
+CLIENT_PIN_MAX_ATTEMPTS = 5
+CLIENT_PIN_LOCKOUT_MINUTES = 30
 
 
 # ── Shared helpers ──────────────────────────────────────────────────────────
@@ -457,16 +471,186 @@ def invoices(request):
     return render(request, 'clients/invoices.html', ctx)
 
 
-# ── Page 9: Credentials (vault — client-visible only) ───────────────────────
+# ── Page 9: Credentials (PIN-gated client vault) ────────────────────────────
+
+def _client_visible_credentials(profile):
+    """The credentials staff have shared with this client, ordered for display."""
+    from vault.models import ClientVault
+    vault = ClientVault.objects.filter(client=profile).first()
+    if not vault:
+        return []
+    return list(
+        vault.credentials.filter(visible_to_client=True)
+        .order_by('category', 'sort_order', 'label')
+    )
+
+
+def _valid_pin(raw):
+    return raw.isdigit() and len(raw) == 4
+
+
+def _collect_pin(request):
+    """Read the 4 digit boxes (d1..d4), falling back to a single 'pin' field."""
+    pin = ''.join((request.POST.get(f'd{i}') or '') for i in range(1, 5)).strip()
+    return pin or (request.POST.get('pin') or '').strip()
+
+
+def _lock_client_pin(profile, now):
+    """Begin a lockout window after too many failed attempts."""
+    profile.client_pin_lockout_until = now + timedelta(
+        minutes=CLIENT_PIN_LOCKOUT_MINUTES)
+    profile.client_pin_failed_attempts = 0
+    profile.save(update_fields=[
+        'client_pin_lockout_until', 'client_pin_failed_attempts', 'updated_at',
+    ])
+
 
 @client_required
-def credentials(request):
+def portal_credentials(request):
+    """
+    The client credentials page — gated by a per-client 4-digit PIN.
+
+    First visit: the client sets a PIN. Thereafter the PIN unlocks a
+    15-minute viewing window; five wrong PINs trigger a 30-minute lockout.
+    This PIN is entirely separate from the admin vault PIN.
+    """
     profile = request.client_profile
-    from vault.models import ClientVault
-    vault, _ = ClientVault.objects.get_or_create(client=profile)
-    visible = list(vault.credentials.filter(visible_to_client=True))
-    ctx = _portal_context(request, 'credentials', credentials=visible)
-    return render(request, 'clients/credentials.html', ctx)
+    now = timezone.now()
+
+    # ── First-time PIN setup ──
+    if not profile.client_pin_set:
+        if request.method == 'POST':
+            pin = _collect_pin(request)
+            confirm = (request.POST.get('pin_confirm') or '').strip()
+            error = None
+            if not _valid_pin(pin):
+                error = 'PIN must be exactly 4 digits.'
+            elif pin != confirm:
+                error = 'The two PINs do not match.'
+            if error:
+                ctx = _portal_context(request, 'credentials', pin_error=error)
+                return render(request, 'clients/vault_setup_pin.html', ctx)
+            salt = generate_salt()
+            profile.client_pin_salt = salt
+            profile.client_pin_hash = hash_client_pin(pin, salt)
+            profile.client_pin_set = True
+            profile.client_pin_failed_attempts = 0
+            profile.client_pin_lockout_until = None
+            profile.save(update_fields=[
+                'client_pin_salt', 'client_pin_hash', 'client_pin_set',
+                'client_pin_failed_attempts', 'client_pin_lockout_until',
+                'updated_at',
+            ])
+            mark_client_vault_unlocked(request)
+            return redirect('clients:credentials')
+        ctx = _portal_context(request, 'credentials')
+        return render(request, 'clients/vault_setup_pin.html', ctx)
+
+    # ── Locked out? ──
+    if profile.client_pin_lockout_until and profile.client_pin_lockout_until > now:
+        ctx = _portal_context(
+            request, 'credentials',
+            lockout_until=profile.client_pin_lockout_until.isoformat(),
+        )
+        return render(request, 'clients/vault_locked.html', ctx)
+
+    # ── PIN entry ──
+    if request.method == 'POST':
+        pin = _collect_pin(request)
+        salt = bytes(profile.client_pin_salt or b'')
+        if verify_client_pin(pin, profile.client_pin_hash, salt):
+            profile.client_pin_failed_attempts = 0
+            profile.client_pin_lockout_until = None
+            profile.save(update_fields=[
+                'client_pin_failed_attempts', 'client_pin_lockout_until',
+                'updated_at',
+            ])
+            mark_client_vault_unlocked(request)
+            return redirect('clients:credentials')
+
+        # Wrong PIN.
+        profile.client_pin_failed_attempts += 1
+        if profile.client_pin_failed_attempts >= CLIENT_PIN_MAX_ATTEMPTS:
+            _lock_client_pin(profile, now)
+            ctx = _portal_context(
+                request, 'credentials',
+                lockout_until=profile.client_pin_lockout_until.isoformat(),
+            )
+            return render(request, 'clients/vault_locked.html', ctx)
+        profile.save(update_fields=['client_pin_failed_attempts', 'updated_at'])
+        remaining = CLIENT_PIN_MAX_ATTEMPTS - profile.client_pin_failed_attempts
+        ctx = _portal_context(
+            request, 'credentials',
+            pin_error=(f'Incorrect PIN — {remaining} attempt'
+                       f'{"" if remaining == 1 else "s"} remaining before a '
+                       f'{CLIENT_PIN_LOCKOUT_MINUTES}-minute lockout.'),
+        )
+        return render(request, 'clients/vault_enter_pin.html', ctx)
+
+    # ── Unlocked — show the credentials ──
+    if is_client_vault_unlocked(request):
+        ctx = _portal_context(
+            request, 'credentials',
+            credentials=_client_visible_credentials(profile),
+            remaining_seconds=get_client_vault_remaining_seconds(request),
+        )
+        return render(request, 'clients/vault_credentials.html', ctx)
+
+    # ── Locked — ask for the PIN ──
+    ctx = _portal_context(request, 'credentials')
+    return render(request, 'clients/vault_enter_pin.html', ctx)
+
+
+@client_required
+@require_POST
+def portal_credentials_reauth(request):
+    """
+    HTMX re-auth from the session-expiry overlay on the credentials page.
+
+    On success: refreshes the 15-minute window and fires HX-Trigger
+    'vaultReauthed' so the page reloads. On lockout (or no PIN set):
+    HX-Redirect back to the credentials page, which then renders the right
+    screen (locked / setup).
+    """
+    profile = request.client_profile
+    now = timezone.now()
+    credentials_url = reverse('clients:credentials')
+
+    def _redirect():
+        resp = HttpResponse(status=204)
+        resp['HX-Redirect'] = credentials_url
+        return resp
+
+    if not profile.client_pin_set:
+        return _redirect()
+    if profile.client_pin_lockout_until and profile.client_pin_lockout_until > now:
+        return _redirect()
+
+    pin = _collect_pin(request)
+    salt = bytes(profile.client_pin_salt or b'')
+    if verify_client_pin(pin, profile.client_pin_hash, salt):
+        profile.client_pin_failed_attempts = 0
+        profile.client_pin_lockout_until = None
+        profile.save(update_fields=[
+            'client_pin_failed_attempts', 'client_pin_lockout_until',
+            'updated_at',
+        ])
+        mark_client_vault_unlocked(request)
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = 'vaultReauthed'
+        return resp
+
+    # Wrong PIN.
+    profile.client_pin_failed_attempts += 1
+    if profile.client_pin_failed_attempts >= CLIENT_PIN_MAX_ATTEMPTS:
+        _lock_client_pin(profile, now)
+        return _redirect()
+    profile.save(update_fields=['client_pin_failed_attempts', 'updated_at'])
+    remaining = CLIENT_PIN_MAX_ATTEMPTS - profile.client_pin_failed_attempts
+    return render(request, 'clients/_vault_reauth_error.html', {
+        'pin_error': (f'Incorrect PIN — {remaining} attempt'
+                      f'{"" if remaining == 1 else "s"} left.'),
+    })
 
 
 # ── Page 8: Settings ────────────────────────────────────────────────────────

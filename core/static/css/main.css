@@ -6000,7 +6000,121 @@ button.htmx-request {
 .vault-log-action--credential_deleted { color: var(--color-danger); border-color: rgba(248,113,113,0.3); }
 .vault-log-action--credential_viewed { color: var(--color-orange-light); border-color: rgba(232,101,10,0.3); }
 
-/* ── 27. Reduced motion ────────────────────────────────────── */
+/* ══ 27. Portal credentials vault (client PIN gate) ═════════ */
+.vault-gate__hint {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: var(--space-2) 0 var(--space-3);
+}
+
+.pvault-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.pvault-session {
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    color: var(--color-success);
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.pvault-session.is-expired {
+    background: rgba(248, 113, 113, 0.1);
+    border-color: rgba(248, 113, 113, 0.3);
+    color: var(--color-danger);
+}
+
+.pvault-warning { margin-bottom: var(--space-3); }
+
+.pcred-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.pcred {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    border-radius: 12px;
+    padding: var(--space-3);
+}
+
+.pcred__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.pcred__label { font-size: 1rem; }
+
+.pcred__row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 0.45rem 0;
+}
+
+.pcred__fieldlabel {
+    flex: 0 0 84px;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+.pcred__value {
+    flex: 1 1 160px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9375rem;
+    word-break: break-all;
+}
+
+.pcred__secret { display: inline-flex; align-items: center; }
+.pcred__dots { letter-spacing: 0.15em; }
+.pcred__link { color: var(--color-orange-light); }
+
+.pcred__btn {
+    flex-shrink: 0;
+    font-family: inherit;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-strong);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.pcred__btn:hover { border-color: var(--color-orange); color: var(--color-orange-light); }
+.pcred__btn.is-copied { color: var(--color-success); border-color: rgba(74, 222, 128, 0.4); }
+
+.pcred__notes {
+    margin: 0.6rem 0 0;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.5rem 0.7rem;
+    border-radius: 6px;
+}
+
+/* ── 28. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

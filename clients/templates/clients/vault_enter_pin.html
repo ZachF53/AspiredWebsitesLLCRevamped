@@ -1,0 +1,42 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Credentials{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Credentials</h1>
+    <p class="portal-page-head__sub">A private, PIN-protected vault for the account logins Aspired Websites has shared with you.</p>
+</header>
+
+<div class="vault-gate">
+    <div class="vault-gate__card">
+        <div class="vault-icon vault-icon--orange" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h1>Enter Your PIN</h1>
+        <p class="vault-gate__sub">Enter your 4-digit PIN to view your saved credentials.</p>
+
+        {% if pin_error %}<div class="form-error" role="alert">{{ pin_error }}</div>{% endif %}
+
+        <form method="post" class="vault-pin-form" id="pvault-pin-form">
+            {% csrf_token %}
+            <div class="vault-digits">
+                <input class="vault-digit" name="d1" type="password" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 1" autofocus>
+                <input class="vault-digit" name="d2" type="password" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+                <input class="vault-digit" name="d3" type="password" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+                <input class="vault-digit" name="d4" type="password" inputmode="numeric"
+                       maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+            </div>
+            <button type="submit" class="btn-primary btn-block">Unlock</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/portal-vault.js' %}" defer></script>
+{% endblock %}

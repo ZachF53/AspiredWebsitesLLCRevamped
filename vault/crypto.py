@@ -55,6 +55,32 @@ def verify_pin(pin: str, stored_hash: str, salt: bytes) -> bool:
     return hmac.compare_digest(expected, stored_hash)
 
 
+def hash_client_pin(pin: str, salt: bytes) -> str:
+    """
+    Hash a client-portal PIN for verification storage.
+
+    Independent of the admin vault PIN: a distinct derivation context
+    (salt + b'client-verify') guarantees the two PIN systems never collide,
+    so one stored hash can never be used to attack the other. The client PIN
+    is a pure access gate — it derives no encryption key.
+    """
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt + b'client-verify',
+        iterations=PBKDF2_ITERATIONS,
+    )
+    return base64.b64encode(kdf.derive(pin.encode('utf-8'))).decode('utf-8')
+
+
+def verify_client_pin(pin: str, stored_hash: str, salt: bytes) -> bool:
+    """Constant-time client-PIN verification (no timing oracle)."""
+    if not stored_hash or salt is None:
+        return False
+    expected = hash_client_pin(pin, salt)
+    return hmac.compare_digest(expected, stored_hash)
+
+
 def encrypt_value(value: str, key: bytes) -> str:
     """
     Encrypt a string with AES-256-GCM. Returns hex: nonce(12B) + ciphertext.

@@ -112,6 +112,17 @@ class ClientProfile(TimestampedModel):
     )
     onboarding_complete = models.BooleanField(default=False)
 
+    # ── Client credentials vault (portal /credentials/ PIN gate) ──
+    # A per-client 4-digit PIN, entirely separate from the admin vault PIN.
+    # It is a pure access gate — only a verification hash is stored and it
+    # derives no encryption key, so a forgotten PIN means no data loss
+    # (staff can clear these fields to reset it).
+    client_pin_hash = models.CharField(max_length=256, blank=True)
+    client_pin_salt = models.BinaryField(max_length=32, null=True, blank=True)
+    client_pin_set = models.BooleanField(default=False)
+    client_pin_failed_attempts = models.IntegerField(default=0)
+    client_pin_lockout_until = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Client Profile'
