@@ -156,25 +156,36 @@ def unwrap_key(wrapped_hex: str):
 # Used ONLY by automated provisioning (e.g. Droplet creation) — when no
 # admin PIN session exists. Credentials encrypted with this key are
 # re-encrypted with the PIN-derived key the first time an admin opens them.
-# The derivation uses SYNC_SECRET (already a strong random secret) with a
-# distinct PBKDF2 context so it cannot collide with HMAC sync use.
+# Seeded by VAULT_SERVER_SECRET, which is server-only — never shared with
+# Miki or any third party. Rotating VAULT_SERVER_SECRET makes any
+# credential with `encrypted_with_server_key=True` unrecoverable.
 
 SERVER_PROVISIONING_SALT = b'vault-server-provisioning'
 
 
 def derive_server_key() -> bytes:
     """
-    A deterministic 32-byte key derived from settings.SYNC_SECRET via PBKDF2.
+    A deterministic 32-byte AES key derived from settings.VAULT_SERVER_SECRET
+    via PBKDF2-HMAC-SHA256.
 
-    Raises ValueError if SYNC_SECRET is unset, so production never silently
-    uses a predictable key from an empty seed.
+    Encrypts SSH credentials during auto-provisioning, before any admin PIN
+    is available; on first vault access those credentials are re-encrypted
+    under the PIN-derived key (see `reencrypt_credential_with_pin_key`).
+
+    NEVER share VAULT_SERVER_SECRET.
+    NEVER rotate it while any credential has encrypted_with_server_key=True.
+
+    Raises ValueError if VAULT_SERVER_SECRET is unset, so production never
+    silently falls back to a predictable key.
     """
-    if not settings.SYNC_SECRET:
+    secret = settings.VAULT_SERVER_SECRET
+    if not secret:
         raise ValueError(
-            'SYNC_SECRET is not set — cannot derive server provisioning key.')
+            'VAULT_SERVER_SECRET is not set — add it to .env before any '
+            'auto-provisioning runs.')
     return hashlib.pbkdf2_hmac(
         'sha256',
-        settings.SYNC_SECRET.encode('utf-8'),
+        secret.encode('utf-8'),
         SERVER_PROVISIONING_SALT,
         PBKDF2_ITERATIONS,
         dklen=32,

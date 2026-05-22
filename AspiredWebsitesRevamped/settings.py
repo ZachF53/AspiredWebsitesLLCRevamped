@@ -262,9 +262,22 @@ LINKEDIN_CLIENT_ID = env('LINKEDIN_CLIENT_ID', '')
 LINKEDIN_CLIENT_SECRET = env('LINKEDIN_CLIENT_SECRET', '')
 
 
-# ── Moonieful sync bridge ───────────────────────────────────────────────────
-# SYNC_SECRET is the shared HMAC key — set it in local_settings.py (gitignored).
-SYNC_SECRET = env('SYNC_SECRET', '')
+# ── Secret keys with split ownership ────────────────────────────────────────
+# MOONIEFUL_SYNC_SECRET — HMAC for the Moonieful ↔ Aspired sync bridge.
+# Must match the value on Miki's server.
+MOONIEFUL_SYNC_SECRET = env('MOONIEFUL_SYNC_SECRET', '')
+
+# VAULT_SERVER_SECRET — seeds the AES-256 key used to encrypt SSH credentials
+# during automated Droplet provisioning, before any admin has unlocked the
+# vault. Never shared. Rotating it makes credentials with
+# encrypted_with_server_key=True unrecoverable — see CLAUDE.md.
+VAULT_SERVER_SECRET = env('VAULT_SERVER_SECRET', '')
+
+# Legacy alias — kept so a stale .env still boots during the split rollout.
+# Falls back to MOONIEFUL_SYNC_SECRET so old code paths still resolve.
+# Remove after both new vars are confirmed everywhere.
+SYNC_SECRET = env('SYNC_SECRET', default=MOONIEFUL_SYNC_SECRET)
+
 MOONIEFUL_SYNC_URL = env('MOONIEFUL_SYNC_URL', '')
 SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
@@ -359,7 +372,8 @@ if not DEBUG:
 
 
 # ── Local overrides ─────────────────────────────────────────────────────────
-# local_settings.py is gitignored — it holds SYNC_SECRET and any machine- or
+# local_settings.py is gitignored — it holds MOONIEFUL_SYNC_SECRET,
+# VAULT_SERVER_SECRET, and any machine- or
 # environment-specific overrides. Imported last so it wins.
 try:
     from local_settings import *  # noqa: F401,F403

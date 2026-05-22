@@ -2,7 +2,8 @@
 Inbound sync endpoints (Moonieful → Aspired).
 
 Both endpoints authenticate with an HMAC-SHA256 signature over the raw
-request body, keyed by SYNC_SECRET. The inbound event endpoint additionally
+request body, keyed by MOONIEFUL_SYNC_SECRET (the same value must be
+configured on Miki's server). The inbound event endpoint additionally
 requires a fresh X-Sync-Timestamp (within 5 minutes) to block replays.
 """
 
@@ -41,7 +42,7 @@ def _timestamp_fresh(raw_ts):
 
 
 def _signature_valid(body, provided_sig):
-    secret = settings.SYNC_SECRET
+    secret = settings.MOONIEFUL_SYNC_SECRET
     if not secret or not provided_sig:
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()

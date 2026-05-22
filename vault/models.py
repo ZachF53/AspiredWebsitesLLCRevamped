@@ -126,9 +126,9 @@ class VaultCredential(TimestampedModel):
     totp_secret_encrypted = models.TextField(blank=True)
     totp_configured = models.BooleanField(default=False)
 
-    # When True, sensitive fields are encrypted with a SYNC_SECRET-derived
-    # server key (used by automated Droplet provisioning, before any admin
-    # has unlocked the vault). The vault re-encrypts them with the
+    # When True, sensitive fields are encrypted with a VAULT_SERVER_SECRET-
+    # derived server key (used by automated Droplet provisioning, before any
+    # admin has unlocked the vault). The vault re-encrypts them with the
     # PIN-derived key the first time an admin opens the credential.
     encrypted_with_server_key = models.BooleanField(default=False)
 

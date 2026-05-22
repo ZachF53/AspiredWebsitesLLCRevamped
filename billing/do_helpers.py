@@ -15,9 +15,10 @@ Provisioning is fully automated end-to-end:
    back down (disables password auth, locks the root account password),
    and captures the private key.
 4. _create_ssh_vault_credential() stores the key in a VaultCredential
-   encrypted with the SYNC_SECRET-derived server key, so credentials
-   created before any admin has unlocked the vault are still recoverable.
-   The first admin to open the credential re-encrypts it under the PIN key.
+   encrypted with the VAULT_SERVER_SECRET-derived server key, so
+   credentials created before any admin has unlocked the vault are still
+   recoverable. The first admin to open the credential re-encrypts it
+   under the PIN key.
 
 Vault setup failures NEVER block the Droplet from being created — the
 temp password is stashed on the client and an admin is alerted via
@@ -285,8 +286,8 @@ def _lock_down_password_auth(ssh):
 def _create_ssh_vault_credential(client, droplet_ip, private_key):
     """
     Create a VaultCredential holding the SSH key for the new Droplet,
-    encrypted with the SYNC_SECRET-derived server key. The first admin
-    to open it re-encrypts under the PIN key.
+    encrypted with the VAULT_SERVER_SECRET-derived server key. The first
+    admin to open it re-encrypts under the PIN key.
     """
     # Local import — avoids loading vault models at app start, sidesteps any
     # billing → vault import-time cycle.

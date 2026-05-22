@@ -36,8 +36,9 @@ class Command(BaseCommand):
                 'run_sync: MOONIEFUL_SYNC_URL not configured — queue left pending.'
             )
             return
-        if not settings.SYNC_SECRET:
-            self.stdout.write('run_sync: SYNC_SECRET not configured — aborting.')
+        if not settings.MOONIEFUL_SYNC_SECRET:
+            self.stdout.write(
+                'run_sync: MOONIEFUL_SYNC_SECRET not configured — aborting.')
             return
 
         now = timezone.now()
@@ -83,7 +84,7 @@ class Command(BaseCommand):
         body = json.dumps(envelope, sort_keys=True).encode()
         timestamp = str(int(time.time()))
         signature = hmac.new(
-            settings.SYNC_SECRET.encode(), body, hashlib.sha256,
+            settings.MOONIEFUL_SYNC_SECRET.encode(), body, hashlib.sha256,
         ).hexdigest()
         headers = {
             'Content-Type': 'application/json',

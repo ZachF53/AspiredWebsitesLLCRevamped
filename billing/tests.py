@@ -32,9 +32,11 @@ from vault.models import (
 
 User = get_user_model()
 
-# Use a stable, non-empty SYNC_SECRET for every test so derive_server_key()
-# is deterministic and never raises ValueError.
-TEST_SETTINGS = {'SYNC_SECRET': 'test-sync-secret-for-vault-bootstrap'}
+# Use a stable, non-empty VAULT_SERVER_SECRET for every test so
+# derive_server_key() is deterministic and never raises ValueError.
+TEST_SETTINGS = {
+    'VAULT_SERVER_SECRET': 'test-vault-server-secret-for-bootstrap',
+}
 
 
 # Minimal but valid PEM so the "looks like a real key" guard passes.
