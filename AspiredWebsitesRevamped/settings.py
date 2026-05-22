@@ -264,6 +264,17 @@ SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
 # ── Celery / Redis ──────────────────────────────────────────────────────────
 REDIS_URL = env('REDIS_URL', 'redis://localhost:6379/0')
+
+# Redis-backed cache — shared across every Gunicorn worker, so django-ratelimit
+# enforces ONE global limit on /api/track/. A per-process LocMemCache would
+# multiply the intended limit by the worker count.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': REDIS_URL,
+    }
+}
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
