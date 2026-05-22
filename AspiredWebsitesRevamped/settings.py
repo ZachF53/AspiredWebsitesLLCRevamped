@@ -172,7 +172,9 @@ STATIC_URL = 'static/'
 # be overridden in .env so production can point them where Nginx serves from
 # (e.g. /var/www/aspired/static and /var/www/aspired/media).
 STATIC_ROOT = env('STATIC_ROOT') or (BASE_DIR / 'staticfiles')
-STATICFILES_DIRS = [BASE_DIR / 'core' / 'static']
+# No STATICFILES_DIRS: `core` is an installed app, so AppDirectoriesFinder
+# already collects core/static/. Listing it here as well made the finders
+# scan that folder twice — collectstatic flagged every file as a duplicate.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = 'media/'
