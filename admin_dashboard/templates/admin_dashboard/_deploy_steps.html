@@ -1,0 +1,288 @@
+{# Shared fresh/client deploy runbook — 16 collapsible steps with live-fill command blocks. #}
+
+<details class="deploy-step" open>
+    <summary>Step 0 — Push to GitHub (run on your machine)</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s0"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s0">{% verbatim %}git add -A
+git commit -m "Pre-deploy sync" --allow-empty
+git push origin main
+git log origin/main..HEAD --oneline{% endverbatim %}</script>
+    <p class="deploy-note">The last command must show <strong>nothing</strong>. If it lists commits — push again.</p>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 1 — Survey the Server</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s1"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s1">{% verbatim %}ssh root@{{SERVER_IP}}
+
+ss -tlnp | grep 8000
+supervisorctl status
+ls /etc/supervisor/conf.d/
+ls -la /var/www/aspired/
+ls /var/www/aspired/app/ 2>/dev/null || echo 'app dir is empty — fresh deploy'{% endverbatim %}</script>
+    <p class="deploy-note">If anything is on port 8000 that is not your app — identify and remove it before continuing.</p>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 2 — Clone the Repo</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s2"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s2">{% verbatim %}git config --global safe.directory /var/www/aspired/app
+cd /var/www/aspired/app
+git clone {{GITHUB_REPO}} .
+ls -la
+git log --oneline -5{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 3 — Install Dependencies</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s3"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s3">{% verbatim %}/var/www/aspired/venv/bin/pip install -r requirements.txt
+/var/www/aspired/venv/bin/python -m django --version{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 4 — Configure Environment</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s4"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s4">{% verbatim %}ENVF=/var/www/aspired/app/.env
+cp /var/www/aspired/.env /var/www/aspired/app/.env
+sed -i 's/^DEBUG=.*/DEBUG=False/' "$ENVF"
+sed -i 's|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS={{DOMAIN}},www.{{DOMAIN}},{{SERVER_IP}}|' "$ENVF"
+grep -q '^STATIC_ROOT=' "$ENVF" && sed -i 's|^STATIC_ROOT=.*|STATIC_ROOT=/var/www/aspired/static|' "$ENVF" || echo 'STATIC_ROOT=/var/www/aspired/static' >> "$ENVF"
+grep -q '^MEDIA_ROOT=' "$ENVF" && sed -i 's|^MEDIA_ROOT=.*|MEDIA_ROOT=/var/www/aspired/media|' "$ENVF" || echo 'MEDIA_ROOT=/var/www/aspired/media' >> "$ENVF"
+grep -q '^SYNC_SECRET=' "$ENVF" || echo "SYNC_SECRET=$(openssl rand -hex 32)" >> "$ENVF"
+grep -q '^SITE_BASE_URL=' "$ENVF" && sed -i 's|^SITE_BASE_URL=.*|SITE_BASE_URL=https://{{DOMAIN}}|' "$ENVF" || echo 'SITE_BASE_URL=https://{{DOMAIN}}' >> "$ENVF"
+grep -E '^(DEBUG|ALLOWED_HOSTS|STATIC_ROOT|MEDIA_ROOT|SYNC_SECRET|SITE_BASE_URL)=' "$ENVF"{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 5 — Database Setup</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s5"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s5">{% verbatim %}ENVF=/var/www/aspired/app/.env
+DB_PASS=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
+echo "=== SAVE THIS DB PASSWORD: $DB_PASS ==="
+sudo -u postgres psql -c "ALTER USER aspired PASSWORD '$DB_PASS';"
+sudo -u postgres psql -c "CREATE DATABASE aspired_prod OWNER aspired;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE aspired_prod TO aspired;"
+sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgres://aspired:$DB_PASS@localhost:5432/aspired_prod|" "$ENVF"
+grep DATABASE_URL "$ENVF"{% endverbatim %}</script>
+    <p class="deploy-note deploy-note--warn">Copy the DB password printed above into a password manager. It cannot be recovered if lost.</p>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 6 — Django Setup</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s6"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s6">{% verbatim %}cd /var/www/aspired/app
+ENVF=/var/www/aspired/app/.env
+SECRET_KEY=$(/var/www/aspired/venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(64))')
+sed -i "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET_KEY|" "$ENVF"
+/var/www/aspired/venv/bin/python manage.py migrate
+/var/www/aspired/venv/bin/python manage.py collectstatic --noinput
+/var/www/aspired/venv/bin/python manage.py seed_pricing
+export DJANGO_SUPERUSER_USERNAME=zachery
+export DJANGO_SUPERUSER_EMAIL=zacherylong@aspiredwebsites.com
+export DJANGO_SUPERUSER_PASSWORD='{{SUPERUSER_PASSWORD}}'
+/var/www/aspired/venv/bin/python manage.py createsuperuser --noinput
+unset DJANGO_SUPERUSER_PASSWORD
+/var/www/aspired/venv/bin/python manage.py check --deploy{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 7 — Set Permissions</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s7"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s7">{% verbatim %}chown -R aspired:aspired /var/www/aspired/app
+chown -R aspired:aspired /var/www/aspired/static
+chown -R aspired:aspired /var/www/aspired/media
+chown -R aspired:aspired /var/www/aspired/logs
+chmod 600 /var/www/aspired/app/.env
+ls -la /var/www/aspired/
+ls -la /var/www/aspired/app/.env{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 8 — Configure Nginx</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s8"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s8">{% verbatim %}cat > /etc/nginx/sites-available/{{DOMAIN}} << 'NGINXEOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{DOMAIN}} www.{{DOMAIN}};
+
+    client_max_body_size 50M;
+
+    location /static/ {
+        alias /var/www/aspired/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /media/ {
+        alias /var/www/aspired/media/;
+        expires 7d;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+NGINXEOF
+ln -sf /etc/nginx/sites-available/{{DOMAIN}} /etc/nginx/sites-enabled/{{DOMAIN}}
+nginx -t
+systemctl reload nginx{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 9 — Configure Supervisor</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s9"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s9">{% verbatim %}cat > /etc/supervisor/conf.d/aspiredwebsites.conf << 'SUPEOF'
+[program:aspiredwebsites]
+command=/var/www/aspired/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 --timeout 60 --access-logfile /var/www/aspired/logs/gunicorn-access.log --error-logfile /var/www/aspired/logs/gunicorn-error.log AspiredWebsitesRevamped.wsgi:application
+directory=/var/www/aspired/app
+user=aspired
+autostart=true
+autorestart=true
+environment=DJANGO_SETTINGS_MODULE="AspiredWebsitesRevamped.settings"
+
+[program:aspiredwebsites-celery]
+command=/var/www/aspired/venv/bin/celery -A AspiredWebsitesRevamped worker -l info --logfile=/var/www/aspired/logs/celery-worker.log
+directory=/var/www/aspired/app
+user=aspired
+autostart=true
+autorestart=true
+environment=DJANGO_SETTINGS_MODULE="AspiredWebsitesRevamped.settings"
+
+[program:aspiredwebsites-celerybeat]
+command=/var/www/aspired/venv/bin/celery -A AspiredWebsitesRevamped beat -l info --logfile=/var/www/aspired/logs/celery-beat.log
+directory=/var/www/aspired/app
+user=aspired
+autostart=true
+autorestart=true
+environment=DJANGO_SETTINGS_MODULE="AspiredWebsitesRevamped.settings"
+SUPEOF
+touch /var/www/aspired/logs/celery-worker.log /var/www/aspired/logs/celery-beat.log
+supervisorctl reread
+supervisorctl update
+supervisorctl status{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 10 — DNS Gate (check before certbot)</summary>
+    <p class="deploy-note deploy-note--warn">Do not proceed to Step 11 until BOTH commands return Status 0 and the correct IP.</p>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s10"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s10">{% verbatim %}curl -s "https://dns.google/resolve?name={{DOMAIN}}&type=A" | python3 -m json.tool | grep -E '(Status|data)'
+curl -s "https://dns.google/resolve?name=www.{{DOMAIN}}&type=A" | python3 -m json.tool | grep -E '(Status|data)'{% endverbatim %}</script>
+    <p class="deploy-note">Both must show <strong>Status: 0</strong> and <strong>data: {{SERVER_IP}}</strong>. If www shows SERVFAIL — wait 5–10 minutes and check again.</p>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 11 — SSL Certificate</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s11"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s11">{% verbatim %}certbot --nginx \
+  -d {{DOMAIN}} \
+  -d www.{{DOMAIN}} \
+  --non-interactive \
+  --agree-tos \
+  -m zacherylong@aspiredwebsites.com
+
+curl -s -o /dev/null -w "%{http_code}" https://{{DOMAIN}}
+certbot renew --dry-run{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 12 — Cron Jobs</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s12"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s12">{% verbatim %}crontab -u aspired - << 'CRON'
+* * * * * /var/www/aspired/venv/bin/python /var/www/aspired/app/manage.py run_sync >> /var/www/aspired/logs/run_sync.log 2>&1
+0 9 * * * /var/www/aspired/venv/bin/python /var/www/aspired/app/manage.py send_handoff_followups >> /var/www/aspired/logs/handoff_followups.log 2>&1
+CRON
+crontab -u aspired -l{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 13 — Final Verification</summary>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s13"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s13">{% verbatim %}supervisorctl status
+curl -s -o /dev/null -w "%{http_code}" https://{{DOMAIN}}
+tail -20 /var/www/aspired/logs/gunicorn-error.log
+cd /var/www/aspired/app && /var/www/aspired/venv/bin/python manage.py check
+df -h /
+free -h
+tail -20 /var/www/aspired/logs/celery-worker.log | grep -E '(connected|error|ready)'{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 14 — Post-Deploy Security</summary>
+    <p class="deploy-note deploy-note--warn">Do this immediately. Do not skip — Step 6 set a temporary superuser password.</p>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s14"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s14">{% verbatim %}cd /var/www/aspired/app
+/var/www/aspired/venv/bin/python manage.py changepassword zachery{% endverbatim %}</script>
+</details>
+
+<details class="deploy-step" open>
+    <summary>Step 15 — FINAL: Push deploy.sh + Run It</summary>
+    <p class="deploy-note">Run the first block on YOUR machine, then the second after you SSH in.</p>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s15a"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s15a">{% verbatim %}git add -A
+git commit -m "Add deploy.sh and production config"
+git push origin main{% endverbatim %}</script>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s15b"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s15b">{% verbatim %}ssh root@{{SERVER_IP}}
+bash /var/www/aspired/app/deploy.sh{% endverbatim %}</script>
+    <p class="deploy-note">deploy.sh should print <strong>[1/7]</strong> through <strong>[7/7]</strong> and end with: <strong>&#10003; Deploy successful — site is live</strong></p>
+</details>

@@ -1,0 +1,62 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Fresh Server Deploy — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-deploy">
+    <div class="admin-deploy__head">
+        <h1>Fresh Server Deploy</h1>
+        <p><a href="{% url 'admin_dashboard:deploy_home' %}">&larr; Back to Deploy</a></p>
+    </div>
+
+    <section class="deploy-inputs">
+        <h2>Fill in your deployment details</h2>
+        <p class="deploy-inputs__sub">All command blocks below update automatically as you type.</p>
+
+        {% if client_options %}
+            <div class="deploy-prefill">
+                <select id="client-prefill" class="form-control" aria-label="Pre-fill from a client">
+                    <option value="">— Pre-fill from an existing client —</option>
+                    {% for c in client_options %}
+                        <option value="{{ c.id }}" data-ip="{{ c.ip }}" data-domain="{{ c.domain }}" data-name="{{ c.slug }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn-secondary" id="prefill-btn">Pre-fill</button>
+            </div>
+        {% endif %}
+
+        <div class="deploy-field">
+            <label for="input-ip">Server IP</label>
+            <input type="text" id="input-ip" class="form-control" placeholder="161.35.108.209" autocomplete="off">
+        </div>
+        <div class="deploy-field">
+            <label for="input-domain">Domain</label>
+            <input type="text" id="input-domain" class="form-control" placeholder="clientlaw.com" autocomplete="off">
+        </div>
+        <div class="deploy-field">
+            <label for="input-client">Client Name</label>
+            <input type="text" id="input-client" class="form-control" placeholder="johnsonlaw (no spaces, lowercase)" autocomplete="off">
+        </div>
+        <div class="deploy-field">
+            <label for="input-repo">GitHub Repo</label>
+            <input type="text" id="input-repo" class="form-control" value="{{ github_default }}" placeholder="https://github.com/ZachF53/AspiredWebsitesLLCRevamped.git" autocomplete="off">
+        </div>
+        <div class="deploy-field">
+            <label for="input-password">Superuser Password</label>
+            <div class="deploy-field__pw">
+                <input type="password" id="input-password" class="form-control" placeholder="Strong password for /admin/ login" autocomplete="new-password">
+                <button type="button" class="btn-secondary pw-toggle">Show</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="deploy-steps">
+        {% include "admin_dashboard/_deploy_steps.html" %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/deploy.js' %}" defer></script>
+{% endblock %}

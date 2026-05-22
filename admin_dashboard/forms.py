@@ -6,6 +6,8 @@ from billing.pricing_models import ServiceTier
 from outreach.models import Lead, LeadNote
 from outreach.scraper import PRACTICE_AREAS
 
+from .models import DeploymentLog
+
 
 class ScrapeForm(forms.Form):
     """Triggers a lead-scraping run from the admin dashboard."""
@@ -144,3 +146,23 @@ class ServiceTierForm(forms.ModelForm):
             'practice_areas_included': forms.NumberInput(attrs={'class': 'form-control'}),
             'timeline_weeks': forms.NumberInput(attrs={'class': 'form-control'}),
         }
+
+
+class DeploymentLogForm(forms.ModelForm):
+    """Manually record a deployment on the deploy-history page."""
+
+    class Meta:
+        model = DeploymentLog
+        fields = ['deploy_type', 'domain', 'server_ip', 'client', 'success', 'notes']
+        widgets = {
+            'deploy_type': forms.Select(attrs={'class': 'form-control'}),
+            'domain': forms.TextInput(attrs={'class': 'form-control'}),
+            'server_ip': forms.TextInput(attrs={'class': 'form-control'}),
+            'client': forms.Select(attrs={'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client'].required = False
+        self.fields['client'].empty_label = '— None —'

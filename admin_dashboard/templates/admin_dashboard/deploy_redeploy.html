@@ -1,0 +1,68 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Re-Deploy — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-deploy">
+    <div class="admin-deploy__head">
+        <h1>Code Update — Re-Deploy</h1>
+        <p><a href="{% url 'admin_dashboard:deploy_home' %}">&larr; Back to Deploy</a></p>
+    </div>
+
+    <section class="deploy-inputs">
+        <h2>Fill in your deployment details</h2>
+        <p class="deploy-inputs__sub">The command blocks below update automatically as you type.</p>
+
+        <div class="deploy-field">
+            <label for="input-ip">Server IP</label>
+            <input type="text" id="input-ip" class="form-control" placeholder="161.35.108.209" autocomplete="off">
+        </div>
+        <div class="deploy-field">
+            <label for="input-domain">Domain</label>
+            <input type="text" id="input-domain" class="form-control" placeholder="aspiredwebsites.com" autocomplete="off">
+        </div>
+    </section>
+
+    <div class="deploy-steps">
+        <details class="deploy-step" open>
+            <summary>Step 0 — Push to GitHub (run on your machine)</summary>
+            <div class="command-block">
+                <button type="button" class="cmd-copy">Copy</button>
+                <pre><code class="cmd-out" data-cmd="r0"></code></pre>
+            </div>
+            <script type="text/plain" class="cmd-src" data-cmd="r0">{% verbatim %}git add -A
+git commit -m "Description of changes"
+git push origin main
+git log origin/main..HEAD --oneline{% endverbatim %}</script>
+            <p class="deploy-note">The last command must show nothing. If it lists commits — push again.</p>
+        </details>
+
+        <details class="deploy-step" open>
+            <summary>Step 1 — SSH and Run deploy.sh</summary>
+            <div class="command-block">
+                <button type="button" class="cmd-copy">Copy</button>
+                <pre><code class="cmd-out" data-cmd="r1"></code></pre>
+            </div>
+            <script type="text/plain" class="cmd-src" data-cmd="r1">{% verbatim %}ssh root@{{SERVER_IP}}
+bash /var/www/aspired/app/deploy.sh{% endverbatim %}</script>
+            <p class="deploy-note">deploy.sh pulls latest code, installs deps, runs migrations, clears and collects static, restarts all services, and verifies the site returns 200.</p>
+        </details>
+
+        <details class="deploy-step" open>
+            <summary>Step 2 — Verify (only if deploy.sh shows warnings)</summary>
+            <div class="command-block">
+                <button type="button" class="cmd-copy">Copy</button>
+                <pre><code class="cmd-out" data-cmd="r2"></code></pre>
+            </div>
+            <script type="text/plain" class="cmd-src" data-cmd="r2">{% verbatim %}supervisorctl status
+tail -20 /var/www/aspired/logs/gunicorn-error.log
+curl -s -o /dev/null -w "%{http_code}" https://{{DOMAIN}}{% endverbatim %}</script>
+        </details>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/deploy.js' %}" defer></script>
+{% endblock %}

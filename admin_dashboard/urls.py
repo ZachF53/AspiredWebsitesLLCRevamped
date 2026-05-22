@@ -37,4 +37,12 @@ urlpatterns = [
     path('pricing/<uuid:tier_id>/toggle/', views.pricing_toggle, name='pricing_toggle'),
     path('pricing/<uuid:tier_id>/feature/add/', views.pricing_feature_add, name='pricing_feature_add'),
     path('pricing/<uuid:tier_id>/feature/<uuid:fid>/delete/', views.pricing_feature_delete, name='pricing_feature_delete'),
+
+    # Deployment dashboard
+    path('deploy/', views.deploy_home, name='deploy_home'),
+    path('deploy/fresh/', views.deploy_fresh, name='deploy_fresh'),
+    path('deploy/redeploy/', views.deploy_redeploy, name='deploy_redeploy'),
+    path('deploy/client/<uuid:client_id>/', views.deploy_client, name='deploy_client'),
+    path('deploy/history/', views.deploy_history, name='deploy_history'),
+    path('deploy/log/', views.deploy_log_create, name='deploy_log_create'),
 ]

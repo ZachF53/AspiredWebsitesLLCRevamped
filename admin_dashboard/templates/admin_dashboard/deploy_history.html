@@ -1,0 +1,70 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Deployment History — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-deploy">
+    <div class="admin-deploy__head">
+        <h1>Deployment History</h1>
+        <p><a href="{% url 'admin_dashboard:deploy_home' %}">&larr; Back to Deploy</a></p>
+    </div>
+
+    {% if logged %}
+        <div class="deploy-saved-banner" role="status">Deployment logged.</div>
+    {% endif %}
+
+    <details class="deploy-logform" {% if form.errors %}open{% endif %}>
+        <summary>Log a Deployment</summary>
+        <form method="post" action="{% url 'admin_dashboard:deploy_log_create' %}" class="deploy-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="form-error">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="deploy-field">
+                <label for="{{ form.deploy_type.id_for_label }}">Type</label>
+                {{ form.deploy_type }}
+                {% if form.deploy_type.errors %}<div class="form-field-error">{{ form.deploy_type.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="deploy-field">
+                <label for="{{ form.domain.id_for_label }}">Domain</label>
+                {{ form.domain }}
+            </div>
+            <div class="deploy-field">
+                <label for="{{ form.server_ip.id_for_label }}">Server IP</label>
+                {{ form.server_ip }}
+            </div>
+            <div class="deploy-field">
+                <label for="{{ form.client.id_for_label }}">Client (optional)</label>
+                {{ form.client }}
+            </div>
+            <label class="deploy-check">{{ form.success }}<span>Success</span></label>
+            <div class="deploy-field">
+                <label for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+            </div>
+            <button type="submit" class="btn-primary">Save Deployment Log</button>
+        </form>
+    </details>
+
+    <table class="deploy-table">
+        <thead>
+            <tr><th>Type</th><th>Domain</th><th>Server IP</th><th>Date</th><th>Result</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+                <tr>
+                    <td><span class="deploy-badge deploy-badge--{{ log.deploy_type }}">{{ log.get_deploy_type_display }}</span></td>
+                    <td>{{ log.domain|default:"—" }}</td>
+                    <td>{{ log.server_ip|default:"—" }}</td>
+                    <td>{{ log.created_at|date:"M j, Y H:i" }}</td>
+                    <td>
+                        {% if log.success %}<span class="deploy-badge deploy-badge--ok">Success</span>
+                        {% else %}<span class="deploy-badge deploy-badge--fail">Failed</span>{% endif %}
+                    </td>
+                    <td class="deploy-table__notes">{{ log.notes|default:"—" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="deploy-muted">No deployments logged yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
