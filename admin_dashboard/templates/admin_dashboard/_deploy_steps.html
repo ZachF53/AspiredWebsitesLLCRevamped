@@ -93,6 +93,38 @@ echo "=== END ==="{% endverbatim %}</script>
 </details>
 
 <details class="deploy-step" open>
+    <summary>Step 3b — Install PDF Generation Libraries</summary>
+    <p class="deploy-note deploy-note--warn">
+        <strong>Required for WeasyPrint PDF generation.</strong>
+        Without these libs, scan reports and monthly reports silently
+        fall back to HTML attachments — emails go out with .html files
+        instead of .pdf. The base snapshot does NOT include these, so
+        every new server needs this step.
+    </p>
+    <div class="command-block">
+        <button type="button" class="cmd-copy">Copy</button>
+        <pre><code class="cmd-out" data-cmd="s3b"></code></pre>
+    </div>
+    <script type="text/plain" class="cmd-src" data-cmd="s3b">{% verbatim %}# WeasyPrint native dependencies — required for PDF generation
+# (scan reports + monthly reports). Without these, generation falls
+# back to .html attachments which look unprofessional in email.
+apt-get install -y \
+  libpango-1.0-0 \
+  libpangoft2-1.0-0 \
+  libcairo2 \
+  libffi-dev \
+  shared-mime-info \
+  libxml2 \
+  libxslt1.1 \
+  fonts-dejavu
+
+# After installing — restart all services so the running gunicorn /
+# celery / daphne workers load the new shared libs into memory.
+supervisorctl restart all{% endverbatim %}</script>
+    <p class="deploy-note">Verify with: <code>/var/www/aspired/venv/bin/python -c "import weasyprint; print(weasyprint.__version__)"</code> — if it imports without an OSError about libpango/libcairo, the libs are in place.</p>
+</details>
+
+<details class="deploy-step" open>
     <summary>Step 4 — Configure Environment</summary>
     <div class="command-block">
         <button type="button" class="cmd-copy">Copy</button>
