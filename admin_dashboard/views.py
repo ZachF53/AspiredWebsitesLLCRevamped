@@ -2827,3 +2827,139 @@ def run_scan(request):
             f'<a href="{reverse("admin_dashboard:scans_list")}">Scans</a> '
             f'for results.</div>')
     return redirect('admin_dashboard:scans_list')
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Client edit + inline quick-edit
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def client_edit(request, client_id):
+    """
+    Full client edit form. live_url isn't stored on ClientProfile — it
+    lives on the Project — so the form surfaces it as a top-level field
+    and the view writes it back to the live (or first) project.
+    """
+    from clients.models import ClientProfile
+    from django.contrib import messages
+
+    from .forms import ClientProfileEditForm
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    project = (client.projects.filter(stage='live').first()
+               or client.projects.first())
+    current_live_url = (project.live_url if project else '') or ''
+    current_moonieful = bool(project.moonieful_referred) if project else False
+
+    if request.method == 'POST':
+        form = ClientProfileEditForm(request.POST, instance=client)
+        if form.is_valid():
+            form.save()
+            # Project-level fields get written back here, not in the
+            # form. Only save when there's actually a change to avoid
+            # bumping updated_at on no-op edits.
+            if project:
+                project_dirty = []
+                new_url = (form.cleaned_data.get('live_url') or '').strip()
+                if new_url != (project.live_url or ''):
+                    project.live_url = new_url
+                    project_dirty.append('live_url')
+                new_moonieful = bool(form.cleaned_data.get('moonieful_referred'))
+                if new_moonieful != bool(project.moonieful_referred):
+                    project.moonieful_referred = new_moonieful
+                    project_dirty.append('moonieful_referred')
+                if project_dirty:
+                    project.save(
+                        update_fields=project_dirty + ['updated_at'])
+            messages.success(request, 'Client updated successfully.')
+            return redirect(
+                'admin_dashboard:client_detail', client_id=client.id)
+    else:
+        form = ClientProfileEditForm(
+            instance=client, initial={
+                'live_url': current_live_url,
+                'moonieful_referred': current_moonieful,
+            })
+
+    return render(request, 'admin_dashboard/client_edit.html',
+                  _admin_context(
+                      'clients', client=client, form=form,
+                      project=project,
+                      client_email=(client.user.email if client.user
+                                    else ''),
+                  ))
+
+
+# ── Inline HTMX quick-edit on the client detail page ───────────────────────
+
+def _quick_edit_field_meta(field_name):
+    """Return (label, html_type, current_value, is_project_field) tuple."""
+    from .forms import CLIENT_QUICK_EDIT_FIELDS
+    if field_name not in CLIENT_QUICK_EDIT_FIELDS:
+        return None
+    meta = CLIENT_QUICK_EDIT_FIELDS[field_name]
+    return meta['label'], meta['type'], field_name == 'live_url'
+
+
+@admin_required
+def client_quick_edit_field(request, client_id):
+    """
+    Inline HTMX edit for one of the whitelisted fields. Two states:
+
+      GET ?field=X         → swaps in an <input> + Save button
+      POST field=X value=… → persists, swaps back to the display row
+
+    Whitelist lives in `CLIENT_QUICK_EDIT_FIELDS` so the endpoint
+    can't be tricked into writing arbitrary model fields.
+    """
+    from clients.models import ClientProfile
+    from .forms import CLIENT_QUICK_EDIT_FIELDS
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+
+    field_name = (
+        request.POST.get('field') or request.GET.get('field') or ''
+    ).strip()
+    if field_name not in CLIENT_QUICK_EDIT_FIELDS:
+        return HttpResponseBadRequest('unknown field')
+    meta = CLIENT_QUICK_EDIT_FIELDS[field_name]
+
+    project = (client.projects.filter(stage='live').first()
+               or client.projects.first())
+
+    def _current_value():
+        if field_name == 'live_url':
+            return (project.live_url if project else '') or ''
+        return getattr(client, field_name, '') or ''
+
+    if request.method == 'POST':
+        new_value = (request.POST.get('value') or '').strip()
+        # Live URL writes through to Project, everything else to the
+        # client profile.
+        if field_name == 'live_url':
+            if not project:
+                return HttpResponseBadRequest('client has no project yet')
+            project.live_url = new_value
+            project.save(update_fields=['live_url', 'updated_at'])
+        else:
+            setattr(client, field_name, new_value)
+            client.save(update_fields=[field_name, 'updated_at'])
+        # After save, render the display row so HTMX swaps back.
+        return render(
+            request, 'admin_dashboard/_quick_edit_display.html',
+            {'client': client, 'field': field_name,
+             'label': meta['label'], 'value': _current_value()})
+
+    # GET — either render the editor row, or (when cancelled) drop
+    # back to the display row without persisting anything.
+    if request.GET.get('cancel') == '1':
+        return render(
+            request, 'admin_dashboard/_quick_edit_display.html',
+            {'client': client, 'field': field_name,
+             'label': meta['label'], 'value': _current_value()})
+
+    return render(
+        request, 'admin_dashboard/_quick_edit_field.html',
+        {'client': client, 'field': field_name,
+         'label': meta['label'], 'input_type': meta['type'],
+         'value': _current_value()})

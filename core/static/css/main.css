@@ -8300,6 +8300,123 @@ button.htmx-request {
 .portal-nav__dot--alert { background: #EF4444; }
 .portal-muted { color: #6B7280; }
 
+/* ── 31h. Client edit form + inline quick-edit (admin dark) ─ */
+.client-edit-form { max-width: 880px; }
+.client-edit-section {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: var(--space-3);
+}
+.client-edit-section__title {
+    margin: 0 0 0.8rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+.client-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem 1rem;
+}
+@media (min-width: 640px) {
+    .client-edit-grid { grid-template-columns: 1fr 1fr; }
+}
+.client-edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--color-text);
+}
+.client-edit-field--wide { grid-column: 1 / -1; }
+.client-edit-field > span {
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+.client-edit-hint {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: 0.78rem;
+    margin-left: 0.3rem;
+}
+.client-edit-error {
+    color: #FCA5A5;
+    font-size: 0.8rem;
+}
+.client-edit-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.9rem;
+    color: var(--color-text);
+}
+.client-edit-checkbox input { width: 1.05rem; height: 1.05rem; }
+.client-edit-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: var(--space-3);
+}
+
+/* Inline quick-edit on the client detail page */
+.quick-edit-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.quick-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.9rem;
+    color: var(--color-text);
+    flex-wrap: wrap;
+}
+.quick-edit__label {
+    color: var(--color-text-muted);
+    font-weight: 600;
+    min-width: 7.5rem;
+}
+.quick-edit__value { color: var(--color-text); word-break: break-all; }
+.quick-edit__empty {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.quick-edit__btn {
+    margin-left: auto;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.quick-edit__btn:hover {
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.06);
+}
+.quick-edit--editing {
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.3);
+}
+.quick-edit__input {
+    flex: 1;
+    min-width: 12rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.88rem;
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

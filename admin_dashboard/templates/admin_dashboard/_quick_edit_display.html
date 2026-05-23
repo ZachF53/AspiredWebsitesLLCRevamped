@@ -1,0 +1,15 @@
+{% comment %}
+Default display state for one quick-edit field on the client detail
+page. Same id container so the HTMX swap keeps targeting it across
+multiple edit cycles.
+{% endcomment %}
+<span class="quick-edit" id="quick-edit-{{ field }}">
+    <span class="quick-edit__label">{{ label }}:</span>
+    <span class="quick-edit__value">
+        {% if value %}{{ value }}{% else %}<span class="quick-edit__empty">— not set —</span>{% endif %}
+    </span>
+    <button type="button" class="quick-edit__btn"
+            hx-get="{% url 'admin_dashboard:client_quick_edit_field' client.id %}?field={{ field }}"
+            hx-target="#quick-edit-{{ field }}"
+            hx-swap="outerHTML">Edit</button>
+</span>

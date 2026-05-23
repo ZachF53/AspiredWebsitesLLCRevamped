@@ -1,0 +1,144 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Edit {{ client.firm_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:client_list' %}">Clients</a>
+                &rsaquo;
+                <a href="{% url 'admin_dashboard:client_detail' client.id %}">{{ client.firm_name }}</a>
+                &rsaquo; Edit
+            </span>
+            <h1 class="admin-page-title">Edit Client</h1>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' client.id %}">&larr; Back</a>
+        </div>
+    </div>
+
+    {% for message in messages %}
+        <div class="scan-banner scan-banner--info">{{ message }}</div>
+    {% endfor %}
+
+    {% if form.non_field_errors %}
+        <div class="scan-banner scan-banner--error">
+            {{ form.non_field_errors|join:" " }}
+        </div>
+    {% endif %}
+
+    <form method="post" class="client-edit-form">
+        {% csrf_token %}
+
+        <section class="client-edit-section">
+            <h2 class="client-edit-section__title">Basic Info</h2>
+            <div class="client-edit-grid">
+                <label class="client-edit-field">
+                    <span>Firm name</span>
+                    {{ form.firm_name }}
+                    {% if form.firm_name.errors %}<small class="client-edit-error">{{ form.firm_name.errors|join:" " }}</small>{% endif %}
+                </label>
+                <label class="client-edit-field">
+                    <span>Contact name</span>
+                    {{ form.contact_name }}
+                </label>
+                <label class="client-edit-field">
+                    <span>Business type</span>
+                    {{ form.business_type }}
+                </label>
+                <label class="client-edit-field">
+                    <span>Status</span>
+                    {{ form.status }}
+                </label>
+                <label class="client-edit-field">
+                    <span>Package</span>
+                    {{ form.package }}
+                </label>
+                <label class="client-edit-field">
+                    <span>City</span>
+                    {{ form.city }}
+                </label>
+                <label class="client-edit-field">
+                    <span>State</span>
+                    {{ form.state }}
+                </label>
+                <label class="client-edit-field">
+                    <span>Phone</span>
+                    {{ form.phone }}
+                </label>
+                <label class="client-edit-field">
+                    <span>Email <small class="client-edit-hint">(from Django User — not editable here)</small></span>
+                    <input type="email" class="form-control" value="{{ client_email|default:'(none on file)' }}" disabled>
+                </label>
+            </div>
+        </section>
+
+        <section class="client-edit-section">
+            <h2 class="client-edit-section__title">Website &amp; Server</h2>
+            <div class="client-edit-grid">
+                <label class="client-edit-field client-edit-field--wide">
+                    <span>Live URL</span>
+                    {{ form.live_url }}
+                    <small class="client-edit-hint">{{ form.live_url.help_text }}</small>
+                </label>
+                <label class="client-edit-field">
+                    <span>DO Droplet IP</span>
+                    {{ form.do_droplet_ip }}
+                </label>
+                <label class="client-edit-field">
+                    <span>DO Droplet created</span>
+                    {{ form.do_droplet_created_at }}
+                </label>
+            </div>
+        </section>
+
+        <section class="client-edit-section">
+            <h2 class="client-edit-section__title">Maintenance &amp; Billing</h2>
+            <div class="client-edit-grid">
+                <label class="client-edit-checkbox">
+                    {{ form.maintenance_active }}
+                    <span>Maintenance active</span>
+                </label>
+                <label class="client-edit-checkbox">
+                    {{ form.auto_send_scan_reports }}
+                    <span>Auto-send scan reports to client</span>
+                </label>
+                <label class="client-edit-checkbox">
+                    {{ form.onboarding_complete }}
+                    <span>Onboarding complete</span>
+                </label>
+            </div>
+        </section>
+
+        <section class="client-edit-section">
+            <h2 class="client-edit-section__title">Internal Notes</h2>
+            <label class="client-edit-field">
+                <span>Notes <small class="client-edit-hint">(staff only — never shown to client)</small></span>
+                {{ form.internal_notes }}
+            </label>
+        </section>
+
+        <section class="client-edit-section">
+            <h2 class="client-edit-section__title">Moonieful</h2>
+            <div class="client-edit-grid">
+                <label class="client-edit-checkbox">
+                    <input type="checkbox" disabled
+                           {% if client.synced_from_moonieful %}checked{% endif %}>
+                    <span>Synced from Moonieful <small class="client-edit-hint">(set by sync bridge — read only)</small></span>
+                </label>
+                <label class="client-edit-checkbox">
+                    {{ form.moonieful_referred }}
+                    <span>Moonieful referred</span>
+                </label>
+            </div>
+        </section>
+
+        <div class="client-edit-actions">
+            <button type="submit" class="btn-primary">Save Changes</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:client_detail' client.id %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

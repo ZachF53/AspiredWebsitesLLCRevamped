@@ -1,7 +1,9 @@
-{# One finding card. Reused in scan_detail.html AND returned by the
-   HTMX status-update endpoint so it can swap in place. The outer
-   element MUST keep id="finding-{{ f.id }}" so hx-target='#…' resolves
-   on both first render and subsequent swaps. #}
+{% comment %}
+One finding card. Reused in scan_detail.html AND returned by the HTMX
+status-update endpoint so it can swap in place. The outer element MUST
+keep id="finding-{{ f.id }}" so hx-target='#…' resolves on both first
+render and subsequent swaps.
+{% endcomment %}
 <article id="finding-{{ f.id }}"
          class="finding-card finding-card--sev-{{ f.severity }} finding-card--status-{{ f.status }}">
     <details {% if expanded %}open{% endif %}>

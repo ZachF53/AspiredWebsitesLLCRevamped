@@ -293,3 +293,79 @@ class KeywordForm(forms.ModelForm):
                 'class': 'form-control', 'placeholder': 'Optional note',
             }),
         }
+
+
+class ClientProfileEditForm(forms.ModelForm):
+    """
+    Full client profile edit form for /admin-dashboard/clients/<id>/edit/.
+
+    The user's email is shown read-only in the template (it lives on
+    User, not ClientProfile, and renaming a user's email by hand here
+    would be a footgun — separate flow).
+
+    `live_url` and `moonieful_referred` live on Project, not
+    ClientProfile, so they're declared as plain form fields here and
+    the view writes them back to the project record.
+    """
+
+    live_url = forms.URLField(
+        required=False, label='Live URL',
+        widget=forms.URLInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'https://clientdomain.com',
+        }),
+        help_text='Updates the live Project.live_url as well.',
+    )
+    moonieful_referred = forms.BooleanField(
+        required=False, label='Moonieful referred',
+        help_text='Flags the project as referred from Moonieful '
+                  '(stored on Project, not ClientProfile).',
+    )
+
+    class Meta:
+        model = ClientProfile
+        fields = [
+            # Section 1 — Basic info
+            'firm_name', 'contact_name', 'business_type', 'status',
+            'package', 'city', 'state', 'phone',
+            # Section 2 — Website / server
+            'do_droplet_ip', 'do_droplet_created_at',
+            # Section 3 — Maintenance / billing
+            'maintenance_active', 'auto_send_scan_reports',
+            'onboarding_complete',
+            # Section 4 — Internal notes
+            'internal_notes',
+            # Section 5 — Moonieful — synced_from_moonieful is shown
+            # read-only in the template; moonieful_referred is a plain
+            # form field above (project-level).
+        ]
+        widgets = {
+            'firm_name':       forms.TextInput(attrs={'class': 'form-control'}),
+            'contact_name':    forms.TextInput(attrs={'class': 'form-control'}),
+            'business_type':   forms.TextInput(attrs={'class': 'form-control'}),
+            'status':          forms.Select(attrs={'class': 'form-control'}),
+            'package':         forms.Select(attrs={'class': 'form-control'}),
+            'city':            forms.TextInput(attrs={'class': 'form-control'}),
+            'state':           forms.TextInput(attrs={'class': 'form-control'}),
+            'phone':           forms.TextInput(attrs={'class': 'form-control'}),
+            'do_droplet_ip':   forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '161.35.108.209',
+            }),
+            'do_droplet_created_at': forms.DateInput(attrs={
+                'class': 'form-control', 'type': 'date',
+            }),
+            'internal_notes': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 5,
+            }),
+        }
+
+
+# Per-field quick-edit on the client detail page. The keys here are the
+# only ones the inline endpoint will accept — everything else 400s.
+CLIENT_QUICK_EDIT_FIELDS = {
+    'live_url':     {'type': 'url',   'label': 'Live URL'},
+    'do_droplet_ip': {'type': 'text', 'label': 'Droplet IP'},
+    'contact_name': {'type': 'text',  'label': 'Contact name'},
+    'phone':        {'type': 'text',  'label': 'Phone'},
+}

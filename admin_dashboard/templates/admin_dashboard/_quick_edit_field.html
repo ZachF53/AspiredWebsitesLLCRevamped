@@ -1,0 +1,21 @@
+{% comment %}
+Edit state for one quick-edit field. POSTs back to the same view,
+which returns the display partial — so a single hx-swap="outerHTML"
+toggles cleanly between view and edit.
+{% endcomment %}
+<form class="quick-edit quick-edit--editing" id="quick-edit-{{ field }}"
+      hx-post="{% url 'admin_dashboard:client_quick_edit_field' client.id %}"
+      hx-target="#quick-edit-{{ field }}"
+      hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="field" value="{{ field }}">
+    <label class="quick-edit__label" for="qe-{{ field }}">{{ label }}:</label>
+    <input id="qe-{{ field }}" name="value" type="{{ input_type }}"
+           class="form-control quick-edit__input" value="{{ value }}"
+           autocomplete="off" autofocus>
+    <button type="submit" class="btn-primary btn-sm">Save</button>
+    <button type="button" class="btn-secondary btn-sm"
+            hx-get="{% url 'admin_dashboard:client_quick_edit_field' client.id %}?field={{ field }}&cancel=1"
+            hx-target="#quick-edit-{{ field }}"
+            hx-swap="outerHTML">Cancel</button>
+</form>

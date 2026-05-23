@@ -1,5 +1,7 @@
-{# HTMX partial — swapped in place by toggle_auto_send_scans. Keeps the
-   same id so subsequent toggles still resolve the hx-target. #}
+{% comment %}
+HTMX partial — swapped in place by toggle_auto_send_scans. Keeps the
+same id so subsequent toggles still resolve the hx-target.
+{% endcomment %}
 <label class="auto-send-toggle" id="auto-send-toggle-{{ client.id }}">
     <button type="button"
             class="auto-send-toggle__switch {% if client.auto_send_scan_reports %}is-on{% endif %}"

@@ -1,6 +1,8 @@
-{# Droplet table rows — included by droplets_list.html AND returned on its own
-   by /droplets/table/ for the 30s HTMX poll. Standalone so it can render
-   inside a hx-swap="innerHTML" target without wrapping markup. #}
+{% comment %}
+Droplet table rows — included by droplets_list.html AND returned on its
+own by /droplets/table/ for the 30s HTMX poll. Standalone so it can
+render inside a hx-swap="innerHTML" target without wrapping markup.
+{% endcomment %}
 <table class="droplet-table">
     <thead>
         <tr>

@@ -1,6 +1,8 @@
-{# Scan table rows — included by scans_list.html AND returned standalone by
-   /scans/table/ for the 15s HTMX poll. No wrapping tags so it slots into a
-   hx-swap='innerHTML' target cleanly. #}
+{% comment %}
+Scan table rows — included by scans_list.html AND returned standalone by
+/scans/table/ for the 15s HTMX poll. No wrapping tags so it slots into a
+hx-swap='innerHTML' target cleanly.
+{% endcomment %}
 <table class="droplet-table scans-table">
     <thead>
         <tr>

@@ -14,7 +14,26 @@
                 {% if project.live_url %} · <a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a>{% endif %}
             </p>
         </div>
+        <div>
+            <a class="btn-primary" href="{% url 'admin_dashboard:client_edit' client.id %}">Edit Client</a>
+        </div>
     </div>
+
+    {# Client Info card — inline quick-edits for the four highest-churn
+       fields. Hit Edit on any row to swap in an input + Save, no page
+       reload. For everything else use the full Edit Client form above. #}
+    <section class="admin-card">
+        <div class="admin-card__head">
+            <h3 class="admin-card__title">Client Info</h3>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_edit' client.id %}">Edit all fields &rarr;</a>
+        </div>
+        <ul class="quick-edit-list">
+            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="live_url" label="Live URL" value=project.live_url|default:"" %}</li>
+            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="do_droplet_ip" label="Droplet IP" value=client.do_droplet_ip|default:"" %}</li>
+            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="contact_name" label="Contact name" value=client.contact_name|default:"" %}</li>
+            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="phone" label="Phone" value=client.phone|default:"" %}</li>
+        </ul>
+    </section>
 
     {# ── Uptime widget ── #}
     <section class="admin-card">
