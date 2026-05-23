@@ -1496,15 +1496,22 @@ textarea.form-control {
     border-color: rgba(232, 101, 10, 0.3);
 }
 
-/* Price block — serif numeral, raised $ glyph, muted /mo suffix */
+/* Price block — serif numeral, raised $ glyph, muted /mo suffix.
+   Clamp ceiling sized to fit the worst-case "$1,199/month" string
+   inside a 3-column grid card (~340px content width on a 1280px
+   viewport). overflow-wrap is the safety net for any future price
+   we add. */
 .card__price {
     font-family: var(--font-serif);
-    font-size: clamp(2.75rem, 6vw, 3.75rem);
+    font-size: clamp(2rem, 4.5vw, 3rem);
     font-weight: 700;
     color: var(--color-orange);
-    line-height: 1;
+    line-height: 1.05;
     margin-block: var(--space-2);
     letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    max-width: 100%;
 }
 
 .card__price-currency {
