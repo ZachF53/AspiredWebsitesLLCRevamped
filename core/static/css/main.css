@@ -8101,6 +8101,33 @@ button.htmx-request {
 .scan-dot--clean    { background: #10B981; }
 .scan-dot--never    { background: #475569; }
 
+/* Scan-in-progress banner above the Security Scans card */
+.scan-progress-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    background: rgba(13, 148, 136, 0.18);
+    border: 1px solid rgba(13, 148, 136, 0.45);
+    color: var(--color-text);
+    font-size: 0.88rem;
+    margin-bottom: 0.6rem;
+}
+.scan-progress-banner__dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: #5EEAD4;
+    animation: scan-progress-pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes scan-progress-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+}
+
 /* Client detail — Security Scans card */
 .client-scan-summary {
     margin: 0 0 0.5rem;

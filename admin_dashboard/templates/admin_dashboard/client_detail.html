@@ -141,22 +141,28 @@
         </div>
     </section>
 
-    {# ── Phase 6c — Security Scans ── #}
+    {# ── Phase 6c — Security Scans (latest COMPLETED scan only) ── #}
+    {% if scan_in_progress %}
+        <div class="scan-progress-banner">
+            <span class="scan-progress-banner__dot" aria-hidden="true"></span>
+            Scan in progress — results updating soon.
+        </div>
+    {% endif %}
+
     <section class="admin-card">
         <h3 class="admin-card__title">Security Scans</h3>
 
         {% if last_scan %}
             <p class="client-scan-summary">
-                <strong>Last scan:</strong>
-                {{ last_scan.created_at|date:"Y-m-d H:i" }} ·
-                <span class="scan-status scan-status--{{ last_scan.status }}">{{ last_scan.get_status_display }}</span>
+                <strong>Last completed scan:</strong>
+                {{ last_scan.completed_at|date:"Y-m-d H:i" }}
             </p>
             <p class="client-scan-summary">
                 {% if last_scan.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ last_scan.critical_count }} Critical</span>{% endif %}
                 {% if last_scan.high_count %}<span class="scan-pill scan-pill--high">🟠 {{ last_scan.high_count }} High</span>{% endif %}
                 {% if last_scan.medium_count %}<span class="scan-pill scan-pill--medium">🟡 {{ last_scan.medium_count }} Medium</span>{% endif %}
                 {% if last_scan.low_count %}<span class="scan-pill scan-pill--low">🔵 {{ last_scan.low_count }} Low</span>{% endif %}
-                {% if last_scan.status == 'complete' and not last_scan.findings_count %}<span class="scan-clean">✓ Clean</span>{% endif %}
+                {% if not last_scan.findings_count %}<span class="scan-clean">✓ Clean</span>{% endif %}
             </p>
 
             {% if top_open_findings %}
@@ -171,7 +177,7 @@
                 </ul>
             {% endif %}
         {% else %}
-            <p class="client-scan-summary">No scans have run for this client yet.</p>
+            <p class="client-scan-summary">No completed scans yet.</p>
         {% endif %}
 
         <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="client-scan-actions"

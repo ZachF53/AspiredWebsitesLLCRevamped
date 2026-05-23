@@ -1226,10 +1226,16 @@ def client_detail(request, client_id):
         client=client, score__isnull=False).aggregate(a=Avg('score'))['a']
 
     # Phase 6c — security scan summary for this client.
+    # Show the latest COMPLETED scan only (consistency with the client
+    # list dot — both surfaces report on known results, not a run in
+    # flight). A separate flag flags any scan currently in progress so
+    # we can surface a non-misleading "scan in progress" banner.
     from reporting.models import VulnerabilityScan
     last_scan = (VulnerabilityScan.objects
-                 .filter(client=client)
-                 .order_by('-created_at').first())
+                 .filter(client=client, status='complete')
+                 .order_by('-completed_at').first())
+    scan_in_progress = VulnerabilityScan.objects.filter(
+        client=client, status__in=('pending', 'running')).exists()
     top_open_findings = []
     if last_scan:
         top_open_findings = list(
@@ -1250,6 +1256,7 @@ def client_detail(request, client_id):
         nps_avg=round(nps_avg, 1) if nps_avg is not None else None,
         freshness_report=client.freshness_reports.first(),
         last_scan=last_scan,
+        scan_in_progress=scan_in_progress,
         top_open_findings=top_open_findings,
     ))
 
