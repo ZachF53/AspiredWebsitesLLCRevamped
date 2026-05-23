@@ -982,13 +982,17 @@ def command_edit(request, cred_id, cmd_id):
 #                  Django session keyed by credential.
 #
 #   ops_chat       POST {message, session_id} — one Claude turn.
-#                  Calls reporting.ai.claude_complete with the system
-#                  prompt + full conversation, extracts any commands
-#                  from the reply, classifies each via ops_safety, and
-#                  returns {agent_message, safe_commands,
-#                  dangerous_commands, tokens_used}. Safe commands are
-#                  auto-executed client-side; dangerous ones surface a
-#                  safety-gate card.
+#                  Calls the Anthropic SDK directly (not via
+#                  reporting.ai.claude_complete) so we can read
+#                  response.usage and stamp the real token count on
+#                  the OpsSession. Model is Sonnet — better
+#                  log-reading + multi-step diagnosis is worth the
+#                  cost over Haiku for this workload. Extracts any
+#                  commands from the reply, classifies each via
+#                  ops_safety, and returns {agent_message,
+#                  safe_commands, dangerous_commands, tokens_used}.
+#                  Safe commands are auto-executed client-side;
+#                  dangerous ones surface a safety-gate card.
 #
 #   ops_execute    POST {command, session_id, approved_by_human} —
 #                  one paramiko round trip. Refuses dangerous commands
@@ -1100,13 +1104,18 @@ def ops_chat(request, cred_id):
     from django.http import JsonResponse
     from django.utils import timezone as dj_timezone
 
-    from reporting.ai import (
-        MODEL_CHAT, AIError, AINotConfigured, claude_complete,
-    )
+    from django.conf import settings
     from .ops_context import build_system_prompt
     from .ops_safety import (
         check_command_safety, extract_commands_from_response,
     )
+
+    # Sonnet for the ops agent — log-reading + multi-step diagnosis
+    # benefits enough from the bigger model to justify the cost over
+    # Haiku. Using `claude-sonnet-4-6` (the current Sonnet per
+    # CLAUDE.md / env) rather than the older claude-sonnet-4-20250514
+    # snapshot in case future Anthropic deprecations bite the dated id.
+    OPS_AGENT_MODEL = 'claude-sonnet-4-6'
 
     config = VaultConfig.get()
     if not _vault_session_authenticated(request, config):
@@ -1161,15 +1170,30 @@ def ops_chat(request, cred_id):
         {'role': m['role'], 'content': m['content']}
         for m in conversation[-50:]
     ]
-    try:
-        agent_message = claude_complete(
-            api_messages, system=system_prompt,
-            model=MODEL_CHAT, max_tokens=2048)
-    except AINotConfigured:
+    # Direct SDK call (not via reporting.ai.claude_complete) so we can
+    # read response.usage and increment OpsSession.total_tokens_used
+    # with the real number rather than a sentinel zero.
+    if not settings.ANTHROPIC_API_KEY:
         return JsonResponse({
             'error': 'ANTHROPIC_API_KEY is not configured on the server.',
         }, status=500)
-    except AIError as exc:
+    try:
+        from anthropic import Anthropic
+        sdk_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        response = sdk_client.messages.create(
+            model=OPS_AGENT_MODEL,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=api_messages,
+        )
+        agent_message = response.content[0].text.strip()
+        usage = getattr(response, 'usage', None)
+        tokens_used = (
+            (getattr(usage, 'input_tokens', 0) or 0) +
+            (getattr(usage, 'output_tokens', 0) or 0)
+        ) if usage else 0
+    except Exception as exc:  # noqa: BLE001 — surface every API failure uniformly
+        logger.exception('Ops chat — Claude API call failed')
         return JsonResponse({
             'error': f'Claude API error: {exc}',
         }, status=500)
@@ -1179,11 +1203,6 @@ def ops_chat(request, cred_id):
         'content': agent_message,
         'timestamp': dj_timezone.now().isoformat(),
     })
-
-    # claude_complete wrapper doesn't surface token usage today; treat
-    # missing tokens as zero so the JSONField just stays put. Future
-    # extension: switch to the SDK directly here and read usage.
-    tokens_used = 0
 
     commands = extract_commands_from_response(agent_message)
     safe_commands, dangerous_commands = [], []
