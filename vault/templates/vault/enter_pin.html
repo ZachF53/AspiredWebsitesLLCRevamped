@@ -53,6 +53,12 @@
             <button type="submit" class="btn-primary btn-block">Unlock Vault</button>
         </form>
 
+        {% if totp_required %}
+            <p class="vault-foot">
+                <a href="{% url 'vault:recover' %}">Lost your authenticator? Use a recovery code &rarr;</a>
+            </p>
+        {% endif %}
+
         {% if needs_totp_setup_after_pin %}
             <p class="vault-gate__hint vault-gate__hint--upgrade">
                 Two-factor authentication has moved to the vault level — after

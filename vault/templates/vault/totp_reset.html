@@ -1,0 +1,40 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Reset Authenticator — Vault{% endblock %}
+
+{% block content %}
+<div class="vault-gate">
+    <div class="vault-gate__card vault-gate__card--wide">
+        <h1 class="vault-totp-title">
+            <img src="{% static 'images/favicon-32x32.png' %}"
+                 width="32" height="32" alt="" class="vault-totp-title__icon">
+            Reset Your Authenticator
+        </h1>
+        <p class="vault-gate__sub">
+            Use this when you're switching phones or authenticator apps
+            and still have access. Enter one of your one-time recovery
+            codes — it will be consumed and you'll be sent to scan a new
+            QR code. {{ remaining_codes }} unused recovery code{{ remaining_codes|pluralize }} remaining.
+        </p>
+
+        {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+        <form method="post" class="vault-pin-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="recovery_code">Recovery code</label>
+                <input type="text" id="recovery_code" name="recovery_code"
+                       class="form-control recovery-input" autocomplete="off"
+                       maxlength="32" required autofocus
+                       placeholder="A3F9C2D8E1B7">
+            </div>
+            <button type="submit" class="btn-primary btn-block">Reset Authenticator</button>
+        </form>
+
+        <p class="vault-foot">
+            <a href="{% url 'vault:settings' %}">&larr; Back to vault settings</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

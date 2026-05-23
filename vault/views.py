@@ -661,6 +661,10 @@ def totp_setup(request):
     Vault-level TOTP enrolment. Runs once, right after PIN setup (or any
     time TOTP is unconfigured) — the secret lives on the VaultConfig
     singleton, AES-encrypted with the PIN-derived vault key.
+
+    On successful verify we also mint 8 one-time recovery codes and
+    render the show-once page; the plaintext only lives in that one HTTP
+    response and never touches the database.
     """
     key = get_vault_key(request)
     if key is None:
@@ -671,9 +675,11 @@ def totp_setup(request):
         # Already enrolled — just send them to the vault home.
         return redirect('vault:home')
 
+    from .recovery import generate_recovery_codes, store_recovery_codes
     from .totp_helpers import (
+        ACCOUNT_NAME, ISSUER_NAME,
         generate_qr_code_base64, generate_totp_secret, get_totp_uri,
-        verify_totp_code, ACCOUNT_NAME, ISSUER_NAME,
+        verify_totp_code,
     )
     session_key = 'vault_totp_setup_secret'
 
@@ -682,17 +688,26 @@ def totp_setup(request):
         secret = request.session.get(session_key)
         code = (request.POST.get('code') or '').strip()
         if secret and verify_totp_code(secret, code):
+            plaintext_codes = generate_recovery_codes()
             config.totp_secret_encrypted = encrypt_value(secret, key)
             config.totp_configured = True
+            store_recovery_codes(config, plaintext_codes)
             config.save(update_fields=[
-                'totp_secret_encrypted', 'totp_configured', 'updated_at'])
+                'totp_secret_encrypted', 'totp_configured',
+                'recovery_codes', 'updated_at'])
             request.session.pop(session_key, None)
             # Mark this session as TOTP-verified so the admin doesn't have
             # to immediately re-enter the code they just generated.
             request.session['vault_totp_verified'] = True
             _log('ssh_totp_setup', request,
                  note='Vault-level TOTP configured.')
-            return redirect('vault:home')
+            # Show-once: render the codes page directly. The plaintext is
+            # only in this response — there's no re-render.
+            return render(request, 'vault/totp_codes.html', {
+                'active': 'vault',
+                'recovery_codes': plaintext_codes,
+                'seconds_remaining': _seconds_remaining(request),
+            })
         error = 'Code incorrect — try again.'
         secret = secret or generate_totp_secret()
     else:
@@ -707,6 +722,151 @@ def totp_setup(request):
         'error': error,
         'issuer_name': ISSUER_NAME,
         'account_name': ACCOUNT_NAME,
+        'seconds_remaining': _seconds_remaining(request),
+    })
+
+
+@admin_required
+def recover(request):
+    """
+    Lost-authenticator entry point. The admin supplies their PIN (still
+    mathematically required to derive the AES vault key) AND a one-time
+    recovery code (standing in for the missing TOTP). On success the
+    vault unlocks for the session, the consumed code is marked used,
+    TOTP enrolment is cleared, and the admin is sent straight to
+    /totp-setup/ to enrol a fresh authenticator.
+    """
+    from .recovery import consume_recovery_code
+
+    config = VaultConfig.get()
+    if not config.pin_set:
+        return redirect('vault:home')
+    if not config.totp_configured:
+        # If there's nothing to recover from, there's nothing to do here.
+        return redirect('vault:home')
+
+    error = None
+    if request.method == 'POST':
+        pin = ''.join(request.POST.get(f'd{i}', '') for i in range(1, 5))
+        if not pin:
+            pin = (request.POST.get('pin') or '').strip()
+        code = (request.POST.get('recovery_code') or '').strip()
+        salt = bytes(config.encryption_salt)
+
+        if not verify_pin(pin, config.pin_hash, salt):
+            error = 'Incorrect PIN.'
+            _log('pin_failed', request,
+                 note='Recovery-code attempt with wrong PIN.')
+        elif not consume_recovery_code(config, code):
+            error = 'That recovery code is not valid (or already used).'
+            _log('pin_failed', request,
+                 note='Recovery-code attempt with wrong/used code.')
+        else:
+            # PIN good and a fresh recovery code was consumed. Unlock the
+            # vault, then wipe the old TOTP enrolment so the next page
+            # forces a new QR scan.
+            key = derive_key(pin, salt)
+            _unlock_session(request, key)
+            request.session['vault_was_unlocked'] = True
+            request.session['vault_totp_verified'] = True
+            config.totp_secret_encrypted = ''
+            config.totp_configured = False
+            config.save(update_fields=[
+                'totp_secret_encrypted', 'totp_configured', 'updated_at'])
+            _log('ssh_totp_setup', request,
+                 note='Vault recovered via recovery code — TOTP cleared.')
+            return redirect('vault:totp_setup')
+
+    return render(request, 'vault/recover.html', {
+        'active': 'vault',
+        'error': error,
+    })
+
+
+@admin_required
+def totp_reset(request):
+    """
+    Reset the authenticator from inside an already-unlocked vault — for
+    when the admin is switching phones / apps and still has access. One
+    recovery code is consumed; the existing TOTP enrolment is cleared so
+    /totp-setup/ can re-issue a fresh QR.
+    """
+    from .recovery import consume_recovery_code, remaining_count
+
+    if get_vault_key(request) is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    config = VaultConfig.get()
+
+    error = None
+    if request.method == 'POST':
+        code = (request.POST.get('recovery_code') or '').strip()
+        if not consume_recovery_code(config, code):
+            error = 'That recovery code is not valid (or already used).'
+            _log('pin_failed', request,
+                 note='TOTP-reset attempt with wrong/used recovery code.')
+        else:
+            config.totp_secret_encrypted = ''
+            config.totp_configured = False
+            config.save(update_fields=[
+                'totp_secret_encrypted', 'totp_configured', 'updated_at'])
+            # Drop the "already verified this session" flag so the new
+            # TOTP enrolment is genuinely required before SSH unlocks.
+            request.session.pop('vault_totp_verified', None)
+            _log('ssh_totp_setup', request,
+                 note='TOTP reset via recovery code — new enrolment required.')
+            return redirect('vault:totp_setup')
+
+    return render(request, 'vault/totp_reset.html', {
+        'active': 'vault',
+        'error': error,
+        'remaining_codes': remaining_count(config),
+        'seconds_remaining': _seconds_remaining(request),
+    })
+
+
+@admin_required
+def vault_settings(request):
+    """
+    Vault settings — currently just recovery-code status + a button to
+    regenerate them. Regeneration requires a current TOTP code so a
+    drive-by session can't invalidate the admin's backup access.
+    """
+    from .recovery import (
+        generate_recovery_codes, remaining_count, store_recovery_codes,
+    )
+    from .totp_helpers import get_decrypted_totp_secret, verify_totp_code
+
+    key = get_vault_key(request)
+    if key is None:
+        return redirect(f"{reverse('vault:home')}?next={request.path}")
+    config = VaultConfig.get()
+
+    error = None
+    new_codes = None  # only set on a successful regen — shown once
+    if request.method == 'POST' and request.POST.get('action') == 'regenerate':
+        if not config.totp_configured:
+            error = ('Set up TOTP before generating recovery codes.')
+        else:
+            code = (request.POST.get('totp_code') or '').strip()
+            secret = get_decrypted_totp_secret(config, key)
+            if not secret or not verify_totp_code(secret, code):
+                error = 'Incorrect authenticator code.'
+                _log('pin_failed', request,
+                     note='Recovery-code regen blocked by wrong TOTP.')
+            else:
+                new_codes = generate_recovery_codes()
+                store_recovery_codes(config, new_codes)
+                config.save(update_fields=['recovery_codes', 'updated_at'])
+                _log('ssh_totp_setup', request,
+                     note='Recovery codes regenerated — old codes invalidated.')
+
+    return render(request, 'vault/settings.html', {
+        'active': 'vault',
+        'error': error,
+        'totp_configured': config.totp_configured,
+        'remaining_codes': remaining_count(config),
+        'total_codes': len(config.recovery_codes or []),
+        'new_codes': new_codes,
         'seconds_remaining': _seconds_remaining(request),
     })
 

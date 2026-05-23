@@ -13,6 +13,10 @@ urlpatterns = [
 
     # Vault-level TOTP enrolment — runs once, right after PIN setup.
     path('totp-setup/', views.totp_setup, name='totp_setup'),
+    # Lost-authenticator recovery + reset + per-vault settings.
+    path('recover/', views.recover, name='recover'),
+    path('totp-reset/', views.totp_reset, name='totp_reset'),
+    path('settings/', views.vault_settings, name='settings'),
 
     path('<uuid:client_id>/', views.client_vault, name='client_vault'),
     path('<uuid:client_id>/add/', views.add_credential, name='add_credential'),

@@ -1,0 +1,86 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Vault Settings — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-vault" data-seconds-remaining="{{ seconds_remaining }}">
+    <div class="vault-header">
+        <div class="vault-header__title">
+            <p class="vault-breadcrumb">
+                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo; Settings
+            </p>
+            <h1>Vault Settings</h1>
+        </div>
+        <div class="vault-header__actions">
+            <span class="vault-session">Expires in <strong id="vault-session-countdown">--:--</strong></span>
+        </div>
+    </div>
+
+    {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+    <section class="vault-settings-card">
+        <h2>Two-Factor Authentication</h2>
+        <p class="vault-settings-card__sub">
+            {% if totp_configured %}
+                Configured. Verified once per PIN session; unlocks every SSH terminal in that window.
+            {% else %}
+                Not configured. <a href="{% url 'vault:totp_setup' %}">Set it up &rarr;</a>
+            {% endif %}
+        </p>
+
+        {% if totp_configured %}
+            <p class="vault-settings-card__sub">
+                <a href="{% url 'vault:totp_reset' %}" class="btn-secondary btn-sm">Switch authenticator app</a>
+            </p>
+        {% endif %}
+    </section>
+
+    <section class="vault-settings-card">
+        <h2>Recovery Codes</h2>
+        <p class="vault-settings-card__sub">
+            <strong>{{ remaining_codes }}</strong> of {{ total_codes|default:8 }} recovery code{{ total_codes|pluralize }} remaining.
+            Store them in your password manager — never inside the vault itself.
+        </p>
+
+        {% if new_codes %}
+            <div class="vault-banner vault-banner--info">
+                <strong>New codes generated.</strong>
+                All previous codes are now invalid. Save these somewhere safe — you will not see them again.
+            </div>
+            <div class="recovery-codes" data-codes-container aria-label="New recovery codes">
+                {% for code in new_codes %}
+                    <code class="recovery-codes__code">{{ code }}</code>
+                {% endfor %}
+            </div>
+            <div class="recovery-codes__actions">
+                <button type="button" class="btn-secondary" id="download-codes-btn">Download as .txt</button>
+                <button type="button" class="btn-secondary" id="copy-codes-btn">Copy all</button>
+            </div>
+        {% endif %}
+
+        {% if totp_configured %}
+            <form method="post" class="vault-settings-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="regenerate">
+                <p class="vault-settings-card__sub">
+                    Generating new codes invalidates the existing ones. Enter your current authenticator code to confirm.
+                </p>
+                <div class="form-group">
+                    <label for="totp_code">Authenticator code</label>
+                    <input type="text" id="totp_code" name="totp_code"
+                           class="form-control" inputmode="numeric"
+                           pattern="[0-9]{6}" maxlength="6"
+                           autocomplete="one-time-code" required>
+                </div>
+                <button type="submit" class="btn-primary">Generate new recovery codes</button>
+            </form>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+<script src="{% static 'js/vault-recovery.js' %}" defer></script>
+{% endblock %}

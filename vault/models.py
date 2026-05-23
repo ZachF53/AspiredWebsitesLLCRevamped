@@ -37,6 +37,13 @@ class VaultConfig(TimestampedModel):
     totp_secret_encrypted = models.TextField(blank=True)
     totp_configured = models.BooleanField(default=False)
 
+    # Recovery codes for when the authenticator app is lost. Stored as a
+    # list of {"code_hash": "<sha256 hex>", "used": bool} — never the
+    # plaintext. Generated once when TOTP is configured (shown to the
+    # admin a single time) and regenerated on demand from the vault
+    # settings page. Each code consumes itself on use.
+    recovery_codes = models.JSONField(default=list, blank=True)
+
     class Meta:
         verbose_name = 'Vault Configuration'
         verbose_name_plural = 'Vault Configuration'

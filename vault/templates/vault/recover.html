@@ -1,0 +1,58 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Recover Vault — Admin{% endblock %}
+
+{% block content %}
+<div class="vault-gate">
+    <div class="vault-gate__card vault-gate__card--wide">
+        <div class="vault-icon vault-icon--orange" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h1>Recover Vault Access</h1>
+        <p class="vault-gate__sub">
+            Lost your authenticator? Enter your PIN and one of your
+            one-time recovery codes. After unlock, you'll be asked to
+            scan a new QR code for a fresh authenticator.
+        </p>
+
+        {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+
+        <form method="post" class="vault-pin-form" id="vault-pin-form">
+            {% csrf_token %}
+
+            <section class="vault-step">
+                <p class="vault-step__label">Step 1 — Enter your PIN</p>
+                <div class="vault-digits">
+                    <input class="vault-digit" name="d1" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 1" autofocus>
+                    <input class="vault-digit" name="d2" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+                    <input class="vault-digit" name="d3" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+                    <input class="vault-digit" name="d4" type="text" inputmode="numeric"
+                           maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+                </div>
+            </section>
+
+            <section class="vault-step">
+                <p class="vault-step__label">Step 2 — Enter a recovery code</p>
+                <p class="vault-step__sub">12-character code (e.g. <code>A3F9C2D8E1B7</code>) — each code works once.</p>
+                <input type="text" name="recovery_code" class="form-control recovery-input"
+                       autocomplete="off" maxlength="32" required
+                       placeholder="A3F9C2D8E1B7">
+            </section>
+
+            <button type="submit" class="btn-primary btn-block">Recover Access</button>
+        </form>
+
+        <p class="vault-foot">
+            <a href="{% url 'vault:home' %}">&larr; Back to PIN unlock</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault.js' %}" defer></script>
+{% endblock %}

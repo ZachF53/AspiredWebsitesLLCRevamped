@@ -200,8 +200,11 @@ class VaultTotpAndTerminalViewTests(TestCase):
         resp = self.client.post(
             reverse('vault:totp_setup'),
             {'code': pyotp.TOTP(secret).now()})
-        # Successful enrolment → redirect back to vault home.
-        self.assertEqual(resp.status_code, 302)
+        # Successful enrolment now renders the show-once recovery-codes
+        # page (200) — it does NOT redirect, because the plaintext codes
+        # only exist for that one response.
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Save Your Recovery Codes')
         self.cfg.refresh_from_db()
         self.assertTrue(self.cfg.totp_configured)
         self.assertTrue(self.cfg.totp_secret_encrypted)
@@ -335,6 +338,235 @@ class VaultTotpAndTerminalViewTests(TestCase):
             reverse('vault:command_row', args=[self.cred.id, cmd.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Row test')
+
+
+# ── Recovery-code helpers and views ─────────────────────────────────────────
+
+class RecoveryHelperTests(TestCase):
+
+    def test_generate_makes_eight_unique_codes(self):
+        from vault.recovery import RECOVERY_CODE_COUNT, generate_recovery_codes
+        codes = generate_recovery_codes()
+        self.assertEqual(len(codes), RECOVERY_CODE_COUNT)
+        self.assertEqual(len(set(codes)), RECOVERY_CODE_COUNT)
+        for c in codes:
+            self.assertEqual(len(c), 12)
+            self.assertEqual(c, c.upper())
+
+    def test_hash_is_normalised_and_deterministic(self):
+        from vault.recovery import hash_recovery_code
+        h1 = hash_recovery_code('a3f9c2d8e1b7')
+        h2 = hash_recovery_code('  A3F9C2D8E1B7  ')
+        self.assertEqual(h1, h2)
+        # SHA-256 hex is 64 chars.
+        self.assertEqual(len(h1), 64)
+
+    def test_consume_marks_used_and_rejects_replay(self):
+        from vault.recovery import (
+            consume_recovery_code, generate_recovery_codes, remaining_count,
+            store_recovery_codes,
+        )
+        cfg = VaultConfig.get()
+        codes = generate_recovery_codes()
+        store_recovery_codes(cfg, codes)
+        cfg.save()
+        self.assertEqual(remaining_count(cfg), 8)
+        self.assertTrue(consume_recovery_code(cfg, codes[0]))
+        cfg.refresh_from_db()
+        self.assertEqual(remaining_count(cfg), 7)
+        # Replay rejected.
+        self.assertFalse(consume_recovery_code(cfg, codes[0]))
+        # Bad code rejected.
+        self.assertFalse(consume_recovery_code(cfg, 'NOTACODE'))
+        cfg.refresh_from_db()
+        self.assertEqual(remaining_count(cfg), 7)
+
+
+class VaultRecoveryViewTests(TestCase):
+    """Recovery, totp-reset, and settings flows end-to-end."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='rstaff', password='rp', is_staff=True)
+        self.client.login(username='rstaff', password='rp')
+
+        self.pin = '5678'
+        self.salt = generate_salt()
+        self.vault_key = derive_key(self.pin, self.salt)
+        cfg = VaultConfig.get()
+        cfg.encryption_salt = self.salt
+        cfg.pin_hash = hash_pin(self.pin, self.salt)
+        cfg.pin_set = True
+        cfg.save()
+        self.cfg = cfg
+
+    def _unlock(self, totp_verified=True):
+        session = self.client.session
+        session['vault_unlocked_at'] = timezone.now().isoformat()
+        session['vault_key_wrapped'] = wrap_key(self.vault_key)
+        if totp_verified:
+            session['vault_totp_verified'] = True
+        session.save()
+
+    def _enroll_totp_with_codes(self):
+        from vault.recovery import (
+            generate_recovery_codes, store_recovery_codes,
+        )
+        secret = generate_totp_secret()
+        self.cfg.totp_secret_encrypted = encrypt_value(
+            secret, self.vault_key)
+        self.cfg.totp_configured = True
+        plaintext = generate_recovery_codes()
+        store_recovery_codes(self.cfg, plaintext)
+        self.cfg.save()
+        return secret, plaintext
+
+    # ── totp_setup shows codes once ────────────────────────────────────────
+
+    def test_totp_setup_renders_recovery_codes_on_success(self):
+        self._unlock(totp_verified=False)
+        # Get the page first so a secret is stashed in the session.
+        self.client.get(reverse('vault:totp_setup'))
+        secret = self.client.session['vault_totp_setup_secret']
+        resp = self.client.post(
+            reverse('vault:totp_setup'),
+            {'code': pyotp.TOTP(secret).now()})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Save Your Recovery Codes')
+        # Eight codes rendered in the show-once block.
+        from vault.recovery import RECOVERY_CODE_COUNT
+        self.assertEqual(
+            resp.content.decode().count('recovery-codes__code'),
+            RECOVERY_CODE_COUNT)
+        # And they are persisted (hashed) on the singleton.
+        self.cfg.refresh_from_db()
+        self.assertEqual(len(self.cfg.recovery_codes), RECOVERY_CODE_COUNT)
+        self.assertTrue(all(not c['used'] for c in self.cfg.recovery_codes))
+        # I should not see plaintext on the DB row.
+        self.assertNotIn(
+            self.cfg.recovery_codes[0]['code_hash'],
+            resp.content.decode().lower())
+
+    # ── recover: PIN + recovery code → unlock + clear TOTP ────────────────
+
+    def test_recover_unlocks_and_clears_totp(self):
+        secret, codes = self._enroll_totp_with_codes()
+        resp = self.client.post(reverse('vault:recover'), {
+            'd1': self.pin[0], 'd2': self.pin[1],
+            'd3': self.pin[2], 'd4': self.pin[3],
+            'recovery_code': codes[0],
+        })
+        self.assertRedirects(resp, reverse('vault:totp_setup'))
+        # Session reflects the unlock + TOTP-verified flag.
+        self.assertIn('vault_key_wrapped', self.client.session)
+        self.assertTrue(self.client.session.get('vault_totp_verified'))
+        # TOTP wiped on VaultConfig — next page will force a new enrolment.
+        self.cfg.refresh_from_db()
+        self.assertFalse(self.cfg.totp_configured)
+        self.assertEqual(self.cfg.totp_secret_encrypted, '')
+        # Code consumed.
+        self.assertEqual(
+            sum(1 for c in self.cfg.recovery_codes if c['used']), 1)
+
+    def test_recover_rejects_wrong_pin(self):
+        secret, codes = self._enroll_totp_with_codes()
+        resp = self.client.post(reverse('vault:recover'), {
+            'd1': '0', 'd2': '0', 'd3': '0', 'd4': '0',
+            'recovery_code': codes[0],
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Incorrect PIN')
+        self.cfg.refresh_from_db()
+        # Code NOT consumed when the PIN fails.
+        self.assertFalse(any(c['used'] for c in self.cfg.recovery_codes))
+        self.assertNotIn('vault_key_wrapped', self.client.session)
+
+    def test_recover_rejects_replayed_code(self):
+        secret, codes = self._enroll_totp_with_codes()
+        # Consume once.
+        self.client.post(reverse('vault:recover'), {
+            'd1': self.pin[0], 'd2': self.pin[1],
+            'd3': self.pin[2], 'd4': self.pin[3],
+            'recovery_code': codes[0],
+        })
+        # Log out and try the same code on a fresh session.
+        self.client.logout()
+        self.client.login(username='rstaff', password='rp')
+        # The first recovery cleared TOTP, so re-enrol with a fresh
+        # secret WITHOUT clobbering the recovery_codes list (so codes[0]
+        # is still marked used in the DB).
+        self.cfg.refresh_from_db()
+        self.cfg.totp_secret_encrypted = encrypt_value(
+            generate_totp_secret(), self.vault_key)
+        self.cfg.totp_configured = True
+        self.cfg.save(update_fields=[
+            'totp_secret_encrypted', 'totp_configured'])
+        resp = self.client.post(reverse('vault:recover'), {
+            'd1': self.pin[0], 'd2': self.pin[1],
+            'd3': self.pin[2], 'd4': self.pin[3],
+            'recovery_code': codes[0],
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'not valid (or already used)')
+
+    # ── totp_reset: inside the vault, swap authenticator ───────────────────
+
+    def test_totp_reset_consumes_code_and_clears_totp(self):
+        secret, codes = self._enroll_totp_with_codes()
+        self._unlock()
+        resp = self.client.post(reverse('vault:totp_reset'),
+                                {'recovery_code': codes[1]})
+        self.assertRedirects(resp, reverse('vault:totp_setup'))
+        self.cfg.refresh_from_db()
+        self.assertFalse(self.cfg.totp_configured)
+        # The "already verified this session" flag was dropped — new
+        # enrolment is genuinely required before SSH unlocks.
+        self.assertNotIn('vault_totp_verified', self.client.session)
+
+    def test_totp_reset_requires_unlocked_vault(self):
+        secret, codes = self._enroll_totp_with_codes()
+        # Not unlocked.
+        resp = self.client.post(reverse('vault:totp_reset'),
+                                {'recovery_code': codes[1]})
+        self.assertEqual(resp.status_code, 302)
+        self.cfg.refresh_from_db()
+        self.assertTrue(self.cfg.totp_configured)
+
+    # ── settings: counts + regenerate ──────────────────────────────────────
+
+    def test_settings_shows_remaining_count(self):
+        secret, codes = self._enroll_totp_with_codes()
+        self._unlock()
+        resp = self.client.get(reverse('vault:settings'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, '8</strong> of 8 recovery codes remaining')
+
+    def test_settings_regenerate_requires_correct_totp(self):
+        secret, codes = self._enroll_totp_with_codes()
+        self._unlock()
+        old_hashes = {c['code_hash'] for c in self.cfg.recovery_codes}
+
+        # Wrong code → no change.
+        resp = self.client.post(reverse('vault:settings'),
+                                {'action': 'regenerate', 'totp_code': '000000'})
+        self.assertContains(resp, 'Incorrect authenticator code', status_code=200)
+        self.cfg.refresh_from_db()
+        self.assertEqual(
+            {c['code_hash'] for c in self.cfg.recovery_codes}, old_hashes)
+
+        # Right code → new set generated, shown once.
+        resp = self.client.post(reverse('vault:settings'), {
+            'action': 'regenerate',
+            'totp_code': pyotp.TOTP(secret).now(),
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'New codes generated')
+        self.cfg.refresh_from_db()
+        self.assertEqual(
+            len({c['code_hash'] for c in self.cfg.recovery_codes}), 8)
+        self.assertTrue(
+            old_hashes.isdisjoint(
+                {c['code_hash'] for c in self.cfg.recovery_codes}))
 
 
 # ── Consumer module ─────────────────────────────────────────────────────────

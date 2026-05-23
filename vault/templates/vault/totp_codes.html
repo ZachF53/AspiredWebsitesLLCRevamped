@@ -1,0 +1,57 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Save Your Recovery Codes — Vault{% endblock %}
+
+{% block content %}
+<div class="vault-gate">
+    <div class="vault-gate__card vault-gate__card--wide">
+        <h1 class="vault-totp-title">
+            <img src="{% static 'images/favicon-32x32.png' %}"
+                 width="32" height="32" alt="" class="vault-totp-title__icon">
+            Save Your Recovery Codes
+        </h1>
+        <p class="vault-gate__sub">
+            If you ever lose access to your authenticator app, one of
+            these codes will let you back in. <strong>Each code can only
+            be used once.</strong> They are shown here exactly once —
+            save them in your password manager (<em>not</em> the vault).
+        </p>
+
+        <div class="recovery-codes" data-codes-container
+             aria-label="Recovery codes">
+            {% for code in recovery_codes %}
+                <code class="recovery-codes__code">{{ code }}</code>
+            {% endfor %}
+        </div>
+
+        <form method="post"
+              action="{% url 'vault:home' %}"
+              class="recovery-codes__form" id="recovery-codes-form">
+            {% csrf_token %}
+            <div class="recovery-codes__actions">
+                <button type="button" class="btn-secondary" id="download-codes-btn">
+                    Download as .txt
+                </button>
+                <button type="button" class="btn-secondary" id="copy-codes-btn">
+                    Copy all
+                </button>
+            </div>
+
+            <label class="recovery-codes__ack">
+                <input type="checkbox" id="codes-saved-ack" required>
+                I have saved these codes somewhere safe.
+            </label>
+
+            <button type="submit" class="btn-primary btn-block"
+                    id="codes-continue-btn" disabled>
+                Continue to Vault
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/vault-recovery.js' %}" defer></script>
+{% endblock %}
