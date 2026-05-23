@@ -1,79 +1,135 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
-{% block title %}Scan {{ scan.id|stringformat:"s"|slice:":8" }} — Admin{% endblock %}
+{% block title %}Scan — {{ scan.client.firm_name }} — Admin{% endblock %}
 
 {% block content %}
 <div class="admin-container">
-    <div class="admin-page-header">
-        <div>
-            <span class="eyebrow">
-                <a href="{% url 'admin_dashboard:scans_list' %}">Scans</a> &rsaquo; {{ scan.client.firm_name }}
-            </span>
-            <h1 class="admin-page-title">{{ scan.get_scan_type_display }} — {{ scan.created_at|date:"Y-m-d H:i" }}</h1>
-            <p class="admin-page-sub">
-                Status: <strong>{{ scan.get_status_display }}</strong>
-                {% if scan.is_scheduled %} &middot; scheduled{% else %} &middot; manual{% endif %}
-                {% if scan.target_url %} &middot; {{ scan.target_url }}{% endif %}
-                {% if scan.target_ip %} &middot; <code>{{ scan.target_ip }}</code>{% endif %}
+
+    {# Breadcrumb #}
+    <p class="vault-breadcrumb">
+        <a href="{% url 'admin_dashboard:scans_list' %}">Scans</a> &rsaquo;
+        <a href="{% url 'admin_dashboard:client_detail' scan.client.id %}">{{ scan.client.firm_name }}</a> &rsaquo;
+        {{ scan.created_at|date:"Y-m-d H:i" }}
+    </p>
+
+    {# ── Scan header card ── #}
+    <section class="scan-header-card">
+        <div class="scan-header-card__left">
+            <h1 class="scan-header-card__client">
+                <a href="{% url 'admin_dashboard:client_detail' scan.client.id %}">{{ scan.client.firm_name }}</a>
+            </h1>
+            <p class="scan-header-card__badges">
+                <span class="scan-type scan-type--{{ scan.scan_type }}">{{ scan.get_scan_type_display }}</span>
+                {% if scan.is_scheduled %}
+                    <span class="scan-badge scan-badge--scheduled">scheduled</span>
+                {% else %}
+                    <span class="scan-badge scan-badge--manual">manual</span>
+                {% endif %}
+                <span class="scan-status scan-status--{{ scan.status }}">
+                    {% if scan.status == 'pending' %}⏱{% elif scan.status == 'running' %}⟳{% elif scan.status == 'complete' %}✓{% elif scan.status == 'failed' %}✗{% endif %}
+                    {{ scan.get_status_display }}
+                </span>
             </p>
+            <dl class="scan-header-card__meta">
+                <dt>Started</dt>
+                <dd>{% if scan.started_at %}{{ scan.started_at|date:"Y-m-d H:i:s" }}{% else %}—{% endif %}</dd>
+                <dt>Duration</dt>
+                <dd>{% if duration_seconds %}{{ duration_seconds }}s{% else %}—{% endif %}</dd>
+                {% if scan.target_url %}<dt>Target URL</dt><dd><a href="{{ scan.target_url }}" target="_blank" rel="noopener">{{ scan.target_url }}</a></dd>{% endif %}
+                {% if scan.target_ip %}<dt>Target IP</dt><dd><code>{{ scan.target_ip }}</code></dd>{% endif %}
+                <dt>Open</dt>
+                <dd>{{ open_count }} of {{ findings_total }}</dd>
+            </dl>
+            <div class="scan-header-card__actions">
+                <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="droplet-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="client_id" value="{{ scan.client.id }}">
+                    <input type="hidden" name="scan_type" value="{{ scan.scan_type }}">
+                    <button type="submit" class="btn-primary btn-sm">Re-scan</button>
+                </form>
+                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scans_list' %}">All scans</a>
+            </div>
         </div>
-    </div>
+
+        <div class="scan-header-card__right">
+            <div class="scan-severity-grid">
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--critical">
+                    <span class="scan-severity-grid__num">{{ scan.critical_count }}</span>
+                    <span class="scan-severity-grid__label">Critical</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--high">
+                    <span class="scan-severity-grid__num">{{ scan.high_count }}</span>
+                    <span class="scan-severity-grid__label">High</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--medium">
+                    <span class="scan-severity-grid__num">{{ scan.medium_count }}</span>
+                    <span class="scan-severity-grid__label">Medium</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--low">
+                    <span class="scan-severity-grid__num">{{ scan.low_count }}</span>
+                    <span class="scan-severity-grid__label">Low</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--info">
+                    <span class="scan-severity-grid__num">{{ scan.info_count }}</span>
+                    <span class="scan-severity-grid__label">Info</span>
+                </div>
+            </div>
+
+            {% if ssl_grade %}
+                <div class="scan-ssl-grade scan-ssl-grade--{{ ssl_grade_class|default:'unknown' }}">
+                    <span class="scan-ssl-grade__letter">{{ ssl_grade }}</span>
+                    <span class="scan-ssl-grade__label">SSL Labs grade</span>
+                </div>
+            {% endif %}
+        </div>
+    </section>
 
     {% if scan.error_message %}
-        <div class="droplet-banner droplet-banner--error">
+        <div class="scan-banner scan-banner--error">
             <strong>Scan failed.</strong> {{ scan.error_message }}
         </div>
     {% endif %}
 
-    <section class="droplet-metric-card">
-        <h2>Findings Summary</h2>
-        <ul class="droplet-meta-list">
-            <li><strong>Critical</strong> {{ scan.critical_count }}</li>
-            <li><strong>High</strong> {{ scan.high_count }}</li>
-            <li><strong>Medium</strong> {{ scan.medium_count }}</li>
-            <li><strong>Low</strong> {{ scan.low_count }}</li>
-            <li><strong>Info</strong> {{ scan.info_count }}</li>
-            <li><strong>Total</strong> {{ scan.findings_count }}</li>
+    {# ── Tools-used block ── #}
+    <section class="scan-tools-card">
+        <h2 class="scan-tools-card__title">Tools</h2>
+        <ul class="scan-tools-card__list">
+            {% for t in tool_blocks %}
+                <li class="scan-tool scan-tool--{{ t.status }}">
+                    <span class="scan-tool__glyph">
+                        {% if t.status == 'ok' %}✓{% elif t.status == 'skipped' %}↷{% elif t.status == 'error' %}✗{% else %}·{% endif %}
+                    </span>
+                    <span class="scan-tool__label">{{ t.label }}</span>
+                    <span class="scan-tool__summary">{{ t.summary }}</span>
+                </li>
+            {% endfor %}
         </ul>
     </section>
 
-    <section class="droplet-metric-card">
-        <h2>Findings ({{ findings|length }})</h2>
-        {% if findings %}
-            <table class="droplet-table">
-                <thead>
-                    <tr>
-                        <th>Severity</th>
-                        <th>Tool</th>
-                        <th>Title</th>
-                        <th>CVE</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for f in findings %}
-                        <tr>
-                            <td><span class="scan-status scan-status--sev-{{ f.severity }}">{{ f.get_severity_display }}</span></td>
-                            <td><span class="scan-badge">{{ f.get_tool_display }}</span></td>
-                            <td>
-                                <details>
-                                    <summary>{{ f.title }}</summary>
-                                    {% if f.description %}<p>{{ f.description }}</p>{% endif %}
-                                    {% if f.recommendation %}<p><strong>Fix:</strong> {{ f.recommendation }}</p>{% endif %}
-                                    {% if f.evidence %}<pre style="white-space:pre-wrap;">{{ f.evidence }}</pre>{% endif %}
-                                </details>
-                            </td>
-                            <td>{{ f.cve_id|default:"&mdash;" }}</td>
-                            <td>{{ f.get_status_display }}</td>
-                        </tr>
+    {# ── Findings grouped by severity ── #}
+    {% for g in severity_groups %}
+        <details class="scan-findings-group scan-findings-group--{{ g.severity }}"
+                 {% if g.open_by_default %}open{% endif %}>
+            <summary>
+                <span class="scan-findings-group__sev">{{ g.glyph }}</span>
+                <span class="scan-findings-group__label">{{ g.label }}</span>
+                <span class="scan-findings-group__count">({{ g.items|length }})</span>
+            </summary>
+            {% if g.items %}
+                <div class="scan-findings-group__body">
+                    {% for f in g.items %}
+                        {% include "admin_dashboard/_finding_card.html" with f=f expanded=False %}
                     {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="droplet-muted">No findings recorded yet.</p>
-        {% endif %}
-    </section>
-
-    <p><a class="btn-secondary" href="{% url 'admin_dashboard:scans_list' %}">&larr; All scans</a></p>
+                </div>
+            {% else %}
+                <p class="scan-findings-group__empty">No {{ g.label|lower }} findings.</p>
+            {% endif %}
+        </details>
+    {% endfor %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/scans.js' %}" defer></script>
 {% endblock %}

@@ -1,0 +1,99 @@
+{# Scan table rows — included by scans_list.html AND returned standalone by
+   /scans/table/ for the 15s HTMX poll. No wrapping tags so it slots into a
+   hx-swap='innerHTML' target cleanly. #}
+<table class="droplet-table scans-table">
+    <thead>
+        <tr>
+            <th class="droplet-table__status"></th>
+            <th>Client</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Findings</th>
+            <th>Started</th>
+            <th>Duration</th>
+            <th>Source</th>
+            <th class="droplet-table__actions">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+            {% with s=r.scan %}
+                <tr class="droplet-row droplet-row--{{ r.border }} {% if s.status == 'running' %}scans-row-pulse{% endif %}">
+                    <td class="droplet-table__status">
+                        <span class="droplet-dot droplet-dot--{{ r.border }}"
+                              title="{{ s.status }}"></span>
+                    </td>
+                    <td class="droplet-name">
+                        <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                    </td>
+                    <td>
+                        <span class="scan-type scan-type--{{ s.scan_type }}">{{ s.get_scan_type_display }}</span>
+                    </td>
+                    <td>
+                        <span class="scan-status scan-status--{{ s.status }}">
+                            {% if s.status == 'pending' %}⏱{% elif s.status == 'running' %}⟳{% elif s.status == 'complete' %}✓{% elif s.status == 'failed' %}✗{% endif %}
+                            {{ s.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="scan-findings">
+                        {% if s.status == 'complete' and not s.findings_count %}
+                            <span class="scan-clean">✓ Clean</span>
+                        {% else %}
+                            {% if s.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ s.critical_count }}</span>{% endif %}
+                            {% if s.high_count %}<span class="scan-pill scan-pill--high">🟠 {{ s.high_count }}</span>{% endif %}
+                            {% if s.medium_count %}<span class="scan-pill scan-pill--medium">🟡 {{ s.medium_count }}</span>{% endif %}
+                            {% if s.low_count %}<span class="scan-pill scan-pill--low">🔵 {{ s.low_count }}</span>{% endif %}
+                            {% if not s.critical_count and not s.high_count and not s.medium_count and not s.low_count %}<span class="droplet-muted">—</span>{% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.started_at %}
+                            <time datetime="{{ s.started_at }}">{{ s.started_at|timesince }} ago</time>
+                        {% else %}
+                            <span class="droplet-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.duration_seconds %}
+                            {% if r.duration_seconds >= 60 %}{{ r.duration_seconds|floatformat:0|slice:":-2" }}m {% endif %}{{ r.duration_seconds|divisibleby:60|yesno:"0,"|default:"" }}{{ r.duration_seconds }}s
+                        {% else %}
+                            <span class="droplet-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.is_scheduled %}
+                            <span class="scan-badge scan-badge--scheduled">scheduled</span>
+                        {% else %}
+                            <span class="scan-badge scan-badge--manual">manual</span>
+                        {% endif %}
+                    </td>
+                    <td class="droplet-table__actions">
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scan_detail' s.id %}">View</a>
+                        {% if s.status == 'complete' or s.status == 'failed' %}
+                            <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="droplet-inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="client_id" value="{{ s.client.id }}">
+                                <input type="hidden" name="scan_type" value="{{ s.scan_type }}">
+                                <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endwith %}
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if page and page.paginator.num_pages > 1 %}
+    <nav class="scans-pagination" aria-label="Scan pagination">
+        {% if page.has_previous %}
+            <a class="btn-secondary btn-sm" href="?page={{ page.previous_page_number }}{% if filter_qs %}&{{ filter_qs }}{% endif %}">&larr; Prev</a>
+        {% endif %}
+        <span class="scans-pagination__counter">
+            Page {{ page.number }} of {{ page.paginator.num_pages }}
+        </span>
+        {% if page.has_next %}
+            <a class="btn-secondary btn-sm" href="?page={{ page.next_page_number }}{% if filter_qs %}&{{ filter_qs }}{% endif %}">Next &rarr;</a>
+        {% endif %}
+    </nav>
+{% endif %}

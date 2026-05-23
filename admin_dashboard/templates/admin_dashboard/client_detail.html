@@ -141,28 +141,51 @@
         </div>
     </section>
 
-    {# ── Phase 6c — on-demand vulnerability scan ── #}
+    {# ── Phase 6c — Security Scans ── #}
     <section class="admin-card">
-        <h3 class="admin-card__title">Vulnerability Scan</h3>
-        <p class="vault-settings-card__sub">
-            Runs nmap, Nikto, SSL Labs, and WPScan (if WordPress) against the live URL and Droplet IP.
-            Scheduled scans run every 30 days automatically; this triggers one now.
-        </p>
-        <form method="post" action="{% url 'admin_dashboard:scan_run' %}" id="run-scan-form"
+        <h3 class="admin-card__title">Security Scans</h3>
+
+        {% if last_scan %}
+            <p class="client-scan-summary">
+                <strong>Last scan:</strong>
+                {{ last_scan.created_at|date:"Y-m-d H:i" }} ·
+                <span class="scan-status scan-status--{{ last_scan.status }}">{{ last_scan.get_status_display }}</span>
+            </p>
+            <p class="client-scan-summary">
+                {% if last_scan.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ last_scan.critical_count }} Critical</span>{% endif %}
+                {% if last_scan.high_count %}<span class="scan-pill scan-pill--high">🟠 {{ last_scan.high_count }} High</span>{% endif %}
+                {% if last_scan.medium_count %}<span class="scan-pill scan-pill--medium">🟡 {{ last_scan.medium_count }} Medium</span>{% endif %}
+                {% if last_scan.low_count %}<span class="scan-pill scan-pill--low">🔵 {{ last_scan.low_count }} Low</span>{% endif %}
+                {% if last_scan.status == 'complete' and not last_scan.findings_count %}<span class="scan-clean">✓ Clean</span>{% endif %}
+            </p>
+
+            {% if top_open_findings %}
+                <p class="client-scan-summary"><strong>Top open findings:</strong></p>
+                <ul class="client-scan-top">
+                    {% for f in top_open_findings %}
+                        <li>
+                            <span class="finding-status finding-status--open">{{ f.get_severity_display }}</span>
+                            {{ f.title|truncatechars:80 }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% else %}
+            <p class="client-scan-summary">No scans have run for this client yet.</p>
+        {% endif %}
+
+        <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="client-scan-actions"
               hx-post="{% url 'admin_dashboard:scan_run' %}"
               hx-target="#scan-launch-result"
               hx-swap="innerHTML">
             {% csrf_token %}
             <input type="hidden" name="client_id" value="{{ client.id }}">
-            <label for="scan_type" class="vault-settings-card__sub">Scan type</label>
-            <select name="scan_type" id="scan_type" class="form-control" style="max-width: 240px;">
-                <option value="full" selected>Full Scan (all tools)</option>
-                <option value="quick">Quick (nmap + SSL)</option>
-                <option value="ssl">SSL/TLS Only</option>
-                <option value="ports">Port Scan Only</option>
-                <option value="web">Web Vulns Only</option>
-            </select>
-            <button type="submit" class="btn-primary">Run Scan</button>
+            <input type="hidden" name="scan_type" value="quick">
+            <button type="submit" class="btn-primary btn-sm">Run Quick Scan</button>
+            {% if last_scan %}
+                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scan_detail' last_scan.id %}">View Last Scan</a>
+            {% endif %}
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scans_list' %}?client={{ client.id }}">View All Scans</a>
         </form>
         <div id="scan-launch-result"></div>
     </section>

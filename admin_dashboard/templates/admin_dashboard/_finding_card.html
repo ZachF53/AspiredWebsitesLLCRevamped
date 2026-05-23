@@ -1,0 +1,94 @@
+{# One finding card. Reused in scan_detail.html AND returned by the
+   HTMX status-update endpoint so it can swap in place. The outer
+   element MUST keep id="finding-{{ f.id }}" so hx-target='#…' resolves
+   on both first render and subsequent swaps. #}
+<article id="finding-{{ f.id }}"
+         class="finding-card finding-card--sev-{{ f.severity }} finding-card--status-{{ f.status }}">
+    <details {% if expanded %}open{% endif %}>
+        <summary class="finding-card__head">
+            <span class="finding-card__title">{{ f.title }}</span>
+            <span class="finding-card__badges">
+                <span class="scan-badge">{{ f.get_tool_display }}</span>
+                <span class="finding-status finding-status--{{ f.status }}">{{ f.get_status_display }}</span>
+            </span>
+        </summary>
+
+        <div class="finding-card__body">
+            {% if f.description %}
+                <p><strong>Description.</strong> {{ f.description }}</p>
+            {% endif %}
+            {% if f.recommendation %}
+                <p><strong>Recommendation.</strong> {{ f.recommendation }}</p>
+            {% endif %}
+            {% if f.evidence %}
+                <details class="finding-card__evidence">
+                    <summary>Evidence</summary>
+                    <pre>{{ f.evidence }}</pre>
+                </details>
+            {% endif %}
+            {% if f.cve_id %}
+                <p class="finding-card__cve">
+                    CVE:
+                    {% for cve in f.cve_id_list %}
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve }}"
+                           target="_blank" rel="noopener">{{ cve }}</a>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </p>
+            {% endif %}
+
+            {% if f.status == 'accepted_risk' and f.acceptance_note %}
+                <div class="finding-card__accept-meta">
+                    <strong>Accepted by</strong> {{ f.accepted_by }} on {{ f.accepted_at|date:"Y-m-d H:i" }}<br>
+                    <em>{{ f.acceptance_note }}</em>
+                </div>
+            {% endif %}
+
+            <div class="finding-card__actions">
+                {# Accepted Risk — inline form so the note is required #}
+                <details class="finding-card__accept">
+                    <summary class="btn-secondary btn-sm finding-card__accept-toggle">Mark Accepted Risk</summary>
+                    <form class="finding-card__accept-form"
+                          hx-post="{% url 'admin_dashboard:finding_status' f.id %}"
+                          hx-target="#finding-{{ f.id }}"
+                          hx-swap="outerHTML">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="accepted_risk">
+                        <label for="ack-note-{{ f.id }}">Reason for accepting this risk</label>
+                        <textarea id="ack-note-{{ f.id }}" name="acceptance_note"
+                                  class="form-control" rows="3" required></textarea>
+                        <button type="submit" class="btn-primary btn-sm">Confirm</button>
+                    </form>
+                </details>
+
+                <form hx-post="{% url 'admin_dashboard:finding_status' f.id %}"
+                      hx-target="#finding-{{ f.id }}"
+                      hx-swap="outerHTML"
+                      class="droplet-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="false_positive">
+                    <button type="submit" class="btn-secondary btn-sm">Mark False Positive</button>
+                </form>
+
+                <form hx-post="{% url 'admin_dashboard:finding_status' f.id %}"
+                      hx-target="#finding-{{ f.id }}"
+                      hx-swap="outerHTML"
+                      class="droplet-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="resolved">
+                    <button type="submit" class="btn-secondary btn-sm">Mark Resolved</button>
+                </form>
+
+                {% if f.status != 'open' %}
+                    <form hx-post="{% url 'admin_dashboard:finding_status' f.id %}"
+                          hx-target="#finding-{{ f.id }}"
+                          hx-swap="outerHTML"
+                          class="droplet-inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="open">
+                        <button type="submit" class="btn-secondary btn-sm">Re-open</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </details>
+</article>

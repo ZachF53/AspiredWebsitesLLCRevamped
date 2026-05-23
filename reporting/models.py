@@ -471,3 +471,11 @@ class VulnerabilityFinding(TimestampedModel):
 
     def __str__(self):
         return f'[{self.severity.upper()}] {self.title[:60]}'
+
+    @property
+    def cve_id_list(self):
+        """Split the comma/space-separated cve_id field into clean IDs."""
+        if not self.cve_id:
+            return []
+        return [c.strip() for c in self.cve_id.replace(',', ' ').split()
+                if c.strip()]

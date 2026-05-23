@@ -98,10 +98,13 @@ urlpatterns = [
     path('droplets/<int:droplet_id>/metrics/',
          views.droplet_metrics, name='droplet_metrics'),
 
-    # Phase 6c — vulnerability scans (Part 1 UI)
+    # Phase 6c — vulnerability scans
     path('scans/', views.scans_list, name='scans_list'),
+    path('scans/table/', views.scans_table, name='scans_table'),
     path('scans/run/', views.run_scan, name='scan_run'),
     path('scans/<uuid:scan_id>/', views.scan_detail, name='scan_detail'),
+    path('scans/findings/<uuid:finding_id>/status/',
+         views.update_finding_status, name='finding_status'),
 
     # Phase 5b — AI chatbot
     path('clients/<uuid:client_id>/chatbot/', views.client_chatbot, name='client_chatbot'),

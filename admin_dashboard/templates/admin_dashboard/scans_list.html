@@ -10,71 +10,131 @@
             <span class="eyebrow">Security</span>
             <h1 class="admin-page-title">Vulnerability Scans</h1>
             <p class="admin-page-sub">
-                {{ total }} total{% if running %} &middot; {{ running }} running{% endif %} &middot;
-                Scheduled daily at 03:00 (30-day cadence per client).
+                Scheduled daily at 03:00 (30-day cadence per client). Run one on demand below.
             </p>
+        </div>
+        <div>
+            <button type="button" class="btn-primary" id="open-run-scan-modal">+ Run New Scan</button>
         </div>
     </div>
 
+    {# Stats row — uses .droplet-stat which is themed dark already #}
+    <div class="droplet-stats">
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ total_scans }}</span>
+            <span class="droplet-stat__label">Total Scans</span>
+        </div>
+        <div class="droplet-stat {% if pending_count %}droplet-stat--orange{% endif %}">
+            <span class="droplet-stat__num">{{ pending_count }}</span>
+            <span class="droplet-stat__label">Pending</span>
+        </div>
+        <div class="droplet-stat {% if running_count %}droplet-stat--green{% endif %}">
+            <span class="droplet-stat__num">{{ running_count }}</span>
+            <span class="droplet-stat__label">Running</span>
+        </div>
+        <div class="droplet-stat">
+            <span class="droplet-stat__num droplet-stat__num--sm">
+                {% if last_scan %}{{ last_scan.created_at|timesince }} ago{% else %}—{% endif %}
+            </span>
+            <span class="droplet-stat__label">Last Scan</span>
+        </div>
+    </div>
+
+    {# Filters #}
+    <form method="get" class="scans-filter-bar">
+        <label class="scans-filter-bar__field">
+            <span>Client</span>
+            <select name="client" class="form-control">
+                <option value="">All clients</option>
+                {% for c in clients %}
+                    <option value="{{ c.id }}" {% if selected_client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="scans-filter-bar__field">
+            <span>Status</span>
+            <select name="status" class="form-control">
+                <option value="">All</option>
+                {% for slug, label in status_choices %}
+                    <option value="{{ slug }}" {% if selected_status == slug %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-secondary btn-sm">Filter</button>
+        {% if selected_client or selected_status %}
+            <a class="scans-filter-bar__clear" href="{% url 'admin_dashboard:scans_list' %}">Clear</a>
+        {% endif %}
+    </form>
+
     {% if rows %}
-        <div class="droplet-table-wrap">
-            <table class="droplet-table">
-                <thead>
-                    <tr>
-                        <th>Client</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Started</th>
-                        <th>Duration</th>
-                        <th>Findings</th>
-                        <th>Source</th>
-                        <th class="droplet-table__actions">Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in rows %}
-                        {% with s=r.scan %}
-                            <tr class="droplet-row droplet-row--{% if s.status == 'complete' %}green{% elif s.status == 'running' %}orange{% elif s.status == 'failed' %}red{% else %}orange{% endif %}">
-                                <td class="droplet-name">
-                                    <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
-                                </td>
-                                <td><span class="scan-badge">{{ s.get_scan_type_display }}</span></td>
-                                <td>
-                                    <span class="scan-status scan-status--{{ s.status }}">{{ s.get_status_display }}</span>
-                                </td>
-                                <td>
-                                    {% if s.started_at %}<time datetime="{{ s.started_at }}">{{ s.started_at|date:"Y-m-d H:i" }}</time>{% else %}&mdash;{% endif %}
-                                </td>
-                                <td>
-                                    {% if r.duration_seconds %}{{ r.duration_seconds }}s{% else %}&mdash;{% endif %}
-                                </td>
-                                <td class="scan-findings">
-                                    {% if s.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ s.critical_count }}</span>{% endif %}
-                                    {% if s.high_count %}<span class="scan-pill scan-pill--high">🟠 {{ s.high_count }}</span>{% endif %}
-                                    {% if s.medium_count %}<span class="scan-pill scan-pill--medium">🟡 {{ s.medium_count }}</span>{% endif %}
-                                    {% if s.low_count %}<span class="scan-pill scan-pill--low">🔵 {{ s.low_count }}</span>{% endif %}
-                                    {% if not s.findings_count %}<span class="droplet-muted">&mdash;</span>{% endif %}
-                                </td>
-                                <td>
-                                    {% if s.is_scheduled %}
-                                        <span class="scan-badge scan-badge--scheduled">scheduled</span>
-                                    {% else %}
-                                        <span class="scan-badge scan-badge--manual">manual</span>
-                                    {% endif %}
-                                </td>
-                                <td class="droplet-table__actions">
-                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scan_detail' s.id %}">View Details</a>
-                                </td>
-                            </tr>
-                        {% endwith %}
-                    {% endfor %}
-                </tbody>
-            </table>
+        {# HTMX auto-refresh only when something is in flight #}
+        <div class="droplet-table-wrap" id="scans-table"
+             {% if auto_refresh %}
+                 hx-get="{% url 'admin_dashboard:scans_table' %}?{{ filter_qs }}"
+                 hx-trigger="every 15s"
+                 hx-swap="innerHTML"
+             {% endif %}>
+            {% include "admin_dashboard/_scan_rows.html" with rows=rows page=page %}
         </div>
     {% else %}
         <div class="admin-empty">
-            <p>No vulnerability scans yet. Trigger one from a client's detail page, or wait for the 03:00 daily scheduler.</p>
+            <p>No scans found{% if selected_client or selected_status %} for the current filters{% endif %}.</p>
         </div>
     {% endif %}
 </div>
+
+{# ── Run New Scan modal ── #}
+<div class="scan-modal" id="run-scan-modal" hidden role="dialog" aria-modal="true" aria-labelledby="run-scan-modal-title">
+    <div class="scan-modal__card">
+        <header class="scan-modal__head">
+            <h2 id="run-scan-modal-title">Run New Vulnerability Scan</h2>
+            <button type="button" class="scan-modal__close" id="close-run-scan-modal" aria-label="Close">×</button>
+        </header>
+        <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="scan-modal__form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="run-scan-client">Client</label>
+                <select id="run-scan-client" name="client_id" class="form-control" required>
+                    <option value="">— Select a client —</option>
+                    {% for c in clients %}
+                        <option value="{{ c.id }}"
+                                data-url="{{ c.projects.first.live_url|default:'' }}"
+                                data-ip="{{ c.do_droplet_ip|default:'' }}">{{ c.firm_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="run-scan-type">Scan Type</label>
+                <select id="run-scan-type" name="scan_type" class="form-control">
+                    <option value="full" selected>Full Scan (all tools, ~5–8 min)</option>
+                    <option value="quick">Quick Scan (nmap + SSL, ~2 min)</option>
+                    <option value="ssl">SSL Only</option>
+                    <option value="ports">Port Scan Only</option>
+                    <option value="web">Web Vulnerabilities Only</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Target URL</label>
+                <div class="scan-modal__readonly" id="run-scan-url-preview">—</div>
+                <p class="scan-modal__hint">Auto-filled from the client's live URL.</p>
+            </div>
+            <div class="form-group">
+                <label>Target IP</label>
+                <div class="scan-modal__readonly" id="run-scan-ip-preview">—</div>
+                <p class="scan-modal__hint">Auto-filled from the client's Droplet IP.</p>
+            </div>
+
+            <div class="scan-modal__actions">
+                <button type="submit" class="btn-primary" id="run-scan-submit">Start Scan</button>
+                <button type="button" class="btn-secondary" id="run-scan-cancel">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/scans.js' %}" defer></script>
 {% endblock %}

@@ -1146,14 +1146,57 @@ def changelog_import(request):
 
 @admin_required
 def client_list(request):
-    """All clients — the entry point to the per-client monitoring tools."""
+    """All clients — entry point to the per-client monitoring tools."""
     from clients.models import ClientProfile
+    from reporting.models import VulnerabilityFinding, VulnerabilityScan
+
     clients = ClientProfile.objects.order_by('firm_name')
     query = (request.GET.get('q') or '').strip()
     if query:
         clients = clients.filter(firm_name__icontains=query)
+    clients = list(clients)
+
+    # Last completed scan per client — single query, indexed by client id.
+    last_scan_by_client = {}
+    for s in (VulnerabilityScan.objects
+              .filter(status='complete', client__in=clients)
+              .order_by('client_id', '-completed_at')):
+        last_scan_by_client.setdefault(s.client_id, s)
+
+    # Has-open-critical / has-open-high lookups for the severity dot —
+    # one count() per scan would be N+1, so pre-aggregate in two queries.
+    open_critical_by_scan = set(
+        VulnerabilityFinding.objects
+        .filter(scan__in=last_scan_by_client.values(),
+                status='open', severity='critical')
+        .values_list('scan_id', flat=True).distinct()
+    )
+    open_high_by_scan = set(
+        VulnerabilityFinding.objects
+        .filter(scan__in=last_scan_by_client.values(),
+                status='open', severity='high')
+        .values_list('scan_id', flat=True).distinct()
+    )
+
+    rows = []
+    for c in clients:
+        scan = last_scan_by_client.get(c.id)
+        if scan is None:
+            dot = 'never'  # ⚪
+        elif scan.id in open_critical_by_scan:
+            dot = 'critical'  # 🔴
+        elif scan.id in open_high_by_scan:
+            dot = 'high'  # 🟠
+        else:
+            dot = 'clean'  # 🟢
+        rows.append({
+            'client': c,
+            'last_scan': scan,
+            'scan_dot': dot,
+        })
+
     return render(request, 'admin_dashboard/client_list.html', _admin_context(
-        'clients', clients=clients, query=query,
+        'clients', clients=clients, query=query, rows=rows,
     ))
 
 
@@ -1182,6 +1225,18 @@ def client_detail(request, client_id):
     nps_avg = NPSSurvey.objects.filter(
         client=client, score__isnull=False).aggregate(a=Avg('score'))['a']
 
+    # Phase 6c — security scan summary for this client.
+    from reporting.models import VulnerabilityScan
+    last_scan = (VulnerabilityScan.objects
+                 .filter(client=client)
+                 .order_by('-created_at').first())
+    top_open_findings = []
+    if last_scan:
+        top_open_findings = list(
+            last_scan.findings
+            .filter(status='open', severity__in=('critical', 'high'))
+            .order_by('severity', 'tool', 'title')[:3])
+
     return render(request, 'admin_dashboard/client_detail.html', _admin_context(
         'clients',
         client=client,
@@ -1194,6 +1249,8 @@ def client_detail(request, client_id):
         latest_nps=latest_nps,
         nps_avg=round(nps_avg, 1) if nps_avg is not None else None,
         freshness_report=client.freshness_reports.first(),
+        last_scan=last_scan,
+        top_open_findings=top_open_findings,
     ))
 
 
@@ -2259,15 +2316,24 @@ def _fetch_ssh_metrics(cred, vault_key):
 # Phase 6c — vulnerability scans (Part 1 UI: list + run)
 # ────────────────────────────────────────────────────────────────────────────
 
-@admin_required
-def scans_list(request):
-    """List every vulnerability scan, newest first."""
-    from reporting.models import VulnerabilityScan
+def _scan_row_border(scan):
+    """Pick the left-border colour for one scans-table row."""
+    if scan.status == 'failed':
+        return 'red'
+    if scan.status == 'running':
+        return 'teal'
+    if scan.status == 'pending':
+        return 'muted'
+    # complete
+    if scan.critical_count:
+        return 'red'
+    if scan.high_count:
+        return 'orange'
+    return 'green'
 
-    scans = (VulnerabilityScan.objects
-             .select_related('client')
-             .order_by('-created_at')[:200])
 
+def _build_scan_rows(scans):
+    """Decorate VulnerabilityScan iterables with display extras."""
     rows = []
     for s in scans:
         duration = None
@@ -2277,32 +2343,251 @@ def scans_list(request):
         rows.append({
             'scan': s,
             'duration_seconds': duration,
+            'border': _scan_row_border(s),
         })
+    return rows
+
+
+@admin_required
+def scans_list(request):
+    """
+    Full scan dashboard — filters, pagination, stats, HTMX auto-refresh
+    when scans are pending or running, run-new-scan modal.
+    """
+    from clients.models import ClientProfile
+    from reporting.models import VulnerabilityScan
+
+    client_id = (request.GET.get('client') or '').strip()
+    status = (request.GET.get('status') or '').strip()
+
+    qs = (VulnerabilityScan.objects
+          .select_related('client')
+          .order_by('-created_at'))
+    if client_id:
+        qs = qs.filter(client_id=client_id)
+    if status:
+        qs = qs.filter(status=status)
+
+    paginator = Paginator(qs, 25)
+    page = paginator.get_page(request.GET.get('page', 1))
+    rows = _build_scan_rows(page.object_list)
+
+    pending_count = VulnerabilityScan.objects.filter(
+        status='pending').count()
+    running_count = VulnerabilityScan.objects.filter(
+        status='running').count()
+    last_scan = VulnerabilityScan.objects.order_by(
+        '-created_at').first()
+
+    clients = ClientProfile.objects.filter(
+        status='active').order_by('firm_name')
+
+    # Preserve filter querystring (sans `page`) so the HTMX partial
+    # respects the filters across each poll.
+    qs_params = request.GET.copy()
+    qs_params.pop('page', None)
+    filter_qs = qs_params.urlencode()
 
     return render(request, 'admin_dashboard/scans_list.html',
                   _admin_context(
                       'scans',
                       rows=rows,
-                      total=len(rows),
-                      running=sum(1 for r in rows
-                                  if r['scan'].status == 'running'),
+                      page=page,
+                      paginator=paginator,
+                      total_scans=qs.count(),
+                      pending_count=pending_count,
+                      running_count=running_count,
+                      last_scan=last_scan,
+                      clients=clients,
+                      selected_client=client_id,
+                      selected_status=status,
+                      status_choices=VulnerabilityScan.STATUS_CHOICES,
+                      type_choices=VulnerabilityScan.SCAN_TYPE_CHOICES,
+                      filter_qs=filter_qs,
+                      auto_refresh=(pending_count + running_count) > 0,
                   ))
+
+
+@admin_required
+def scans_table(request):
+    """HTMX partial — only the table rows, polled every 15s."""
+    from reporting.models import VulnerabilityScan
+
+    client_id = (request.GET.get('client') or '').strip()
+    status = (request.GET.get('status') or '').strip()
+
+    qs = (VulnerabilityScan.objects
+          .select_related('client')
+          .order_by('-created_at'))
+    if client_id:
+        qs = qs.filter(client_id=client_id)
+    if status:
+        qs = qs.filter(status=status)
+    paginator = Paginator(qs, 25)
+    page = paginator.get_page(request.GET.get('page', 1))
+    rows = _build_scan_rows(page.object_list)
+
+    return render(request, 'admin_dashboard/_scan_rows.html',
+                  {'rows': rows, 'page': page})
+
+
+# ── scan detail helpers ─────────────────────────────────────────────────────
+
+def _ssl_grade_class(grade):
+    """CSS class for the SSL grade circle on the scan detail page."""
+    if not grade:
+        return None
+    first = (grade or '').strip()[:1].upper()
+    if first == 'A':
+        return 'a'
+    if first == 'B':
+        return 'b'
+    if first == 'C':
+        return 'c'
+    if first in ('D', 'E', 'F', 'T', 'M'):
+        return 'f'
+    return None
+
+
+def _build_tool_blocks(scan):
+    """
+    Per-tool execution summary on the scan-detail page. `status` is one
+    of 'ok' / 'skipped' / 'error' / 'idle'; `summary` is a short human
+    one-liner ("3 findings", "Grade A", "Skipped — not WordPress", …).
+    """
+    blocks = []
+    for tool, label, raw in (
+            ('nmap', 'nmap', scan.raw_nmap),
+            ('nikto', 'Nikto', scan.raw_nikto),
+            ('ssl', 'SSL Labs', scan.raw_ssl),
+            ('wpscan', 'WPScan', scan.raw_wpscan),
+    ):
+        raw = raw or {}
+        if not raw:
+            blocks.append({'tool': tool, 'label': label,
+                           'status': 'idle', 'summary': 'not run'})
+            continue
+        if raw.get('skipped'):
+            blocks.append({'tool': tool, 'label': label,
+                           'status': 'skipped',
+                           'summary': raw.get('reason') or 'skipped'})
+            continue
+        if raw.get('error'):
+            blocks.append({'tool': tool, 'label': label,
+                           'status': 'error',
+                           'summary': str(raw.get('error'))[:120]})
+            continue
+        if tool == 'ssl':
+            grade = raw.get('grade') or '—'
+            blocks.append({'tool': tool, 'label': label,
+                           'status': 'ok',
+                           'summary': f'Grade {grade}'})
+        else:
+            n = len(raw.get('findings') or [])
+            blocks.append({'tool': tool, 'label': label,
+                           'status': 'ok',
+                           'summary': (
+                               f'{n} finding{"" if n == 1 else "s"}')})
+    return blocks
 
 
 @admin_required
 def scan_detail(request, scan_id):
     """
-    Placeholder detail page — full UI lands in Phase 6c Part 2. For
-    now we surface the raw scan record + a flat findings table so an
-    admin can inspect what was discovered before the rich view ships.
+    Scan detail — severity-grid header, SSL grade circle if present,
+    findings grouped by severity, per-tool execution summary.
     """
     from reporting.models import VulnerabilityScan
-    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
-    findings = scan.findings.all().order_by('severity', 'tool', 'title')
+
+    scan = get_object_or_404(
+        VulnerabilityScan.objects.select_related('client'),
+        id=scan_id,
+    )
+    findings = list(scan.findings.order_by('severity', 'tool', 'title'))
+
+    by_sev = {sev: [] for sev in
+              ('critical', 'high', 'medium', 'low', 'info')}
+    for f in findings:
+        by_sev.setdefault(f.severity, []).append(f)
+
+    # List form (template-friendly — Django templates can't index a
+    # dict by variable key without a custom tag).
+    sev_meta = [
+        ('critical', 'Critical', '🔴', True),
+        ('high',     'High',     '🟠', True),
+        ('medium',   'Medium',   '🟡', False),
+        ('low',      'Low',      '🔵', False),
+        ('info',     'Info',     'ℹ',  False),
+    ]
+    severity_groups = [
+        {'severity': sev, 'label': label, 'glyph': glyph,
+         'open_by_default': by_default and bool(by_sev.get(sev)),
+         'items': by_sev.get(sev) or []}
+        for sev, label, glyph, by_default in sev_meta
+    ]
+
+    duration = None
+    if scan.started_at and scan.completed_at:
+        duration = int(
+            (scan.completed_at - scan.started_at).total_seconds())
+
+    ssl_grade = (scan.raw_ssl or {}).get('grade')
+    open_count = sum(1 for f in findings if f.status == 'open')
+
     return render(request, 'admin_dashboard/scan_detail.html',
                   _admin_context(
-                      'scans', scan=scan, findings=findings,
+                      'scans',
+                      scan=scan,
+                      severity_groups=severity_groups,
+                      findings_total=len(findings),
+                      open_count=open_count,
+                      duration_seconds=duration,
+                      tool_blocks=_build_tool_blocks(scan),
+                      ssl_grade=ssl_grade,
+                      ssl_grade_class=_ssl_grade_class(ssl_grade),
                   ))
+
+
+@admin_required
+@require_POST
+def update_finding_status(request, finding_id):
+    """
+    HTMX POST: change a VulnerabilityFinding's status.
+
+    Body:
+      status          — open | accepted_risk | false_positive | resolved
+      acceptance_note — required text when status == accepted_risk
+
+    Returns the refreshed finding card HTML so HTMX swaps it in place.
+    """
+    from reporting.models import VulnerabilityFinding
+
+    finding = get_object_or_404(VulnerabilityFinding, id=finding_id)
+    new_status = (request.POST.get('status') or '').strip()
+    valid = {choice for choice, _ in VulnerabilityFinding.STATUS_CHOICES}
+    if new_status not in valid:
+        return HttpResponseBadRequest('invalid status')
+
+    finding.status = new_status
+    if new_status == 'accepted_risk':
+        finding.accepted_by = (
+            request.user.get_full_name() or request.user.username)[:100]
+        finding.accepted_at = timezone.now()
+        finding.acceptance_note = (
+            request.POST.get('acceptance_note') or '').strip()
+    else:
+        # Moving away from accepted_risk — wipe the acceptance metadata
+        # so the audit trail doesn't show stale acceptance details.
+        finding.accepted_by = ''
+        finding.accepted_at = None
+        finding.acceptance_note = ''
+    finding.save(update_fields=[
+        'status', 'accepted_by', 'accepted_at',
+        'acceptance_note', 'updated_at',
+    ])
+
+    return render(request, 'admin_dashboard/_finding_card.html',
+                  {'f': finding, 'expanded': True})
 
 
 @admin_required

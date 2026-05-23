@@ -25,19 +25,30 @@
         <div class="lead-table-wrapper">
             <table class="lead-table">
                 <thead>
-                    <tr><th>Client</th><th>Status</th><th>Package</th><th>Server IP</th><th class="lead-table__col-actions">Monitoring</th></tr>
+                    <tr><th>Client</th><th>Status</th><th>Package</th><th>Server IP</th><th>Last Scan</th><th class="lead-table__col-actions">Monitoring</th></tr>
                 </thead>
                 <tbody>
-                    {% for c in clients %}
-                        <tr>
-                            <td><a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a></td>
-                            <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
-                            <td>{{ c.get_package_display|default:"—" }}</td>
-                            <td>{{ c.do_droplet_ip|default:"—" }}</td>
-                            <td class="lead-table__col-actions">
-                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' c.id %}">Open &rarr;</a>
-                            </td>
-                        </tr>
+                    {% for r in rows %}
+                        {% with c=r.client %}
+                            <tr>
+                                <td><a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a></td>
+                                <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
+                                <td>{{ c.get_package_display|default:"—" }}</td>
+                                <td>{{ c.do_droplet_ip|default:"—" }}</td>
+                                <td class="client-list__last-scan">
+                                    <span class="scan-dot scan-dot--{{ r.scan_dot }}"
+                                          title="{% if r.scan_dot == 'critical' %}open critical findings{% elif r.scan_dot == 'high' %}open high findings{% elif r.scan_dot == 'clean' %}all findings resolved/accepted{% else %}never scanned{% endif %}"></span>
+                                    {% if r.last_scan %}
+                                        <a href="{% url 'admin_dashboard:scan_detail' r.last_scan.id %}">{{ r.last_scan.completed_at|date:"Y-m-d" }}</a>
+                                    {% else %}
+                                        <span class="droplet-muted">never</span>
+                                    {% endif %}
+                                </td>
+                                <td class="lead-table__col-actions">
+                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' c.id %}">Open &rarr;</a>
+                                </td>
+                            </tr>
+                        {% endwith %}
                     {% endfor %}
                 </tbody>
             </table>
