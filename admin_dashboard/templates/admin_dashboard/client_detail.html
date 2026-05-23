@@ -140,5 +140,31 @@
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' client.id %}">Changelog</a>
         </div>
     </section>
+
+    {# ── Phase 6c — on-demand vulnerability scan ── #}
+    <section class="admin-card">
+        <h3 class="admin-card__title">Vulnerability Scan</h3>
+        <p class="vault-settings-card__sub">
+            Runs nmap, Nikto, SSL Labs, and WPScan (if WordPress) against the live URL and Droplet IP.
+            Scheduled scans run every 30 days automatically; this triggers one now.
+        </p>
+        <form method="post" action="{% url 'admin_dashboard:scan_run' %}" id="run-scan-form"
+              hx-post="{% url 'admin_dashboard:scan_run' %}"
+              hx-target="#scan-launch-result"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <input type="hidden" name="client_id" value="{{ client.id }}">
+            <label for="scan_type" class="vault-settings-card__sub">Scan type</label>
+            <select name="scan_type" id="scan_type" class="form-control" style="max-width: 240px;">
+                <option value="full" selected>Full Scan (all tools)</option>
+                <option value="quick">Quick (nmap + SSL)</option>
+                <option value="ssl">SSL/TLS Only</option>
+                <option value="ports">Port Scan Only</option>
+                <option value="web">Web Vulns Only</option>
+            </select>
+            <button type="submit" class="btn-primary">Run Scan</button>
+        </form>
+        <div id="scan-launch-result"></div>
+    </section>
 </div>
 {% endblock %}

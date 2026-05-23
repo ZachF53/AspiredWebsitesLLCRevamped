@@ -2253,3 +2253,98 @@ def _fetch_ssh_metrics(cred, vault_key):
         except Exception:
             pass
     return out
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 6c — vulnerability scans (Part 1 UI: list + run)
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def scans_list(request):
+    """List every vulnerability scan, newest first."""
+    from reporting.models import VulnerabilityScan
+
+    scans = (VulnerabilityScan.objects
+             .select_related('client')
+             .order_by('-created_at')[:200])
+
+    rows = []
+    for s in scans:
+        duration = None
+        if s.started_at and s.completed_at:
+            duration = int(
+                (s.completed_at - s.started_at).total_seconds())
+        rows.append({
+            'scan': s,
+            'duration_seconds': duration,
+        })
+
+    return render(request, 'admin_dashboard/scans_list.html',
+                  _admin_context(
+                      'scans',
+                      rows=rows,
+                      total=len(rows),
+                      running=sum(1 for r in rows
+                                  if r['scan'].status == 'running'),
+                  ))
+
+
+@admin_required
+def scan_detail(request, scan_id):
+    """
+    Placeholder detail page — full UI lands in Phase 6c Part 2. For
+    now we surface the raw scan record + a flat findings table so an
+    admin can inspect what was discovered before the rich view ships.
+    """
+    from reporting.models import VulnerabilityScan
+    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
+    findings = scan.findings.all().order_by('severity', 'tool', 'title')
+    return render(request, 'admin_dashboard/scan_detail.html',
+                  _admin_context(
+                      'scans', scan=scan, findings=findings,
+                  ))
+
+
+@admin_required
+@require_POST
+def run_scan(request):
+    """
+    Trigger a scan from the admin client detail page. Body:
+      client_id (required), scan_type (default 'full').
+    Returns an HTMX fragment for inline status, or redirects if not HTMX.
+    """
+    from clients.models import ClientProfile
+    from reporting.models import VulnerabilityScan
+    from reporting.tasks import run_vulnerability_scan_task
+
+    client_id = (request.POST.get('client_id') or '').strip()
+    scan_type = (request.POST.get('scan_type') or 'full').strip()
+    if scan_type not in dict(VulnerabilityScan.SCAN_TYPE_CHOICES):
+        scan_type = 'full'
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    project = (client.projects.filter(stage='live').first()
+               or client.projects.first())
+    target_url = (project.live_url if project else '') or ''
+    target_ip = client.do_droplet_ip or ''
+
+    if not (target_url or target_ip):
+        return HttpResponseBadRequest(
+            'Client has no live URL or Droplet IP to scan.')
+
+    scan = VulnerabilityScan.objects.create(
+        client=client,
+        target_url=target_url,
+        target_ip=target_ip,
+        scan_type=scan_type,
+        is_scheduled=False,
+    )
+    run_vulnerability_scan_task.delay(str(scan.id))
+
+    if request.headers.get('HX-Request') == 'true':
+        return HttpResponse(
+            f'<div class="scan-banner scan-banner--info">'
+            f'Scan started — check '
+            f'<a href="{reverse("admin_dashboard:scans_list")}">Scans</a> '
+            f'for results.</div>')
+    return redirect('admin_dashboard:scans_list')

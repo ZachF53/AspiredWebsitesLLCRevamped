@@ -339,6 +339,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.send_testimonial_requests',
         'schedule': crontab(hour=10, minute=0, day_of_month=15),  # 15th, 10am
     },
+    'check-scan-schedule': {
+        'task': 'reporting.tasks.check_scan_schedule',
+        'schedule': crontab(hour=3, minute=0),                    # daily 3am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

@@ -321,3 +321,153 @@ class ChatbotConversation(TimestampedModel):
 
     def __str__(self):
         return f'{self.chatbot.client.firm_name} — Chat {self.session_id[:8]}'
+
+
+# ── Phase 6c — vulnerability scanner ──────────────────────────────────────
+
+class VulnerabilityScan(TimestampedModel):
+    """
+    One scan run for one client — orchestrates nmap / Nikto / SSL Labs /
+    WPScan against the client's live URL and Droplet IP. The raw_*
+    JSON fields hold the unfiltered tool output for forensic re-parsing;
+    the parsed-and-classified bits land as VulnerabilityFinding rows.
+    """
+
+    SCAN_TYPE_CHOICES = [
+        ('full', 'Full Scan'),
+        ('ssl', 'SSL/TLS Only'),
+        ('ports', 'Port Scan Only'),
+        ('web', 'Web Vulnerabilities Only'),
+        ('quick', 'Quick Scan'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('complete', 'Complete'),
+        ('failed', 'Failed'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='vulnerability_scans',
+    )
+    target_url = models.URLField(blank=True)
+    target_ip = models.CharField(max_length=100, blank=True)
+    scan_type = models.CharField(
+        max_length=10, choices=SCAN_TYPE_CHOICES, default='full')
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='pending')
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Raw tool outputs — kept verbatim so a finding can always be traced
+    # back to the underlying scanner run that produced it.
+    raw_nmap = models.JSONField(default=dict, blank=True)
+    raw_nikto = models.JSONField(default=dict, blank=True)
+    raw_ssl = models.JSONField(default=dict, blank=True)
+    raw_wpscan = models.JSONField(default=dict, blank=True)
+
+    # Parsed summary — denormalised so the list page renders without
+    # an N+1 over findings.
+    findings_count = models.IntegerField(default=0)
+    critical_count = models.IntegerField(default=0)
+    high_count = models.IntegerField(default=0)
+    medium_count = models.IntegerField(default=0)
+    low_count = models.IntegerField(default=0)
+    info_count = models.IntegerField(default=0)
+
+    # Report delivery
+    pdf_path = models.CharField(max_length=500, blank=True)
+    sent_to_client = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    # True if triggered by Celery beat, False if triggered manually
+    # from the admin dashboard.
+    is_scheduled = models.BooleanField(default=False)
+
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Vulnerability Scan'
+        verbose_name_plural = 'Vulnerability Scans'
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'{self.scan_type} — {self.created_at.date()}')
+
+    def get_severity_summary(self):
+        return {
+            'critical': self.critical_count,
+            'high': self.high_count,
+            'medium': self.medium_count,
+            'low': self.low_count,
+            'info': self.info_count,
+        }
+
+
+class VulnerabilityFinding(TimestampedModel):
+    """
+    One parsed finding from a single tool. `evidence` keeps the exact
+    output snippet that triggered the classification so the admin can
+    verify, and `status` lets a finding be marked Accepted Risk / False
+    Positive / Resolved without losing the audit trail.
+    """
+
+    SEVERITY_CHOICES = [
+        ('critical', 'Critical'),
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+        ('info', 'Informational'),
+    ]
+    TOOL_CHOICES = [
+        ('nmap', 'nmap'),
+        ('nikto', 'Nikto'),
+        ('ssl', 'SSL Labs'),
+        ('wpscan', 'WPScan'),
+        ('manual', 'Manual'),
+    ]
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('accepted_risk', 'Accepted Risk'),
+        ('false_positive', 'False Positive'),
+        ('resolved', 'Resolved'),
+    ]
+    # Index-friendly severity ordering for sort/group operations.
+    SEVERITY_ORDER = {
+        'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4,
+    }
+
+    scan = models.ForeignKey(
+        VulnerabilityScan, on_delete=models.CASCADE,
+        related_name='findings',
+    )
+    severity = models.CharField(
+        max_length=10, choices=SEVERITY_CHOICES, default='info')
+    tool = models.CharField(
+        max_length=10, choices=TOOL_CHOICES, default='manual')
+
+    title = models.CharField(max_length=300)
+    description = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
+    evidence = models.TextField(
+        blank=True,
+        help_text='Raw output snippet that triggered this finding.',
+    )
+    cve_id = models.CharField(max_length=50, blank=True)
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='open')
+    accepted_by = models.CharField(max_length=100, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    acceptance_note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['severity', 'tool', 'title']
+        verbose_name = 'Vulnerability Finding'
+        verbose_name_plural = 'Vulnerability Findings'
+
+    def __str__(self):
+        return f'[{self.severity.upper()}] {self.title[:60]}'

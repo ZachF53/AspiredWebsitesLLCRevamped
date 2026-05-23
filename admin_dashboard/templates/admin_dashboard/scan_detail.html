@@ -1,0 +1,79 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Scan {{ scan.id|stringformat:"s"|slice:":8" }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:scans_list' %}">Scans</a> &rsaquo; {{ scan.client.firm_name }}
+            </span>
+            <h1 class="admin-page-title">{{ scan.get_scan_type_display }} — {{ scan.created_at|date:"Y-m-d H:i" }}</h1>
+            <p class="admin-page-sub">
+                Status: <strong>{{ scan.get_status_display }}</strong>
+                {% if scan.is_scheduled %} &middot; scheduled{% else %} &middot; manual{% endif %}
+                {% if scan.target_url %} &middot; {{ scan.target_url }}{% endif %}
+                {% if scan.target_ip %} &middot; <code>{{ scan.target_ip }}</code>{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if scan.error_message %}
+        <div class="droplet-banner droplet-banner--error">
+            <strong>Scan failed.</strong> {{ scan.error_message }}
+        </div>
+    {% endif %}
+
+    <section class="droplet-metric-card">
+        <h2>Findings Summary</h2>
+        <ul class="droplet-meta-list">
+            <li><strong>Critical</strong> {{ scan.critical_count }}</li>
+            <li><strong>High</strong> {{ scan.high_count }}</li>
+            <li><strong>Medium</strong> {{ scan.medium_count }}</li>
+            <li><strong>Low</strong> {{ scan.low_count }}</li>
+            <li><strong>Info</strong> {{ scan.info_count }}</li>
+            <li><strong>Total</strong> {{ scan.findings_count }}</li>
+        </ul>
+    </section>
+
+    <section class="droplet-metric-card">
+        <h2>Findings ({{ findings|length }})</h2>
+        {% if findings %}
+            <table class="droplet-table">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Tool</th>
+                        <th>Title</th>
+                        <th>CVE</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in findings %}
+                        <tr>
+                            <td><span class="scan-status scan-status--sev-{{ f.severity }}">{{ f.get_severity_display }}</span></td>
+                            <td><span class="scan-badge">{{ f.get_tool_display }}</span></td>
+                            <td>
+                                <details>
+                                    <summary>{{ f.title }}</summary>
+                                    {% if f.description %}<p>{{ f.description }}</p>{% endif %}
+                                    {% if f.recommendation %}<p><strong>Fix:</strong> {{ f.recommendation }}</p>{% endif %}
+                                    {% if f.evidence %}<pre style="white-space:pre-wrap;">{{ f.evidence }}</pre>{% endif %}
+                                </details>
+                            </td>
+                            <td>{{ f.cve_id|default:"&mdash;" }}</td>
+                            <td>{{ f.get_status_display }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="droplet-muted">No findings recorded yet.</p>
+        {% endif %}
+    </section>
+
+    <p><a class="btn-secondary" href="{% url 'admin_dashboard:scans_list' %}">&larr; All scans</a></p>
+</div>
+{% endblock %}

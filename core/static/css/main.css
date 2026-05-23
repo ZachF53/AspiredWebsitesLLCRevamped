@@ -7544,6 +7544,66 @@ button.htmx-request {
     margin: 0.3rem 0 0;
 }
 
+/* ── 31d. Vulnerability scans ─────────────────────────────── */
+.scan-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.scan-badge--scheduled {
+    background: rgba(13, 148, 136, 0.18);
+    color: #5EEAD4;
+}
+.scan-badge--manual {
+    background: rgba(232, 101, 10, 0.18);
+    color: #FFB680;
+}
+
+.scan-status {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.scan-status--pending   { background: rgba(255, 255, 255, 0.08); color: var(--color-text-muted); }
+.scan-status--running   { background: rgba(232, 101, 10, 0.18); color: #FFB680; }
+.scan-status--complete  { background: rgba(16, 185, 129, 0.18); color: #6EE7B7; }
+.scan-status--failed    { background: rgba(239, 68, 68, 0.18);  color: #FCA5A5; }
+.scan-status--sev-critical { background: rgba(192, 57, 43, 0.25); color: #FCA5A5; }
+.scan-status--sev-high     { background: rgba(232, 101, 10, 0.22); color: #FFB680; }
+.scan-status--sev-medium   { background: rgba(234, 179, 8, 0.18); color: #FDE68A; }
+.scan-status--sev-low      { background: rgba(59, 130, 246, 0.18); color: #93C5FD; }
+.scan-status--sev-info     { background: rgba(255, 255, 255, 0.08); color: var(--color-text-muted); }
+
+.scan-findings { white-space: nowrap; }
+.scan-pill {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    margin-right: 0.2rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text);
+}
+
+.scan-banner--info {
+    padding: 0.7rem 0.9rem;
+    border-radius: 6px;
+    background: rgba(13, 148, 136, 0.18);
+    border: 1px solid rgba(13, 148, 136, 0.45);
+    color: var(--color-text);
+    margin-top: 0.6rem;
+    font-size: 0.9rem;
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

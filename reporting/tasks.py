@@ -652,3 +652,75 @@ def send_testimonial_requests():
         client.save(update_fields=['testimonial_requested_at', 'updated_at'])
         count += 1
     return f'Sent {count} testimonial request(s).'
+
+
+# ── Phase 6c — vulnerability scanner ──────────────────────────────────────
+
+@shared_task
+def run_vulnerability_scan_task(scan_id):
+    """
+    Celery wrapper around `run_full_scan`. Used by both the scheduled
+    cadence and the on-demand admin button.
+    """
+    from reporting.scan_runner import run_full_scan
+    run_full_scan(scan_id)
+
+
+@shared_task
+def check_scan_schedule():
+    """
+    Daily at 3am. For each active client with a Droplet IP and a live
+    project, decide whether a scan is due:
+
+      - first scan: 30 days after `do_droplet_created_at`
+        (or immediately if the creation date isn't known — legacy)
+      - subsequent: 30 days after the last *completed* scan
+
+    Due scans are queued via `run_vulnerability_scan_task.delay`.
+    """
+    from clients.models import ClientProfile
+    from reporting.models import VulnerabilityScan
+
+    now = timezone.now()
+    interval = timedelta(days=30)
+
+    eligible = ClientProfile.objects.filter(
+        status='active',
+        do_droplet_ip__isnull=False,
+    )
+
+    queued = 0
+    for client in eligible:
+        if not client.do_droplet_ip:
+            continue
+        project = client.projects.filter(stage='live').first()
+        if not project or not project.live_url:
+            continue
+
+        last = (VulnerabilityScan.objects
+                .filter(client=client, status='complete')
+                .order_by('-completed_at').first())
+
+        if last is None:
+            if client.do_droplet_created_at is None:
+                should_scan = True   # legacy — kick the first scan now
+            else:
+                should_scan = now >= (
+                    client.do_droplet_created_at + interval)
+        else:
+            should_scan = now >= (last.completed_at + interval)
+
+        if not should_scan:
+            continue
+
+        scan = VulnerabilityScan.objects.create(
+            client=client,
+            target_url=project.live_url,
+            target_ip=client.do_droplet_ip,
+            scan_type='full',
+            is_scheduled=True,
+        )
+        run_vulnerability_scan_task.delay(str(scan.id))
+        queued += 1
+
+    return f'Queued {queued} scheduled scan(s).'

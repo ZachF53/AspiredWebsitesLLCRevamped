@@ -1,0 +1,80 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Vulnerability Scans — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Security</span>
+            <h1 class="admin-page-title">Vulnerability Scans</h1>
+            <p class="admin-page-sub">
+                {{ total }} total{% if running %} &middot; {{ running }} running{% endif %} &middot;
+                Scheduled daily at 03:00 (30-day cadence per client).
+            </p>
+        </div>
+    </div>
+
+    {% if rows %}
+        <div class="droplet-table-wrap">
+            <table class="droplet-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th>Findings</th>
+                        <th>Source</th>
+                        <th class="droplet-table__actions">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                        {% with s=r.scan %}
+                            <tr class="droplet-row droplet-row--{% if s.status == 'complete' %}green{% elif s.status == 'running' %}orange{% elif s.status == 'failed' %}red{% else %}orange{% endif %}">
+                                <td class="droplet-name">
+                                    <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                                </td>
+                                <td><span class="scan-badge">{{ s.get_scan_type_display }}</span></td>
+                                <td>
+                                    <span class="scan-status scan-status--{{ s.status }}">{{ s.get_status_display }}</span>
+                                </td>
+                                <td>
+                                    {% if s.started_at %}<time datetime="{{ s.started_at }}">{{ s.started_at|date:"Y-m-d H:i" }}</time>{% else %}&mdash;{% endif %}
+                                </td>
+                                <td>
+                                    {% if r.duration_seconds %}{{ r.duration_seconds }}s{% else %}&mdash;{% endif %}
+                                </td>
+                                <td class="scan-findings">
+                                    {% if s.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ s.critical_count }}</span>{% endif %}
+                                    {% if s.high_count %}<span class="scan-pill scan-pill--high">🟠 {{ s.high_count }}</span>{% endif %}
+                                    {% if s.medium_count %}<span class="scan-pill scan-pill--medium">🟡 {{ s.medium_count }}</span>{% endif %}
+                                    {% if s.low_count %}<span class="scan-pill scan-pill--low">🔵 {{ s.low_count }}</span>{% endif %}
+                                    {% if not s.findings_count %}<span class="droplet-muted">&mdash;</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if s.is_scheduled %}
+                                        <span class="scan-badge scan-badge--scheduled">scheduled</span>
+                                    {% else %}
+                                        <span class="scan-badge scan-badge--manual">manual</span>
+                                    {% endif %}
+                                </td>
+                                <td class="droplet-table__actions">
+                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scan_detail' s.id %}">View Details</a>
+                                </td>
+                            </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No vulnerability scans yet. Trigger one from a client's detail page, or wait for the 03:00 daily scheduler.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
