@@ -16,8 +16,12 @@
     <div class="droplet-destroy-card">
         {% if is_client_droplet %}
             <div class="droplet-banner droplet-banner--error">
-                <strong>This Droplet is tagged <code>client</code>.</strong>
-                Client-tagged Droplets cannot be destroyed from the dashboard — remove the tag in DigitalOcean first.
+                <strong>This Droplet is protected from destruction.</strong>
+                {% if linked_client %}
+                    It is linked to client <a href="{% url 'admin_dashboard:client_detail' linked_client.id %}">{{ linked_client.firm_name }}</a> by IP. Unlink the client (clear <code>do_droplet_ip</code> on the profile) before destroying.
+                {% else %}
+                    It is tagged <code>client</code> in DigitalOcean. Remove the tag first.
+                {% endif %}
             </div>
             <p class="droplet-destroy-card__name">{{ droplet.name }}</p>
             <p>

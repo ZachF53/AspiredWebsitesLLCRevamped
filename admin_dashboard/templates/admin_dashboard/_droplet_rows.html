@@ -65,7 +65,8 @@
 
                     {% if r.is_client_droplet %}
                         <button type="button" class="btn-secondary btn-sm droplet-destroy-btn is-disabled"
-                                disabled title="Remove 'client' tag in DigitalOcean first">Destroy</button>
+                                disabled
+                                title="Linked to a client (by tag or IP) — unlink the client first">Destroy</button>
                     {% else %}
                         <a class="btn-secondary btn-sm droplet-destroy-btn"
                            href="{% url 'admin_dashboard:droplet_destroy' r.id %}">Destroy</a>

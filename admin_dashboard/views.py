@@ -1912,11 +1912,21 @@ DROPLET_SIZES = [
 
 
 def _droplet_rows(droplets, clients_by_ip):
-    """Decorate raw DO droplet dicts with the dashboard display fields."""
+    """
+    Decorate raw DO droplet dicts with the dashboard display fields.
+
+    `is_client_droplet` is True if EITHER the DO tag list contains
+    'client' OR the IP matches a ClientProfile.do_droplet_ip. This
+    second arm matters for legacy Droplets that pre-date the tagging
+    convention — without it the Destroy button would arm for every
+    real client server (footgun).
+    """
     rows = []
     for d in droplets:
-        is_client = 'client' in (d.get('tags') or [])
-        is_manual = 'manual' in (d.get('tags') or []) or not is_client
+        linked_client = clients_by_ip.get(d['ip'])
+        tag_says_client = 'client' in (d.get('tags') or [])
+        is_client = bool(tag_says_client or linked_client)
+        is_manual = (not is_client) or 'manual' in (d.get('tags') or [])
         if d['status'] == 'active':
             border = 'green'
         elif d['status'] in ('off', 'archive'):
@@ -1925,7 +1935,7 @@ def _droplet_rows(droplets, clients_by_ip):
             border = 'red'
         rows.append({
             **d,
-            'client': clients_by_ip.get(d['ip']),
+            'client': linked_client,
             'is_client_droplet': is_client,
             'is_manual_droplet': is_manual,
             'monthly_cost_str': f"${d['monthly_cost']:.0f}/mo",
@@ -2086,15 +2096,20 @@ def droplet_destroy(request, droplet_id):
         from django.http import Http404
         raise Http404('Droplet not found')
 
-    is_client_droplet = 'client' in (d.get('tags') or [])
     linked_client = ClientProfile.objects.filter(do_droplet_ip=d['ip']).first()
+    # Same rule as the list-row gate: 'client' tag OR a real client linkage
+    # via matching IP protects the Droplet. Legacy client Droplets predate
+    # the tag convention, so the IP arm matters in production.
+    is_client_droplet = (
+        'client' in (d.get('tags') or []) or linked_client is not None)
 
     if request.method == 'POST':
         if is_client_droplet:
             from django.http import HttpResponseForbidden
             return HttpResponseForbidden(
-                "Refusing to destroy a client-tagged Droplet — "
-                "remove the 'client' tag in DigitalOcean first.")
+                "Refusing to destroy this Droplet — it is either tagged "
+                "'client' or linked to a ClientProfile by IP. "
+                "Unlink the client first.")
         typed = (request.POST.get('confirm_name') or '').strip()
         if typed != d['name']:
             messages.error(
