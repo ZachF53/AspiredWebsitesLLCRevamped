@@ -32,13 +32,16 @@
     {% if cards %}
         <div class="onboarding-grid">
             {% for card in cards %}
-                <article class="onboarding-card onboarding-card--{{ card.border }}">
+                <article class="onboarding-card onboarding-card--{{ card.border }} {% if card.is_tester %}onboarding-card--tester{% endif %}">
                     <header class="onboarding-card__head">
                         <div>
-                            <h2 class="onboarding-card__title">{{ card.client.firm_name }}</h2>
+                            <h2 class="onboarding-card__title">
+                                {{ card.client.firm_name }}
+                                {% if card.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
+                            </h2>
                             <p class="onboarding-card__sub">
                                 {% if card.client.business_type %}<span class="onboarding-badge">{{ card.client.business_type }}</span>{% endif %}
-                                {% if card.is_tester %}<span class="onboarding-badge onboarding-badge--tester">Tester</span>{% endif %}
+                                {% if card.is_tester %}<span class="onboarding-badge onboarding-badge--tester">internal only</span>{% endif %}
                             </p>
                         </div>
                         <div class="onboarding-card__progress">
@@ -58,22 +61,22 @@
                             <span class="onboarding-checks__icon">{% if card.has_user %}✓{% else %}✗{% endif %}</span>
                             User account
                         </li>
-                        <li class="{% if card.has_live_url %}is-done{% endif %}">
-                            <span class="onboarding-checks__icon">{% if card.has_live_url %}✓{% else %}✗{% endif %}</span>
-                            Live URL set
+                        <li class="{% if card.has_live_url %}is-done{% elif card.is_tester %}is-na{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_live_url %}✓{% elif card.is_tester %}–{% else %}✗{% endif %}</span>
+                            Live URL set{% if card.is_tester and not card.has_live_url %} <small class="onboarding-checks__detail">not required for testers</small>{% endif %}
                             {% if card.live_url %}<small class="onboarding-checks__detail">{{ card.live_url }}</small>{% endif %}
                         </li>
                         <li class="{% if card.has_vault_key %}is-done{% endif %}">
                             <span class="onboarding-checks__icon">{% if card.has_vault_key %}✓{% else %}✗{% endif %}</span>
                             SSH vault key
                         </li>
-                        <li class="{% if card.has_uptime_data %}is-done{% endif %}">
-                            <span class="onboarding-checks__icon">{% if card.has_uptime_data %}✓{% else %}✗{% endif %}</span>
-                            Uptime monitoring
+                        <li class="{% if card.has_uptime_data %}is-done{% elif card.is_tester %}is-na{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_uptime_data %}✓{% elif card.is_tester %}–{% else %}✗{% endif %}</span>
+                            Uptime monitoring{% if card.is_tester and not card.has_uptime_data %} <small class="onboarding-checks__detail">not required for testers</small>{% endif %}
                         </li>
-                        <li class="{% if card.has_email %}is-done{% endif %}">
-                            <span class="onboarding-checks__icon">{% if card.has_email %}✓{% else %}✗{% endif %}</span>
-                            Email address
+                        <li class="{% if card.has_email %}is-done{% elif card.is_tester %}is-na{% endif %}">
+                            <span class="onboarding-checks__icon">{% if card.has_email %}✓{% elif card.is_tester %}–{% else %}✗{% endif %}</span>
+                            Email address{% if card.is_tester and not card.has_email %} <small class="onboarding-checks__detail">not required for testers</small>{% endif %}
                         </li>
                     </ul>
 

@@ -30,8 +30,11 @@
                 <tbody>
                     {% for r in rows %}
                         {% with c=r.client %}
-                            <tr>
-                                <td><a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a></td>
+                            <tr {% if c.is_tester %}class="client-row--tester"{% endif %}>
+                                <td>
+                                    <a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a>
+                                    {% if c.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
+                                </td>
                                 <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
                                 <td>{{ c.get_package_display|default:"—" }}</td>
                                 <td>{{ c.do_droplet_ip|default:"—" }}</td>

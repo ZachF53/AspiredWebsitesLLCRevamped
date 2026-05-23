@@ -4,10 +4,21 @@
 
 {% block content %}
 <div class="admin-container">
+    {% if client.is_tester %}
+        <div class="tester-banner" role="note">
+            <strong>TESTER ACCOUNT</strong>
+            This is an internal tester account. It is excluded from
+            billing, NPS surveys, and external reporting.
+        </div>
+    {% endif %}
+
     <div class="admin-page-header">
         <div>
             <span class="eyebrow"><a href="{% url 'admin_dashboard:client_list' %}" class="admin-back-link">&larr; All clients</a></span>
-            <h1 class="admin-page-title">{{ client.firm_name }}</h1>
+            <h1 class="admin-page-title">
+                {{ client.firm_name }}
+                {% if client.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
+            </h1>
             <p class="muted">
                 {{ client.get_status_display }}
                 {% if project %} · {{ project.get_stage_display }}{% endif %}

@@ -8417,6 +8417,59 @@ button.htmx-request {
     font-size: 0.88rem;
 }
 
+/* ── 31i. Tester-account markers (list / detail / onboarding) ── */
+.tester-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: rgba(232, 101, 10, 0.20);
+    color: #FFB680;
+    border: 1px solid rgba(232, 101, 10, 0.45);
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
+.client-row--tester {
+    /* Mute tester rows visually so real clients stand out */
+    opacity: 0.78;
+}
+
+.tester-banner {
+    background: rgba(232, 101, 10, 0.10);
+    border: 1px dashed rgba(232, 101, 10, 0.55);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+.tester-banner strong {
+    color: #FFB680;
+    margin-right: 0.4rem;
+    letter-spacing: 0.06em;
+}
+
+/* Onboarding card variants for tester clients */
+.onboarding-card--tester { opacity: 0.85; }
+.onboarding-card--tester .onboarding-card__title { color: var(--color-text-muted); }
+.onboarding-card--tester .onboarding-card__title .tester-badge {
+    opacity: 1;
+    color: #FFB680;
+}
+.onboarding-checks li.is-na {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.onboarding-checks li.is-na .onboarding-checks__icon {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

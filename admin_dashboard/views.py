@@ -1150,7 +1150,9 @@ def client_list(request):
     from clients.models import ClientProfile
     from reporting.models import VulnerabilityFinding, VulnerabilityScan
 
-    clients = ClientProfile.objects.order_by('firm_name')
+    # Real clients first, testers at the bottom. `is_tester` is False=0 /
+    # True=1 so a plain ascending sort puts non-testers first.
+    clients = ClientProfile.objects.order_by('is_tester', 'firm_name')
     query = (request.GET.get('q') or '').strip()
     if query:
         clients = clients.filter(firm_name__icontains=query)
@@ -1307,10 +1309,20 @@ def clients_onboarding(request):
         cred_id = vault_ids_by_client.get(client.id)
         has_vault_key = cred_id is not None
         has_uptime_data = has_live_url and (client.id in has_uptime)
-        is_tester = 'Tester: True' in (client.internal_notes or '')
+        # Read the real boolean now that it's backfilled — leave the
+        # internal_notes string lookup as a fallback for any rows that
+        # haven't been re-saved since the backfill (belt + suspenders).
+        is_tester = bool(client.is_tester) or (
+            'Tester: True' in (client.internal_notes or ''))
 
-        checks = [has_user, has_live_url, has_vault_key,
-                  has_uptime_data, has_email]
+        # Testers only need a vault key + working email + live URL if you
+        # actually plan to use them externally. For the colour-coded card
+        # border, only count the checks that genuinely matter.
+        if is_tester:
+            checks = [has_user, has_vault_key]
+        else:
+            checks = [has_user, has_live_url, has_vault_key,
+                      has_uptime_data, has_email]
         done = sum(1 for c in checks if c)
         if done == len(checks):
             border = 'teal'
@@ -1319,9 +1331,11 @@ def clients_onboarding(request):
         else:
             border = 'orange'
 
-        if not has_vault_key:
+        # Don't drive top-of-page warnings off tester clients — they're
+        # internal-only by definition.
+        if not is_tester and not has_vault_key:
             any_missing_key = True
-        if not has_live_url:
+        if not is_tester and not has_live_url:
             any_missing_url = True
 
         cards.append({
