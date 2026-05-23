@@ -630,3 +630,233 @@ class ClientHealthScore(TimestampedModel):
     def __str__(self):
         return (f'{self.client.firm_name} — '
                 f'Health: {self.score}/100')
+
+
+# ── Phase 7 Part 2 — Referrals · Proposals · Case Studies ───────────────────
+
+def generate_referral_code(firm_name):
+    """
+    Build a short unique referral code from a firm name + 2-digit year.
+    Caller must import `ReferralLink` lazily — circular import otherwise.
+
+    Returns something like ``BERMEA26`` (first 6 alpha-num chars +
+    YY). Appends a single digit before the year if the base collides
+    (``BERME126``, ``BERME226`` …) so we never block on a popular name.
+    """
+    import re
+    clean = re.sub(r'[^A-Z0-9]', '', (firm_name or '').upper()) or 'CLIENT'
+    year_suffix = str(timezone.now().year)[-2:]
+
+    base = clean[:6] + year_suffix
+    code = base
+    counter = 1
+    while ReferralLink.objects.filter(code=code).exists():
+        # Drop one char off the firm-name portion so the suffix fits in
+        # the same 8-ish chars. Cap iterations so we never spin forever.
+        code = clean[:5] + str(counter) + year_suffix
+        counter += 1
+        if counter > 99:
+            # Last-resort UUID tail — guaranteed unique, ugly but rare.
+            code = (clean[:4] + uuid.uuid4().hex[:4].upper())[:20]
+            break
+    return code
+
+
+class ReferralLink(TimestampedModel):
+    """
+    One referral link per client. The portal renders this; the public
+    ``/ref/<code>/`` view counts clicks and drops a referral_code on
+    any contact-form lead created in the same session.
+    """
+
+    client = models.OneToOneField(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='referral_link',
+    )
+    code = models.CharField(max_length=20, unique=True)
+    clicks = models.IntegerField(default=0)
+    leads_generated = models.IntegerField(default=0)
+    conversions = models.IntegerField(default=0)
+    total_reward_value = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-conversions', '-leads_generated']
+        verbose_name = 'Referral Link'
+        verbose_name_plural = 'Referral Links'
+
+    def __str__(self):
+        return f'{self.client.firm_name} — ref/{self.code}'
+
+    def get_referral_url(self):
+        return f'https://aspiredwebsites.com/ref/{self.code}/'
+
+
+class ReferralEvent(TimestampedModel):
+    """A single click, lead, or conversion attributed to a ReferralLink."""
+
+    EVENT_CHOICES = [
+        ('click', 'Link Click'),
+        ('lead', 'Lead Created'),
+        ('conversion', 'Client Converted'),
+    ]
+
+    referral_link = models.ForeignKey(
+        ReferralLink, on_delete=models.CASCADE, related_name='events',
+    )
+    event_type = models.CharField(
+        max_length=15, choices=EVENT_CHOICES)
+
+    lead = models.ForeignKey(
+        'outreach.Lead', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='referral_events',
+    )
+
+    # SHA-256 of the visitor's IP — used to de-duplicate clicks inside
+    # a 24-hour window. We never store the raw IP per CLAUDE.md privacy.
+    ip_hash = models.CharField(max_length=64, blank=True)
+
+    reward_given = models.BooleanField(default=False)
+    reward_amount = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
+    reward_note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Referral Event'
+        verbose_name_plural = 'Referral Events'
+        indexes = [
+            models.Index(fields=['referral_link', '-created_at']),
+            models.Index(fields=['event_type', '-created_at']),
+        ]
+
+    def __str__(self):
+        return (f'{self.referral_link.client.firm_name} — '
+                f'{self.event_type}')
+
+
+class Proposal(TimestampedModel):
+    """
+    Branded sales proposal. Generates a WeasyPrint PDF and tracks
+    open / accept signals via a UUID `tracking_token`.
+    """
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('viewed', 'Viewed'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('expired', 'Expired'),
+    ]
+
+    # Optional Lead link — proposals can be cold (no lead row yet).
+    lead = models.ForeignKey(
+        'outreach.Lead', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='proposals',
+    )
+
+    prospect_name = models.CharField(max_length=200)
+    prospect_email = models.EmailField(blank=True)
+    prospect_business = models.CharField(max_length=200, blank=True)
+    prospect_city = models.CharField(max_length=100, blank=True)
+    prospect_state = models.CharField(max_length=50, blank=True)
+
+    package = models.CharField(max_length=100, blank=True)
+    project_price = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
+    maintenance_price = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
+
+    goals = models.TextField(blank=True)
+    pain_points = models.TextField(blank=True)
+
+    # JSON list of CaseStudy UUIDs (string form) to render on Page 5.
+    case_study_ids = models.JSONField(default=list, blank=True)
+
+    pdf_path = models.CharField(max_length=500, blank=True)
+
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='draft')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    viewed_at = models.DateTimeField(null=True, blank=True)
+    view_count = models.IntegerField(default=0)
+
+    tracking_token = models.UUIDField(
+        default=uuid.uuid4, unique=True, editable=False)
+
+    expires_at = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Proposal'
+        verbose_name_plural = 'Proposals'
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f'Proposal — {self.prospect_name} — {self.status}'
+
+    def get_tracking_url(self):
+        return (f'https://aspiredwebsites.com'
+                f'/proposals/view/{self.tracking_token}/')
+
+    def is_expired(self):
+        return bool(self.expires_at
+                    and self.expires_at < timezone.now().date())
+
+
+class CaseStudy(TimestampedModel):
+    """
+    Client success story. Renders into proposals and (when
+    `is_published`) onto the public portfolio page.
+    """
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='case_studies',
+    )
+
+    title = models.CharField(max_length=300)
+    business_type = models.CharField(max_length=100, blank=True)
+    location = models.CharField(max_length=100, blank=True)
+
+    challenge = models.TextField(blank=True)
+    solution = models.TextField(blank=True)
+    results = models.TextField(blank=True)
+
+    metric_1_label = models.CharField(max_length=100, blank=True)
+    metric_1_value = models.CharField(max_length=50, blank=True)
+    metric_2_label = models.CharField(max_length=100, blank=True)
+    metric_2_value = models.CharField(max_length=50, blank=True)
+    metric_3_label = models.CharField(max_length=100, blank=True)
+    metric_3_value = models.CharField(max_length=50, blank=True)
+
+    testimonial_quote = models.TextField(blank=True)
+    testimonial_name = models.CharField(max_length=100, blank=True)
+
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    pdf_path = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Case Study'
+        verbose_name_plural = 'Case Studies'
+
+    def __str__(self):
+        return self.title[:60]
+
+    def metrics(self):
+        """Iterable of populated (label, value) tuples — convenience for
+        templates that don't want to repeat empty-string checks."""
+        pairs = [
+            (self.metric_1_label, self.metric_1_value),
+            (self.metric_2_label, self.metric_2_value),
+            (self.metric_3_label, self.metric_3_value),
+        ]
+        return [(lbl, val) for lbl, val in pairs if lbl and val]

@@ -99,6 +99,10 @@ class Lead(models.Model):
     # IP captured for contact-form / audit-tool / scraped leads.
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
+    # Referral attribution — set from `request.session['referral_code']`
+    # when a Lead is created from the contact form (Phase 7 Part 2).
+    referral_code = models.CharField(max_length=20, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

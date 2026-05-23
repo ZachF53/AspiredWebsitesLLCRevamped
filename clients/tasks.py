@@ -111,3 +111,80 @@ def take_monthly_revenue_snapshot():
         f'MRR ${snap.mrr_total} '
         f'({snap.active_maintenance_clients} maint clients)'
     )
+
+
+@shared_task
+def check_case_study_prompts():
+    """
+    Daily — for every client launched 30+ days ago with no CaseStudy
+    yet, email the admin a 'case study needed' prompt. De-duplicates
+    on a 7-day rolling window so a slow week doesn't spam the inbox.
+    """
+    from clients.models import CaseStudy, ClientProfile
+
+    thirty_days_ago = (timezone.now() - timedelta(days=30)).date()
+    week_ago = timezone.now() - timedelta(days=7)
+
+    candidates = (
+        ClientProfile.objects
+        .filter(
+            projects__stage='live',
+            projects__launch_date__lte=thirty_days_ago,
+            is_tester=False,
+        )
+        .exclude(case_studies__isnull=False)
+        .distinct()
+    )
+
+    sent = 0
+    for client in candidates:
+        # 7-day dedupe key — settings cache works across workers.
+        cache_key = f'cs_prompt:{client.id}'
+        from django.core.cache import cache
+        if cache.get(cache_key):
+            continue
+
+        subject = f'Case study needed: {client.firm_name}'
+        url = (f'{settings.SITE_BASE_URL}'
+               f'/admin-dashboard/case-studies/new/?client={client.id}')
+        body = (
+            f'{client.firm_name} launched 30+ days ago and still has no '
+            f'case study. The results are now in long enough to write '
+            f'one up.\n\n'
+            f'Draft the case study (AI Draft button pre-fills it):\n'
+            f'{url}\n'
+        )
+        try:
+            send_mail(
+                subject, body,
+                getattr(settings, 'EMAIL_FROM_NO_REPLY',
+                        settings.DEFAULT_FROM_EMAIL),
+                [settings.LEAD_NOTIFICATION_EMAIL],
+                fail_silently=True,
+            )
+            cache.set(cache_key, '1', timeout=7 * 24 * 3600)
+            sent += 1
+        except Exception:
+            logger.exception(
+                'case-study prompt email failed for %s', client.pk)
+    return f'Sent {sent} case-study prompt(s).'
+
+
+@shared_task
+def expire_old_proposals():
+    """
+    Daily — flip Proposal.status to 'expired' when expires_at has
+    passed and the prospect hasn't accepted/declined yet. Keeps the
+    proposals table tidy and lets the BI dashboard count active
+    proposals accurately.
+    """
+    from clients.models import Proposal
+
+    today = timezone.now().date()
+    qs = Proposal.objects.filter(
+        status__in=['draft', 'sent', 'viewed'],
+        expires_at__isnull=False,
+        expires_at__lt=today,
+    )
+    n = qs.update(status='expired', updated_at=timezone.now())
+    return f'Expired {n} proposal(s).'

@@ -1,0 +1,142 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Referrals — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Phase 7 Part 2</span>
+            <h1 class="admin-page-title">Referrals</h1>
+        </div>
+    </div>
+
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Total clicks</span>
+            <span class="admin-stat__value">{{ total_clicks }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Leads from referrals</span>
+            <span class="admin-stat__value">{{ total_leads }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Conversions</span>
+            <span class="admin-stat__value">{{ total_conversions }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Rewards given</span>
+            <span class="admin-stat__value">${{ rewards_given|floatformat:2 }}</span>
+        </div>
+    </div>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <span class="eyebrow">Per client</span>
+            <h2>Referral links</h2>
+        </div>
+
+        {% if links %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Code</th>
+                        <th>Link</th>
+                        <th class="num">Clicks</th>
+                        <th class="num">Leads</th>
+                        <th class="num">Conv.</th>
+                        <th class="num">Reward $</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for link in links %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_dashboard:client_detail' link.client.id %}">
+                                    {{ link.client.firm_name }}
+                                </a>
+                            </td>
+                            <td><code>{{ link.code }}</code></td>
+                            <td>
+                                <div class="ref-row-link">
+                                    <input type="text" readonly
+                                           value="{{ link.get_referral_url }}"
+                                           class="form-control form-control--sm"
+                                           id="ref-url-{{ link.id }}">
+                                    <button type="button"
+                                            class="btn-secondary btn-sm js-copy"
+                                            data-target="ref-url-{{ link.id }}">Copy</button>
+                                </div>
+                            </td>
+                            <td class="num">{{ link.clicks }}</td>
+                            <td class="num">{{ link.leads_generated }}</td>
+                            <td class="num">{{ link.conversions }}</td>
+                            <td class="num">${{ link.total_reward_value|floatformat:2 }}</td>
+                            <td>
+                                {% if link.is_active %}
+                                    <span class="status-badge status-badge--active">Active</span>
+                                {% else %}
+                                    <span class="status-badge status-badge--paused">Paused</span>
+                                {% endif %}
+                            </td>
+                            <td class="admin-table__actions">
+                                <details class="ref-conv-detail">
+                                    <summary class="btn-primary btn-sm">Mark Conversion</summary>
+                                    <form method="post"
+                                          action="{% url 'admin_dashboard:referral_mark_conversion' link.id %}"
+                                          class="ref-conv-form">
+                                        {% csrf_token %}
+                                        <label>
+                                            Reward amount ($)
+                                            <input type="number" step="0.01" min="0"
+                                                   name="reward_amount" value="100">
+                                        </label>
+                                        <label>
+                                            Reward note
+                                            <input type="text" name="reward_note"
+                                                   placeholder="$100 credit on next invoice"
+                                                   maxlength="200">
+                                        </label>
+                                        <button type="submit" class="btn-primary btn-sm">Save Conversion</button>
+                                    </form>
+                                </details>
+                                <form method="post"
+                                      action="{% url 'admin_dashboard:referral_toggle_active' link.id %}"
+                                      style="display:inline-block; margin-left:6px;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">
+                                        {% if link.is_active %}Pause{% else %}Activate{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No referral links yet. Run <code>python manage.py create_referral_links</code> to seed one per client.</p>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+    (function () {
+        document.querySelectorAll('.js-copy').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var input = document.getElementById(btn.dataset.target);
+                if (!input) return;
+                input.select();
+                input.setSelectionRange(0, 99999);
+                try { navigator.clipboard.writeText(input.value); }
+                catch (e) { document.execCommand('copy'); }
+                var orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(function () { btn.textContent = orig; }, 1500);
+            });
+        });
+    })();
+</script>
+{% endblock %}

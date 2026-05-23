@@ -65,10 +65,17 @@ def _admin_context(active=None, **extra):
         # ClientHealthScore migration may not have run yet on a fresh
         # checkout — never break the chrome over a missing table.
         critical_health_count = 0
+    try:
+        active_proposals_count = _active_proposals_count()
+    except Exception:
+        # Proposal table may not exist on a fresh checkout — never
+        # break the chrome over a missing table.
+        active_proposals_count = 0
     ctx = {
         'active': active,
         'needs_you_count': needs_you_count,
         'critical_health_count': critical_health_count,
+        'active_proposals_count': active_proposals_count,
     }
     ctx.update(extra)
     return ctx
@@ -3167,3 +3174,667 @@ def intelligence_dashboard(request):
                           if latest_snapshot else None),
                       daily_focus=get_daily_focus(),
                   ))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 7 Part 2 — Referrals admin dashboard
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def referrals_list(request):
+    """
+    Admin view of every ReferralLink with rollup stats at the top and a
+    per-link row table beneath. Sorted by conversions then leads so the
+    most-effective referrers float up.
+    """
+    from clients.models import ReferralEvent, ReferralLink
+
+    links = (ReferralLink.objects
+             .select_related('client')
+             .order_by('-conversions', '-leads_generated',
+                       'client__firm_name'))
+
+    totals = ReferralLink.objects.aggregate(
+        total_clicks=Count('id'),  # placeholder, overwritten below
+    )
+    # Use SQL sum, not the placeholder above.
+    from django.db.models import Sum
+    agg = ReferralLink.objects.aggregate(
+        clicks=Sum('clicks'),
+        leads=Sum('leads_generated'),
+        convs=Sum('conversions'),
+        rewards=Sum('total_reward_value'),
+    )
+    rewards_given = ReferralEvent.objects.filter(
+        reward_given=True).aggregate(s=Sum('reward_amount'))['s'] or 0
+
+    return render(request, 'admin_dashboard/referrals_list.html',
+                  _admin_context(
+                      'referrals',
+                      links=links,
+                      total_clicks=agg['clicks'] or 0,
+                      total_leads=agg['leads'] or 0,
+                      total_conversions=agg['convs'] or 0,
+                      total_rewards=agg['rewards'] or 0,
+                      rewards_given=rewards_given,
+                  ))
+
+
+@admin_required
+@require_POST
+def referral_toggle_active(request, link_id):
+    """Flip ReferralLink.is_active. Returns to the list."""
+    from clients.models import ReferralLink
+    link = get_object_or_404(ReferralLink, id=link_id)
+    link.is_active = not link.is_active
+    link.save(update_fields=['is_active', 'updated_at'])
+    return redirect('admin_dashboard:referrals_list')
+
+
+@admin_required
+@require_POST
+def referral_mark_conversion(request, link_id):
+    """
+    Record a conversion + optional reward against a ReferralLink.
+    POST fields:
+      reward_amount  (decimal, default 0)
+      reward_note    (text)
+    Creates a ReferralEvent(event_type='conversion') and bumps the
+    parent link's counters in one go.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from clients.models import ReferralEvent, ReferralLink
+
+    link = get_object_or_404(ReferralLink, id=link_id)
+
+    raw = (request.POST.get('reward_amount') or '0').strip()
+    try:
+        amount = Decimal(raw) if raw else Decimal('0')
+    except InvalidOperation:
+        amount = Decimal('0')
+    note = (request.POST.get('reward_note') or '').strip()[:200]
+
+    ReferralEvent.objects.create(
+        referral_link=link,
+        event_type='conversion',
+        reward_given=amount > 0,
+        reward_amount=amount,
+        reward_note=note,
+    )
+    link.conversions = (link.conversions or 0) + 1
+    if amount > 0:
+        link.total_reward_value = (
+            (link.total_reward_value or 0) + amount)
+        link.save(update_fields=[
+            'conversions', 'total_reward_value', 'updated_at'])
+    else:
+        link.save(update_fields=['conversions', 'updated_at'])
+
+    return redirect('admin_dashboard:referrals_list')
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 7 Part 2 — Proposals
+# ────────────────────────────────────────────────────────────────────────────
+
+def _active_proposals_count():
+    """Sent + viewed proposals — used for the sidebar badge."""
+    try:
+        from clients.models import Proposal
+        return Proposal.objects.filter(
+            status__in=('sent', 'viewed')).count()
+    except Exception:
+        return 0
+
+
+@admin_required
+def proposals_list(request):
+    """All proposals, newest first."""
+    from clients.models import Proposal
+    proposals = (Proposal.objects
+                 .select_related('lead')
+                 .order_by('-created_at'))
+    return render(request, 'admin_dashboard/proposals_list.html',
+                  _admin_context(
+                      'proposals',
+                      proposals=proposals,
+                  ))
+
+
+@admin_required
+def proposal_new(request):
+    """Proposal creation form."""
+    from billing.pricing_models import ServiceTier
+    from clients.models import CaseStudy, Proposal
+    from outreach.models import Lead
+
+    if request.method == 'POST':
+        try:
+            from decimal import Decimal
+            project_price = Decimal(
+                request.POST.get('project_price') or '0')
+            maintenance_price = Decimal(
+                request.POST.get('maintenance_price') or '0')
+        except Exception:
+            from decimal import Decimal
+            project_price = Decimal('0')
+            maintenance_price = Decimal('0')
+
+        # Optional Lead link
+        lead = None
+        lead_id_raw = (request.POST.get('lead_id') or '').strip()
+        if lead_id_raw:
+            try:
+                lead = Lead.objects.get(pk=int(lead_id_raw))
+            except (Lead.DoesNotExist, ValueError):
+                lead = None
+
+        # Expiry — default 30 days from now if blank
+        expires_raw = (request.POST.get('expires_at') or '').strip()
+        if expires_raw:
+            try:
+                expires_at = datetime.datetime.strptime(
+                    expires_raw, '%Y-%m-%d').date()
+            except ValueError:
+                expires_at = (timezone.now()
+                              + datetime.timedelta(days=30)).date()
+        else:
+            expires_at = (timezone.now()
+                          + datetime.timedelta(days=30)).date()
+
+        case_study_ids = request.POST.getlist('case_study_ids')
+
+        proposal = Proposal.objects.create(
+            lead=lead,
+            prospect_name=(request.POST.get('prospect_name')
+                           or '').strip()[:200],
+            prospect_email=(request.POST.get('prospect_email')
+                            or '').strip()[:254],
+            prospect_business=(request.POST.get('prospect_business')
+                               or '').strip()[:200],
+            prospect_city=(request.POST.get('prospect_city')
+                           or '').strip()[:100],
+            prospect_state=(request.POST.get('prospect_state')
+                            or '').strip()[:50],
+            package=(request.POST.get('package') or '').strip()[:100],
+            project_price=project_price,
+            maintenance_price=maintenance_price,
+            goals=(request.POST.get('goals') or '').strip(),
+            pain_points=(request.POST.get('pain_points') or '').strip(),
+            case_study_ids=list(case_study_ids),
+            notes=(request.POST.get('notes') or '').strip(),
+            expires_at=expires_at,
+            status='draft',
+        )
+
+        # Auto-generate the PDF on save so the operator can preview
+        # it immediately on the detail page.
+        from clients.proposal_pdf import render_proposal_pdf
+        try:
+            proposal.pdf_path = render_proposal_pdf(proposal)
+            proposal.save(update_fields=['pdf_path', 'updated_at'])
+        except Exception:
+            # Don't block proposal creation on PDF errors — show a
+            # banner on the detail page instead.
+            pass
+
+        return redirect('admin_dashboard:proposal_detail',
+                        proposal_id=proposal.id)
+
+    leads = (Lead.objects
+             .filter(status__in=['new', 'contacted', 'replied',
+                                 'call_booked', 'proposal_sent'])
+             .order_by('-created_at')[:200])
+    case_studies = (CaseStudy.objects
+                    .filter(is_published=True)
+                    .select_related('client')
+                    .order_by('-created_at'))
+
+    build_tiers = ServiceTier.objects.filter(
+        category='website_build', is_active=True).order_by('sort_order',
+                                                           'price')
+    maint_tiers = ServiceTier.objects.filter(
+        category='maintenance', is_active=True).order_by('sort_order',
+                                                        'price')
+
+    return render(request, 'admin_dashboard/proposal_new.html',
+                  _admin_context(
+                      'proposals',
+                      leads=leads,
+                      case_studies=case_studies,
+                      build_tiers=build_tiers,
+                      maint_tiers=maint_tiers,
+                  ))
+
+
+@admin_required
+def proposal_detail(request, proposal_id):
+    """Single-proposal detail + action buttons."""
+    from clients.models import CaseStudy, Proposal
+
+    proposal = get_object_or_404(Proposal, id=proposal_id)
+
+    case_studies = []
+    if proposal.case_study_ids:
+        case_studies = list(
+            CaseStudy.objects.filter(id__in=proposal.case_study_ids))
+
+    return render(request, 'admin_dashboard/proposal_detail.html',
+                  _admin_context(
+                      'proposals',
+                      proposal=proposal,
+                      case_studies=case_studies,
+                  ))
+
+
+@admin_required
+@require_POST
+def proposal_generate(request, proposal_id):
+    """(Re)generate the proposal PDF on demand."""
+    from clients.models import Proposal
+    from clients.proposal_pdf import render_proposal_pdf
+
+    proposal = get_object_or_404(Proposal, id=proposal_id)
+    try:
+        proposal.pdf_path = render_proposal_pdf(proposal)
+        proposal.save(update_fields=['pdf_path', 'updated_at'])
+    except Exception as exc:  # noqa: BLE001 — surface on detail page
+        return HttpResponse(
+            f'PDF generation failed: {exc}', status=500)
+    return redirect('admin_dashboard:proposal_detail',
+                    proposal_id=proposal.id)
+
+
+@admin_required
+@require_POST
+def proposal_send(request, proposal_id):
+    """Email the proposal PDF to the prospect via SendGrid."""
+    import base64
+    import os
+    from pathlib import Path
+
+    from clients.models import Proposal
+
+    proposal = get_object_or_404(Proposal, id=proposal_id)
+    if not proposal.prospect_email:
+        return HttpResponseBadRequest('Prospect email is required.')
+    if not proposal.pdf_path:
+        return HttpResponseBadRequest(
+            'Generate the PDF before sending.')
+
+    abs_path = Path(settings.MEDIA_ROOT) / proposal.pdf_path
+    if not abs_path.exists():
+        return HttpResponseBadRequest(
+            'PDF file is missing — regenerate first.')
+
+    business = (proposal.prospect_business
+                or proposal.prospect_name or 'your project')
+    subject = f'Website Proposal — {business}'
+
+    view_url = proposal.get_tracking_url()
+    html_content = (
+        f"<p>Hi {proposal.prospect_name.split()[0] if proposal.prospect_name else 'there'},</p>"
+        f"<p>Attached is your proposal for "
+        f"<strong>{business}</strong>. You can also view it online:</p>"
+        f"<p><a href='{view_url}'>View proposal</a></p>"
+        f"<p>It's good for 30 days. Reply to this email or "
+        f"call/text 210-896-2536 with any questions.</p>"
+        f"<p>— Zachery Long<br>"
+        f"Aspired Websites LLC</p>"
+    )
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import (
+            Attachment, Disposition, FileContent, FileName,
+            FileType, Mail,
+        )
+    except ImportError:
+        return HttpResponse('SendGrid SDK not installed.', status=500)
+
+    message = Mail(
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to_emails=proposal.prospect_email,
+        subject=subject,
+        html_content=html_content,
+    )
+    with open(abs_path, 'rb') as fh:
+        encoded = base64.b64encode(fh.read()).decode()
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+    mime = ('application/pdf' if ext.lower() == '.pdf'
+            else 'text/html')
+    attachment = Attachment(
+        FileContent(encoded),
+        FileName(f'proposal{ext}'),
+        FileType(mime),
+        Disposition('attachment'),
+    )
+    message.attachment = attachment
+
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        sg.send(message)
+    except Exception as exc:  # noqa: BLE001 — surface to operator
+        return HttpResponse(
+            f'SendGrid error: {str(exc)[:200]}', status=500)
+
+    proposal.sent_at = timezone.now()
+    proposal.status = 'sent'
+    if not proposal.expires_at:
+        proposal.expires_at = (
+            timezone.now() + datetime.timedelta(days=30)).date()
+    proposal.save(update_fields=[
+        'sent_at', 'status', 'expires_at', 'updated_at',
+    ])
+
+    return redirect('admin_dashboard:proposal_detail',
+                    proposal_id=proposal.id)
+
+
+@admin_required
+@require_POST
+def proposal_set_status(request, proposal_id):
+    """Flip status to accepted/declined from the detail page buttons."""
+    from clients.models import Proposal
+
+    proposal = get_object_or_404(Proposal, id=proposal_id)
+    new_status = (request.POST.get('status') or '').strip()
+    valid = {choice for choice, _ in Proposal.STATUS_CHOICES}
+    if new_status not in valid:
+        return HttpResponseBadRequest('invalid status')
+    proposal.status = new_status
+    proposal.save(update_fields=['status', 'updated_at'])
+    return redirect('admin_dashboard:proposal_detail',
+                    proposal_id=proposal.id)
+
+
+@admin_required
+def proposal_lead_autofill(request):
+    """HTMX endpoint — fill prospect fields when a Lead is picked."""
+    from outreach.models import Lead
+
+    lead_id = (request.GET.get('lead_id') or '').strip()
+    if not lead_id:
+        return HttpResponse('')
+    try:
+        lead = Lead.objects.get(pk=int(lead_id))
+    except (Lead.DoesNotExist, ValueError):
+        return HttpResponse('')
+
+    return render(request, 'admin_dashboard/_proposal_autofill.html',
+                  {'lead': lead})
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 7 Part 2 — Case studies
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def case_studies_list(request):
+    """List view of CaseStudy rows."""
+    from clients.models import CaseStudy
+    case_studies = (CaseStudy.objects
+                    .select_related('client')
+                    .order_by('-created_at'))
+    return render(request, 'admin_dashboard/case_studies_list.html',
+                  _admin_context(
+                      'case_studies',
+                      case_studies=case_studies,
+                  ))
+
+
+@admin_required
+def case_study_new(request):
+    """Create a new CaseStudy (form + save)."""
+    from clients.models import CaseStudy, ClientProfile
+
+    if request.method == 'POST':
+        client = None
+        cid = (request.POST.get('client_id') or '').strip()
+        if cid:
+            try:
+                client = ClientProfile.objects.get(id=cid)
+            except (ClientProfile.DoesNotExist, ValueError):
+                client = None
+
+        is_published = request.POST.get('is_published') == 'on'
+
+        cs = CaseStudy.objects.create(
+            client=client,
+            title=(request.POST.get('title') or '').strip()[:300],
+            business_type=(request.POST.get('business_type')
+                           or (client.business_type if client else '')
+                           or '').strip()[:100],
+            location=(request.POST.get('location')
+                      or _client_location(client)
+                      or '').strip()[:100],
+            challenge=(request.POST.get('challenge') or '').strip(),
+            solution=(request.POST.get('solution') or '').strip(),
+            results=(request.POST.get('results') or '').strip(),
+            metric_1_label=(request.POST.get('metric_1_label')
+                            or '').strip()[:100],
+            metric_1_value=(request.POST.get('metric_1_value')
+                            or '').strip()[:50],
+            metric_2_label=(request.POST.get('metric_2_label')
+                            or '').strip()[:100],
+            metric_2_value=(request.POST.get('metric_2_value')
+                            or '').strip()[:50],
+            metric_3_label=(request.POST.get('metric_3_label')
+                            or '').strip()[:100],
+            metric_3_value=(request.POST.get('metric_3_value')
+                            or '').strip()[:50],
+            testimonial_quote=(request.POST.get('testimonial_quote')
+                               or '').strip(),
+            testimonial_name=(request.POST.get('testimonial_name')
+                              or '').strip()[:100],
+            is_published=is_published,
+            published_at=(timezone.now() if is_published else None),
+        )
+        return redirect('admin_dashboard:case_study_edit', cs_id=cs.id)
+
+    preselect_client = None
+    cid_query = (request.GET.get('client') or '').strip()
+    if cid_query:
+        try:
+            preselect_client = ClientProfile.objects.get(id=cid_query)
+        except (ClientProfile.DoesNotExist, ValueError):
+            preselect_client = None
+
+    clients = (ClientProfile.objects.filter(is_tester=False)
+               .order_by('firm_name'))
+
+    return render(request, 'admin_dashboard/case_study_form.html',
+                  _admin_context(
+                      'case_studies',
+                      clients=clients,
+                      case_study=None,
+                      preselect_client=preselect_client,
+                  ))
+
+
+@admin_required
+def case_study_edit(request, cs_id):
+    """Edit an existing CaseStudy."""
+    from clients.models import CaseStudy, ClientProfile
+
+    cs = get_object_or_404(CaseStudy, id=cs_id)
+
+    if request.method == 'POST':
+        client = cs.client
+        cid = (request.POST.get('client_id') or '').strip()
+        if cid:
+            try:
+                client = ClientProfile.objects.get(id=cid)
+            except (ClientProfile.DoesNotExist, ValueError):
+                pass
+
+        was_published = cs.is_published
+        is_published = request.POST.get('is_published') == 'on'
+
+        cs.client = client
+        cs.title = (request.POST.get('title') or '').strip()[:300]
+        cs.business_type = (request.POST.get('business_type')
+                            or '').strip()[:100]
+        cs.location = (request.POST.get('location') or '').strip()[:100]
+        cs.challenge = (request.POST.get('challenge') or '').strip()
+        cs.solution = (request.POST.get('solution') or '').strip()
+        cs.results = (request.POST.get('results') or '').strip()
+        cs.metric_1_label = (
+            request.POST.get('metric_1_label') or '').strip()[:100]
+        cs.metric_1_value = (
+            request.POST.get('metric_1_value') or '').strip()[:50]
+        cs.metric_2_label = (
+            request.POST.get('metric_2_label') or '').strip()[:100]
+        cs.metric_2_value = (
+            request.POST.get('metric_2_value') or '').strip()[:50]
+        cs.metric_3_label = (
+            request.POST.get('metric_3_label') or '').strip()[:100]
+        cs.metric_3_value = (
+            request.POST.get('metric_3_value') or '').strip()[:50]
+        cs.testimonial_quote = (
+            request.POST.get('testimonial_quote') or '').strip()
+        cs.testimonial_name = (
+            request.POST.get('testimonial_name') or '').strip()[:100]
+        cs.is_published = is_published
+        if is_published and not was_published:
+            cs.published_at = timezone.now()
+        cs.save()
+        return redirect('admin_dashboard:case_studies_list')
+
+    clients = (ClientProfile.objects.filter(is_tester=False)
+               .order_by('firm_name'))
+    return render(request, 'admin_dashboard/case_study_form.html',
+                  _admin_context(
+                      'case_studies',
+                      clients=clients,
+                      case_study=cs,
+                      preselect_client=cs.client,
+                  ))
+
+
+@admin_required
+@require_POST
+def case_study_toggle_publish(request, cs_id):
+    """One-click toggle on the list page."""
+    from clients.models import CaseStudy
+    cs = get_object_or_404(CaseStudy, id=cs_id)
+    cs.is_published = not cs.is_published
+    if cs.is_published and not cs.published_at:
+        cs.published_at = timezone.now()
+    cs.save(update_fields=[
+        'is_published', 'published_at', 'updated_at'])
+    return redirect('admin_dashboard:case_studies_list')
+
+
+@admin_required
+@require_POST
+def case_study_ai_draft(request):
+    """
+    POST a {client_id, title?} pair, get back a JSON draft of
+    challenge / solution / results / 3 metrics. Front-end renders the
+    response into the form fields.
+    """
+    import json
+
+    from clients.models import ClientProfile
+    from reporting.ai import (
+        AIError, AINotConfigured, claude_complete, MODEL_CONTENT,
+    )
+
+    cid = (request.POST.get('client_id') or '').strip()
+    if not cid:
+        return HttpResponseBadRequest('client_id required')
+    try:
+        client = ClientProfile.objects.get(id=cid)
+    except (ClientProfile.DoesNotExist, ValueError):
+        return HttpResponseBadRequest('client not found')
+
+    title_hint = (request.POST.get('title') or '').strip()
+
+    project = (client.projects.filter(stage='live').first()
+               or client.projects.first())
+    package_label = (project.get_package_display()
+                     if project and project.package else '')
+    intake_summary = ''
+    if project and hasattr(project, 'intake'):
+        intake = project.intake
+        bits = [
+            intake.about_copy,
+            f'Practice areas: {intake.practice_areas}'
+            if intake.practice_areas else '',
+            f'Brand colors: {intake.brand_colors}'
+            if intake.brand_colors else '',
+        ]
+        intake_summary = '\n'.join(b for b in bits if b)[:1500]
+
+    location = _client_location(client)
+
+    system = (
+        "You are writing a case study for Aspired Websites LLC, a "
+        "custom web design agency. Keep it concise and focused on "
+        "business impact. Avoid hype and clichés. Return ONLY a JSON "
+        "object with keys: challenge, solution, results, "
+        "metric_1_label, metric_1_value, metric_2_label, "
+        "metric_2_value, metric_3_label, metric_3_value. No prose "
+        "outside the JSON."
+    )
+
+    user = (
+        f"Client: {client.firm_name}\n"
+        f"Business type: {client.business_type or 'unspecified'}\n"
+        f"Location: {location or 'unspecified'}\n"
+        f"Project package: {package_label or 'unspecified'}\n"
+        f"Working title: {title_hint or 'not provided'}\n\n"
+        f"Available info from their intake:\n{intake_summary or '(none)'}\n\n"
+        "Write the case study now. Estimate plausible metrics (e.g. "
+        "'40%' increase in inquiries, '2.3x' faster page load) when "
+        "exact numbers are unavailable. Three short metric pairs."
+    )
+
+    try:
+        raw = claude_complete(
+            messages=[{'role': 'user', 'content': user}],
+            system=system,
+            model=MODEL_CONTENT,
+            max_tokens=1200,
+        )
+    except AINotConfigured:
+        return HttpResponse(
+            'ANTHROPIC_API_KEY not configured.', status=503)
+    except AIError as exc:
+        return HttpResponse(f'AI draft failed: {exc}', status=502)
+
+    # Defensive JSON parse — strip code fences if Claude adds them.
+    stripped = raw.strip()
+    if stripped.startswith('```'):
+        stripped = stripped.strip('`')
+        if stripped.lower().startswith('json'):
+            stripped = stripped[4:]
+        stripped = stripped.strip()
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        return HttpResponse(
+            'AI returned non-JSON. Try again.', status=502)
+
+    from django.http import JsonResponse
+    return JsonResponse({
+        'challenge': data.get('challenge', ''),
+        'solution': data.get('solution', ''),
+        'results': data.get('results', ''),
+        'metric_1_label': data.get('metric_1_label', ''),
+        'metric_1_value': data.get('metric_1_value', ''),
+        'metric_2_label': data.get('metric_2_label', ''),
+        'metric_2_value': data.get('metric_2_value', ''),
+        'metric_3_label': data.get('metric_3_label', ''),
+        'metric_3_value': data.get('metric_3_value', ''),
+    })
+
+
+def _client_location(client):
+    """City, State string for a client or empty."""
+    if not client:
+        return ''
+    parts = [p for p in (client.city, client.state) if p]
+    return ', '.join(parts)

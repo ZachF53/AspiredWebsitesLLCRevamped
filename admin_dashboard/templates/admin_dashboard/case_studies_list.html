@@ -1,0 +1,67 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Case Studies — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Phase 7 Part 2</span>
+            <h1 class="admin-page-title">Case Studies</h1>
+            <p class="muted">Published case studies appear on the portfolio page and inside proposal PDFs.</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-primary" href="{% url 'admin_dashboard:case_study_new' %}">+ New Case Study</a>
+        </div>
+    </div>
+
+    <section class="admin-section">
+        {% if case_studies %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Title</th>
+                        <th>Metrics</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cs in case_studies %}
+                        <tr>
+                            <td>{% if cs.client %}<a href="{% url 'admin_dashboard:client_detail' cs.client.id %}">{{ cs.client.firm_name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td><a href="{% url 'admin_dashboard:case_study_edit' cs.id %}">{{ cs.title }}</a></td>
+                            <td>
+                                {% with mets=cs.metrics %}
+                                    {% if mets %}{{ mets|length }} metric{{ mets|length|pluralize }}{% else %}<span class="muted">—</span>{% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% if cs.is_published %}
+                                    <span class="status-badge status-badge--active">Published</span>
+                                {% else %}
+                                    <span class="status-badge status-badge--paused">Draft</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ cs.created_at|date:"M j, Y" }}</td>
+                            <td class="admin-table__actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:case_study_edit' cs.id %}">Edit</a>
+                                <form method="post" action="{% url 'admin_dashboard:case_study_toggle_publish' cs.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">
+                                        {% if cs.is_published %}Unpublish{% else %}Publish{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No case studies yet. <a href="{% url 'admin_dashboard:case_study_new' %}">Create one</a> or wait for the 30-day post-launch prompt to fire.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

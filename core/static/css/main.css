@@ -9139,3 +9139,222 @@ button.htmx-request {
         scroll-behavior: auto !important;
     }
 }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 2 — Referrals · Proposals · Case Studies
+   Admin dark theme only. No white fallbacks; use --color-bg-raised etc.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Referral admin row — copy button next to read-only URL input */
+.ref-row-link {
+    display: flex; gap: 6px; align-items: center;
+}
+.ref-row-link .form-control--sm {
+    flex: 1; min-width: 200px;
+}
+
+.ref-conv-detail summary {
+    display: inline-block; cursor: pointer; list-style: none;
+}
+.ref-conv-detail summary::-webkit-details-marker { display: none; }
+.ref-conv-form {
+    margin-top: 8px; padding: 10px 12px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    display: flex; flex-direction: column; gap: 8px;
+    min-width: 280px;
+}
+.ref-conv-form label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--color-text-muted);
+}
+.ref-conv-form input {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 6px 8px; border-radius: 6px;
+    font: inherit;
+}
+
+/* Portal referral page */
+.portal-referral { max-width: 900px; }
+.ref-link-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 22px 24px; margin: 18px 0;
+}
+.ref-link-card__label {
+    display: block; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--color-text-muted);
+    margin-bottom: 8px;
+}
+.ref-link-card__url-row {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 12px;
+}
+.ref-link-card__url {
+    flex: 1; min-width: 0;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text);
+    padding: 10px 12px; border-radius: 8px;
+    font: inherit; font-size: 14px;
+}
+.ref-link-card__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ref-link-card__code {
+    margin-top: 12px; color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+.ref-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin: 18px 0;
+}
+.ref-stat {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.ref-stat__label {
+    display: block; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--color-text-muted);
+    margin-bottom: 6px;
+}
+.ref-stat__value {
+    display: block; font-size: 22px; font-weight: 700;
+    color: var(--color-text);
+}
+.ref-stat--reward .ref-stat__value { color: var(--color-orange); }
+
+.ref-how {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 18px 22px; margin-top: 18px;
+}
+.ref-how h2 {
+    color: var(--color-text);
+    font-size: 18px; margin: 0 0 10px 0;
+}
+.ref-how__steps {
+    margin: 0; padding-left: 1.2em;
+    color: var(--color-text-muted);
+}
+.ref-how__steps li { margin-bottom: 6px; }
+.ref-how__steps strong { color: var(--color-text); }
+
+/* Proposal status badges — dark theme palette */
+.prop-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid var(--color-border);
+    background: rgba(255,255,255,0.04);
+    color: var(--color-text-muted);
+}
+.prop-badge--draft    { color: var(--color-text-muted); border-color: var(--color-border); }
+.prop-badge--sent     { color: var(--color-teal-light); border-color: rgba(20, 184, 166, 0.4); background: rgba(20, 184, 166, 0.1); }
+.prop-badge--viewed   { color: var(--color-orange-light); border-color: rgba(255, 123, 30, 0.4); background: rgba(255, 123, 30, 0.12); }
+.prop-badge--accepted { color: var(--color-success); border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.12); }
+.prop-badge--declined { color: var(--color-danger); border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.12); }
+.prop-badge--expired  { color: var(--color-danger); border-color: rgba(248, 113, 113, 0.25); background: rgba(248, 113, 113, 0.06); }
+
+/* Proposal action buttons row */
+.prop-actions {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+
+/* Proposal new form — case study picker */
+.cs-picker {
+    display: grid; gap: 6px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px; padding: 10px 12px;
+}
+.cs-picker__item {
+    display: flex; gap: 8px; align-items: baseline;
+    padding: 6px 4px; cursor: pointer;
+    color: var(--color-text);
+}
+.cs-picker__item:hover { background: rgba(255,255,255,0.03); border-radius: 6px; }
+.cs-picker__item input { margin-top: 4px; }
+
+/* admin-form helpers shared by proposal_new + case_study_form */
+.admin-form--wide { max-width: 980px; }
+.admin-form .form-row {
+    margin-bottom: 14px;
+}
+.admin-form .form-row > label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 13px; color: var(--color-text-muted);
+    font-weight: 500;
+}
+.admin-form .form-row input[type=text],
+.admin-form .form-row input[type=email],
+.admin-form .form-row input[type=number],
+.admin-form .form-row input[type=date],
+.admin-form .form-row select,
+.admin-form .form-row textarea {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 9px 11px; border-radius: 8px;
+    font: inherit; font-size: 14px;
+    width: 100%;
+}
+.admin-form .form-row textarea { min-height: 88px; resize: vertical; }
+.admin-form .form-row select option {
+    background: var(--color-bg-raised); color: var(--color-text);
+}
+.admin-form .form-row--split {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.admin-form .form-row--checkbox label {
+    flex-direction: row; align-items: center; gap: 8px;
+    color: var(--color-text);
+}
+.admin-form__actions {
+    display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap;
+}
+
+/* admin-dl — definition list used on the proposal detail page */
+.admin-dl {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 8px 16px;
+    margin: 0;
+    color: var(--color-text);
+}
+.admin-dl dt {
+    color: var(--color-text-muted);
+    font-size: 12px; letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.admin-dl dd { margin: 0; }
+.admin-dl--inline {
+    grid-template-columns: 140px 1fr 140px 1fr;
+}
+
+.text-sm { font-size: 12px; }
+
+.proposal-pending {
+    min-height: 80vh; display: flex; align-items: center; justify-content: center;
+    background: #FFFFFF;
+}
+.proposal-pending__card {
+    max-width: 480px; text-align: center;
+    padding: 36px 28px;
+    border: 1px solid #E5E5E5; border-radius: 12px;
+    background: #FAFAFA;
+    color: #1A1A1A;
+}
+.proposal-pending__card h1 {
+    color: #E8650A; font-size: 24px; margin: 16px 0 8px 0;
+}

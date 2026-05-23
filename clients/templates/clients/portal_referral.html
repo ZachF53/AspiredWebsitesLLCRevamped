@@ -1,0 +1,94 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Refer a Friend{% endblock %}
+
+{% block portal_content %}
+<div class="portal-referral">
+    <header class="portal-page-head">
+        <div>
+            <h1>Refer a Friend</h1>
+            <p class="portal-page-head__sub">
+                Know a business that needs a great website? Send them your
+                referral link and you'll earn a credit on your next invoice
+                when they become a client.
+            </p>
+        </div>
+    </header>
+
+    <section class="ref-link-card">
+        <span class="ref-link-card__label">Your unique referral link</span>
+        <div class="ref-link-card__url-row">
+            <input id="ref-link-input"
+                   class="ref-link-card__url"
+                   type="text"
+                   readonly
+                   value="{{ referral_url }}"
+                   aria-label="Your referral URL">
+            <button type="button"
+                    class="btn-primary"
+                    id="ref-copy-btn"
+                    data-target="ref-link-input">Copy Link</button>
+        </div>
+        <div class="ref-link-card__actions">
+            <a class="btn-secondary"
+               href="mailto:?subject=I%20wanted%20to%20share%20this&amp;body=I've%20been%20working%20with%20Aspired%20Websites%20on%20my%20site%20and%20they've%20been%20great.%20Here's%20my%20referral%20link%20if%20you%20want%20to%20check%20them%20out:%20{{ referral_url }}">
+                Email a Friend
+            </a>
+        </div>
+        <p class="ref-link-card__code">
+            Referral code: <strong>{{ link.code }}</strong>
+        </p>
+    </section>
+
+    <section class="ref-stats">
+        <div class="ref-stat">
+            <span class="ref-stat__label">Clicks</span>
+            <span class="ref-stat__value">{{ link.clicks }}</span>
+        </div>
+        <div class="ref-stat">
+            <span class="ref-stat__label">Leads</span>
+            <span class="ref-stat__value">{{ link.leads_generated }}</span>
+        </div>
+        <div class="ref-stat">
+            <span class="ref-stat__label">Conversions</span>
+            <span class="ref-stat__value">{{ link.conversions }}</span>
+        </div>
+        <div class="ref-stat ref-stat--reward">
+            <span class="ref-stat__label">Earned</span>
+            <span class="ref-stat__value">${{ link.total_reward_value }}</span>
+        </div>
+    </section>
+
+    <section class="ref-how">
+        <h2>How it works</h2>
+        <ol class="ref-how__steps">
+            <li><strong>Share your link.</strong> Send it to a business owner who could use a better website.</li>
+            <li><strong>They get in touch.</strong> When they fill out our contact form, we know it came from you.</li>
+            <li><strong>You earn a credit.</strong> When they sign on as a client, you get credit applied to your next invoice.</li>
+        </ol>
+    </section>
+</div>
+
+<script>
+    (function () {
+        var btn = document.getElementById('ref-copy-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            var input = document.getElementById('ref-link-input');
+            if (!input) return;
+            input.select();
+            input.setSelectionRange(0, 99999);
+            try {
+                navigator.clipboard.writeText(input.value);
+                btn.textContent = 'Copied!';
+                setTimeout(function () { btn.textContent = 'Copy Link'; }, 1800);
+            } catch (e) {
+                document.execCommand('copy');
+                btn.textContent = 'Copied!';
+                setTimeout(function () { btn.textContent = 'Copy Link'; }, 1800);
+            }
+        });
+    })();
+</script>
+{% endblock %}

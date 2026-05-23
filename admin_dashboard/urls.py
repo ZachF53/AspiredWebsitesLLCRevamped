@@ -129,4 +129,40 @@ urlpatterns = [
     path('clients/<uuid:client_id>/chatbot/regenerate-prompt/', views.chatbot_regenerate_prompt, name='chatbot_regenerate_prompt'),
     path('clients/<uuid:client_id>/chatbot/conversations/<uuid:conv_id>/', views.chatbot_conversation, name='chatbot_conversation'),
     path('clients/<uuid:client_id>/testimonial/', views.testimonial_mark_received, name='testimonial_mark_received'),
+
+    # Phase 7 Part 2 — referrals
+    path('referrals/', views.referrals_list, name='referrals_list'),
+    path('referrals/<uuid:link_id>/toggle/',
+         views.referral_toggle_active, name='referral_toggle_active'),
+    path('referrals/<uuid:link_id>/conversion/',
+         views.referral_mark_conversion,
+         name='referral_mark_conversion'),
+
+    # Phase 7 Part 2 — proposals
+    path('proposals/', views.proposals_list, name='proposals_list'),
+    path('proposals/new/', views.proposal_new, name='proposal_new'),
+    path('proposals/lead-autofill/',
+         views.proposal_lead_autofill,
+         name='proposal_lead_autofill'),
+    path('proposals/<uuid:proposal_id>/', views.proposal_detail,
+         name='proposal_detail'),
+    path('proposals/<uuid:proposal_id>/generate/',
+         views.proposal_generate, name='proposal_generate'),
+    path('proposals/<uuid:proposal_id>/send/',
+         views.proposal_send, name='proposal_send'),
+    path('proposals/<uuid:proposal_id>/status/',
+         views.proposal_set_status, name='proposal_set_status'),
+
+    # Phase 7 Part 2 — case studies
+    path('case-studies/', views.case_studies_list,
+         name='case_studies_list'),
+    path('case-studies/new/', views.case_study_new,
+         name='case_study_new'),
+    path('case-studies/ai-draft/', views.case_study_ai_draft,
+         name='case_study_ai_draft'),
+    path('case-studies/<uuid:cs_id>/edit/', views.case_study_edit,
+         name='case_study_edit'),
+    path('case-studies/<uuid:cs_id>/publish-toggle/',
+         views.case_study_toggle_publish,
+         name='case_study_toggle_publish'),
 ]

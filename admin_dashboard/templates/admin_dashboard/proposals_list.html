@@ -1,0 +1,71 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Proposals — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Phase 7 Part 2</span>
+            <h1 class="admin-page-title">Proposals</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-primary" href="{% url 'admin_dashboard:proposal_new' %}">+ New Proposal</a>
+        </div>
+    </div>
+
+    <section class="admin-section">
+        {% if proposals %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Prospect</th>
+                        <th>Package</th>
+                        <th class="num">Project</th>
+                        <th class="num">Maint.</th>
+                        <th>Status</th>
+                        <th>Sent</th>
+                        <th class="num">Views</th>
+                        <th>Expires</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in proposals %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_dashboard:proposal_detail' p.id %}">
+                                    {{ p.prospect_business|default:p.prospect_name }}
+                                </a>
+                                {% if p.prospect_business and p.prospect_name %}
+                                    <div class="muted text-sm">{{ p.prospect_name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>{{ p.package|default:"—" }}</td>
+                            <td class="num">${{ p.project_price|floatformat:0 }}</td>
+                            <td class="num">
+                                {% if p.maintenance_price > 0 %}
+                                    ${{ p.maintenance_price|floatformat:0 }}/mo
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                <span class="prop-badge prop-badge--{{ p.status }}">
+                                    {{ p.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{% if p.sent_at %}{{ p.sent_at|date:"M j" }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="num">{{ p.view_count }}</td>
+                            <td>{% if p.expires_at %}{{ p.expires_at|date:"M j" }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="admin-table__actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:proposal_detail' p.id %}">Open</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No proposals yet. <a href="{% url 'admin_dashboard:proposal_new' %}">Create one</a>.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

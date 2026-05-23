@@ -175,7 +175,18 @@ def contact(request):
                 'Please try again later or call/text us directly at 210-896-2536.',
             )
         elif form.is_valid():
-            lead = form.save_as_lead(ip_address=_client_ip(request))
+            ref_code = (request.session.get('referral_code') or '').strip()
+            lead = form.save_as_lead(
+                ip_address=_client_ip(request),
+                referral_code=ref_code,
+            )
+            if ref_code:
+                # Best-effort: stamp the lead, bump counters, log event.
+                from clients.views import credit_referral_for_lead
+                try:
+                    credit_referral_for_lead(lead, ref_code)
+                except Exception:  # noqa: BLE001 — never break contact form
+                    pass
             _send_lead_auto_reply(lead)
             _send_lead_internal_notification(lead)
             return redirect('public:contact_thanks')

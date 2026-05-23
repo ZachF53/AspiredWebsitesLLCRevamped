@@ -110,7 +110,7 @@ class ContactForm(forms.Form):
             [('', '— Optional —')] + HEARD_ABOUT_CHOICES
         )
 
-    def save_as_lead(self, ip_address=None):
+    def save_as_lead(self, ip_address=None, referral_code=''):
         """Map cleaned form data to a Lead row and return it."""
         cleaned = self.cleaned_data
         return Lead.objects.create(
@@ -125,6 +125,7 @@ class ContactForm(forms.Form):
             status='new',
             score=0,
             ip_address=ip_address,
+            referral_code=(referral_code or '').upper()[:20],
         )
 
 

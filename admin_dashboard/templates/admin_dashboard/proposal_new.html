@@ -1,0 +1,205 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}New Proposal — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Proposals</span>
+            <h1 class="admin-page-title">New Proposal</h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:proposals_list' %}">Cancel</a>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form admin-form--wide">
+        {% csrf_token %}
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Prospect</h2>
+            </div>
+
+            <div class="form-row">
+                <label for="lead_id">Linked lead (optional)</label>
+                <select name="lead_id" id="lead_id"
+                        hx-get="{% url 'admin_dashboard:proposal_lead_autofill' %}"
+                        hx-trigger="change"
+                        hx-target="#lead-autofill"
+                        hx-swap="innerHTML"
+                        hx-include="this">
+                    <option value="">— None —</option>
+                    {% for lead in leads %}
+                        <option value="{{ lead.pk }}">
+                            {{ lead.firm_name }}{% if lead.attorney_name %} — {{ lead.attorney_name }}{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="lead-autofill"></div>
+
+            <div class="form-row form-row--split">
+                <label>Prospect name *
+                    <input type="text" name="prospect_name" id="prospect_name" required maxlength="200">
+                </label>
+                <label>Email *
+                    <input type="email" name="prospect_email" id="prospect_email" required maxlength="254">
+                </label>
+            </div>
+            <div class="form-row form-row--split">
+                <label>Business name
+                    <input type="text" name="prospect_business" id="prospect_business" maxlength="200">
+                </label>
+                <label>City
+                    <input type="text" name="prospect_city" id="prospect_city" maxlength="100">
+                </label>
+                <label>State
+                    <input type="text" name="prospect_state" id="prospect_state" maxlength="50">
+                </label>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Package &amp; Pricing</h2>
+            </div>
+
+            <div class="form-row">
+                <label>Package</label>
+                <select id="build-select" data-target="project_price">
+                    <option value="">— Custom —</option>
+                    {% for tier in build_tiers %}
+                        <option value="{{ tier.price }}" data-name="{{ tier.name }}">
+                            {{ tier.name }} — ${{ tier.price|floatformat:0 }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Maintenance add-on</label>
+                <select id="maint-select" data-target="maintenance_price">
+                    <option value="0" data-name="">— None —</option>
+                    {% for tier in maint_tiers %}
+                        <option value="{{ tier.price }}" data-name="{{ tier.name }}">
+                            {{ tier.name }} — ${{ tier.price|floatformat:0 }}/mo
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Package label (shown in PDF)
+                    <input type="text" name="package" id="package" maxlength="100"
+                           placeholder="e.g. Premium Build + Growth Maintenance">
+                </label>
+            </div>
+            <div class="form-row form-row--split">
+                <label>One-time project price ($)
+                    <input type="number" name="project_price" id="project_price" min="0" step="0.01" value="0">
+                </label>
+                <label>Monthly maintenance price ($)
+                    <input type="number" name="maintenance_price" id="maintenance_price" min="0" step="0.01" value="0">
+                </label>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Proposal content</h2>
+            </div>
+            <div class="form-row">
+                <label>Goals
+                    <textarea name="goals" rows="4"
+                              placeholder="What does this prospect want to achieve with their new website?"></textarea>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Pain points
+                    <textarea name="pain_points" rows="4"
+                              placeholder="What problems do they have with their current situation?"></textarea>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label>Case studies to include</label>
+                {% if case_studies %}
+                    <div class="cs-picker">
+                        {% for cs in case_studies %}
+                            <label class="cs-picker__item">
+                                <input type="checkbox" name="case_study_ids" value="{{ cs.id }}">
+                                <strong>{{ cs.title }}</strong>
+                                {% if cs.client %}<span class="muted">— {{ cs.client.firm_name }}</span>{% endif %}
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="muted">No published case studies yet. <a href="{% url 'admin_dashboard:case_study_new' %}">Create one</a>.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Internal</h2>
+            </div>
+            <div class="form-row">
+                <label>Internal notes (not in the PDF)
+                    <textarea name="notes" rows="3"></textarea>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Expires (default: 30 days from today)
+                    <input type="date" name="expires_at">
+                </label>
+            </div>
+        </section>
+
+        <div class="admin-form__actions">
+            <button type="submit" class="btn-primary">Generate Proposal PDF</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:proposals_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        // Sync package label + auto-fill the price input when a tier
+        // is picked from the build / maintenance dropdowns.
+        function syncTier(selectId, priceFieldId, labelTargets) {
+            var sel = document.getElementById(selectId);
+            if (!sel) return;
+            sel.addEventListener('change', function () {
+                var opt = sel.options[sel.selectedIndex];
+                var price = parseFloat(opt.value || '0') || 0;
+                var priceField = document.getElementById(priceFieldId);
+                if (priceField) priceField.value = price.toFixed(2);
+                rebuildPackageLabel();
+            });
+        }
+        function rebuildPackageLabel() {
+            var label = document.getElementById('package');
+            if (!label) return;
+            var build = document.getElementById('build-select');
+            var maint = document.getElementById('maint-select');
+            var parts = [];
+            if (build && build.value) {
+                var bName = build.options[build.selectedIndex].dataset.name;
+                if (bName) parts.push(bName);
+            }
+            if (maint && maint.value && parseFloat(maint.value) > 0) {
+                var mName = maint.options[maint.selectedIndex].dataset.name;
+                if (mName) parts.push(mName);
+            }
+            if (parts.length && !label.dataset.userTouched) {
+                label.value = parts.join(' + ');
+            }
+        }
+        document.getElementById('package').addEventListener('input', function () {
+            this.dataset.userTouched = '1';
+        });
+        syncTier('build-select', 'project_price');
+        syncTier('maint-select', 'maintenance_price');
+    })();
+</script>
+{% endblock %}

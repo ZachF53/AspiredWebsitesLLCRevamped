@@ -30,6 +30,9 @@ urlpatterns = [
          views.portal_scan_download, name='portal_scan_download'),
     path('settings/', views.settings_page, name='settings'),
 
+    # Phase 7 Part 2 — refer-a-friend
+    path('referral/', views.portal_referral, name='portal_referral'),
+
     # Contract signing — token-gated, no login required.
     path('contract/signed/', views.contract_signed, name='contract_signed'),
     path('contract/<uuid:contract_token>/', views.contract_sign, name='contract_sign'),

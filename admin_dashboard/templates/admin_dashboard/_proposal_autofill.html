@@ -1,0 +1,16 @@
+{# HTMX fragment — fills the prospect inputs when a Lead is picked. #}
+<script>
+    (function () {
+        var fill = {
+            'prospect_name': "{{ lead.attorney_name|default:lead.firm_name|escapejs }}",
+            'prospect_email': "{{ lead.email|escapejs }}",
+            'prospect_business': "{{ lead.firm_name|escapejs }}",
+            'prospect_city': "{{ lead.city|escapejs }}",
+            'prospect_state': "{{ lead.state|escapejs }}"
+        };
+        Object.keys(fill).forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el && !el.value) el.value = fill[id];
+        });
+    })();
+</script>

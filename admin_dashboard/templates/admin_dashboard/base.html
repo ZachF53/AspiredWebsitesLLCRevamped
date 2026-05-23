@@ -73,6 +73,22 @@
                     Changelog</a>
                 <a class="admin-nav__link {% if active == 'reports' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:reports_list' %}">Reports</a>
+                <a class="admin-nav__link {% if active == 'proposals' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:proposals_list' %}">
+                    <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+                    Proposals
+                    {% if active_proposals_count %}<span class="admin-nav__badge">{{ active_proposals_count }}</span>{% endif %}
+                </a>
+                <a class="admin-nav__link {% if active == 'case_studies' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:case_studies_list' %}">
+                    <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    Case Studies
+                </a>
+                <a class="admin-nav__link {% if active == 'referrals' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:referrals_list' %}">
+                    <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zm0 0h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+                    Referrals
+                </a>
                 <a class="admin-nav__link {% if active == 'blog' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:blog_list' %}">Blog</a>
                 <a class="admin-nav__link {% if active == 'nps' %}is-active{% endif %}"

@@ -1,0 +1,156 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Proposal — {{ proposal.prospect_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Proposals</span>
+            <h1 class="admin-page-title">{{ proposal.prospect_business|default:proposal.prospect_name }}</h1>
+            <p class="muted">
+                Status:
+                <span class="prop-badge prop-badge--{{ proposal.status }}">{{ proposal.get_status_display }}</span>
+                · {{ proposal.created_at|date:"M j, Y" }}
+            </p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:proposals_list' %}">All proposals</a>
+        </div>
+    </div>
+
+    <div class="admin-two-col">
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Prospect</h2>
+            </div>
+            <dl class="admin-dl">
+                <dt>Name</dt><dd>{{ proposal.prospect_name }}</dd>
+                <dt>Email</dt><dd>{{ proposal.prospect_email|default:"—" }}</dd>
+                <dt>Business</dt><dd>{{ proposal.prospect_business|default:"—" }}</dd>
+                <dt>Location</dt>
+                <dd>{{ proposal.prospect_city }}{% if proposal.prospect_city and proposal.prospect_state %}, {% endif %}{{ proposal.prospect_state }}</dd>
+                {% if proposal.lead %}
+                    <dt>Lead</dt>
+                    <dd><a href="{% url 'admin_dashboard:lead_detail' proposal.lead.pk %}">{{ proposal.lead.firm_name }}</a></dd>
+                {% endif %}
+            </dl>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Package &amp; Pricing</h2>
+            </div>
+            <dl class="admin-dl">
+                <dt>Package</dt><dd>{{ proposal.package|default:"—" }}</dd>
+                <dt>Project</dt><dd>${{ proposal.project_price|floatformat:0 }}</dd>
+                <dt>Maintenance</dt>
+                <dd>{% if proposal.maintenance_price > 0 %}${{ proposal.maintenance_price|floatformat:0 }}/mo{% else %}—{% endif %}</dd>
+                <dt>Expires</dt>
+                <dd>{% if proposal.expires_at %}{{ proposal.expires_at|date:"F j, Y" }}{% else %}—{% endif %}</dd>
+            </dl>
+        </section>
+    </div>
+
+    <section class="admin-section">
+        <div class="admin-section__header">
+            <h2>Tracking</h2>
+        </div>
+        <dl class="admin-dl admin-dl--inline">
+            <dt>Sent</dt><dd>{% if proposal.sent_at %}{{ proposal.sent_at|date:"M j, Y H:i" }}{% else %}<span class="muted">Not sent</span>{% endif %}</dd>
+            <dt>First viewed</dt><dd>{% if proposal.viewed_at %}{{ proposal.viewed_at|date:"M j, Y H:i" }}{% else %}<span class="muted">—</span>{% endif %}</dd>
+            <dt>View count</dt><dd>{{ proposal.view_count }}</dd>
+            <dt>Tracking URL</dt>
+            <dd>
+                <div class="ref-row-link">
+                    <input type="text" readonly value="{{ proposal.get_tracking_url }}"
+                           class="form-control form-control--sm" id="prop-track-url">
+                    <button type="button" class="btn-secondary btn-sm js-copy" data-target="prop-track-url">Copy</button>
+                </div>
+            </dd>
+        </dl>
+    </section>
+
+    {% if proposal.goals or proposal.pain_points %}
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>Content snapshot</h2>
+            </div>
+            {% if proposal.goals %}<h3 class="admin-subsection-title">Goals</h3><p>{{ proposal.goals|linebreaksbr }}</p>{% endif %}
+            {% if proposal.pain_points %}<h3 class="admin-subsection-title">Pain points</h3><p>{{ proposal.pain_points|linebreaksbr }}</p>{% endif %}
+        </section>
+    {% endif %}
+
+    {% if case_studies %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Case studies in this proposal</h2></div>
+            <ul class="admin-activity-list">
+                {% for cs in case_studies %}
+                    <li class="admin-activity-item">
+                        <a href="{% url 'admin_dashboard:case_study_edit' cs.id %}"
+                           class="admin-activity-item__title">{{ cs.title }}</a>
+                        {% if cs.client %}<div class="admin-activity-item__meta">{{ cs.client.firm_name }}</div>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+
+    {% if proposal.notes %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Internal notes</h2></div>
+            <p>{{ proposal.notes|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Actions</h2></div>
+        <div class="prop-actions">
+            {% if proposal.pdf_path %}
+                <a class="btn-secondary" href="{{ MEDIA_URL }}{{ proposal.pdf_path }}" target="_blank" rel="noopener">Download PDF</a>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_dashboard:proposal_generate' proposal.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">
+                    {% if proposal.pdf_path %}Regenerate PDF{% else %}Generate PDF{% endif %}
+                </button>
+            </form>
+
+            {% if proposal.pdf_path and proposal.prospect_email %}
+                <form method="post" action="{% url 'admin_dashboard:proposal_send' proposal.id %}" style="display:inline;"
+                      onsubmit="return confirm('Send this proposal to {{ proposal.prospect_email|escapejs }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary">Send to Prospect</button>
+                </form>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_dashboard:proposal_set_status' proposal.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="accepted">
+                <button type="submit" class="btn-primary">Mark Accepted</button>
+            </form>
+            <form method="post" action="{% url 'admin_dashboard:proposal_set_status' proposal.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="declined">
+                <button type="submit" class="btn-secondary">Mark Declined</button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<script>
+    document.querySelectorAll('.js-copy').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var input = document.getElementById(btn.dataset.target);
+            if (!input) return;
+            input.select();
+            try { navigator.clipboard.writeText(input.value); }
+            catch (e) { document.execCommand('copy'); }
+            var orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(function () { btn.textContent = orig; }, 1500);
+        });
+    });
+</script>
+{% endblock %}

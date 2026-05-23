@@ -954,3 +954,146 @@ def contract_sign(request, contract_token):
 def contract_signed(request):
     """Post-signing thank-you page."""
     return render(request, 'clients/contract_signed.html', {})
+
+
+# ── Phase 7 Part 2 — Public referral + proposal tracking endpoints ─────────
+
+def _hash_ip(request):
+    """Sha-256 the visitor IP for dedup tracking. Never store raw IP."""
+    import hashlib
+    xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    ip = (xff.split(',')[0].strip() if xff
+          else request.META.get('REMOTE_ADDR', '') or '')
+    return hashlib.sha256(ip.encode()).hexdigest() if ip else ''
+
+
+def referral_click(request, code):
+    """
+    Public ``/ref/<code>/`` — counts a click, stores the referral
+    code in the session, and redirects to the home page with the
+    code as a query param so analytics can see it.
+
+    De-dupes clicks by hashed IP within a 24-hour window.
+    """
+    from datetime import timedelta
+
+    from .models import ReferralEvent, ReferralLink
+
+    try:
+        link = ReferralLink.objects.get(
+            code=code.upper(), is_active=True)
+    except ReferralLink.DoesNotExist:
+        return redirect('/')
+
+    ip_hash = _hash_ip(request)
+    recent = ReferralEvent.objects.filter(
+        referral_link=link,
+        ip_hash=ip_hash,
+        event_type='click',
+        created_at__gte=timezone.now() - timedelta(hours=24),
+    ).exists()
+
+    if not recent:
+        ReferralEvent.objects.create(
+            referral_link=link,
+            event_type='click',
+            ip_hash=ip_hash,
+        )
+        link.clicks = (link.clicks or 0) + 1
+        link.save(update_fields=['clicks', 'updated_at'])
+
+    # Carry the code through to the contact form's Lead creation.
+    request.session['referral_code'] = code.upper()
+    return redirect(f'/?ref={code.upper()}')
+
+
+def credit_referral_for_lead(lead, code):
+    """
+    Called from `public.views.contact` after a Lead is saved. Resolves
+    the code to a ReferralLink, stamps the lead, increments counters,
+    and records the ReferralEvent. Best-effort — never raises into the
+    contact-form happy path.
+    """
+    from .models import ReferralEvent, ReferralLink
+
+    if not (code and lead and lead.pk):
+        return
+    try:
+        link = ReferralLink.objects.get(
+            code=code.upper(), is_active=True)
+    except ReferralLink.DoesNotExist:
+        return
+
+    if not lead.referral_code:
+        lead.referral_code = link.code
+        lead.save(update_fields=['referral_code', 'updated_at'])
+
+    link.leads_generated = (link.leads_generated or 0) + 1
+    link.save(update_fields=['leads_generated', 'updated_at'])
+
+    ReferralEvent.objects.create(
+        referral_link=link,
+        event_type='lead',
+        lead=lead,
+    )
+
+
+def proposal_view_tracking(request, token):
+    """
+    Public ``/proposals/view/<uuid>/`` — records the open, then serves
+    the PDF inline. If the PDF doesn't exist yet we redirect to a
+    branded fallback so the prospect always sees something.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+    from django.http import FileResponse, HttpResponseNotFound
+
+    from .models import Proposal
+
+    try:
+        proposal = Proposal.objects.get(tracking_token=token)
+    except (Proposal.DoesNotExist, ValueError):
+        return HttpResponseNotFound('Proposal not found.')
+
+    proposal.view_count = (proposal.view_count or 0) + 1
+    if proposal.viewed_at is None:
+        proposal.viewed_at = timezone.now()
+    if proposal.status == 'sent':
+        proposal.status = 'viewed'
+    proposal.save(update_fields=[
+        'view_count', 'viewed_at', 'status', 'updated_at',
+    ])
+
+    if not proposal.pdf_path:
+        return render(request, 'clients/proposal_pending.html',
+                      {'proposal': proposal})
+
+    abs_path = Path(settings.MEDIA_ROOT) / proposal.pdf_path
+    if not abs_path.exists():
+        return render(request, 'clients/proposal_pending.html',
+                      {'proposal': proposal})
+
+    content_type = ('application/pdf' if abs_path.suffix.lower() == '.pdf'
+                    else 'text/html')
+    return FileResponse(open(abs_path, 'rb'),
+                        content_type=content_type)
+
+
+# ── Phase 7 Part 2 — Client portal referral page ───────────────────────────
+
+@client_required
+def portal_referral(request):
+    """Client-facing referral link + stats page."""
+    from .models import ReferralLink, generate_referral_code
+
+    profile = request.client_profile
+    link, _ = ReferralLink.objects.get_or_create(
+        client=profile,
+        defaults={'code': generate_referral_code(profile.firm_name)},
+    )
+
+    return render(request, 'clients/portal_referral.html',
+                  _portal_context(request, 'referral',
+                                  link=link,
+                                  referral_url=link.get_referral_url()))

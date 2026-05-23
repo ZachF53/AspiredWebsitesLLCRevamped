@@ -1,0 +1,149 @@
+{% comment %}
+WeasyPrint-rendered proposal PDF.
+6 pages: Cover · Problem · Solution · Investment · Case Studies · Next Steps
+Styled via _PDF_CSS in clients/proposal_pdf.py — do not add main.css here.
+{% endcomment %}
+{# ── Page 1 — Cover ──────────────────────────────────── #}
+<section class="cover">
+    <h1>Website Proposal</h1>
+    <div class="business">{{ p.prospect_business|default:p.prospect_name }}</div>
+    <div class="meta">
+        <strong>Prepared for:</strong> {{ p.prospect_name }}<br>
+        {% if p.prospect_email %}<strong>Email:</strong> {{ p.prospect_email }}<br>{% endif %}
+        {% if p.prospect_city or p.prospect_state %}
+            <strong>Location:</strong> {{ p.prospect_city }}{% if p.prospect_city and p.prospect_state %}, {% endif %}{{ p.prospect_state }}<br>
+        {% endif %}
+        <strong>Date:</strong> {{ today|date:"F j, Y" }}<br>
+        <strong>Prepared by:</strong> Zachery Long &middot; Aspired Websites LLC<br>
+        {% if p.expires_at %}<strong>Expires:</strong> {{ p.expires_at|date:"F j, Y" }}{% endif %}
+    </div>
+</section>
+
+{# ── Page 2 — The Problem ──────────────────────────────── #}
+<section class="page">
+    <span class="eyebrow">Page 2 — Where you are now</span>
+    <h2>The Problem</h2>
+    <div class="section">
+        {% if p.pain_points %}
+            {% for line in p.pain_points.splitlines %}{% if line %}<p>{{ line }}</p>{% endif %}{% endfor %}
+        {% else %}
+            <p>Most small businesses lose qualified leads because their
+            website is slow, hard to update, or doesn't show up in search.
+            Every week without a credible web presence is a week of
+            referrals that quietly go elsewhere.</p>
+        {% endif %}
+    </div>
+    {% if p.goals %}
+        <div class="section">
+            <h3>What you want to achieve</h3>
+            {% for line in p.goals.splitlines %}{% if line %}<p>{{ line }}</p>{% endif %}{% endfor %}
+        </div>
+    {% endif %}
+</section>
+
+{# ── Page 3 — The Solution ─────────────────────────────── #}
+<section class="page">
+    <span class="eyebrow">Page 3 — What we'll build</span>
+    <h2>The Solution</h2>
+    {% if p.package %}<h3>{{ p.package }}</h3>{% endif %}
+    {% if feature_bullets %}
+        <ul class="bullet-list">
+            {% for bullet in feature_bullets %}<li>{{ bullet }}</li>{% endfor %}
+        </ul>
+    {% else %}
+        <ul class="bullet-list">
+            <li>Hand-coded custom website — no WordPress, no page builders.</li>
+            <li>Mobile-first responsive design that loads in under 2 seconds.</li>
+            <li>SEO foundations done right: schema markup, sitemap, fast Core Web Vitals.</li>
+            <li>SSL, security headers, daily backups. Built by a CISSP-certified developer.</li>
+            <li>2 rounds of revisions included.</li>
+        </ul>
+    {% endif %}
+    <div class="section">
+        <h3>Timeline</h3>
+        <p>4–6 weeks from kickoff to launch. We move at the pace of your content
+        and feedback — most projects launch in 5 weeks.</p>
+    </div>
+</section>
+
+{# ── Page 4 — Investment ──────────────────────────────── #}
+<section class="page">
+    <span class="eyebrow">Page 4 — Your investment</span>
+    <h2>Pricing</h2>
+    <div class="pricing">
+        <div class="pricing__row">
+            <span class="label">One-time project</span>
+            <span class="amount">${{ p.project_price|floatformat:0 }}</span>
+        </div>
+        {% if p.maintenance_price and p.maintenance_price > 0 %}
+            <div class="pricing__row">
+                <span class="label">Monthly maintenance</span>
+                <span class="amount">${{ p.maintenance_price|floatformat:0 }}/mo</span>
+            </div>
+        {% endif %}
+        <div class="pricing__row">
+            <span class="label">Due to start</span>
+            <span class="amount">${{ p.project_price|floatformat:0|slice:":-1" }}{{ p.project_price|floatformat:0|slice:"-1:" }}{% comment %}50% rendered below{% endcomment %}</span>
+        </div>
+    </div>
+    <p><strong>Payment terms:</strong> 50% deposit to start. 50% on launch.
+    No long-term contracts — maintenance is month-to-month, cancel anytime
+    with 30 days notice.</p>
+    {% if p.expires_at %}
+        <p style="color:#666; font-size: 10pt;">This proposal expires on
+        <strong>{{ p.expires_at|date:"F j, Y" }}</strong>.</p>
+    {% endif %}
+</section>
+
+{# ── Page 5 — Case Studies ────────────────────────────── #}
+{% if case_studies %}
+<section class="page">
+    <span class="eyebrow">Page 5 — Our work</span>
+    <h2>Case Studies</h2>
+    {% for cs in case_studies %}
+        <div class="case">
+            <h3>{{ cs.title }}</h3>
+            {% if cs.business_type or cs.location %}
+                <div class="meta">
+                    {{ cs.business_type }}{% if cs.business_type and cs.location %} &middot; {% endif %}{{ cs.location }}
+                </div>
+            {% endif %}
+            {% if cs.challenge %}<p><strong>Challenge:</strong> {{ cs.challenge }}</p>{% endif %}
+            {% if cs.solution %}<p><strong>Solution:</strong> {{ cs.solution }}</p>{% endif %}
+            {% if cs.results %}<p><strong>Results:</strong> {{ cs.results }}</p>{% endif %}
+            {% with metrics=cs.metrics %}
+                {% if metrics %}
+                    <div class="metrics">
+                        {% for label, value in metrics %}
+                            <div class="m"><strong>{{ value }}</strong><span>{{ label }}</span></div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            {% if cs.testimonial_quote %}
+                <div class="quote">
+                    "{{ cs.testimonial_quote }}"
+                    {% if cs.testimonial_name %}<span class="who">— {{ cs.testimonial_name }}</span>{% endif %}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{# ── Page 6 — Next Steps ──────────────────────────────── #}
+<section class="page">
+    <span class="eyebrow">Page 6 — Let's get started</span>
+    <h2>Ready to move forward?</h2>
+    <p>Reply to the email this proposal arrived in, or reach out directly:</p>
+    <div class="cta">
+        <h2>Zachery Long</h2>
+        <p><strong>Phone / Text:</strong> 210-896-2536</p>
+        <p><strong>Email:</strong> zacherylong@aspiredwebsites.com</p>
+        <p><strong>Web:</strong> aspiredwebsites.com</p>
+    </div>
+    <p style="margin-top: 20px; color: #666;">Thank you for considering
+    Aspired Websites. We design every project ourselves — no offshore
+    team, no boilerplate templates. Just a real website that earns its
+    keep.</p>
+</section>

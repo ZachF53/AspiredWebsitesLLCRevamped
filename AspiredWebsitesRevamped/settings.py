@@ -353,6 +353,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'clients.tasks.take_monthly_revenue_snapshot',
         'schedule': crontab(hour=1, minute=0, day_of_month=1),    # 1st 1am
     },
+    'check-case-study-prompts': {
+        'task': 'clients.tasks.check_case_study_prompts',
+        'schedule': crontab(hour=8, minute=30),                   # daily 8:30am
+    },
+    'expire-old-proposals': {
+        'task': 'clients.tasks.expire_old_proposals',
+        'schedule': crontab(hour=2, minute=0),                    # daily 2am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

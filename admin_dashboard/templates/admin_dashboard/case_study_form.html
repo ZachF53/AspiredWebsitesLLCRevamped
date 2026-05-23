@@ -1,0 +1,207 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if case_study %}Edit{% else %}New{% endif %} Case Study — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Case Studies</span>
+            <h1 class="admin-page-title">
+                {% if case_study %}Edit case study{% else %}New case study{% endif %}
+            </h1>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:case_studies_list' %}">All case studies</a>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form admin-form--wide" id="cs-form">
+        {% csrf_token %}
+
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Subject</h2></div>
+
+            <div class="form-row">
+                <label>Client
+                    <select name="client_id" id="cs-client">
+                        <option value="">— None / cold —</option>
+                        {% for c in clients %}
+                            <option value="{{ c.id }}"
+                                    {% if preselect_client and preselect_client.id == c.id %}selected{% endif %}
+                                    data-business-type="{{ c.business_type|escape }}"
+                                    data-city="{{ c.city|escape }}"
+                                    data-state="{{ c.state|escape }}">
+                                {{ c.firm_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label>Title *
+                    <input type="text" name="title" maxlength="300" required
+                           value="{{ case_study.title|default:'' }}"
+                           placeholder="How [Business] got 40% more leads in 90 days">
+                </label>
+            </div>
+
+            <div class="form-row form-row--split">
+                <label>Business type
+                    <input type="text" name="business_type" id="cs-business-type" maxlength="100"
+                           value="{% if case_study %}{{ case_study.business_type }}{% elif preselect_client %}{{ preselect_client.business_type }}{% endif %}">
+                </label>
+                <label>Location
+                    <input type="text" name="location" id="cs-location" maxlength="100"
+                           value="{% if case_study %}{{ case_study.location }}{% elif preselect_client %}{{ preselect_client.city }}{% if preselect_client.city and preselect_client.state %}, {% endif %}{{ preselect_client.state }}{% endif %}"
+                           placeholder="San Antonio, TX">
+                </label>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header">
+                <h2>The story</h2>
+                <button type="button" class="btn-secondary btn-sm" id="ai-draft-btn">
+                    AI Draft
+                </button>
+            </div>
+            <p class="muted text-sm" id="ai-draft-status" style="margin-bottom:6px;"></p>
+
+            <div class="form-row">
+                <label>Challenge
+                    <textarea name="challenge" id="cs-challenge" rows="4">{{ case_study.challenge|default:'' }}</textarea>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Solution
+                    <textarea name="solution" id="cs-solution" rows="4">{{ case_study.solution|default:'' }}</textarea>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Results
+                    <textarea name="results" id="cs-results" rows="4">{{ case_study.results|default:'' }}</textarea>
+                </label>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Metrics</h2></div>
+            {% for n in "123" %}
+                <div class="form-row form-row--split">
+                    <label>Metric {{ n }} — label
+                        <input type="text" name="metric_{{ n }}_label" id="cs-m{{ n }}-label" maxlength="100"
+                               value="{% if n == '1' %}{{ case_study.metric_1_label|default:'' }}{% elif n == '2' %}{{ case_study.metric_2_label|default:'' }}{% else %}{{ case_study.metric_3_label|default:'' }}{% endif %}">
+                    </label>
+                    <label>Metric {{ n }} — value
+                        <input type="text" name="metric_{{ n }}_value" id="cs-m{{ n }}-value" maxlength="50"
+                               value="{% if n == '1' %}{{ case_study.metric_1_value|default:'' }}{% elif n == '2' %}{{ case_study.metric_2_value|default:'' }}{% else %}{{ case_study.metric_3_value|default:'' }}{% endif %}">
+                    </label>
+                </div>
+            {% endfor %}
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Testimonial (optional)</h2></div>
+            <div class="form-row">
+                <label>Quote
+                    <textarea name="testimonial_quote" rows="3">{{ case_study.testimonial_quote|default:'' }}</textarea>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Attributed to
+                    <input type="text" name="testimonial_name" maxlength="100"
+                           value="{{ case_study.testimonial_name|default:'' }}">
+                </label>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <div class="form-row form-row--checkbox">
+                <label>
+                    <input type="checkbox" name="is_published" {% if case_study.is_published %}checked{% endif %}>
+                    Publish to portfolio
+                </label>
+            </div>
+        </section>
+
+        <div class="admin-form__actions">
+            <button type="submit" class="btn-primary">
+                {% if case_study %}Save Changes{% else %}Create Case Study{% endif %}
+            </button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:case_studies_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        // Auto-fill business_type + location when a client is picked.
+        var sel = document.getElementById('cs-client');
+        if (sel) {
+            sel.addEventListener('change', function () {
+                var opt = sel.options[sel.selectedIndex];
+                if (!opt || !opt.value) return;
+                var bt = document.getElementById('cs-business-type');
+                var loc = document.getElementById('cs-location');
+                if (bt && !bt.value) bt.value = opt.dataset.businessType || '';
+                if (loc && !loc.value) {
+                    var city = opt.dataset.city || '';
+                    var state = opt.dataset.state || '';
+                    loc.value = city + ((city && state) ? ', ' : '') + state;
+                }
+            });
+        }
+
+        // AI draft.
+        var aiBtn = document.getElementById('ai-draft-btn');
+        var status = document.getElementById('ai-draft-status');
+        if (aiBtn) {
+            aiBtn.addEventListener('click', function () {
+                var cid = document.getElementById('cs-client').value;
+                if (!cid) {
+                    status.textContent = 'Pick a client first.';
+                    return;
+                }
+                var title = document.querySelector('[name=title]').value || '';
+                aiBtn.disabled = true;
+                aiBtn.textContent = 'Drafting…';
+                status.textContent = '';
+                var fd = new FormData();
+                fd.append('client_id', cid);
+                fd.append('title', title);
+                fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                fetch("{% url 'admin_dashboard:case_study_ai_draft' %}", {
+                    method: 'POST', body: fd, credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('AI request failed (' + r.status + ').');
+                    return r.json();
+                }).then(function (data) {
+                    var map = {
+                        'cs-challenge': data.challenge,
+                        'cs-solution': data.solution,
+                        'cs-results': data.results,
+                        'cs-m1-label': data.metric_1_label,
+                        'cs-m1-value': data.metric_1_value,
+                        'cs-m2-label': data.metric_2_label,
+                        'cs-m2-value': data.metric_2_value,
+                        'cs-m3-label': data.metric_3_label,
+                        'cs-m3-value': data.metric_3_value
+                    };
+                    Object.keys(map).forEach(function (id) {
+                        var el = document.getElementById(id);
+                        if (el && map[id]) el.value = map[id];
+                    });
+                    status.textContent = 'Draft loaded. Edit before saving.';
+                }).catch(function (err) {
+                    status.textContent = err.message || 'AI draft failed.';
+                }).finally(function () {
+                    aiBtn.disabled = false;
+                    aiBtn.textContent = 'AI Draft';
+                });
+            });
+        }
+    })();
+</script>
+{% endblock %}
