@@ -111,6 +111,11 @@
 
             <div class="footer-bottom">
                 <div>&copy; {% now "Y" %} Aspired Websites LLC. All rights reserved.</div>
+                <nav class="footer-legal" aria-label="Legal">
+                    <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>
+                </nav>
                 <div>Hand-coded in San Antonio &amp; Atlanta.</div>
             </div>
         </div>

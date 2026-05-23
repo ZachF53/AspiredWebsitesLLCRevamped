@@ -143,11 +143,10 @@
 
                 <hr class="contact-divider" aria-hidden="true">
 
-                {# TODO: link Privacy / Terms once those pages exist #}
                 <p class="contact-fine-print">
                     By submitting this form you agree to our
-                    <a href="#">Privacy Policy</a> and
-                    <a href="#">Terms of Service</a>.
+                    <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a> and
+                    <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>.
                 </p>
             </aside>
 

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero hero--compact">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Legal</span>
+            <h1>Privacy <span class="accent">Policy</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">How we collect, use, and protect your information.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <article class="legal-doc">
+            <p class="legal-doc__effective">Effective Date: {{ effective_date|date:"F j, Y" }}</p>
+
+            <h2>1. Introduction</h2>
+            <p>This Privacy Policy describes how Aspired Websites LLC ("we," "us," or "our") collects, uses, and shares information when you visit aspiredwebsites.com, fill out our contact or audit forms, or engage our services. By using our website or services, you agree to the practices described here.</p>
+
+            <h2>2. Information We Collect</h2>
+            <h3>From you, directly</h3>
+            <ul>
+                <li><strong>Contact form submissions</strong> — your name, business name, phone number, email address, and the message you send us.</li>
+                <li><strong>Website audit data</strong> — the website URL you submit for analysis and the performance scores returned.</li>
+                <li><strong>Client portal information</strong> — your login credentials, project details, business information you supply during intake, files you upload, and messages you send through the portal.</li>
+                <li><strong>Payment information</strong> — processed by Stripe. We do not store credit card numbers on our servers.</li>
+            </ul>
+
+            <h3>Automatically</h3>
+            <ul>
+                <li><strong>Standard web logs</strong> — IP address, browser type and version, the pages you visit on our site, the time you spent on each page, and the referring URL.</li>
+                <li><strong>Session and heatmap data</strong> — when the Aspired Websites conversion tracker is installed on a client site, it collects anonymized interaction data (clicks, scroll depth, form submissions) to help measure performance. No personally identifying information is captured.</li>
+            </ul>
+
+            <h2>3. How We Use Your Information</h2>
+            <ul>
+                <li>To respond to your contact form inquiries.</li>
+                <li>To provide the web design, hosting, and maintenance services you've engaged us for.</li>
+                <li>To send you project updates, monthly reports, and other operational communications.</li>
+                <li>To send you marketing emails about our services. You can unsubscribe at any time using the link in any marketing email.</li>
+                <li>To improve our services based on aggregate usage patterns.</li>
+                <li>To process payments and bill recurring subscriptions through Stripe.</li>
+            </ul>
+
+            <h2>4. Information Sharing</h2>
+            <p>We do not sell your personal information to anyone. We share data only with the third-party services we use to run our business:</p>
+            <ul>
+                <li><strong>Stripe</strong> — payment processing for invoices and subscriptions.</li>
+                <li><strong>SendGrid</strong> — transactional and marketing email delivery.</li>
+                <li><strong>DigitalOcean</strong> — website hosting and server infrastructure.</li>
+                <li><strong>Anthropic</strong> — AI-powered features (content suggestions, security analysis, customer support automation).</li>
+                <li><strong>Google</strong> — analytics (Google Analytics) and search visibility data (Google Search Console).</li>
+            </ul>
+            <p>We may also disclose your information when required by law, to enforce our Terms of Service, or to protect the rights, property, or safety of our users.</p>
+
+            <h2>5. Cookies</h2>
+            <p>We use cookies for:</p>
+            <ul>
+                <li><strong>Session management</strong> — to keep you signed in to the client portal and to remember your form-filling progress.</li>
+                <li><strong>Analytics</strong> — to understand how visitors use our site so we can improve it.</li>
+            </ul>
+            <p>We do not use third-party advertising cookies or cross-site tracking. You can disable cookies in your browser, but some site features (including the client portal) will not function without them.</p>
+
+            <h2>6. Data Retention</h2>
+            <ul>
+                <li><strong>Contact form data</strong> — retained for 2 years from the date of submission, then deleted.</li>
+                <li><strong>Client project data</strong> — retained for 7 years from the date of project completion, for business and tax records.</li>
+                <li><strong>Email marketing list</strong> — retained until you unsubscribe, at which point your address is permanently suppressed.</li>
+            </ul>
+
+            <h2>7. Your Rights</h2>
+            <p>You may request:</p>
+            <ul>
+                <li>Access to the personal information we hold about you.</li>
+                <li>Correction of any inaccurate or incomplete data.</li>
+                <li>Deletion of your data (subject to legal retention requirements).</li>
+            </ul>
+            <p>To exercise any of these rights, email <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>. We respond within 30 days.</p>
+
+            <h2>8. Security</h2>
+            <p>We use industry-standard security measures including TLS/SSL encryption for all traffic between your browser and our servers, AES-256 encryption for sensitive credentials stored in our vault, and DigitalOcean's hardened infrastructure with automated security patching. Our owner holds a CISSP certification and a Masters in Cybersecurity; security is a first-class concern in everything we build.</p>
+            <p>No system is perfectly secure, however. We cannot guarantee absolute security and will notify affected users promptly in the event of a breach affecting their data.</p>
+
+            <h2>9. Children's Privacy</h2>
+            <p>Our services are intended for businesses and adults. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected information from a child, please contact us and we will delete it promptly.</p>
+
+            <h2>10. Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time to reflect changes in our practices, our service offerings, or the law. When we make material changes, we will notify active clients by email at least 30 days before the changes take effect. The "Effective Date" at the top of this policy will always reflect the date of the most recent update.</p>
+
+            <h2>11. Contact Us</h2>
+            <address class="legal-doc__address">
+                <strong>Aspired Websites LLC</strong><br>
+                San Antonio, Texas<br>
+                Email: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
+                Phone: <a href="tel:+12108962536">(210) 896-2536</a><br>
+                Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>
+            </address>
+        </article>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Service — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero hero--compact">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Legal</span>
+            <h1>Terms of <span class="accent">Service</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">The agreement between you and Aspired Websites LLC.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <article class="legal-doc">
+            <p class="legal-doc__effective">Effective Date: {{ effective_date|date:"F j, Y" }}</p>
+
+            <h2>1. Agreement to Terms</h2>
+            <p>By using aspiredwebsites.com or engaging Aspired Websites LLC ("we," "us," or "our") for any services, you ("you," the "client") agree to these Terms of Service. If you do not agree, please do not use our website or services.</p>
+
+            <h2>2. Services</h2>
+            <p>Aspired Websites LLC provides:</p>
+            <ul>
+                <li>Custom website design and development</li>
+                <li>Website hosting</li>
+                <li>Website maintenance plans (monthly subscriptions)</li>
+                <li>Digital marketing services</li>
+            </ul>
+            <p>Service details, deliverables, and timelines are specified in the individual project agreement or invoice you receive at the start of a project. The specific terms of that agreement take precedence over the general terms here when they conflict.</p>
+
+            <h2>3. Payment Terms</h2>
+            <ul>
+                <li><strong>Web design projects:</strong> 50% deposit required to begin work, 50% due at launch.</li>
+                <li><strong>Maintenance plans:</strong> billed monthly via Stripe, auto-renewing on the same date each month.</li>
+                <li><strong>Hosting:</strong> billed annually in advance.</li>
+                <li><strong>Late payments:</strong> may result in service suspension after 14 days. We will email you before any suspension takes effect.</li>
+                <li><strong>Refunds:</strong> all fees are non-refundable once work has begun, except as required by law or as noted in a specific service guarantee.</li>
+            </ul>
+
+            <h2>4. Project Terms</h2>
+            <ul>
+                <li>Client is responsible for providing content (text, images, logos, brand assets) unless content creation is included in the package.</li>
+                <li>Projects include 2 rounds of revisions. Additional revisions are billed at our standard hourly rate, quoted in writing before the work starts.</li>
+                <li>Client must provide timely feedback. Projects delayed more than 30 days due to client non-response may incur a restart fee equal to 25% of the original project price.</li>
+                <li>Final files and the live site are delivered upon receipt of final payment.</li>
+            </ul>
+
+            <h2>5. Intellectual Property</h2>
+            <ul>
+                <li>Upon receipt of final payment, the client owns the website design, code, and content created specifically for them.</li>
+                <li>Aspired Websites LLC retains the right to display completed work in our portfolio, case studies, and marketing materials, unless the client requests in writing that we not do so.</li>
+                <li>Client is responsible for ensuring they have the rights to any content (text, images, fonts, etc.) they provide to us. We are not liable for copyright or trademark infringement claims arising from client-supplied materials.</li>
+                <li>Third-party software, fonts, plugins, or libraries used in your site remain subject to their own licenses.</li>
+            </ul>
+
+            <h2>6. Hosting and Maintenance</h2>
+            <ul>
+                <li>Hosting is provided on DigitalOcean infrastructure.</li>
+                <li>We target 99.9% uptime, but uptime is not guaranteed. Downtime caused by third-party providers, DNS issues, force majeure events, or client-requested changes is excluded from this target.</li>
+                <li>Maintenance plans cover ongoing updates, security patches, minor content changes, and the work tiers listed in your specific plan. They do <em>not</em> cover major redesigns, new feature development, or projects estimated at more than a few hours — those are quoted separately as one-time add-ons.</li>
+                <li>Either party may cancel a maintenance plan with 30 days written notice.</li>
+                <li>Upon cancellation, the client receives all website files and database exports and is free to host elsewhere.</li>
+            </ul>
+
+            <h2>7. Limitation of Liability</h2>
+            <p>To the maximum extent permitted by law, Aspired Websites LLC is not liable for:</p>
+            <ul>
+                <li>Loss of business, revenue, or profits due to website downtime, performance issues, or any other cause.</li>
+                <li>Data loss beyond what our reasonable backup procedures can recover.</li>
+                <li>Outages or failures of third-party services (hosting provider, payment processors, email delivery, DNS, etc.).</li>
+                <li>Any indirect, incidental, special, consequential, or punitive damages.</li>
+            </ul>
+            <p>Our total cumulative liability for any claim related to our services is limited to the amount you paid us in the 3 months immediately preceding the claim.</p>
+
+            <h2>8. Confidentiality</h2>
+            <p>We treat all client information as confidential and do not share it with third parties except as necessary to provide services (see our <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a> for details). This obligation survives termination of the engagement.</p>
+
+            <h2>9. Termination</h2>
+            <p>We reserve the right to terminate services for non-payment, breach of these terms, or conduct that creates legal or reputational risk for us. We will provide written notice and a reasonable opportunity to cure when practical. Upon termination, any work completed and any data we hold for you will be delivered to you within 30 days, subject to payment of any outstanding invoices.</p>
+
+            <h2>10. Governing Law</h2>
+            <p>These Terms are governed by the laws of the State of Texas, without regard to its conflict-of-laws principles. Any disputes will be resolved in the state or federal courts located in San Antonio, Texas, and you consent to that jurisdiction.</p>
+
+            <h2>11. Changes to Terms</h2>
+            <p>We may update these Terms from time to time. Active clients will receive at least 30 days written notice before material changes take effect. Continued use of our services after the effective date constitutes acceptance of the updated Terms.</p>
+
+            <h2>12. Contact</h2>
+            <address class="legal-doc__address">
+                <strong>Aspired Websites LLC</strong><br>
+                San Antonio, Texas<br>
+                Email: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
+                Phone: <a href="tel:+12108962536">(210) 896-2536</a><br>
+                Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>
+            </address>
+        </article>
+    </div>
+</section>
+{% endblock %}

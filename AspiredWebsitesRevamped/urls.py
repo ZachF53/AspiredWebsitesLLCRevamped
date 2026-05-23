@@ -32,6 +32,11 @@ urlpatterns = [
     path('intelligence/respond/<uuid:token>/decline/',
          intelligence_decline, name='intelligence_decline'),
 
+    # Legal pages — mounted before public.urls so the specific paths
+    # /privacy-policy/ and /terms/ resolve via core.views rather than
+    # being swallowed by anything generic in public.
+    path('', include('core.urls', namespace='core')),
+
     path('', include('public.urls', namespace='public')),
 ]
 
