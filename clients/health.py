@@ -32,16 +32,37 @@ _MAINT_PACKAGES = {
 
 
 def _payment_score(client):
-    """30% — penalises maintenance lapses + overdue billable tickets."""
-    score = 100
-    if client.package in _MAINT_PACKAGES and not client.maintenance_active:
+    """
+    30% — payment standing.
+
+    Three explicit branches so legacy one-time build clients aren't
+    penalised for not having a maintenance subscription they never
+    signed up for:
+
+      maintenance_active=True
+          → 100. Stripe is current — it would have deactivated
+            otherwise.
+      maintenance_active=False AND package is a maintenance package
+          → 0. They WERE paying and aren't any more — likely Stripe
+            failure / churn.
+      maintenance_active=False AND package is NOT a maintenance package
+          → 100. One-time build client — paid in full, nothing
+            recurring to fail.
+
+    Then overlay an overdue-billable-ticket penalty: SupportTicket has
+    no `paid` field, so we proxy with billable=True + status in
+    (open/in_progress) older than 14 days — work the operator has
+    agreed is billable but hasn't invoiced + collected for yet.
+    """
+    if client.maintenance_active:
+        score = 100
+    elif client.package in _MAINT_PACKAGES:
         # Was on maintenance, isn't any more — likely Stripe failure.
         score = 0
+    else:
+        # One-time build client — payment is complete.
+        score = 100
 
-    # Overdue billable support tickets. SupportTicket doesn't have a
-    # `paid` field, so we proxy with billable=True + status in
-    # (open/in_progress) older than 14 days — i.e. work the operator
-    # has agreed is billable but hasn't invoiced + collected for yet.
     fortnight_ago = timezone.now() - timedelta(days=14)
     overdue = client.tickets.filter(
         billable=True,
