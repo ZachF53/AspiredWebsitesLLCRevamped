@@ -2813,8 +2813,10 @@ a.contact-list__value:hover {
     border-radius: var(--radius-sm);
 }
 
-/* Main content area */
-.admin-main { padding: var(--space-4) 0 var(--space-6); }
+/* Main content area — see sidebar block below for the active rules.
+   The old .admin-header / .admin-nav / .admin-user selectors above are
+   orphaned (no template uses them) but kept so older snapshots still
+   degrade cleanly. */
 
 .admin-container {
     max-width: 1600px;
@@ -9637,3 +9639,270 @@ button.htmx-request {
     font-size: 12px;
 }
 .gap-card__cta { margin-top: 10px; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Admin Sidebar Layout (Phase 7 — nav overhaul)
+   Fixed left sidebar (240px desktop / 280px slide-in mobile). Replaces
+   the legacy .admin-header top nav. Dark tokens throughout.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.admin-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+#admin-sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: #070614;
+    border-right: 1px solid var(--color-border);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow-y: auto;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-text);
+}
+
+#admin-sidebar::-webkit-scrollbar { width: 6px; }
+#admin-sidebar::-webkit-scrollbar-track { background: transparent; }
+#admin-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08); border-radius: 3px;
+}
+#admin-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+/* Override .admin-main here — was minimal padding in the legacy
+   top-nav layout, now needs to dodge the sidebar. */
+.admin-main {
+    margin-left: 240px;
+    flex: 1;
+    min-width: 0;
+    padding: 24px;
+    padding-bottom: 64px;
+}
+
+/* ── Logo block at top of sidebar ── */
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+.sidebar-logo__link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text);
+    text-decoration: none;
+    flex: 1;
+    min-width: 0;
+}
+.sidebar-logo__link img {
+    width: 32px; height: 32px; display: block;
+    border-radius: 6px;
+}
+.sidebar-logo__text {
+    display: flex; flex-direction: column;
+    line-height: 1.2; min-width: 0;
+}
+.sidebar-logo__name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sidebar-logo__badge {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-orange);
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+#sidebar-close {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    line-height: 1;
+}
+#sidebar-close:hover {
+    color: var(--color-text);
+    background: rgba(255,255,255,0.04);
+}
+
+/* ── Nav list ── */
+.sidebar-nav {
+    flex: 1;
+    padding: 8px 0 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748B;
+    padding: 16px 16px 4px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    border-radius: 6px;
+    color: #94A3B8;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    border-left: 3px solid transparent;
+    /* Keep the 3px indicator from shifting text — compensate padding. */
+    padding-left: 13px;
+}
+.nav-link:hover {
+    color: #FFFFFF;
+    background: #1E293B;
+}
+.nav-link.active {
+    color: var(--color-orange);
+    background: #1A1A2E;
+    border-left-color: var(--color-orange);
+}
+.nav-link__text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-badge {
+    background: var(--color-orange);
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.4;
+}
+.nav-badge--empty {
+    background: rgba(255,255,255,0.06);
+    color: var(--color-text-muted);
+}
+
+/* ── Bottom block (user + sign out) ── */
+.sidebar-bottom {
+    margin-top: auto;
+    padding: 16px;
+    border-top: 1px solid var(--color-border);
+}
+.sidebar-user-email {
+    font-size: 12px;
+    color: #64748B;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    margin-bottom: 8px;
+}
+.sidebar-signout-form { margin: 0; display: block; }
+.sidebar-signout {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 13px;
+    color: #64748B;
+    cursor: pointer;
+    text-align: left;
+}
+.sidebar-signout:hover {
+    color: var(--color-danger);
+}
+
+/* ── Mobile overlay + hamburger ── */
+#sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 998;
+}
+#sidebar-overlay.active { display: block; }
+
+#hamburger-btn {
+    display: none;
+    position: fixed;
+    top: 12px; left: 12px;
+    z-index: 999;
+    width: 40px; height: 40px;
+    background: #0F172A;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 10px 8px;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+#hamburger-btn span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 2px;
+    transition: background 0.15s ease;
+}
+#hamburger-btn:hover span { background: var(--color-orange); }
+
+/* ── Mobile: hide sidebar by default, hamburger visible ── */
+@media (max-width: 768px) {
+    #admin-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        width: 280px;
+        min-width: 280px;
+    }
+    #admin-sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    }
+    .admin-main {
+        margin-left: 0;
+        padding: 16px;
+        padding-top: 60px;
+    }
+    #hamburger-btn { display: flex; }
+    #sidebar-close { display: inline-flex;
+                     align-items: center;
+                     justify-content: center; }
+}
+
+@media (min-width: 769px) {
+    #hamburger-btn,
+    #sidebar-overlay,
+    #sidebar-close { display: none !important; }
+}
