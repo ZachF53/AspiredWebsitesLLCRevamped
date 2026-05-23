@@ -279,6 +279,169 @@ def run_monthly_intelligence():
 
 
 @shared_task
+def generate_annual_report(client_id, year):
+    """
+    Generate the year-in-review PDF for one client + year.
+
+    Idempotent on `(client, year)`: re-running for a row that is
+    already `ready` or `sent` is a no-op so an operator can mash
+    "Generate" without consequence.
+
+    Renders via WeasyPrint with an HTML fallback (Windows dev /
+    fresh servers without the native libs — same pattern as
+    `clients.pdf_utils` and `clients.proposal_pdf`).
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+    from django.core.mail import send_mail
+    from django.template.loader import render_to_string
+
+    from clients.intelligence import (
+        gather_annual_data, generate_annual_narrative,
+    )
+    from clients.models import AnnualReport, ClientProfile
+
+    try:
+        client = ClientProfile.objects.get(id=client_id)
+    except ClientProfile.DoesNotExist:
+        return f'Client {client_id} not found.'
+
+    existing = AnnualReport.objects.filter(
+        client=client, report_year=year).first()
+    if existing and existing.status in ('ready', 'sent'):
+        return (f'Already ready: {client.firm_name} {year} '
+                f'(status={existing.status})')
+
+    report, _ = AnnualReport.objects.get_or_create(
+        client=client, report_year=year,
+        defaults={'status': 'generating'},
+    )
+    report.status = 'generating'
+    report.save(update_fields=['status', 'updated_at'])
+
+    try:
+        data = gather_annual_data(client, year)
+        report.report_data = data
+        report.save(update_fields=['report_data', 'updated_at'])
+
+        narrative, tokens = generate_annual_narrative(client, data)
+        report.executive_summary = narrative.get(
+            'executive_summary', '') or ''
+        report.year_in_review = narrative.get(
+            'year_in_review', '') or ''
+        report.looking_ahead = narrative.get(
+            'looking_ahead', '') or ''
+        report.total_tokens_used = int(tokens or 0)
+        report.save(update_fields=[
+            'executive_summary', 'year_in_review',
+            'looking_ahead', 'total_tokens_used', 'updated_at',
+        ])
+
+        html_string = render_to_string(
+            'clients/annual_report.html', {
+                'client': client,
+                'report': report,
+                'data': data,
+                'year': year,
+            })
+
+        rel_dir = Path('annual_reports') / str(client.id)
+        abs_dir = Path(settings.MEDIA_ROOT) / rel_dir
+        abs_dir.mkdir(parents=True, exist_ok=True)
+
+        rel_pdf = rel_dir / f'annual-report-{year}.pdf'
+        abs_pdf = Path(settings.MEDIA_ROOT) / rel_pdf
+
+        try:
+            from weasyprint import HTML
+            HTML(string=html_string).write_pdf(str(abs_pdf))
+            saved_rel = str(rel_pdf).replace('\\', '/')
+        except Exception:
+            logger.exception(
+                'WeasyPrint failed for annual report %s/%s — '
+                'falling back to .html', client.pk, year)
+            rel_html = rel_dir / f'annual-report-{year}.html'
+            (Path(settings.MEDIA_ROOT) / rel_html).write_text(
+                html_string, encoding='utf-8')
+            saved_rel = str(rel_html).replace('\\', '/')
+
+        report.pdf_path = saved_rel
+        report.status = 'ready'
+        report.save(update_fields=[
+            'pdf_path', 'status', 'updated_at'])
+
+        # Operator notification — best-effort, never blocks the task.
+        try:
+            send_mail(
+                subject=(f'Annual Report Ready: '
+                         f'{client.firm_name} — {year}'),
+                message=(
+                    f'Annual report generated for '
+                    f'{client.firm_name}.\n\n'
+                    f'Review and send at:\n'
+                    f'{settings.SITE_BASE_URL}/admin-dashboard/'
+                    f'annual-reports/{report.id}/\n'),
+                from_email=getattr(
+                    settings, 'EMAIL_FROM_MAIN',
+                    settings.DEFAULT_FROM_EMAIL),
+                recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
+                fail_silently=True,
+            )
+        except Exception:
+            logger.exception('annual-report admin email failed')
+
+        return (f'Ready: {client.firm_name} {year} '
+                f'({report.total_tokens_used} tokens)')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'generate_annual_report failed for %s/%s',
+            client.pk, year)
+        report.status = 'failed'
+        report.save(update_fields=['status', 'updated_at'])
+        return f'FAILED: {client.firm_name} {year}: {exc}'
+
+
+@shared_task
+def check_annual_report_schedule():
+    """
+    Monthly beat — on the 1st of each month at 09:00, queue a
+    `generate_annual_report` for any client whose current month
+    matches the month of their `Project.launch_date` AND the
+    launch happened in a prior year. The report always covers the
+    previous calendar year.
+    """
+    from datetime import date
+
+    from clients.models import AnnualReport, ClientProfile
+
+    today = date.today()
+    active = ClientProfile.objects.filter(
+        status='active', is_tester=False)
+
+    queued = 0
+    for client in active:
+        project = client.projects.filter(stage='live').first()
+        if not project or not project.launch_date:
+            continue
+        launch = project.launch_date
+        if today.month != launch.month:
+            continue
+        if today.year <= launch.year:
+            # First anniversary hasn't arrived yet.
+            continue
+
+        report_year = today.year - 1
+        if AnnualReport.objects.filter(
+                client=client, report_year=report_year).exists():
+            continue
+
+        generate_annual_report.delay(str(client.id), report_year)
+        queued += 1
+    return f'Queued {queued} annual report(s).'
+
+
+@shared_task
 def expire_old_proposals():
     """
     Daily — flip Proposal.status to 'expired' when expires_at has

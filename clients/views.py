@@ -794,16 +794,49 @@ def portal_seo(request):
 
 @client_required
 def portal_reports(request):
-    """The client's sent monthly performance reports."""
+    """
+    Monthly performance reports plus the year-in-review (Phase 7
+    Part 4) annual reports the client can download once they're
+    `ready` or `sent`.
+    """
     profile = request.client_profile
     from reporting.models import MonthlyReport
-    reports = list(MonthlyReport.objects.filter(client=profile, status='sent'))
+    from .models import AnnualReport
+    reports = list(MonthlyReport.objects.filter(
+        client=profile, status='sent'))
+    annual_reports = list(AnnualReport.objects.filter(
+        client=profile, status__in=['ready', 'sent']
+    ).order_by('-report_year'))
     ctx = _portal_context(
         request, 'reports',
         reports=reports,
         latest=reports[0] if reports else None,
+        annual_reports=annual_reports,
     )
     return render(request, 'clients/portal_reports.html', ctx)
+
+
+@client_required
+def portal_annual_report_download(request, report_id):
+    """Serve an annual report PDF to the client who owns it."""
+    import os
+
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+
+    from .models import AnnualReport
+    report = get_object_or_404(
+        AnnualReport, id=report_id,
+        client=request.client_profile,
+        status__in=['ready', 'sent'],
+    )
+    abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
+    if not report.pdf_path or not os.path.exists(abs_path):
+        raise Http404('Annual report file not found.')
+    return FileResponse(
+        open(abs_path, 'rb'), as_attachment=True,
+        filename=os.path.basename(abs_path),
+    )
 
 
 @client_required

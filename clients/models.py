@@ -1026,3 +1026,66 @@ class IntelligenceSuggestion(TimestampedModel):
     def is_actionable_by_client(self):
         """True when the client can still approve/decline this."""
         return self.status == 'sent_to_client'
+
+
+# ── Phase 7 Part 4 — Annual Business Health Report ─────────────────────────
+
+class AnnualReport(TimestampedModel):
+    """
+    Year-in-review PDF auto-generated on each client's anniversary
+    month (the month their `Project.launch_date` fell in). Rolls
+    uptime / security / conversions / keywords / NPS / changelog /
+    intelligence-engine activity for a full calendar year into one
+    branded WeasyPrint PDF.
+
+    One row per (client, report_year). The Celery beat that fires on
+    the 1st of every month checks `Project.launch_date.month ==
+    today.month` and at least 11 months elapsed before queueing
+    `generate_annual_report`.
+    """
+
+    STATUS_CHOICES = [
+        ('generating', 'Generating'),
+        ('ready', 'Ready'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='annual_reports',
+    )
+    report_year = models.IntegerField(
+        help_text='Calendar year covered, e.g. 2025.')
+
+    status = models.CharField(
+        max_length=15, choices=STATUS_CHOICES, default='generating')
+
+    pdf_path = models.CharField(max_length=500, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    # The full data snapshot driving the PDF — uptime by month,
+    # conversion totals, scan counts, keyword changes, intelligence
+    # suggestions, changelog totals, NPS averages, etc.
+    report_data = models.JSONField(default=dict, blank=True)
+
+    # Claude-generated narrative — three sections rendered into the PDF.
+    executive_summary = models.TextField(blank=True)
+    year_in_review = models.TextField(blank=True)
+    looking_ahead = models.TextField(blank=True)
+
+    total_tokens_used = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-report_year']
+        unique_together = ['client', 'report_year']
+        verbose_name = 'Annual Report'
+        verbose_name_plural = 'Annual Reports'
+        indexes = [
+            models.Index(fields=['client', '-report_year']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'Annual Report {self.report_year}')

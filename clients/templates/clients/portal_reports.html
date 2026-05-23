@@ -52,4 +52,28 @@
         <p class="portal-empty">Your monthly reports will appear here. The first one arrives on the 1st of next month.</p>
     {% endif %}
 </section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Annual Business Health Reports</h2>
+    {% if annual_reports %}
+        <ul class="record-list">
+            {% for ar in annual_reports %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        <strong>{{ ar.report_year }} Year in Review</strong>
+                        <span class="record-list__sub">
+                            {% if ar.report_data.uptime_annual_avg %}{{ ar.report_data.uptime_annual_avg }}% uptime · {% endif %}
+                            {{ ar.report_data.form_submissions_annual|default:0 }} form submission{{ ar.report_data.form_submissions_annual|default:0|pluralize }} · {{ ar.report_data.scans_run|default:0 }} security scan{{ ar.report_data.scans_run|default:0|pluralize }}
+                        </span>
+                    </span>
+                    <span class="record-list__meta">
+                        <a class="btn-secondary btn-sm" href="{% url 'clients:portal_annual_report_download' ar.id %}">Download Annual Report</a>
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="portal-empty">Your annual report arrives on your anniversary month each year. We'll email you when it's ready.</p>
+    {% endif %}
+</section>
 {% endblock %}

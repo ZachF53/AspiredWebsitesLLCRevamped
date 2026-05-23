@@ -76,6 +76,11 @@
                     Changelog</a>
                 <a class="admin-nav__link {% if active == 'reports' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:reports_list' %}">Reports</a>
+                <a class="admin-nav__link {% if active == 'annual_reports' %}is-active{% endif %}"
+                   href="{% url 'admin_dashboard:annual_reports_list' %}">
+                    <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Annual Reports
+                </a>
                 <a class="admin-nav__link {% if active == 'proposals' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:proposals_list' %}">
                     <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>

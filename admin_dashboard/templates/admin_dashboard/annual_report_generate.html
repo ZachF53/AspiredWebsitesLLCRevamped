@@ -1,0 +1,44 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Generate Annual Report — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Annual Reports</span>
+            <h1 class="admin-page-title">Generate Annual Report</h1>
+            <p class="muted">Pick a client and a year. The Celery worker will gather data, ask Claude for a narrative, and render the PDF. Takes ~30 seconds.</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:annual_reports_list' %}">Cancel</a>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form admin-form--wide">
+        {% csrf_token %}
+        <section class="admin-section">
+            <div class="form-row">
+                <label>Client *
+                    <select name="client_id" required>
+                        <option value="">— Select client —</option>
+                        {% for c in clients %}
+                            <option value="{{ c.id }}">{{ c.firm_name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Report year *
+                    <input type="number" name="report_year" required
+                           min="2024" max="2099" value="{{ default_year }}">
+                </label>
+            </div>
+        </section>
+        <div class="admin-form__actions">
+            <button type="submit" class="btn-primary">Queue Generation</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:annual_reports_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

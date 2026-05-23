@@ -1,0 +1,57 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Annual Reports — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Phase 7 Part 4</span>
+            <h1 class="admin-page-title">Annual Business Health Reports</h1>
+            <p class="muted">Year-in-review PDFs. Auto-generated on each client's anniversary month or on demand.</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-primary" href="{% url 'admin_dashboard:annual_report_generate' %}">+ Generate Report</a>
+        </div>
+    </div>
+
+    <section class="admin-section">
+        {% if reports %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th class="num">Year</th>
+                        <th>Status</th>
+                        <th>Generated</th>
+                        <th>Sent</th>
+                        <th class="num">Suggestions (made / approved)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in reports %}
+                        <tr>
+                            <td><a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td class="num">{{ r.report_year }}</td>
+                            <td><span class="intel-status intel-status--{% if r.status == 'ready' %}client_approved{% elif r.status == 'sent' %}implemented{% elif r.status == 'failed' %}client_declined{% else %}pending_review{% endif %}">{{ r.get_status_display }}</span></td>
+                            <td>{{ r.created_at|date:"M j, Y" }}</td>
+                            <td>{% if r.sent_at %}{{ r.sent_at|date:"M j, Y" }}{% else %}<span class="muted">Not sent</span>{% endif %}</td>
+                            <td class="num">
+                                {{ r.report_data.intelligence_suggestions_made|default:0 }}
+                                / {{ r.report_data.intelligence_suggestions_approved|default:0 }}
+                            </td>
+                            <td class="admin-table__actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:annual_report_detail' r.id %}">Open</a>
+                                {% if r.pdf_path %}<a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:annual_report_download' r.id %}" target="_blank" rel="noopener">PDF</a>{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No annual reports yet. <a href="{% url 'admin_dashboard:annual_report_generate' %}">Generate one</a>.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

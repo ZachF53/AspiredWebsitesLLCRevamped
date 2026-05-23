@@ -386,3 +386,401 @@ def run_intelligence_analysis(client):
             'data_snapshot': data,
             'error': str(exc)[:500],
         }
+
+
+# ── Phase 7 Part 4 — Annual Business Health Report ─────────────────────────
+
+def gather_annual_data(client, year):
+    """
+    Roll up a full calendar year of activity for `client` into one
+    dict, suitable for both the WeasyPrint template context and the
+    JSON payload sent to Claude for narrative writing.
+
+    Every lookup is defensive — missing tables / no rows fall back
+    to a sensible default so a sparse-data client still gets a
+    complete report skeleton.
+    """
+    from datetime import date
+
+    from django.db.models import Avg
+
+    year_start = date(year, 1, 1)
+    year_end = date(year, 12, 31)
+
+    data = {
+        'year': year,
+        'firm_name': client.firm_name,
+        'business_type': client.business_type or '',
+        'city': client.city or '',
+        'state': client.state or '',
+        'contact_name': client.contact_name or '',
+        'live_url': '',
+        'launch_date': None,
+        'months_as_client': None,
+    }
+
+    # ── Project ────────────────────────────────────────────────
+    project = client.projects.filter(stage='live').first()
+    if project:
+        data['live_url'] = project.live_url or ''
+        if project.launch_date:
+            data['launch_date'] = project.launch_date.isoformat()
+            delta = date.today() - project.launch_date
+            data['months_as_client'] = delta.days // 30
+
+    # ── Uptime ─────────────────────────────────────────────────
+    try:
+        # UptimeRecord + UptimeAlert live in clients, not reporting.
+        from clients.models import UptimeAlert, UptimeRecord
+
+        uptime_records = UptimeRecord.objects.filter(
+            client=client,
+            checked_at__date__gte=year_start,
+            checked_at__date__lte=year_end,
+        )
+        total_checks = uptime_records.count()
+        up_checks = uptime_records.filter(is_up=True).count()
+        data['uptime_annual_avg'] = (
+            round((up_checks / total_checks * 100), 2)
+            if total_checks else None
+        )
+        data['total_checks'] = total_checks
+
+        monthly_uptime = []
+        for month in range(1, 13):
+            month_records = uptime_records.filter(
+                checked_at__month=month)
+            month_total = month_records.count()
+            month_up = month_records.filter(is_up=True).count()
+            monthly_uptime.append({
+                'month': date(year, month, 1).strftime('%b'),
+                'uptime_pct': (
+                    round(month_up / month_total * 100, 1)
+                    if month_total else None),
+                'checks': month_total,
+            })
+        data['uptime_by_month'] = monthly_uptime
+
+        data['downtime_incidents'] = UptimeAlert.objects.filter(
+            client=client,
+            alerted_at__date__gte=year_start,
+            alerted_at__date__lte=year_end,
+        ).count()
+
+        avg_ms = uptime_records.filter(is_up=True).aggregate(
+            avg=Avg('response_time_ms'))['avg']
+        data['avg_response_ms'] = round(avg_ms) if avg_ms else None
+    except Exception:
+        logger.exception('annual uptime lookup failed for %s',
+                         client.pk)
+        data['uptime_annual_avg'] = None
+        data['total_checks'] = 0
+        data['uptime_by_month'] = []
+        data['downtime_incidents'] = 0
+        data['avg_response_ms'] = None
+
+    # ── Conversions ────────────────────────────────────────────
+    try:
+        from reporting.models import ConversionEvent
+        year_conversions = ConversionEvent.objects.filter(
+            client=client,
+            event_timestamp__date__gte=year_start,
+            event_timestamp__date__lte=year_end,
+        )
+        data['form_submissions_annual'] = year_conversions.filter(
+            event_type='form_submit').count()
+        data['phone_clicks_annual'] = year_conversions.filter(
+            event_type='phone_click').count()
+        data['cta_clicks_annual'] = year_conversions.filter(
+            event_type='cta_click').count()
+
+        # Month-by-month form submissions for the Page 5 chart.
+        monthly_forms = []
+        for month in range(1, 13):
+            cnt = year_conversions.filter(
+                event_type='form_submit',
+                event_timestamp__month=month).count()
+            monthly_forms.append({
+                'month': date(year, month, 1).strftime('%b'),
+                'count': cnt,
+            })
+        data['form_submissions_by_month'] = monthly_forms
+    except Exception:
+        logger.exception('annual conversion lookup failed for %s',
+                         client.pk)
+        data['form_submissions_annual'] = 0
+        data['phone_clicks_annual'] = 0
+        data['cta_clicks_annual'] = 0
+        data['form_submissions_by_month'] = []
+
+    # ── Keywords ───────────────────────────────────────────────
+    try:
+        from reporting.models import TrackedKeyword
+        keywords = TrackedKeyword.objects.filter(
+            client=client, is_active=True)
+        data['keywords_tracked'] = keywords.count()
+
+        page_1_count = 0
+        improved_count = 0
+        for kw in keywords:
+            latest = kw.rank_records.order_by('-checked_at').first()
+            earliest_this_year = (
+                kw.rank_records
+                .filter(checked_at__date__gte=year_start)
+                .order_by('checked_at').first()
+            )
+            if latest and latest.position and latest.position <= 10:
+                page_1_count += 1
+            if (latest and earliest_this_year
+                    and latest.position
+                    and earliest_this_year.position
+                    and latest.position
+                    < earliest_this_year.position):
+                improved_count += 1
+        data['keywords_on_page_1'] = page_1_count
+        data['keyword_improvements'] = improved_count
+    except Exception:
+        logger.exception('annual keyword lookup failed for %s',
+                         client.pk)
+        data['keywords_tracked'] = 0
+        data['keywords_on_page_1'] = 0
+        data['keyword_improvements'] = 0
+
+    # ── Security ───────────────────────────────────────────────
+    try:
+        from reporting.models import (
+            VulnerabilityFinding, VulnerabilityScan,
+        )
+        year_scans = VulnerabilityScan.objects.filter(
+            client=client, status='complete',
+            completed_at__date__gte=year_start,
+            completed_at__date__lte=year_end,
+        ).order_by('completed_at')
+        data['scans_run'] = year_scans.count()
+        data['critical_findings_found'] = sum(
+            s.critical_count for s in year_scans)
+        data['high_findings_found'] = sum(
+            s.high_count for s in year_scans)
+        data['findings_resolved'] = (
+            VulnerabilityFinding.objects.filter(
+                scan__client=client,
+                scan__completed_at__date__gte=year_start,
+                scan__completed_at__date__lte=year_end,
+                status='resolved',
+            ).count()
+        )
+        data['scan_timeline'] = [
+            {
+                'date': (s.completed_at.date().isoformat()
+                         if s.completed_at else ''),
+                'type': s.get_scan_type_display(),
+                'findings': s.findings_count,
+            }
+            for s in year_scans[:20]
+        ]
+    except Exception:
+        logger.exception('annual scan lookup failed for %s',
+                         client.pk)
+        data['scans_run'] = 0
+        data['critical_findings_found'] = 0
+        data['high_findings_found'] = 0
+        data['findings_resolved'] = 0
+        data['scan_timeline'] = []
+
+    # ── Intelligence Engine (Phase 7 Part 3) ───────────────────
+    try:
+        from clients.models import IntelligenceSuggestion
+        year_suggestions = IntelligenceSuggestion.objects.filter(
+            client=client,
+            generated_at__date__gte=year_start,
+            generated_at__date__lte=year_end,
+        )
+        data['intelligence_suggestions_made'] = (
+            year_suggestions.count())
+        approved_states = [
+            'client_approved', 'in_scope', 'implemented',
+            'out_of_scope_offered',
+        ]
+        approved_qs = year_suggestions.filter(
+            status__in=approved_states)
+        data['intelligence_suggestions_approved'] = (
+            approved_qs.count())
+        revenue = sum(
+            float(s.one_time_fee or 0)
+            for s in year_suggestions.filter(
+                status__in=['implemented',
+                            'out_of_scope_offered'])
+        )
+        data['intelligence_revenue_generated'] = round(revenue, 2)
+        # Up to 3 top approved/implemented suggestions for Page 8.
+        data['top_intelligence_suggestions'] = [
+            {'title': s.title, 'status': s.status,
+             'fee': float(s.one_time_fee or 0)}
+            for s in approved_qs.order_by('-generated_at')[:3]
+        ]
+    except Exception:
+        logger.exception('annual intelligence lookup failed for %s',
+                         client.pk)
+        data['intelligence_suggestions_made'] = 0
+        data['intelligence_suggestions_approved'] = 0
+        data['intelligence_revenue_generated'] = 0.0
+        data['top_intelligence_suggestions'] = []
+
+    # ── Changelog ──────────────────────────────────────────────
+    try:
+        from clients.models import SiteChangelogEntry
+        year_changelog = SiteChangelogEntry.objects.filter(
+            client=client,
+            date_of_change__gte=year_start,
+            date_of_change__lte=year_end,
+            is_client_visible=True,
+        )
+        data['changelog_entries_count'] = year_changelog.count()
+        # Group counts by change_type for the Page 6 summary.
+        from collections import Counter
+        type_counts = Counter(
+            year_changelog.values_list('change_type', flat=True))
+        data['changelog_by_type'] = [
+            {'type': t, 'count': n}
+            for t, n in type_counts.most_common()
+        ]
+        data['changelog_entries'] = [
+            {
+                'date': e.date_of_change.isoformat(),
+                'type': e.get_change_type_display(),
+                'title': e.title,
+            }
+            for e in year_changelog.order_by('-date_of_change')[:20]
+        ]
+    except Exception:
+        logger.exception('annual changelog lookup failed for %s',
+                         client.pk)
+        data['changelog_entries_count'] = 0
+        data['changelog_by_type'] = []
+        data['changelog_entries'] = []
+
+    # ── NPS ────────────────────────────────────────────────────
+    try:
+        from reporting.models import NPSSurvey
+        year_nps = NPSSurvey.objects.filter(
+            client=client,
+            sent_at__date__gte=year_start,
+            sent_at__date__lte=year_end,
+            score__isnull=False,
+        )
+        nps_scores = list(
+            year_nps.values_list('score', flat=True))
+        data['nps_scores'] = nps_scores
+        data['nps_average'] = (
+            round(sum(nps_scores) / len(nps_scores), 1)
+            if nps_scores else None
+        )
+    except Exception:
+        logger.exception('annual NPS lookup failed for %s', client.pk)
+        data['nps_scores'] = []
+        data['nps_average'] = None
+
+    # ── Maintenance ────────────────────────────────────────────
+    data['maintenance_active'] = bool(client.maintenance_active)
+    data['maintenance_plan'] = client.package or ''
+
+    return data
+
+
+def generate_annual_narrative(client, data):
+    """
+    Ask Claude to write three narrative sections for the annual
+    report. Returns (narrative_dict, tokens_used). Never raises —
+    on any failure (no API key, network blip, malformed JSON) we
+    return a graceful fallback narrative so the report still ships.
+    """
+    import json as _json
+    import requests as http_requests
+
+    fallback = {
+        'executive_summary': (
+            f"Thank you for a great year with Aspired Websites LLC."),
+        'year_in_review': (
+            f"We have been proud to support {client.firm_name}'s "
+            f"online presence throughout the year."),
+        'looking_ahead': (
+            f"We look forward to continuing to grow your online "
+            f"presence in the year ahead."),
+    }
+
+    if not settings.ANTHROPIC_API_KEY:
+        return fallback, 0
+
+    system_prompt = (
+        "You are writing an annual business review for a web "
+        "design agency client. Your tone is warm, professional, "
+        "and focused on business outcomes — not technical "
+        "details.\n\n"
+        "Write as if you are Zachery Long, the owner of Aspired "
+        "Websites LLC, summarizing a year of partnership with "
+        "this client.\n\n"
+        "Return ONLY valid JSON with these three fields:\n"
+        "{\n"
+        '  "executive_summary": "2-3 sentences. Overall year in '
+        'review. Highlight the biggest wins. Honest about any '
+        'challenges.",\n'
+        '  "year_in_review": "3-4 paragraphs. Walk through what '
+        'happened this year — uptime performance, security work '
+        'done, any improvements made, leads generated. Reference '
+        'specific numbers from the data. Conversational, not '
+        'bullet points.",\n'
+        '  "looking_ahead": "1-2 paragraphs. What opportunities '
+        'exist for next year. If they are not on a maintenance '
+        'plan, this is a natural place to mention how a plan '
+        'would help. Keep it genuine — not salesy."\n'
+        "}\n\n"
+        "Return only the JSON. No markdown, no code fences, no "
+        "commentary."
+    )
+
+    user_message = (
+        "Write the annual report narrative for this client:\n\n"
+        + _json.dumps(data, indent=2, default=str) + "\n\n"
+        "Remember: warm, professional tone. Reference real "
+        "numbers. Focus on business impact, not technical "
+        "details."
+    )
+
+    try:
+        response = http_requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': settings.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            json={
+                'model': MODEL_CONTENT,
+                'max_tokens': 2000,
+                'system': system_prompt,
+                'messages': [
+                    {'role': 'user', 'content': user_message},
+                ],
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        body = response.json()
+        ai_text = body['content'][0]['text']
+        usage = body.get('usage', {}) or {}
+        tokens = (int(usage.get('input_tokens', 0) or 0)
+                  + int(usage.get('output_tokens', 0) or 0))
+        result = _json.loads(_strip_json_fences(ai_text))
+        # Make sure all three keys exist so the template never
+        # renders an empty <p>{{ undefined }}</p>.
+        merged = dict(fallback)
+        for k in ('executive_summary', 'year_in_review',
+                  'looking_ahead'):
+            v = result.get(k)
+            if v:
+                merged[k] = v
+        return merged, tokens
+    except Exception as exc:  # noqa: BLE001 — surface to caller
+        logger.exception(
+            'annual narrative generation failed for %s', client.pk)
+        return fallback, 0

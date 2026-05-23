@@ -153,6 +153,24 @@ urlpatterns = [
     path('proposals/<uuid:proposal_id>/status/',
          views.proposal_set_status, name='proposal_set_status'),
 
+    # Phase 7 Part 4 — Annual Business Health Report
+    path('annual-reports/', views.annual_reports_list,
+         name='annual_reports_list'),
+    path('annual-reports/generate/', views.annual_report_generate,
+         name='annual_report_generate'),
+    path('annual-reports/<uuid:report_id>/',
+         views.annual_report_detail,
+         name='annual_report_detail'),
+    path('annual-reports/<uuid:report_id>/send/',
+         views.annual_report_send,
+         name='annual_report_send'),
+    path('annual-reports/<uuid:report_id>/regenerate/',
+         views.annual_report_regenerate,
+         name='annual_report_regenerate'),
+    path('annual-reports/<uuid:report_id>/download/',
+         views.annual_report_download,
+         name='annual_report_download'),
+
     # Phase 7 Part 3 — Website Intelligence & Upsell Engine
     path('intelligence/suggestions/',
          views.intelligence_suggestions,

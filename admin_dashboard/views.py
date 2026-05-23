@@ -4282,3 +4282,222 @@ def intelligence_run_for_client(request, client_id):
             '</div>')
     return redirect('admin_dashboard:client_detail',
                     client_id=client.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 7 Part 4 — Annual Business Health Report
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def annual_reports_list(request):
+    """All annual reports in one table — newest year first per client."""
+    from clients.models import AnnualReport
+    reports = (
+        AnnualReport.objects
+        .select_related('client')
+        .order_by('-report_year', 'client__firm_name')
+    )
+    return render(request, 'admin_dashboard/annual_reports_list.html',
+                  _admin_context(
+                      'annual_reports',
+                      reports=reports,
+                  ))
+
+
+@admin_required
+def annual_report_detail(request, report_id):
+    """Single-report detail + action buttons."""
+    from clients.models import AnnualReport
+    report = get_object_or_404(AnnualReport, id=report_id)
+    return render(request, 'admin_dashboard/annual_report_detail.html',
+                  _admin_context(
+                      'annual_reports',
+                      report=report,
+                      data=report.report_data or {},
+                  ))
+
+
+@admin_required
+@require_POST
+def annual_report_send(request, report_id):
+    """Email the PDF to the client via SendGrid."""
+    import base64
+    import os
+    from pathlib import Path
+
+    from clients.models import AnnualReport
+
+    report = get_object_or_404(AnnualReport, id=report_id)
+    client = report.client
+    if report.status not in ('ready', 'sent'):
+        return HttpResponseBadRequest(
+            'Report must be in status ready or sent to send.')
+    to_email = client.user.email if client.user else ''
+    if not to_email:
+        return HttpResponseBadRequest(
+            'Client has no email on file — cannot send.')
+    if not report.pdf_path:
+        return HttpResponseBadRequest(
+            'Report has no PDF — regenerate first.')
+
+    abs_path = Path(settings.MEDIA_ROOT) / report.pdf_path
+    if not abs_path.exists():
+        return HttpResponseBadRequest(
+            'PDF file is missing — regenerate first.')
+
+    contact_name = (client.contact_name
+                    or (client.user.get_full_name() if client.user else '')
+                    or 'there')
+
+    html_body = (
+        f"<p>Hi {contact_name},</p>"
+        f"<p>Your <strong>{report.report_year} Annual Business "
+        f"Health Report</strong> is ready.</p>"
+        f"<p>It covers a full year of website performance, security "
+        f"work, and growth — uptime, scans, lead activity, and the "
+        f"opportunities I see for the year ahead.</p>"
+        f"<p>I'd love to schedule a quick call to walk through it "
+        f"together. Reply to this email with a couple of times "
+        f"that work, or call/text 210-896-2536.</p>"
+        f"<p>— Zachery Long<br>"
+        f"Aspired Websites LLC</p>"
+    )
+    text_body = (
+        f"Hi {contact_name},\n\n"
+        f"Your {report.report_year} Annual Business Health Report "
+        f"is attached. It covers a full year of website "
+        f"performance, security work, and growth.\n\n"
+        f"I'd love to schedule a quick call to walk through it "
+        f"together. Reply with a couple of times that work, or "
+        f"call/text 210-896-2536.\n\n"
+        f"— Zachery Long\nAspired Websites LLC\n"
+    )
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import (
+            Attachment, Disposition, FileContent, FileName,
+            FileType, Mail,
+        )
+    except ImportError:
+        return HttpResponse('SendGrid SDK not installed.', status=500)
+
+    subject = (f'Your {report.report_year} Annual Website '
+               f'Performance Report — {client.firm_name}')
+    message = Mail(
+        from_email=getattr(settings, 'EMAIL_FROM_MAIN',
+                           settings.DEFAULT_FROM_EMAIL),
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=text_body,
+        html_content=html_body,
+    )
+    with open(abs_path, 'rb') as fh:
+        encoded = base64.b64encode(fh.read()).decode()
+    ext = os.path.splitext(abs_path)[1].lower() or '.pdf'
+    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
+    attachment = Attachment(
+        FileContent(encoded),
+        FileName(f'annual-report-{report.report_year}{ext}'),
+        FileType(mime),
+        Disposition('attachment'),
+    )
+    message.attachment = attachment
+
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        sg.send(message)
+    except Exception as exc:  # noqa: BLE001
+        return HttpResponse(f'SendGrid error: {str(exc)[:200]}',
+                            status=500)
+
+    report.status = 'sent'
+    report.sent_at = timezone.now()
+    report.save(update_fields=['status', 'sent_at', 'updated_at'])
+
+    return redirect('admin_dashboard:annual_report_detail',
+                    report_id=report.id)
+
+
+@admin_required
+@require_POST
+def annual_report_regenerate(request, report_id):
+    """
+    Force a fresh generation pass — flips the row back to
+    `generating` (so the idempotency guard in the task doesn't
+    short-circuit) and queues the Celery task.
+    """
+    from clients.models import AnnualReport
+    from clients.tasks import generate_annual_report
+
+    report = get_object_or_404(AnnualReport, id=report_id)
+    report.status = 'generating'
+    report.save(update_fields=['status', 'updated_at'])
+    generate_annual_report.apply_async(
+        args=[str(report.client.id), report.report_year])
+    return redirect('admin_dashboard:annual_report_detail',
+                    report_id=report.id)
+
+
+@admin_required
+def annual_report_generate(request):
+    """
+    Manual on-demand generation — admin picks a client + year,
+    we queue the Celery task and bounce to the detail page.
+    """
+    from clients.models import AnnualReport, ClientProfile
+    from clients.tasks import generate_annual_report
+
+    if request.method == 'POST':
+        cid = (request.POST.get('client_id') or '').strip()
+        year_raw = (request.POST.get('report_year') or '').strip()
+        if not cid:
+            return HttpResponseBadRequest('client_id required.')
+        try:
+            year = int(year_raw)
+        except ValueError:
+            return HttpResponseBadRequest(
+                'report_year must be an integer.')
+        client = get_object_or_404(ClientProfile, id=cid)
+
+        report, _ = AnnualReport.objects.get_or_create(
+            client=client, report_year=year,
+            defaults={'status': 'generating'},
+        )
+        report.status = 'generating'
+        report.save(update_fields=['status', 'updated_at'])
+        generate_annual_report.apply_async(
+            args=[str(client.id), year])
+        return redirect(
+            'admin_dashboard:annual_report_detail',
+            report_id=report.id)
+
+    clients = (ClientProfile.objects.filter(is_tester=False)
+               .order_by('firm_name'))
+    return render(request, 'admin_dashboard/annual_report_generate.html',
+                  _admin_context(
+                      'annual_reports',
+                      clients=clients,
+                      default_year=(timezone.now().year - 1),
+                  ))
+
+
+@admin_required
+def annual_report_download(request, report_id):
+    """Serve the PDF (or .html fallback) inline."""
+    from pathlib import Path
+
+    from django.http import FileResponse, Http404
+
+    from clients.models import AnnualReport
+
+    report = get_object_or_404(AnnualReport, id=report_id)
+    if not report.pdf_path:
+        raise Http404('Report has no PDF yet.')
+    abs_path = Path(settings.MEDIA_ROOT) / report.pdf_path
+    if not abs_path.exists():
+        raise Http404('PDF file missing.')
+    content_type = ('application/pdf' if abs_path.suffix.lower() == '.pdf'
+                    else 'text/html')
+    return FileResponse(open(abs_path, 'rb'),
+                        content_type=content_type)

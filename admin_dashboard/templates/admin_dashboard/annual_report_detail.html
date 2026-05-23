@@ -1,0 +1,110 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ report.client.firm_name }} — {{ report.report_year }} Annual Report{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:annual_reports_list' %}">Annual Reports</a> /
+                <a href="{% url 'admin_dashboard:client_detail' report.client.id %}">{{ report.client.firm_name }}</a>
+            </span>
+            <h1 class="admin-page-title">{{ report.report_year }} Annual Report — {{ report.client.firm_name }}</h1>
+            <p class="muted">
+                <span class="intel-status intel-status--{% if report.status == 'ready' %}client_approved{% elif report.status == 'sent' %}implemented{% elif report.status == 'failed' %}client_declined{% else %}pending_review{% endif %}">{{ report.get_status_display }}</span>
+                · Generated {{ report.created_at|date:"M j, Y" }}
+                {% if report.sent_at %} · Sent {{ report.sent_at|date:"M j, Y" }}{% endif %}
+                · {{ report.total_tokens_used }} tokens
+            </p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:annual_reports_list' %}">All reports</a>
+        </div>
+    </div>
+
+    {% if report.status == 'generating' %}
+        <div class="banner banner--info">
+            Report is generating — refresh in a minute.
+        </div>
+    {% elif report.status == 'failed' %}
+        <div class="banner" style="background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.4); color: var(--color-danger);">
+            Generation failed. Click <strong>Regenerate</strong> below to retry.
+        </div>
+    {% endif %}
+
+    <div class="admin-two-col">
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Key metrics</h2></div>
+            <dl class="admin-dl">
+                <dt>Uptime (annual)</dt><dd>{% if data.uptime_annual_avg %}{{ data.uptime_annual_avg }}%{% else %}<span class="muted">—</span>{% endif %}</dd>
+                <dt>Avg response</dt><dd>{% if data.avg_response_ms %}{{ data.avg_response_ms }}ms{% else %}<span class="muted">—</span>{% endif %}</dd>
+                <dt>Downtime incidents</dt><dd>{{ data.downtime_incidents|default:0 }}</dd>
+                <dt>Form submissions</dt><dd>{{ data.form_submissions_annual|default:0 }}</dd>
+                <dt>Phone clicks</dt><dd>{{ data.phone_clicks_annual|default:0 }}</dd>
+                <dt>CTA clicks</dt><dd>{{ data.cta_clicks_annual|default:0 }}</dd>
+            </dl>
+        </section>
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Security &amp; engine</h2></div>
+            <dl class="admin-dl">
+                <dt>Scans run</dt><dd>{{ data.scans_run|default:0 }}</dd>
+                <dt>Critical findings</dt><dd>{{ data.critical_findings_found|default:0 }}</dd>
+                <dt>High findings</dt><dd>{{ data.high_findings_found|default:0 }}</dd>
+                <dt>Findings resolved</dt><dd>{{ data.findings_resolved|default:0 }}</dd>
+                <dt>Suggestions made</dt><dd>{{ data.intelligence_suggestions_made|default:0 }}</dd>
+                <dt>Suggestions approved</dt><dd>{{ data.intelligence_suggestions_approved|default:0 }}</dd>
+                <dt>Upsell revenue</dt><dd>${{ data.intelligence_revenue_generated|default:0|floatformat:0 }}</dd>
+                <dt>NPS average</dt><dd>{% if data.nps_average %}{{ data.nps_average }}{% else %}<span class="muted">—</span>{% endif %}</dd>
+            </dl>
+        </section>
+    </div>
+
+    {% if report.executive_summary %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Executive summary</h2></div>
+            <p>{{ report.executive_summary|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    {% if report.year_in_review %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Year in review</h2></div>
+            <p>{{ report.year_in_review|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    {% if report.looking_ahead %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Looking ahead</h2></div>
+            <p>{{ report.looking_ahead|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Actions</h2></div>
+        <div class="prop-actions">
+            {% if report.pdf_path %}
+                <a class="btn-secondary" href="{% url 'admin_dashboard:annual_report_download' report.id %}" target="_blank" rel="noopener">Download PDF</a>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_dashboard:annual_report_regenerate' report.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Regenerate</button>
+            </form>
+
+            {% if report.status == 'ready' or report.status == 'sent' %}
+                {% if report.client.user.email %}
+                    <form method="post" action="{% url 'admin_dashboard:annual_report_send' report.id %}" style="display:inline;"
+                          onsubmit="return confirm('Send the {{ report.report_year }} report to {{ report.client.user.email|escapejs }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary">{% if report.status == 'sent' %}Re-send to Client{% else %}Send to Client{% endif %}</button>
+                    </form>
+                {% else %}
+                    <span class="muted">No client email on file — can't send.</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

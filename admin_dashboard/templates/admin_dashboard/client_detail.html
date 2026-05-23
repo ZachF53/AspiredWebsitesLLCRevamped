@@ -276,5 +276,34 @@
             <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:intelligence_suggestions' %}?client={{ client.id }}&status=all">View All Suggestions</a>
         </p>
     </section>
+
+    {# ── Phase 7 Part 4 — Annual reports ─────────────────────── #}
+    <section class="admin-section client-intel">
+        <div class="admin-section__header">
+            <h2>Annual Reports</h2>
+            <form method="post" action="{% url 'admin_dashboard:annual_report_generate' %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="client_id" value="{{ client.id }}">
+                <input type="hidden" name="report_year" value="{% now 'Y' %}">
+                <button type="submit" class="btn-primary btn-sm">Generate {% now 'Y' %} Report</button>
+            </form>
+        </div>
+
+        {% with latest_annual=client.annual_reports.first %}
+            {% if latest_annual %}
+                <p>
+                    <strong>{{ latest_annual.report_year }} report</strong>
+                    · <span class="intel-status intel-status--{{ latest_annual.status }}">{{ latest_annual.get_status_display }}</span>
+                    {% if latest_annual.sent_at %}· Sent {{ latest_annual.sent_at|date:"M j, Y" }}{% endif %}
+                </p>
+                <p>
+                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:annual_report_detail' latest_annual.id %}">Open Latest</a>
+                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:annual_reports_list' %}?client={{ client.id }}">View All Reports</a>
+                </p>
+            {% else %}
+                <p class="muted">No annual report yet. Generate one above or wait for the client's anniversary month.</p>
+            {% endif %}
+        {% endwith %}
+    </section>
 </div>
 {% endblock %}

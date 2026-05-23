@@ -365,6 +365,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'clients.tasks.run_monthly_intelligence',
         'schedule': crontab(hour=8, minute=0, day_of_month=15),   # 15th 8am
     },
+    'check-annual-report-schedule': {
+        'task': 'clients.tasks.check_annual_report_schedule',
+        'schedule': crontab(hour=9, minute=0, day_of_month=1),    # 1st 9am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

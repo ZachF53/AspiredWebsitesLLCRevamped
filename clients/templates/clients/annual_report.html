@@ -1,0 +1,494 @@
+{% comment %}
+Annual Business Health Report — WeasyPrint PDF.
+
+All CSS inline (WeasyPrint reads <style> from the same document).
+System fonts only (Arial sans + Georgia serif). Dark cover + back page;
+white interior. Inputs:
+    client  ClientProfile
+    report  AnnualReport
+    data    dict from gather_annual_data()
+    year    int
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+    @page { size: letter; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif;
+           color: #1A1A1A; line-height: 1.55; font-size: 11pt; }
+
+    .page { padding: 0.6in 0.6in; min-height: 10in;
+            page-break-after: always; }
+    .page:last-of-type { page-break-after: auto; }
+
+    .dark { background: #070614; color: #FFFFFF; min-height: 11in;
+            padding: 1.4in 0.7in; page-break-after: always; }
+    .dark h1 { color: #E8650A; }
+    .dark p, .dark strong { color: #FFFFFF; }
+
+    .eyebrow { display: inline-block; font-size: 9.5pt;
+               letter-spacing: 0.16em; text-transform: uppercase;
+               color: #E8650A; font-weight: 700; }
+    .section-bar { background: #E8650A; color: #FFFFFF;
+                   padding: 8px 16px; border-radius: 4px;
+                   font-size: 16pt; font-weight: 700;
+                   margin-bottom: 18px; }
+
+    h1 { font-size: 30pt; }
+    h2 { font-size: 22pt; color: #1A1A1A; margin-bottom: 8px; }
+    h3 { font-size: 14pt; color: #1A1A1A; margin: 14px 0 6px 0; }
+    p { margin-bottom: 8px; }
+    .lede { font-size: 13pt; line-height: 1.6; color: #1A1A1A; }
+    .muted { color: #666666; }
+    .serif { font-family: Georgia, 'Times New Roman', serif;
+             font-size: 11.5pt; line-height: 1.7; }
+
+    /* ─── Page 1 — Cover ─────────────────────────────────── */
+    .cover { text-align: center; padding-top: 2in; }
+    .cover .wordmark { color: #E8650A; font-size: 18pt;
+                       letter-spacing: 0.08em; font-weight: 700;
+                       margin-bottom: 60px; }
+    .cover .title { color: #FFFFFF; font-size: 28pt;
+                    font-weight: 400; margin-bottom: 12px; }
+    .cover .firm { color: #FFFFFF; font-size: 38pt;
+                   font-weight: 700; margin-bottom: 12px;
+                   line-height: 1.15; }
+    .cover .subtitle { color: #B5B5B5; font-size: 18pt;
+                       margin-bottom: 80px; }
+    .cover .footer { color: #B5B5B5; font-size: 11pt;
+                     line-height: 1.9; }
+    .cover .footer strong { color: #FFFFFF; }
+
+    /* ─── Page 2 — Executive summary ─────────────────────── */
+    .exec-grid { display: table; width: 100%; margin-top: 14px; }
+    .exec-row { display: table-row; }
+    .exec-col-stats, .exec-col-text {
+        display: table-cell; vertical-align: top;
+    }
+    .exec-col-stats { width: 48%; padding-right: 18px; }
+    .exec-col-text  { width: 52%; padding-left: 18px;
+                      border-left: 1px solid #E5E5E5; }
+
+    .stat-grid { display: table; width: 100%;
+                 border-collapse: separate; border-spacing: 6px; }
+    .stat-row { display: table-row; }
+    .stat-box {
+        display: table-cell; width: 50%;
+        background: #FFF6EE; border: 1px solid #FAD9BB;
+        border-radius: 8px; padding: 14px 16px;
+        text-align: center;
+    }
+    .stat-box .num { display: block; font-size: 22pt;
+                     font-weight: 700; color: #E8650A; }
+    .stat-box .lbl { display: block; font-size: 9pt;
+                     color: #666666; text-transform: uppercase;
+                     letter-spacing: 0.08em; margin-top: 4px; }
+    .nps {
+        margin-top: 20px; text-align: center;
+        padding: 14px;
+        border: 1px solid #E5E5E5; border-radius: 10px;
+    }
+    .nps__num { display: inline-block; width: 78px; height: 78px;
+                line-height: 78px; border-radius: 50%;
+                font-size: 28pt; font-weight: 700;
+                color: #FFFFFF; }
+    .nps__num--good  { background: #16A34A; }
+    .nps__num--ok    { background: #E8650A; }
+    .nps__num--poor  { background: #DC2626; }
+    .nps__label { display: block; margin-top: 6px;
+                  color: #666666; font-size: 10pt;
+                  text-transform: uppercase;
+                  letter-spacing: 0.1em; }
+
+    /* ─── Page 3 — Uptime ────────────────────────────────── */
+    .big-pct { font-size: 56pt; font-weight: 700;
+               letter-spacing: -0.02em; line-height: 1; }
+    .big-pct--good { color: #16A34A; }
+    .big-pct--ok   { color: #E8650A; }
+    .big-pct--poor { color: #DC2626; }
+    .uptime-chart {
+        display: table; width: 100%; margin: 24px 0;
+        border-collapse: separate; border-spacing: 4px 0;
+    }
+    .uptime-chart__row { display: table-row; }
+    .uptime-chart__cell { display: table-cell; width: 8.3%;
+                          vertical-align: bottom;
+                          text-align: center; }
+    .uptime-chart__bar-wrap { height: 120px; position: relative;
+                              background: #F5F5F5; border-radius: 3px; }
+    .uptime-chart__bar { position: absolute; left: 0; right: 0; bottom: 0;
+                         border-radius: 3px; }
+    .uptime-chart__bar--good { background: #16A34A; }
+    .uptime-chart__bar--ok   { background: #E8650A; }
+    .uptime-chart__bar--poor { background: #DC2626; }
+    .uptime-chart__label { font-size: 8.5pt; color: #666666;
+                           padding-top: 4px; }
+    .uptime-chart__pct { font-size: 8pt; color: #1A1A1A;
+                         font-weight: 700; padding-top: 2px; }
+
+    .perf-list { margin-top: 18px; }
+    .perf-list li {
+        list-style: none;
+        padding: 8px 0; border-bottom: 1px solid #F0F0F0;
+        font-size: 11pt;
+    }
+    .perf-list li strong { color: #E8650A; }
+
+    /* ─── Generic tables / lists used on pages 4-6 ───────── */
+    .data-table { width: 100%; border-collapse: collapse;
+                  margin: 12px 0; }
+    .data-table th, .data-table td {
+        text-align: left; padding: 8px 10px;
+        border-bottom: 1px solid #E5E5E5; font-size: 10.5pt;
+    }
+    .data-table th { color: #666666; font-weight: 600;
+                     text-transform: uppercase; font-size: 9pt;
+                     letter-spacing: 0.06em; }
+    .pill { display: inline-block; padding: 2px 9px;
+            border-radius: 999px; font-size: 10pt;
+            font-weight: 700; }
+    .pill--green { background: #DCFCE7; color: #166534; }
+    .pill--orange { background: #FFE4D0; color: #9A3412; }
+    .pill--red { background: #FEE2E2; color: #991B1B; }
+    .pill--muted { background: #F3F4F6; color: #6B7280; }
+
+    .empty {
+        padding: 22px 18px; border: 1px dashed #E5E5E5;
+        border-radius: 8px; color: #666666; font-style: italic;
+        text-align: center;
+    }
+
+    .form-chart {
+        display: table; width: 100%;
+        border-collapse: separate; border-spacing: 6px 0;
+        margin: 18px 0;
+    }
+    .form-chart__row { display: table-row; }
+    .form-chart__cell { display: table-cell; width: 8.3%;
+                        text-align: center; vertical-align: bottom; }
+    .form-chart__bar-wrap { height: 80px; background: #F5F5F5;
+                            border-radius: 3px; position: relative; }
+    .form-chart__bar { position: absolute; left: 0; right: 0;
+                       bottom: 0; background: #E8650A;
+                       border-radius: 3px; }
+    .form-chart__count { font-size: 9pt; font-weight: 700;
+                         padding-top: 4px; }
+    .form-chart__label { font-size: 8pt; color: #666666; }
+
+    /* ─── Page 8 — Looking ahead ─────────────────────────── */
+    .maintenance-badge {
+        display: inline-block;
+        padding: 4px 12px; border-radius: 999px;
+        font-size: 10pt; font-weight: 700;
+        background: #DCFCE7; color: #166534;
+    }
+    .upgrade-cta {
+        background: #FFF6EE; border-left: 3px solid #E8650A;
+        padding: 16px 20px; border-radius: 6px;
+        margin-top: 18px;
+    }
+    .upgrade-cta h3 { margin-top: 0; color: #E8650A; }
+
+    /* ─── Back page ──────────────────────────────────────── */
+    .back { text-align: center; padding-top: 2.4in; }
+    .back .thanks { font-family: Georgia, serif; font-size: 22pt;
+                    color: #FFFFFF; line-height: 1.4;
+                    margin-bottom: 70px; }
+    .back .contact-block { color: #FFFFFF;
+                           font-size: 12pt; line-height: 2; }
+    .back .contact-block strong { color: #E8650A; }
+    .back .next-report { margin-top: 70px; color: #B5B5B5;
+                         font-size: 10.5pt;
+                         letter-spacing: 0.08em;
+                         text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+{# ──── Page 1 — Cover ──────────────────────────────────── #}
+<section class="dark cover">
+    <div class="wordmark">ASPIRED WEBSITES LLC</div>
+    <div class="title">Annual Business Health Report</div>
+    <div class="firm">{{ client.firm_name }}</div>
+    <div class="subtitle">{{ year }} Year in Review</div>
+    <div class="footer">
+        Prepared for <strong>{{ client.contact_name|default:client.user.first_name|default:client.firm_name }}</strong><br>
+        {{ report.created_at|date:"F Y" }}<br>
+        <br>
+        <strong>aspiredwebsites.com</strong> · 210-896-2536
+    </div>
+</section>
+
+{# ──── Page 2 — Executive Summary ──────────────────────── #}
+<section class="page">
+    <div class="section-bar">Executive Summary</div>
+    <div class="exec-grid"><div class="exec-row">
+        <div class="exec-col-stats">
+            <div class="stat-grid">
+                <div class="stat-row">
+                    <div class="stat-box">
+                        <span class="num">{% if data.uptime_annual_avg %}{{ data.uptime_annual_avg }}%{% else %}—{% endif %}</span>
+                        <span class="lbl">Uptime</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="num">{% if data.avg_response_ms %}{{ data.avg_response_ms }}ms{% else %}—{% endif %}</span>
+                        <span class="lbl">Avg Speed</span>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-box">
+                        <span class="num">{{ data.form_submissions_annual }}</span>
+                        <span class="lbl">Form Subs.</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="num">{{ data.phone_clicks_annual }}</span>
+                        <span class="lbl">Phone Clicks</span>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-box">
+                        <span class="num">{{ data.scans_run }}</span>
+                        <span class="lbl">Scans</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="num">{{ data.findings_resolved }}</span>
+                        <span class="lbl">Findings Fixed</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if data.nps_average %}
+                <div class="nps">
+                    <span class="nps__num
+                        {% if data.nps_average >= 9 %}nps__num--good
+                        {% elif data.nps_average >= 7 %}nps__num--ok
+                        {% else %}nps__num--poor{% endif %}">
+                        {{ data.nps_average }}
+                    </span>
+                    <span class="nps__label">Client Satisfaction (NPS)</span>
+                </div>
+            {% endif %}
+        </div>
+        <div class="exec-col-text">
+            <p class="lede">{{ report.executive_summary|linebreaksbr }}</p>
+        </div>
+    </div></div>
+</section>
+
+{# ──── Page 3 — Uptime & Performance ───────────────────── #}
+<section class="page">
+    <div class="section-bar">Website Performance</div>
+
+    {% if data.uptime_annual_avg %}
+        <p class="muted" style="margin-bottom: 4px;">Annual uptime</p>
+        <div class="big-pct
+            {% if data.uptime_annual_avg >= 99 %}big-pct--good
+            {% elif data.uptime_annual_avg >= 95 %}big-pct--ok
+            {% else %}big-pct--poor{% endif %}">
+            {{ data.uptime_annual_avg }}%
+        </div>
+
+        <div class="uptime-chart"><div class="uptime-chart__row">
+            {% for m in data.uptime_by_month %}
+                <div class="uptime-chart__cell">
+                    <div class="uptime-chart__bar-wrap">
+                        {% if m.uptime_pct is not None %}
+                            <div class="uptime-chart__bar
+                                {% if m.uptime_pct >= 99 %}uptime-chart__bar--good
+                                {% elif m.uptime_pct >= 95 %}uptime-chart__bar--ok
+                                {% else %}uptime-chart__bar--poor{% endif %}"
+                                style="height: {{ m.uptime_pct }}%;"></div>
+                        {% endif %}
+                    </div>
+                    <div class="uptime-chart__pct">{% if m.uptime_pct is not None %}{{ m.uptime_pct }}%{% else %}—{% endif %}</div>
+                    <div class="uptime-chart__label">{{ m.month }}</div>
+                </div>
+            {% endfor %}
+        </div></div>
+
+        <ul class="perf-list">
+            <li><strong>Average response time:</strong> {% if data.avg_response_ms %}{{ data.avg_response_ms }}ms{% else %}—{% endif %} <span class="muted">(Benchmark: &lt; 200ms = excellent)</span></li>
+            <li><strong>Downtime incidents:</strong> {{ data.downtime_incidents }} <span class="muted">(each incident = 3 consecutive failed checks)</span></li>
+            <li><strong>Total uptime checks:</strong> {{ data.total_checks }}</li>
+        </ul>
+    {% else %}
+        <div class="empty">No uptime data recorded for {{ year }}.</div>
+    {% endif %}
+</section>
+
+{# ──── Page 4 — Security ───────────────────────────────── #}
+<section class="page">
+    <div class="section-bar">Security</div>
+
+    {% if data.scans_run %}
+        <p>This year we ran <strong>{{ data.scans_run }} full security scan{{ data.scans_run|pluralize }}</strong> of your site.</p>
+
+        <ul class="perf-list">
+            <li><strong>Total findings discovered:</strong> {{ data.critical_findings_found|add:data.high_findings_found }}</li>
+            <li><strong>Critical findings:</strong> <span class="pill pill--red">{{ data.critical_findings_found }}</span></li>
+            <li><strong>High findings:</strong> <span class="pill pill--orange">{{ data.high_findings_found }}</span></li>
+            <li><strong>Findings resolved:</strong> <span class="pill pill--green">{{ data.findings_resolved }}</span></li>
+        </ul>
+
+        {% if data.scan_timeline %}
+            <h3>Scan timeline</h3>
+            <table class="data-table">
+                <thead><tr><th>Date</th><th>Type</th><th>Findings</th></tr></thead>
+                <tbody>
+                    {% for s in data.scan_timeline %}
+                        <tr><td>{{ s.date }}</td><td>{{ s.type }}</td><td>{{ s.findings }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% else %}
+        <div class="empty">No security scans were run during {{ year }}. Scanning is available as part of our monitoring service.</div>
+    {% endif %}
+</section>
+
+{# ──── Page 5 — Conversions & Leads ────────────────────── #}
+<section class="page">
+    <div class="section-bar">Lead Generation Activity</div>
+
+    {% if data.form_submissions_annual or data.phone_clicks_annual or data.cta_clicks_annual %}
+        <div class="stat-grid" style="margin-bottom: 16px;">
+            <div class="stat-row">
+                <div class="stat-box">
+                    <span class="num">{{ data.form_submissions_annual }}</span>
+                    <span class="lbl">Form submissions</span>
+                </div>
+                <div class="stat-box">
+                    <span class="num">{{ data.phone_clicks_annual }}</span>
+                    <span class="lbl">Phone clicks</span>
+                </div>
+                <div class="stat-box">
+                    <span class="num">{{ data.cta_clicks_annual }}</span>
+                    <span class="lbl">CTA clicks</span>
+                </div>
+            </div>
+        </div>
+
+        {% if data.form_submissions_by_month %}
+            {% with max_count=data.form_submissions_by_month|dictsortreversed:"count"|first %}
+                <h3>Form submissions by month</h3>
+                <div class="form-chart"><div class="form-chart__row">
+                    {% for m in data.form_submissions_by_month %}
+                        <div class="form-chart__cell">
+                            <div class="form-chart__bar-wrap">
+                                {% if m.count and max_count.count %}
+                                    <div class="form-chart__bar"
+                                         style="height: {% widthratio m.count max_count.count 100 %}%;"></div>
+                                {% endif %}
+                            </div>
+                            <div class="form-chart__count">{{ m.count }}</div>
+                            <div class="form-chart__label">{{ m.month }}</div>
+                        </div>
+                    {% endfor %}
+                </div></div>
+            {% endwith %}
+        {% endif %}
+    {% else %}
+        <div class="empty">No conversion data recorded. Install the Aspired Websites conversion tracker on your site to see lead data in next year's report.</div>
+    {% endif %}
+</section>
+
+{# ──── Page 6 — Work Completed ─────────────────────────── #}
+<section class="page">
+    <div class="section-bar">Work Completed This Year</div>
+
+    {% if data.changelog_entries_count %}
+        <p>{{ data.changelog_entries_count }} change{{ data.changelog_entries_count|pluralize }} logged this year.</p>
+
+        {% if data.changelog_by_type %}
+            <h3>By category</h3>
+            <ul class="perf-list">
+                {% for row in data.changelog_by_type %}
+                    <li><strong>{{ row.type|title }}:</strong> {{ row.count }} entr{{ row.count|pluralize:"y,ies" }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if data.changelog_entries %}
+            <h3>Recent entries</h3>
+            <table class="data-table">
+                <thead><tr><th>Date</th><th>Type</th><th>Title</th></tr></thead>
+                <tbody>
+                    {% for e in data.changelog_entries %}
+                        <tr>
+                            <td>{{ e.date }}</td>
+                            <td>{{ e.type }}</td>
+                            <td>{{ e.title }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% else %}
+        <div class="empty">No client-visible changes logged this year.</div>
+    {% endif %}
+</section>
+
+{# ──── Page 7 — Year in Review narrative ───────────────── #}
+<section class="page">
+    <div class="section-bar">Your Year in Review</div>
+    <div class="serif">
+        {{ report.year_in_review|linebreaks }}
+    </div>
+</section>
+
+{# ──── Page 8 — Looking Ahead ──────────────────────────── #}
+<section class="page">
+    <div class="section-bar">Looking Ahead</div>
+    <div class="serif">
+        {{ report.looking_ahead|linebreaks }}
+    </div>
+
+    {% if data.top_intelligence_suggestions %}
+        <h3 style="margin-top: 20px;">Opportunities we identified this year</h3>
+        <ul class="perf-list">
+            {% for s in data.top_intelligence_suggestions %}
+                <li><strong>{{ s.title }}</strong>
+                    {% if s.status == 'implemented' %} — <span class="pill pill--green">Implemented</span>
+                    {% else %} — <span class="pill pill--orange">{{ s.status|title }}</span>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if data.maintenance_active %}
+        <p style="margin-top: 22px;">
+            <span class="maintenance-badge">{% if data.maintenance_plan %}{{ data.maintenance_plan|title }} · {% endif %}Maintenance Active</span>
+        </p>
+    {% else %}
+        <div class="upgrade-cta">
+            <h3>Interested in proactive monthly care?</h3>
+            <p>Our maintenance plans include monthly content updates,
+            security monitoring, and priority support — all of the
+            work that goes into a report like this, handled
+            continuously rather than once a year.</p>
+            <p class="muted" style="margin-bottom: 0;">Learn more at
+            <strong style="color:#E8650A;">aspiredwebsites.com/pricing</strong></p>
+        </div>
+    {% endif %}
+</section>
+
+{# ──── Back page — Contact ─────────────────────────────── #}
+<section class="dark back">
+    <div class="thanks">
+        Thank you for trusting Aspired Websites<br>
+        with your online presence.
+    </div>
+    <div class="contact-block">
+        <strong>Schedule your annual review call:</strong><br>
+        210-896-2536<br>
+        zacherylong@aspiredwebsites.com<br>
+        aspiredwebsites.com
+    </div>
+    <div class="next-report">Next report: {{ data.year|add:1 }}</div>
+</section>
+
+</body>
+</html>
