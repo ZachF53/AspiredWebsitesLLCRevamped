@@ -1,6 +1,11 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}Leads — Admin — Aspired Websites{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/leads_bulk.js' %}" defer></script>
+{% endblock %}
 
 {% block content %}
 <div class="admin-container">
@@ -76,8 +81,7 @@
 
     {% if page.object_list %}
         <form method="post" action="{% url 'admin_dashboard:lead_bulk_delete' %}"
-              id="lead-bulk-form"
-              onsubmit="return confirmBulkDelete();">
+              id="lead-bulk-form">
             {% csrf_token %}
             <div class="lead-bulk-bar">
                 <label class="lead-bulk-bar__check">
@@ -134,42 +138,11 @@
                 </table>
             </div>
         </form>
-
-        <script>
-            (function () {
-                const form   = document.getElementById('lead-bulk-form');
-                const toggle = document.getElementById('lead-bulk-toggle');
-                const btn    = document.getElementById('lead-bulk-btn');
-                const count  = document.getElementById('lead-bulk-count');
-                if (!form) return;
-                function checks() {
-                    return form.querySelectorAll('.lead-bulk-check');
-                }
-                function refresh() {
-                    const sel = form.querySelectorAll(
-                        '.lead-bulk-check:checked').length;
-                    count.textContent = sel;
-                    btn.disabled = sel === 0;
-                }
-                toggle.addEventListener('change', function () {
-                    checks().forEach(c => c.checked = toggle.checked);
-                    refresh();
-                });
-                form.addEventListener('change', function (e) {
-                    if (e.target.classList.contains('lead-bulk-check')) {
-                        refresh();
-                    }
-                });
-                window.confirmBulkDelete = function () {
-                    const n = form.querySelectorAll(
-                        '.lead-bulk-check:checked').length;
-                    if (n === 0) return false;
-                    return confirm(
-                        'Delete ' + n + ' lead' +
-                        (n === 1 ? '' : 's') + ' permanently?');
-                };
-            })();
-        </script>
+        {% comment %}
+            JS lives in core/static/js/leads_bulk.js, loaded via the
+            extra_scripts block at the top. Keeps the page CSP-safe
+            and matches the project's "no inline JS" pattern.
+        {% endcomment %}
 
         {% if page.has_other_pages %}
             <nav class="admin-pagination" aria-label="Pagination">
