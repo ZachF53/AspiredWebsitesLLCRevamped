@@ -17,7 +17,9 @@ Every scanner here follows the same contract:
 
 import json
 import logging
+import os
 import subprocess
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 
@@ -144,17 +146,32 @@ def _classify_nikto_msg(msg):
 
 def run_nikto_scan(target_url, timeout=180):
     """
-    Run Nikto against `target_url` in JSON mode. Output is parsed
-    line-by-line because Nikto's JSON formatter can interleave malformed
-    lines on slow targets.
+    Run Nikto against `target_url` and parse its findings.
+
+    Ubuntu ships nikto 2.1.5 whose `-Format` option only supports
+    `htm` / `nbe` / `xml` — there is NO json output, and `-Format` is
+    silently ignored unless paired with `-output <file>`. The earlier
+    `-Format json` invocation therefore produced text-on-stdout that
+    our JSON parser skipped on every line → 0 findings, regardless of
+    what nikto actually found. (See diagnosis trail on Food Trucks
+    scan f2a463f8 in the Phase 6c notes.)
+
+    The fix: write XML to a tempfile via `-output -Format xml`, parse
+    `<item>` elements, and capture forensic fields (return code,
+    truncated stdout/stderr, raw item count) on the returned dict so
+    a future "why is X empty?" can be answered from the saved row.
     """
     if not target_url.startswith('http'):
         target_url = f'https://{target_url}'
 
+    fd, xml_path = tempfile.mkstemp(suffix='.xml', prefix='nikto-')
+    os.close(fd)
+
     try:
         result = subprocess.run(
             ['nikto', '-h', target_url,
-             '-Format', 'json',
+             '-output', xml_path,
+             '-Format', 'xml',
              '-nointeractive',
              '-Tuning', '1234567890',
              '-maxtime', '120s'],
@@ -164,38 +181,64 @@ def run_nikto_scan(target_url, timeout=180):
     except FileNotFoundError:
         return {'error': 'Nikto not installed',
                 'findings': [], 'skipped': True}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — defensive catch-all
         return {'error': str(exc), 'findings': []}
-
-    findings = []
-    for line in (result.stdout or '').splitlines():
-        line = line.strip()
-        if not line:
-            continue
+    else:
         try:
-            item = json.loads(line)
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if not isinstance(item, dict):
-            continue
-        msg = (item.get('msg') or '').strip()
-        if not msg:
-            continue
-        findings.append({
-            'title': msg[:200],
-            'severity': _classify_nikto_msg(msg),
-            'description': f'Nikto found: {msg}',
-            'recommendation': ('Review this finding and remediate if '
-                               'applicable.'),
-            'evidence': (f"URL: {item.get('uri', '')} "
-                         f"Method: {item.get('method', 'GET')} "
-                         f"ID: {item.get('id', '')}"),
-        })
+            return _parse_nikto_xml(xml_path, result)
+        finally:
+            try:
+                os.unlink(xml_path)
+            except OSError:
+                pass
 
-    return {
+
+def _parse_nikto_xml(xml_path, result):
+    """
+    Parse the XML file nikto wrote and combine with the subprocess
+    result so callers can debug 'no findings' outcomes from the row.
+    """
+    findings = []
+    item_count = 0
+    parse_error = None
+    try:
+        tree = ET.parse(xml_path)
+        items = list(tree.findall('.//item'))
+        item_count = len(items)
+        for item in items:
+            msg = (item.findtext('description') or '').strip()
+            if not msg:
+                continue
+            findings.append({
+                'title': msg[:200],
+                'severity': _classify_nikto_msg(msg),
+                'description': f'Nikto found: {msg}',
+                'recommendation': ('Review this finding and remediate '
+                                   'if applicable.'),
+                'evidence': (
+                    f"URL: {item.findtext('uri', '')} "
+                    f"Method: {item.get('method', 'GET')} "
+                    f"OSVDB: {item.get('osvdbid', '')} "
+                    f"ID: {item.get('id', '')}"),
+            })
+    except (ET.ParseError, FileNotFoundError) as exc:
+        parse_error = str(exc)
+
+    out = {
         'findings': findings,
-        'raw_output': (result.stdout or '')[:5000],
+        'item_count': item_count,
+        'returncode': result.returncode,
+        # Forensic fields — kept short so the JSONField doesn't bloat.
+        'raw_stdout': (result.stdout or '')[:5000],
+        'raw_stderr': (result.stderr or '')[:2000],
     }
+    if parse_error:
+        out['error'] = f'Nikto XML unparseable: {parse_error}'
+    elif result.returncode not in (0, 1):
+        # nikto 2.1.5 returns 1 when it finishes with findings — that's
+        # not an error. Anything else is worth surfacing.
+        out['error'] = f'Nikto exit {result.returncode}'
+    return out
 
 
 # ── SSL Labs ────────────────────────────────────────────────────────────────
