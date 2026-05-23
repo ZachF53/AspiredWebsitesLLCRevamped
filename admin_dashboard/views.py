@@ -2753,6 +2753,13 @@ def send_scan_report(request, scan_id):
         return _banner(
             'error', 'SendGrid SDK not installed.', status=500)
 
+    # Stamp the legal address footer onto the HTML body before
+    # building the Mail. This SendGrid SDK path bypasses Django's
+    # email backend, so the AspiredEmailBackend signature work
+    # doesn't fire here automatically.
+    from core.email_signature import append_signature
+    _, html_content = append_signature(html=html_content)
+
     message = Mail(
         from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
                            settings.DEFAULT_FROM_EMAIL),
@@ -3552,6 +3559,11 @@ def proposal_send(request, proposal_id):
         )
     except ImportError:
         return HttpResponse('SendGrid SDK not installed.', status=500)
+
+    # SDK path — append the legal address footer manually since
+    # AspiredEmailBackend doesn't see SendGrid SDK sends.
+    from core.email_signature import append_signature
+    _, html_content = append_signature(html=html_content)
 
     message = Mail(
         from_email=settings.DEFAULT_FROM_EMAIL,
@@ -4402,6 +4414,11 @@ def annual_report_send(request, report_id):
         )
     except ImportError:
         return HttpResponse('SendGrid SDK not installed.', status=500)
+
+    # SDK path — stamp the legal address footer onto both parts
+    # since AspiredEmailBackend doesn't see SendGrid SDK sends.
+    from core.email_signature import append_signature
+    text_body, html_body = append_signature(text_body, html_body)
 
     subject = (f'Your {report.report_year} Annual Website '
                f'Performance Report — {client.firm_name}')

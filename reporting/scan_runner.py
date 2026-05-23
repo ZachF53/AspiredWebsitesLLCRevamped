@@ -405,6 +405,12 @@ def _auto_send_to_client(scan):
         f'210-896-2536<br>zacherylong@aspiredwebsites.com</p>'
     )
 
+    # SDK path — append the legal address footer manually (this
+    # bypasses Django's mail backend, so AspiredEmailBackend's
+    # signature work doesn't fire here automatically).
+    from core.email_signature import append_signature
+    _, html_content = append_signature(html=html_content)
+
     message = Mail(
         from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
                            settings.DEFAULT_FROM_EMAIL),

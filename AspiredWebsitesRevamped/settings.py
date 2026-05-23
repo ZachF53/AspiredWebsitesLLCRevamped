@@ -195,7 +195,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ── Email — SendGrid SMTP ───────────────────────────────────────────────────
 # Per CLAUDE.md: all transactional + outreach mail goes through SendGrid.
 SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# Custom SMTP backend that auto-appends the legal address footer
+# (8735 Dunwoody Place, Ste R, Atlanta GA 30350) to every outgoing
+# email. Subclasses Django's SMTP backend; passes everything else
+# through unchanged. Direct SendGrid SDK callers (PDF-attachment
+# paths) bypass this and use core.email_signature.append_signature
+# explicitly for the same result.
+EMAIL_BACKEND = 'core.email_backend.AspiredEmailBackend'
 EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
