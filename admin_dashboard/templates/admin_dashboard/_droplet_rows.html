@@ -1,0 +1,77 @@
+{# Droplet table rows — included by droplets_list.html AND returned on its own
+   by /droplets/table/ for the 30s HTMX poll. Standalone so it can render
+   inside a hx-swap="innerHTML" target without wrapping markup. #}
+<table class="droplet-table">
+    <thead>
+        <tr>
+            <th class="droplet-table__status"></th>
+            <th>Name</th>
+            <th>IP</th>
+            <th>Linked Client</th>
+            <th>Region</th>
+            <th>Size</th>
+            <th>$ / mo</th>
+            <th>Created</th>
+            <th>Tags</th>
+            <th class="droplet-table__actions">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+            <tr class="droplet-row droplet-row--{{ r.border }}">
+                <td class="droplet-table__status">
+                    <span class="droplet-dot droplet-dot--{{ r.border }}"
+                          title="{{ r.status }}"></span>
+                </td>
+                <td class="droplet-name">{{ r.name }}</td>
+                <td class="droplet-ip">
+                    {% if r.ip %}
+                        <code>{{ r.ip }}</code>
+                        <button type="button" class="droplet-copy-btn"
+                                data-copy="{{ r.ip }}" aria-label="Copy IP">Copy</button>
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if r.client %}
+                        <a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a>
+                    {% else %}
+                        <span class="droplet-muted">— unlinked —</span>
+                    {% endif %}
+                </td>
+                <td>{{ r.region|upper }}</td>
+                <td>{{ r.vcpus }} vCPU · {{ r.memory }}MB</td>
+                <td>{{ r.monthly_cost_str }}</td>
+                <td>
+                    <time datetime="{{ r.created_at }}">{{ r.created_at|slice:":10" }}</time>
+                </td>
+                <td class="droplet-tags">
+                    {% for tag in r.tags %}<span class="droplet-tag">{{ tag }}</span>{% endfor %}
+                </td>
+                <td class="droplet-table__actions">
+                    {% if r.status == 'active' %}
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:droplet_metrics' r.id %}">Metrics</a>
+                        <form method="post" action="{% url 'admin_dashboard:droplet_power' r.id %}" class="droplet-inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="off">
+                            <button type="submit" class="btn-secondary btn-sm droplet-btn-off">Power Off</button>
+                        </form>
+                    {% else %}
+                        <form method="post" action="{% url 'admin_dashboard:droplet_power' r.id %}" class="droplet-inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="on">
+                            <button type="submit" class="btn-secondary btn-sm droplet-btn-on">Power On</button>
+                        </form>
+                    {% endif %}
+
+                    {% if r.is_client_droplet %}
+                        <button type="button" class="btn-secondary btn-sm droplet-destroy-btn is-disabled"
+                                disabled title="Remove 'client' tag in DigitalOcean first">Destroy</button>
+                    {% else %}
+                        <a class="btn-secondary btn-sm droplet-destroy-btn"
+                           href="{% url 'admin_dashboard:droplet_destroy' r.id %}">Destroy</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>

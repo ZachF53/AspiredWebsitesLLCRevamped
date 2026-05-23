@@ -1,0 +1,67 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Droplets — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Infrastructure</span>
+            <h1 class="admin-page-title">Droplet Dashboard</h1>
+        </div>
+        <div>
+            <a class="btn-primary" href="{% url 'admin_dashboard:droplet_new' %}">+ Spin Up New Droplet</a>
+        </div>
+    </div>
+
+    {% if request.GET.provisioning %}
+        <div class="droplet-banner droplet-banner--info">
+            <strong>Droplet "{{ request.GET.provisioning }}" is being provisioned.</strong>
+            It will appear in the list within 2–3 minutes — this page auto-refreshes every 30 seconds.
+        </div>
+    {% endif %}
+
+    {% for message in messages %}
+        <div class="droplet-banner droplet-banner--{{ message.tags|default:'info' }}">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    <div class="droplet-stats">
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ total_count }}</span>
+            <span class="droplet-stat__label">Total Droplets</span>
+        </div>
+        <div class="droplet-stat droplet-stat--green">
+            <span class="droplet-stat__num">{{ active_count }}</span>
+            <span class="droplet-stat__label">Active</span>
+        </div>
+        <div class="droplet-stat droplet-stat--orange">
+            <span class="droplet-stat__num">${{ total_cost|floatformat:0 }}</span>
+            <span class="droplet-stat__label">Monthly Cost</span>
+        </div>
+        <div class="droplet-stat">
+            <span class="droplet-stat__num droplet-stat__num--sm">aspired-base-v1</span>
+            <span class="droplet-stat__label">Base Snapshot · {{ base_snapshot_id|default:'—' }}</span>
+        </div>
+    </div>
+
+    {% if rows %}
+        <div class="droplet-table-wrap"
+             hx-get="{% url 'admin_dashboard:droplet_table' %}"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+            {% include "admin_dashboard/_droplet_rows.html" with rows=rows %}
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No Droplets found on this DigitalOcean account — or the DO API is unreachable. Check <code>DO_API_TOKEN</code> in <code>.env</code>.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/droplets.js' %}" defer></script>
+{% endblock %}

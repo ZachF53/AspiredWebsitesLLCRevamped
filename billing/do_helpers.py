@@ -415,3 +415,237 @@ def _notify_admin(client, droplet_id, ip):
         recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
         fail_silently=True,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 6b — Droplet Dashboard helpers
+# ─────────────────────────────────────────────────────────────────────────────
+# Generic, ID-keyed wrappers around the DO API for the admin Droplet
+# dashboard. They DO NOT touch ClientProfile by themselves — the dashboard
+# layer matches Droplets to clients on display.
+
+def _normalise_droplet(d: dict) -> dict:
+    """Project a raw DO Droplet payload into the slim dict the dashboard uses."""
+    ip = ''
+    for net in (d.get('networks') or {}).get('v4') or []:
+        if net.get('type') == 'public':
+            ip = net.get('ip_address') or ''
+            break
+    size = d.get('size') or {}
+    region = d.get('region') or {}
+    return {
+        'id': d['id'],
+        'name': d.get('name') or '',
+        'status': d.get('status') or 'unknown',
+        'ip': ip,
+        'region': region.get('slug') or '',
+        'size_slug': d.get('size_slug') or '',
+        'memory': d.get('memory') or 0,
+        'vcpus': d.get('vcpus') or 0,
+        'disk': d.get('disk') or 0,
+        'monthly_cost': float(size.get('price_monthly') or 0),
+        'created_at': d.get('created_at') or '',
+        'tags': list(d.get('tags') or []),
+    }
+
+
+def get_all_droplets() -> list[dict]:
+    """
+    Every Droplet on the account, paginated transparently. Returns [] on
+    any error or when DO_API_TOKEN is unset — callers should never crash
+    the dashboard just because the API is down.
+    """
+    if not settings.DO_API_TOKEN:
+        return []
+    headers = _headers()
+    droplets = []
+    url = f'{DO_API}/droplets?per_page=100'
+    try:
+        while url:
+            resp = requests.get(url, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                logger.warning('DO list droplets failed: %s', resp.status_code)
+                return []
+            data = resp.json()
+            for raw in data.get('droplets') or []:
+                droplets.append(_normalise_droplet(raw))
+            url = ((data.get('links') or {}).get('pages') or {}).get('next')
+    except requests.RequestException:
+        logger.exception('DO list droplets — request failed')
+        return []
+    return droplets
+
+
+def get_droplet(droplet_id) -> dict | None:
+    """Fetch one Droplet by ID. Returns None on any failure."""
+    if not settings.DO_API_TOKEN:
+        return None
+    try:
+        resp = requests.get(
+            f'{DO_API}/droplets/{droplet_id}',
+            headers=_headers(), timeout=15)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200:
+        return None
+    return _normalise_droplet(resp.json().get('droplet') or {})
+
+
+def _droplet_action(droplet_id, action_type: str) -> bool:
+    """Fire any DO Droplet action by name (power_on, shutdown, reboot, …)."""
+    try:
+        resp = requests.post(
+            f'{DO_API}/droplets/{droplet_id}/actions',
+            headers=_headers(), json={'type': action_type}, timeout=15)
+    except requests.RequestException:
+        return False
+    return resp.status_code in (200, 201)
+
+
+def power_on_droplet(droplet_id) -> bool:
+    """Power a Droplet on."""
+    return _droplet_action(droplet_id, 'power_on')
+
+
+def power_off_droplet(droplet_id) -> bool:
+    """Gracefully shut a Droplet down (DO 'shutdown' action)."""
+    return _droplet_action(droplet_id, 'shutdown')
+
+
+def destroy_droplet(droplet_id) -> bool:
+    """
+    Destroy a Droplet permanently. Returns True on a 204 from DO.
+
+    The view layer is responsible for refusing this on client-tagged
+    Droplets — this function will happily destroy anything, by design,
+    because it is also reused for the client-flow `destroy_client_droplet`
+    path below where the gate has already been satisfied.
+    """
+    try:
+        resp = requests.delete(
+            f'{DO_API}/droplets/{droplet_id}',
+            headers=_headers(), timeout=15)
+    except requests.RequestException:
+        return False
+    return resp.status_code == 204
+
+
+def next_droplet_name(prefix: str = 'manual') -> str:
+    """
+    Return the next auto-incremented name in `{prefix}-NNN` form. Walks
+    the live Droplet list once so two parallel "New Droplet" tabs can't
+    both pick the same number.
+    """
+    existing = [d['name'] for d in get_all_droplets()]
+    numbers = []
+    for n in existing:
+        if not n.startswith(f'{prefix}-'):
+            continue
+        suffix = n.split('-')[-1]
+        if suffix.isdigit():
+            numbers.append(int(suffix))
+    next_num = (max(numbers) + 1) if numbers else 1
+    return f'{prefix}-{str(next_num).zfill(3)}'
+
+
+# Reusable cloud-init: drop a one-time root password so paramiko can SSH
+# in long enough to install the vault keypair. setup_vault_key_for_droplet
+# then disables PasswordAuthentication and locks the root account.
+def _manual_droplet_user_data(temp_password: str) -> str:
+    return _cloud_init_user_data(temp_password)
+
+
+def create_droplet(name: str, *,
+                   region: str = 'nyc1',
+                   size: str = 's-1vcpu-1gb',
+                   snapshot_id=None,
+                   tags=None,
+                   client=None,
+                   provision_timeout: int = PROVISION_TIMEOUT) -> dict:
+    """
+    Create a Droplet from a snapshot and poll until active + IP.
+
+    A fresh random root password is generated and injected via cloud-init
+    so the existing setup_vault_key_for_droplet() bootstrap path works for
+    manual spin-ups too — same approach as `provision_client_droplet`.
+    Vault key install is best-effort and non-blocking; on success the
+    temp password is rendered useless by the lockdown step.
+
+    If `client` is provided, the linked ClientProfile is updated with
+    the new IP / Droplet id and the bootstrap targets that client's
+    vault. Otherwise this is a "manual" Droplet — no client linkage.
+    """
+    if snapshot_id is None:
+        if not settings.DO_BASE_SNAPSHOT_ID:
+            raise RuntimeError('DO_BASE_SNAPSHOT_ID is not set in .env')
+        snapshot_id = int(settings.DO_BASE_SNAPSHOT_ID)
+    if tags is None:
+        tags = ['aspired-websites', 'client' if client else 'manual']
+
+    temp_password = secrets.token_urlsafe(32)
+    payload = {
+        'name': name,
+        'region': region,
+        'size': size,
+        'image': snapshot_id,
+        'tags': tags,
+        'ipv6': False,
+        'user_data': _manual_droplet_user_data(temp_password),
+    }
+
+    resp = requests.post(
+        f'{DO_API}/droplets', headers=_headers(),
+        json=payload, timeout=30)
+    if resp.status_code not in (200, 202):
+        raise RuntimeError(
+            f'DO create droplet failed: {resp.status_code} '
+            f'{resp.text[:200]}')
+
+    droplet = resp.json()['droplet']
+    droplet_id = droplet['id']
+    logger.info('DO: created manual droplet %s (%s)', droplet_id, name)
+
+    # Poll until active + has a public IP.
+    deadline = time.time() + provision_timeout
+    info = None
+    while time.time() < deadline:
+        info = get_droplet(droplet_id)
+        if info and info['status'] == 'active' and info['ip']:
+            break
+        time.sleep(POLL_INTERVAL)
+    if not info or info['status'] != 'active' or not info['ip']:
+        raise RuntimeError(
+            f'Droplet {droplet_id} did not become active within '
+            f'{provision_timeout} seconds')
+
+    # Stamp the client record if one was linked.
+    if client is not None:
+        client.do_droplet_id = str(droplet_id)
+        client.do_droplet_ip = info['ip']
+        client.do_droplet_created_at = timezone.now()
+        client.save(update_fields=[
+            'do_droplet_id', 'do_droplet_ip',
+            'do_droplet_created_at', 'updated_at',
+        ])
+
+    # Best-effort vault key bootstrap. Failures stash the temp password
+    # on the client (when one is linked) or just log otherwise.
+    time.sleep(SSH_BOOT_GRACE_SECONDS)
+    if client is not None:
+        try:
+            setup_vault_key_for_droplet(client, info['ip'], temp_password)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                'DO: vault key setup failed for manual droplet %s', name)
+            _stash_temp_password(client, temp_password)
+            _alert_vault_setup_failure(client, info['ip'], str(exc))
+    else:
+        # Manual / unlinked Droplet — there's no client to stash the
+        # temp password on. Surface it in the logs only; an admin can
+        # SSH in by hand and run the gen_vault_key.sh script.
+        logger.info(
+            'DO: manual droplet %s has temp root password — '
+            'not stashed (no client linked). Use DO console to retrieve.',
+            name)
+
+    return info

@@ -1,0 +1,80 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ droplet.name }} — Metrics{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:droplet_list' %}">Droplets</a> &rsaquo; {{ droplet.name }}
+            </span>
+            <h1 class="admin-page-title">{{ droplet.name }}</h1>
+        </div>
+    </div>
+
+    <section class="droplet-metric-card">
+        <h2>DigitalOcean</h2>
+        <ul class="droplet-meta-list">
+            <li><strong>Status</strong> {{ droplet.status }}</li>
+            <li><strong>IP</strong> <code>{{ droplet.ip|default:'—' }}</code></li>
+            <li><strong>Region</strong> {{ droplet.region|upper }}</li>
+            <li><strong>Size</strong> {{ droplet.size_slug }} — {{ droplet.vcpus }} vCPU · {{ droplet.memory }}MB · {{ droplet.disk }}GB</li>
+            <li><strong>Monthly cost</strong> ${{ droplet.monthly_cost|floatformat:0 }}/mo</li>
+            <li><strong>Created</strong> <time datetime="{{ droplet.created_at }}">{{ droplet.created_at|slice:":10" }}</time></li>
+            <li><strong>Tags</strong> {{ droplet.tags|join:", "|default:"—" }}</li>
+            {% if client %}
+                <li><strong>Linked client</strong> <a href="{% url 'admin_dashboard:client_detail' client.id %}">{{ client.firm_name }}</a></li>
+            {% else %}
+                <li><strong>Linked client</strong> <span class="droplet-muted">— unlinked —</span></li>
+            {% endif %}
+        </ul>
+    </section>
+
+    {% if client %}
+        <section class="droplet-metric-card">
+            <h2>Uptime (30 day)</h2>
+            <ul class="droplet-meta-list">
+                <li><strong>Status</strong> {{ uptime_status|default:'unknown' }}</li>
+                <li><strong>Uptime</strong> {% if uptime_30 is not None %}{{ uptime_30|floatformat:2 }}%{% else %}—{% endif %}</li>
+                <li><strong>Avg response</strong> {% if uptime_avg_ms is not None %}{{ uptime_avg_ms|floatformat:0 }} ms{% else %}—{% endif %}</li>
+                <li>
+                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_uptime' client.id %}">Open uptime detail &rarr;</a>
+                </li>
+            </ul>
+        </section>
+    {% endif %}
+
+    <section class="droplet-metric-card">
+        <h2>Live Server (SSH)</h2>
+        {% if not cred %}
+            <p class="droplet-muted">No SSH vault credential exists for this Droplet's IP.</p>
+        {% elif not vault_unlocked %}
+            <div class="droplet-banner droplet-banner--info">
+                Unlock your vault to see live server metrics. <a href="{% url 'vault:home' %}">Open vault &rarr;</a>
+            </div>
+        {% elif cred.encrypted_with_server_key %}
+            <div class="droplet-banner droplet-banner--info">
+                This credential is still encrypted with the auto-provisioning server key.
+                <a href="{% url 'vault:client_vault' cred.vault.client.id %}">Open the vault</a> once to re-encrypt it under your PIN, then live metrics will appear here.
+            </div>
+        {% elif ssh_metrics is None %}
+            <p class="droplet-muted">SSH connection failed. Try opening a terminal session from the vault to verify the credential.</p>
+        {% else %}
+            {% for label, output in ssh_metrics.items %}
+                <details class="droplet-cmd" open>
+                    <summary>{{ label }}</summary>
+                    <pre>{{ output }}</pre>
+                </details>
+            {% endfor %}
+        {% endif %}
+    </section>
+
+    <p>
+        <a class="btn-secondary" href="{% url 'admin_dashboard:droplet_list' %}">&larr; Back to Droplets</a>
+        {% if cred and vault_unlocked %}
+            <a class="btn-primary" href="{% url 'vault:terminal' cred.id %}">Open Terminal &rarr;</a>
+        {% endif %}
+    </p>
+</div>
+{% endblock %}

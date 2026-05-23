@@ -1,0 +1,55 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Destroy Droplet — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:droplet_list' %}">Droplets</a> &rsaquo; Destroy
+            </span>
+            <h1 class="admin-page-title">Destroy Droplet</h1>
+        </div>
+    </div>
+
+    <div class="droplet-destroy-card">
+        {% if is_client_droplet %}
+            <div class="droplet-banner droplet-banner--error">
+                <strong>This Droplet is tagged <code>client</code>.</strong>
+                Client-tagged Droplets cannot be destroyed from the dashboard — remove the tag in DigitalOcean first.
+            </div>
+            <p class="droplet-destroy-card__name">{{ droplet.name }}</p>
+            <p>
+                <a class="btn-secondary" href="{% url 'admin_dashboard:droplet_list' %}">&larr; Back</a>
+            </p>
+        {% else %}
+            <p class="droplet-destroy-card__warn">
+                You are about to <strong>permanently destroy</strong> this Droplet. Snapshots are kept (per DO defaults), but the running instance and its disk are gone instantly.
+            </p>
+            <p class="droplet-destroy-card__name">{{ droplet.name }}</p>
+            <ul class="droplet-destroy-card__meta">
+                <li>IP: <code>{{ droplet.ip|default:'—' }}</code></li>
+                <li>Region: {{ droplet.region|upper }}</li>
+                <li>Size: {{ droplet.size_slug }} (${{ droplet.monthly_cost|floatformat:0 }}/mo)</li>
+                <li>Tags: {{ droplet.tags|join:", " }}</li>
+                {% if linked_client %}
+                    <li>Linked client: <a href="{% url 'admin_dashboard:client_detail' linked_client.id %}">{{ linked_client.firm_name }}</a> — IP will be cleared.</li>
+                {% endif %}
+            </ul>
+
+            <form method="post" class="droplet-destroy-form">
+                {% csrf_token %}
+                <label for="confirm_name">Type the Droplet name to confirm:</label>
+                <input id="confirm_name" name="confirm_name" type="text"
+                       class="form-control" autocomplete="off" required
+                       placeholder="{{ droplet.name }}">
+                <div class="droplet-form__actions">
+                    <button type="submit" class="btn-primary droplet-destroy-confirm-btn">Destroy Permanently</button>
+                    <a class="btn-secondary" href="{% url 'admin_dashboard:droplet_list' %}">Cancel</a>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

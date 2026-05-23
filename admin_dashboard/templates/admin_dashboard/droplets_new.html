@@ -1,0 +1,107 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Spin Up Droplet — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:droplet_list' %}">Droplets</a> &rsaquo; New
+            </span>
+            <h1 class="admin-page-title">Spin Up New Droplet</h1>
+        </div>
+    </div>
+
+    <form method="post" class="droplet-form">
+        {% csrf_token %}
+
+        <div class="droplet-form__group">
+            <label for="droplet-name">Name</label>
+            <input id="droplet-name" name="name" type="text"
+                   class="form-control" value="{{ suggested_name }}"
+                   maxlength="64" pattern="[a-z0-9][a-z0-9.-]*"
+                   autocomplete="off" required>
+            <p class="droplet-form__hint">
+                Leave as-is for auto-naming, or enter a custom name (lowercase letters, numbers, dots, hyphens only).
+            </p>
+        </div>
+
+        <div class="droplet-form__group">
+            <label for="droplet-region">Region</label>
+            <select id="droplet-region" name="region" class="form-control" required>
+                {% for slug, label in regions %}
+                    <option value="{{ slug }}" {% if slug == 'nyc1' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <fieldset class="droplet-form__group droplet-sizes">
+            <legend>Size</legend>
+            {% for s in sizes %}
+                <label class="droplet-size">
+                    <input type="radio" name="size" value="{{ s.slug }}"
+                           data-price="{{ s.price }}"
+                           {% if forloop.first %}checked{% endif %}>
+                    <span class="droplet-size__card">
+                        <span class="droplet-size__slug">{{ s.slug }}</span>
+                        <span class="droplet-size__specs">{{ s.vcpus }} vCPU · {{ s.memory_gb }}GB RAM · {{ s.disk_gb }}GB SSD</span>
+                        <span class="droplet-size__price">${{ s.price }}/mo</span>
+                    </span>
+                </label>
+            {% endfor %}
+        </fieldset>
+
+        <div class="droplet-form__group">
+            <label>Snapshot</label>
+            <div class="droplet-readonly">
+                aspired-base-v1 <span class="droplet-muted">(ID: {{ base_snapshot_id|default:'—' }})</span>
+            </div>
+            <p class="droplet-form__hint">All new Droplets boot from the base snapshot. Not editable.</p>
+        </div>
+
+        <div class="droplet-form__group">
+            <label for="droplet-client">Link to Client (optional)</label>
+            <select id="droplet-client" name="client_id" class="form-control">
+                <option value="">— None (manual / test Droplet) —</option>
+                {% for c in clients %}
+                    <option value="{{ c.id }}">{{ c.firm_name }}</option>
+                {% endfor %}
+            </select>
+            <p class="droplet-form__hint">
+                If linked, the Droplet is tagged <code>client</code> (cannot be destroyed from the dashboard) and the IP is stored on the client profile.
+                If left as None, the Droplet is tagged <code>manual</code> and destructible from the dashboard.
+            </p>
+        </div>
+
+        <div class="droplet-form__group">
+            <label>Tags</label>
+            <div class="droplet-readonly" id="droplet-tags-preview">
+                aspired-websites, manual
+            </div>
+            <p class="droplet-form__hint">Auto-set from the client selection above.</p>
+        </div>
+
+        <div class="droplet-form__group">
+            <label>Estimated Monthly Cost</label>
+            <div class="droplet-readonly droplet-readonly--big" id="droplet-cost-preview">$6/mo</div>
+            <p class="droplet-form__hint">Billed by DigitalOcean directly.</p>
+        </div>
+
+        <div class="droplet-banner droplet-banner--warn">
+            <strong>This creates a real DigitalOcean Droplet and billing starts immediately.</strong>
+            Provisioning takes about 2–3 minutes; the Droplet appears in the list once active.
+        </div>
+
+        <div class="droplet-form__actions">
+            <button type="submit" class="btn-primary btn-block" id="droplet-submit">Spin Up Droplet</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:droplet_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/droplets.js' %}" defer></script>
+{% endblock %}

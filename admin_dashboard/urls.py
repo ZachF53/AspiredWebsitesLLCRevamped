@@ -87,6 +87,17 @@ urlpatterns = [
     path('blog/generate/', views.blog_generate, name='blog_generate'),
     path('blog/<uuid:post_id>/', views.blog_detail, name='blog_detail'),
 
+    # Phase 6b — Droplet dashboard
+    path('droplets/', views.droplet_list, name='droplet_list'),
+    path('droplets/new/', views.droplet_new, name='droplet_new'),
+    path('droplets/table/', views.droplet_table, name='droplet_table'),
+    path('droplets/<int:droplet_id>/power/',
+         views.droplet_power, name='droplet_power'),
+    path('droplets/<int:droplet_id>/destroy/',
+         views.droplet_destroy, name='droplet_destroy'),
+    path('droplets/<int:droplet_id>/metrics/',
+         views.droplet_metrics, name='droplet_metrics'),
+
     # Phase 5b — AI chatbot
     path('clients/<uuid:client_id>/chatbot/', views.client_chatbot, name='client_chatbot'),
     path('clients/<uuid:client_id>/chatbot/regenerate-prompt/', views.chatbot_regenerate_prompt, name='chatbot_regenerate_prompt'),

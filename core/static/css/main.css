@@ -7205,6 +7205,298 @@ button.htmx-request {
     margin-bottom: 0;
 }
 
+/* ── 31c. Droplet dashboard ─────────────────────────────────── */
+.droplet-banner {
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.droplet-banner--info {
+    background: rgba(13, 148, 136, 0.12);
+    border: 1px solid rgba(13, 148, 136, 0.3);
+}
+.droplet-banner--warn,
+.droplet-banner--warning {
+    background: rgba(232, 101, 10, 0.12);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+}
+.droplet-banner--error {
+    background: rgba(192, 57, 43, 0.12);
+    border: 1px solid rgba(192, 57, 43, 0.35);
+}
+.droplet-banner--success {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.droplet-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+.droplet-stat {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-left: 4px solid #999;
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.droplet-stat--green { border-left-color: #10B981; }
+.droplet-stat--orange { border-left-color: #E8650A; }
+.droplet-stat__num {
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.droplet-stat__num--sm {
+    font-size: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.droplet-stat__label {
+    font-size: 0.78rem;
+    color: var(--color-text-muted, #666);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.droplet-table-wrap {
+    overflow-x: auto;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-radius: 8px;
+}
+.droplet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+.droplet-table thead th {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted, #666);
+    border-bottom: 1px solid var(--color-border, #e5e5e5);
+}
+.droplet-table tbody td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--color-border, #efefef);
+    vertical-align: middle;
+}
+.droplet-table tbody tr:last-child td { border-bottom: none; }
+
+.droplet-row { border-left: 4px solid #999; }
+.droplet-row--green > td:first-child { box-shadow: inset 4px 0 0 #10B981; }
+.droplet-row--orange > td:first-child { box-shadow: inset 4px 0 0 #E8650A; }
+.droplet-row--red > td:first-child { box-shadow: inset 4px 0 0 #EF4444; }
+
+.droplet-dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: #999;
+}
+.droplet-dot--green { background: #10B981; }
+.droplet-dot--orange { background: #E8650A; }
+.droplet-dot--red { background: #EF4444; }
+.droplet-table__status { width: 1.5rem; text-align: center; }
+.droplet-table__actions { white-space: nowrap; }
+.droplet-table__actions .btn-sm { margin-right: 0.25rem; }
+
+.droplet-name { font-weight: 600; }
+.droplet-ip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.83rem;
+    white-space: nowrap;
+}
+.droplet-ip code {
+    background: #f5f5f5;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    margin-right: 0.3rem;
+}
+.droplet-copy-btn {
+    border: 1px solid var(--color-border, #ccc);
+    background: #fff;
+    border-radius: 4px;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+.droplet-copy-btn:hover { background: #f5f5f5; }
+
+.droplet-tags { font-size: 0.75rem; }
+.droplet-tag {
+    display: inline-block;
+    background: #f0f0f0;
+    color: #444;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    margin-right: 0.2rem;
+}
+.droplet-muted { color: var(--color-text-muted, #666); }
+
+.droplet-inline-form { display: inline-block; margin: 0; }
+.droplet-btn-on { color: #047857; border-color: rgba(16, 185, 129, 0.4); }
+.droplet-btn-off { color: #92400e; border-color: rgba(232, 101, 10, 0.4); }
+.droplet-destroy-btn { color: #c0392b; border-color: rgba(192, 57, 43, 0.4); }
+.droplet-destroy-btn.is-disabled,
+.droplet-destroy-btn[disabled] {
+    color: #999;
+    border-color: #ddd;
+    cursor: not-allowed;
+}
+
+/* Form */
+.droplet-form { max-width: 720px; }
+.droplet-form__group { margin-bottom: var(--space-4); }
+.droplet-form__group > label,
+.droplet-form__group > legend {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    font-size: 0.92rem;
+}
+.droplet-form__hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #666);
+}
+.droplet-form__actions {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: var(--space-3);
+}
+.droplet-readonly {
+    background: #f5f5f5;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88rem;
+}
+.droplet-readonly--big { font-size: 1.1rem; font-weight: 600; }
+
+.droplet-sizes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+@media (min-width: 640px) {
+    .droplet-sizes { grid-template-columns: 1fr 1fr; }
+}
+.droplet-size { position: relative; cursor: pointer; margin: 0; }
+.droplet-size input { position: absolute; opacity: 0; pointer-events: none; }
+.droplet-size__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 0.9rem;
+    border: 2px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color 0.15s, background 0.15s;
+}
+.droplet-size input:checked + .droplet-size__card {
+    border-color: #E8650A;
+    background: rgba(232, 101, 10, 0.05);
+}
+.droplet-size__slug {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.droplet-size__specs {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #666);
+}
+.droplet-size__price { font-weight: 700; }
+
+/* Destroy modal-style card */
+.droplet-destroy-card {
+    max-width: 560px;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-left: 4px solid #EF4444;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+.droplet-destroy-card__warn { color: #c0392b; font-size: 0.95rem; }
+.droplet-destroy-card__name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #c0392b;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin: 0.6rem 0;
+}
+.droplet-destroy-card__meta {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-3);
+    font-size: 0.88rem;
+}
+.droplet-destroy-card__meta li { margin: 0.2rem 0; }
+.droplet-destroy-form input[type="text"] { margin: 0.4rem 0; }
+.droplet-destroy-confirm-btn { background: #c0392b; border-color: #c0392b; }
+.droplet-destroy-confirm-btn[disabled],
+.droplet-destroy-confirm-btn:disabled {
+    background: #ddd; border-color: #ddd; cursor: not-allowed;
+}
+.droplet-destroy-confirm-btn--armed:hover { background: #a83224; }
+
+/* Metrics page */
+.droplet-metric-card {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: var(--space-3);
+}
+.droplet-metric-card h2 { margin: 0 0 0.6rem; font-size: 1.1rem; }
+.droplet-meta-list {
+    list-style: none; padding: 0; margin: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+}
+@media (min-width: 640px) {
+    .droplet-meta-list { grid-template-columns: 1fr 1fr; }
+}
+.droplet-meta-list strong {
+    display: inline-block;
+    min-width: 8rem;
+    color: var(--color-text-muted, #666);
+    font-weight: 500;
+}
+.droplet-cmd { margin: 0.6rem 0; }
+.droplet-cmd summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0.3rem 0;
+}
+.droplet-cmd pre {
+    background: #1A1A1A;
+    color: #f5f5f5;
+    padding: 0.75rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    margin: 0.3rem 0 0;
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

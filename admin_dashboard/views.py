@@ -1881,3 +1881,360 @@ def testimonial_mark_received(request, client_id):
     client.save(update_fields=[
         'testimonial_received', 'testimonial_url', 'updated_at'])
     return redirect('admin_dashboard:client_detail', client_id=client.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 6b — Droplet dashboard
+# ────────────────────────────────────────────────────────────────────────────
+
+DROPLET_REGIONS = [
+    ('nyc1', 'NYC1 — New York'),
+    ('nyc3', 'NYC3 — New York 3'),
+    ('sfo3', 'SFO3 — San Francisco'),
+    ('ams3', 'AMS3 — Amsterdam'),
+    ('sgp1', 'SGP1 — Singapore'),
+    ('lon1', 'LON1 — London'),
+    ('fra1', 'FRA1 — Frankfurt'),
+    ('tor1', 'TOR1 — Toronto'),
+    ('blr1', 'BLR1 — Bangalore'),
+]
+
+DROPLET_SIZES = [
+    {'slug': 's-1vcpu-1gb', 'vcpus': 1, 'memory_gb': 1,
+     'disk_gb': 25, 'price': 6},
+    {'slug': 's-1vcpu-2gb', 'vcpus': 1, 'memory_gb': 2,
+     'disk_gb': 50, 'price': 12},
+    {'slug': 's-2vcpu-2gb', 'vcpus': 2, 'memory_gb': 2,
+     'disk_gb': 60, 'price': 18},
+    {'slug': 's-2vcpu-4gb', 'vcpus': 2, 'memory_gb': 4,
+     'disk_gb': 80, 'price': 24},
+]
+
+
+def _droplet_rows(droplets, clients_by_ip):
+    """Decorate raw DO droplet dicts with the dashboard display fields."""
+    rows = []
+    for d in droplets:
+        is_client = 'client' in (d.get('tags') or [])
+        is_manual = 'manual' in (d.get('tags') or []) or not is_client
+        if d['status'] == 'active':
+            border = 'green'
+        elif d['status'] in ('off', 'archive'):
+            border = 'orange'
+        else:
+            border = 'red'
+        rows.append({
+            **d,
+            'client': clients_by_ip.get(d['ip']),
+            'is_client_droplet': is_client,
+            'is_manual_droplet': is_manual,
+            'monthly_cost_str': f"${d['monthly_cost']:.0f}/mo",
+            'border': border,
+        })
+    return rows
+
+
+def _load_droplet_dashboard():
+    """Pull DO droplets + match to ClientProfile rows by IP. Pure read."""
+    from billing.do_helpers import get_all_droplets
+    from clients.models import ClientProfile
+
+    droplets = get_all_droplets()
+    clients_by_ip = {
+        c.do_droplet_ip: c
+        for c in ClientProfile.objects.filter(do_droplet_ip__isnull=False)
+        if c.do_droplet_ip
+    }
+    rows = _droplet_rows(droplets, clients_by_ip)
+    return {
+        'rows': rows,
+        'total_count': len(rows),
+        'active_count': sum(1 for r in rows if r['status'] == 'active'),
+        'total_cost': sum(r['monthly_cost'] for r in rows),
+    }
+
+
+@admin_required
+def droplet_list(request):
+    """Full Droplet dashboard — stats + table."""
+    data = _load_droplet_dashboard()
+    return render(request, 'admin_dashboard/droplets_list.html',
+                  _admin_context(
+                      'droplets',
+                      rows=data['rows'],
+                      total_count=data['total_count'],
+                      active_count=data['active_count'],
+                      total_cost=data['total_cost'],
+                      base_snapshot_id=getattr(
+                          settings, 'DO_BASE_SNAPSHOT_ID', ''),
+                  ))
+
+
+@admin_required
+def droplet_table(request):
+    """HTMX partial — just the table rows, polled every 30s on the list page."""
+    data = _load_droplet_dashboard()
+    return render(request, 'admin_dashboard/_droplet_rows.html', {
+        'rows': data['rows'],
+    })
+
+
+@admin_required
+def droplet_new(request):
+    """
+    Render the spin-up form on GET; on POST enqueue the Celery provisioning
+    task and redirect back to the list with a notice. The list page then
+    HTMX-polls until the new Droplet shows up active.
+    """
+    from billing.do_helpers import next_droplet_name
+    from clients.models import ClientProfile
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        region = (request.POST.get('region') or 'nyc1').strip()
+        size = (request.POST.get('size') or 's-1vcpu-1gb').strip()
+        client_id = (request.POST.get('client_id') or '').strip() or None
+
+        # Tag based on client linkage — display-time logic mirrors this.
+        tags = ['aspired-websites', 'client' if client_id else 'manual']
+
+        from billing.tasks import provision_manual_droplet_task
+        provision_manual_droplet_task.delay(
+            name=name or next_droplet_name('manual'),
+            region=region,
+            size=size,
+            snapshot_id=int(settings.DO_BASE_SNAPSHOT_ID)
+            if settings.DO_BASE_SNAPSHOT_ID else None,
+            tags=tags,
+            client_id=client_id,
+        )
+        return redirect(
+            f"{reverse('admin_dashboard:droplet_list')}?provisioning={name}")
+
+    # GET — render the form. next_droplet_name() is a live API call, so
+    # protect the form against API outages.
+    try:
+        suggested_name = next_droplet_name('manual')
+    except Exception:  # noqa: BLE001 — never block the page
+        suggested_name = 'manual-001'
+
+    clients = ClientProfile.objects.order_by('firm_name')
+
+    return render(request, 'admin_dashboard/droplets_new.html', _admin_context(
+        'droplets',
+        suggested_name=suggested_name,
+        regions=DROPLET_REGIONS,
+        sizes=DROPLET_SIZES,
+        clients=clients,
+        base_snapshot_id=getattr(settings, 'DO_BASE_SNAPSHOT_ID', ''),
+    ))
+
+
+@admin_required
+@require_POST
+def droplet_power(request, droplet_id):
+    """
+    Power a Droplet on or off. Body: action=on | off. Returns the refreshed
+    row partial so the dashboard updates inline via HTMX.
+    """
+    from billing.do_helpers import (
+        get_droplet, power_off_droplet, power_on_droplet,
+    )
+    from clients.models import ClientProfile
+
+    action = (request.POST.get('action') or '').strip()
+    if action == 'on':
+        ok = power_on_droplet(droplet_id)
+    elif action == 'off':
+        ok = power_off_droplet(droplet_id)
+    else:
+        return HttpResponseBadRequest('action must be "on" or "off"')
+
+    if not ok:
+        return HttpResponseBadRequest('DO action failed')
+
+    # Re-fetch for the row refresh (DO is async, so status may still be
+    # transitioning — that's fine, the table will keep polling).
+    d = get_droplet(droplet_id)
+    if d is None:
+        return HttpResponseBadRequest('Droplet not found')
+
+    clients_by_ip = {
+        c.do_droplet_ip: c
+        for c in ClientProfile.objects.filter(do_droplet_ip=d['ip'])
+        if c.do_droplet_ip
+    }
+    rows = _droplet_rows([d], clients_by_ip)
+    return render(request, 'admin_dashboard/_droplet_rows.html', {
+        'rows': rows, 'single_row': True,
+    })
+
+
+@admin_required
+def droplet_destroy(request, droplet_id):
+    """
+    Destroy a Droplet. GET shows the confirm modal; POST validates the
+    typed-name match + refuses if client-tagged + clears the linked
+    ClientProfile IP if any.
+    """
+    from billing.do_helpers import destroy_droplet, get_droplet
+    from clients.models import ClientProfile
+    from django.contrib import messages
+
+    d = get_droplet(droplet_id)
+    if d is None:
+        from django.http import Http404
+        raise Http404('Droplet not found')
+
+    is_client_droplet = 'client' in (d.get('tags') or [])
+    linked_client = ClientProfile.objects.filter(do_droplet_ip=d['ip']).first()
+
+    if request.method == 'POST':
+        if is_client_droplet:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                "Refusing to destroy a client-tagged Droplet — "
+                "remove the 'client' tag in DigitalOcean first.")
+        typed = (request.POST.get('confirm_name') or '').strip()
+        if typed != d['name']:
+            messages.error(
+                request, "Name did not match — Droplet was NOT destroyed.")
+            return redirect('admin_dashboard:droplet_destroy',
+                            droplet_id=droplet_id)
+        if not destroy_droplet(droplet_id):
+            messages.error(
+                request, f"DigitalOcean refused to destroy '{d['name']}'.")
+            return redirect('admin_dashboard:droplet_list')
+        if linked_client:
+            linked_client.do_droplet_id = ''
+            linked_client.do_droplet_ip = None
+            linked_client.save(update_fields=[
+                'do_droplet_id', 'do_droplet_ip', 'updated_at'])
+        messages.success(
+            request, f"Droplet '{d['name']}' has been destroyed.")
+        return redirect('admin_dashboard:droplet_list')
+
+    return render(request, 'admin_dashboard/droplets_destroy.html',
+                  _admin_context(
+                      'droplets',
+                      droplet=d,
+                      is_client_droplet=is_client_droplet,
+                      linked_client=linked_client,
+                  ))
+
+
+@admin_required
+def droplet_metrics(request, droplet_id):
+    """
+    Per-Droplet metrics — DO API basics + (if vault unlocked + we have an
+    SSH credential) live supervisor/disk/memory/uptime over SSH.
+    Uptime stats come from the existing UptimeRecord table.
+    """
+    from billing.do_helpers import get_droplet
+    from clients.models import ClientProfile
+    from reporting.uptime_helpers import (
+        get_avg_response_time, get_current_status, get_uptime_percentage,
+    )
+    from vault.models import VaultCredential
+    from vault.views import get_vault_key
+
+    d = get_droplet(droplet_id)
+    if d is None:
+        from django.http import Http404
+        raise Http404('Droplet not found')
+
+    client = ClientProfile.objects.filter(do_droplet_ip=d['ip']).first()
+
+    cred = None
+    if d['ip']:
+        cred = VaultCredential.objects.filter(
+            is_ssh_credential=True,
+            vault__client__do_droplet_ip=d['ip']).first()
+
+    vault_key = get_vault_key(request)
+    ssh_metrics = None
+    if cred and vault_key is not None and not cred.encrypted_with_server_key:
+        ssh_metrics = _fetch_ssh_metrics(cred, vault_key)
+
+    uptime_30 = uptime_avg_ms = uptime_status = None
+    if client:
+        uptime_30 = get_uptime_percentage(client, 30)
+        uptime_avg_ms = get_avg_response_time(client, 30)
+        uptime_status = get_current_status(client)
+
+    return render(request, 'admin_dashboard/droplets_metrics.html',
+                  _admin_context(
+                      'droplets',
+                      droplet=d,
+                      client=client,
+                      cred=cred,
+                      vault_unlocked=vault_key is not None,
+                      ssh_metrics=ssh_metrics,
+                      uptime_30=uptime_30,
+                      uptime_avg_ms=uptime_avg_ms,
+                      uptime_status=uptime_status,
+                  ))
+
+
+def _fetch_ssh_metrics(cred, vault_key):
+    """
+    Run a handful of read-only diagnostics over SSH. Returns a dict of
+    {label: command_output} or None on connection failure. Each command
+    is capped short — this is a dashboard view, not a long-running task.
+    """
+    import paramiko
+
+    from vault.crypto import decrypt_value
+
+    host = decrypt_value(cred.ssh_host_encrypted, vault_key)
+    user = decrypt_value(cred.ssh_username_encrypted, vault_key)
+    if not host or host == '[decryption failed]' or not user:
+        return None
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    connect_kwargs = {
+        'hostname': host, 'port': cred.ssh_port or 22, 'username': user,
+        'timeout': 10, 'allow_agent': False, 'look_for_keys': False,
+    }
+    if (cred.ssh_auth_type or 'password') == 'private_key':
+        key_text = decrypt_value(cred.ssh_private_key_encrypted, vault_key)
+        passphrase = (
+            decrypt_value(cred.ssh_key_passphrase_encrypted, vault_key)
+            if cred.ssh_key_passphrase_encrypted else None)
+        from vault.consumers import _load_private_key
+        try:
+            connect_kwargs['pkey'] = _load_private_key(key_text, passphrase)
+        except Exception:
+            return None
+    else:
+        connect_kwargs['password'] = decrypt_value(
+            cred.ssh_password_encrypted, vault_key)
+
+    commands = [
+        ('supervisor', 'supervisorctl status'),
+        ('disk', 'df -h /'),
+        ('memory', 'free -h'),
+        ('uptime', 'uptime'),
+        ('gunicorn_errors',
+         'tail -5 /var/www/aspired/logs/gunicorn-error.log 2>/dev/null'
+         ' || echo "(no log)"'),
+    ]
+    out = {}
+    try:
+        ssh.connect(**connect_kwargs)
+        for label, cmd in commands:
+            try:
+                _, stdout, _ = ssh.exec_command(cmd, timeout=8)
+                out[label] = stdout.read().decode(
+                    'utf-8', errors='replace').strip()
+            except Exception:
+                out[label] = '(failed)'
+    except Exception:
+        return None
+    finally:
+        try:
+            ssh.close()
+        except Exception:
+            pass
+    return out
