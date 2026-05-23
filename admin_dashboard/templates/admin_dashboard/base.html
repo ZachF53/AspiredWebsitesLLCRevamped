@@ -166,6 +166,13 @@
 
         {# ── MAIN CONTENT ────────────────────────────────────── #}
         <main id="main" class="admin-main">
+            {% if messages %}
+                <div class="admin-messages">
+                    {% for m in messages %}
+                        <div class="admin-message admin-message--{{ m.tags|default:'info' }}">{{ m }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
 

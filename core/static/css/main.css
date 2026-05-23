@@ -4132,7 +4132,12 @@ button.htmx-request {
     }
 
     .cards {
-        grid-template-columns: repeat(3, 1fr);
+        /* minmax(0, 1fr) so columns can shrink under their intrinsic
+           size — otherwise long pricing labels ("$1,199/month") or
+           full-width CTA buttons push the grid past the container,
+           which spills both the leftmost and rightmost cards past
+           the viewport (horizontal scroll). */
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .value-tiles {
@@ -9763,7 +9768,11 @@ button.htmx-request {
     padding: 16px 16px 4px;
 }
 
-.nav-link {
+/* Scoped to the admin sidebar so we don't bleed into the public
+   site nav (which also uses a `.nav-link` class but with totally
+   different colors + sizing). The unscoped rules used to clobber
+   .nav-link--cta on the public Client Login button. */
+#admin-sidebar .nav-link {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -9780,11 +9789,11 @@ button.htmx-request {
     /* Keep the 3px indicator from shifting text — compensate padding. */
     padding-left: 13px;
 }
-.nav-link:hover {
+#admin-sidebar .nav-link:hover {
     color: #FFFFFF;
     background: #1E293B;
 }
-.nav-link.active {
+#admin-sidebar .nav-link.active {
     color: var(--color-orange);
     background: #1A1A2E;
     border-left-color: var(--color-orange);
@@ -9905,4 +9914,174 @@ button.htmx-request {
     #hamburger-btn,
     #sidebar-overlay,
     #sidebar-close { display: none !important; }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Public site fixes (Phase 7 round 2)
+   - service-card CTA pinned to bottom (homepage)
+   - pricing "Most Popular" badge positioning
+   - hosting section as a centered horizontal banner
+   - public Admin nav link (staff-only)
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Fix 3 — Pin .card__link to the bottom of each homepage service card
+   regardless of how much text sits above it. Uses flex-column +
+   space-between which only kicks in for cards with the eyebrow link. */
+.cards .card {
+    display: flex;
+    flex-direction: column;
+}
+.cards .card > .card__link {
+    margin-top: auto;
+    align-self: flex-start;
+    padding-top: var(--space-2);
+}
+
+/* Fix 6 BUG A — Pricing "Most Popular" badge sits ON the card, not in
+   the gutter between cards. Card establishes positioning context;
+   badge anchors to the card's top edge and centers via translateX. */
+.card--pricing {
+    position: relative;
+    overflow: visible;
+}
+.card--pricing .card__badge {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    white-space: nowrap;
+}
+/* Featured cards need extra top padding so the badge doesn't bump
+   the title block. */
+.card--pricing.card--featured {
+    padding-top: calc(var(--space-4) + 8px);
+}
+
+/* Pricing card columns must be equal-width regardless of content
+   length, so the badge always centers visually. */
+.cards.cards--2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Fix 6 BUG B — Hosting card spans the container as a horizontal
+   banner: title + price + CTA on the left, feature bullets on the
+   right. Centered on the page since it doesn't share the row with
+   anything else. */
+.hosting-banner {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2fr;
+    gap: var(--space-5);
+    align-items: center;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-5);
+}
+.hosting-banner__lead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.hosting-banner__lead .card__title {
+    margin: 0;
+    font-size: 1.5rem;
+}
+.hosting-banner__lead .card__price {
+    margin: 0;
+}
+.hosting-banner__lead .btn-secondary {
+    align-self: flex-start;
+    margin-top: var(--space-2);
+}
+.hosting-banner__features {
+    margin: 0;
+    /* Looser spacing here than the pricing cards — the banner has
+       fewer bullets and more horizontal room, so spacing it out
+       reads as a real checklist instead of a tight block. */
+    gap: 0.875rem;
+}
+.hosting-banner__features li {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+    .hosting-banner {
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+        text-align: left;
+    }
+}
+
+/* Fix 1 — Admin link for staff users in the public nav.
+   Muted, small, no button styling — sits beside Client Login without
+   competing for attention. */
+.nav-link--admin {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.nav-link--admin:hover {
+    color: var(--color-orange);
+    opacity: 1;
+    background: transparent;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Lead delete (single + bulk) + admin flash messages
+   ───────────────────────────────────────────────────────────────────────── */
+
+.admin-messages {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 18px;
+}
+.admin-message {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    color: var(--color-text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+.admin-message--success {
+    border-left-color: var(--color-success);
+    background: rgba(74, 222, 128, 0.06);
+}
+.admin-message--warning {
+    border-left-color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.06);
+}
+.admin-message--error {
+    border-left-color: var(--color-danger);
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.lead-bulk-bar {
+    display: flex; gap: 12px; align-items: center;
+    padding: 10px 14px; margin: 12px 0;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.lead-bulk-bar__check {
+    display: inline-flex; gap: 6px; align-items: center;
+    color: var(--color-text-muted); font-size: 13px;
+    cursor: pointer;
+}
+.lead-bulk-bar__check input { cursor: pointer; }
+.lead-table__col-check { width: 32px; text-align: center; }
+.lead-table__col-check input { cursor: pointer; }
+
+.lead-danger-zone {
+    margin-top: 32px;
+    border-top: 1px solid var(--color-border);
+    padding-top: 18px;
+}
+.lead-danger-zone .admin-section__header h2 {
+    color: var(--color-danger);
 }

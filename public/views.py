@@ -162,11 +162,137 @@ def pricing(request):
     })
 
 
+# Layer 3 — bot-name + spam-content filters used by `_classify_spam`.
+_SPAM_NAME_WORDS = {
+    'casino', 'viagra', 'crypto', 'bitcoin', 'seo services', 'loan',
+    'investment', 'earn money', 'work from home', 'click here',
+    'free money',
+}
+_SPAM_EMAIL_DOMAINS = (
+    'mail.ru', 'guerrillamail', 'mailinator', 'tempmail',
+    'throwaway', 'yopmail', 'sharklasers', 'guerrillamailblock',
+)
+
+
+def _classify_spam(cleaned):
+    """
+    Layer 3 — content-based spam classifier.
+
+    Returns a short reason string when the submission looks like spam,
+    else empty string. Each rule is conservative on its own and the
+    operator can see why anything was suppressed via the server log.
+    """
+    name = (cleaned.get('name') or '').strip()
+    email = (cleaned.get('email') or '').strip().lower()
+    message = (cleaned.get('message') or '').strip()
+    lower_name = name.lower()
+    lower_msg = message.lower()
+
+    # >3 URLs in the message — classic linkspam tell.
+    url_count = lower_msg.count('http://') + lower_msg.count('https://')
+    if url_count > 3:
+        return f'message has {url_count} URLs'
+
+    # Spam keyword in name (case-insensitive substring).
+    for word in _SPAM_NAME_WORDS:
+        if word in lower_name or word in lower_msg:
+            return f'spam keyword: {word!r}'
+
+    # Throwaway / known-spam email domain.
+    if email and '@' in email:
+        domain = email.rsplit('@', 1)[-1]
+        for bad in _SPAM_EMAIL_DOMAINS:
+            if bad in domain:
+                return f'spam email domain: {domain}'
+
+    # Too short to be a real inquiry.
+    if len(message) < 20:
+        return f'message too short ({len(message)} chars)'
+
+    # Bot name pattern: a single CamelCase word like "LloydSit" — no
+    # spaces, longer than 20 chars, mixed case. Real names with no
+    # spaces under 20 chars (e.g. "Mike") fall through cleanly.
+    if name and ' ' not in name and len(name) > 20:
+        return f'bot-name pattern: {name!r}'
+
+    return ''
+
+
+def _signed_form_timestamp():
+    """Return a signed `int(time.time())` for the honeypot timing check."""
+    import time as _time
+    from django.core.signing import dumps
+    return dumps(int(_time.time()))
+
+
+def _form_age_seconds(signed_value):
+    """
+    Decode a previously-issued timestamp. Returns (age_seconds, ok)
+    where ok=False when the signature is bad or the token has expired
+    (>2h old). Callers treat ok=False as definitely-spam.
+    """
+    import time as _time
+    from django.core.signing import BadSignature, SignatureExpired, loads
+    try:
+        rendered_at = loads(signed_value, max_age=7200)
+    except (BadSignature, SignatureExpired, TypeError, ValueError):
+        return 0, False
+    return _time.time() - int(rendered_at), True
+
+
+def _silently_pretend_success(request):
+    """
+    Spam handler — every layer returns this. Visually identical to a
+    real success so the bot has no signal that anything was filtered.
+    No Lead row, no admin email.
+    """
+    return redirect('public:contact_thanks')
+
+
 @ratelimit(key='ip', rate='5/h', method='POST', block=False)
 def contact(request):
+    import logging
+    from django.core.cache import cache
+    logger = logging.getLogger(__name__)
+
     rate_limited = getattr(request, 'limited', False)
 
     if request.method == 'POST':
+        ip = _client_ip(request) or ''
+
+        # Layer 4 — strict per-IP cap: max 3 contact submissions / hour.
+        # Lives next to the existing django-ratelimit decorator (which
+        # is 5/h) so this layer absorbs the short bot-burst attacks
+        # even when ratelimit's window hasn't ticked yet.
+        cache_key = f'contact_form:{ip}'
+        per_ip_count = cache.get(cache_key, 0)
+        if per_ip_count >= 3:
+            logger.info(
+                'SPAM BLOCKED (rate-limit IP=%s count=%s)',
+                ip, per_ip_count)
+            return _silently_pretend_success(request)
+
+        # Layer 1 — honeypot: real users never see the `website_url`
+        # field (offscreen, tab-index -1, no autocomplete). Anything
+        # in there is a bot.
+        if (request.POST.get('website_url') or '').strip():
+            logger.info(
+                'SPAM BLOCKED (honeypot IP=%s)', ip)
+            cache.set(cache_key, per_ip_count + 1, 3600)
+            return _silently_pretend_success(request)
+
+        # Layer 2 — form-age check. Bots submit instantly; humans take
+        # at least a few seconds. Missing/expired token is treated as
+        # spam too.
+        signed_ts = (request.POST.get('form_timestamp') or '').strip()
+        age, ok = _form_age_seconds(signed_ts)
+        if not ok or age < 3:
+            logger.info(
+                'SPAM BLOCKED (timing IP=%s ok=%s age=%.1fs)',
+                ip, ok, age)
+            cache.set(cache_key, per_ip_count + 1, 3600)
+            return _silently_pretend_success(request)
+
         form = ContactForm(request.POST)
         if rate_limited:
             form.add_error(
@@ -175,9 +301,22 @@ def contact(request):
                 'Please try again later or call/text us directly at 210-896-2536.',
             )
         elif form.is_valid():
+            # Layer 3 — content classifier. Runs on validated form
+            # data so the regex / domain checks don't choke on raw
+            # POST garbage.
+            reason = _classify_spam(form.cleaned_data)
+            if reason:
+                logger.info(
+                    'SPAM BLOCKED (content IP=%s reason=%s '
+                    'email=%s)',
+                    ip, reason,
+                    form.cleaned_data.get('email', '?'))
+                cache.set(cache_key, per_ip_count + 1, 3600)
+                return _silently_pretend_success(request)
+
             ref_code = (request.session.get('referral_code') or '').strip()
             lead = form.save_as_lead(
-                ip_address=_client_ip(request),
+                ip_address=ip or None,
                 referral_code=ref_code,
             )
             if ref_code:
@@ -189,9 +328,14 @@ def contact(request):
                     pass
             _send_lead_auto_reply(lead)
             _send_lead_internal_notification(lead)
+            # Count a successful submit against the IP cap too — three
+            # legit submissions in an hour is plenty.
+            cache.set(cache_key, per_ip_count + 1, 3600)
             return redirect('public:contact_thanks')
     else:
-        form = ContactForm()
+        form = ContactForm(initial={
+            'form_timestamp': _signed_form_timestamp(),
+        })
 
     return render(request, 'public/contact.html', {
         'active_nav': 'contact',

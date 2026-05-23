@@ -31,6 +31,17 @@
                 <form method="post" class="form contact-form" novalidate>
                     {% csrf_token %}
 
+                    {# ── Spam traps — never visible to real users. ── #}
+                    {# Honeypot: bots that fill every field will fill this one too. #}
+                    <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+                        <label for="website_url">Website URL (leave blank)</label>
+                        <input type="text" name="website_url" id="website_url"
+                               autocomplete="off" tabindex="-1">
+                    </div>
+                    {# Signed render-time so the view can reject sub-3-second submits. #}
+                    <input type="hidden" name="form_timestamp"
+                           value="{{ form.form_timestamp.value|default:'' }}">
+
                     {% if form.non_field_errors %}
                         <div class="form-error" role="alert">
                             {{ form.non_field_errors }}

@@ -155,5 +155,15 @@
         </section>
 
     </div>
+
+    <section class="admin-section lead-danger-zone">
+        <div class="admin-section__header"><h2>Danger Zone</h2></div>
+        <p class="muted">Permanently removes this lead and every related note, email, reply, and referral event. This cannot be undone.</p>
+        <form method="post" action="{% url 'admin_dashboard:lead_delete' lead.pk %}"
+              onsubmit="return confirm('Delete this lead permanently?');">
+            {% csrf_token %}
+            <button type="submit" class="btn-danger">Delete Lead</button>
+        </form>
+    </section>
 </div>
 {% endblock %}

@@ -124,16 +124,16 @@
             <h2>{{ hosting.get_price_display }}. Flat.</h2>
         </div>
 
-        <div class="cards">
-            <article class="card card--teal card--pricing">
+        <article class="hosting-banner card card--teal">
+            <div class="hosting-banner__lead">
                 <h3 class="card__title">{{ hosting.name }}</h3>
                 <div class="card__price">{{ hosting.get_price_display }}</div>
-                <ul class="feature-list">
-                    {% for feature in hosting.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-                </ul>
                 <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </article>
-        </div>
+            </div>
+            <ul class="feature-list hosting-banner__features">
+                {% for feature in hosting.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+            </ul>
+        </article>
     </div>
 </section>
 

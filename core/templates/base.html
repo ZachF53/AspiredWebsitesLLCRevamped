@@ -51,6 +51,9 @@
                         <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
                         <li><a class="nav-link {% if active_nav == 'pricing' %}is-active{% endif %}" href="{% url 'public:pricing' %}">Pricing</a></li>
                         <li><a class="nav-link {% if active_nav == 'contact' %}is-active{% endif %}" href="{% url 'public:contact' %}">Contact</a></li>
+                        {% if request.user.is_authenticated and request.user.is_staff %}
+                            <li><a class="nav-link nav-link--admin" href="/admin-dashboard/">Admin</a></li>
+                        {% endif %}
                         <li><a class="nav-link nav-link--cta" href="{% url 'public:login' %}">Client Login</a></li>
                     </ul>
                 </div>

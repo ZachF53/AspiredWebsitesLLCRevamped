@@ -101,6 +101,15 @@ class ContactForm(forms.Form):
         }),
     )
 
+    # ── Spam-trap fields (no validation, just plumbing) ───────────────
+    # Honeypot: real users never see this; bots that scan the DOM and
+    # fill every input will tag themselves. Validated in the view.
+    website_url = forms.CharField(required=False)
+    # Signed timestamp stamped at render so the view can reject sub-3-
+    # second "instant fill" submissions. Real value is set by the view
+    # when it builds the form for GET.
+    form_timestamp = forms.CharField(required=False)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['business_type'].choices = (

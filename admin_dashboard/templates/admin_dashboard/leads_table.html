@@ -75,45 +75,101 @@
     </form>
 
     {% if page.object_list %}
-        <div class="lead-table-wrapper">
-            <table class="lead-table">
-                <thead>
-                    <tr>
-                        <th class="lead-table__col-name">Firm</th>
-                        <th>Attorney</th>
-                        <th>Location</th>
-                        <th>Practice</th>
-                        <th class="lead-table__col-score">Score</th>
-                        <th>Temp</th>
-                        <th>Status</th>
-                        <th>Last contacted</th>
-                        <th>Source</th>
-                        <th class="lead-table__col-actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for lead in page.object_list %}
-                        <tr class="lead-row lead-row--{{ lead.temperature }}">
-                            <td class="lead-table__col-name">
-                                <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="lead-table__firm">{{ lead.firm_name }}</a>
-                                {% if lead.email %}<div class="lead-table__sub">{{ lead.email }}</div>{% endif %}
-                            </td>
-                            <td>{{ lead.attorney_name|default:"—" }}</td>
-                            <td>{% if lead.city or lead.state %}{{ lead.city }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state }}{% else %}—{% endif %}</td>
-                            <td>{{ lead.practice_area|default:"—" }}</td>
-                            <td class="lead-table__col-score"><span class="score-pill score-pill--{{ lead.temperature }}">{{ lead.score }}</span></td>
-                            <td><span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span></td>
-                            <td><span class="status-badge status-badge--{{ lead.status }}">{{ lead.get_status_display }}</span></td>
-                            <td>{% if lead.last_contacted_at %}{{ lead.last_contacted_at|date:"M j" }}{% else %}—{% endif %}</td>
-                            <td><span class="muted">{{ lead.get_source_display }}</span></td>
-                            <td class="lead-table__col-actions">
-                                <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="btn-secondary btn-sm">View</a>
-                            </td>
+        <form method="post" action="{% url 'admin_dashboard:lead_bulk_delete' %}"
+              id="lead-bulk-form"
+              onsubmit="return confirmBulkDelete();">
+            {% csrf_token %}
+            <div class="lead-bulk-bar">
+                <label class="lead-bulk-bar__check">
+                    <input type="checkbox" id="lead-bulk-toggle">
+                    <span>Select all on page</span>
+                </label>
+                <button type="submit" class="btn-danger btn-sm" id="lead-bulk-btn" disabled>
+                    Delete Selected (<span id="lead-bulk-count">0</span>)
+                </button>
+            </div>
+            <div class="lead-table-wrapper">
+                <table class="lead-table">
+                    <thead>
+                        <tr>
+                            <th class="lead-table__col-check"></th>
+                            <th class="lead-table__col-name">Firm</th>
+                            <th>Attorney</th>
+                            <th>Location</th>
+                            <th>Practice</th>
+                            <th class="lead-table__col-score">Score</th>
+                            <th>Temp</th>
+                            <th>Status</th>
+                            <th>Last contacted</th>
+                            <th>Source</th>
+                            <th class="lead-table__col-actions">Actions</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                    </thead>
+                    <tbody>
+                        {% for lead in page.object_list %}
+                            <tr class="lead-row lead-row--{{ lead.temperature }}">
+                                <td class="lead-table__col-check">
+                                    <input type="checkbox" name="lead_ids" value="{{ lead.pk }}"
+                                           class="lead-bulk-check"
+                                           aria-label="Select {{ lead.firm_name }}">
+                                </td>
+                                <td class="lead-table__col-name">
+                                    <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="lead-table__firm">{{ lead.firm_name }}</a>
+                                    {% if lead.email %}<div class="lead-table__sub">{{ lead.email }}</div>{% endif %}
+                                </td>
+                                <td>{{ lead.attorney_name|default:"—" }}</td>
+                                <td>{% if lead.city or lead.state %}{{ lead.city }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state }}{% else %}—{% endif %}</td>
+                                <td>{{ lead.practice_area|default:"—" }}</td>
+                                <td class="lead-table__col-score"><span class="score-pill score-pill--{{ lead.temperature }}">{{ lead.score }}</span></td>
+                                <td><span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span></td>
+                                <td><span class="status-badge status-badge--{{ lead.status }}">{{ lead.get_status_display }}</span></td>
+                                <td>{% if lead.last_contacted_at %}{{ lead.last_contacted_at|date:"M j" }}{% else %}—{% endif %}</td>
+                                <td><span class="muted">{{ lead.get_source_display }}</span></td>
+                                <td class="lead-table__col-actions">
+                                    <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="btn-secondary btn-sm">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+
+        <script>
+            (function () {
+                const form   = document.getElementById('lead-bulk-form');
+                const toggle = document.getElementById('lead-bulk-toggle');
+                const btn    = document.getElementById('lead-bulk-btn');
+                const count  = document.getElementById('lead-bulk-count');
+                if (!form) return;
+                function checks() {
+                    return form.querySelectorAll('.lead-bulk-check');
+                }
+                function refresh() {
+                    const sel = form.querySelectorAll(
+                        '.lead-bulk-check:checked').length;
+                    count.textContent = sel;
+                    btn.disabled = sel === 0;
+                }
+                toggle.addEventListener('change', function () {
+                    checks().forEach(c => c.checked = toggle.checked);
+                    refresh();
+                });
+                form.addEventListener('change', function (e) {
+                    if (e.target.classList.contains('lead-bulk-check')) {
+                        refresh();
+                    }
+                });
+                window.confirmBulkDelete = function () {
+                    const n = form.querySelectorAll(
+                        '.lead-bulk-check:checked').length;
+                    if (n === 0) return false;
+                    return confirm(
+                        'Delete ' + n + ' lead' +
+                        (n === 1 ? '' : 's') + ' permanently?');
+                };
+            })();
+        </script>
 
         {% if page.has_other_pages %}
             <nav class="admin-pagination" aria-label="Pagination">

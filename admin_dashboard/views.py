@@ -4829,3 +4829,50 @@ def gap_create_suggestion(request, report_id, gap_index):
     return redirect(
         'admin_dashboard:intelligence_suggestion_detail',
         suggestion_id=suggestion.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Lead delete — single + bulk (Phase 7 round 2)
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+@require_POST
+def lead_delete(request, pk):
+    """
+    Delete a single Lead. Cascades clean up LeadNote, EmailSent,
+    EmailReply (all FK on_delete=CASCADE) and SET_NULL drops the
+    Lead pointer on referral_events.
+    """
+    from django.contrib import messages as _msg
+    lead = get_object_or_404(Lead, pk=pk)
+    firm = lead.firm_name
+    lead.delete()
+    _msg.success(request, f'Deleted lead: {firm}')
+    return redirect('admin_dashboard:leads_table')
+
+
+@admin_required
+@require_POST
+def lead_bulk_delete(request):
+    """
+    Delete every Lead whose pk is in POST.getlist('lead_ids').
+    Confirmation happens client-side; the form action requires POST
+    so CSRF protection covers it.
+    """
+    from django.contrib import messages as _msg
+    raw_ids = request.POST.getlist('lead_ids')
+    ids = []
+    for r in raw_ids:
+        try:
+            ids.append(int(r))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        _msg.warning(request, 'No leads selected for deletion.')
+        return redirect('admin_dashboard:leads_table')
+
+    qs = Lead.objects.filter(pk__in=ids)
+    n = qs.count()
+    qs.delete()
+    _msg.success(request, f'Deleted {n} lead{"" if n == 1 else "s"}.')
+    return redirect('admin_dashboard:leads_table')
