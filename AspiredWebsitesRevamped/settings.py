@@ -369,6 +369,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'clients.tasks.check_annual_report_schedule',
         'schedule': crontab(hour=9, minute=0, day_of_month=1),    # 1st 9am
     },
+    'run-monthly-competitor-gaps': {
+        'task': 'clients.tasks.run_monthly_competitor_gaps',
+        'schedule': crontab(hour=10, minute=0, day_of_month=20),  # 20th 10am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

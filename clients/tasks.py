@@ -403,6 +403,175 @@ def generate_annual_report(client_id, year):
 
 
 @shared_task
+def run_competitor_gap_analysis(client_id):
+    """
+    Crawl the client + every competitor, hand the lists to Claude,
+    persist a `CompetitorGapReport`. Idempotent at month grain:
+    re-running for a client that already has a row this month is
+    a no-op.
+
+    No competitors set → row marked `no_competitors` so the admin
+    table still shows it (and we won't keep trying every minute).
+    Missing live URL → row marked `failed` for the same reason.
+    """
+    from datetime import date
+
+    from clients.intelligence import (
+        analyze_competitor_gaps, crawl_site_for_pages,
+    )
+    from clients.models import (
+        ClientCompetitor, ClientProfile, CompetitorGapReport,
+    )
+
+    try:
+        client = ClientProfile.objects.get(id=client_id)
+    except ClientProfile.DoesNotExist:
+        return f'Client {client_id} not found.'
+
+    report_month = date.today().replace(day=1)
+    if CompetitorGapReport.objects.filter(
+            client=client, report_month=report_month).exists():
+        return (f'Already ran for {client.firm_name} this month '
+                f'({report_month.isoformat()}).')
+
+    competitors = list(
+        ClientCompetitor.objects.filter(client=client)[:3])
+    if not competitors:
+        CompetitorGapReport.objects.create(
+            client=client, report_month=report_month,
+            status='no_competitors',
+        )
+        return f'{client.firm_name}: no competitors set.'
+
+    project = client.projects.filter(stage='live').first()
+    client_url = (project.live_url if project else '') or ''
+    if not client_url:
+        CompetitorGapReport.objects.create(
+            client=client, report_month=report_month,
+            status='failed',
+            overall_assessment='Client has no live URL set.',
+        )
+        return (f'{client.firm_name}: skipped — no live URL.')
+
+    report = CompetitorGapReport.objects.create(
+        client=client, report_month=report_month,
+        status='generating',
+    )
+
+    try:
+        client_pages = crawl_site_for_pages(
+            client_url, max_pages=30)
+        report.client_pages = client_pages
+        report.save(update_fields=['client_pages', 'updated_at'])
+
+        competitor_data = []
+        for comp in competitors:
+            comp_pages = crawl_site_for_pages(
+                comp.domain, max_pages=25)
+            competitor_data.append({
+                'competitor_name': comp.name,
+                'competitor_domain': comp.domain,
+                'pages': comp_pages,
+            })
+        report.competitor_data = competitor_data
+        report.save(update_fields=[
+            'competitor_data', 'updated_at'])
+
+        result, tokens = analyze_competitor_gaps(
+            client, client_pages, competitor_data)
+        gaps = result.get('gaps', []) or []
+
+        report.gaps = gaps
+        report.overall_assessment = result.get(
+            'overall_assessment', '') or ''
+        report.total_gaps_found = len(gaps)
+        report.high_priority_gaps = sum(
+            1 for g in gaps if g.get('priority') == 'high')
+        report.total_tokens_used = int(tokens or 0)
+        report.status = 'complete'
+        report.save(update_fields=[
+            'gaps', 'overall_assessment', 'total_gaps_found',
+            'high_priority_gaps', 'total_tokens_used', 'status',
+            'updated_at',
+        ])
+
+        if report.high_priority_gaps > 0:
+            _notify_competitor_gaps(client, report)
+
+        return (f'{client.firm_name}: {report.total_gaps_found} '
+                f'gap(s), {report.high_priority_gaps} high '
+                f'priority.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'competitor gap analysis failed for %s', client.pk)
+        report.status = 'failed'
+        report.overall_assessment = (
+            f'Analysis failed: {str(exc)[:300]}')
+        report.save(update_fields=[
+            'status', 'overall_assessment', 'updated_at'])
+        return f'FAILED: {client.firm_name}: {exc}'
+
+
+def _notify_competitor_gaps(client, report):
+    """Email the admin a digest of high-priority gaps; idempotent."""
+    if report.admin_notified:
+        return
+    high_gaps = [g for g in report.gaps
+                 if g.get('priority') == 'high']
+    if not high_gaps:
+        return
+    gap_list = '\n'.join(f'  - {g["title"]}' for g in high_gaps[:5])
+    try:
+        send_mail(
+            subject=(f'Competitor gaps found: {client.firm_name} '
+                     f'— {report.high_priority_gaps} high '
+                     f'priority'),
+            message=(
+                f'Competitor content gap analysis complete for '
+                f'{client.firm_name}.\n\n'
+                f'High priority gaps:\n{gap_list}\n\n'
+                f'Review at:\n'
+                f'{settings.SITE_BASE_URL}/admin-dashboard/'
+                f'competitor-gaps/{report.id}/\n'),
+            from_email=getattr(settings, 'EMAIL_FROM_MAIN',
+                               settings.DEFAULT_FROM_EMAIL),
+            recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
+            fail_silently=True,
+        )
+        report.admin_notified = True
+        report.save(update_fields=[
+            'admin_notified', 'updated_at'])
+    except Exception:
+        logger.exception('competitor-gap admin email failed')
+
+
+@shared_task
+def run_monthly_competitor_gaps():
+    """
+    Beat: 20th of every month, 10:00. Queues a per-client analysis
+    for every active non-tester client that has at least one
+    competitor recorded. Staggers calls 60s apart — crawling is
+    bandwidth-bound, not API-bound, and we want to be polite to
+    competitor sites.
+    """
+    from clients.models import ClientProfile
+
+    clients = list(
+        ClientProfile.objects
+        .filter(status='active', is_tester=False,
+                competitors__isnull=False)
+        .distinct()
+        .order_by('firm_name')
+    )
+    for i, client in enumerate(clients):
+        run_competitor_gap_analysis.apply_async(
+            args=[str(client.id)],
+            countdown=i * 60,
+        )
+    return f'Queued {len(clients)} competitor analyses.'
+
+
+@shared_task
 def check_annual_report_schedule():
     """
     Monthly beat — on the 1st of each month at 09:00, queue a

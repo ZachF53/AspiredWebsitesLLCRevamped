@@ -1,0 +1,98 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Competitor Gaps — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Phase 7 Part 5</span>
+            <h1 class="admin-page-title">Competitor Content Gaps</h1>
+            <p class="muted">Monthly analysis of what competitors have that your clients don't.</p>
+        </div>
+    </div>
+
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Total reports</span>
+            <span class="admin-stat__value">{{ summary.total_reports }}</span>
+        </div>
+        <div class="admin-stat {% if summary.high_priority %}admin-stat--urgent{% endif %}">
+            <span class="admin-stat__label">High-priority gaps</span>
+            <span class="admin-stat__value">{{ summary.high_priority }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Clients with competitors set</span>
+            <span class="admin-stat__value">{{ summary.with_competitors }}</span>
+        </div>
+        <div class="admin-stat {% if summary.without_competitors %}admin-stat--urgent{% endif %}">
+            <span class="admin-stat__label">Clients missing competitors</span>
+            <span class="admin-stat__value">{{ summary.without_competitors }}</span>
+        </div>
+    </div>
+
+    <section class="admin-section">
+        <form method="get" class="intel-filter-bar">
+            <label>Client
+                <select name="client">
+                    <option value="">All clients</option>
+                    {% for c in clients %}
+                        <option value="{{ c.id }}" {% if filter_client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Status
+                <select name="status">
+                    <option value="all" {% if filter_status == 'all' or not filter_status %}selected{% endif %}>All</option>
+                    {% for key, label in status_choices %}
+                        <option value="{{ key }}" {% if filter_status == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Month
+                <input type="month" name="month" value="{{ filter_month }}">
+            </label>
+            <button type="submit" class="btn-secondary btn-sm">Filter</button>
+        </form>
+
+        {% if reports %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Month</th>
+                        <th>Status</th>
+                        <th class="num">Gaps</th>
+                        <th class="num">High pri.</th>
+                        <th class="num">Competitors</th>
+                        <th>Notified</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in reports %}
+                        <tr>
+                            <td><a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td>{{ r.report_month|date:"F Y" }}</td>
+                            <td><span class="intel-status intel-status--{% if r.status == 'complete' %}client_approved{% elif r.status == 'failed' %}client_declined{% elif r.status == 'no_competitors' %}dismissed{% else %}pending_review{% endif %}">{{ r.get_status_display }}</span></td>
+                            <td class="num">{{ r.total_gaps_found }}</td>
+                            <td class="num">{% if r.high_priority_gaps %}<span class="status-badge status-badge--unsubscribed">{{ r.high_priority_gaps }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+                            <td class="num">{{ r.competitor_data|length }}</td>
+                            <td>{% if r.admin_notified %}<span class="status-badge status-badge--won">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="admin-table__actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:competitor_gap_detail' r.id %}">View</a>
+                                <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' r.client.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">Run Now</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No gap reports match those filters. Add a competitor on a client detail page, then click "Run Gap Analysis".</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

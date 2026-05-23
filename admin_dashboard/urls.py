@@ -153,6 +153,26 @@ urlpatterns = [
     path('proposals/<uuid:proposal_id>/status/',
          views.proposal_set_status, name='proposal_set_status'),
 
+    # Phase 7 Part 5 — Competitor Content Gap Tracker
+    path('competitor-gaps/', views.competitor_gaps_list,
+         name='competitor_gaps_list'),
+    path('competitor-gaps/<uuid:report_id>/',
+         views.competitor_gap_detail,
+         name='competitor_gap_detail'),
+    path('competitor-gaps/run/<uuid:client_id>/',
+         views.competitor_gap_run_now,
+         name='competitor_gap_run_now'),
+    path('competitor-gaps/<uuid:report_id>/gaps/<int:gap_index>/'
+         'create-suggestion/',
+         views.gap_create_suggestion,
+         name='gap_create_suggestion'),
+    path('clients/<uuid:client_id>/competitors/add/',
+         views.competitor_add, name='competitor_add'),
+    path('clients/<uuid:client_id>/competitors/<uuid:comp_id>/edit/',
+         views.competitor_edit, name='competitor_edit'),
+    path('clients/<uuid:client_id>/competitors/<uuid:comp_id>/delete/',
+         views.competitor_delete, name='competitor_delete'),
+
     # Phase 7 Part 4 — Annual Business Health Report
     path('annual-reports/', views.annual_reports_list,
          name='annual_reports_list'),

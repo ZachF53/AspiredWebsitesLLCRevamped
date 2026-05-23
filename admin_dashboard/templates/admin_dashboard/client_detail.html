@@ -305,5 +305,47 @@
             {% endif %}
         {% endwith %}
     </section>
+
+    {# ── Phase 7 Part 5 — Competitor Tracking + Latest Gap Report ─── #}
+    <section class="admin-section client-intel">
+        <div class="admin-section__header">
+            <h2>Competitor Tracking</h2>
+            <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' client.id %}" style="display:inline;"
+                  hx-post="{% url 'admin_dashboard:competitor_gap_run_now' client.id %}"
+                  hx-target="#gap-run-result"
+                  hx-swap="innerHTML">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary btn-sm">Run Gap Analysis</button>
+            </form>
+        </div>
+        <p class="muted text-sm">Set up to 3 competitors to track monthly content gaps.</p>
+        {% include "admin_dashboard/_competitors_box.html" with client=client competitors=client.competitors.all can_add=True competitor_limit=3 %}
+        <div id="gap-run-result"></div>
+
+        {% with latest_gap=client.competitor_gap_reports.first %}
+            {% if latest_gap %}
+                <h3 class="admin-subsection-title" style="margin-top:14px;">Latest Gap Report</h3>
+                <p>
+                    <strong>{{ latest_gap.report_month|date:"F Y" }}</strong>
+                    · <span class="intel-status intel-status--{% if latest_gap.status == 'complete' %}client_approved{% elif latest_gap.status == 'failed' %}client_declined{% else %}pending_review{% endif %}">{{ latest_gap.get_status_display }}</span>
+                    · {{ latest_gap.total_gaps_found }} gap{{ latest_gap.total_gaps_found|pluralize }}
+                    {% if latest_gap.high_priority_gaps %}· <span class="status-badge status-badge--unsubscribed">{{ latest_gap.high_priority_gaps }} high priority</span>{% endif %}
+                </p>
+                {% if latest_gap.gaps %}
+                    <ul class="admin-activity-list">
+                        {% for g in latest_gap.gaps|slice:":3" %}
+                            <li class="admin-activity-item">
+                                <span class="admin-activity-item__title">{{ g.title }}</span>
+                                <div class="admin-activity-item__meta">priority: {{ g.priority|default:"—" }}</div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                <p>
+                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:competitor_gap_detail' latest_gap.id %}">View Full Report</a>
+                </p>
+            {% endif %}
+        {% endwith %}
+    </section>
 </div>
 {% endblock %}

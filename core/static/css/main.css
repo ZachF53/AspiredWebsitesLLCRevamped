@@ -9527,3 +9527,113 @@ button.htmx-request {
 .rec-status--out_of_scope_offered { color: var(--color-orange); border-color: rgba(232, 101, 10, 0.4); }
 
 .portal-nav__dot--alert { background: var(--color-orange); }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 5 — Competitor Content Gap Tracker
+   Admin dark theme only. No white fallbacks anywhere.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Competitor list on client detail */
+.competitor-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.competitor-list__item {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; padding: 12px 14px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.competitor-list__main { flex: 1; min-width: 0; }
+.competitor-list__main strong {
+    display: block; color: var(--color-text); margin-bottom: 2px;
+}
+.competitor-list__domain {
+    font-size: 12px; color: var(--color-text-muted);
+    word-break: break-all;
+}
+.competitor-list__domain:hover { color: var(--color-orange-light); }
+.competitor-list__actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.competitor-empty {
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.3);
+    border-radius: 8px;
+    padding: 12px 14px; color: var(--color-text);
+}
+.competitor-empty p { margin: 0; }
+
+.competitor-form {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 14px; margin-top: 10px;
+}
+
+/* Gap report — overall assessment block */
+.gap-assessment {
+    border-left: 3px solid var(--color-teal-light);
+}
+
+/* Gap cards on detail page */
+.gap-list { display: flex; flex-direction: column; gap: 14px; }
+.gap-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-border-strong);
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: var(--color-text);
+}
+.gap-card--high   { border-left-color: var(--color-danger); }
+.gap-card--medium { border-left-color: var(--color-orange); }
+.gap-card--low    { border-left-color: var(--color-teal-light); }
+
+.gap-card__head {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 6px;
+}
+.gap-card__title {
+    margin: 4px 0 8px 0; font-size: 17px; color: var(--color-text);
+}
+
+.gap-priority {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    background: rgba(255,255,255,0.04);
+}
+.gap-priority--high {
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.4);
+    background: rgba(248, 113, 113, 0.12);
+}
+.gap-priority--medium {
+    color: var(--color-orange);
+    border-color: rgba(232, 101, 10, 0.4);
+    background: rgba(232, 101, 10, 0.10);
+}
+.gap-priority--low {
+    color: var(--color-teal-light);
+    border-color: rgba(20, 184, 166, 0.4);
+    background: rgba(20, 184, 166, 0.10);
+}
+
+.gap-card__action {
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.25);
+    border-radius: 8px;
+    padding: 10px 14px; margin: 10px 0;
+    color: var(--color-text);
+}
+.gap-card__action code {
+    background: var(--color-bg-raised);
+    padding: 1px 6px; border-radius: 4px;
+    color: var(--color-orange-light);
+    font-size: 12px;
+}
+.gap-card__cta { margin-top: 10px; }

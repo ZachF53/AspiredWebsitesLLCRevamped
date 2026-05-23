@@ -1,0 +1,125 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Gap Report — {{ report.client.firm_name }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:competitor_gaps_list' %}">Competitor Gaps</a> /
+                <a href="{% url 'admin_dashboard:client_detail' report.client.id %}">{{ report.client.firm_name }}</a>
+            </span>
+            <h1 class="admin-page-title">{{ report.report_month|date:"F Y" }} Gap Report</h1>
+            <p class="muted">
+                <span class="intel-status intel-status--{% if report.status == 'complete' %}client_approved{% elif report.status == 'failed' %}client_declined{% elif report.status == 'no_competitors' %}dismissed{% else %}pending_review{% endif %}">{{ report.get_status_display }}</span>
+                · {{ report.total_gaps_found }} gap{{ report.total_gaps_found|pluralize }}
+                · {{ report.high_priority_gaps }} high-priority
+                · {{ report.total_tokens_used }} tokens
+            </p>
+        </div>
+        <div class="admin-page-actions">
+            <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' report.client.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary">Run New Analysis</button>
+            </form>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:competitor_gaps_list' %}">Back to List</a>
+        </div>
+    </div>
+
+    {% if report.overall_assessment %}
+        <section class="admin-section gap-assessment">
+            <div class="admin-section__header"><h2>Overall assessment</h2></div>
+            <p>{{ report.overall_assessment|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Sites compared</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Site</th><th class="num">Pages crawled</th><th>Sample titles</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td><strong>{{ report.client.firm_name }}</strong> <span class="muted">(client)</span></td>
+                    <td class="num">{{ report.client_pages|length }}</td>
+                    <td>
+                        {% for p in report.client_pages|slice:":5" %}
+                            <div class="text-sm">{{ p.title|default:p.path|truncatechars:80 }}</div>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% for cd in report.competitor_data %}
+                    <tr>
+                        <td><strong>{{ cd.competitor_name }}</strong> <a href="{{ cd.competitor_domain }}" target="_blank" rel="noopener" class="muted text-sm">{{ cd.competitor_domain }}</a></td>
+                        <td class="num">{{ cd.pages|length }}</td>
+                        <td>
+                            {% for p in cd.pages|slice:":5" %}
+                                <div class="text-sm">{{ p.title|default:p.path|truncatechars:80 }}</div>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    {% if gaps_indexed %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Gaps</h2></div>
+            <div class="gap-list">
+                {% for idx, g in gaps_indexed %}
+                    <article class="gap-card gap-card--{{ g.priority|default:'low' }}">
+                        <header class="gap-card__head">
+                            <span class="gap-priority gap-priority--{{ g.priority|default:'low' }}">
+                                {% if g.priority == 'high' %}🔴 HIGH PRIORITY{% elif g.priority == 'medium' %}🟠 Medium{% else %}🔵 Low{% endif %}
+                            </span>
+                            <span class="intel-type intel-type--{{ g.gap_type|default:'other' }}">{{ g.gap_type|default:"gap"|title }}</span>
+                        </header>
+                        <h3 class="gap-card__title">{{ g.title }}</h3>
+                        {% if g.description %}
+                            <p>{{ g.description }}</p>
+                        {% endif %}
+                        {% if g.competitors_with_this %}
+                            <p class="muted text-sm">
+                                <strong>Competitors with this:</strong>
+                                {% for c in g.competitors_with_this %}{{ c }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                            </p>
+                        {% endif %}
+                        {% if g.estimated_search_volume %}
+                            <p class="text-sm"><strong>Search volume:</strong> {{ g.estimated_search_volume|upper }}</p>
+                        {% endif %}
+                        {% if g.suggested_action %}
+                            <div class="gap-card__action">
+                                <strong>Suggested action:</strong> {{ g.suggested_action }}
+                                {% if g.suggested_page_title %}
+                                    <div class="muted text-sm" style="margin-top:4px;">Suggested page title: <code>{{ g.suggested_page_title }}</code></div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="gap-card__cta">
+                            {% if g.suggestion_id %}
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:intelligence_suggestion_detail' g.suggestion_id %}">✓ Suggestion Created — Open</a>
+                            {% else %}
+                                <form method="post" action="{% url 'admin_dashboard:gap_create_suggestion' report.id idx %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-primary btn-sm">→ Create Intelligence Suggestion</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% else %}
+        <section class="admin-section">
+            {% if report.status == 'no_competitors' %}
+                <p class="muted">No competitors set for this client. Add up to 3 on the client detail page.</p>
+            {% elif report.status == 'failed' %}
+                <p class="muted">This analysis run failed. Click "Run New Analysis" to retry.</p>
+            {% else %}
+                <p class="muted">Claude didn't surface any content gaps this run — the data didn't support flagging anything.</p>
+            {% endif %}
+        </section>
+    {% endif %}
+</div>
+{% endblock %}

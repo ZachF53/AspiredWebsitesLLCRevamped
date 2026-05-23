@@ -1,0 +1,48 @@
+{# HTMX fragment — competitors list + add button for one client. #}
+<div id="competitors-box">
+    {% if competitors %}
+        <ul class="competitor-list">
+            {% for c in competitors %}
+                <li class="competitor-list__item" id="comp-{{ c.id }}">
+                    <div class="competitor-list__main">
+                        <strong>{{ c.name }}</strong>
+                        <a href="{{ c.domain }}" target="_blank" rel="noopener" class="competitor-list__domain">{{ c.domain }}</a>
+                        {% if c.notes %}<div class="muted text-sm">{{ c.notes }}</div>{% endif %}
+                    </div>
+                    <div class="competitor-list__actions">
+                        <button type="button" class="btn-secondary btn-sm"
+                                hx-get="{% url 'admin_dashboard:competitor_edit' client.id c.id %}"
+                                hx-target="#comp-{{ c.id }}"
+                                hx-swap="outerHTML">Edit</button>
+                        <form method="post" action="{% url 'admin_dashboard:competitor_delete' client.id c.id %}"
+                              hx-post="{% url 'admin_dashboard:competitor_delete' client.id c.id %}"
+                              hx-target="#competitors-box"
+                              hx-swap="outerHTML"
+                              hx-confirm="Remove {{ c.name }}?"
+                              style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">Delete</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="competitor-empty">
+            <p><strong>No competitors set.</strong> Add up to {{ competitor_limit }} competitors to enable monthly content gap analysis.</p>
+        </div>
+    {% endif %}
+
+    {% if can_add %}
+        <p style="margin-top: 10px;">
+            <button type="button" class="btn-primary btn-sm"
+                    hx-get="{% url 'admin_dashboard:competitor_add' client.id %}"
+                    hx-target="#competitors-add-slot"
+                    hx-swap="innerHTML">+ Add Competitor</button>
+        </p>
+    {% else %}
+        <p class="muted text-sm" style="margin-top: 10px;">Maximum of {{ competitor_limit }} competitors per client reached.</p>
+    {% endif %}
+
+    <div id="competitors-add-slot"></div>
+</div>

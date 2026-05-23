@@ -193,6 +193,31 @@ def gather_client_data(client):
         data['pages_needing_update'] = None
         data['pages_analyzed'] = None
 
+    # ── Competitor gaps (Phase 7 Part 5) ───────────────────────
+    try:
+        from clients.models import CompetitorGapReport
+        latest_gap_report = (
+            CompetitorGapReport.objects
+            .filter(client=client, status='complete')
+            .order_by('-report_month').first()
+        )
+        if latest_gap_report:
+            data['competitor_gaps_high'] = (
+                latest_gap_report.high_priority_gaps)
+            data['competitor_gap_titles'] = [
+                g.get('title', '')
+                for g in (latest_gap_report.gaps or [])
+                if g.get('priority') == 'high'
+            ][:3]
+        else:
+            data['competitor_gaps_high'] = 0
+            data['competitor_gap_titles'] = []
+    except Exception:
+        logger.exception(
+            'competitor gap lookup failed for %s', client.pk)
+        data['competitor_gaps_high'] = 0
+        data['competitor_gap_titles'] = []
+
     # ── Health score ───────────────────────────────────────────
     try:
         from clients.health import get_latest_health_score
@@ -292,6 +317,10 @@ def _build_data_summary(data):
         f"\n"
         f"GBP mismatches: {data['gbp_mismatches']}\n"
         f"Pages needing content update: {data['pages_needing_update']}\n"
+        f"\n"
+        f"COMPETITOR GAPS:\n"
+        f"High priority gaps: {data.get('competitor_gaps_high', 0)}\n"
+        f"Top gaps: {data.get('competitor_gap_titles', [])}\n"
         f"\n"
         f"HEALTH SCORE: {data['health_score']}/100 "
         f"({data['health_status']})\n"
@@ -784,3 +813,251 @@ def generate_annual_narrative(client, data):
         logger.exception(
             'annual narrative generation failed for %s', client.pk)
         return fallback, 0
+
+
+# ── Phase 7 Part 5 — Competitor Content Gap Tracker ────────────────────────
+
+_CRAWL_USER_AGENT = (
+    'AspiredWebsites-Analyzer/1.0 (website analysis bot)')
+_CRAWL_SKIP_EXTS = (
+    '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
+    '.zip', '.docx', '.xlsx', '.pptx', '.mp4', '.mp3', '.css',
+    '.js', '.xml', '.ico',
+)
+
+
+def crawl_site_for_pages(base_url, max_pages=30, timeout=10):
+    """
+    BFS-crawl a site and return a list of `{url, title, word_count,
+    path}` dicts. Same-domain only, skips non-HTML and known binary
+    extensions, 500ms politeness delay between fetches.
+
+    Uses `requests` + `parsel` (parsel ships with Scrapy which is
+    already in requirements — no new deps). Failures on individual
+    pages are swallowed silently; the caller cares about the
+    aggregate.
+    """
+    import time
+    from urllib.parse import urljoin, urlparse
+
+    import requests as http_requests
+    from parsel import Selector
+
+    if not base_url.startswith(('http://', 'https://')):
+        base_url = f'https://{base_url}'
+    base_url = base_url.rstrip('/')
+
+    parsed_base = urlparse(base_url)
+    base_domain = parsed_base.netloc
+    if not base_domain:
+        return []
+
+    visited = set()
+    to_visit = [base_url]
+    pages = []
+
+    headers = {'User-Agent': _CRAWL_USER_AGENT}
+
+    while to_visit and len(pages) < max_pages:
+        url = to_visit.pop(0)
+        if url in visited:
+            continue
+        visited.add(url)
+
+        try:
+            resp = http_requests.get(
+                url, headers=headers, timeout=timeout,
+                allow_redirects=True,
+            )
+        except Exception:
+            continue
+        if resp.status_code != 200:
+            continue
+        content_type = resp.headers.get('content-type', '')
+        if 'html' not in content_type.lower():
+            continue
+
+        try:
+            sel = Selector(text=resp.text)
+        except Exception:
+            continue
+
+        # Title — title tag first, fall back to first h1, then URL.
+        title = (sel.css('title::text').get()
+                 or sel.css('h1::text').get()
+                 or url)
+        title = (title or '').strip()[:200]
+
+        # Strip script/style/nav/footer before word-counting.
+        for sink in sel.css(
+                'script, style, nav, footer, header, aside'):
+            sink.root.getparent().remove(sink.root) \
+                if sink.root.getparent() is not None else None
+        body_text = ' '.join(t.strip() for t in
+                             sel.css('body ::text').getall()
+                             if t.strip())
+        word_count = len(body_text.split())
+
+        pages.append({
+            'url': url,
+            'title': title,
+            'word_count': word_count,
+            'path': urlparse(url).path or '/',
+        })
+
+        # Queue internal links — same-domain, not anchors, not assets.
+        for link in sel.css('a::attr(href)').getall():
+            absolute = urljoin(url, link)
+            parsed = urlparse(absolute)
+            if parsed.netloc != base_domain:
+                continue
+            if '#' in absolute:
+                absolute = absolute.split('#', 1)[0]
+            if not absolute or absolute in visited:
+                continue
+            lower = absolute.lower()
+            if any(lower.endswith(ext) for ext in _CRAWL_SKIP_EXTS):
+                continue
+            if absolute not in to_visit:
+                to_visit.append(absolute)
+
+        time.sleep(0.5)
+
+    return pages
+
+
+_GAP_SYSTEM_PROMPT = """You are a website content strategist \
+analyzing gaps between a client's website and their competitors.
+
+Your job is to find GENUINE content gaps — pages or topics that \
+competitors have that the client is missing, which could help \
+the client attract more search traffic and leads.
+
+CRITICAL RULES:
+1. Only flag REAL gaps — do not invent problems that don't exist \
+in the data.
+2. Focus on business-relevant content:
+   - Practice area pages (for law firms)
+   - Service pages (for service businesses)
+   - Location pages (city/state targeting)
+   - FAQ or resource pages that drive traffic
+3. Do not flag minor differences in blog posts or news articles.
+4. Maximum 8 gaps. Prioritize by business impact.
+5. Be specific — name the exact page or topic that's missing.
+
+Return ONLY valid JSON. No markdown. No code fences. Just JSON.
+
+Response format:
+{
+  "overall_assessment": "2-3 sentences summarizing the competitive \
+content gap situation",
+  "gaps": [
+    {
+      "gap_type": "missing_page",
+      "title": "Missing: Personal Injury Attorney page",
+      "description": "2 of 3 competitors have a dedicated personal \
+injury page. Client only has a general services page.",
+      "competitors_with_this": ["Johnson Law", "Smith & Associates"],
+      "estimated_search_volume": "high",
+      "suggested_action": "Create a dedicated Personal Injury \
+Attorney page targeting local keywords",
+      "suggested_page_title": "Personal Injury Attorney in San \
+Antonio, TX",
+      "priority": "high"
+    }
+  ]
+}
+
+gap_type options:
+- missing_page: competitor has a page client doesn't
+- keyword_gap: competitor targets keywords client ignores
+- thin_content: client has the page but it's much shorter
+- missing_section: client page exists but missing key info"""
+
+
+def analyze_competitor_gaps(client, client_pages, competitor_data):
+    """
+    Hand the crawl results to Claude and parse a strict-JSON gap
+    list back. Returns `(result_dict, tokens_used)` and never
+    raises — failures yield an empty `gaps` list with an
+    apologetic assessment so the caller can still save a
+    `complete` (just empty) report.
+    """
+    import json as _json
+
+    import requests as http_requests
+
+    fallback = (
+        {'overall_assessment': 'Analysis could not be completed.',
+         'gaps': []},
+        0,
+    )
+    if not settings.ANTHROPIC_API_KEY:
+        return fallback
+
+    client_page_titles = [p['title'] for p in client_pages]
+    client_paths = [p['path'] for p in client_pages]
+    competitor_summaries = []
+    for comp in competitor_data:
+        competitor_summaries.append({
+            'name': comp['competitor_name'],
+            'domain': comp['competitor_domain'],
+            'page_count': len(comp.get('pages', [])),
+            'page_titles': [p['title']
+                            for p in comp.get('pages', [])[:20]],
+            'paths': [p['path']
+                      for p in comp.get('pages', [])[:20]],
+        })
+
+    user_message = (
+        f"Analyze content gaps for this client vs their "
+        f"competitors:\n\n"
+        f"CLIENT: {client.firm_name}\n"
+        f"Business type: {client.business_type or 'unspecified'}\n"
+        f"Location: {client.city or '?'}, {client.state or '?'}\n\n"
+        f"CLIENT'S PAGES ({len(client_pages)} total):\n"
+        f"Titles: {_json.dumps(client_page_titles[:25])}\n"
+        f"Paths: {_json.dumps(client_paths[:25])}\n\n"
+        f"COMPETITORS:\n"
+        f"{_json.dumps(competitor_summaries, indent=2)}\n\n"
+        "Find genuine content gaps where competitors have pages "
+        "or topics the client is missing."
+    )
+
+    try:
+        response = http_requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': settings.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            json={
+                'model': MODEL_CONTENT,
+                'max_tokens': 2000,
+                'system': _GAP_SYSTEM_PROMPT,
+                'messages': [
+                    {'role': 'user', 'content': user_message},
+                ],
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        body = response.json()
+        ai_text = body['content'][0]['text']
+        usage = body.get('usage', {}) or {}
+        tokens = (int(usage.get('input_tokens', 0) or 0)
+                  + int(usage.get('output_tokens', 0) or 0))
+        result = _json.loads(_strip_json_fences(ai_text))
+        # Ensure shape.
+        if not isinstance(result, dict):
+            return fallback
+        result.setdefault('overall_assessment', '')
+        result.setdefault('gaps', [])
+        if not isinstance(result['gaps'], list):
+            result['gaps'] = []
+        return result, tokens
+    except Exception:
+        logger.exception(
+            'competitor gap analysis failed for %s', client.pk)
+        return fallback

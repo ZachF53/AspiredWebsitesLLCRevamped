@@ -228,6 +228,26 @@
         <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:intelligence_suggestions' %}">View All Suggestions</a>
     </p>
 
+    {# ── Competitor gaps rollup ─────────────────────────────── #}
+    <h3 class="bi-section-title" style="font-size:16px; margin-top:24px;">Competitor Gaps</h3>
+    <div class="droplet-stats">
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ gap_reports_run }}</span>
+            <span class="droplet-stat__label">Analyses complete</span>
+        </div>
+        <div class="droplet-stat {% if gap_high_priority %}droplet-stat--orange{% endif %}">
+            <span class="droplet-stat__num">{{ gap_high_priority }}</span>
+            <span class="droplet-stat__label">High-priority gaps found</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #10B981;">
+            <span class="droplet-stat__num">{{ gap_suggestions_created }}</span>
+            <span class="droplet-stat__label">Suggestions created from gaps</span>
+        </div>
+    </div>
+    <p style="margin-top: 10px;">
+        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:competitor_gaps_list' %}">View All Gap Reports</a>
+    </p>
+
     {# ── Section 4: Daily Focus ───────────────────────────────── #}
     <h2 class="bi-section-title">Your Focus Today</h2>
     {% include "admin_dashboard/_daily_focus.html" with daily_focus=daily_focus %}

@@ -1,0 +1,35 @@
+{# HTMX fragment — add/edit competitor inline form. #}
+<form class="competitor-form"
+      {% if competitor %}id="comp-{{ competitor.id }}"{% endif %}
+      hx-post="{{ form_url }}"
+      hx-target="#competitors-box"
+      hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="form-row form-row--split">
+        <label>Competitor name *
+            <input type="text" name="name" required maxlength="200"
+                   value="{{ competitor.name|default:'' }}"
+                   placeholder="e.g. Johnson & Associates Law">
+        </label>
+        <label>Website URL *
+            <input type="url" name="domain" required maxlength="200"
+                   value="{{ competitor.domain|default:'' }}"
+                   placeholder="https://competitorlaw.com">
+        </label>
+    </div>
+    <div class="form-row">
+        <label>Notes (optional)
+            <input type="text" name="notes" maxlength="300"
+                   value="{{ competitor.notes|default:'' }}"
+                   placeholder="Main competitor for personal injury cases">
+        </label>
+    </div>
+    <div class="admin-form__actions">
+        <button type="submit" class="btn-primary btn-sm">{% if competitor %}Save{% else %}Add Competitor{% endif %}</button>
+        <button type="button" class="btn-secondary btn-sm"
+                hx-get="{% if competitor %}{% url 'admin_dashboard:client_detail' client.id %}?refresh_competitors=1{% else %}{% endif %}"
+                hx-target="#competitors-add-slot"
+                hx-swap="innerHTML"
+                onclick="document.getElementById('competitors-add-slot').innerHTML=''; return false;">Cancel</button>
+    </div>
+</form>
