@@ -969,3 +969,467 @@ def command_edit(request, cred_id, cmd_id):
 
     return render(request, 'vault/_command_form.html',
                   {'credential': cred, 'cmd': cmd, 'form': form})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 6d — AI Ops Agent
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Architecture in one screen:
+#
+#   ops_agent      GET — renders the split-panel page; auto-creates an
+#                  OpsSession on first hit and stores its id on the
+#                  Django session keyed by credential.
+#
+#   ops_chat       POST {message, session_id} — one Claude turn.
+#                  Calls reporting.ai.claude_complete with the system
+#                  prompt + full conversation, extracts any commands
+#                  from the reply, classifies each via ops_safety, and
+#                  returns {agent_message, safe_commands,
+#                  dangerous_commands, tokens_used}. Safe commands are
+#                  auto-executed client-side; dangerous ones surface a
+#                  safety-gate card.
+#
+#   ops_execute    POST {command, session_id, approved_by_human} —
+#                  one paramiko round trip. Refuses dangerous commands
+#                  without explicit approval (defence-in-depth: the
+#                  classification runs on BOTH sides).
+#
+#   ops_deny       POST {command, session_id} — records the denial,
+#                  inserts a system-flagged user message into the
+#                  conversation, and lets the JS poll /chat/ for the
+#                  agent's alternative.
+#
+#   ops_end_session POST {session_id} — stamps ended_at / duration
+#                   and clears the per-credential session pointer.
+#
+#   ops_sessions_list / ops_session_replay — read-only audit log.
+
+@admin_required
+def ops_agent(request, cred_id):
+    """
+    Render the AI Ops Agent page. Requires vault unlocked + TOTP
+    verified; auto-creates an OpsSession on first hit (one per
+    credential per Django session). The server context snapshot is
+    taken right here so the conversation reflects what the box
+    actually looks like at session start.
+    """
+    from .models import OpsSession
+    from .ops_context import get_server_context
+
+    config = VaultConfig.get()
+    if not _vault_session_authenticated(request, config):
+        return redirect(
+            f"{reverse('vault:home')}?next={request.path}")
+
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    vault_key = get_vault_key(request)
+
+    sess_key = f'ops_session_{cred_id}'
+    ops_session = None
+    sid = request.session.get(sess_key)
+    if sid:
+        ops_session = OpsSession.objects.filter(
+            id=sid, ended_at__isnull=True).first()
+
+    if ops_session is None:
+        context_snapshot = get_server_context(cred, vault_key)
+        ops_session = OpsSession.objects.create(
+            credential=cred,
+            client=getattr(cred.vault, 'client', None),
+            context_snapshot=context_snapshot,
+        )
+        request.session[sess_key] = str(ops_session.id)
+        _log('ssh_connected', request,
+             client_name=(cred.vault.client.firm_name
+                          if cred.vault.client else ''),
+             credential_label=cred.label,
+             note=f'AI Ops session started: {ops_session.id}')
+
+    return render(request, 'vault/ops_agent.html', {
+        'credential': cred,
+        'ops_session': ops_session,
+        'client': getattr(cred.vault, 'client', None),
+        'context_snapshot': ops_session.context_snapshot,
+        'host_hint': _host_hint(cred, vault_key),
+        'command_groups': _command_groups(cred),
+        'recent_sessions': (
+            OpsSession.objects.filter(credential=cred)
+            .exclude(id=ops_session.id)
+            .order_by('-started_at')[:3]),
+    })
+
+
+# ── HTTP helpers shared by the four POST endpoints ─────────────────────────
+
+def _ops_json_loads(request):
+    """Parse a JSON POST body; return {} on empty / bad input."""
+    import json
+    try:
+        return json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _ops_session_for(request, cred):
+    """
+    Look up the active OpsSession id from the Django session, with
+    the request body session_id as a fallback. The body lookup matters
+    when the page was reloaded but the JS still holds the old id.
+    """
+    from .models import OpsSession
+
+    data = _ops_json_loads(request)
+    sid = data.get('session_id') or request.session.get(
+        f'ops_session_{cred.id}')
+    if not sid:
+        return None, data
+    return OpsSession.objects.filter(id=sid).first(), data
+
+
+@admin_required
+@require_POST
+def ops_chat(request, cred_id):
+    """
+    One Claude turn for the AI Ops Agent.
+    Body: message, session_id.
+    Returns: agent_message, safe_commands, dangerous_commands,
+             tokens_used, session_id.
+    """
+    from django.http import JsonResponse
+    from django.utils import timezone as dj_timezone
+
+    from reporting.ai import (
+        MODEL_CHAT, AIError, AINotConfigured, claude_complete,
+    )
+    from .ops_context import build_system_prompt
+    from .ops_safety import (
+        check_command_safety, extract_commands_from_response,
+    )
+
+    config = VaultConfig.get()
+    if not _vault_session_authenticated(request, config):
+        return JsonResponse(
+            {'error': 'Vault session expired — please re-unlock.'},
+            status=401)
+
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    ops_session, data = _ops_session_for(request, cred)
+    if ops_session is None:
+        return JsonResponse(
+            {'error': 'No active session.'}, status=400)
+
+    user_message = (data.get('message') or '').strip()
+    if not user_message:
+        return JsonResponse(
+            {'error': 'Empty message.'}, status=400)
+
+    now_iso = dj_timezone.now().isoformat()
+    conversation = list(ops_session.conversation or [])
+    conversation.append({
+        'role': 'user',
+        'content': user_message,
+        'timestamp': now_iso,
+    })
+
+    scan_summary = None
+    if ops_session.client_id:
+        try:
+            latest_scan = (
+                ops_session.client.vulnerability_scans
+                .filter(status='complete')
+                .order_by('-completed_at').first()
+            )
+            if latest_scan:
+                scan_summary = (
+                    f"Last scan: {latest_scan.completed_at.date()} — "
+                    f"Critical: {latest_scan.critical_count}, "
+                    f"High: {latest_scan.high_count}, "
+                    f"Medium: {latest_scan.medium_count}"
+                )
+        except Exception:
+            pass
+    system_prompt = build_system_prompt(
+        credential=cred, client=ops_session.client,
+        context=ops_session.context_snapshot or {},
+        scan_summary=scan_summary,
+    )
+
+    api_messages = [
+        {'role': m['role'], 'content': m['content']}
+        for m in conversation[-50:]
+    ]
+    try:
+        agent_message = claude_complete(
+            api_messages, system=system_prompt,
+            model=MODEL_CHAT, max_tokens=2048)
+    except AINotConfigured:
+        return JsonResponse({
+            'error': 'ANTHROPIC_API_KEY is not configured on the server.',
+        }, status=500)
+    except AIError as exc:
+        return JsonResponse({
+            'error': f'Claude API error: {exc}',
+        }, status=500)
+
+    conversation.append({
+        'role': 'assistant',
+        'content': agent_message,
+        'timestamp': dj_timezone.now().isoformat(),
+    })
+
+    # claude_complete wrapper doesn't surface token usage today; treat
+    # missing tokens as zero so the JSONField just stays put. Future
+    # extension: switch to the SDK directly here and read usage.
+    tokens_used = 0
+
+    commands = extract_commands_from_response(agent_message)
+    safe_commands, dangerous_commands = [], []
+    for cmd in commands:
+        safety = check_command_safety(cmd)
+        if safety['is_dangerous']:
+            dangerous_commands.append({
+                'command': cmd,
+                'reason': safety['reason'],
+            })
+        else:
+            safe_commands.append(cmd)
+
+    ops_session.conversation = conversation
+    ops_session.total_tokens_used = (
+        (ops_session.total_tokens_used or 0) + tokens_used)
+    ops_session.save(update_fields=[
+        'conversation', 'total_tokens_used', 'updated_at'])
+
+    return JsonResponse({
+        'agent_message': agent_message,
+        'safe_commands': safe_commands,
+        'dangerous_commands': dangerous_commands,
+        'tokens_used': tokens_used,
+        'session_id': str(ops_session.id),
+    })
+
+
+@admin_required
+@require_POST
+def ops_execute(request, cred_id):
+    """
+    Run one shell command over SSH and log it to the OpsSession.
+
+    Body: command, session_id, approved_by_human?.
+    Returns: output, exit_code, command, was_dangerous, approved.
+
+    Defence-in-depth: re-classifies safety here, even if the JS posts
+    approved_by_human=True for something that shouldn't be flagged.
+    """
+    from django.http import JsonResponse
+    from django.utils import timezone as dj_timezone
+
+    from .ops_context import open_ssh_for_credential
+    from .ops_safety import check_command_safety
+
+    config = VaultConfig.get()
+    if not _vault_session_authenticated(request, config):
+        return JsonResponse(
+            {'error': 'Vault session expired — please re-unlock.'},
+            status=401)
+
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    ops_session, data = _ops_session_for(request, cred)
+    if ops_session is None:
+        return JsonResponse(
+            {'error': 'No active session.'}, status=400)
+
+    command = (data.get('command') or '').strip()
+    if not command:
+        return JsonResponse(
+            {'error': 'No command provided.'}, status=400)
+    approved_by_human = bool(data.get('approved_by_human'))
+
+    safety = check_command_safety(command)
+    if safety['is_dangerous'] and not approved_by_human:
+        return JsonResponse({
+            'error': 'dangerous_command',
+            'reason': safety['reason'],
+            'command': command,
+        }, status=400)
+
+    vault_key = get_vault_key(request)
+    full_output, exit_code = '', -1
+    try:
+        ssh = open_ssh_for_credential(cred, vault_key)
+        try:
+            _, stdout, stderr = ssh.exec_command(command, timeout=60)
+            out = stdout.read().decode('utf-8', errors='replace')
+            err = stderr.read().decode('utf-8', errors='replace')
+            exit_code = stdout.channel.recv_exit_status()
+            full_output = out
+            if err:
+                full_output += f'\n[stderr]: {err}'
+        finally:
+            try:
+                ssh.close()
+            except Exception:
+                pass
+    except Exception as exc:  # noqa: BLE001
+        full_output = f'SSH Error: {exc}'
+        exit_code = -1
+
+    truncated = full_output[:5000]
+    if len(full_output) > 5000:
+        truncated += '\n[…output truncated…]'
+
+    command_record = {
+        'command': command,
+        'output': truncated,
+        'exit_code': exit_code,
+        'timestamp': dj_timezone.now().isoformat(),
+        'was_dangerous': safety['is_dangerous'],
+        'approved_by_human': approved_by_human,
+        'denied_by_human': False,
+    }
+    cmds = list(ops_session.commands_executed or [])
+    cmds.append(command_record)
+    ops_session.commands_executed = cmds
+
+    if safety['is_dangerous'] and approved_by_human:
+        approved = list(ops_session.dangerous_commands_approved or [])
+        approved.append({
+            'command': command,
+            'reason': safety['reason'],
+            'timestamp': dj_timezone.now().isoformat(),
+        })
+        ops_session.dangerous_commands_approved = approved
+
+    ops_session.save(update_fields=[
+        'commands_executed', 'dangerous_commands_approved',
+        'updated_at'])
+
+    return JsonResponse({
+        'output': full_output,
+        'exit_code': exit_code,
+        'command': command,
+        'was_dangerous': safety['is_dangerous'],
+        'approved': approved_by_human,
+    })
+
+
+@admin_required
+@require_POST
+def ops_deny(request, cred_id):
+    """
+    Record a human denial of a dangerous command. Adds a system-
+    flagged user message to the conversation so the next /chat/ call
+    forces the agent to either justify or work around it.
+    """
+    from django.http import JsonResponse
+    from django.utils import timezone as dj_timezone
+
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    ops_session, data = _ops_session_for(request, cred)
+    if ops_session is None:
+        return JsonResponse(
+            {'error': 'No active session.'}, status=400)
+
+    command = (data.get('command') or '').strip()
+    if not command:
+        return JsonResponse(
+            {'error': 'No command provided.'}, status=400)
+
+    now_iso = dj_timezone.now().isoformat()
+    denied = list(ops_session.dangerous_commands_denied or [])
+    denied.append({'command': command, 'timestamp': now_iso})
+    ops_session.dangerous_commands_denied = denied
+
+    conv = list(ops_session.conversation or [])
+    conv.append({
+        'role': 'user',
+        'content': (
+            f'I denied running this command: `{command}`. Please find '
+            f'an alternative approach that does not require this '
+            f'command, or explain why it is necessary.'),
+        'timestamp': now_iso,
+        'is_system': True,
+    })
+    ops_session.conversation = conv
+    ops_session.save(update_fields=[
+        'dangerous_commands_denied', 'conversation', 'updated_at'])
+    return JsonResponse({'denied': True})
+
+
+@admin_required
+@require_POST
+def ops_end_session(request, cred_id):
+    """Close out the active OpsSession + clear the session pointer."""
+    from django.http import JsonResponse
+    from django.utils import timezone as dj_timezone
+
+    cred = get_object_or_404(
+        VaultCredential, id=cred_id, is_ssh_credential=True)
+    ops_session, _data = _ops_session_for(request, cred)
+    if ops_session is None:
+        return JsonResponse({'ended': True})
+
+    if ops_session.ended_at is None:
+        ops_session.ended_at = dj_timezone.now()
+        ops_session.duration_seconds = int(
+            (ops_session.ended_at - ops_session.started_at)
+            .total_seconds())
+        ops_session.save(update_fields=[
+            'ended_at', 'duration_seconds', 'updated_at'])
+
+    request.session.pop(f'ops_session_{cred.id}', None)
+    return JsonResponse({'ended': True})
+
+
+@admin_required
+def ops_sessions_list(request):
+    """Read-only list of every AI Ops session, newest first."""
+    from .models import OpsSession
+    sessions = (OpsSession.objects
+                .select_related('credential', 'client')
+                .order_by('-started_at')[:200])
+    return render(request, 'vault/ops_sessions_list.html', {
+        'active': 'ops', 'sessions': sessions,
+    })
+
+
+@admin_required
+def ops_session_replay(request, session_id):
+    """
+    Read-only replay of one session — every message, every command,
+    every approve/deny in time order.
+    """
+    from .models import OpsSession
+    sess = get_object_or_404(
+        OpsSession.objects.select_related('credential', 'client'),
+        id=session_id,
+    )
+    timeline = []
+    for m in (sess.conversation or []):
+        timeline.append({
+            'kind': 'message',
+            'role': m.get('role', 'user'),
+            'content': m.get('content', ''),
+            'timestamp': m.get('timestamp', ''),
+            'is_system': bool(m.get('is_system')),
+        })
+    for c in (sess.commands_executed or []):
+        timeline.append({
+            'kind': 'command',
+            'command': c.get('command', ''),
+            'output': c.get('output', ''),
+            'exit_code': c.get('exit_code'),
+            'timestamp': c.get('timestamp', ''),
+            'was_dangerous': bool(c.get('was_dangerous')),
+            'approved_by_human': bool(c.get('approved_by_human')),
+        })
+    timeline.sort(key=lambda x: x.get('timestamp', ''))
+
+    return render(request, 'vault/ops_session_replay.html', {
+        'active': 'ops', 'sess': sess, 'timeline': timeline,
+    })

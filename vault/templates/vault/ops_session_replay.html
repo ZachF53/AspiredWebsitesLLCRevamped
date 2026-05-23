@@ -1,0 +1,69 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}AI Ops Replay — {{ sess.credential.label }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo;
+                <a href="{% url 'vault:ops_sessions_list' %}">AI Ops Sessions</a> &rsaquo;
+                {{ sess.started_at|date:"Y-m-d H:i" }}
+            </span>
+            <h1 class="admin-page-title">{{ sess.credential.label }} — Replay</h1>
+            <p class="admin-page-sub">
+                {{ sess.started_at|date:"M j, Y H:i:s" }}
+                {% if sess.duration_seconds %} · {{ sess.duration_seconds }}s{% elif not sess.ended_at %} · <span class="scan-status scan-status--running">live</span>{% endif %}
+                {% if sess.client %} · <a href="{% url 'admin_dashboard:client_detail' sess.client.id %}">{{ sess.client.firm_name }}</a>{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <section class="droplet-metric-card">
+        <h2>Summary</h2>
+        <ul class="droplet-meta-list">
+            <li><strong>Messages</strong> {{ sess.conversation|length }}</li>
+            <li><strong>Commands run</strong> {{ sess.commands_executed|length }}</li>
+            <li><strong>Approved (dangerous)</strong> {{ sess.dangerous_commands_approved|length }}</li>
+            <li><strong>Denied (dangerous)</strong> {{ sess.dangerous_commands_denied|length }}</li>
+            <li><strong>Tokens</strong> {{ sess.total_tokens_used }}</li>
+        </ul>
+    </section>
+
+    <section class="droplet-metric-card">
+        <h2>Timeline</h2>
+        <div class="ops-replay">
+            {% for ev in timeline %}
+                {% if ev.kind == 'message' %}
+                    <article class="ops-replay-msg ops-replay-msg--{{ ev.role }} {% if ev.is_system %}ops-replay-msg--system{% endif %}">
+                        <header class="ops-replay-msg__head">
+                            <span class="ops-replay-msg__role">
+                                {% if ev.role == 'assistant' %}Agent{% elif ev.is_system %}System{% else %}Operator{% endif %}
+                            </span>
+                            <time>{{ ev.timestamp }}</time>
+                        </header>
+                        <pre class="ops-replay-msg__body">{{ ev.content }}</pre>
+                    </article>
+                {% else %}
+                    <article class="ops-replay-cmd {% if ev.was_dangerous %}ops-replay-cmd--dangerous{% endif %} {% if ev.exit_code and ev.exit_code != 0 %}ops-replay-cmd--failed{% endif %}">
+                        <header class="ops-replay-cmd__head">
+                            <code class="ops-replay-cmd__line">$ {{ ev.command }}</code>
+                            <span class="ops-cmd__badge {% if ev.was_dangerous and ev.approved_by_human %}ops-cmd__badge--approved{% endif %}">
+                                {% if ev.was_dangerous %}{% if ev.approved_by_human %}approved{% else %}executed{% endif %}{% else %}executed{% endif %}
+                            </span>
+                            {% if ev.exit_code is not None %}<span class="ops-cmd__badge {% if ev.exit_code != 0 %}ops-cmd__badge--failed{% endif %}">exit {{ ev.exit_code }}</span>{% endif %}
+                            <time>{{ ev.timestamp }}</time>
+                        </header>
+                        <pre class="ops-replay-cmd__output">{{ ev.output|default:"(no output)" }}</pre>
+                    </article>
+                {% endif %}
+            {% empty %}
+                <p class="droplet-muted">Empty session.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <p><a class="btn-secondary" href="{% url 'vault:ops_sessions_list' %}">&larr; All sessions</a></p>
+</div>
+{% endblock %}

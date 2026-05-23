@@ -24,6 +24,7 @@
             <span id="session-timer">--:--</span>
         </div>
         <div class="term-bar__seg term-bar__seg--right">
+            <a href="{% url 'vault:ops_agent' credential.id %}" class="term-btn term-btn--teal">Open AI Ops</a>
             <button type="button" id="cmd-library-btn" class="term-btn term-btn--teal">Command Library</button>
             <button type="button" id="disconnect-btn" class="term-btn term-btn--danger">Disconnect</button>
         </div>

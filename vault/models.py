@@ -245,3 +245,64 @@ class VaultAccessLog(TimestampedModel):
 
     def __str__(self):
         return f'{self.action} — {self.created_at}'
+
+
+class OpsSession(TimestampedModel):
+    """
+    A complete AI Ops Agent session against one SSH credential.
+
+    Every chat turn, every command suggested + executed (or denied), and
+    the server-state snapshot taken at session start all land here. The
+    session row is the source of truth for replay — a Session Replay
+    page reconstructs the entire conversation verbatim from
+    `conversation`, `commands_executed`, and the two dangerous-command
+    lists.
+    """
+
+    credential = models.ForeignKey(
+        VaultCredential, on_delete=models.CASCADE,
+        related_name='ops_sessions',
+    )
+    client = models.ForeignKey(
+        'clients.ClientProfile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ops_sessions',
+    )
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.IntegerField(null=True, blank=True)
+
+    # Full conversation history: list of
+    #   {role: 'user'|'assistant', content: str, timestamp: iso,
+    #    is_system?: bool}
+    # System-flagged user messages (denials, etc.) render differently
+    # in the replay so it's clear they weren't typed by the operator.
+    conversation = models.JSONField(default=list, blank=True)
+
+    # Every command actually run on the box: list of
+    #   {command, output, exit_code, timestamp,
+    #    was_dangerous, approved_by_human, denied_by_human}
+    commands_executed = models.JSONField(default=list, blank=True)
+
+    # Safety-gate decisions — duplicates info on commands_executed but
+    # keeps an at-a-glance list for the session replay header.
+    dangerous_commands_approved = models.JSONField(
+        default=list, blank=True)
+    dangerous_commands_denied = models.JSONField(
+        default=list, blank=True)
+
+    total_tokens_used = models.IntegerField(default=0)
+
+    # Server-state snapshot taken once at session start so a later
+    # replay can show what the box looked like when the conversation
+    # began.
+    context_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        verbose_name = 'AI Ops Session'
+        verbose_name_plural = 'AI Ops Sessions'
+
+    def __str__(self):
+        return (f'{self.credential.label} — '
+                f"{self.started_at.strftime('%Y-%m-%d %H:%M')}")

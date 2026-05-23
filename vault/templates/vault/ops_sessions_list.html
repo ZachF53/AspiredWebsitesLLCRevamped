@@ -1,0 +1,61 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}AI Ops Sessions — Vault{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'vault:home' %}">Vault</a> &rsaquo; AI Ops Sessions</span>
+            <h1 class="admin-page-title">AI Ops Sessions</h1>
+            <p class="admin-page-sub">Every conversation, every command, every approve/deny — recorded.</p>
+        </div>
+    </div>
+
+    {% if sessions %}
+        <div class="droplet-table-wrap">
+            <table class="droplet-table">
+                <thead>
+                    <tr>
+                        <th>Server</th>
+                        <th>Client</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th>Messages</th>
+                        <th>Commands</th>
+                        <th>Safety gate</th>
+                        <th>Tokens</th>
+                        <th class="droplet-table__actions">Replay</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessions %}
+                        <tr>
+                            <td class="droplet-name">{{ s.credential.label }}</td>
+                            <td>
+                                {% if s.client %}
+                                    <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                                {% else %}<span class="droplet-muted">—</span>{% endif %}
+                            </td>
+                            <td><time datetime="{{ s.started_at }}">{{ s.started_at|date:"Y-m-d H:i" }}</time></td>
+                            <td>{% if s.duration_seconds %}{{ s.duration_seconds }}s{% elif not s.ended_at %}<span class="scan-status scan-status--running">live</span>{% else %}—{% endif %}</td>
+                            <td>{{ s.conversation|length }}</td>
+                            <td>{{ s.commands_executed|length }}</td>
+                            <td>
+                                <span class="scan-pill scan-pill--low">{{ s.dangerous_commands_approved|length }} approved</span>
+                                <span class="scan-pill scan-pill--high">{{ s.dangerous_commands_denied|length }} denied</span>
+                            </td>
+                            <td>{{ s.total_tokens_used }}</td>
+                            <td class="droplet-table__actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'vault:ops_session_replay' s.id %}">View Replay</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty"><p>No AI Ops sessions yet. Start one from any SSH credential — click the AI Ops button.</p></div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Ops — {{ credential.label }}</title>
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+</head>
+<body class="ops-body">
+<div class="ops-agent"
+     data-cred-id="{{ credential.id }}"
+     data-session-id="{{ ops_session.id }}"
+     data-chat-url="{% url 'vault:ops_chat' credential.id %}"
+     data-execute-url="{% url 'vault:ops_execute' credential.id %}"
+     data-deny-url="{% url 'vault:ops_deny' credential.id %}"
+     data-end-url="{% url 'vault:ops_end' credential.id %}"
+     data-home-url="{% url 'vault:home' %}">
+
+    {# CSRF token for the JS layer to pull from #}
+    <form style="display:none">{% csrf_token %}</form>
+
+    <header class="ops-bar">
+        <div class="ops-bar__seg ops-bar__seg--left">
+            <strong>{{ credential.label }}</strong>
+            <span class="ops-bar__hint">{{ host_hint }}</span>
+        </div>
+        <div class="ops-bar__seg ops-bar__seg--center">
+            <span class="ops-bar__brand">AI Ops Agent</span>
+        </div>
+        <div class="ops-bar__seg ops-bar__seg--right">
+            <a class="term-btn" href="{% url 'vault:ops_sessions_list' %}">View Logs</a>
+            <a class="term-btn term-btn--teal" href="{% url 'vault:terminal' credential.id %}">Open Terminal</a>
+            <button type="button" id="ops-end-btn" class="term-btn term-btn--danger">End Session</button>
+        </div>
+    </header>
+
+    <main class="ops-main">
+        {# LEFT — Chat #}
+        <section class="ops-chat-panel">
+            <div id="ops-chat" class="ops-chat" aria-live="polite"></div>
+
+            <div class="ops-typing" id="ops-typing" hidden>
+                <span class="ops-dot"></span>
+                <span class="ops-dot"></span>
+                <span class="ops-dot"></span>
+                <span class="ops-typing__label">Agent is thinking…</span>
+            </div>
+
+            <div class="ops-input-area">
+                <textarea id="ops-input"
+                          class="ops-input"
+                          rows="3"
+                          placeholder="Describe the problem or give an instruction… (Ctrl+Enter to send)"
+                          autofocus></textarea>
+                <button type="button" id="ops-send-btn" class="btn-primary">Send</button>
+            </div>
+        </section>
+
+        {# RIGHT — Server context + quick commands + stats + history #}
+        <aside class="ops-side-panel">
+            <details class="ops-side-block" open>
+                <summary>Server state</summary>
+                <dl class="ops-state">
+                    <dt>Supervisor</dt>
+                    <dd><pre>{{ context_snapshot.supervisorctl_status|default:"—" }}</pre></dd>
+                    <dt>Disk</dt>
+                    <dd><pre>{{ context_snapshot.disk_usage|default:"—" }}</pre></dd>
+                    <dt>Memory</dt>
+                    <dd><pre>{{ context_snapshot.memory_usage|default:"—" }}</pre></dd>
+                    <dt>Uptime</dt>
+                    <dd>{{ context_snapshot.uptime|default:"—" }}</dd>
+                    <dt>Nginx</dt>
+                    <dd>{{ context_snapshot.nginx_status|default:"—" }}</dd>
+                    {% if context_snapshot.connection_error %}
+                        <dt>Connection</dt>
+                        <dd class="ops-state__err">{{ context_snapshot.connection_error }}</dd>
+                    {% endif %}
+                </dl>
+            </details>
+
+            <details class="ops-side-block">
+                <summary>Quick commands</summary>
+                <p class="ops-side-block__hint">Sends a message to the agent; agent decides whether and how to run it.</p>
+                {% if command_groups %}
+                    {% for group in command_groups %}
+                        <div class="ops-quickgroup">
+                            <div class="ops-quickgroup__label">{{ group.label }}</div>
+                            {% for c in group.items %}
+                                <button type="button" class="ops-quickcmd"
+                                        data-ops-quick-cmd="{{ c.command }}">
+                                    {{ c.label }}{% if c.is_dangerous %} ⚠{% endif %}
+                                </button>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="ops-side-block__hint">No quick commands defined yet. Add some in the credential's command library.</p>
+                {% endif %}
+            </details>
+
+            <details class="ops-side-block" open>
+                <summary>Session stats</summary>
+                <dl class="ops-state ops-state--compact">
+                    <dt>Messages</dt><dd id="ops-stat-messages">0</dd>
+                    <dt>Commands</dt><dd id="ops-stat-cmds">0</dd>
+                    <dt>Approved</dt><dd id="ops-stat-approved">0</dd>
+                    <dt>Denied</dt><dd id="ops-stat-denied">0</dd>
+                    <dt>Tokens</dt><dd id="ops-stat-tokens">0</dd>
+                </dl>
+            </details>
+
+            {% if recent_sessions %}
+                <details class="ops-side-block">
+                    <summary>Recent sessions</summary>
+                    <ul class="ops-recent">
+                        {% for s in recent_sessions %}
+                            <li>
+                                <a href="{% url 'vault:ops_session_replay' s.id %}">
+                                    {{ s.started_at|date:"M j, H:i" }}
+                                </a>
+                                <small>
+                                    {{ s.commands_executed|length }} cmd{{ s.commands_executed|length|pluralize }}
+                                    {% if s.duration_seconds %} · {{ s.duration_seconds }}s{% endif %}
+                                </small>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+            {% endif %}
+        </aside>
+    </main>
+</div>
+
+<script src="{% static 'js/ops-agent.js' %}" defer></script>
+</body>
+</html>

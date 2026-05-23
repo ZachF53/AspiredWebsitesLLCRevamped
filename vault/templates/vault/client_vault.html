@@ -75,6 +75,7 @@
                                 <span class="vault-cred__actions">
                                     {% if item.is_ssh_credential %}
                                         <a class="btn-primary btn-sm vault-connect-btn" href="{% url 'vault:terminal' item.id %}">Connect &rarr;</a>
+                                        <a class="btn-secondary btn-sm vault-ops-btn" href="{% url 'vault:ops_agent' item.id %}">AI Ops</a>
                                         <a class="btn-secondary btn-sm" href="{% url 'vault:command_library' item.id %}">Commands</a>
                                     {% endif %}
                                     <a class="btn-secondary btn-sm" href="{% url 'vault:edit_credential' client.id item.id %}">Edit</a>
