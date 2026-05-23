@@ -194,6 +194,14 @@
             <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scans_list' %}?client={{ client.id }}">View All Scans</a>
         </form>
         <div id="scan-launch-result"></div>
+
+        <div class="client-scan-autosend">
+            {% include "admin_dashboard/_auto_send_scans_toggle.html" with client=client %}
+            <p class="client-scan-summary client-scan-summary--hint">
+                When on, completed scans email the PDF directly to the client
+                {% if client.user.email %}({{ client.user.email }}){% else %}— but no email is on file yet{% endif %}.
+            </p>
+        </div>
     </section>
 </div>
 {% endblock %}

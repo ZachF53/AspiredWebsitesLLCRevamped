@@ -1,0 +1,17 @@
+{# HTMX partial — swapped in place by toggle_auto_send_scans. Keeps the
+   same id so subsequent toggles still resolve the hx-target. #}
+<label class="auto-send-toggle" id="auto-send-toggle-{{ client.id }}">
+    <button type="button"
+            class="auto-send-toggle__switch {% if client.auto_send_scan_reports %}is-on{% endif %}"
+            hx-post="{% url 'admin_dashboard:toggle_auto_send_scans' client.id %}"
+            hx-target="#auto-send-toggle-{{ client.id }}"
+            hx-swap="outerHTML"
+            aria-pressed="{{ client.auto_send_scan_reports|yesno:'true,false' }}"
+            aria-label="Auto-send security reports to client">
+        <span class="auto-send-toggle__knob"></span>
+    </button>
+    <span class="auto-send-toggle__label">
+        Auto-send security reports
+        {% if client.auto_send_scan_reports %}<strong>on</strong>{% else %}<strong>off</strong>{% endif %}
+    </span>
+</label>

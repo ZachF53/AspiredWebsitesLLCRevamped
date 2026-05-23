@@ -105,6 +105,15 @@ urlpatterns = [
     path('scans/<uuid:scan_id>/', views.scan_detail, name='scan_detail'),
     path('scans/findings/<uuid:finding_id>/status/',
          views.update_finding_status, name='finding_status'),
+    # Phase 6c Part 3 — PDF + send-to-client + auto-send toggle
+    path('scans/<uuid:scan_id>/generate-pdf/',
+         views.generate_scan_pdf_view, name='scan_generate_pdf'),
+    path('scans/<uuid:scan_id>/download-pdf/',
+         views.download_scan_pdf, name='scan_download_pdf'),
+    path('scans/<uuid:scan_id>/send-to-client/',
+         views.send_scan_report, name='scan_send_report'),
+    path('clients/<uuid:client_id>/toggle-auto-send-scans/',
+         views.toggle_auto_send_scans, name='toggle_auto_send_scans'),
 
     # Phase 5b — AI chatbot
     path('clients/<uuid:client_id>/chatbot/', views.client_chatbot, name='client_chatbot'),

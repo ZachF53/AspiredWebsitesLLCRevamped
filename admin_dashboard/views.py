@@ -2557,6 +2557,193 @@ def scan_detail(request, scan_id):
 
 @admin_required
 @require_POST
+def generate_scan_pdf_view(request, scan_id):
+    """
+    (Re-)generate the PDF for a completed scan. Returns a small HTML
+    banner the scan-detail page swaps in via HTMX with a Download link.
+    """
+    from reporting.models import VulnerabilityScan
+    from reporting.scan_runner import generate_scan_pdf
+
+    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
+    pdf_path = generate_scan_pdf(str(scan.id))
+    if not pdf_path:
+        return HttpResponse(
+            '<div class="scan-banner scan-banner--error">'
+            'PDF generation failed — check server logs.'
+            '</div>', status=500)
+    download_url = reverse(
+        'admin_dashboard:scan_download_pdf', args=[scan.id])
+    return HttpResponse(
+        f'<div class="scan-banner scan-banner--info">'
+        f'PDF generated. '
+        f'<a href="{download_url}">Download report &rarr;</a>'
+        f'</div>')
+
+
+@admin_required
+def download_scan_pdf(request, scan_id):
+    """
+    Serve the rendered scan PDF (or HTML fallback) as an attachment.
+    `pdf_path` on the scan is RELATIVE to MEDIA_ROOT.
+    """
+    import os
+
+    from django.http import FileResponse, Http404
+    from reporting.models import VulnerabilityScan
+
+    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
+    if not scan.pdf_path:
+        raise Http404('Report not generated yet.')
+    abs_path = os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
+    if not os.path.exists(abs_path):
+        raise Http404('Report file missing on disk.')
+
+    slug = scan.client.firm_name.replace(' ', '-')
+    month = (scan.completed_at or scan.created_at).strftime('%Y-%m')
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+    filename = f'security-report-{slug}-{month}{ext}'
+
+    return FileResponse(
+        open(abs_path, 'rb'),
+        as_attachment=True,
+        filename=filename,
+        content_type=('application/pdf'
+                      if ext == '.pdf' else 'text/html'),
+    )
+
+
+@admin_required
+@require_POST
+def send_scan_report(request, scan_id):
+    """
+    Email the scan PDF to the client via SendGrid. Generates the PDF
+    first if it isn't on disk yet. Updates `sent_to_client` + `sent_at`
+    on the scan record so the button can flip to "Resend Report".
+    Returns an HTMX-friendly HTML banner.
+    """
+    import base64
+    import os
+
+    from reporting.models import VulnerabilityScan
+    from reporting.scan_runner import generate_scan_pdf
+
+    scan = get_object_or_404(
+        VulnerabilityScan.objects.select_related('client'), id=scan_id)
+    client = scan.client
+
+    def _banner(kind, msg, status=200):
+        return HttpResponse(
+            f'<div class="scan-banner scan-banner--{kind}">{msg}</div>',
+            status=status)
+
+    # Make sure the PDF exists.
+    abs_path = (os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
+                if scan.pdf_path else None)
+    if not abs_path or not os.path.exists(abs_path):
+        generate_scan_pdf(str(scan.id))
+        scan.refresh_from_db()
+        abs_path = (os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
+                    if scan.pdf_path else None)
+    if not abs_path or not os.path.exists(abs_path):
+        return _banner('error', 'Could not generate PDF.', status=500)
+
+    client_email = client.user.email if client.user else ''
+    if not client_email:
+        return _banner(
+            'error', 'No email address on file for this client.',
+            status=400)
+
+    month_str = (scan.completed_at or scan.created_at).strftime('%B %Y')
+
+    if scan.critical_count or scan.high_count:
+        severity_line = (
+            f"{scan.critical_count} critical and {scan.high_count} "
+            f"high severity issue(s) were identified that require "
+            f"attention.")
+    else:
+        severity_line = (
+            "No critical or high severity issues were detected. "
+            "Your site is in good standing.")
+
+    contact_name = client.contact_name or client.firm_name
+    html_content = (
+        f"<p>Hi {contact_name},</p>"
+        f"<p>Please find attached your monthly security assessment "
+        f"report for {month_str}.</p>"
+        f"<p>{severity_line}</p>"
+        f"<p>The full report is attached as a PDF. You can also log "
+        f"into your portal to view your security history:</p>"
+        f"<p><a href='{settings.SITE_BASE_URL}/portal/security/'>"
+        f"View Your Portal</a></p>"
+        f"<p>If you have any questions about the findings, please "
+        f"don't hesitate to reach out.</p>"
+        f"<p>— Zachery Long<br>"
+        f"Aspired Websites LLC<br>"
+        f"210-896-2536<br>"
+        f"zacherylong@aspiredwebsites.com</p>"
+    )
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import (
+            Attachment, Disposition, FileContent, FileName,
+            FileType, Mail,
+        )
+    except ImportError:
+        return _banner(
+            'error', 'SendGrid SDK not installed.', status=500)
+
+    message = Mail(
+        from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
+                           settings.DEFAULT_FROM_EMAIL),
+        to_emails=client_email,
+        subject=(f'Your Security Report — {month_str} — '
+                 f'{client.firm_name}'),
+        html_content=html_content,
+    )
+    with open(abs_path, 'rb') as fh:
+        encoded = base64.b64encode(fh.read()).decode()
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
+    attachment = Attachment(
+        FileContent(encoded),
+        FileName(f'security-report-{month_str}{ext}'),
+        FileType(mime),
+        Disposition('attachment'),
+    )
+    message.attachment = attachment
+
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        sg.send(message)
+    except Exception as exc:  # noqa: BLE001 — surface to operator
+        return _banner(
+            'error', f'SendGrid error: {str(exc)[:200]}', status=500)
+
+    scan.sent_to_client = True
+    scan.sent_at = timezone.now()
+    scan.save(update_fields=[
+        'sent_to_client', 'sent_at', 'updated_at'])
+
+    return _banner('info', f'Report sent to {client_email}.')
+
+
+@admin_required
+@require_POST
+def toggle_auto_send_scans(request, client_id):
+    """HTMX toggle — flip ClientProfile.auto_send_scan_reports."""
+    from clients.models import ClientProfile
+    client = get_object_or_404(ClientProfile, id=client_id)
+    client.auto_send_scan_reports = not client.auto_send_scan_reports
+    client.save(update_fields=['auto_send_scan_reports', 'updated_at'])
+    return render(request,
+                  'admin_dashboard/_auto_send_scans_toggle.html',
+                  {'client': client})
+
+
+@admin_required
+@require_POST
 def update_finding_status(request, finding_id):
     """
     HTMX POST: change a VulnerabilityFinding's status.

@@ -1,0 +1,94 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Security Reports{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Security Reports</h1>
+    <p class="portal-page-head__sub">Monthly vulnerability assessments of your website.</p>
+</header>
+
+{% if not latest %}
+    <section class="portal-section">
+        <div class="portal-empty portal-empty--centered">
+            <svg class="portal-empty__icon" viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M24 4L8 10v12c0 10 7 19.5 16 20 9-.5 16-10 16-20V10L24 4z" fill="none" stroke="#0d9488" stroke-width="2"/>
+                <path d="M18 24l4 4 8-8" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2>No security reports yet</h2>
+            <p>Your first security assessment will run automatically 30 days after launch.</p>
+        </div>
+    </section>
+{% else %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Latest Assessment</h2>
+        <article class="portal-security-card">
+            <p class="portal-security-card__date">
+                {{ latest.completed_at|date:"F j, Y" }}
+            </p>
+
+            <div class="portal-security-pills">
+                {% if latest.critical_count %}<span class="portal-sev portal-sev--critical">{{ latest.critical_count }} Critical</span>{% endif %}
+                {% if latest.high_count %}<span class="portal-sev portal-sev--high">{{ latest.high_count }} High</span>{% endif %}
+                {% if latest.medium_count %}<span class="portal-sev portal-sev--medium">{{ latest.medium_count }} Medium</span>{% endif %}
+                {% if latest.low_count %}<span class="portal-sev portal-sev--low">{{ latest.low_count }} Low</span>{% endif %}
+                {% if not latest.findings_count %}
+                    <span class="portal-sev portal-sev--clean">✓ All clear</span>
+                {% endif %}
+            </div>
+
+            {% if not latest.findings_count %}
+                <p class="portal-security-card__clean">
+                    <span class="portal-security-card__check">✓</span>
+                    No issues found — your site is secure.
+                </p>
+            {% elif open_critical_or_high %}
+                <p class="portal-security-card__warn">
+                    Your latest report contains findings that need attention. Open the PDF for the full details and recommendations.
+                </p>
+            {% else %}
+                <p class="portal-security-card__ok">
+                    Only low- or medium-severity findings were detected. Review the full report for details.
+                </p>
+            {% endif %}
+
+            {% if latest.pdf_path %}
+                <a class="btn-primary" href="{% url 'clients:portal_scan_download' latest.id %}">Download Report (PDF)</a>
+            {% else %}
+                <span class="portal-security-card__pending">Report file is being prepared.</span>
+            {% endif %}
+        </article>
+    </section>
+{% endif %}
+
+{% if older_scans %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Previous Reports</h2>
+        <ul class="record-list">
+            {% for s in older_scans %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        <strong>{{ s.completed_at|date:"F j, Y" }}</strong>
+                        <span class="record-list__sub">
+                            {% if s.critical_count or s.high_count %}
+                                {{ s.critical_count }} critical, {{ s.high_count }} high
+                            {% elif s.findings_count %}
+                                {{ s.findings_count }} finding{{ s.findings_count|pluralize }}
+                            {% else %}
+                                All clear
+                            {% endif %}
+                        </span>
+                    </span>
+                    <span class="record-list__meta">
+                        {% if s.pdf_path %}
+                            <a class="btn-secondary btn-sm" href="{% url 'clients:portal_scan_download' s.id %}">Download</a>
+                        {% else %}
+                            <span class="portal-muted">No file</span>
+                        {% endif %}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    </section>
+{% endif %}
+{% endblock %}

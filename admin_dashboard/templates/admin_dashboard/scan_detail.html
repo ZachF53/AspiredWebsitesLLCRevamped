@@ -41,15 +41,48 @@
                 <dt>Open</dt>
                 <dd>{{ open_count }} of {{ findings_total }}</dd>
             </dl>
-            <div class="scan-header-card__actions">
+            <div class="scan-header-card__actions" id="scan-actions">
+                {% if scan.status == 'complete' %}
+                    {% if scan.pdf_path %}
+                        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:scan_download_pdf' scan.id %}">Download Report</a>
+                        <button type="button" class="btn-secondary btn-sm"
+                                hx-post="{% url 'admin_dashboard:scan_generate_pdf' scan.id %}"
+                                hx-target="#scan-action-result"
+                                hx-swap="innerHTML">Regenerate</button>
+                    {% else %}
+                        <button type="button" class="btn-primary btn-sm"
+                                hx-post="{% url 'admin_dashboard:scan_generate_pdf' scan.id %}"
+                                hx-target="#scan-action-result"
+                                hx-swap="innerHTML">Generate PDF Report</button>
+                    {% endif %}
+
+                    {% with client_email=scan.client.user.email %}
+                        {% if client_email %}
+                            <button type="button" class="btn-secondary btn-sm"
+                                    hx-post="{% url 'admin_dashboard:scan_send_report' scan.id %}"
+                                    hx-target="#scan-action-result"
+                                    hx-swap="innerHTML">
+                                {% if scan.sent_to_client %}Resend Report{% else %}Send to Client{% endif %}
+                            </button>
+                            {% if scan.sent_to_client %}
+                                <span class="scan-sent-stamp">Last sent: {{ scan.sent_at|date:"Y-m-d H:i" }}</span>
+                            {% endif %}
+                        {% else %}
+                            <button type="button" class="btn-secondary btn-sm" disabled
+                                    title="Add client email address first">Send to Client</button>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+
                 <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="droplet-inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="client_id" value="{{ scan.client.id }}">
                     <input type="hidden" name="scan_type" value="{{ scan.scan_type }}">
-                    <button type="submit" class="btn-primary btn-sm">Re-scan</button>
+                    <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
                 </form>
                 <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scans_list' %}">All scans</a>
             </div>
+            <div id="scan-action-result" class="scan-action-result"></div>
         </div>
 
         <div class="scan-header-card__right">

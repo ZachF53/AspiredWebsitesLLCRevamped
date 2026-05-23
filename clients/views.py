@@ -66,6 +66,27 @@ def _portal_context(request, active_nav, **extra):
         is_client_visible=True,
         created_at__gte=timezone.now() - timedelta(days=7),
     ).exists()
+
+    # Red-dot badge on the Security nav item — any open critical/high
+    # finding on the latest completed scan. One short query; never N+1.
+    security_has_open = False
+    try:
+        from reporting.models import VulnerabilityScan
+        latest_scan = (
+            VulnerabilityScan.objects
+            .filter(client=profile, status='complete')
+            .order_by('-completed_at').first()
+        )
+        if latest_scan:
+            security_has_open = latest_scan.findings.filter(
+                status='open',
+                severity__in=('critical', 'high'),
+            ).exists()
+    except Exception:
+        # Reporting app may not have migrated on this env yet — fall
+        # back to no badge rather than crash every portal page.
+        security_has_open = False
+
     ctx = {
         'profile': profile,
         'project': project,
@@ -75,6 +96,7 @@ def _portal_context(request, active_nav, **extra):
         'pending_revisions': pending_revisions,
         'open_tickets': open_tickets,
         'changelog_has_new': changelog_has_new,
+        'security_has_open': security_has_open,
     }
     ctx.update(extra)
     return ctx
@@ -768,6 +790,69 @@ def portal_reports(request):
         latest=reports[0] if reports else None,
     )
     return render(request, 'clients/portal_reports.html', ctx)
+
+
+@client_required
+def portal_security(request):
+    """
+    The client's security scan history — completed VulnerabilityScan
+    records ordered newest-first, with the most-recent one called out
+    in a prominent card.
+    """
+    from reporting.models import VulnerabilityScan
+
+    profile = request.client_profile
+    scans = list(
+        VulnerabilityScan.objects
+        .filter(client=profile, status='complete')
+        .order_by('-completed_at')
+    )
+    latest = scans[0] if scans else None
+    older = scans[1:]
+
+    open_critical_or_high = False
+    if latest:
+        open_critical_or_high = latest.findings.filter(
+            status='open', severity__in=('critical', 'high')
+        ).exists()
+
+    ctx = _portal_context(
+        request, 'security',
+        scans=scans,
+        latest=latest,
+        older_scans=older,
+        open_critical_or_high=open_critical_or_high,
+    )
+    return render(request, 'clients/portal_security.html', ctx)
+
+
+@client_required
+def portal_scan_download(request, scan_id):
+    """
+    Serve a completed scan's PDF to the client who owns it. 404 on
+    any cross-client access attempt. `pdf_path` is RELATIVE to MEDIA_ROOT.
+    """
+    import os
+
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+
+    from reporting.models import VulnerabilityScan
+
+    scan = get_object_or_404(
+        VulnerabilityScan,
+        id=scan_id, client=request.client_profile, status='complete',
+    )
+    if not scan.pdf_path:
+        raise Http404('Report not generated yet.')
+    abs_path = os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
+    if not os.path.exists(abs_path):
+        raise Http404('Report file not found on disk.')
+    return FileResponse(
+        open(abs_path, 'rb'),
+        as_attachment=True,
+        filename=os.path.basename(abs_path),
+    )
 
 
 @client_required

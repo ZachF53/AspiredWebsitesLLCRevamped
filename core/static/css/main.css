@@ -8148,6 +8148,158 @@ button.htmx-request {
     margin-top: 0.6rem;
 }
 
+/* ── 31f. Scan PDF buttons + auto-send toggle (admin, dark) ── */
+.scan-action-result { margin-top: 0.6rem; }
+.scan-action-result:empty { display: none; }
+.scan-sent-stamp {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-left: 0.4rem;
+}
+
+.auto-send-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-text);
+}
+.auto-send-toggle__switch {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-block;
+    width: 2.2rem;
+    height: 1.2rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.06);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    padding: 0;
+}
+.auto-send-toggle__knob {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    transition: transform 0.15s, background 0.15s;
+}
+.auto-send-toggle__switch.is-on {
+    background: rgba(13, 148, 136, 0.35);
+    border-color: rgba(13, 148, 136, 0.55);
+}
+.auto-send-toggle__switch.is-on .auto-send-toggle__knob {
+    transform: translateX(1rem);
+    background: #5EEAD4;
+}
+.auto-send-toggle__label strong {
+    margin-left: 0.25rem;
+    color: var(--color-text);
+}
+.client-scan-autosend {
+    margin-top: 0.9rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--color-border);
+}
+.client-scan-summary--hint {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin: 0.35rem 0 0;
+}
+
+/* ── 31g. Portal security page (light theme — matches portal) ── */
+.portal-empty--centered {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+.portal-empty__icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    display: block;
+}
+.portal-empty--centered h2 { margin: 0 0 0.4rem; font-size: 1.25rem; }
+
+.portal-security-card {
+    background: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.portal-security-card__date {
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+    color: #6B7280;
+}
+.portal-security-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+.portal-sev {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.portal-sev--critical { background: #FEE2E2; color: #991B1B; }
+.portal-sev--high     { background: #FFEDD5; color: #9A3412; }
+.portal-sev--medium   { background: #FEF3C7; color: #854D0E; }
+.portal-sev--low      { background: #DBEAFE; color: #1E40AF; }
+.portal-sev--clean    { background: #D1FAE5; color: #065F46; }
+
+.portal-security-card__clean {
+    color: #065F46;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.portal-security-card__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: #10B981;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+.portal-security-card__warn {
+    color: #991B1B;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+.portal-security-card__ok {
+    color: #1F2937;
+    margin: 0 0 1rem;
+    font-size: 0.92rem;
+}
+.portal-security-card__pending {
+    display: inline-block;
+    color: #6B7280;
+    font-style: italic;
+}
+
+.portal-nav__dot--alert { background: #EF4444; }
+.portal-muted { color: #6B7280; }
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

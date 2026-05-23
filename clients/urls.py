@@ -25,6 +25,9 @@ urlpatterns = [
     path('seo/', views.portal_seo, name='portal_seo'),
     path('reports/', views.portal_reports, name='portal_reports'),
     path('reports/<uuid:report_id>/download/', views.portal_report_download, name='portal_report_download'),
+    path('security/', views.portal_security, name='portal_security'),
+    path('security/<uuid:scan_id>/download/',
+         views.portal_scan_download, name='portal_scan_download'),
     path('settings/', views.settings_page, name='settings'),
 
     # Contract signing — token-gated, no login required.

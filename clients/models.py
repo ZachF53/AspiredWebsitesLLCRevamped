@@ -133,6 +133,12 @@ class ClientProfile(TimestampedModel):
     testimonial_received = models.BooleanField(default=False)
     testimonial_url = models.URLField(blank=True)
 
+    # ── Security scan delivery preferences (Phase 6c Part 3) ──
+    # When True, completed scans auto-email the PDF report to the client
+    # via SendGrid; when False, an admin gets a Needs You alert instead
+    # and decides per-scan whether to send it.
+    auto_send_scan_reports = models.BooleanField(default=False)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Client Profile'
