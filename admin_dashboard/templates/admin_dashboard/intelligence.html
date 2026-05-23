@@ -1,0 +1,211 @@
+{% extends "admin_dashboard/base.html" %}
+{% load humanize %}
+
+{% block title %}Business Intelligence — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Business</span>
+            <h1 class="admin-page-title">Business Intelligence</h1>
+            <p class="admin-page-sub">Revenue, client health, and growth metrics.</p>
+        </div>
+    </div>
+
+    {% if critical_count %}
+        <div class="tester-banner" style="border-style: solid; border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.12);">
+            <strong style="color: #FCA5A5;">⚠ {{ critical_count }} CLIENT{{ critical_count|pluralize:",S" }} AT CRITICAL HEALTH RISK</strong>
+            Review immediately — see the table below.
+        </div>
+    {% endif %}
+
+    {# ── Section 1: Revenue ───────────────────────────────────── #}
+    <h2 class="bi-section-title">Revenue</h2>
+
+    <div class="droplet-stats">
+        <div class="droplet-stat" style="border-left-color: #14B8A6;">
+            <span class="droplet-stat__num">${{ mrr_total|floatformat:0|intcomma }}</span>
+            <span class="droplet-stat__label">Monthly Recurring Revenue · {{ active_maintenance_clients }} client{{ active_maintenance_clients|pluralize }}</span>
+        </div>
+        <div class="droplet-stat droplet-stat--orange">
+            <span class="droplet-stat__num">${{ arr|floatformat:0|intcomma }}</span>
+            <span class="droplet-stat__label">Annual Recurring Revenue · projected at current MRR</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #10B981;">
+            {% if mrr_new %}
+                <span class="droplet-stat__num">+${{ mrr_new|floatformat:0|intcomma }}</span>
+                <span class="droplet-stat__label">New MRR this month · from new maintenance plans</span>
+            {% else %}
+                <span class="droplet-stat__num droplet-stat__num--sm" style="color: var(--color-text-muted);">$0</span>
+                <span class="droplet-stat__label">New MRR this month</span>
+            {% endif %}
+        </div>
+        <div class="droplet-stat" style="border-left-color: #EF4444;">
+            {% if mrr_churned %}
+                <span class="droplet-stat__num" style="color: #FCA5A5;">−${{ mrr_churned|floatformat:0|intcomma }}</span>
+                <span class="droplet-stat__label">Churned MRR this month · from cancelled plans</span>
+            {% else %}
+                <span class="droplet-stat__num droplet-stat__num--sm scan-clean">✓ No churn</span>
+                <span class="droplet-stat__label">Churned MRR this month</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── MRR Trend Chart (pure CSS bars) ────────────────────── #}
+    <section class="bi-card">
+        <header class="bi-card__head">
+            <h3>MRR Trend · last 6 months</h3>
+            {% if latest_snapshot_month %}
+                <small>most recent snapshot: {{ latest_snapshot_month|date:"M Y" }}</small>
+            {% else %}
+                <small>no snapshots yet — first will land on the 1st of next month</small>
+            {% endif %}
+        </header>
+        {% if mrr_trend %}
+            <div class="bi-chart" role="img" aria-label="MRR trend over the last 6 months">
+                {% for row in mrr_trend %}
+                    <div class="bi-chart__col">
+                        <div class="bi-chart__bar-wrap" title="${{ row.mrr|floatformat:0|intcomma }}/mo">
+                            <div class="bi-chart__bar {% if forloop.last %}bi-chart__bar--current{% endif %}"
+                                 style="height: {{ row.height_pct }}%"></div>
+                        </div>
+                        <div class="bi-chart__label">{{ row.month }}</div>
+                        <div class="bi-chart__value">${{ row.mrr|floatformat:0|intcomma }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="droplet-muted">No history yet. The trend chart will populate as monthly snapshots accumulate.</p>
+        {% endif %}
+    </section>
+
+    {# ── MRR Breakdown ──────────────────────────────────────── #}
+    <section class="bi-card">
+        <header class="bi-card__head">
+            <h3>MRR Breakdown</h3>
+        </header>
+        {% if mrr_breakdown %}
+            <div class="droplet-table-wrap" style="border-radius: 8px;">
+                <table class="droplet-table">
+                    <thead>
+                        <tr><th>Client</th><th>Plan</th><th style="text-align: right;">MRR</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in mrr_breakdown %}
+                            <tr>
+                                <td class="droplet-name">{{ row.client }}</td>
+                                <td>{{ row.plan }}</td>
+                                <td style="text-align: right;">${{ row.mrr|floatformat:0|intcomma }}/mo</td>
+                            </tr>
+                        {% endfor %}
+                        <tr style="border-top: 2px solid var(--color-border);">
+                            <td colspan="2" style="font-weight: 700;">Total</td>
+                            <td style="text-align: right; font-weight: 700;">${{ mrr_total|floatformat:0|intcomma }}/mo</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="droplet-muted">No active maintenance clients yet.</p>
+        {% endif %}
+    </section>
+
+    {# ── Forecast ──────────────────────────────────────────── #}
+    <section class="bi-card">
+        <header class="bi-card__head">
+            <h3>Revenue Forecast · next 3 months</h3>
+            <small>flat projection — assumes current MRR with no churn or growth</small>
+        </header>
+        <div class="droplet-table-wrap" style="border-radius: 8px;">
+            <table class="droplet-table">
+                <thead>
+                    <tr><th>Month</th><th>Projected MRR</th><th>Projected ARR</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in forecast %}
+                        <tr>
+                            <td>{{ row.month }}</td>
+                            <td>${{ row.projected_mrr|floatformat:0|intcomma }}</td>
+                            <td>${{ row.projected_arr|floatformat:0|intcomma }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {# ── Section 2: Client Health ─────────────────────────────── #}
+    <h2 class="bi-section-title">Client Health Scores</h2>
+
+    <div class="droplet-stats">
+        <div class="droplet-stat" style="border-left-color: #EF4444;">
+            <span class="droplet-stat__num" style="color: #FCA5A5;">{{ critical_count }}</span>
+            <span class="droplet-stat__label">🔴 Critical</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #EAB308;">
+            <span class="droplet-stat__num" style="color: #FDE68A;">{{ at_risk_count }}</span>
+            <span class="droplet-stat__label">🟡 At Risk</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #10B981;">
+            <span class="droplet-stat__num" style="color: #6EE7B7;">{{ healthy_count }}</span>
+            <span class="droplet-stat__label">🟢 Healthy</span>
+        </div>
+    </div>
+
+    {% if rows %}
+        <div class="droplet-table-wrap">
+            <table class="droplet-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Breakdown</th>
+                        <th>Last login</th>
+                        <th>Plan</th>
+                        <th class="droplet-table__actions">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                        {% with h=r.health c=r.client %}
+                            <tr>
+                                <td class="droplet-name">{{ c.firm_name }}</td>
+                                <td>
+                                    <span class="bi-score bi-score--{{ h.health_status }}">{{ h.score }}</span>
+                                </td>
+                                <td>
+                                    <span class="scan-status scan-status--{% if h.health_status == 'critical' %}failed{% elif h.health_status == 'at_risk' %}running{% else %}complete{% endif %} {% if h.health_status == 'critical' %}bi-status--pulse{% endif %}">
+                                        {{ h.get_health_status_display|upper }}
+                                    </span>
+                                </td>
+                                <td class="bi-breakdown">
+                                    <span class="bi-mini" title="Payment: {{ h.payment_score }}/100"><span class="bi-mini__bar" style="height: {{ h.payment_score }}%"></span><span class="bi-mini__label">P</span></span>
+                                    <span class="bi-mini" title="Engagement: {{ h.engagement_score }}/100"><span class="bi-mini__bar" style="height: {{ h.engagement_score }}%"></span><span class="bi-mini__label">E</span></span>
+                                    <span class="bi-mini" title="NPS: {{ h.nps_score_component }}/100"><span class="bi-mini__bar" style="height: {{ h.nps_score_component }}%"></span><span class="bi-mini__label">N</span></span>
+                                    <span class="bi-mini" title="Uptime: {{ h.uptime_score }}/100"><span class="bi-mini__bar" style="height: {{ h.uptime_score }}%"></span><span class="bi-mini__label">U</span></span>
+                                    <span class="bi-mini" title="Support: {{ h.support_score }}/100"><span class="bi-mini__bar" style="height: {{ h.support_score }}%"></span><span class="bi-mini__label">S</span></span>
+                                </td>
+                                <td>
+                                    {% if c.user.last_login %}{{ c.user.last_login|timesince }} ago{% else %}<span class="droplet-muted">never</span>{% endif %}
+                                </td>
+                                <td>{{ c.get_package_display|default:"—" }}</td>
+                                <td class="droplet-table__actions">
+                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' c.id %}">View Client</a>
+                                </td>
+                            </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty"><p>No active non-tester clients yet — nothing to score.</p></div>
+    {% endif %}
+
+    {# ── Section 3: Daily Focus ───────────────────────────────── #}
+    <h2 class="bi-section-title">Your Focus Today</h2>
+    {% include "admin_dashboard/_daily_focus.html" with daily_focus=daily_focus %}
+</div>
+{% endblock %}

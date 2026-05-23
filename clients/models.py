@@ -531,3 +531,102 @@ class UptimeAlert(TimestampedModel):
         status = 'Resolved' if self.is_resolved else 'Active'
         return f'{self.client.firm_name} — DOWN — {status}'
 
+
+
+# ── Phase 7 Part 1 — Business Intelligence ─────────────────────────────────
+
+class RevenueSnapshot(TimestampedModel):
+    """
+    Monthly revenue snapshot — captured by the Celery beat on the 1st
+    of each month so we have a real history table to plot the MRR
+    trend chart against, rather than recalculating from scratch every
+    page render.
+
+    `mrr_total` is the source of truth for THAT month; `mrr_new` and
+    `mrr_churned` are derived by comparing against the previous
+    snapshot at write time.
+    """
+
+    snapshot_month = models.DateField(
+        unique=True,
+        help_text='First day of the month, e.g. 2026-05-01.',
+    )
+
+    mrr_total = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+    mrr_new = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+    mrr_churned = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+    mrr_net_change = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+
+    active_maintenance_clients = models.IntegerField(default=0)
+    active_project_clients = models.IntegerField(default=0)
+    pipeline_value = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+    one_time_revenue = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['-snapshot_month']
+        verbose_name = 'Revenue Snapshot'
+        verbose_name_plural = 'Revenue Snapshots'
+
+    def __str__(self):
+        return (f'Revenue snapshot — '
+                f'{self.snapshot_month.strftime("%B %Y")}')
+
+
+class ClientHealthScore(TimestampedModel):
+    """
+    Daily health score per client. One row per calculation so we keep
+    a history (the dashboard plots trends; the churn-alert task
+    de-duplicates on the most recent row). Recalculated by the Celery
+    beat at 06:00 every day.
+
+    Score weights:
+      Payment 30 · Engagement 20 · NPS 20 · Uptime 20 · Support 10
+    """
+
+    HEALTH_CHOICES = [
+        ('healthy', 'Healthy'),     # score >= 70
+        ('at_risk', 'At Risk'),     # 40 <= score < 70
+        ('critical', 'Critical'),   # score < 40
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='health_scores',
+    )
+    calculated_at = models.DateTimeField(auto_now_add=True)
+
+    # Overall (0-100). Component scores are also kept so the dashboard
+    # can show the per-axis mini-bars without recalculating.
+    score = models.IntegerField(default=0)
+    payment_score = models.IntegerField(default=0)
+    engagement_score = models.IntegerField(default=0)
+    nps_score_component = models.IntegerField(default=0)
+    uptime_score = models.IntegerField(default=0)
+    support_score = models.IntegerField(default=0)
+
+    health_status = models.CharField(
+        max_length=10, choices=HEALTH_CHOICES, default='healthy')
+
+    # True iff health_status == 'critical' or payment_score == 0.
+    # Used by the churn-risk Celery alert + the Intelligence dashboard
+    # banner.
+    churn_risk = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-calculated_at']
+        verbose_name = 'Client Health Score'
+        verbose_name_plural = 'Client Health Scores'
+        indexes = [
+            models.Index(fields=['client', '-calculated_at']),
+            models.Index(fields=['health_status', '-calculated_at']),
+        ]
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'Health: {self.score}/100')

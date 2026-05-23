@@ -66,6 +66,8 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Phase 7 — intcomma / naturalday filters in the BI dashboard.
+    'django.contrib.humanize',
 ]
 
 THIRD_PARTY_APPS = [
@@ -342,6 +344,14 @@ CELERY_BEAT_SCHEDULE = {
     'check-scan-schedule': {
         'task': 'reporting.tasks.check_scan_schedule',
         'schedule': crontab(hour=3, minute=0),                    # daily 3am
+    },
+    'calculate-health-scores': {
+        'task': 'clients.tasks.calculate_all_health_scores',
+        'schedule': crontab(hour=6, minute=0),                    # daily 6am
+    },
+    'monthly-revenue-snapshot': {
+        'task': 'clients.tasks.take_monthly_revenue_snapshot',
+        'schedule': crontab(hour=1, minute=0, day_of_month=1),    # 1st 1am
     },
 }
 

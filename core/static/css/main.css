@@ -8939,6 +8939,198 @@ button.htmx-request {
     background: rgba(20, 184, 166, 0.22) !important;
 }
 
+/* ── 31k. Phase 7 — Business Intelligence dashboard ─────── */
+
+.bi-section-title {
+    margin: var(--space-4) 0 var(--space-3);
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+.bi-card {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: var(--space-3);
+}
+.bi-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+}
+.bi-card__head h3 {
+    margin: 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+.bi-card__head small {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+/* MRR trend chart — CSS bars only, no JS */
+.bi-chart {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 0.4rem;
+    align-items: end;
+    min-height: 180px;
+    padding: 0.5rem 0;
+}
+.bi-chart__col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+.bi-chart__bar-wrap {
+    width: 100%;
+    height: 140px;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.02) 0%,
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    border-radius: 4px;
+}
+.bi-chart__bar {
+    width: 100%;
+    background: linear-gradient(
+        to top, #14B8A6, #5EEAD4
+    );
+    border-radius: 4px 4px 0 0;
+    min-height: 2px;
+    transition: height 0.4s ease;
+}
+.bi-chart__bar--current {
+    background: linear-gradient(
+        to top, #E8650A, #FFB680
+    );
+}
+.bi-chart__label {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.bi-chart__value {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Health score number (big colored numeral) */
+.bi-score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    height: 2.4rem;
+    padding: 0 0.6rem;
+    border-radius: 6px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text);
+}
+.bi-score--healthy  { background: rgba(16, 185, 129, 0.22); color: #6EE7B7; }
+.bi-score--at_risk  { background: rgba(234, 179, 8, 0.22);  color: #FDE68A; }
+.bi-score--critical { background: rgba(239, 68, 68, 0.25);  color: #FCA5A5; }
+
+.bi-status--pulse { animation: bi-pulse 1.8s ease-in-out infinite; }
+@keyframes bi-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+/* Mini per-axis bars (Payment / Engagement / NPS / Uptime / Support) */
+.bi-breakdown {
+    display: flex;
+    gap: 0.35rem;
+    align-items: end;
+}
+.bi-mini {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    width: 1.6rem;
+}
+.bi-mini__bar {
+    display: block;
+    width: 0.7rem;
+    background: linear-gradient(to top, #14B8A6, #5EEAD4);
+    border-radius: 2px;
+    margin-bottom: 0.15rem;
+}
+.bi-mini__label {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Daily Focus card — orange left border */
+.bi-focus { border-left: 4px solid #E8650A; }
+.bi-focus__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.bi-focus__item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.85rem;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    border-left: 3px solid #6B7280;
+}
+.bi-focus__item--p1 { border-left-color: #EF4444; }
+.bi-focus__item--p2 { border-left-color: #F97316; }
+.bi-focus__item--p3 { border-left-color: #EAB308; }
+.bi-focus__icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+.bi-focus__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+    min-width: 0;
+}
+.bi-focus__body strong {
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+.bi-focus__body small {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+}
+.bi-focus__clear {
+    text-align: center;
+    color: #6EE7B7;
+    font-weight: 600;
+    padding: 1rem 0;
+    margin: 0;
+}
+
 /* ── 32. Reduced motion ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

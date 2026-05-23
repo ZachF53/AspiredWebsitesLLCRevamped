@@ -53,13 +53,22 @@ def _admin_context(active=None, **extra):
     Base context every admin view should merge in. Provides:
       - active: which top-nav item to highlight
       - needs_you_count: badge number for the Needs You nav item
+      - critical_health_count: badge number for the Intelligence nav
+        item (Phase 7 — cheap today-only count, single query)
     """
     needs_you_count = EmailReply.objects.filter(
         needs_human=True, handled=False
     ).count()
+    try:
+        critical_health_count = _critical_health_count()
+    except Exception:
+        # ClientHealthScore migration may not have run yet on a fresh
+        # checkout — never break the chrome over a missing table.
+        critical_health_count = 0
     ctx = {
         'active': active,
         'needs_you_count': needs_you_count,
+        'critical_health_count': critical_health_count,
     }
     ctx.update(extra)
     return ctx
@@ -107,6 +116,9 @@ def home(request):
         .order_by('-received_at')[:5]
     )
 
+    # Phase 7 Part 1 — Today's Focus widget. `get_daily_focus` is
+    # defined further down in this same file; Python resolves the
+    # name at call time so the forward reference is fine.
     return render(request, 'admin_dashboard/home.html', _admin_context(
         active='home',
         stats=stats,
@@ -114,6 +126,7 @@ def home(request):
         recent_leads=recent_leads,
         recent_emails=recent_emails,
         unhandled_replies=unhandled_replies,
+        daily_focus=get_daily_focus(),
     ))
 
 
@@ -2964,3 +2977,193 @@ def client_quick_edit_field(request, client_id):
         {'client': client, 'field': field_name,
          'label': meta['label'], 'input_type': meta['type'],
          'value': _current_value()})
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase 7 Part 1 — Business Intelligence dashboard + Daily Focus
+# ────────────────────────────────────────────────────────────────────────────
+
+# Sort key for the client-health table: critical first, then at-risk,
+# then healthy. Anything outside the choice set drops to the bottom.
+_HEALTH_SORT_ORDER = {'critical': 0, 'at_risk': 1, 'healthy': 2}
+
+
+def _critical_health_count():
+    """How many active non-tester clients currently in critical band.
+    Used by the sidebar badge + the Intelligence dashboard banner."""
+    from clients.models import ClientHealthScore
+    # Latest score per client via Subquery would be ideal, but the
+    # daily Celery beat means "any critical row from today" is a tight
+    # enough proxy; we de-duplicate on client_id in Python.
+    from django.utils import timezone as _tz
+    today = _tz.now().date()
+    rows = (ClientHealthScore.objects
+            .filter(health_status='critical',
+                    calculated_at__date=today,
+                    client__status='active',
+                    client__is_tester=False)
+            .values_list('client_id', flat=True))
+    return len(set(rows))
+
+
+def get_daily_focus():
+    """
+    Top-five-most-urgent triage list used by both the Intelligence
+    dashboard and the home page Today's Focus widget. Sorted by
+    priority (lower number = more urgent).
+    """
+    from clients.models import ClientHealthScore, ClientProfile
+
+    items = []
+    today = timezone.now().date()
+
+    # 1. Critical-band clients flagged today
+    critical_scores = (
+        ClientHealthScore.objects
+        .filter(health_status='critical',
+                churn_risk=True,
+                calculated_at__date=today)
+        .select_related('client')[:3]
+    )
+    seen_clients = set()
+    for hs in critical_scores:
+        if hs.client_id in seen_clients:
+            continue
+        seen_clients.add(hs.client_id)
+        items.append({
+            'priority': 1,
+            'icon': '🔴',
+            'title': f'Critical health risk: {hs.client.firm_name}',
+            'description': (
+                f'Health score: {hs.score}/100 — '
+                f'immediate attention needed'),
+            'url': reverse('admin_dashboard:client_detail',
+                           args=[hs.client.id]),
+            'action': 'View Client',
+        })
+
+    # 2. Scans with unsent critical findings
+    from reporting.models import VulnerabilityScan
+    critical_scans = (
+        VulnerabilityScan.objects
+        .filter(status='complete', critical_count__gt=0,
+                sent_to_client=False)
+        .select_related('client')
+        .order_by('-completed_at')[:3]
+    )
+    for scan in critical_scans:
+        items.append({
+            'priority': 2,
+            'icon': '🔴',
+            'title': (f'Critical scan findings: '
+                      f'{scan.client.firm_name}'),
+            'description': (
+                f'{scan.critical_count} critical finding'
+                f'{"" if scan.critical_count == 1 else "s"} '
+                f'not yet sent to client'),
+            'url': reverse('admin_dashboard:scan_detail',
+                           args=[scan.id]),
+            'action': 'Review Scan',
+        })
+
+    # 3. Active non-tester clients with no live URL on their live
+    #    project — uptime monitoring + scans can't run without one.
+    no_url = (ClientProfile.objects
+              .filter(status='active', is_tester=False,
+                      projects__stage='live', projects__live_url='')
+              .distinct()[:3])
+    for client in no_url:
+        items.append({
+            'priority': 3,
+            'icon': '⚠',
+            'title': f'No live URL: {client.firm_name}',
+            'description': (
+                'Uptime monitoring and scans cannot run without a '
+                'live URL'),
+            'url': reverse('admin_dashboard:client_edit',
+                           args=[client.id]),
+            'action': 'Add URL',
+        })
+
+    items.sort(key=lambda x: x['priority'])
+    return items[:5]
+
+
+@admin_required
+def intelligence_dashboard(request):
+    """
+    Business Intelligence — revenue stats + client health table +
+    Daily Focus. Admin-only; no client-facing components in this
+    phase.
+    """
+    from clients.health import get_latest_health_score
+    from clients.models import (
+        ClientHealthScore, ClientProfile, RevenueSnapshot,
+    )
+    from clients.revenue import (
+        get_current_mrr, get_mrr_trend, get_revenue_forecast,
+    )
+
+    # ── Revenue ────────────────────────────────────────────────
+    mrr = get_current_mrr()
+    mrr_trend = get_mrr_trend(months=6)
+    forecast = get_revenue_forecast(months=3)
+    arr = mrr['mrr_total'] * 12
+
+    # New + churned come from the most recent snapshot — live calc
+    # only knows total, not the deltas. Fall back to 0 when no
+    # snapshots have been taken yet (fresh install).
+    latest_snapshot = RevenueSnapshot.objects.first()
+    snap_new = (float(latest_snapshot.mrr_new)
+                if latest_snapshot else 0)
+    snap_churned = (float(latest_snapshot.mrr_churned)
+                    if latest_snapshot else 0)
+
+    # MRR trend chart bar heights — relative to the max so the
+    # tallest bar is always 100%. One pass over the data.
+    max_mrr = max(
+        (row['mrr'] for row in mrr_trend), default=0) or 1
+    for row in mrr_trend:
+        row['height_pct'] = round(row['mrr'] / max_mrr * 100)
+
+    # ── Client health ─────────────────────────────────────────
+    active_clients = (ClientProfile.objects
+                      .filter(status='active', is_tester=False)
+                      .order_by('firm_name'))
+    rows = []
+    for client in active_clients:
+        rows.append({
+            'client': client,
+            'health': get_latest_health_score(client),
+        })
+    rows.sort(key=lambda r: _HEALTH_SORT_ORDER.get(
+        r['health'].health_status, 3))
+
+    critical = sum(1 for r in rows
+                   if r['health'].health_status == 'critical')
+    at_risk = sum(1 for r in rows
+                  if r['health'].health_status == 'at_risk')
+    healthy = sum(1 for r in rows
+                  if r['health'].health_status == 'healthy')
+
+    return render(request, 'admin_dashboard/intelligence.html',
+                  _admin_context(
+                      'intelligence',
+                      mrr_total=mrr['mrr_total'],
+                      arr=arr,
+                      mrr_new=snap_new,
+                      mrr_churned=snap_churned,
+                      active_maintenance_clients=(
+                          mrr['active_maintenance_clients']),
+                      mrr_breakdown=mrr['breakdown'],
+                      mrr_trend=mrr_trend,
+                      forecast=forecast,
+                      rows=rows,
+                      critical_count=critical,
+                      at_risk_count=at_risk,
+                      healthy_count=healthy,
+                      latest_snapshot_month=(
+                          latest_snapshot.snapshot_month
+                          if latest_snapshot else None),
+                      daily_focus=get_daily_focus(),
+                  ))

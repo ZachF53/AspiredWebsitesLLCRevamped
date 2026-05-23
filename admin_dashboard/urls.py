@@ -8,6 +8,10 @@ app_name = 'admin_dashboard'
 urlpatterns = [
     path('', views.home, name='home'),
 
+    # Phase 7 Part 1 — Business Intelligence
+    path('intelligence/', views.intelligence_dashboard,
+         name='intelligence_dashboard'),
+
     # Leads
     path('leads/', views.leads_table, name='leads_table'),
     path('leads/kanban/', views.leads_kanban, name='leads_kanban'),

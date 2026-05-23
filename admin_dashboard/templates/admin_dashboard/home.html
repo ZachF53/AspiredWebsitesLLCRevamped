@@ -16,6 +16,8 @@
         </div>
     </div>
 
+    {% include "admin_dashboard/_daily_focus.html" with daily_focus=daily_focus %}
+
     <div class="admin-stat-grid">
         {% for s in stats %}
             <a class="admin-stat {% if s.urgent %}admin-stat--urgent{% endif %}"
