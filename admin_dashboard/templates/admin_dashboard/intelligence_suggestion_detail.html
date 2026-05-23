@@ -1,0 +1,182 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ s.title|truncatechars:50 }} — Intelligence — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:intelligence_suggestions' %}">Intelligence Suggestions</a> /
+                <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+            </span>
+            <h1 class="admin-page-title">{{ s.title }}</h1>
+            <p class="muted">
+                <span class="intel-type intel-type--{{ s.suggestion_type }}">{{ s.get_suggestion_type_display }}</span>
+                · <span class="intel-status intel-status--{{ s.status }}">{{ s.get_status_display }}</span>
+                · Generated {{ s.generated_at|timesince }} ago
+            </p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:intelligence_suggestions' %}">All suggestions</a>
+        </div>
+    </div>
+
+    <div class="admin-two-col">
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Client view</h2></div>
+            <h3 class="admin-subsection-title">Description</h3>
+            <p>{{ s.description|linebreaksbr }}</p>
+            {% if s.expected_impact %}
+                <h3 class="admin-subsection-title">Expected impact</h3>
+                <p>{{ s.expected_impact|linebreaksbr }}</p>
+            {% endif %}
+            {% if s.maintenance_equivalent %}
+                <h3 class="admin-subsection-title">Maintenance equivalent</h3>
+                <p>{{ s.maintenance_equivalent|linebreaksbr }}</p>
+            {% endif %}
+        </section>
+
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Facts</h2></div>
+            <dl class="admin-dl">
+                <dt>Client</dt><dd><a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a></dd>
+                <dt>One-time fee</dt><dd>{% if s.one_time_fee %}${{ s.one_time_fee|floatformat:0 }}{% else %}—{% endif %}</dd>
+                <dt>In maintenance scope</dt>
+                <dd>{% if s.is_in_maintenance_scope %}<span class="status-badge status-badge--won">Yes</span>{% else %}<span class="status-badge status-badge--proposal_sent">No</span>{% endif %}</dd>
+                <dt>Maintenance plan</dt>
+                <dd>{% if s.client.maintenance_active %}{{ s.client.get_package_display|default:"Active" }}{% else %}<span class="muted">None — one-time build</span>{% endif %}</dd>
+                {% if s.report %}
+                    <dt>Report month</dt><dd>{{ s.report.report_month|date:"F Y" }}</dd>
+                {% endif %}
+                <dt>Data sources</dt>
+                <dd>
+                    {% if s.data_sources %}
+                        {% for src in s.data_sources %}<code>{{ src }}</code>{% if not forloop.last %} · {% endif %}{% endfor %}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </dd>
+                <dt>Sent</dt>
+                <dd>{% if s.sent_to_client_at %}{{ s.sent_to_client_at|date:"M j, Y H:i" }}{% else %}<span class="muted">Not sent</span>{% endif %}</dd>
+                <dt>Client responded</dt>
+                <dd>{% if s.client_responded_at %}{{ s.client_responded_at|date:"M j, Y H:i" }}{% else %}<span class="muted">—</span>{% endif %}</dd>
+                <dt>Implemented</dt>
+                <dd>{% if s.implemented_at %}{{ s.implemented_at|date:"M j, Y" }}{% else %}<span class="muted">—</span>{% endif %}</dd>
+                {% if s.stripe_invoice_id %}
+                    <dt>Stripe invoice</dt>
+                    <dd>
+                        <code>{{ s.stripe_invoice_id }}</code>
+                        {% if s.stripe_invoice_url %} · <a href="{{ s.stripe_invoice_url }}" target="_blank" rel="noopener">Hosted page →</a>{% endif %}
+                    </dd>
+                {% endif %}
+            </dl>
+        </section>
+    </div>
+
+    {% if s.implementation_notes %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Implementation notes <span class="muted">(internal only)</span></h2></div>
+            <p>{{ s.implementation_notes|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    {% if s.dismissal_reason %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Dismissal reason</h2></div>
+            <p>{{ s.dismissal_reason }}</p>
+        </section>
+    {% endif %}
+
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Actions</h2></div>
+        <div class="prop-actions">
+            {% if 'approved_to_send' in allowed_transitions %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="approved_to_send">
+                    <button type="submit" class="btn-primary">Approve to Send</button>
+                </form>
+            {% endif %}
+
+            {% if s.status == 'approved_to_send' %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_send' s.id %}" style="display:inline;"
+                      onsubmit="return confirm('Send this suggestion to {{ s.client.firm_name|escapejs }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary">Send to Client</button>
+                </form>
+            {% endif %}
+
+            {% if s.status == 'sent_to_client' %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="client_approved">
+                    <button type="submit" class="btn-primary">Mark Client Approved</button>
+                </form>
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="client_declined">
+                    <button type="submit" class="btn-secondary">Mark Client Declined</button>
+                </form>
+            {% endif %}
+
+            {% if s.status == 'client_approved' %}
+                {% if s.is_in_maintenance_scope %}
+                    <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                        {% csrf_token %}<input type="hidden" name="status" value="in_scope">
+                        <button type="submit" class="btn-primary">Move to In-Scope Queue</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_invoice' s.id %}" style="display:inline;"
+                          onsubmit="return confirm('Create a Stripe invoice for ${{ s.one_time_fee|floatformat:0 }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary">Generate Stripe Invoice</button>
+                    </form>
+                {% endif %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="implemented">
+                    <button type="submit" class="btn-secondary">Mark Implemented</button>
+                </form>
+            {% endif %}
+
+            {% if s.status == 'in_scope' or s.status == 'out_of_scope_offered' %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="implemented">
+                    <button type="submit" class="btn-primary">Mark Implemented</button>
+                </form>
+            {% endif %}
+
+            {% if 'dismissed' in allowed_transitions %}
+                <details class="ref-conv-detail">
+                    <summary class="btn-secondary btn-sm">Dismiss</summary>
+                    <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" class="ref-conv-form">
+                        {% csrf_token %}<input type="hidden" name="status" value="dismissed">
+                        <label>
+                            Reason (required for audit trail)
+                            <input type="text" name="reason" required maxlength="300" placeholder="Why dismiss this?">
+                        </label>
+                        <button type="submit" class="btn-secondary btn-sm">Confirm Dismiss</button>
+                    </form>
+                </details>
+            {% endif %}
+
+            {% if s.status == 'dismissed' %}
+                <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_set_status' s.id %}" style="display:inline;">
+                    {% csrf_token %}<input type="hidden" name="status" value="pending_review">
+                    <button type="submit" class="btn-secondary">Re-open</button>
+                </form>
+            {% endif %}
+        </div>
+
+        {% if s.status == 'sent_to_client' %}
+            <p class="muted text-sm" style="margin-top:14px;">
+                Client magic links —
+                <a href="{{ s.get_response_url|stringformat:'%s' }}" style="display:none;"></a>
+                approve: <code>{{ s.response_token }}</code>
+            </p>
+        {% endif %}
+    </section>
+
+    <details class="admin-section" style="margin-top:18px;">
+        <summary class="admin-section__header" style="cursor:pointer; list-style:revert;">
+            <h2 style="display:inline;">AI reasoning (raw)</h2>
+        </summary>
+        <pre class="ops-pre">{{ s.ai_reasoning }}</pre>
+    </details>
+</div>
+{% endblock %}

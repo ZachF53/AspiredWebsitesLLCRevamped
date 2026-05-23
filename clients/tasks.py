@@ -14,6 +14,7 @@ Beat entries live in `AspiredWebsitesRevamped/settings.py` under
 CELERY_BEAT_SCHEDULE.
 """
 
+import json
 import logging
 from datetime import timedelta
 
@@ -168,6 +169,113 @@ def check_case_study_prompts():
             logger.exception(
                 'case-study prompt email failed for %s', client.pk)
     return f'Sent {sent} case-study prompt(s).'
+
+
+@shared_task
+def run_intelligence_for_client(client_id):
+    """
+    Run the Website Intelligence Engine for a single client. Creates
+    an `IntelligenceReport` row plus one `IntelligenceSuggestion`
+    per suggestion Claude returned.
+
+    Idempotent at month-grain: if a report row already exists for
+    this client + this calendar month, returns without re-running
+    (so an admin running the monthly beat twice is a no-op).
+
+    Returns a short summary string for Celery logs / shell calls.
+    """
+    from datetime import date
+
+    from clients.intelligence import run_intelligence_analysis
+    from clients.models import (
+        ClientProfile, IntelligenceReport, IntelligenceSuggestion,
+    )
+
+    try:
+        client = ClientProfile.objects.get(id=client_id)
+    except ClientProfile.DoesNotExist:
+        return f'Client {client_id} not found.'
+
+    report_month = date.today().replace(day=1)
+    existing = (IntelligenceReport.objects
+                .filter(client=client, report_month=report_month)
+                .first())
+    if existing:
+        return (f'Already ran for {client.firm_name} '
+                f'this month ({report_month.isoformat()}).')
+
+    result = run_intelligence_analysis(client)
+    suggestions = result.get('suggestions') or []
+
+    if result.get('error') and not suggestions:
+        status = 'failed'
+    elif not suggestions:
+        status = 'no_suggestions'
+    else:
+        status = 'complete'
+
+    report = IntelligenceReport.objects.create(
+        client=client,
+        report_month=report_month,
+        data_snapshot=result.get('data_snapshot', {}) or {},
+        overall_assessment=result.get('overall_assessment', '') or '',
+        suggestions_count=len(suggestions),
+        status=status,
+        total_tokens_used=int(result.get('tokens_used', 0) or 0),
+    )
+
+    valid_types = {choice for choice, _
+                   in IntelligenceSuggestion.SUGGESTION_TYPE_CHOICES}
+    for s in suggestions:
+        s_type = (s.get('type') or 'other').strip().lower()
+        if s_type not in valid_types:
+            s_type = 'other'
+        try:
+            fee = float(s.get('one_time_fee') or 0)
+        except (TypeError, ValueError):
+            fee = 0
+        IntelligenceSuggestion.objects.create(
+            client=client,
+            report=report,
+            suggestion_type=s_type,
+            title=(s.get('title') or '')[:300],
+            description=s.get('description', '') or '',
+            expected_impact=s.get('expected_impact', '') or '',
+            implementation_notes=s.get('implementation_notes', '') or '',
+            one_time_fee=fee,
+            maintenance_equivalent=s.get(
+                'maintenance_equivalent', '') or '',
+            is_in_maintenance_scope=bool(
+                s.get('is_in_maintenance_scope')),
+            data_sources=s.get('data_sources') or [],
+            ai_reasoning=json.dumps(s, default=str),
+            status='pending_review',
+        )
+
+    return (f'{client.firm_name}: {len(suggestions)} '
+            f'suggestion(s), status={status}.')
+
+
+@shared_task
+def run_monthly_intelligence():
+    """
+    Trigger `run_intelligence_for_client` for every active non-tester
+    client on the 15th of the month. Staggers calls 30 seconds apart
+    so a busy month doesn't bunch-up against the Anthropic rate limit.
+    """
+    from clients.models import ClientProfile
+
+    clients = list(
+        ClientProfile.objects
+        .filter(status='active', is_tester=False)
+        .order_by('firm_name')
+    )
+    for i, client in enumerate(clients):
+        run_intelligence_for_client.apply_async(
+            args=[str(client.id)],
+            countdown=i * 30,
+        )
+    return f'Queued {len(clients)} client analyses.'
 
 
 @shared_task

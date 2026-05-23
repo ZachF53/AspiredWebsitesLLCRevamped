@@ -9358,3 +9358,172 @@ button.htmx-request {
 .proposal-pending__card h1 {
     color: #E8650A; font-size: 24px; margin: 16px 0 8px 0;
 }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 3 — Website Intelligence & Upsell Engine
+   Admin dark theme only. Dark tokens for every surface.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Suggestion type chips (admin table + detail) ── */
+.intel-type {
+    display: inline-block; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid var(--color-border);
+    background: rgba(255,255,255,0.04);
+    color: var(--color-text-muted);
+}
+.intel-type--seo         { color: #FFB870; border-color: rgba(255, 184, 112, 0.4); background: rgba(255, 184, 112, 0.10); }
+.intel-type--performance { color: #93C5FD; border-color: rgba(147, 197, 253, 0.4); background: rgba(147, 197, 253, 0.10); }
+.intel-type--content     { color: #C4B5FD; border-color: rgba(196, 181, 253, 0.4); background: rgba(196, 181, 253, 0.10); }
+.intel-type--security    { color: var(--color-danger); border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.10); }
+.intel-type--conversion  { color: var(--color-orange-light); border-color: rgba(255, 123, 30, 0.4); background: rgba(255, 123, 30, 0.10); }
+.intel-type--keyword     { color: var(--color-teal-light); border-color: rgba(20, 184, 166, 0.4); background: rgba(20, 184, 166, 0.10); }
+.intel-type--competitor  { color: #F0ABFC; border-color: rgba(240, 171, 252, 0.4); background: rgba(240, 171, 252, 0.10); }
+.intel-type--technical   { color: #FCD34D; border-color: rgba(252, 211, 77, 0.4); background: rgba(252, 211, 77, 0.10); }
+.intel-type--design      { color: #FBA5C8; border-color: rgba(251, 165, 200, 0.4); background: rgba(251, 165, 200, 0.10); }
+
+/* ── Suggestion status pills (admin + portal share these tokens) ── */
+.intel-status {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid var(--color-border);
+    background: rgba(255,255,255,0.04);
+    color: var(--color-text-muted);
+}
+.intel-status--pending_review        { color: #FCD34D; border-color: rgba(252, 211, 77, 0.4); background: rgba(252, 211, 77, 0.10); }
+.intel-status--approved_to_send      { color: var(--color-teal-light); border-color: rgba(20, 184, 166, 0.4); background: rgba(20, 184, 166, 0.10); }
+.intel-status--sent_to_client        { color: var(--color-orange-light); border-color: rgba(255, 123, 30, 0.4); background: rgba(255, 123, 30, 0.10); }
+.intel-status--client_approved       { color: var(--color-success); border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.10); }
+.intel-status--in_scope              { color: var(--color-success); border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.10); }
+.intel-status--out_of_scope_offered  { color: var(--color-orange); border-color: rgba(232, 101, 10, 0.4); background: rgba(232, 101, 10, 0.10); }
+.intel-status--implemented           { color: var(--color-success); border-color: rgba(74, 222, 128, 0.55); background: rgba(74, 222, 128, 0.15); }
+.intel-status--client_declined       { color: var(--color-danger); border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.10); }
+.intel-status--dismissed             { color: var(--color-text-muted); border-color: var(--color-border); background: rgba(255,255,255,0.03); }
+
+.intel-row-title {
+    font-weight: 600; color: var(--color-text);
+}
+
+.intel-filter-bar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+    margin-bottom: 16px;
+}
+.intel-filter-bar label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--color-text-muted);
+    font-weight: 500;
+}
+.intel-filter-bar select,
+.intel-filter-bar input[type=month] {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 7px 10px; border-radius: 8px;
+    font: inherit; font-size: 13px; min-width: 140px;
+}
+
+.client-intel { margin-top: 24px; }
+.client-intel .admin-section__header {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap;
+}
+
+.banner {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text); border-radius: 8px;
+    padding: 10px 14px; margin: 10px 0;
+}
+.banner--info {
+    background: rgba(20, 184, 166, 0.10);
+    border-color: rgba(20, 184, 166, 0.4);
+    color: var(--color-teal-light);
+}
+
+/* Reusable in suggestion detail "raw AI" pre block. */
+.ops-pre {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 12px 14px; border-radius: 8px;
+    overflow-x: auto; max-height: 360px;
+    white-space: pre-wrap; word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px; line-height: 1.5;
+}
+
+/* ── Client portal — recommendations list ── */
+.portal-suggestions { max-width: 880px; }
+.rec-list { display: flex; flex-direction: column; gap: 16px; margin-top: 18px; }
+.rec-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-border-strong);
+    border-radius: 12px;
+    padding: 18px 22px;
+}
+.rec-card--sent_to_client { border-left-color: var(--color-orange); }
+.rec-card--client_approved,
+.rec-card--in_scope,
+.rec-card--implemented { border-left-color: var(--color-success); }
+.rec-card--client_declined,
+.rec-card--dismissed { border-left-color: var(--color-text-muted); }
+.rec-card--out_of_scope_offered { border-left-color: var(--color-orange-light); }
+
+.rec-card__head {
+    display: flex; justify-content: space-between; gap: 12px;
+    align-items: flex-start; margin-bottom: 8px;
+}
+.rec-card__title { margin: 4px 0 0 0; font-size: 18px; color: var(--color-text); }
+.rec-card__desc { color: var(--color-text); margin: 8px 0; }
+.rec-card__impact {
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.25);
+    color: var(--color-text);
+    padding: 10px 14px; border-radius: 8px; margin: 8px 0;
+}
+.rec-card__meta {
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    margin: 10px 0; color: var(--color-text-muted); font-size: 13px;
+}
+.rec-investment { color: var(--color-text); }
+.rec-investment--included { color: var(--color-success); }
+.rec-card__actions {
+    display: flex; gap: 10px; margin-top: 14px;
+}
+
+.rec-type {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--color-border);
+}
+.rec-type--seo         { color: #FFB870; border-color: rgba(255, 184, 112, 0.4); }
+.rec-type--performance { color: #93C5FD; border-color: rgba(147, 197, 253, 0.4); }
+.rec-type--content     { color: #C4B5FD; border-color: rgba(196, 181, 253, 0.4); }
+.rec-type--security    { color: var(--color-danger); border-color: rgba(248, 113, 113, 0.4); }
+.rec-type--conversion  { color: var(--color-orange-light); border-color: rgba(255, 123, 30, 0.4); }
+.rec-type--keyword     { color: var(--color-teal-light); border-color: rgba(20, 184, 166, 0.4); }
+
+.rec-status {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--color-border);
+}
+.rec-status--sent_to_client       { color: var(--color-orange-light); border-color: rgba(255, 123, 30, 0.4); }
+.rec-status--client_approved,
+.rec-status--in_scope,
+.rec-status--implemented          { color: var(--color-success); border-color: rgba(74, 222, 128, 0.4); }
+.rec-status--client_declined,
+.rec-status--dismissed            { color: var(--color-text-muted); }
+.rec-status--out_of_scope_offered { color: var(--color-orange); border-color: rgba(232, 101, 10, 0.4); }
+
+.portal-nav__dot--alert { background: var(--color-orange); }

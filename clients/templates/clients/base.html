@@ -71,6 +71,11 @@
                     <span>Security</span>
                     {% if security_has_open %}<span class="portal-nav__dot portal-nav__dot--alert" aria-label="Open security findings"></span>{% endif %}
                 </a>
+                <a class="portal-nav__link {% if active_portal_nav == 'suggestions' %}is-active{% endif %}" href="{% url 'clients:portal_suggestions' %}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 4h4M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.5 1 2.3v1h6v-1c0-.8.3-1.7 1-2.3A7 7 0 0 0 12 2z"/></svg>
+                    <span>Recommendations</span>
+                    {% if portal_suggestions_pending %}<span class="portal-nav__dot portal-nav__dot--alert" aria-label="Pending recommendation"></span>{% endif %}
+                </a>
                 <a class="portal-nav__link {% if active_portal_nav == 'referral' %}is-active{% endif %}" href="{% url 'clients:portal_referral' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
                     <span>Refer a Friend</span>

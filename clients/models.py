@@ -860,3 +860,169 @@ class CaseStudy(TimestampedModel):
             (self.metric_3_label, self.metric_3_value),
         ]
         return [(lbl, val) for lbl, val in pairs if lbl and val]
+
+
+# ── Phase 7 Part 3 — Website Intelligence & Upsell Engine ──────────────────
+
+class IntelligenceReport(TimestampedModel):
+    """
+    One monthly Claude-driven analysis run per client. Groups every
+    `IntelligenceSuggestion` generated in the same pass and records the
+    raw data snapshot Claude was reasoning over (so we can replay or
+    audit any individual suggestion later).
+    """
+
+    STATUS_CHOICES = [
+        ('complete', 'Complete'),
+        ('failed', 'Failed'),
+        ('no_suggestions', 'No Suggestions'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='intelligence_reports',
+    )
+    report_month = models.DateField(
+        help_text='First day of the month, e.g. 2026-05-01.')
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    # Everything Claude saw — uptime, keywords, scan counts, GBP
+    # mismatches, content freshness, health score, etc.
+    data_snapshot = models.JSONField(default=dict, blank=True)
+
+    suggestions_count = models.IntegerField(default=0)
+
+    # Plain-English summary Claude returned alongside the suggestions.
+    overall_assessment = models.TextField(blank=True)
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='complete')
+
+    total_tokens_used = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-report_month']
+        unique_together = ['client', 'report_month']
+        verbose_name = 'Intelligence Report'
+        verbose_name_plural = 'Intelligence Reports'
+        indexes = [
+            models.Index(fields=['client', '-report_month']),
+        ]
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — Intelligence '
+                f'{self.report_month.strftime("%B %Y")}')
+
+
+class IntelligenceSuggestion(TimestampedModel):
+    """
+    A single improvement opportunity Claude surfaced for a client.
+
+    Workflow:
+        pending_review → approved_to_send → sent_to_client
+           → client_approved → in_scope OR out_of_scope_offered
+           → implemented
+        (anywhere → dismissed / client_declined)
+    """
+
+    SUGGESTION_TYPE_CHOICES = [
+        ('seo', 'SEO Improvement'),
+        ('performance', 'Performance'),
+        ('content', 'Content Update'),
+        ('security', 'Security Fix'),
+        ('conversion', 'Conversion Optimization'),
+        ('keyword', 'Keyword Opportunity'),
+        ('competitor', 'Competitor Gap'),
+        ('technical', 'Technical Issue'),
+        ('design', 'Design Update'),
+        ('other', 'Other'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending_review', 'Pending Admin Review'),
+        ('approved_to_send', 'Approved to Send'),
+        ('sent_to_client', 'Sent to Client'),
+        ('client_approved', 'Client Approved'),
+        ('client_declined', 'Client Declined'),
+        ('in_scope', 'In Scope — Approved'),
+        ('out_of_scope_offered', 'Out of Scope — Offer Sent'),
+        ('implemented', 'Implemented'),
+        ('dismissed', 'Dismissed'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='intelligence_suggestions',
+    )
+    # Set when generated as part of a batch — null if created by hand.
+    report = models.ForeignKey(
+        IntelligenceReport, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='suggestions',
+    )
+
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    suggestion_type = models.CharField(
+        max_length=20, choices=SUGGESTION_TYPE_CHOICES,
+        default='other')
+
+    title = models.CharField(max_length=300)
+    description = models.TextField()
+    expected_impact = models.TextField(blank=True)
+    # Internal — never shown to client.
+    implementation_notes = models.TextField(blank=True)
+
+    one_time_fee = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
+    maintenance_equivalent = models.TextField(blank=True)
+
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES,
+        default='pending_review')
+
+    is_in_maintenance_scope = models.BooleanField(default=False)
+
+    # Stripe one-time invoice for out-of-scope upsells.
+    stripe_invoice_id = models.CharField(max_length=100, blank=True)
+    stripe_invoice_url = models.URLField(blank=True)
+
+    sent_to_client_at = models.DateTimeField(null=True, blank=True)
+    client_responded_at = models.DateTimeField(null=True, blank=True)
+    implemented_at = models.DateTimeField(null=True, blank=True)
+
+    # Reason captured at dismiss time — admin-only audit trail.
+    dismissal_reason = models.CharField(max_length=300, blank=True)
+
+    # Per-suggestion magic-link token for the public approve / decline
+    # endpoints. The client never has to log in to respond.
+    response_token = models.UUIDField(
+        default=uuid.uuid4, unique=True, editable=False)
+
+    # Provenance — which data streams informed this suggestion.
+    data_sources = models.JSONField(default=list, blank=True)
+    # Raw Claude response for the single suggestion — kept for audit.
+    ai_reasoning = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-generated_at']
+        verbose_name = 'Intelligence Suggestion'
+        verbose_name_plural = 'Intelligence Suggestions'
+        indexes = [
+            models.Index(fields=['status', '-generated_at']),
+            models.Index(fields=['client', '-generated_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.client.firm_name} — {self.title[:60]}'
+
+    def get_response_url(self, action):
+        """Build the public approve/decline magic-link URL."""
+        if action not in ('approve', 'decline'):
+            raise ValueError(action)
+        return (f'https://aspiredwebsites.com'
+                f'/intelligence/respond/{self.response_token}/{action}/')
+
+    @property
+    def is_actionable_by_client(self):
+        """True when the client can still approve/decline this."""
+        return self.status == 'sent_to_client'

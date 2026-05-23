@@ -153,6 +153,26 @@ urlpatterns = [
     path('proposals/<uuid:proposal_id>/status/',
          views.proposal_set_status, name='proposal_set_status'),
 
+    # Phase 7 Part 3 — Website Intelligence & Upsell Engine
+    path('intelligence/suggestions/',
+         views.intelligence_suggestions,
+         name='intelligence_suggestions'),
+    path('intelligence/suggestions/<uuid:suggestion_id>/',
+         views.intelligence_suggestion_detail,
+         name='intelligence_suggestion_detail'),
+    path('intelligence/suggestions/<uuid:suggestion_id>/status/',
+         views.intelligence_suggestion_set_status,
+         name='intelligence_suggestion_set_status'),
+    path('intelligence/suggestions/<uuid:suggestion_id>/send/',
+         views.intelligence_suggestion_send,
+         name='intelligence_suggestion_send'),
+    path('intelligence/suggestions/<uuid:suggestion_id>/invoice/',
+         views.intelligence_suggestion_invoice,
+         name='intelligence_suggestion_invoice'),
+    path('intelligence/run/<uuid:client_id>/',
+         views.intelligence_run_for_client,
+         name='intelligence_run_for_client'),
+
     # Phase 7 Part 2 — case studies
     path('case-studies/', views.case_studies_list,
          name='case_studies_list'),

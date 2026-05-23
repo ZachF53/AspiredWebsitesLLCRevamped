@@ -33,6 +33,10 @@ urlpatterns = [
     # Phase 7 Part 2 — refer-a-friend
     path('referral/', views.portal_referral, name='portal_referral'),
 
+    # Phase 7 Part 3 — website intelligence recommendations
+    path('suggestions/', views.portal_suggestions,
+         name='portal_suggestions'),
+
     # Contract signing — token-gated, no login required.
     path('contract/signed/', views.contract_signed, name='contract_signed'),
     path('contract/<uuid:contract_token>/', views.contract_sign, name='contract_sign'),

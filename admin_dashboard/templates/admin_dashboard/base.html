@@ -28,7 +28,10 @@
                    href="{% url 'admin_dashboard:intelligence_dashboard' %}">
                     <svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 16l4-4 3 3 5-7"/></svg>
                     Intelligence
-                    {% if critical_health_count %}<span class="admin-nav__badge" aria-label="{{ critical_health_count }} critical">{{ critical_health_count }}</span>{% endif %}
+                    {% if critical_health_count or intel_pending_count %}
+                        <span class="admin-nav__badge"
+                              aria-label="{{ critical_health_count }} critical, {{ intel_pending_count }} pending suggestions">{{ critical_health_count|add:intel_pending_count }}</span>
+                    {% endif %}
                 </a>
                 <a class="admin-nav__link {% if active == 'clients' %}is-active{% endif %}"
                    href="{% url 'admin_dashboard:client_list' %}">Clients</a>

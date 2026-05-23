@@ -204,7 +204,31 @@
         <div class="admin-empty"><p>No active non-tester clients yet — nothing to score.</p></div>
     {% endif %}
 
-    {# ── Section 3: Daily Focus ───────────────────────────────── #}
+    {# ── Section 3: Intelligence Engine ───────────────────────── #}
+    <h2 class="bi-section-title">Intelligence Engine</h2>
+    <div class="droplet-stats">
+        <div class="droplet-stat {% if intel_pending %}droplet-stat--orange{% endif %}">
+            <span class="droplet-stat__num">{{ intel_pending }}</span>
+            <span class="droplet-stat__label">Pending review</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #14B8A6;">
+            <span class="droplet-stat__num">{{ intel_sent }}</span>
+            <span class="droplet-stat__label">Sent to clients</span>
+        </div>
+        <div class="droplet-stat" style="border-left-color: #10B981;">
+            <span class="droplet-stat__num">{{ intel_approved }}</span>
+            <span class="droplet-stat__label">Client-approved</span>
+        </div>
+        <div class="droplet-stat droplet-stat--orange">
+            <span class="droplet-stat__num">${{ intel_revenue|floatformat:0|intcomma }}</span>
+            <span class="droplet-stat__label">Approved upsell revenue</span>
+        </div>
+    </div>
+    <p style="margin-top: 10px;">
+        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:intelligence_suggestions' %}">View All Suggestions</a>
+    </p>
+
+    {# ── Section 4: Daily Focus ───────────────────────────────── #}
     <h2 class="bi-section-title">Your Focus Today</h2>
     {% include "admin_dashboard/_daily_focus.html" with daily_focus=daily_focus %}
 </div>

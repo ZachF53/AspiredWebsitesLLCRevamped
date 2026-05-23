@@ -1,0 +1,36 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if state == 'approved' %}Approved{% elif state == 'declined' %}Got it{% else %}Not Found{% endif %} — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+</head>
+<body class="public-body">
+    <main class="proposal-pending">
+        <div class="proposal-pending__card">
+            <img src="{% static 'images/logo.png' %}" alt="Aspired Websites" width="180" height="80">
+
+            {% if state == 'approved' %}
+                <h1>Got it!</h1>
+                {% if already_responded %}
+                    <p>You already approved this one — I have it on my list. I'll be in touch about next steps for <strong>{{ suggestion.title }}</strong>.</p>
+                {% else %}
+                    <p>I'll be in touch about next steps for <strong>{{ suggestion.title }}</strong>.</p>
+                {% endif %}
+                <p>If you'd like to discuss timing or have any questions:<br>
+                   <strong>210-896-2536</strong> · <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a></p>
+            {% elif state == 'declined' %}
+                <h1>No problem.</h1>
+                <p>I'll keep an eye on things and reach out if something more urgent comes up.</p>
+                <p>If you change your mind, just reply to the original email.</p>
+            {% else %}
+                <h1>Link not found</h1>
+                <p>This recommendation link is invalid or has been deleted. If you think that's a mistake, reach out:</p>
+                <p><strong>210-896-2536</strong> · <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a></p>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

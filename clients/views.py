@@ -87,6 +87,19 @@ def _portal_context(request, active_nav, **extra):
         # back to no badge rather than crash every portal page.
         security_has_open = False
 
+    # Orange-dot badge on the Recommendations nav item — any
+    # suggestion the client has been sent but hasn't responded to.
+    portal_suggestions_pending = False
+    try:
+        from .models import IntelligenceSuggestion
+        portal_suggestions_pending = IntelligenceSuggestion.objects.filter(
+            client=profile, status='sent_to_client',
+        ).exists()
+    except Exception:
+        # IntelligenceSuggestion table may not exist on a fresh
+        # checkout — never break the chrome over a missing table.
+        portal_suggestions_pending = False
+
     ctx = {
         'profile': profile,
         'project': project,
@@ -97,6 +110,7 @@ def _portal_context(request, active_nav, **extra):
         'open_tickets': open_tickets,
         'changelog_has_new': changelog_has_new,
         'security_has_open': security_has_open,
+        'portal_suggestions_pending': portal_suggestions_pending,
     }
     ctx.update(extra)
     return ctx
@@ -1078,6 +1092,112 @@ def proposal_view_tracking(request, token):
                     else 'text/html')
     return FileResponse(open(abs_path, 'rb'),
                         content_type=content_type)
+
+
+# ── Phase 7 Part 3 — Website Intelligence approve/decline + portal ─────────
+
+# Statuses the client portal lists — everything they've been notified
+# about or have already acted on.
+_PORTAL_INTEL_STATUSES = (
+    'sent_to_client', 'client_approved', 'client_declined',
+    'out_of_scope_offered', 'in_scope', 'implemented',
+)
+
+
+def _intel_record_response(suggestion, action):
+    """Stamp the suggestion + send the admin notification email."""
+    suggestion.client_responded_at = timezone.now()
+    suggestion.status = (
+        'client_approved' if action == 'approve' else 'client_declined')
+    suggestion.save(update_fields=[
+        'status', 'client_responded_at', 'updated_at'])
+
+    try:
+        from django.conf import settings as _s
+        from django.core.mail import send_mail as _send_mail
+        verb = 'APPROVED' if action == 'approve' else 'DECLINED'
+        _send_mail(
+            subject=(f'[Intelligence] {suggestion.client.firm_name} '
+                     f'{verb}: {suggestion.title[:60]}'),
+            message=(
+                f'{suggestion.client.firm_name} {verb.lower()} the '
+                f'suggestion "{suggestion.title}" '
+                f'(${suggestion.one_time_fee}).\n\n'
+                f'Review: {_s.SITE_BASE_URL}/admin-dashboard/'
+                f'intelligence/suggestions/{suggestion.id}/\n'),
+            from_email=getattr(_s, 'EMAIL_FROM_NO_REPLY',
+                               _s.DEFAULT_FROM_EMAIL),
+            recipient_list=[_s.LEAD_NOTIFICATION_EMAIL],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception('admin alert for intel response failed')
+
+
+def intelligence_approve(request, token):
+    """Public magic-link landing — records approval, renders thanks."""
+    from .models import IntelligenceSuggestion
+
+    try:
+        s = IntelligenceSuggestion.objects.get(response_token=token)
+    except (IntelligenceSuggestion.DoesNotExist, ValueError):
+        return render(request, 'clients/intel_response.html',
+                      {'state': 'not_found'})
+
+    already_responded = s.client_responded_at is not None
+    if not already_responded:
+        _intel_record_response(s, 'approve')
+
+    return render(request, 'clients/intel_response.html', {
+        'state': 'approved',
+        'suggestion': s,
+        'already_responded': already_responded,
+    })
+
+
+def intelligence_decline(request, token):
+    """Public magic-link landing — records decline, renders thanks."""
+    from .models import IntelligenceSuggestion
+
+    try:
+        s = IntelligenceSuggestion.objects.get(response_token=token)
+    except (IntelligenceSuggestion.DoesNotExist, ValueError):
+        return render(request, 'clients/intel_response.html',
+                      {'state': 'not_found'})
+
+    already_responded = s.client_responded_at is not None
+    if not already_responded:
+        _intel_record_response(s, 'decline')
+
+    return render(request, 'clients/intel_response.html', {
+        'state': 'declined',
+        'suggestion': s,
+        'already_responded': already_responded,
+    })
+
+
+# ── Phase 7 Part 3 — Client portal suggestions list ────────────────────────
+
+@client_required
+def portal_suggestions(request):
+    """Portal page that mirrors what the client received via email."""
+    from .models import IntelligenceSuggestion
+
+    profile = request.client_profile
+    suggestions = (
+        IntelligenceSuggestion.objects
+        .filter(client=profile, status__in=_PORTAL_INTEL_STATUSES)
+        .order_by('-sent_to_client_at', '-generated_at')
+    )
+    pending_response = any(
+        s.is_actionable_by_client for s in suggestions)
+
+    return render(request, 'clients/portal_suggestions.html',
+                  _portal_context(
+                      request, 'suggestions',
+                      suggestions=suggestions,
+                      pending_response=pending_response,
+                  ))
 
 
 # ── Phase 7 Part 2 — Client portal referral page ───────────────────────────

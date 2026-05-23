@@ -4,7 +4,10 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from clients.views import proposal_view_tracking, referral_click
+from clients.views import (
+    intelligence_approve, intelligence_decline,
+    proposal_view_tracking, referral_click,
+)
 from reporting.views import nps_response
 
 urlpatterns = [
@@ -22,6 +25,12 @@ urlpatterns = [
     path('ref/<str:code>/', referral_click, name='referral_click'),
     path('proposals/view/<uuid:token>/', proposal_view_tracking,
          name='proposal_view_tracking'),
+
+    # Phase 7 Part 3 — public intelligence approve / decline magic links
+    path('intelligence/respond/<uuid:token>/approve/',
+         intelligence_approve, name='intelligence_approve'),
+    path('intelligence/respond/<uuid:token>/decline/',
+         intelligence_decline, name='intelligence_decline'),
 
     path('', include('public.urls', namespace='public')),
 ]

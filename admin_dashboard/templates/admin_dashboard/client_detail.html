@@ -224,5 +224,57 @@
             </p>
         </div>
     </section>
+
+    {# ── Phase 7 Part 3 — Website Intelligence ───────────────── #}
+    <section class="admin-section client-intel">
+        <div class="admin-section__header">
+            <h2>Website Intelligence</h2>
+            <form method="post" action="{% url 'admin_dashboard:intelligence_run_for_client' client.id %}" style="display:inline;"
+                  hx-post="{% url 'admin_dashboard:intelligence_run_for_client' client.id %}"
+                  hx-target="#intel-run-result"
+                  hx-swap="innerHTML">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary btn-sm">Run Analysis Now</button>
+            </form>
+        </div>
+
+        {% if latest_intel_report %}
+            <p class="muted text-sm">
+                Latest report: {{ latest_intel_report.report_month|date:"F Y" }}
+                · {{ latest_intel_report.suggestions_count }} suggestion{{ latest_intel_report.suggestions_count|pluralize }}
+                · {{ latest_intel_report.total_tokens_used }} tokens
+            </p>
+            {% if latest_intel_report.overall_assessment %}
+                <p>{{ latest_intel_report.overall_assessment }}</p>
+            {% endif %}
+        {% else %}
+            <p class="muted">No analysis run yet. Click "Run Analysis Now" to generate one.</p>
+        {% endif %}
+
+        <div id="intel-run-result"></div>
+
+        {% if open_intel_suggestions %}
+            <h3 class="admin-subsection-title">Open suggestions</h3>
+            <ul class="admin-activity-list">
+                {% for s in open_intel_suggestions %}
+                    <li class="admin-activity-item">
+                        <a href="{% url 'admin_dashboard:intelligence_suggestion_detail' s.id %}" class="admin-activity-item__title">
+                            {{ s.title }}
+                        </a>
+                        <div class="admin-activity-item__meta">
+                            <span class="intel-status intel-status--{{ s.status }}">{{ s.get_status_display }}</span>
+                            {% if s.one_time_fee %} · ${{ s.one_time_fee|floatformat:0 }}{% endif %}
+                            {% if s.is_in_maintenance_scope %} · <span class="muted">in scope</span>{% endif %}
+                            · {{ s.generated_at|timesince }} ago
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <p style="margin-top:10px;">
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:intelligence_suggestions' %}?client={{ client.id }}&status=all">View All Suggestions</a>
+        </p>
+    </section>
 </div>
 {% endblock %}
