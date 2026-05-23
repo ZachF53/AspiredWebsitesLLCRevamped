@@ -18,11 +18,9 @@
 
     <div class="settings-grid">
 
-        {# ───────── Editable settings form ───────── #}
         <form method="post" class="settings-form">
             {% csrf_token %}
 
-            {# Trust level — pure-CSS segmented control + live description #}
             <section class="admin-card">
                 <h3 class="admin-card__title">Automation Trust Level</h3>
 
@@ -51,7 +49,6 @@
                 </div>
             </section>
 
-            {# Daily send cap #}
             <section class="admin-card">
                 <h3 class="admin-card__title">Daily Send Cap</h3>
                 <p class="muted settings-help">Maximum cold outreach emails sent per day. During domain warming this is capped lower automatically (see warming status).</p>
@@ -63,7 +60,6 @@
                 </div>
             </section>
 
-            {# Outreach active toggle + CSS-driven warning #}
             <section class="admin-card">
                 <h3 class="admin-card__title">Outreach Active</h3>
                 <div class="outreach-toggle">
@@ -85,7 +81,6 @@
             </div>
         </form>
 
-        {# ───────── Read-only status panels ───────── #}
         <aside class="settings-side">
 
             <section class="admin-card">

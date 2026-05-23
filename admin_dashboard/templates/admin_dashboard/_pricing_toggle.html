@@ -1,4 +1,4 @@
-{# HTMX partial — a single Active/Featured toggle button #}
+
 <button type="button"
         class="pricing-toggle pricing-toggle--{% if value %}on{% else %}off{% endif %}"
         hx-post="{% url 'admin_dashboard:pricing_toggle' tier.id %}"

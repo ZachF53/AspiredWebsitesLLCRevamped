@@ -1,4 +1,4 @@
-{# HTMX partial — the "show in client portal" toggle for one credential #}
+
 <label class="vault-visible-toggle" id="vis-{{ cred_id }}">
     <input type="checkbox" {% if visible %}checked{% endif %}
            hx-post="{% url 'vault:toggle_visibility' client_id cred_id %}"

@@ -1,4 +1,4 @@
-{# One flagged reply — full thread + reply form + triage actions. #}
+
 <article class="needs-you-card" id="reply-card-{{ reply.pk }}">
 
     <header class="needs-you-card__header">
@@ -13,7 +13,6 @@
         </span>
     </header>
 
-    {# The email we sent #}
     {% if reply.email_sent %}
         <div class="email-thread email-thread--sent">
             <div class="email-thread__label">We sent</div>
@@ -22,7 +21,6 @@
         </div>
     {% endif %}
 
-    {# Their reply #}
     <div class="email-thread email-thread--received">
         <div class="email-thread__label">They replied</div>
         {% if reply.subject %}<div class="email-thread__subject">{{ reply.subject }}</div>{% endif %}
@@ -30,7 +28,6 @@
         <div class="email-thread__meta">{{ reply.received_at|date:"M j, Y g:i A" }}</div>
     </div>
 
-    {# Your reply #}
     <form class="needs-you-card__reply"
           hx-post="{% url 'admin_dashboard:needs_you_send' reply.pk %}"
           hx-target="#needs-you-list"
@@ -56,7 +53,6 @@
         </div>
     </form>
 
-    {# Secondary triage actions #}
     <div class="needs-you-card__secondary">
         <form hx-post="{% url 'admin_dashboard:needs_you_archive' reply.pk %}"
               hx-target="#needs-you-list"

@@ -6,14 +6,12 @@
 {% block content %}
 <div class="admin-container">
 
-    {# Breadcrumb #}
     <p class="vault-breadcrumb">
         <a href="{% url 'admin_dashboard:scans_list' %}">Scans</a> &rsaquo;
         <a href="{% url 'admin_dashboard:client_detail' scan.client.id %}">{{ scan.client.firm_name }}</a> &rsaquo;
         {{ scan.created_at|date:"Y-m-d H:i" }}
     </p>
 
-    {# ── Scan header card ── #}
     <section class="scan-header-card">
         <div class="scan-header-card__left">
             <h1 class="scan-header-card__client">
@@ -124,7 +122,6 @@
         </div>
     {% endif %}
 
-    {# ── Tools-used block ── #}
     <section class="scan-tools-card">
         <h2 class="scan-tools-card__title">Tools</h2>
         <ul class="scan-tools-card__list">
@@ -140,7 +137,6 @@
         </ul>
     </section>
 
-    {# ── Findings grouped by severity ── #}
     {% for g in severity_groups %}
         <details class="scan-findings-group scan-findings-group--{{ g.severity }}"
                  {% if g.open_by_default %}open{% endif %}>

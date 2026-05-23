@@ -95,7 +95,7 @@
         </section>
 
         <section class="client-edit-section">
-            <h2 class="client-edit-section__title">Maintenance &amp; Billing</h2>
+            <h2 class="client-edit-section__title">Flags</h2>
             <div class="client-edit-grid">
                 <label class="client-edit-checkbox">
                     {{ form.maintenance_active }}
@@ -109,30 +109,21 @@
                     {{ form.onboarding_complete }}
                     <span>Onboarding complete</span>
                 </label>
+                <label class="client-edit-checkbox">
+                    {{ form.is_tester }}
+                    <span>Is tester
+                        <small class="client-edit-hint">(internal property — excluded from billing/NPS/external dashboards)</small>
+                    </span>
+                </label>
             </div>
         </section>
 
         <section class="client-edit-section">
             <h2 class="client-edit-section__title">Internal Notes</h2>
             <label class="client-edit-field">
-                <span>Notes <small class="client-edit-hint">(staff only — never shown to client)</small></span>
+                <span>Internal Notes <small class="client-edit-hint">(admin only — never shown to client)</small></span>
                 {{ form.internal_notes }}
             </label>
-        </section>
-
-        <section class="client-edit-section">
-            <h2 class="client-edit-section__title">Moonieful</h2>
-            <div class="client-edit-grid">
-                <label class="client-edit-checkbox">
-                    <input type="checkbox" disabled
-                           {% if client.synced_from_moonieful %}checked{% endif %}>
-                    <span>Synced from Moonieful <small class="client-edit-hint">(set by sync bridge — read only)</small></span>
-                </label>
-                <label class="client-edit-checkbox">
-                    {{ form.moonieful_referred }}
-                    <span>Moonieful referred</span>
-                </label>
-            </div>
         </section>
 
         <div class="client-edit-actions">

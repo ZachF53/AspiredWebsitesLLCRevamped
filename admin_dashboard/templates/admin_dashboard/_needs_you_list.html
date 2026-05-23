@@ -1,4 +1,4 @@
-{# Needs You queue list — returned standalone from action endpoints so the board refreshes. #}
+
 <div id="needs-you-list" class="needs-you-list">
     {% for reply in replies %}
         {% include "admin_dashboard/_needs_you_card.html" with reply=reply %}
@@ -10,7 +10,6 @@
     {% endfor %}
 </div>
 
-{# OOB swap — keep the nav badge in sync without a full reload #}
 <span id="needs-you-badge"
       class="admin-nav__badge {% if not needs_you_count %}admin-nav__badge--empty{% endif %}"
       aria-label="{{ needs_you_count }} pending"

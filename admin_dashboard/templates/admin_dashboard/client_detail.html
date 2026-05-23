@@ -19,9 +19,6 @@
         </div>
     </div>
 
-    {# Client Info card — inline quick-edits for the four highest-churn
-       fields. Hit Edit on any row to swap in an input + Save, no page
-       reload. For everything else use the full Edit Client form above. #}
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">Client Info</h3>
@@ -35,7 +32,6 @@
         </ul>
     </section>
 
-    {# ── Uptime widget ── #}
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">Uptime</h3>
@@ -62,7 +58,6 @@
         </div>
     </section>
 
-    {# ── GBP sync ── #}
     <section class="admin-card">
         <h3 class="admin-card__title">Google Business Profile Sync</h3>
         {% if gbp_checks %}
@@ -102,7 +97,6 @@
         {% endif %}
     </section>
 
-    {# ── NPS ── #}
     <section class="admin-card">
         <h3 class="admin-card__title">Client Satisfaction (NPS)</h3>
         <div class="mon-widget">
@@ -128,7 +122,6 @@
         </div>
     </section>
 
-    {# ── Testimonial ── #}
     <section class="admin-card">
         <h3 class="admin-card__title">Video Testimonial</h3>
         <p class="muted">
@@ -146,7 +139,6 @@
         </form>
     </section>
 
-    {# ── Tool links ── #}
     <section class="admin-card">
         <h3 class="admin-card__title">Monitoring &amp; Reporting</h3>
         <div class="mon-toollinks">
@@ -160,7 +152,6 @@
         </div>
     </section>
 
-    {# ── Phase 6c — Security Scans (latest COMPLETED scan only) ── #}
     {% if scan_in_progress %}
         <div class="scan-progress-banner">
             <span class="scan-progress-banner__dot" aria-hidden="true"></span>

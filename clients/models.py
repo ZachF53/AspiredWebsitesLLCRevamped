@@ -139,6 +139,14 @@ class ClientProfile(TimestampedModel):
     # and decides per-scan whether to send it.
     auto_send_scan_reports = models.BooleanField(default=False)
 
+    # ── Internal classification ──
+    # True for Aspired's own test / dev properties (Aspired AI, Food
+    # Trucks, etc.) so they can be excluded from external dashboards,
+    # billing summaries, NPS rotations, and scheduled report emails.
+    # Replaces the freeform "Tester: True" line previously stored in
+    # `internal_notes` by the legacy seed command.
+    is_tester = models.BooleanField(default=False)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Client Profile'

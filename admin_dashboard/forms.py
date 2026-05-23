@@ -299,13 +299,13 @@ class ClientProfileEditForm(forms.ModelForm):
     """
     Full client profile edit form for /admin-dashboard/clients/<id>/edit/.
 
-    The user's email is shown read-only in the template (it lives on
-    User, not ClientProfile, and renaming a user's email by hand here
-    would be a footgun — separate flow).
+    Four sections in the rendered template — Basic Info, Website &
+    Server, Flags, Internal Notes.
 
-    `live_url` and `moonieful_referred` live on Project, not
-    ClientProfile, so they're declared as plain form fields here and
-    the view writes them back to the project record.
+    `live_url` isn't on ClientProfile (it lives on Project); the view
+    seeds the initial value from the linked project and writes back to
+    it on save. The user's email is shown read-only in the template
+    (lives on User; renaming from this form would be a footgun).
     """
 
     live_url = forms.URLField(
@@ -314,12 +314,15 @@ class ClientProfileEditForm(forms.ModelForm):
             'class': 'form-control',
             'placeholder': 'https://clientdomain.com',
         }),
-        help_text='Updates the live Project.live_url as well.',
+        help_text=(
+            'Used for uptime monitoring, SSL scans, and Nikto web '
+            'scans. Required for full vulnerability scans.'),
     )
-    moonieful_referred = forms.BooleanField(
-        required=False, label='Moonieful referred',
-        help_text='Flags the project as referred from Moonieful '
-                  '(stored on Project, not ClientProfile).',
+    # `package` is a CharField on the model with PACKAGE_CHOICES; per
+    # the spec this section should use a plain text input here.
+    package = forms.CharField(
+        required=False, label='Package',
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
     )
 
     class Meta:
@@ -330,21 +333,17 @@ class ClientProfileEditForm(forms.ModelForm):
             'package', 'city', 'state', 'phone',
             # Section 2 — Website / server
             'do_droplet_ip', 'do_droplet_created_at',
-            # Section 3 — Maintenance / billing
+            # Section 3 — Flags
             'maintenance_active', 'auto_send_scan_reports',
-            'onboarding_complete',
+            'onboarding_complete', 'is_tester',
             # Section 4 — Internal notes
             'internal_notes',
-            # Section 5 — Moonieful — synced_from_moonieful is shown
-            # read-only in the template; moonieful_referred is a plain
-            # form field above (project-level).
         ]
         widgets = {
             'firm_name':       forms.TextInput(attrs={'class': 'form-control'}),
             'contact_name':    forms.TextInput(attrs={'class': 'form-control'}),
             'business_type':   forms.TextInput(attrs={'class': 'form-control'}),
             'status':          forms.Select(attrs={'class': 'form-control'}),
-            'package':         forms.Select(attrs={'class': 'form-control'}),
             'city':            forms.TextInput(attrs={'class': 'form-control'}),
             'state':           forms.TextInput(attrs={'class': 'form-control'}),
             'phone':           forms.TextInput(attrs={'class': 'form-control'}),
@@ -356,7 +355,7 @@ class ClientProfileEditForm(forms.ModelForm):
                 'class': 'form-control', 'type': 'date',
             }),
             'internal_notes': forms.Textarea(attrs={
-                'class': 'form-control', 'rows': 5,
+                'class': 'form-control', 'rows': 6,
             }),
         }
 

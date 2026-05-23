@@ -5,7 +5,6 @@
 {% block content %}
 <div class="admin-container">
 
-    {# ───────── Page header ───────── #}
     <div class="admin-page-header">
         <div>
             <span class="eyebrow">Dashboard</span>
@@ -17,7 +16,6 @@
         </div>
     </div>
 
-    {# ───────── Quick stats ───────── #}
     <div class="admin-stat-grid">
         {% for s in stats %}
             <a class="admin-stat {% if s.urgent %}admin-stat--urgent{% endif %}"
@@ -28,7 +26,6 @@
         {% endfor %}
     </div>
 
-    {# ───────── Pipeline summary ───────── #}
     <section class="admin-section">
         <div class="admin-section__header">
             <span class="eyebrow">Pipeline</span>
@@ -45,7 +42,6 @@
         </div>
     </section>
 
-    {# ───────── Two-column activity ───────── #}
     <div class="admin-two-col">
 
         <section class="admin-section">

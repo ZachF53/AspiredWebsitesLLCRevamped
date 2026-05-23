@@ -1,4 +1,4 @@
-{# Full kanban board. Returned standalone from lead_kanban_move HTMX endpoint. #}
+
 <div id="kanban-board" class="kanban-board">
     {% for col in columns %}
         <section class="kanban-column kanban-column--{{ col.status }}">

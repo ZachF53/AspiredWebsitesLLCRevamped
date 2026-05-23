@@ -22,7 +22,6 @@
 
     <div class="lead-detail-grid">
 
-        {# ───────── LEFT — Info ───────── #}
         <aside class="lead-detail-info">
 
             <section class="admin-card">
@@ -46,7 +45,6 @@
                 </dl>
             </section>
 
-            {# ───── HTMX status editor ───── #}
             <section class="admin-card">
                 <h3 class="admin-card__title">Update status</h3>
                 {% include "admin_dashboard/_status_editor.html" %}
@@ -84,7 +82,6 @@
             </section>
         </aside>
 
-        {# ───────── RIGHT — Activity ───────── #}
         <section class="lead-detail-activity">
 
             {% if lead.inquiry_text %}
@@ -101,7 +98,6 @@
                 </div>
             {% endif %}
 
-            {# ───── Add note (HTMX) ───── #}
             <div class="admin-card">
                 <h3 class="admin-card__title">Add Note</h3>
                 <form id="add-note-form"
@@ -122,7 +118,6 @@
                 </form>
             </div>
 
-            {# ───── Activity timeline ───── #}
             <div class="admin-card">
                 <h3 class="admin-card__title">Timeline</h3>
                 <p class="muted">Notes added above appear here immediately. Email composer + AI-drafted reply land in the next iteration.</p>

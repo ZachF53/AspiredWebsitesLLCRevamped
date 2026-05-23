@@ -18,7 +18,6 @@
         </div>
     </div>
 
-    {# Stats row — uses .droplet-stat which is themed dark already #}
     <div class="droplet-stats">
         <div class="droplet-stat">
             <span class="droplet-stat__num">{{ total_scans }}</span>
@@ -40,7 +39,6 @@
         </div>
     </div>
 
-    {# Filters #}
     <form method="get" class="scans-filter-bar">
         <label class="scans-filter-bar__field">
             <span>Client</span>
@@ -67,7 +65,7 @@
     </form>
 
     {% if rows %}
-        {# HTMX auto-refresh only when something is in flight #}
+        
         <div class="droplet-table-wrap" id="scans-table"
              {% if auto_refresh %}
                  hx-get="{% url 'admin_dashboard:scans_table' %}?{{ filter_qs }}"
@@ -83,7 +81,6 @@
     {% endif %}
 </div>
 
-{# ── Run New Scan modal ── #}
 <div class="scan-modal" id="run-scan-modal" hidden role="dialog" aria-modal="true" aria-labelledby="run-scan-modal-title">
     <div class="scan-modal__card">
         <header class="scan-modal__head">

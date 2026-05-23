@@ -2849,37 +2849,24 @@ def client_edit(request, client_id):
     project = (client.projects.filter(stage='live').first()
                or client.projects.first())
     current_live_url = (project.live_url if project else '') or ''
-    current_moonieful = bool(project.moonieful_referred) if project else False
 
     if request.method == 'POST':
         form = ClientProfileEditForm(request.POST, instance=client)
         if form.is_valid():
             form.save()
-            # Project-level fields get written back here, not in the
-            # form. Only save when there's actually a change to avoid
-            # bumping updated_at on no-op edits.
+            # live_url lives on Project. Only save when changed so we
+            # don't bump updated_at on no-op edits.
             if project:
-                project_dirty = []
                 new_url = (form.cleaned_data.get('live_url') or '').strip()
                 if new_url != (project.live_url or ''):
                     project.live_url = new_url
-                    project_dirty.append('live_url')
-                new_moonieful = bool(form.cleaned_data.get('moonieful_referred'))
-                if new_moonieful != bool(project.moonieful_referred):
-                    project.moonieful_referred = new_moonieful
-                    project_dirty.append('moonieful_referred')
-                if project_dirty:
-                    project.save(
-                        update_fields=project_dirty + ['updated_at'])
+                    project.save(update_fields=['live_url', 'updated_at'])
             messages.success(request, 'Client updated successfully.')
             return redirect(
                 'admin_dashboard:client_detail', client_id=client.id)
     else:
         form = ClientProfileEditForm(
-            instance=client, initial={
-                'live_url': current_live_url,
-                'moonieful_referred': current_moonieful,
-            })
+            instance=client, initial={'live_url': current_live_url})
 
     return render(request, 'admin_dashboard/client_edit.html',
                   _admin_context(

@@ -13,7 +13,6 @@
         </div>
     </div>
 
-    {# ───────── Results / error ───────── #}
     {% if error %}
         <div class="form-error" role="alert">{{ error }}</div>
     {% endif %}
@@ -47,7 +46,6 @@
         </div>
     {% endif %}
 
-    {# ───────── Form ───────── #}
     <form method="post" class="scrape-form admin-card">
         {% csrf_token %}
 
