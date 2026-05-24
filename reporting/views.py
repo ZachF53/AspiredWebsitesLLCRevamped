@@ -8,10 +8,11 @@ import hashlib
 import json
 import re
 import uuid
+from functools import wraps
 
 from django.conf import settings
 from django.db.models import F
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -25,6 +26,47 @@ from clients.models import ClientProfile
 from .models import ConversionEvent
 
 VALID_EVENT_TYPES = {'form_submit', 'phone_click', 'cta_click'}
+
+# Preflight cached for 24h — browser skips OPTIONS for subsequent POSTs.
+_CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+}
+
+
+def cors_post(view_func):
+    """
+    Decorator for public tracking endpoints called cross-origin from client
+    sites. Handles CORS preflight + method gating in one place.
+
+    - OPTIONS preflight → 200 with CORS headers (so the browser proceeds
+      with the real POST instead of aborting on a 405)
+    - POST → calls the view, then attaches CORS headers to its response
+    - Anything else → 405
+
+    Apply OUTSIDE @csrf_exempt and @ratelimit so the preflight short-circuits
+    before rate-limiting (preflights shouldn't count) and before CSRF (OPTIONS
+    has no body to check anyway).
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if request.method == 'OPTIONS':
+            response = HttpResponse(status=200)
+            for k, v in _CORS_HEADERS.items():
+                response[k] = v
+            return response
+
+        if request.method != 'POST':
+            return HttpResponse(status=405)
+
+        response = view_func(request, *args, **kwargs)
+        for k, v in _CORS_HEADERS.items():
+            response[k] = v
+        return response
+
+    return wrapper
 
 
 def _ok():
@@ -51,8 +93,8 @@ def _hash_ip(request):
         (ip + settings.SECRET_KEY).encode('utf-8')).hexdigest()
 
 
+@cors_post
 @csrf_exempt
-@require_POST
 @ratelimit(key='ip', rate='100/m', block=True)
 def track_conversion_event(request):
     """Record one conversion event. Always returns 200 — never leaks info."""
@@ -91,8 +133,8 @@ def track_conversion_event(request):
 
 # ── Tier 1 batched-tracker endpoint ──────────────────────────────────────────
 
+@cors_post
 @csrf_exempt
-@require_POST
 @ratelimit(key='ip', rate='60/m', block=True)
 def track_batch(request):
     """
@@ -251,8 +293,8 @@ def tracker_config(request, client_id):
 
 # ── Tier 2 session-recording endpoint (rrweb) ───────────────────────────────
 
+@cors_post
 @csrf_exempt
-@require_POST
 @ratelimit(key='ip', rate='120/m', block=True)
 def track_recording(request):
     """
