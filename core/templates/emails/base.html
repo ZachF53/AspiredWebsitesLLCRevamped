@@ -72,10 +72,13 @@
 
                 </table>
 
-                {# Legal address footer — styled for dark bg directly here.
-                   AspiredEmailBackend auto-stamper detects the address
-                   marker ("8735 Dunwoody Place") via _is_already_signed
-                   and skips re-injecting, so no double-stamp. #}
+                {% comment %}
+                    Legal address footer — styled for dark bg directly
+                    here. AspiredEmailBackend auto-stamper detects the
+                    address marker ("8735 Dunwoody Place") via
+                    _is_already_signed and skips re-injecting, so no
+                    double-stamp.
+                {% endcomment %}
                 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
                     <tr>
                         <td style="padding:24px 36px 0;text-align:center;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;">

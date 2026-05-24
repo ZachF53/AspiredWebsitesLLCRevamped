@@ -131,8 +131,7 @@ def send_onboarding_setup_email(client, token):
         f'short intake form so we have everything we need to start '
         f'building your website. Work on your site can\'t begin until '
         f'the intake is submitted.\n\n'
-        f'If you have any questions, just reply to this email or call '
-        f'210-896-2536.\n\n'
+        f'If you have any questions, just reply to this email.\n\n'
         f'— Zachery Long\n'
         f'Aspired Websites LLC\n'
     )
