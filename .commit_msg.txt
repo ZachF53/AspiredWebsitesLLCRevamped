@@ -1,0 +1,21 @@
+Intake form: fix remaining comment leaks in photos partial + uniform field spacing
+
+1. Two more multi-line {# #} comments were leaking as plain text in
+   the photo step (the "Intake step 2 photo gallery + uploader" header
+   above the gallery, and the "One-at-a-time uploader" note above the
+   upload form). Both lived in _intake_photos.html which I missed in
+   the previous comment-leak pass. Converted to
+   {% comment %}/{% endcomment %} which IS multi-line.
+
+2. Field spacing felt tighter on textarea-heavy steps (Step 3 Website
+   Copy and Step 4 References) than on text-input-heavy steps (Step 1
+   Brand). Same 1.5rem margin, but a tall textarea makes the relative
+   gap feel cramped. Bumped to 2rem so every field gets the same
+   visual breathing room regardless of input height. Also:
+     - .form-subhead margin-top: 1.25rem so the "Social profiles"
+       header inside Step 5 has the same air as field-to-field gaps.
+     - .form-group:last-of-type margin-bottom: 0.5rem so the final
+       field doesn't double-up with the next section's own padding.
+     - checkbox-row spacing bumped slightly to match.
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>

@@ -4983,10 +4983,14 @@ button.htmx-request {
 /* Intake-specific spacing — the global .form-group is intentionally tight
    (used in dense admin forms) but the intake is a long, scrolling client-
    facing form where every field deserves breathing room. Scope these
-   overrides to .intake-form so other forms keep their compact layout. */
+   overrides to .intake-form so other forms keep their compact layout.
+   Tall textareas make the previous 1.5rem gap feel cramped in textarea
+   blocks (Step 3/4) compared to short text-input blocks (Step 1); 2rem
+   gives every field the same generous visual rhythm regardless of input
+   height. */
 .intake-form .form-group {
     gap: 0.625rem;            /* label → hint → input vertical rhythm */
-    margin-bottom: 1.5rem;    /* breathing room between fields */
+    margin-bottom: 2rem;      /* breathing room between fields */
 }
 .intake-form .form-group label {
     margin-bottom: 0.25rem;   /* extra nudge under the bold label */
@@ -4995,7 +4999,18 @@ button.htmx-request {
     margin: 0 0 0.25rem 0;    /* tuck the hint up under the label */
 }
 .intake-form .checkbox-row {
-    margin: 0.5rem 0 1rem 0;
+    margin: 0.5rem 0 1.25rem 0;
+}
+/* Section subhead (the "Social profiles" header inside step 5) — give
+   it the same generous breathing room as the gap between fields so
+   the layout feels consistent end-to-end. */
+.intake-form .form-subhead {
+    margin-top: 1.25rem;
+}
+/* Last field in a section shouldn't double up on space with the next
+   section's own padding. */
+.intake-form .form-group:last-of-type {
+    margin-bottom: 0.5rem;
 }
 
 /* Intake step 2 — photo uploader gallery. */

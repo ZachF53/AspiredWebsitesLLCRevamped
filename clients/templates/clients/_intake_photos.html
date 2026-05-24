@@ -1,5 +1,7 @@
-{# Intake step 2 photo gallery + uploader. Rendered standalone on first
-   page load and swapped in by the HTMX upload/delete endpoints. #}
+{% comment %}
+    Intake step 2 — photo gallery + uploader. Rendered standalone on
+    first page load and swapped in by the HTMX upload/delete endpoints.
+{% endcomment %}
 <div id="intake-photos" class="intake-photos">
 
     {% if photos %}
@@ -28,9 +30,12 @@
         <p class="form-hint form-hint--block">No photos uploaded yet. Use the field below to add them one at a time.</p>
     {% endif %}
 
-    {# One-at-a-time uploader. `hx-trigger="change"` on the file input
-       posts immediately when a file is picked — no submit button needed.
-       The endpoint returns this whole partial; HTMX swaps it in place. #}
+    {% comment %}
+        One-at-a-time uploader. hx-trigger="change from:input[type=file]"
+        posts immediately when a file is picked — no submit button
+        needed. The endpoint returns this whole partial; HTMX swaps it
+        in place at #intake-photos.
+    {% endcomment %}
     <form class="intake-photo-uploader"
           method="post"
           action="{% url 'clients:intake_photo_upload' %}"
