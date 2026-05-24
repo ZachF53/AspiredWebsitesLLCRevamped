@@ -171,4 +171,4 @@ clients/media/
 *.swp
 .sass-cache/
 .grunt/
-bower_components/
+bower_components/.commit_msg.txt
