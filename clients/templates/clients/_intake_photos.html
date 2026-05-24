@@ -36,16 +36,17 @@
             {% endfor %}
         </ul>
     {% else %}
-        <p class="form-hint form-hint--block">No photos uploaded yet. Use the field below to add them one at a time.</p>
+        <p class="form-hint form-hint--block">No photos uploaded yet.</p>
     {% endif %}
 
     <div class="intake-photo-uploader">
         <label class="intake-photo-uploader__label" for="intake-photo-file">
-            <span>+ Add a photo</span>
+            <span>+ Add photos</span>
             <input type="file"
                    id="intake-photo-file"
                    name="file"
                    accept="image/*"
+                   multiple
                    hx-post="{% url 'clients:intake_photo_upload' %}"
                    hx-target="#intake-photos"
                    hx-swap="outerHTML"

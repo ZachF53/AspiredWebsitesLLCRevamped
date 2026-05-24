@@ -74,60 +74,24 @@
         </div>
     </section>
 
-    {# ── Step 2 — Photos ── #}
+    {# ── Step 2 — Photos (optional) ── #}
     <section class="portal-section intake-step" data-step="2" data-step-label="Photos">
-        <h2 class="portal-section__title">Step 2 — Photos</h2>
+        <h2 class="portal-section__title">Step 2 — Photos <span style="font-weight:400;color:var(--color-text-muted);font-size:0.7em;">(optional)</span></h2>
 
-        <p class="form-hint form-hint--block">High-resolution photos always make a site stronger. If you don't have them yet, we can plan a shoot or sub in stock photos.</p>
+        <p class="form-hint form-hint--block">
+            High-resolution photos always make a site stronger. If you have them, add them now — you can attach as many as you like at once. <strong style="color:var(--color-text);">If you don't have them, no worries</strong> — we'll plan a shoot or use stock photos later.
+        </p>
 
-        <div class="form-group" data-required>
-            <span class="intake-label">Do you have photos to provide? <span class="form-required">*</span></span>
-            <div class="intake-radio-row">
-                <label class="intake-radio">
-                    {% comment %}
-                        Only pre-check a radio when the user has
-                        EXPLICITLY answered before — i.e. either:
-                          - photos_provided is True (Yes was picked)
-                          - photos_note has content (they've engaged
-                            with the section, so "No" was a real pick)
-                          - any IntakePhoto exists (proof of Yes)
-                        Otherwise neither is checked so the wizard
-                        actually requires an answer.
-                    {% endcomment %}
-                    <input type="radio" name="photos_provided" value="yes"
-                           {% if intake.photos_provided %}checked{% endif %}>
-                    <span>Yes, I have photos</span>
-                </label>
-                <label class="intake-radio">
-                    <input type="radio" name="photos_provided" value="no"
-                           {% if not intake.photos_provided and intake.photos_note %}checked{% endif %}>
-                    <span>No, I don't have photos yet</span>
-                </label>
-            </div>
-            <p class="form-hint">If "No", we'll plan a shoot or use stock photos.</p>
+        <div class="form-group">
+            <label>Photos</label>
+            <p class="form-hint">JPG, PNG, or WebP. Up to 50MB each. Select multiple files at once.</p>
+            {% include "clients/_intake_photos.html" with photos=intake.photos.all %}
         </div>
 
-        {% comment %}
-            Conditional reveal — photo uploads + notes appear only
-            when "Yes" is selected. data-required-when="photos:yes"
-            tells the wizard JS to enable required-checking for the
-            nested fields only in that state.
-        {% endcomment %}
-        <div class="intake-reveal {% if intake.photos_provided %}is-revealed{% endif %}"
-             data-reveal-when="photos_provided_radio"
-             data-reveal-value="yes">
-
-            <div class="form-group" data-required-when="photos:yes" data-required-photo-count="1">
-                <label>Upload at least one photo <span class="form-required">*</span></label>
-                <p class="form-hint">JPG, PNG, or WebP. Up to 50MB each. Upload one at a time.</p>
-                {% include "clients/_intake_photos.html" with photos=intake.photos.all %}
-            </div>
-
-            <div class="form-group" data-required-when="photos:yes">
-                <label for="{{ form.photos_note.id_for_label }}">Notes about photos <span class="form-required">*</span></label>
-                <p class="form-hint">Anything we should know — what to use, what to avoid, anyone you don't want pictured, etc.</p>
-                {{ form.photos_note }}
-            </div>
+        <div class="form-group">
+            <label for="{{ form.photos_note.id_for_label }}">Notes about photos</label>
+            <p class="form-hint">Anything we should know — what to use, what to avoid, anyone you don't want pictured, etc.</p>
+            {{ form.photos_note }}
         </div>
     </section>
 

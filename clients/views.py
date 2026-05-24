@@ -326,15 +326,10 @@ def _intake_missing_required(intake_obj):
     if not intake_obj.logo and not intake_obj.no_logo_yet:
         missing.append('Logo upload (or check "I don\'t have a logo yet")')
 
-    # Step 2 — only when client says they have photos
-    if intake_obj.photos_provided:
-        photo_count = (
-            intake_obj.photos.count()
-            if hasattr(intake_obj, 'photos') else 0)
-        if photo_count < 1:
-            missing.append('At least one photo')
-        if not (intake_obj.photos_note or '').strip():
-            missing.append('Notes about photos')
+    # Step 2 — photos are entirely OPTIONAL. The section never blocks
+    # submission; the client can add photos now if they have them or
+    # skip the step entirely. (Earlier iterations required either a
+    # Yes/No answer + uploads — dropped per spec.)
 
     # Step 3
     if not (intake_obj.about_copy or '').strip():
@@ -510,9 +505,14 @@ def _photo_gallery_response(request, intake_obj):
 @require_POST
 def intake_photo_upload(request):
     """
-    HTMX endpoint: one file at a time from the photo step. Validates type
-    + size, appends an IntakePhoto, returns the refreshed gallery partial
-    that swaps into the page.
+    HTMX endpoint: accept one OR MANY files at once from the photo step.
+    Validates type + size per-file, creates an IntakePhoto for each
+    accepted upload, returns the refreshed gallery partial.
+
+    The file input on the wizard has `multiple` — desktop browsers send
+    several files in a single POST under the same `file` field name.
+    `request.FILES.getlist('file')` handles both the single and the
+    many case uniformly.
     """
     profile = request.client_profile
     project = _active_project(profile)
@@ -522,27 +522,43 @@ def intake_photo_upload(request):
         project = _ensure_project_for_unlocked_intake(profile)
     intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
 
-    uploaded = request.FILES.get('file')
-    if uploaded is None:
-        return _photo_gallery_response(request, intake_obj)
-
-    # 50MB cap — same as the Files page (FileUploadForm).
-    if uploaded.size > 50 * 1024 * 1024:
-        messages.error(request, 'Photos must be 50MB or smaller.')
-        return _photo_gallery_response(request, intake_obj)
-
-    # Keep it to image MIME types so the upload field stays a photo step,
-    # not a generic dumping ground. Belt-and-suspenders: the template's
-    # accept="image/*" already filters in the file picker.
-    ctype = (uploaded.content_type or '').lower()
-    if not ctype.startswith('image/'):
-        messages.error(
-            request, 'Please upload an image file (JPG, PNG, etc.).')
+    files = request.FILES.getlist('file')
+    if not files:
         return _photo_gallery_response(request, intake_obj)
 
     label = (request.POST.get('label') or '').strip()
-    IntakePhoto.objects.create(
-        intake=intake_obj, file=uploaded, label=label)
+    too_big = 0
+    wrong_type = 0
+    saved = 0
+    for uploaded in files:
+        # 50MB cap — same as the Files page (FileUploadForm).
+        if uploaded.size > 50 * 1024 * 1024:
+            too_big += 1
+            continue
+        ctype = (uploaded.content_type or '').lower()
+        if not ctype.startswith('image/'):
+            wrong_type += 1
+            continue
+        IntakePhoto.objects.create(
+            intake=intake_obj, file=uploaded, label=label)
+        saved += 1
+
+    # Auto-flag photos_provided=True when at least one photo lands so
+    # downstream "do they have photos?" checks (admin views, derived
+    # state) don't need to look at the gallery count themselves.
+    if saved and not intake_obj.photos_provided:
+        intake_obj.photos_provided = True
+        intake_obj.save(update_fields=['photos_provided', 'updated_at'])
+
+    if too_big:
+        messages.error(
+            request,
+            f'{too_big} file(s) skipped — photos must be 50MB or smaller.')
+    if wrong_type:
+        messages.error(
+            request,
+            f'{wrong_type} file(s) skipped — only image files allowed.')
+
     return _photo_gallery_response(request, intake_obj)
 
 
