@@ -10,6 +10,8 @@ urlpatterns = [
     path('track/', views.track_conversion_event, name='track'),
     path('track/batch/', views.track_batch, name='track_batch'),
     path('track/recording/', views.track_recording, name='track_recording'),
+    path('tracker-config/<uuid:client_id>/',
+         views.tracker_config, name='tracker_config'),
     path('chat/', views.chatbot_api, name='chat'),
     path('chat/config/<uuid:client_id>/', views.chatbot_config, name='chat_config'),
 ]

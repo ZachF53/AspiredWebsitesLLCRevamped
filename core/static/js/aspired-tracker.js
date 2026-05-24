@@ -317,26 +317,49 @@
   }, 30000);
 
   // ── TIER 2: SESSION RECORDING (rrweb) ──
-  // Only activates when data-tier="2" is set
-  // on the script tag. Self-hosts the rrweb
-  // recorder from aspiredwebsites.com so no
-  // 3rd-party CDN call is made from the
-  // client's site. Privacy: all inputs are
-  // masked, [data-recording-block] elements
-  // are skipped entirely.
+  // The script tag itself never changes — one
+  // line per site, forever. Whether recording
+  // activates is fetched from the server on
+  // every page load (cached 5 min server-side
+  // and via Cache-Control on the response).
+  // Operator flips it on/off in the admin
+  // dashboard; the client's site picks it up
+  // automatically on the next page view.
+  //
+  // Self-hosts the rrweb recorder from
+  // aspiredwebsites.com so no 3rd-party CDN
+  // call is ever made from the client's site.
+  // Privacy: all inputs are masked,
+  // [data-recording-block] elements skipped.
 
-  var TIER = tag ? (tag.getAttribute('data-tier') || '1') : '1';
   var RECORDING_ENDPOINT =
     'https://aspiredwebsites.com/api/track/recording/';
+  var CONFIG_ENDPOINT =
+    'https://aspiredwebsites.com/api/tracker-config/' +
+    CLIENT_ID + '/';
 
-  if (TIER === '2') {
-    var rrwebScript = document.createElement('script');
-    rrwebScript.src =
-      'https://aspiredwebsites.com/static/js/' +
-      'rrweb-record.min.js';
-    rrwebScript.defer = true;
-    rrwebScript.onload = function () { startRecording(); };
-    document.head.appendChild(rrwebScript);
+  // Non-blocking — Tier 1 analytics already
+  // running above. We only wait on this fetch
+  // to decide whether to load rrweb.
+  if (typeof fetch === 'function') {
+    fetch(CONFIG_ENDPOINT, {
+      method: 'GET',
+      credentials: 'omit',
+      keepalive: true
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (config) {
+        if (config && config.session_recording === true) {
+          var rrwebScript = document.createElement('script');
+          rrwebScript.src =
+            'https://aspiredwebsites.com/static/js/' +
+            'rrweb-record.min.js';
+          rrwebScript.defer = true;
+          rrwebScript.onload = function () { startRecording(); };
+          document.head.appendChild(rrwebScript);
+        }
+      })
+      .catch(function () { /* Tier 1 still fine */ });
   }
 
   function startRecording() {

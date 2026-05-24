@@ -7,19 +7,22 @@
     <div class="admin-page-header">
         <div>
             <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
-            <h1 class="admin-page-title">Tracker Snippets</h1>
+            <h1 class="admin-page-title">Tracker Snippet</h1>
             <p class="muted">{{ client.firm_name }}{% if project.live_url %} — {{ project.live_url }}{% endif %}</p>
         </div>
         <div class="admin-page-actions">
             <a class="btn-secondary" href="{% url 'admin_dashboard:client_conversions' client.id %}">View Conversions</a>
+            {% if client.session_recording_enabled %}
+                <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' client.id %}">View Recordings</a>
+            {% endif %}
         </div>
     </div>
 
-    {# ─── Tier 1 — always active ────────────────────────── #}
+    {# ─── Snippet — one tag, forever ────────────────────── #}
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">
-                Tier 1 — Analytics Tracker
+                Install this once — never needs updating
                 <span class="status-badge status-badge--won">Active</span>
             </h3>
             <span class="mon-status">
@@ -33,65 +36,63 @@
             </span>
         </div>
         <p class="muted text-sm">
-            Tracks form submissions, phone clicks, CTA clicks,
-            scroll depth, click coordinates, time on page,
-            and exit-intent signals. All batched and shipped on
-            unload — no cookies, no PII.
+            Tracks form submissions, phone clicks, CTA clicks, scroll
+            depth, click coordinates, time on page, and exit intent.
+            All batched and shipped on unload — no cookies, no PII.
         </p>
-        <textarea id="tier1-snippet" class="form-control mon-snippet" rows="3" readonly>{{ tier1_snippet }}</textarea>
+        <p class="muted text-sm">
+            <strong>Session recording activates automatically</strong>
+            when enabled from this dashboard. No changes needed on
+            the client's site.
+        </p>
+        <textarea id="tracker-snippet" class="form-control mon-snippet" rows="3" readonly>{{ snippet }}</textarea>
         <div class="lead-add-form__actions">
-            <button type="button" class="btn-primary" data-copy-target="tier1-snippet">Copy Snippet</button>
+            <button type="button" class="btn-primary" data-copy-target="tracker-snippet">Copy Snippet</button>
         </div>
     </section>
 
-    {# ─── Tier 2 — Session recording ────────────────────── #}
+    {# ─── Session Recording — status card only ──────────── #}
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">
-                Tier 2 — Session Recording & Heatmaps
-                {% if tier2_active %}
+                Session Recording &amp; Heatmaps
+                {% if recording_active %}
                     <span class="status-badge status-badge--won">Active</span>
                 {% else %}
-                    <span class="status-badge status-badge--paused">Locked</span>
+                    <span class="status-badge status-badge--paused">Inactive</span>
                 {% endif %}
             </h3>
         </div>
-        {% if tier2_active %}
-            <p class="muted text-sm">
-                {% if tier2_included_via_plan %}
+        {% if recording_active %}
+            <p>
+                <strong>Enabled</strong> — recording will start
+                automatically on the client's next page load.
+                {% if recording_included_via_plan %}
                     Included with the client's
                     <strong>{{ client.get_package_display|default:"maintenance" }}</strong> plan.
                 {% else %}
-                    Enabled manually by an operator
-                    ($50/month addon, billed separately).
+                    Enabled manually ($50/month addon, billed separately).
                 {% endif %}
             </p>
-            <p class="muted text-sm">
-                <strong>Same script tag as Tier 1</strong> — just add
-                <code>data-tier="2"</code> to activate recording. One
-                file, one install. Replace the Tier 1 tag with this
-                one on the client's site.
-            </p>
-            <textarea id="tier2-snippet" class="form-control mon-snippet" rows="3" readonly>{{ tier2_snippet }}</textarea>
             <div class="lead-add-form__actions">
-                <button type="button" class="btn-primary" data-copy-target="tier2-snippet">Copy Snippet</button>
-                {% if not tier2_included_via_plan %}
-                    <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline; margin-left:8px;"
-                          onsubmit="return confirm('Disable session recording for {{ client.firm_name|escapejs }}?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary">Disable Session Recording</button>
-                    </form>
-                {% endif %}
+                <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline;"
+                      onsubmit="return confirm('Disable session recording for {{ client.firm_name|escapejs }}? Recording will stop on the next page load (config is cached for up to 5 minutes).');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary">Disable Session Recording</button>
+                </form>
+                <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' client.id %}">View Recordings</a>
             </div>
         {% else %}
-            <p class="muted">
-                Session recording requires the
-                <strong>Growth</strong> or <strong>Dominant</strong>
+            <p>
+                <strong>Disabled</strong> — enable below to activate recording on the client's next page load.
+            </p>
+            <p class="muted text-sm">
+                Requires the <strong>Growth</strong> or <strong>Dominant</strong>
                 maintenance plan, or a $50/month addon on Essentials.
             </p>
             <div class="lead-add-form__actions">
                 <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline;"
-                      onsubmit="return confirm('Before enabling session recording, confirm:\n\n  - Client privacy policy discloses session recording\n  - Client is on Growth, Dominant, or has paid the $50/mo addon\n  - You have updated the script tag on their site to data-tier=&quot;2&quot;\n\nProceed?');">
+                      onsubmit="return confirm('Before enabling session recording, confirm:\n\n  - Client privacy policy discloses session recording\n  - Client is on Growth, Dominant, or has paid the $50/mo addon\n\nNo changes needed on the client&apos;s site — the existing tracker snippet picks up the flag from the server within 5 minutes.\n\nProceed?');">
                     {% csrf_token %}
                     <button type="submit" class="btn-primary">Enable Session Recording</button>
                 </form>
@@ -102,9 +103,9 @@
     <section class="admin-card">
         <h3 class="admin-card__title">Installation</h3>
         <ol class="mon-steps">
-            <li>Install <strong>one</strong> snippet — Tier 1 for analytics-only, or Tier 2 to also record sessions. Don't install both; Tier 2 includes everything Tier 1 does.</li>
+            <li>Copy the snippet above.</li>
             <li>Paste it just before the closing <code>&lt;/body&gt;</code> tag on every page of the client's site.</li>
-            <li>Tier 1 starts collecting events immediately — no other setup needed.</li>
+            <li>Tier 1 analytics start collecting events immediately. Session recording activates the next time you flip the toggle above (config refresh: up to 5 minutes).</li>
             <li>Page sessions appear on the
                 <a href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions page</a>
                 within a minute of the first page unload.</li>

@@ -1558,22 +1558,18 @@ def client_tracker(request, client_id):
     client = get_object_or_404(ClientProfile, id=client_id)
 
     base = settings.SITE_BASE_URL
-    tier1_snippet = (
+    # ONE snippet, forever. Session recording (Tier 2) is gated
+    # by a server-side flag the tracker fetches from
+    # /api/tracker-config/<id>/ at runtime — no attribute change
+    # needed on the client's site to flip it on or off.
+    snippet = (
         f'<script src="{base}/static/js/aspired-tracker.js" '
         f'data-aspired-client="{client.id}" defer></script>'
     )
-    # Tier 2 = same script, plus data-tier="2" so the tracker loads
-    # the rrweb-record bundle and starts a session recording. One
-    # snippet per page is enough — Tier 1 analytics are bundled.
-    tier2_snippet = (
-        f'<script src="{base}/static/js/aspired-tracker.js" '
-        f'data-aspired-client="{client.id}" '
-        f'data-tier="2" defer></script>'
-    )
 
-    # Tier 2 is "included" when the client's package matches a plan
-    # in the Session Recording addon's `included_in_plans` list, OR
-    # when the operator has manually flipped session_recording_enabled.
+    # Session recording is "included via plan" when the client's
+    # package is in the Session Recording addon's
+    # `included_in_plans` list.
     included_via_plan = False
     try:
         from billing.pricing_models import AddonPricing
@@ -1585,17 +1581,15 @@ def client_tracker(request, client_id):
     except Exception:
         included_via_plan = False
 
-    tier2_active = bool(client.session_recording_enabled
-                        or included_via_plan)
+    recording_active = bool(client.session_recording_enabled)
 
     return render(request, 'admin_dashboard/client_tracker.html',
                   _admin_context(
                       'clients',
                       client=client,
-                      tier1_snippet=tier1_snippet,
-                      tier2_snippet=tier2_snippet,
-                      tier2_active=tier2_active,
-                      tier2_included_via_plan=included_via_plan,
+                      snippet=snippet,
+                      recording_active=recording_active,
+                      recording_included_via_plan=included_via_plan,
                       last_event=ConversionEvent.objects.filter(
                           client=client).first(),
                       last_session=PageSession.objects.filter(

@@ -15,6 +15,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
@@ -208,6 +209,44 @@ def track_batch(request):
             continue
 
     return _ok()
+
+
+# ── Tracker config — server-side Tier 1 vs Tier 2 flag ─────────────────────
+
+# Cached for 5 minutes so every page load from a busy client site
+# doesn't slam the DB, but admin toggles still take effect within
+# the window. `Cache-Control: public, max-age=300` is set by
+# cache_page automatically for the browser side too.
+@cache_page(60 * 5)
+def tracker_config(request, client_id):
+    """
+    Public per-client config endpoint hit by aspired-tracker.js to
+    learn whether session recording is enabled. Unknown client_id
+    returns a safe "Tier 1, no recording" payload so a typoed UUID
+    in a snippet never reveals enumeration info.
+
+    CORS-open because the request originates on the client's own
+    domain, not aspiredwebsites.com.
+    """
+    from clients.models import ClientProfile
+
+    enabled = False
+    try:
+        enabled = ClientProfile.objects.filter(
+            id=client_id).values_list(
+            'session_recording_enabled', flat=True).first() or False
+    except (ValueError, TypeError):
+        enabled = False
+
+    payload = {
+        'tier': 2 if enabled else 1,
+        'session_recording': bool(enabled),
+        'client_id': str(client_id),
+    }
+    response = JsonResponse(payload)
+    response['Access-Control-Allow-Origin'] = '*'
+    response['Cache-Control'] = 'public, max-age=300'
+    return response
 
 
 # ── Tier 2 session-recording endpoint (rrweb) ───────────────────────────────
