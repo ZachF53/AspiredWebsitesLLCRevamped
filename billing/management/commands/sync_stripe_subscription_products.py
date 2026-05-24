@@ -99,15 +99,17 @@ class Command(BaseCommand):
                    f"metadata['aspired_subscription_kind']:'{kind}'"),
             limit=10,
         )
-        data = list(products.get('data', []))
+        # Stripe Python v15 StripeObject has no .get(); use attribute access.
+        data = list(getattr(products, 'data', None) or [])
         return data[0] if data else None
 
     def _find_active_price(self, product_id, *, amount_cents, interval):
         prices = stripe.Price.list(
             product=product_id, active=True, limit=20)
-        for p in prices.get('data', []):
-            rec = p.get('recurring') or {}
-            if (p.get('unit_amount') == amount_cents
-                    and rec.get('interval') == interval):
+        for p in (getattr(prices, 'data', None) or []):
+            rec = getattr(p, 'recurring', None)
+            rec_interval = getattr(rec, 'interval', '') if rec else ''
+            if (getattr(p, 'unit_amount', None) == amount_cents
+                    and rec_interval == interval):
                 return p
         return None
