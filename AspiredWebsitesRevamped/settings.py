@@ -219,14 +219,9 @@ STATIC_VERSION = _static_version()
 # ── Logging ─────────────────────────────────────────────────────────────────
 # Django's default LOGGING with DEBUG=False routes django.request errors to
 # `mail_admins` only — so unless ADMINS is set + email works, every 500 just
-# disappears. We explicitly route the django.request logger (the one that
-# fires for unhandled view exceptions) to stderr AND a dedicated file so
-# tracebacks always land somewhere greppable.
-import os as _os
-_DJANGO_LOG = _os.path.join(
-    str(BASE_DIR.parent), 'logs', 'django-error.log',
-) if (BASE_DIR.parent / 'logs').exists() else None
-
+# disappears. Route to stderr instead; gunicorn captures stderr to its
+# --error-logfile (`/var/www/aspired/logs/gunicorn-error.log` on prod), so
+# tracebacks land in the same file the operator already tails.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -240,60 +235,40 @@ LOGGING = {
         },
     },
     'handlers': {
-        # Stderr handler — picked up by gunicorn's --error-logfile.
         'console': {
             'class': 'logging.StreamHandler',
             'level': 'INFO',
             'formatter': 'verbose',
         },
-        # Optional file handler — only attached when the prod logs dir
-        # exists (it does on the DO Droplet; doesn't on local dev).
-        **({
-            'django_error_file': {
-                'class': 'logging.handlers.RotatingFileHandler',
-                'level': 'WARNING',
-                'formatter': 'verbose',
-                'filename': _DJANGO_LOG,
-                'maxBytes': 10 * 1024 * 1024,    # 10 MB
-                'backupCount': 5,
-            },
-        } if _DJANGO_LOG else {}),
     },
     'loggers': {
         # The logger Django emits unhandled-view-exception tracebacks
-        # to. Default propagation chain caps at level INFO via the root
+        # to. Default propagation chain caps at INFO via the root
         # logger, so we override here.
         'django.request': {
-            'handlers': (
-                ['console', 'django_error_file']
-                if _DJANGO_LOG else ['console']
-            ),
+            'handlers': ['console'],
             'level': 'WARNING',
             'propagate': False,
         },
         # Our own app loggers — anything that calls
         # `logger = logging.getLogger(__name__)` inherits this.
         'clients': {
-            'handlers': ['console'] + (
-                ['django_error_file'] if _DJANGO_LOG else []),
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'billing': {
-            'handlers': ['console'] + (
-                ['django_error_file'] if _DJANGO_LOG else []),
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'reporting': {
-            'handlers': ['console'] + (
-                ['django_error_file'] if _DJANGO_LOG else []),
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'admin_dashboard': {
-            'handlers': ['console'] + (
-                ['django_error_file'] if _DJANGO_LOG else []),
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
