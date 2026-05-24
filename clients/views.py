@@ -323,8 +323,8 @@ def _intake_missing_required(intake_obj):
         missing.append('Brand colors')
     if not (intake_obj.brand_fonts or '').strip():
         missing.append('Brand fonts')
-    if not intake_obj.logo:
-        missing.append('Logo upload')
+    if not intake_obj.logo and not intake_obj.no_logo_yet:
+        missing.append('Logo upload (or check "I don\'t have a logo yet")')
 
     # Step 2 — only when client says they have photos
     if intake_obj.photos_provided:

@@ -30,7 +30,7 @@ class IntakeForm(forms.ModelForm):
     class Meta:
         model = IntakeResponse
         fields = [
-            'brand_colors', 'brand_fonts', 'logo',
+            'brand_colors', 'brand_fonts', 'logo', 'no_logo_yet',
             'photos_provided', 'photos_note',
             'about_copy', 'practice_areas', 'attorney_bios',
             'reference_sites', 'competitors',

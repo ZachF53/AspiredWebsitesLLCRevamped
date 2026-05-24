@@ -280,6 +280,11 @@ class IntakeResponse(TimestampedModel):
     brand_colors = models.CharField(max_length=255, blank=True)
     brand_fonts = models.CharField(max_length=255, blank=True)
     logo = models.FileField(upload_to='portal/intake/logos/', null=True, blank=True)
+    # Set when the client opts in to "I don't have a logo yet" on the
+    # Logo step. Marks the field as satisfied for wizard-validation +
+    # the server-side intake completeness check without requiring an
+    # actual file upload.
+    no_logo_yet = models.BooleanField(default=False)
 
     # Step 2 — Photos
     photos_provided = models.BooleanField(default=False)

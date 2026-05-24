@@ -55,14 +55,22 @@
             {{ form.brand_fonts }}
         </div>
 
-        <div class="form-group" data-required data-required-file="{% if intake.logo %}1{% else %}0{% endif %}">
+        <div class="form-group"
+             data-required
+             data-required-file="{% if intake.logo %}1{% else %}0{% endif %}"
+             data-required-skip-if="id_no_logo_yet">
             <label for="{{ form.logo.id_for_label }}">Logo <span class="form-required">*</span></label>
             {% if intake.logo %}
                 <p class="form-hint">Current: <a href="{{ intake.logo.url }}" target="_blank" rel="noopener">{{ intake.logo.name|cut:"portal/intake/logos/" }}</a> — upload a new one to replace.</p>
             {% else %}
-                <p class="form-hint">Upload your logo (PNG, SVG, JPG).</p>
+                <p class="form-hint">Upload your logo (PNG, SVG, JPG). If you don't have one yet, check the box below — we'll talk options later.</p>
             {% endif %}
             {{ form.logo }}
+
+            <label class="intake-inline-check">
+                {{ form.no_logo_yet }}
+                <span>I don't have a logo yet</span>
+            </label>
         </div>
     </section>
 

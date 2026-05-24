@@ -142,6 +142,14 @@
             return true;          // not a required group at all
         }
 
+        // data-required-skip-if="<id>" — if the named checkbox is
+        // checked, the whole group is considered satisfied (e.g. the
+        // "I don't have a logo yet" opt-out on Step 1).
+        var skipIf = group.getAttribute('data-required-skip-if');
+        if (skipIf && readControl(skipIf)) {
+            return true;
+        }
+
         // Photo-count rule (Step 2 — at least N photos uploaded).
         var photoCount = group.getAttribute('data-required-photo-count');
         if (photoCount !== null) {
@@ -255,6 +263,35 @@
         }
     }
 
+    function wireLogoOptOut() {
+        var skipBox = document.getElementById('id_no_logo_yet');
+        var fileInput = document.getElementById('id_logo');
+        if (!skipBox || !fileInput) { return; }
+
+        function sync() {
+            // Dim the file input visually when "no logo yet" is checked.
+            // We never .disabled = true because that would block the
+            // file input from being clicked if the client changes their
+            // mind without first unchecking the box.
+            fileInput.style.opacity = skipBox.checked ? '0.45' : '';
+        }
+        skipBox.addEventListener('change', function () {
+            sync();
+            revalidate();
+        });
+        fileInput.addEventListener('change', function () {
+            // If the client picks a file, that contradicts the opt-out
+            // — clear it so the two controls stay consistent.
+            if (fileInput.files && fileInput.files.length && skipBox.checked) {
+                skipBox.checked = false;
+                // Fire a synthetic change so HTMX auto-save picks it up.
+                skipBox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            sync();
+        });
+        sync();
+    }
+
     function wireWizard() {
         var steps = $$('.intake-step[data-step]');
         if (!steps.length) { return; }
@@ -266,6 +303,9 @@
         // Conditional reveals first — they affect required-field
         // counts the validator needs to know about.
         $$('.intake-reveal[data-reveal-when]').forEach(wireReveal);
+
+        // Logo opt-out checkbox <-> file input visual sync.
+        wireLogoOptOut();
 
         var prevBtn = $('[data-wizard-prev]');
         var nextBtn = $('[data-wizard-next]');

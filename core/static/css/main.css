@@ -5068,6 +5068,26 @@ button.htmx-request {
     margin-bottom: 4px;
 }
 
+/* Inline opt-out checkbox shown under a field that it modifies
+   (e.g. the "I don't have a logo yet" toggle under the Logo upload).
+   Sits flush under the field with a smaller font weight so it reads
+   as secondary to the primary input above it. */
+.intake-inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+.intake-inline-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-orange);
+    cursor: pointer;
+}
+
 /* Intake-specific spacing — the global .form-group is intentionally tight
    (used in dense admin forms) but the intake is a long, scrolling client-
    facing form where every field deserves breathing room. Scope these
