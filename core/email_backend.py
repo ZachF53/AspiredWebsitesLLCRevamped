@@ -43,19 +43,35 @@ def _append_footer_to_message(msg):
     if not _is_already_signed(msg.body or ''):
         msg.body = (msg.body or '') + text_footer()
 
-    # HTML alternatives. `msg.alternatives` is a list of
-    # (content, mimetype) tuples; multi-part messages from
-    # EmailMultiAlternatives + the body-as-html convenience both
-    # land here.
+    # HTML alternatives. In Django 5+ `msg.alternatives` is a list of
+    # `EmailAlternative` namedtuples (`.content`, `.mimetype`); in
+    # earlier versions it was plain `(content, mimetype)` tuples.
+    # Iterating via `alt[0]` / `alt[1]` works for both. We re-assign
+    # back using the SAME constructor we received — using a plain
+    # tuple on Django 5+ breaks the SMTP serializer with
+    # "AttributeError: 'tuple' object has no attribute 'content'".
     alts = list(getattr(msg, 'alternatives', None) or [])
-    if alts:
-        new_alts = []
-        for content, mimetype in alts:
-            if mimetype and 'html' in mimetype.lower():
-                if not _is_already_signed(content or ''):
-                    content = _inject_html_footer(content or '')
+    if not alts:
+        return
+
+    try:
+        from django.core.mail.message import EmailAlternative
+    except ImportError:
+        EmailAlternative = None     # noqa: N806 — older Django
+
+    new_alts = []
+    for alt in alts:
+        content = alt[0]
+        mimetype = alt[1]
+        if mimetype and 'html' in mimetype.lower():
+            if not _is_already_signed(content or ''):
+                content = _inject_html_footer(content or '')
+        if EmailAlternative is not None and isinstance(
+                alt, EmailAlternative):
+            new_alts.append(EmailAlternative(content, mimetype))
+        else:
             new_alts.append((content, mimetype))
-        msg.alternatives = new_alts
+    msg.alternatives = new_alts
 
 
 def _inject_html_footer(html: str) -> str:
