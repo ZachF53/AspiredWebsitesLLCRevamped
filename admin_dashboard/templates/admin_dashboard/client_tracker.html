@@ -7,37 +7,101 @@
     <div class="admin-page-header">
         <div>
             <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
-            <h1 class="admin-page-title">Conversion Tracker Snippet</h1>
+            <h1 class="admin-page-title">Tracker Snippets</h1>
             <p class="muted">{{ client.firm_name }}{% if project.live_url %} — {{ project.live_url }}{% endif %}</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:client_conversions' client.id %}">View Conversions</a>
         </div>
     </div>
 
+    {# ─── Tier 1 — always active ────────────────────────── #}
     <section class="admin-card">
         <div class="admin-card__head">
-            <h3 class="admin-card__title">Tracking Snippet</h3>
+            <h3 class="admin-card__title">
+                Tier 1 — Analytics Tracker
+                <span class="status-badge status-badge--won">Active</span>
+            </h3>
             <span class="mon-status">
-                {% if last_event %}
+                {% if last_session %}
+                    <span class="dot dot--up"></span> Last page view {{ last_session.created_at|date:"M j, Y H:i" }}
+                {% elif last_event %}
                     <span class="dot dot--up"></span> Last event {{ last_event.event_timestamp|date:"M j, Y H:i" }}
                 {% else %}
-                    <span class="dot dot--unknown"></span> No events received yet
+                    <span class="dot dot--unknown"></span> No data received yet
                 {% endif %}
             </span>
         </div>
-        <textarea id="tracker-snippet" class="form-control mon-snippet" rows="3" readonly>{{ snippet }}</textarea>
+        <p class="muted text-sm">
+            Tracks form submissions, phone clicks, CTA clicks,
+            scroll depth, click coordinates, time on page,
+            and exit-intent signals. All batched and shipped on
+            unload — no cookies, no PII.
+        </p>
+        <textarea id="tier1-snippet" class="form-control mon-snippet" rows="3" readonly>{{ tier1_snippet }}</textarea>
         <div class="lead-add-form__actions">
-            <button type="button" class="btn-primary" data-copy-target="tracker-snippet">Copy Snippet</button>
+            <button type="button" class="btn-primary" data-copy-target="tier1-snippet">Copy Snippet</button>
         </div>
+    </section>
+
+    {# ─── Tier 2 — Session recording ────────────────────── #}
+    <section class="admin-card">
+        <div class="admin-card__head">
+            <h3 class="admin-card__title">
+                Tier 2 — Session Recording & Heatmaps
+                {% if tier2_active %}
+                    <span class="status-badge status-badge--won">Active</span>
+                {% else %}
+                    <span class="status-badge status-badge--paused">Locked</span>
+                {% endif %}
+            </h3>
+        </div>
+        {% if tier2_active %}
+            <p class="muted text-sm">
+                {% if tier2_included_via_plan %}
+                    Included with the client's
+                    <strong>{{ client.get_package_display|default:"maintenance" }}</strong> plan.
+                {% else %}
+                    Enabled manually by an operator
+                    ($50/month addon, billed separately).
+                {% endif %}
+            </p>
+            <textarea id="tier2-snippet" class="form-control mon-snippet" rows="3" readonly>{{ tier2_snippet }}</textarea>
+            <div class="lead-add-form__actions">
+                <button type="button" class="btn-primary" data-copy-target="tier2-snippet">Copy Snippet</button>
+                {% if not tier2_included_via_plan %}
+                    <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline; margin-left:8px;"
+                          onsubmit="return confirm('Disable session recording for {{ client.firm_name|escapejs }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary">Disable Session Recording</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% else %}
+            <p class="muted">
+                Session recording requires the
+                <strong>Growth</strong> or <strong>Dominant</strong>
+                maintenance plan, or a $50/month addon on Essentials.
+            </p>
+            <div class="lead-add-form__actions">
+                <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline;"
+                      onsubmit="return confirm('Enable session recording for {{ client.firm_name|escapejs }} (\$50/mo addon)?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary">Enable Session Recording</button>
+                </form>
+            </div>
+        {% endif %}
     </section>
 
     <section class="admin-card">
         <h3 class="admin-card__title">Installation</h3>
         <ol class="mon-steps">
-            <li>Copy the snippet above.</li>
+            <li>Copy each snippet above.</li>
             <li>Paste it just before the closing <code>&lt;/body&gt;</code> tag on every page of the client's site.</li>
-            <li>It tracks form submissions, phone-number clicks, and CTA-button clicks automatically — no other setup needed.</li>
-            <li>Events appear on the
+            <li>Tier 1 starts collecting events immediately — no other setup needed.</li>
+            <li>Page sessions appear on the
                 <a href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions page</a>
-                within a minute of the first interaction.</li>
+                within a minute of the first page unload.</li>
         </ol>
     </section>
 </div>

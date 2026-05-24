@@ -10195,3 +10195,208 @@ button.htmx-request {
     border-bottom-color: var(--color-orange);
 }
 .footer-legal span { opacity: 0.5; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tier 1 analytics — admin conversion dashboard + portal Visitor Analytics
+   Dark tokens throughout for the admin views; portal cards use shared
+   stat-card tokens.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Stat-card colour bands (admin + portal share the modifiers). */
+.ca-stat--good .admin-stat__value,
+.va-stat--good .stat-card__value {
+    color: var(--color-success);
+}
+.ca-stat--ok .admin-stat__value,
+.va-stat--ok .stat-card__value {
+    color: var(--color-orange);
+}
+.ca-stat--poor .admin-stat__value,
+.va-stat--poor .stat-card__value {
+    color: var(--color-danger);
+}
+.ca-stat--muted .admin-stat__value,
+.va-stat--muted .stat-card__value {
+    color: var(--color-text-muted);
+}
+
+/* ── Conversion funnel ── */
+.funnel {
+    display: flex; flex-direction: column;
+    gap: 6px; margin-top: 6px;
+    max-width: 720px;
+}
+.funnel__step {
+    display: flex; justify-content: space-between;
+    align-items: center; gap: 14px;
+    padding: 12px 16px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    border-radius: 8px;
+    font-size: 14px;
+}
+.funnel__step--final {
+    border-left-color: var(--color-success);
+    background: rgba(74, 222, 128, 0.06);
+}
+.funnel__label { color: var(--color-text); }
+.funnel__value {
+    color: var(--color-text); font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.funnel__arrow {
+    color: var(--color-text-muted);
+    text-align: center; line-height: 1;
+    font-size: 18px;
+}
+
+/* ── Scroll-depth distribution bars ── */
+.scroll-dist {
+    display: flex; flex-direction: column;
+    gap: 10px; margin-top: 6px;
+}
+.scroll-dist__row {
+    display: grid;
+    grid-template-columns: 80px 1fr 120px;
+    gap: 12px; align-items: center;
+}
+.scroll-dist__label {
+    color: var(--color-text-muted);
+    font-size: 12px; letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.scroll-dist__bar-wrap {
+    height: 14px; border-radius: 7px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+}
+.scroll-dist__bar {
+    height: 100%; border-radius: 7px 0 0 7px;
+    min-width: 2px;
+    transition: width 0.2s ease;
+}
+.scroll-dist__bar--poor { background: var(--color-danger); }
+.scroll-dist__bar--ok   { background: var(--color-orange); }
+.scroll-dist__bar--teal { background: var(--color-teal-light); }
+.scroll-dist__bar--good { background: var(--color-success); }
+.scroll-dist__count {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* ── Click heatmap grid ── */
+.heatmap-grid {
+    display: flex; flex-direction: column; gap: 2px;
+    margin-top: 6px;
+    max-width: 600px;
+    aspect-ratio: 1.4 / 1;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 6px;
+}
+.heatmap-grid__row {
+    display: flex; gap: 2px; flex: 1;
+}
+.heatmap-cell {
+    flex: 1; border-radius: 2px;
+    background: rgba(255,255,255,0.03);
+    transition: background 0.15s ease;
+}
+.heatmap-cell--b1 { background: rgba(20, 184, 166, 0.18); }
+.heatmap-cell--b2 { background: rgba(20, 184, 166, 0.42); }
+.heatmap-cell--b3 { background: rgba(232, 101, 10, 0.55); }
+.heatmap-cell--b4 { background: var(--color-orange); }
+
+/* ── Portal Visitor Analytics ── */
+.va-section { margin-top: var(--space-5); }
+.portal-section__sub {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.va-scroll-insight {
+    margin: var(--space-3) 0;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+}
+.va-scroll-bar {
+    height: 10px; border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.va-scroll-bar__fill {
+    height: 100%;
+    border-radius: 5px 0 0 5px;
+    transition: width 0.2s ease;
+}
+.va-scroll-bar__fill--good { background: var(--color-success); }
+.va-scroll-bar__fill--ok   { background: var(--color-orange); }
+.va-scroll-bar__fill--poor { background: var(--color-danger); }
+.va-scroll-bar__fill--muted { background: var(--color-text-muted); }
+.va-insight {
+    color: var(--color-text);
+    margin: 0;
+}
+
+.va-callout {
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin: 14px 0;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+.va-callout--warn {
+    border-color: rgba(232, 101, 10, 0.4);
+    background: rgba(232, 101, 10, 0.08);
+}
+.va-callout--good {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(74, 222, 128, 0.08);
+}
+
+.va-top-pages {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.va-top-pages__item {
+    display: flex; justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.va-top-pages__url {
+    color: var(--color-text);
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.va-top-pages__views {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.va-upsell {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    border-radius: 12px;
+}
+.va-upsell h3 {
+    color: var(--color-orange);
+    margin: 0 0 8px 0;
+}
+.va-upsell p { color: var(--color-text); }

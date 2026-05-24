@@ -1510,8 +1510,20 @@ def keyword_run_check(request, client_id):
 
 @admin_required
 def client_conversions(request, client_id):
-    """Conversion dashboard — month-over-month counts + recent event log."""
+    """
+    Tier 1 analytics dashboard — overview cards, conversion funnel,
+    top pages, scroll-depth distribution, click-density grid, and
+    recent session list. Backed by `PageSession` (v2 tracker).
+
+    Falls back gracefully when no PageSession data exists yet (e.g.
+    legacy clients still on v1 tracker) — every helper returns an
+    empty/zeroed shape.
+    """
     from clients.models import ClientProfile
+    from reporting.analytics_helpers import (
+        click_heatmap_grid, conversion_funnel, overview_stats,
+        recent_sessions, scroll_distribution, top_pages,
+    )
     from reporting.conversion_helpers import conversion_counts
     from reporting.models import ConversionEvent
 
@@ -1521,27 +1533,84 @@ def client_conversions(request, client_id):
                       'clients',
                       client=client,
                       counts=conversion_counts(client),
-                      events=ConversionEvent.objects.filter(client=client)[:50],
+                      overview=overview_stats(client),
+                      funnel=conversion_funnel(client),
+                      top_pages=top_pages(client, limit=10),
+                      scroll_dist=scroll_distribution(client),
+                      heatmap_grid=click_heatmap_grid(client),
+                      sessions=recent_sessions(client, limit=50),
+                      events=ConversionEvent.objects.filter(
+                          client=client)[:20],
                   ))
 
 
 @admin_required
 def client_tracker(request, client_id):
-    """Snippet generator — the personalised conversion-tracker <script> tag."""
+    """
+    Snippet generator — shows Tier 1 (always available) and Tier 2
+    (gated by ClientProfile.session_recording_enabled, which is set
+    by the operator either manually or because the client is on a
+    Growth/Dominant maintenance plan that includes it).
+    """
     from clients.models import ClientProfile
-    from reporting.models import ConversionEvent
+    from reporting.models import ConversionEvent, PageSession
 
     client = get_object_or_404(ClientProfile, id=client_id)
-    snippet = (
-        f'<script src="{settings.SITE_BASE_URL}/static/js/aspired-tracker.js" '
+
+    base = settings.SITE_BASE_URL
+    tier1_snippet = (
+        f'<script src="{base}/static/js/aspired-tracker.js" '
         f'data-aspired-client="{client.id}" defer></script>'
     )
-    return render(request, 'admin_dashboard/client_tracker.html', _admin_context(
-        'clients',
-        client=client,
-        snippet=snippet,
-        last_event=ConversionEvent.objects.filter(client=client).first(),
-    ))
+    tier2_snippet = (
+        f'<script src="{base}/static/js/aspired-recorder.js" '
+        f'data-aspired-client="{client.id}" defer></script>'
+    )
+
+    # Tier 2 is "included" when the client's package matches a plan
+    # in the Session Recording addon's `included_in_plans` list, OR
+    # when the operator has manually flipped session_recording_enabled.
+    included_via_plan = False
+    try:
+        from billing.pricing_models import AddonPricing
+        recording_addon = AddonPricing.objects.filter(
+            slug='addon-session-recording').first()
+        if recording_addon:
+            included_via_plan = recording_addon.is_included_for(
+                client.package)
+    except Exception:
+        included_via_plan = False
+
+    tier2_active = bool(client.session_recording_enabled
+                        or included_via_plan)
+
+    return render(request, 'admin_dashboard/client_tracker.html',
+                  _admin_context(
+                      'clients',
+                      client=client,
+                      tier1_snippet=tier1_snippet,
+                      tier2_snippet=tier2_snippet,
+                      tier2_active=tier2_active,
+                      tier2_included_via_plan=included_via_plan,
+                      last_event=ConversionEvent.objects.filter(
+                          client=client).first(),
+                      last_session=PageSession.objects.filter(
+                          client=client).first(),
+                  ))
+
+
+@admin_required
+@require_POST
+def client_toggle_session_recording(request, client_id):
+    """Operator toggle — flip ClientProfile.session_recording_enabled."""
+    from clients.models import ClientProfile
+    client = get_object_or_404(ClientProfile, id=client_id)
+    client.session_recording_enabled = (
+        not client.session_recording_enabled)
+    client.save(update_fields=[
+        'session_recording_enabled', 'updated_at'])
+    return redirect('admin_dashboard:client_tracker',
+                    client_id=client.id)
 
 
 @admin_required

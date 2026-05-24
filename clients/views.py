@@ -772,20 +772,40 @@ def portal_changelog(request):
 
 @client_required
 def portal_seo(request):
-    """Keyword rankings + conversion activity for the client."""
+    """
+    Keyword rankings + conversion activity + Tier 1 visitor
+    analytics (page views, time on page, scroll depth, top pages)
+    for the client.
+    """
     profile = request.client_profile
+    from reporting.analytics_helpers import (
+        exit_intent_insight, overview_stats, scroll_insight,
+        top_pages,
+    )
     from reporting.conversion_helpers import (
         conversion_6month_chart, conversion_counts,
     )
-    from reporting.keyword_helpers import build_keyword_rows, keyword_insight
+    from reporting.keyword_helpers import (
+        build_keyword_rows, keyword_insight,
+    )
 
     rows = build_keyword_rows(profile, active_only=True)
+    overview = overview_stats(profile)
+
     ctx = _portal_context(
         request, 'seo',
         keyword_rows=rows,
         keyword_insight=keyword_insight(rows),
         conversion_counts=conversion_counts(profile),
         conversion_chart=conversion_6month_chart(profile),
+        analytics_overview=overview,
+        analytics_top_pages=top_pages(profile, limit=5),
+        scroll_insight=scroll_insight(overview['avg_scroll_depth']),
+        exit_intent_insight=exit_intent_insight(
+            overview['exit_intent_rate']),
+        session_recording_enabled=bool(
+            profile.session_recording_enabled),
+        on_essentials=(profile.package == 'maintenance_essentials'),
     )
     return render(request, 'clients/portal_seo.html', ctx)
 

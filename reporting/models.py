@@ -479,3 +479,68 @@ class VulnerabilityFinding(TimestampedModel):
             return []
         return [c.strip() for c in self.cve_id.replace(',', ' ').split()
                 if c.strip()]
+
+
+# ── Tier 1 analytics — one row per page view ──────────────────────────────
+
+class PageSession(TimestampedModel):
+    """
+    One record per page view from the v2 aspired-tracker.js. The
+    tracker batches everything that happens on a single page (scroll,
+    clicks, exit intent, time on page) and ships it in one beacon
+    on unload — `track_batch` lands here.
+
+    `raw_events` keeps the full event stream (capped at 100) so we can
+    rebuild a session view later without re-instrumenting the page.
+    Conversion event counts (form_submits, phone_clicks, cta_clicks)
+    are denormalised for fast aggregate queries on the dashboard.
+    """
+
+    client = models.ForeignKey(
+        'clients.ClientProfile',
+        on_delete=models.CASCADE,
+        related_name='page_sessions',
+    )
+    session_id = models.CharField(max_length=100)
+    # Browser-generated UUID per page view (no cookies).
+
+    page_url = models.URLField(max_length=2000, blank=True)
+    page_title = models.CharField(max_length=200, blank=True)
+
+    # Time metrics.
+    time_on_page_seconds = models.IntegerField(
+        null=True, blank=True)
+
+    # Scroll metrics — 0-100 percentage.
+    max_scroll_depth = models.IntegerField(null=True, blank=True)
+    scroll_milestones_hit = models.JSONField(default=list, blank=True)
+    # e.g. [25, 50, 75]
+
+    # Engagement signal.
+    exit_intent_fired = models.BooleanField(default=False)
+
+    # Click coordinates — list of
+    # {x_pct, y_pct, tag, text, ts}.
+    click_heatmap = models.JSONField(default=list, blank=True)
+
+    # Conversion events on this page (denormalised counts).
+    form_submits = models.IntegerField(default=0)
+    phone_clicks = models.IntegerField(default=0)
+    cta_clicks = models.IntegerField(default=0)
+
+    # Raw event stream (capped at 100 in the view).
+    raw_events = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Page Session'
+        verbose_name_plural = 'Page Sessions'
+        indexes = [
+            models.Index(fields=['client', '-created_at']),
+            models.Index(fields=['client', 'session_id']),
+        ]
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'{(self.page_url or "")[:50]} — '
+                f'{self.created_at.date()}')

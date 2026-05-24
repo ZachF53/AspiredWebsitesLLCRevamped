@@ -68,6 +68,72 @@
         {% endfor %}
     </div>
 </section>
+
+{# ─── Visitor Analytics (Tier 1) ───────────────────────────── #}
+<section class="portal-section va-section">
+    <h2 class="portal-section__title">Visitor Analytics</h2>
+    <p class="portal-section__sub">How people interact with your website — last {{ analytics_overview.days }} days</p>
+
+    <div class="stat-grid">
+        <article class="stat-card">
+            <span class="stat-card__label">Page Views</span>
+            <span class="stat-card__value">{{ analytics_overview.total_page_views }}</span>
+        </article>
+        <article class="stat-card va-stat--{{ analytics_overview.avg_time_band }}">
+            <span class="stat-card__label">Avg Time on Page</span>
+            <span class="stat-card__value">{{ analytics_overview.avg_time_on_page_display }}</span>
+        </article>
+        <article class="stat-card va-stat--{{ analytics_overview.avg_scroll_band }}">
+            <span class="stat-card__label">Avg Scroll Depth</span>
+            <span class="stat-card__value">{% if analytics_overview.avg_scroll_depth is not None %}{{ analytics_overview.avg_scroll_depth }}%{% else %}—{% endif %}</span>
+        </article>
+        <article class="stat-card">
+            <span class="stat-card__label">Form Submissions</span>
+            <span class="stat-card__value">
+                {% for row in conversion_counts %}{% if row.label == "Form submissions" %}{{ row.this_month }}{% endif %}{% endfor %}
+            </span>
+        </article>
+    </div>
+
+    {% if analytics_overview.avg_scroll_depth is not None %}
+        <div class="va-scroll-insight">
+            <div class="va-scroll-bar">
+                <div class="va-scroll-bar__fill va-scroll-bar__fill--{{ analytics_overview.avg_scroll_band }}"
+                     style="width: {{ analytics_overview.avg_scroll_depth }}%;"></div>
+            </div>
+            <p class="va-insight">{{ scroll_insight }}</p>
+        </div>
+    {% endif %}
+
+    {% if exit_intent_insight %}
+        <div class="va-callout va-callout--warn">{{ exit_intent_insight }}</div>
+    {% endif %}
+
+    {% if analytics_top_pages %}
+        <h3 class="seo-subhead">Top pages</h3>
+        <ul class="va-top-pages">
+            {% for p in analytics_top_pages %}
+                <li class="va-top-pages__item">
+                    <span class="va-top-pages__url">{{ p.page_url|truncatechars:60 }}</span>
+                    <span class="va-top-pages__views">{{ p.views }} view{{ p.views|pluralize }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if session_recording_enabled %}
+        <div class="va-callout va-callout--good">
+            <strong>Session Recording Active</strong> — your Aspired Websites account includes full session replay. Ask Zachery to review recent sessions for insights.
+        </div>
+    {% elif on_essentials %}
+        <div class="va-upsell">
+            <h3>Want to see exactly how visitors use your site?</h3>
+            <p>Session recording shows you where people click, how far they scroll, and where they get stuck. Included in Growth &amp; Dominant plans, or $50/month addon.</p>
+            <p><a class="btn-primary" href="mailto:zacherylong@aspiredwebsites.com?subject=Add%20Session%20Recording">Contact Zachery to upgrade →</a></p>
+        </div>
+    {% endif %}
+</section>
+
 {% endblock %}
 
 {% block extra_scripts %}

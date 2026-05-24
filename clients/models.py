@@ -139,6 +139,12 @@ class ClientProfile(TimestampedModel):
     # and decides per-scan whether to send it.
     auto_send_scan_reports = models.BooleanField(default=False)
 
+    # ── Tier 2 session-recording addon (Phase 7) ──
+    # Free on Growth + Dominant maintenance plans; $50/mo addon on
+    # Essentials. When True the Tier 2 recorder script tag is shown
+    # in the snippet generator. False = Tier 1 analytics only.
+    session_recording_enabled = models.BooleanField(default=False)
+
     # ── Internal classification ──
     # True for Aspired's own test / dev properties (Aspired AI, Food
     # Trucks, etc.) so they can be excluded from external dashboards,

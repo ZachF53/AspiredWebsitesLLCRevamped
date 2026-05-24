@@ -8,45 +8,177 @@
         <div>
             <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
             <h1 class="admin-page-title">Conversion Activity</h1>
+            <p class="muted">Last {{ overview.days }} days · {{ overview.total_page_views }} page view{{ overview.total_page_views|pluralize }}</p>
         </div>
         <div class="admin-page-actions">
             <a class="btn-secondary" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
         </div>
     </div>
 
-    <div class="stat-grid">
-        {% for row in counts %}
-            <article class="stat-card">
-                <span class="stat-card__label">{{ row.label }}</span>
-                <span class="stat-card__value">{{ row.this_month }}</span>
-                <span class="stat-card__meta">
-                    {% if row.delta > 0 %}<span class="delta delta--up">&uarr; {{ row.delta }} vs last month</span>
-                    {% elif row.delta < 0 %}<span class="delta delta--down">&darr; {{ row.delta|cut:"-" }} vs last month</span>
-                    {% else %}<span class="delta delta--same">Same as last month</span>{% endif %}
-                </span>
-            </article>
-        {% endfor %}
+    {# ─── Overview cards ─────────────────────────────────── #}
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Page Views (30d)</span>
+            <span class="admin-stat__value">{{ overview.total_page_views }}</span>
+        </div>
+        <div class="admin-stat ca-stat--{{ overview.avg_time_band }}">
+            <span class="admin-stat__label">Avg Time on Page</span>
+            <span class="admin-stat__value">{{ overview.avg_time_on_page_display }}</span>
+        </div>
+        <div class="admin-stat ca-stat--{{ overview.avg_scroll_band }}">
+            <span class="admin-stat__label">Avg Scroll Depth</span>
+            <span class="admin-stat__value">{% if overview.avg_scroll_depth is not None %}{{ overview.avg_scroll_depth }}%{% else %}—{% endif %}</span>
+        </div>
+        <div class="admin-stat {% if overview.exit_intent_rate >= 40 %}admin-stat--urgent{% endif %}">
+            <span class="admin-stat__label">Exit Intent Rate</span>
+            <span class="admin-stat__value">{{ overview.exit_intent_rate }}%</span>
+        </div>
     </div>
 
-    <section class="admin-card">
-        <h3 class="admin-card__title">Recent Events</h3>
-        {% if events %}
-            <table class="lead-table">
-                <thead><tr><th>When</th><th>Type</th><th>Element</th><th>Page</th></tr></thead>
+    {# ─── Monthly conversion counts (legacy) ─────────────── #}
+    {% if counts %}
+        <section class="admin-section">
+            <div class="admin-section__header"><h2>Conversion events (month-over-month)</h2></div>
+            <div class="stat-grid">
+                {% for row in counts %}
+                    <article class="stat-card">
+                        <span class="stat-card__label">{{ row.label }}</span>
+                        <span class="stat-card__value">{{ row.this_month }}</span>
+                        <span class="stat-card__meta">
+                            {% if row.delta > 0 %}<span class="delta delta--up">&uarr; {{ row.delta }} vs last month</span>
+                            {% elif row.delta < 0 %}<span class="delta delta--down">&darr; {{ row.delta|cut:"-" }} vs last month</span>
+                            {% else %}<span class="delta delta--same">Same as last month</span>{% endif %}
+                        </span>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {# ─── Funnel ─────────────────────────────────────────── #}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Conversion funnel</h2></div>
+        <div class="funnel">
+            <div class="funnel__step">
+                <span class="funnel__label">Page Views</span>
+                <span class="funnel__value">{{ funnel.page_views }}</span>
+            </div>
+            <div class="funnel__arrow">↓</div>
+            <div class="funnel__step">
+                <span class="funnel__label">Engaged <span class="muted">(&gt; 60s or &gt; 50% scroll)</span></span>
+                <span class="funnel__value">{{ funnel.engaged }} <span class="muted">({{ funnel.engaged_pct }}%)</span></span>
+            </div>
+            <div class="funnel__arrow">↓</div>
+            <div class="funnel__step">
+                <span class="funnel__label">CTA Clicks</span>
+                <span class="funnel__value">{{ funnel.cta_clicks }} <span class="muted">({{ funnel.cta_pct }}%)</span></span>
+            </div>
+            <div class="funnel__arrow">↓</div>
+            <div class="funnel__step funnel__step--final">
+                <span class="funnel__label">Form Submissions</span>
+                <span class="funnel__value">{{ funnel.form_submits }} <span class="muted">({{ funnel.form_pct }}%)</span></span>
+            </div>
+        </div>
+    </section>
+
+    {# ─── Top pages ──────────────────────────────────────── #}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Top pages</h2></div>
+        {% if top_pages %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Page</th>
+                        <th class="num">Views</th>
+                        <th class="num">Avg Time</th>
+                        <th class="num">Avg Scroll</th>
+                        <th class="num">Conversions</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    {% for e in events %}
+                    {% for p in top_pages %}
                         <tr>
-                            <td>{{ e.event_timestamp|date:"M j, Y H:i" }}</td>
-                            <td><span class="cl-badge cl-badge--deployment">{{ e.get_event_type_display }}</span></td>
-                            <td>{{ e.element_text|default:e.element_id|default:"—" }}</td>
-                            <td class="muted">{{ e.page_title|default:e.page_url|default:"—" }}</td>
+                            <td><span class="muted">{{ p.page_url|truncatechars:60 }}</span></td>
+                            <td class="num">{{ p.views }}</td>
+                            <td class="num">{{ p.avg_time_display }}</td>
+                            <td class="num">{% if p.avg_scroll_depth is not None %}{{ p.avg_scroll_depth }}%{% else %}—{% endif %}</td>
+                            <td class="num">{{ p.conversions }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
-            <p class="muted">No conversion events received yet. Install the tracker
-            snippet on the client's site to start collecting events.</p>
+            <p class="muted">No page views yet.</p>
+        {% endif %}
+    </section>
+
+    {# ─── Scroll-depth distribution ──────────────────────── #}
+    {% if overview.total_page_views %}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Scroll depth distribution</h2></div>
+        <div class="scroll-dist">
+            {% for b in scroll_dist %}
+                <div class="scroll-dist__row">
+                    <span class="scroll-dist__label">{{ b.label }}</span>
+                    <div class="scroll-dist__bar-wrap">
+                        <div class="scroll-dist__bar scroll-dist__bar--{{ b.band }}"
+                             style="width: {{ b.pct }}%;"></div>
+                    </div>
+                    <span class="scroll-dist__count">{{ b.count }} ({{ b.pct }}%)</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {# ─── Click heatmap grid ─────────────────────────────── #}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Click density (last {{ overview.days }} days)</h2></div>
+        <p class="muted">Brighter cells = more clicks in that area of the page.</p>
+        <div class="heatmap-grid">
+            {% for row in heatmap_grid %}
+                <div class="heatmap-grid__row">
+                    {% for cell in row %}
+                        <div class="heatmap-cell heatmap-cell--{{ cell.band }}"
+                             title="{{ cell.count }} click{{ cell.count|pluralize }}"></div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {# ─── Recent sessions ────────────────────────────────── #}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Recent sessions</h2></div>
+        {% if sessions %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Page</th>
+                        <th class="num">Duration</th>
+                        <th class="num">Scroll</th>
+                        <th>Exit Intent</th>
+                        <th class="num">CTA</th>
+                        <th class="num">Forms</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessions %}
+                        <tr>
+                            <td>{{ s.created_at|date:"M j, H:i" }}</td>
+                            <td><span class="muted">{{ s.page_url|truncatechars:50 }}</span></td>
+                            <td class="num">{% if s.time_on_page_seconds %}{{ s.time_on_page_seconds }}s{% else %}—{% endif %}</td>
+                            <td class="num">{% if s.max_scroll_depth is not None %}{{ s.max_scroll_depth }}%{% else %}—{% endif %}</td>
+                            <td>{% if s.exit_intent_fired %}<span class="status-badge status-badge--unsubscribed">Yes</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="num">{{ s.cta_clicks }}</td>
+                            <td class="num">{{ s.form_submits }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No sessions yet. Install the tracker on the client's site to start collecting data.</p>
         {% endif %}
     </section>
 </div>

@@ -88,6 +88,128 @@ def track_conversion_event(request):
     return _ok()
 
 
+# ── Tier 1 batched-tracker endpoint ──────────────────────────────────────────
+
+@csrf_exempt
+@require_POST
+@ratelimit(key='ip', rate='60/m', block=True)
+def track_batch(request):
+    """
+    Receives the page-session beacon from the v2 aspired-tracker.js.
+
+    One request per page view, containing every event that happened
+    on that page (scroll milestones, clicks, exit intent, form
+    submits, plus a `page_summary` event with the totals). Writes a
+    single `PageSession` row plus a `ConversionEvent` per
+    form/phone/CTA event so the legacy conversion dashboard keeps
+    working.
+
+    Always returns 200 — never leaks whether a client_id was valid
+    or whether the batch was accepted.
+    """
+    from .models import PageSession
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return _ok()
+    if not isinstance(data, dict):
+        return _ok()
+
+    client_id = data.get('client_id', '')
+    session_id = str(data.get('session_id') or '')[:100]
+    events = data.get('events') or []
+    if not isinstance(events, list):
+        return _ok()
+    if not _is_uuid(client_id):
+        return _ok()
+
+    client = ClientProfile.objects.filter(id=client_id).first()
+    if client is None or not events:
+        return _ok()
+
+    # Pull the page_summary event (always last on the queue but
+    # don't depend on position — find by type).
+    summary = next(
+        (e for e in events
+         if isinstance(e, dict)
+         and e.get('event_type') == 'page_summary'),
+        {},
+    )
+
+    # Conversion-event counts.
+    form_submits = sum(
+        1 for e in events
+        if isinstance(e, dict)
+        and e.get('event_type') == 'form_submit')
+    phone_clicks = sum(
+        1 for e in events
+        if isinstance(e, dict)
+        and e.get('event_type') == 'phone_click')
+    cta_clicks = sum(
+        1 for e in events
+        if isinstance(e, dict)
+        and e.get('event_type') == 'cta_click')
+
+    # First event with a URL wins — keeps malformed entries from
+    # blowing this up.
+    page_url = ''
+    page_title = ''
+    for e in events:
+        if isinstance(e, dict) and e.get('page_url'):
+            page_url = str(e.get('page_url') or '')
+            page_title = str(e.get('page_title') or '')
+            break
+
+    try:
+        PageSession.objects.create(
+            client=client,
+            session_id=session_id,
+            page_url=page_url[:2000],
+            page_title=page_title[:200],
+            time_on_page_seconds=summary.get('time_on_page_seconds'),
+            max_scroll_depth=summary.get('max_scroll_depth'),
+            scroll_milestones_hit=(
+                summary.get('scroll_milestones_hit') or []),
+            exit_intent_fired=bool(
+                summary.get('exit_intent_fired', False)),
+            click_heatmap=(summary.get('click_heatmap') or [])[:50],
+            form_submits=form_submits,
+            phone_clicks=phone_clicks,
+            cta_clicks=cta_clicks,
+            raw_events=events[:100],
+        )
+    except Exception:  # noqa: BLE001 — never raise from a public beacon
+        return _ok()
+
+    # Also flush conversion events into the existing
+    # ConversionEvent table so the legacy dashboard keeps working.
+    now = timezone.now()
+    ip_hash = _hash_ip(request)
+    for e in events:
+        if not isinstance(e, dict):
+            continue
+        etype = e.get('event_type')
+        if etype not in VALID_EVENT_TYPES:
+            continue
+        ev_ts = (parse_datetime(str(e.get('timestamp') or '')) or now)
+        try:
+            ConversionEvent.objects.create(
+                client=client,
+                event_type=etype,
+                element_id=str(e.get('element_id') or '')[:100],
+                element_text=str(e.get('element_text') or '')[:100],
+                page_url=page_url[:200],
+                page_title=page_title[:200],
+                event_timestamp=ev_ts,
+                ip_hash=ip_hash,
+            )
+        except Exception:  # noqa: BLE001 — never raise from a beacon
+            continue
+
+    return _ok()
+
+
 # ── NPS survey response ─────────────────────────────────────────────────────
 
 def _nps_band(score):

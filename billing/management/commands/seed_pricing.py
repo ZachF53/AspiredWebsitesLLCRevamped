@@ -87,6 +87,7 @@ TIERS = [
             'Google Business Profile management',
             'Basic SEO monitoring and recommendations',
             'Plain-English Google Analytics summary',
+            'Session recording & visual heatmaps',
             'Priority response within 8 hours',
             'Quarterly strategy call (30 minutes)',
         ],
@@ -105,6 +106,7 @@ TIERS = [
             'Competitor rank tracking',
             'Google Ads management (ad spend billed separately)',
             'Schema markup updates',
+            'Session recording & visual heatmaps',
             'Response within 4 hours',
             'Monthly strategy call (45 minutes)',
             'Quarterly full website audit',
@@ -178,6 +180,21 @@ ADDONS = [
         'description': ('Work outside the original project scope. '
                         'Invoiced before work begins.'),
     },
+    {
+        'slug': 'addon-session-recording',
+        'name': 'Session Recording & Heatmaps',
+        'price_min': Decimal('50.00'), 'price_max': None,
+        'unit': 'per month',
+        'description': ('Full session replay, visual heatmaps, and '
+                        'scroll-depth analytics for your website. '
+                        'See exactly how visitors interact with every '
+                        'page. Included free in Growth and Dominant '
+                        'maintenance plans.'),
+        'included_in_plans': [
+            'maintenance_growth',
+            'maintenance_dominant',
+        ],
+    },
 ]
 
 
@@ -240,6 +257,8 @@ class Command(BaseCommand):
                     'price_max': data['price_max'],
                     'unit': data['unit'],
                     'is_active': True,
+                    'included_in_plans': data.get(
+                        'included_in_plans', []),
                 },
             )
             addon_count += 1

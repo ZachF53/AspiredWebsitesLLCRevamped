@@ -77,6 +77,9 @@ urlpatterns = [
     path('clients/<uuid:client_id>/keywords/check/', views.keyword_run_check, name='keyword_run_check'),
     path('clients/<uuid:client_id>/conversions/', views.client_conversions, name='client_conversions'),
     path('clients/<uuid:client_id>/tracker/', views.client_tracker, name='client_tracker'),
+    path('clients/<uuid:client_id>/toggle-session-recording/',
+         views.client_toggle_session_recording,
+         name='client_toggle_session_recording'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/flag/', views.gbp_flag, name='gbp_flag'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/resolve/', views.gbp_resolve, name='gbp_resolve'),
 

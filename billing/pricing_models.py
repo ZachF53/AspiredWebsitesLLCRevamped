@@ -106,6 +106,17 @@ class AddonPricing(TimestampedModel):
     stripe_price_id = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
 
+    # ServiceTier slugs (or PACKAGE_CHOICES keys) that already include
+    # this add-on at no extra cost. Phase 7 — used by Session Recording
+    # & Heatmaps, which is bundled into Growth + Dominant maintenance
+    # but is a $50/mo add-on on Essentials.
+    included_in_plans = models.JSONField(
+        default=list, blank=True,
+        help_text=("Plan slugs/codes where this add-on is included "
+                   "free, e.g. ['maintenance_growth', "
+                   "'maintenance_dominant']."),
+    )
+
     class Meta:
         ordering = ['name']
 
@@ -116,3 +127,19 @@ class AddonPricing(TimestampedModel):
         if self.price_max:
             return f'${self.price_min:,.0f}–${self.price_max:,.0f} {self.unit}'.strip()
         return f'${self.price_min:,.0f} {self.unit}'.strip()
+
+    def is_included_for(self, client_package_or_tier_slug):
+        """
+        True when this addon is bundled with the given plan code.
+        Accepts ClientProfile.package values (e.g.
+        'maintenance_growth') and ServiceTier slugs (e.g.
+        'maintenance-growth') — checks both forms.
+        """
+        if not client_package_or_tier_slug:
+            return False
+        slug = client_package_or_tier_slug
+        slug_alt = slug.replace('_', '-')
+        slug_alt2 = slug.replace('-', '_')
+        included = self.included_in_plans or []
+        return (slug in included or slug_alt in included
+                or slug_alt2 in included)

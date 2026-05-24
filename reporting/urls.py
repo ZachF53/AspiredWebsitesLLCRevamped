@@ -8,6 +8,7 @@ app_name = 'reporting'
 
 urlpatterns = [
     path('track/', views.track_conversion_event, name='track'),
+    path('track/batch/', views.track_batch, name='track_batch'),
     path('chat/', views.chatbot_api, name='chat'),
     path('chat/config/<uuid:client_id>/', views.chatbot_config, name='chat_config'),
 ]
