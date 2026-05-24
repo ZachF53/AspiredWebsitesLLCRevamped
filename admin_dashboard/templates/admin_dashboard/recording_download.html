@@ -22,6 +22,32 @@
         .controls button:hover { background: #334155; }
         .empty { padding: 32px; color: #94A3B8;
                  text-align: center; line-height: 1.6; }
+
+        /* rrweb's standalone bundle creates .replayer-mouse with no
+           default styling — without this it's an invisible 0x0 div
+           and the cursor never appears in the replay. White arrow
+           with a black outline is readable on any page background;
+           the .active (mousedown) state fills orange so clicks pop. */
+        #replayer .replayer-mouse {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            margin: -3px 0 0 -3px;
+            transition: top 0.05s linear, left 0.05s linear;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M2.5 1.5 L2.5 19 L7.5 14.5 L10.8 22 L13.6 20.8 L10.3 13.5 L17 13.5 Z' fill='white' stroke='black' stroke-width='1.4' stroke-linejoin='round'/></svg>");
+            background-size: contain;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 10000;
+        }
+        #replayer .replayer-mouse.active {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M2.5 1.5 L2.5 19 L7.5 14.5 L10.8 22 L13.6 20.8 L10.3 13.5 L17 13.5 Z' fill='%23E8650A' stroke='black' stroke-width='1.4' stroke-linejoin='round'/></svg>");
+        }
+        #replayer .replayer-mouse-tail {
+            position: absolute;
+            pointer-events: none;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body>
@@ -93,7 +119,13 @@
                 showWarning: false,
                 showDebug: false,
                 liveMode: false,
-                mouseTail: false
+                // Brand-orange trail, matches the live replay view.
+                mouseTail: {
+                    duration: 500,
+                    lineCap: 'round',
+                    lineWidth: 3,
+                    strokeStyle: '#E8650A'
+                }
             });
             document.getElementById('play-btn')
                 .addEventListener('click', function () { replayer.play(); });
