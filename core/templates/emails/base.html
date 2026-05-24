@@ -9,9 +9,10 @@
       - system font stack with Arial fallback (no @font-face)
       - logo from canonical https URL (not Django {% static %})
 
-    The legal address footer is NOT included here — it's auto-stamped
-    by core.email_backend.AspiredEmailBackend on every outgoing message
-    so we get a single source of truth.
+    The legal address footer is rendered INLINE at the bottom of this
+    template (styled for the dark theme). AspiredEmailBackend's
+    auto-stamp detects the address-marker text ("8735 Dunwoody Place")
+    and skips re-injecting, so we never double-stamp.
 
     Variables passed by send_branded():
       preheader   — short snippet shown in inbox previews (optional)
@@ -60,25 +61,27 @@
                         </td>
                     </tr>
 
-                    {# Brand footer — signature, contact details #}
+                    {# Brand footer — signature, contact details. #}
                     <tr>
                         <td style="padding:20px 36px 28px;border-top:1px solid #1E293B;color:#94A3B8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;">
                             <div style="color:#F8FAFC;font-weight:600;margin-bottom:2px;">Zachery Long</div>
                             <div style="margin-bottom:6px;">Aspired Websites LLC</div>
                             <a href="mailto:zacherylong@aspiredwebsites.com" style="color:#E8650A;text-decoration:none;">zacherylong@aspiredwebsites.com</a>
-                            &nbsp;·&nbsp;
-                            <a href="tel:+12108962536" style="color:#E8650A;text-decoration:none;">(210) 896-2536</a>
                         </td>
                     </tr>
 
                 </table>
 
-                {# Outside-the-card whitespace; the legal address footer
-                   is appended by AspiredEmailBackend below this point. #}
+                {# Legal address footer — styled for dark bg directly here.
+                   AspiredEmailBackend auto-stamper detects the address
+                   marker ("8735 Dunwoody Place") via _is_already_signed
+                   and skips re-injecting, so no double-stamp. #}
                 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
                     <tr>
-                        <td style="padding:14px 36px 0;text-align:center;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;">
-                            This is a transactional email from your Aspired Websites account.
+                        <td style="padding:24px 36px 0;text-align:center;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;">
+                            <div style="color:#94A3B8;font-weight:600;margin-bottom:4px;">Aspired Websites LLC</div>
+                            8735 Dunwoody Place, Ste R<br>
+                            Atlanta, GA 30350, USA
                         </td>
                     </tr>
                 </table>
