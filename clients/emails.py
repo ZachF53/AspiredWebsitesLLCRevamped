@@ -3,7 +3,8 @@
 import json
 
 from django.conf import settings
-from django.core.mail import EmailMessage, send_mail
+from django.core.mail import EmailMessage, EmailMultiAlternatives, send_mail
+from django.template.loader import render_to_string
 
 
 # SendGrid SMTP click-tracking-off / open-tracking-off header value.
@@ -54,6 +55,54 @@ def send_secure_mail(*, subject, message, from_email, recipient_list,
     msg.send(fail_silently=fail_silently)
 
 
+def send_branded(*, subject, template, context, recipient_list,
+                 text_body, from_email=None, secure=False,
+                 attachments=None, fail_silently=True):
+    """
+    Branded HTML transactional email — multipart/alternative (text +
+    HTML) so every client gets a readable version.
+
+    Args:
+      subject        — email subject line
+      template       — name without .html, resolved as
+                       `core/templates/emails/<template>.html`
+      context        — dict passed to the template (first_name,
+                       setup_url, etc.)
+      recipient_list — list of recipient email addresses
+      text_body      — plain-text alternative; required, used by
+                       clients that can't or won't render HTML, and
+                       lifts our spam score
+      from_email     — defaults to settings.EMAIL_FROM_MAIN
+      secure         — when True, attaches the X-SMTPAPI header so
+                       SendGrid leaves every URL verbatim (use for
+                       any email containing a one-time token URL)
+      attachments    — optional list of (filename, content_bytes,
+                       mimetype) tuples
+      fail_silently  — passed through to .send()
+
+    The legal address footer is still appended by
+    `AspiredEmailBackend.send_messages` automatically.
+    """
+    from_email = from_email or settings.EMAIL_FROM_MAIN
+    html_body = render_to_string(f'emails/{template}.html', context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=from_email,
+        to=recipient_list,
+    )
+    msg.attach_alternative(html_body, 'text/html')
+
+    if secure:
+        msg.extra_headers['X-SMTPAPI'] = _NO_TRACKING_HEADER
+    if attachments:
+        for filename, content, mimetype in attachments:
+            msg.attach(filename, content, mimetype)
+
+    msg.send(fail_silently=fail_silently)
+
+
 def _first_name(client):
     """Best-effort first name for personalising emails."""
     raw = (client.contact_name or client.firm_name or '').strip()
@@ -65,14 +114,19 @@ def send_onboarding_setup_email(client, token):
     First touchpoint after invoice payment — emails the setup-link so the
     client can create their password + PIN and unlock the portal. Token
     URL is opaque; the OnboardingToken row authenticates the request.
+
+    SECURITY-SENSITIVE — contains the one-time setup token. `secure=True`
+    attaches the X-SMTPAPI header so SendGrid does NOT rewrite the URL
+    through url6271.aspiredwebsites.com (no SSL cert there → SSL error).
     """
     name = _first_name(client)
-    body = (
-        f'Hi {name},\n\n'
+    setup_url = token.get_setup_url()
+    text_body = (
+        f'Welcome aboard, {name}.\n\n'
         f'Thank you for your payment — your Aspired Websites account is '
         f'ready to be set up.\n\n'
         f'Click the link below to create your password and security PIN:\n\n'
-        f'{token.get_setup_url()}\n\n'
+        f'{setup_url}\n\n'
         f'Once your account is set up, you\'ll be asked to complete a '
         f'short intake form so we have everything we need to start '
         f'building your website. Work on your site can\'t begin until '
@@ -82,15 +136,19 @@ def send_onboarding_setup_email(client, token):
         f'— Zachery Long\n'
         f'Aspired Websites LLC\n'
     )
-    # SECURITY-SENSITIVE — contains the one-time setup token.
-    # SendGrid click tracking must stay OFF or the URL gets rewritten
-    # through url6271.aspiredwebsites.com (no SSL cert → SSL error).
-    send_secure_mail(
+    send_branded(
         subject='Your Aspired Websites account is ready',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='onboarding_setup',
+        context={
+            'first_name': name,
+            'setup_url': setup_url,
+            'preheader': (
+                'Set up your password and PIN to access your portal '
+                'and start the intake.'),
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        secure=True,
     )
 
 

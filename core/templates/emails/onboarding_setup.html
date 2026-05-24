@@ -1,0 +1,41 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your Aspired Websites account is ready{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Welcome aboard, {{ first_name }}.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Thank you for your payment — your Aspired Websites account is ready to be set up.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Click the button below to create your password and security PIN. Once your account is set up, you'll be asked to complete a short intake form so we have everything we need to start building your website.
+</p>
+
+{# CTA button — bulletproof Outlook-safe button via nested tables. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ setup_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Set up my account →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 8px;color:#64748B;font-size:13px;line-height:1.55;">
+    Or copy and paste this link into your browser:
+</p>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:13px;line-height:1.55;word-break:break-all;">
+    <a href="{{ setup_url }}" style="color:#E8650A;text-decoration:none;">{{ setup_url }}</a>
+</p>
+
+<div style="margin-top:24px;padding:14px 16px;background:rgba(232,101,10,0.08);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#FBBF24;font-size:13px;line-height:1.5;">
+    <strong style="color:#FBBF24;">Heads up:</strong> work on your website can't begin until your intake form is submitted, so completing setup is the first step toward your launch.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    If you have any questions, just reply to this email or call <a href="tel:+12108962536" style="color:#E8650A;text-decoration:none;">210-896-2536</a>.
+</p>
+{% endblock %}

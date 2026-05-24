@@ -1,0 +1,90 @@
+{% comment %}
+    Branded HTML email shell — the visual base every client-facing
+    transactional email extends. Aimed at email-client compatibility
+    (Outlook, Apple Mail, Gmail web + native, mobile) so:
+
+      - all layout via <table role="presentation">
+      - all critical styling inline (Gmail strips <style>)
+      - 600px max width
+      - system font stack with Arial fallback (no @font-face)
+      - logo from canonical https URL (not Django {% static %})
+
+    The legal address footer is NOT included here — it's auto-stamped
+    by core.email_backend.AspiredEmailBackend on every outgoing message
+    so we get a single source of truth.
+
+    Variables passed by send_branded():
+      preheader   — short snippet shown in inbox previews (optional)
+{% endcomment %}<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="color-scheme" content="dark light">
+    <meta name="supported-color-schemes" content="dark light">
+    <title>{% block title %}Aspired Websites{% endblock %}</title>
+</head>
+<body style="margin:0;padding:0;background:#070614;color:#F8FAFC;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+
+    {% if preheader %}
+    <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+        {{ preheader }}
+    </div>
+    {% endif %}
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#070614;width:100%;">
+        <tr>
+            <td align="center" style="padding:40px 16px;">
+
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#0F172A;border:1px solid #1E293B;border-radius:12px;overflow:hidden;">
+
+                    {# Header: logo + thin orange accent bar #}
+                    <tr>
+                        <td style="padding:32px 36px 8px;text-align:center;">
+                            <a href="https://aspiredwebsites.com/" style="text-decoration:none;color:inherit;">
+                                <img src="https://aspiredwebsites.com/static/images/logo.png" alt="Aspired Websites" width="160" style="height:auto;display:inline-block;border:0;outline:none;text-decoration:none;">
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 36px;">
+                            <div style="height:3px;background:#E8650A;border-radius:2px;margin:16px 0 24px;font-size:0;line-height:0;">&nbsp;</div>
+                        </td>
+                    </tr>
+
+                    {# Body — child templates fill this in #}
+                    <tr>
+                        <td style="padding:0 36px 28px;color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;line-height:1.55;font-size:15px;">
+                            {% block content %}{% endblock %}
+                        </td>
+                    </tr>
+
+                    {# Brand footer — signature, contact details #}
+                    <tr>
+                        <td style="padding:20px 36px 28px;border-top:1px solid #1E293B;color:#94A3B8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;">
+                            <div style="color:#F8FAFC;font-weight:600;margin-bottom:2px;">Zachery Long</div>
+                            <div style="margin-bottom:6px;">Aspired Websites LLC</div>
+                            <a href="mailto:zacherylong@aspiredwebsites.com" style="color:#E8650A;text-decoration:none;">zacherylong@aspiredwebsites.com</a>
+                            &nbsp;·&nbsp;
+                            <a href="tel:+12108962536" style="color:#E8650A;text-decoration:none;">(210) 896-2536</a>
+                        </td>
+                    </tr>
+
+                </table>
+
+                {# Outside-the-card whitespace; the legal address footer
+                   is appended by AspiredEmailBackend below this point. #}
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+                    <tr>
+                        <td style="padding:14px 36px 0;text-align:center;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;">
+                            This is a transactional email from your Aspired Websites account.
+                        </td>
+                    </tr>
+                </table>
+
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
