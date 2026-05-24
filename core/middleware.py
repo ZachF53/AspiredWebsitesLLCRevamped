@@ -44,6 +44,31 @@ CSP_TERMINAL = (
     "object-src 'none'"
 )
 
+# Recording-replay CSP — admin + portal session-replay pages. The rrweb
+# Replayer mounts an iframe and reconstructs the captured client-site DOM
+# inside it; that iframe inherits the parent CSP, so we must allow whatever
+# the recorded page used:
+#   - inline <style> blocks (rrweb's inlineStylesheet output)
+#   - external stylesheets (Google Fonts, CDN-hosted CSS, etc.)
+#   - client-origin images, blob: previews, and data: SVGs
+#   - webfonts from any https origin (and data: URIs for inlined fonts)
+# Scripts stay strict — the rrweb Replayer never executes captured <script>
+# tags (they're reconstructed as inert DOM), so 'self' is sufficient. Both
+# replay URLs are login-gated (staff or owning-client only).
+CSP_REPLAY = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https:; "
+    "img-src 'self' data: blob: https:; "
+    "font-src 'self' data: https:; "
+    "media-src 'self' blob: https:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
 # Relaxed CSP for /admin/ — Django admin uses inline <style> and <script>.
 CSP_ADMIN = (
     "default-src 'self'; "
@@ -97,6 +122,12 @@ class SecurityHeadersMiddleware:
         elif (path.startswith('/admin-dashboard/vault/')
               and path.endswith('/terminal/')):
             response['Content-Security-Policy'] = CSP_TERMINAL
+        elif '/recordings/' in path and path.endswith('/replay/'):
+            # Matches both admin (/admin-dashboard/clients/<id>/recordings/
+            # <rec>/replay/) and client portal (/portal/recordings/<rec>/
+            # replay/) — relaxed so the rrweb replay iframe can render the
+            # captured site's CSS, fonts, and images.
+            response['Content-Security-Policy'] = CSP_REPLAY
         else:
             response['Content-Security-Policy'] = CSP_PUBLIC
         response['Permissions-Policy'] = PERMISSIONS_POLICY
