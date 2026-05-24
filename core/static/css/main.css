@@ -4279,6 +4279,20 @@ button.htmx-request {
     padding-top: 4px;
 }
 
+/* Sidebar notice shown only in intake-only mode — when the client
+   is still in `pending_intake`. Tells them why every other portal
+   link is missing, so the sidebar doesn't feel broken. */
+.portal-nav-notice {
+    margin: 4px var(--space-2) 12px;
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.25);
+    color: #FBBF24;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .portal-logo {
     display: block;
     padding: 0 var(--space-2) var(--space-3);

@@ -100,6 +100,13 @@ def _portal_context(request, active_nav, **extra):
         # checkout — never break the chrome over a missing table.
         portal_suggestions_pending = False
 
+    # Intake-only mode — true while the client is in `pending_intake`.
+    # Drives the portal base template's nav: when set, only the Intake
+    # Form link and Sign Out are rendered. Prevents the confusing UX
+    # of links that immediately redirect back to /portal/intake/.
+    intake_only = (
+        getattr(profile, 'onboarding_status', '') == 'pending_intake')
+
     ctx = {
         'profile': profile,
         'project': project,
@@ -115,6 +122,7 @@ def _portal_context(request, active_nav, **extra):
         # is active for this client.
         'session_recording_nav_visible': bool(
             profile.session_recording_enabled),
+        'intake_only': intake_only,
     }
     ctx.update(extra)
     return ctx
@@ -252,8 +260,70 @@ def project_detail(request):
 
 # ── Page 3: Intake Form ─────────────────────────────────────────────────────
 
-def _intake_unlocked(project):
-    return bool(project) and project.payment_status in ('deposit_paid', 'fully_paid')
+def _intake_unlocked(client, project):
+    """
+    Whether the client can fill in the intake form.
+
+    Unlocked when ANY of:
+      1. NEW admin-invoice flow — onboarding_status has moved off
+         pending_setup (so password + PIN are done). The Project may or
+         may not exist yet; the caller is responsible for materialising
+         one on demand.
+      2. NEW admin-invoice flow — a Stripe invoice has been issued
+         (stripe_invoice_id set) and the profile is active. Catches the
+         edge where onboarding_status is somehow still pending_setup
+         but the rest of the state says they're past it.
+      3. OLD contract-signing flow — a Project exists and payment_status
+         is deposit_paid or fully_paid (the original gate, preserved).
+    """
+    onboarding = getattr(client, 'onboarding_status', '') or ''
+    if onboarding in ('pending_intake', 'onboarding_complete'):
+        return True
+    if (getattr(client, 'status', '') == 'active'
+            and getattr(client, 'stripe_invoice_id', '')):
+        return True
+    if project and getattr(project, 'payment_status', '') in (
+            'deposit_paid', 'fully_paid'):
+        return True
+    return False
+
+
+def _ensure_project_for_unlocked_intake(client):
+    """
+    Lazily create the Project + IntakeResponse + ClientVault for a
+    new-flow client who has reached the intake page without a real
+    Stripe webhook having fired (test/demo path, or a webhook that
+    silently failed and was never retried).
+
+    Idempotent — returns the existing Project if one already exists.
+    """
+    project = _active_project(client)
+    if project is not None:
+        # Ensure the row that holds intake answers exists.
+        IntakeResponse.objects.get_or_create(project=project)
+        return project
+
+    package = (
+        client.package
+        if client.package in ('essential_build', 'premium_build')
+        else '')
+    project = Project.objects.create(
+        client=client,
+        stage='intake',
+        package=package,
+        payment_status='fully_paid',
+        final_paid_at=timezone.now(),
+    )
+    IntakeResponse.objects.get_or_create(project=project)
+    try:
+        from vault.models import ClientVault
+        ClientVault.objects.get_or_create(client=client)
+    except Exception:
+        # Vault models import path may be unavailable in tests — never
+        # break intake over the vault row not materialising.
+        logger.exception(
+            'Auto-create of ClientVault failed for %s', client.pk)
+    return project
 
 
 @client_required
@@ -262,9 +332,15 @@ def intake(request):
     profile = request.client_profile
     project = _active_project(profile)
 
-    if not _intake_unlocked(project):
+    if not _intake_unlocked(profile, project):
         ctx = _portal_context(request, 'intake', intake_locked=True)
         return render(request, 'clients/intake.html', ctx)
+
+    # Unlocked but no Project yet — materialise it now. Covers the
+    # new-flow test path where no real Stripe webhook ever fired (so
+    # the webhook-side _on_onboarding_invoice_paid hook never ran).
+    if project is None:
+        project = _ensure_project_for_unlocked_intake(profile)
 
     intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
 
@@ -297,8 +373,14 @@ def intake_save(request):
     """HTMX auto-save endpoint — persists the intake form on every change."""
     profile = request.client_profile
     project = _active_project(profile)
-    if request.method != 'POST' or not _intake_unlocked(project):
+    if request.method != 'POST' or not _intake_unlocked(profile, project):
         return redirect('clients:intake')
+
+    # Belt-and-suspenders: intake() materialises the Project on first
+    # GET, but if auto-save somehow fires first (HTMX kicks in on field
+    # change), do the same lazy create here.
+    if project is None:
+        project = _ensure_project_for_unlocked_intake(profile)
 
     intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
     form = IntakeForm(request.POST, request.FILES, instance=intake_obj)
