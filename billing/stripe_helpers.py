@@ -182,6 +182,17 @@ def create_hosting_subscription(client, default_payment_method_id=None):
     Subsequent renewals are gated by the `invoice.upcoming` webhook in
     billing/webhooks.py.
 
+    We INTENTIONALLY do NOT set `default_payment_method` on the
+    subscription itself. Stripe's charge priority is:
+      1. subscription.default_payment_method
+      2. customer.invoice_settings.default_payment_method
+    Skipping #1 means every renewal falls back to the customer
+    default, so whichever card the client marks as Default in
+    /portal/subscriptions/ is the one Stripe charges. The
+    `default_payment_method_id` arg is still accepted for backward
+    compatibility but it's IGNORED — passing it would lock the
+    subscription to that one card forever.
+
     Returns the Stripe Subscription object. Idempotent: if the client
     already has a hosting subscription, returns the existing one
     rather than double-billing.
@@ -191,7 +202,8 @@ def create_hosting_subscription(client, default_payment_method_id=None):
         try:
             existing = stripe.Subscription.retrieve(
                 client.stripe_hosting_subscription_id)
-            if existing.get('status') not in ('canceled', 'incomplete_expired'):
+            existing_status = getattr(existing, 'status', '')
+            if existing_status not in ('canceled', 'incomplete_expired'):
                 logger.info(
                     'create_hosting_subscription: client %s already has '
                     'subscription %s — skipping', client.pk, existing.id)
@@ -206,35 +218,29 @@ def create_hosting_subscription(client, default_payment_method_id=None):
             f'Client {client.pk} has no stripe_customer_id — cannot '
             f'create a subscription.')
 
-    kwargs = {
-        'customer': client.stripe_customer_id,
-        'items': [{'price': get_hosting_price_id()}],
-        'trial_period_days': 365,
-        'metadata': {
+    # default_payment_method_id is intentionally NOT passed to
+    # stripe.Subscription.create — see docstring. We do still want
+    # the customer to HAVE a default though, so the very first
+    # renewal doesn't fail; the webhook that calls us already
+    # called attach_payment_method_to_customer(set_as_default=True)
+    # before reaching here.
+    sub = stripe.Subscription.create(
+        customer=client.stripe_customer_id,
+        items=[{'price': get_hosting_price_id()}],
+        trial_period_days=365,
+        metadata={
             'kind': 'hosting',
             'client_profile_id': str(client.id),
         },
-        # When the trial ends and the first invoice is created,
-        # Stripe should use the customer's default payment method
-        # automatically (not error out).
-        'payment_behavior': 'allow_incomplete',
-        # Generate an invoice ~3 days before each renewal so our
-        # invoice.upcoming webhook fires the Droplet check in time
-        # to cancel without an accidental charge.
-        # (3 days is Stripe's default for upcoming-invoice webhook;
-        # no setting needed here.)
-    }
-    if default_payment_method_id:
-        kwargs['default_payment_method'] = default_payment_method_id
-
-    sub = stripe.Subscription.create(**kwargs)
+        payment_behavior='allow_incomplete',
+    )
     client.stripe_hosting_subscription_id = sub.id
     client.save(update_fields=[
         'stripe_hosting_subscription_id', 'updated_at'])
     logger.info(
         'create_hosting_subscription: client %s subscribed (sub %s, '
-        'trial until %s)', client.pk, sub.id,
-        sub.get('trial_end'))
+        'trial until %s — renewals will charge customer.default_pm)',
+        client.pk, sub.id, getattr(sub, 'trial_end', None))
     return sub
 
 
