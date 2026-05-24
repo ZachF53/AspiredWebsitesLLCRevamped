@@ -117,6 +117,16 @@ class ClientProfile(TimestampedModel):
     maintenance_active = models.BooleanField(default=False)
     maintenance_started_at = models.DateTimeField(null=True, blank=True)
 
+    # Tracks which maintenance-upsell touchpoints have already fired
+    # so the nudge cron doesn't re-spam. Keyed by touchpoint code
+    # (e.g. 'day_30', 'day_60') with an ISO timestamp. Empty dict
+    # means no nudges sent.
+    maintenance_upsell_log = models.JSONField(
+        default=dict, blank=True,
+        help_text=("Touchpoint -> ISO timestamp map for the "
+                   "maintenance upsell nudge cadence."),
+    )
+
     # ── Onboarding workflow (admin invoice → setup → intake → live) ──
     ONBOARDING_STATUS_CHOICES = [
         ('pending_setup', 'Pending Account Setup'),

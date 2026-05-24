@@ -104,3 +104,27 @@ def reconcile_subscriptions_task():
     last_line = summary[-1] if summary else ''
     logger.info('reconcile_subscriptions: %s', last_line)
     return last_line
+
+
+@shared_task
+def send_maintenance_upsell_nudges_task():
+    """
+    Daily — drains the 30-day / 60-day post-launch maintenance upsell
+    nudge queue. Wraps the
+    `send_maintenance_upsell_nudges` management command and logs the
+    summary line so it shows in flower/journal.
+
+    Idempotent — the command tracks each touchpoint per-client in
+    `ClientProfile.maintenance_upsell_log` so re-running on the same
+    day is a no-op once everyone in range is nudged.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    buf = StringIO()
+    call_command('send_maintenance_upsell_nudges', stdout=buf)
+    summary = buf.getvalue().splitlines()
+    last_line = summary[-1] if summary else ''
+    logger.info('send_maintenance_upsell_nudges: %s', last_line)
+    return last_line

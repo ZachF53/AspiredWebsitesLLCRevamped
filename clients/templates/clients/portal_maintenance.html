@@ -1,0 +1,144 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Maintenance Plans{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Maintenance Plans</h1>
+    <p class="portal-page-head__sub">
+        Your site is built to last — but the web changes every day. A maintenance plan keeps your site secure, fast, and showing up where your clients are looking.
+    </p>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+{# ── Current plan banner (only if subscribed) ── #}
+{% if upsell_state.is_subscribed %}
+    <section class="maint-current">
+        <div class="maint-current__inner">
+            <div>
+                <div class="maint-current__label">Currently subscribed</div>
+                <div class="maint-current__plan">
+                    {% if upsell_state.current_tier_slug == 'maintenance-essentials' %}Essentials
+                    {% elif upsell_state.current_tier_slug == 'maintenance-growth' %}Growth
+                    {% elif upsell_state.current_tier_slug == 'maintenance-dominant' %}Dominant
+                    {% else %}Active{% endif %}
+                </div>
+            </div>
+            <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
+        </div>
+    </section>
+{% endif %}
+
+{# ── Why maintenance (the pitch) ── #}
+{% if not upsell_state.is_subscribed %}
+    <section class="maint-pitch">
+        <h2 class="maint-pitch__title">Why every site needs maintenance</h2>
+        <div class="maint-pitch__grid">
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">🛡️</div>
+                <h3>Security</h3>
+                <p>43% of cyberattacks target small businesses. Monthly security patches close the holes that attackers exploit — before they find you.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">⚡</div>
+                <h3>Performance</h3>
+                <p>Page-load speed directly drives bounce rate. We monitor and tune your site every month so it stays fast as Google's algorithms shift.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">📈</div>
+                <h3>Growth</h3>
+                <p>Sites that don't get content updates lose rankings. Fresh content + SEO monitoring keeps the leads coming month after month.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">🔄</div>
+                <h3>Updates without the headache</h3>
+                <p>Need a new staff bio? A blog post? A page restructure? Just ask — included hours covered by your plan.</p>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{# ── Tier comparison ── #}
+<section class="maint-tiers">
+    {% for tier in tiers %}
+        {% with is_current=upsell_state.current_tier_slug|stringformat:'s' %}
+        <article class="maint-tier {% if tier.is_featured %}maint-tier--featured{% endif %} {% if upsell_state.current_tier_slug == tier.slug %}maint-tier--current{% endif %}">
+            {% if tier.is_featured %}
+                <div class="maint-tier__ribbon">Most popular</div>
+            {% endif %}
+            {% if upsell_state.current_tier_slug == tier.slug %}
+                <div class="maint-tier__ribbon maint-tier__ribbon--current">Your plan</div>
+            {% endif %}
+
+            <header class="maint-tier__head">
+                <h3 class="maint-tier__name">{{ tier.name }}</h3>
+                <div class="maint-tier__price">
+                    <span class="maint-tier__amount">${{ tier.price|floatformat:0 }}</span>
+                    <span class="maint-tier__interval">/ month</span>
+                </div>
+                {% if tier.tagline %}
+                    <p class="maint-tier__tagline">{{ tier.tagline }}</p>
+                {% endif %}
+            </header>
+
+            <ul class="maint-tier__features">
+                {% for f in tier.features.all %}
+                    <li>
+                        <svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>{{ f.text }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <footer class="maint-tier__foot">
+                {% if upsell_state.current_tier_slug == tier.slug %}
+                    <button type="button" class="btn-secondary btn-block" disabled>Current plan</button>
+                {% elif upsell_state.is_subscribed %}
+                    {# Existing subscriber switching tiers #}
+                    <a href="{% url 'clients:portal_maintenance_start' tier.slug %}" class="btn-primary btn-block">
+                        {% if tier.price > 0 %}
+                            {% with current_slug=upsell_state.current_tier_slug %}
+                                {% if current_slug == 'maintenance-essentials' and tier.slug != 'maintenance-essentials' %}Upgrade to {{ tier.name }}
+                                {% elif current_slug == 'maintenance-growth' and tier.slug == 'maintenance-dominant' %}Upgrade to {{ tier.name }}
+                                {% elif current_slug == 'maintenance-dominant' %}Switch to {{ tier.name }}
+                                {% elif current_slug == 'maintenance-growth' and tier.slug == 'maintenance-essentials' %}Switch to {{ tier.name }}
+                                {% else %}Switch to {{ tier.name }}{% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    </a>
+                {% else %}
+                    <a href="{% url 'clients:portal_maintenance_start' tier.slug %}" class="btn-primary btn-block">Subscribe to {{ tier.name }}</a>
+                {% endif %}
+            </footer>
+        </article>
+        {% endwith %}
+    {% endfor %}
+</section>
+
+{# ── Bottom-of-page reassurance ── #}
+<section class="maint-reassure">
+    <div class="maint-reassure__grid">
+        <div>
+            <h4>Cancel any time</h4>
+            <p>Month-to-month — no annual contract. Cancel from your portal with one click. You keep your site through the end of the cycle you've paid for.</p>
+        </div>
+        <div>
+            <h4>Backed by a CISSP</h4>
+            <p>Zachery holds a CISSP cert + Master's in Cybersecurity. Maintenance isn't checklist-driven — it's security-driven.</p>
+        </div>
+        <div>
+            <h4>Real humans on every ticket</h4>
+            <p>Your support email goes to a real person, not a ticket queue. Most replies inside 8 hours, faster on Growth + Dominant.</p>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

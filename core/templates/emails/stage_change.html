@@ -39,6 +39,28 @@
     </tr>
 </table>
 
+{# Maintenance upsell — only when project just went live AND client has no maintenance sub. #}
+{% if show_maintenance_upsell and maintenance_url %}
+    <div style="margin:30px 0 0;padding:22px;background:linear-gradient(150deg,rgba(232,101,10,0.10),rgba(13,148,136,0.06));border:1px solid rgba(232,101,10,0.35);border-radius:10px;">
+        <div style="color:#FF7B1E;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Next step — keep it protected</div>
+        <h2 style="margin:0 0 10px;color:#F8FAFC;font-size:19px;font-weight:700;line-height:1.3;">
+            Your site is live — make sure it stays that way.
+        </h2>
+        <p style="margin:0 0 14px;color:#94A3B8;font-size:14px;line-height:1.55;">
+            We're covering you for the first 2 weeks for free. After that, a maintenance plan keeps your site secure, fast, and Google-ranked — for less than the cost of a single out-of-scope edit. Plans start at $299/mo, month-to-month, cancel any time.
+        </p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0;">
+            <tr>
+                <td align="center" style="background:#E8650A;border-radius:8px;">
+                    <a href="{{ maintenance_url }}" style="display:inline-block;padding:12px 28px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                        See maintenance plans →
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </div>
+{% endif %}
+
 <p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
     Questions? Just reply to this email.
 </p>

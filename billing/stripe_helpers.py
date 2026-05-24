@@ -94,39 +94,200 @@ def create_final_invoice(client, contract):
     )
 
 
-def create_maintenance_subscription(client, plan_slug):
-    """Create a recurring maintenance subscription for a ServiceTier slug."""
+def get_maintenance_tier(plan_slug):
+    """
+    Look up an active maintenance ServiceTier by slug. Raises ValueError
+    if the slug is invalid OR the tier has no Stripe Price ID set.
+
+    Public so views can use it for confirm-page render and for early
+    validation before hitting Stripe.
+    """
     from billing.pricing_models import ServiceTier
 
-    _init()
-    tier = ServiceTier.objects.filter(slug=plan_slug, is_active=True).first()
+    tier = ServiceTier.objects.filter(
+        slug=plan_slug, is_active=True, category='maintenance').first()
     if tier is None:
-        raise ValueError(f'No active pricing tier with slug "{plan_slug}".')
+        raise ValueError(f'No active maintenance tier with slug "{plan_slug}".')
     if not tier.stripe_price_id:
         raise ValueError(
-            f"No Stripe Price ID set for '{tier.name}'. Go to admin dashboard "
-            f"→ Pricing → edit this tier and add the Stripe Price ID."
-        )
+            f"No Stripe Price ID set for '{tier.name}'. Run "
+            f"`python manage.py sync_stripe_products` to bootstrap it.")
+    return tier
+
+
+# Map a ServiceTier slug to the ClientProfile.PACKAGE_CHOICES code so the
+# local `package` column stays in sync with Stripe.
+MAINTENANCE_TIER_TO_PACKAGE = {
+    'maintenance-essentials': 'maintenance_essentials',
+    'maintenance-growth': 'maintenance_growth',
+    'maintenance-dominant': 'maintenance_dominant',
+}
+
+
+def create_maintenance_subscription(client, plan_slug):
+    """
+    Create-or-return a recurring maintenance subscription for the client.
+
+    Idempotent: if the client already has an active/trialing maintenance
+    subscription on Stripe, the existing one is returned rather than
+    double-billing. If the existing subscription is on a DIFFERENT
+    tier from the one requested, callers should use
+    `change_maintenance_subscription_tier` instead — this function does
+    NOT swap tiers.
+
+    Like `create_hosting_subscription`, we INTENTIONALLY do NOT pass
+    `default_payment_method` so renewals fall back to the customer's
+    invoice-settings default. Whichever card the client marks Default
+    in /portal/subscriptions/ is what Stripe charges.
+
+    Raises:
+      StripeNotConfigured — STRIPE_SECRET_KEY missing
+      ValueError          — bad plan slug, no Price ID, no PM on file
+    """
+    _init()
+    tier = get_maintenance_tier(plan_slug)
     customer = create_or_get_customer(client)
+
+    # If we already have a maintenance sub on file, return it (or its
+    # fresh state) rather than double-creating.
+    if client.stripe_subscription_id:
+        try:
+            existing = stripe.Subscription.retrieve(
+                client.stripe_subscription_id)
+            existing_status = getattr(existing, 'status', '')
+            if existing_status not in ('canceled', 'incomplete_expired'):
+                logger.info(
+                    'create_maintenance_subscription: client %s already '
+                    'has subscription %s (%s) — skipping create',
+                    client.pk, existing.id, existing_status)
+                return existing
+        except Exception:
+            client.stripe_subscription_id = ''
+
+    # Confirm the customer has a default payment method on file.
+    default_pm = get_customer_default_payment_method(customer.id)
+    if not default_pm:
+        raise ValueError(
+            'No default payment method on file. Add a card on the '
+            'subscriptions page before subscribing.')
+
     subscription = stripe.Subscription.create(
         customer=customer.id,
         items=[{'price': tier.stripe_price_id}],
-        metadata={'client_profile_id': str(client.id), 'plan': tier.slug},
+        metadata={
+            'kind': 'maintenance',
+            'client_profile_id': str(client.id),
+            'plan': tier.slug,
+        },
+        # `payment_behavior='error_if_incomplete'` makes the API call
+        # fail loud if the saved card declines — better than silently
+        # creating an `incomplete` subscription that just sits there.
+        payment_behavior='error_if_incomplete',
     )
     client.stripe_subscription_id = subscription.id
-    client.save(update_fields=['stripe_subscription_id', 'updated_at'])
+    client.package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, client.package)
+    client.save(update_fields=[
+        'stripe_subscription_id', 'package', 'updated_at',
+    ])
+    logger.info(
+        'create_maintenance_subscription: client %s subscribed to %s '
+        '(sub %s)', client.pk, tier.slug, subscription.id)
     return subscription
 
 
-def cancel_maintenance_subscription(client):
-    """Cancel the client's maintenance subscription at period end."""
+def change_maintenance_subscription_tier(client, new_plan_slug):
+    """
+    Swap an existing maintenance subscription to a different tier.
+
+    Stripe handles proration automatically (`proration_behavior=
+    'create_prorations'`) — if upgrading, the client is charged the
+    prorated difference on their next invoice; if downgrading, they
+    get a prorated credit. The subscription ID stays the same.
+
+    Also un-cancels a subscription that was set to cancel at period
+    end (the client effectively re-subscribed by upgrading).
+
+    Raises ValueError if the client has no active subscription to
+    modify or the new slug is invalid.
+    """
     _init()
-    if client.stripe_subscription_id:
-        stripe.Subscription.modify(
-            client.stripe_subscription_id, cancel_at_period_end=True,
-        )
-    client.maintenance_active = False
-    client.save(update_fields=['maintenance_active', 'updated_at'])
+    if not client.stripe_subscription_id:
+        raise ValueError(
+            'No active maintenance subscription to change. Subscribe '
+            'first.')
+
+    tier = get_maintenance_tier(new_plan_slug)
+    sub = stripe.Subscription.retrieve(client.stripe_subscription_id)
+    items_obj = getattr(sub, 'items', None)
+    items_data = list(getattr(items_obj, 'data', [])) if items_obj else []
+    if not items_data:
+        raise ValueError(
+            f'Subscription {client.stripe_subscription_id} has no items.')
+    item_id = items_data[0].id
+
+    updated = stripe.Subscription.modify(
+        client.stripe_subscription_id,
+        cancel_at_period_end=False,
+        items=[{'id': item_id, 'price': tier.stripe_price_id}],
+        proration_behavior='create_prorations',
+        metadata={
+            **(getattr(sub, 'metadata', {}) or {}),
+            'kind': 'maintenance',
+            'plan': tier.slug,
+        },
+    )
+    client.package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, client.package)
+    client.save(update_fields=['package', 'updated_at'])
+    logger.info(
+        'change_maintenance_subscription_tier: client %s swapped to %s',
+        client.pk, tier.slug)
+    return updated
+
+
+def cancel_maintenance_subscription(client, reason=''):
+    """
+    Cancel the client's maintenance subscription at period end so they
+    keep service through what they've already paid for. Local
+    `maintenance_active` flips False only when the period actually
+    ends (handled in `customer.subscription.deleted` webhook).
+    """
+    _init()
+    if not client.stripe_subscription_id:
+        return None
+    try:
+        sub = stripe.Subscription.retrieve(client.stripe_subscription_id)
+    except Exception:
+        client.stripe_subscription_id = ''
+        client.maintenance_active = False
+        client.save(update_fields=[
+            'stripe_subscription_id', 'maintenance_active', 'updated_at'])
+        return None
+    if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
+        return sub
+    updated = stripe.Subscription.modify(
+        client.stripe_subscription_id,
+        cancel_at_period_end=True,
+        metadata={**(getattr(sub, 'metadata', {}) or {}),
+                  'cancel_reason': reason[:200] if reason else ''},
+    )
+    logger.info(
+        'cancel_maintenance_subscription: client %s sub %s '
+        'cancel_at_period_end=True (reason=%s)',
+        client.pk, client.stripe_subscription_id, reason)
+    return updated
+
+
+def resume_maintenance_subscription(client):
+    """
+    Undo a pending cancel-at-period-end on the maintenance sub. No-op
+    if the sub already isn't scheduled to cancel.
+    """
+    _init()
+    if not client.stripe_subscription_id:
+        return None
+    return stripe.Subscription.modify(
+        client.stripe_subscription_id, cancel_at_period_end=False,
+    )
 
 
 def get_hosting_price_id():

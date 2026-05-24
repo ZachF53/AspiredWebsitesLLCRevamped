@@ -50,6 +50,8 @@ def stripe_webhook(request):
             _handle_invoice_payment_failed(event)
         elif event_type == 'customer.subscription.deleted':
             _handle_subscription_deleted(event)
+        elif event_type == 'customer.subscription.updated':
+            _handle_subscription_updated(event)
         else:
             logger.info('Stripe webhook: unhandled event type %s', event_type)
     except Exception:
@@ -243,17 +245,48 @@ def _handle_invoice_paid(event):
                        invoice.get('id'), invoice.get('customer'))
         return
 
-    # An invoice tied to a subscription is a maintenance-plan payment —
-    # activate maintenance and stop (no build-project bookkeeping).
-    if invoice.get('subscription'):
-        client.maintenance_active = True
-        if not client.maintenance_started_at:
-            client.maintenance_started_at = timezone.now()
-        client.save(update_fields=[
-            'maintenance_active', 'maintenance_started_at', 'updated_at',
-        ])
-        logger.info('invoice.paid (subscription): maintenance active for %s',
-                    client.pk)
+    # An invoice tied to a subscription is a recurring charge. Two
+    # subscription types live on the client right now (hosting +
+    # maintenance) — disambiguate via the subscription ID before
+    # flipping any local flags. Hosting invoices must NOT touch the
+    # maintenance fields, and vice versa.
+    sub_id = invoice.get('subscription') or ''
+    if sub_id:
+        if sub_id == client.stripe_hosting_subscription_id:
+            # Hosting renewal cleared — nothing extra to record locally
+            # beyond what Stripe already retains. Renewal gating happens
+            # earlier in `invoice.upcoming`.
+            logger.info(
+                'invoice.paid (hosting sub): client %s hosting renewed',
+                client.pk)
+            return
+        if sub_id == client.stripe_subscription_id:
+            client.maintenance_active = True
+            if not client.maintenance_started_at:
+                client.maintenance_started_at = timezone.now()
+            client.save(update_fields=[
+                'maintenance_active', 'maintenance_started_at',
+                'updated_at',
+            ])
+            logger.info(
+                'invoice.paid (maintenance sub): maintenance active '
+                'for %s', client.pk)
+            return
+        # Sub ID is unknown to us — likely a fresh subscription created
+        # outside the portal flow. Be conservative and only activate
+        # maintenance if the line item description hints at it.
+        logger.warning(
+            'invoice.paid (unknown sub %s) for client %s — checking '
+            'line items', sub_id, client.pk)
+        if _invoice_lines_mention_maintenance(invoice):
+            client.maintenance_active = True
+            client.stripe_subscription_id = sub_id
+            if not client.maintenance_started_at:
+                client.maintenance_started_at = timezone.now()
+            client.save(update_fields=[
+                'maintenance_active', 'stripe_subscription_id',
+                'maintenance_started_at', 'updated_at',
+            ])
         return
 
     kind = (invoice.get('metadata') or {}).get('kind')
@@ -564,3 +597,85 @@ def _invoice_has_hosting(invoice):
         if 'hosting' in (item.get('description') or '').lower():
             return True
     return False
+
+
+def _invoice_lines_mention_maintenance(stripe_invoice_dict):
+    """
+    Last-resort hint: does any line item on the (Stripe-shaped)
+    invoice dict contain the word "maintenance"? Used by the
+    `invoice.paid` handler when we receive a subscription invoice
+    whose ID doesn't match either of our recorded references.
+    """
+    lines = ((stripe_invoice_dict.get('lines') or {}).get('data') or [])
+    for line in lines:
+        desc = (line.get('description') or '').lower()
+        price_nick = ((line.get('price') or {}).get('nickname') or '').lower()
+        meta_plan = ((line.get('metadata') or {}).get('plan') or '').lower()
+        haystack = f'{desc} {price_nick} {meta_plan}'
+        if 'maintenance' in haystack:
+            return True
+    return False
+
+
+# ── customer.subscription.updated ───────────────────────────────────────────
+
+# Map the Stripe Price ID back to the local PACKAGE_CHOICES code so
+# tier changes initiated in the Stripe Dashboard (or via the portal)
+# keep ClientProfile.package + maintenance_active in sync.
+def _price_id_to_local_package(price_id):
+    if not price_id:
+        return ''
+    from billing.pricing_models import ServiceTier
+    from billing.stripe_helpers import MAINTENANCE_TIER_TO_PACKAGE
+    tier = ServiceTier.objects.filter(
+        stripe_price_id=price_id, category='maintenance').first()
+    if tier is None:
+        return ''
+    return MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, '')
+
+
+def _handle_subscription_updated(event):
+    """
+    Reconcile local maintenance fields whenever the subscription is
+    modified — covers tier upgrades/downgrades, status changes
+    (active ↔ past_due), and cancel-at-period-end toggles. Hosting
+    subs are skipped (their lifecycle is fully handled elsewhere).
+    """
+    subscription = event['data']['object']
+    sub_id = subscription.get('id', '')
+    client = _client_for_customer(subscription.get('customer'))
+    if client is None or sub_id != client.stripe_subscription_id:
+        # Only react to the client's MAINTENANCE subscription. Hosting +
+        # any third-party subs the customer might have are ignored.
+        return
+
+    status = subscription.get('status', '')
+    items = ((subscription.get('items') or {}).get('data') or [])
+    price_id = ''
+    if items:
+        price_id = ((items[0].get('price') or {}).get('id') or '')
+
+    fields = ['updated_at']
+    if status in ('active', 'trialing'):
+        if not client.maintenance_active:
+            client.maintenance_active = True
+            fields.append('maintenance_active')
+        if not client.maintenance_started_at:
+            client.maintenance_started_at = timezone.now()
+            fields.append('maintenance_started_at')
+    elif status in ('past_due', 'unpaid'):
+        # Keep maintenance_active True for the grace window — Stripe
+        # retries automatically. We'll flip on `subscription.deleted`
+        # if it ultimately ends.
+        pass
+
+    new_package = _price_id_to_local_package(price_id)
+    if new_package and new_package != client.package:
+        client.package = new_package
+        fields.append('package')
+
+    if fields != ['updated_at']:
+        client.save(update_fields=fields)
+        logger.info(
+            'subscription.updated: client %s status=%s package=%s',
+            client.pk, status, client.package)

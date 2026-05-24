@@ -1894,6 +1894,25 @@ def portal_subscriptions(request):
             logger.exception(
                 'Payment method fetch failed for client %s', profile.pk)
 
+    # Maintenance upsell — show a pitch card on the subscriptions page
+    # whenever the client has no active maintenance subscription. The
+    # card itself does the "stronger pitch once project is live"
+    # styling switch in template; the view passes the raw state.
+    upsell_state = _maintenance_upsell_state(profile)
+
+    # Also surface whether the maintenance sub is set to cancel at
+    # period end so we can render a Resume button.
+    maintenance_cancel_pending = any(
+        sub for sub in subscriptions
+        if sub and sub.get('cancel_at_period_end')
+        and sub.get('id') == profile.stripe_subscription_id
+    )
+
+    # Top-3 maintenance tiers for the upsell card's mini-comparison.
+    upsell_tiers = []
+    if upsell_state['show_upsell']:
+        upsell_tiers = list(_maintenance_tiers())
+
     ctx = _portal_context(
         request, 'subscriptions',
         subscriptions=subscriptions,
@@ -1901,6 +1920,9 @@ def portal_subscriptions(request):
         default_pm_id=default_pm_id,
         stripe_publishable_key=getattr(
             _s, 'STRIPE_PUBLISHABLE_KEY', ''),
+        upsell_state=upsell_state,
+        upsell_tiers=upsell_tiers,
+        maintenance_cancel_pending=maintenance_cancel_pending,
     )
     return render(request, 'clients/portal_subscriptions.html', ctx)
 
@@ -1985,6 +2007,285 @@ def portal_payment_method_default(request, pm_id):
     except Exception as exc:  # noqa: BLE001
         logger.exception('Set-default payment method failed')
         messages.error(request, f'Could not update default: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
+# ── Maintenance upsell + signup ────────────────────────────────────────────
+
+# Slugs the client portal explicitly knows about — keeps this view safe
+# against arbitrary slug injection in the URL.
+_MAINTENANCE_TIER_SLUGS = (
+    'maintenance-essentials',
+    'maintenance-growth',
+    'maintenance-dominant',
+)
+
+
+def _maintenance_tiers():
+    """Active maintenance tiers + features, sorted for display."""
+    from billing.pricing_models import ServiceTier
+    return (
+        ServiceTier.objects
+        .filter(category='maintenance', is_active=True)
+        .order_by('sort_order', 'price')
+        .prefetch_related('features')
+    )
+
+
+def _maintenance_upsell_state(profile):
+    """
+    Return a small dict describing the upsell state for a client. Used
+    by both the subscriptions page (to render the upsell card) and the
+    /portal/maintenance/ page (to gate the "subscribe" CTA).
+
+    Keys:
+      show_upsell    — bool, render the pitch card on /portal/subscriptions/
+      is_subscribed  — bool, client already has an active maintenance sub
+      project_live   — bool, project has reached the 'live' stage
+      days_since_live — int or None
+      current_tier_slug — '' or the active tier slug
+    """
+    project = _active_project(profile)
+    project_live = bool(project and project.stage == 'live')
+    days_since_live = None
+    if project and getattr(project, 'launch_date', None):
+        delta = timezone.now().date() - project.launch_date
+        days_since_live = max(delta.days, 0)
+
+    current_tier_slug = ''
+    if profile.maintenance_active and profile.package:
+        # Convert local package -> ServiceTier slug
+        current_tier_slug = profile.package.replace('_', '-')
+
+    return {
+        'show_upsell': not profile.maintenance_active,
+        'is_subscribed': profile.maintenance_active,
+        'project_live': project_live,
+        'days_since_live': days_since_live,
+        'current_tier_slug': current_tier_slug,
+    }
+
+
+@client_required
+def portal_maintenance(request):
+    """
+    Tier comparison + signup landing page. Shows all maintenance tiers
+    with their feature bullets and a Subscribe/Switch button per tier.
+    If the client already has maintenance, the matching tier shows as
+    Current and the others offer Upgrade/Downgrade.
+    """
+    profile = request.client_profile
+    tiers = list(_maintenance_tiers())
+    state = _maintenance_upsell_state(profile)
+
+    ctx = _portal_context(
+        request, 'subscriptions',
+        tiers=tiers,
+        upsell_state=state,
+    )
+    return render(request, 'clients/portal_maintenance.html', ctx)
+
+
+@client_required
+def portal_maintenance_start(request, slug):
+    """
+    GET  — confirmation screen for subscribing to a maintenance tier.
+    POST — actually create the Stripe subscription using the customer's
+           default payment method. No Stripe Elements step needed
+           because the card is already on file.
+
+    If the client has no default payment method, redirect them to the
+    subscriptions page to add one (with a flash banner explaining why).
+
+    If the client already has an active maintenance subscription on a
+    DIFFERENT tier, route through `change_maintenance_subscription_tier`
+    (proration + same subscription ID) instead of creating a new one.
+    """
+    from billing.stripe_helpers import (
+        StripeNotConfigured,
+        change_maintenance_subscription_tier,
+        create_maintenance_subscription,
+        get_customer_default_payment_method,
+        get_maintenance_tier,
+        list_customer_payment_methods,
+    )
+
+    if slug not in _MAINTENANCE_TIER_SLUGS:
+        messages.error(request, 'Unknown maintenance plan.')
+        return redirect('clients:portal_maintenance')
+
+    profile = request.client_profile
+
+    try:
+        tier = get_maintenance_tier(slug)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('clients:portal_maintenance')
+
+    # Resolve current state up front so both GET render + POST validation
+    # use the same source of truth.
+    state = _maintenance_upsell_state(profile)
+    is_change = state['is_subscribed']
+    is_same_tier = is_change and state['current_tier_slug'] == slug
+
+    # Pull the default card so the confirmation page can show "Charged to
+    # Visa •••• 4242" without a second round trip on POST.
+    default_card = None
+    if profile.stripe_customer_id:
+        try:
+            pm_id = get_customer_default_payment_method(
+                profile.stripe_customer_id)
+            if pm_id:
+                methods = list_customer_payment_methods(
+                    profile.stripe_customer_id)
+                for m in methods:
+                    if getattr(m, 'id', '') == pm_id:
+                        default_card = {
+                            'brand': getattr(
+                                m.card, 'brand', '').upper(),
+                            'last4': getattr(m.card, 'last4', ''),
+                            'exp_month': getattr(m.card, 'exp_month', ''),
+                            'exp_year': getattr(m.card, 'exp_year', ''),
+                        }
+                        break
+        except Exception:
+            logger.exception(
+                'Default-card lookup failed for client %s', profile.pk)
+
+    if request.method == 'POST':
+        if is_same_tier:
+            messages.info(
+                request,
+                f'You\'re already subscribed to the {tier.name} plan.')
+            return redirect('clients:portal_maintenance')
+
+        # Card required for both new subs and tier changes (Stripe may
+        # need to charge proration immediately on an upgrade).
+        if not default_card:
+            messages.error(
+                request,
+                'Add a payment method first — your maintenance '
+                'subscription needs a card on file to renew.')
+            return redirect('clients:portal_subscriptions')
+
+        try:
+            if is_change:
+                change_maintenance_subscription_tier(profile, slug)
+                messages.success(
+                    request,
+                    f'Switched to the {tier.name} maintenance plan. '
+                    f'Stripe will prorate the change on your next invoice.')
+            else:
+                create_maintenance_subscription(profile, slug)
+                messages.success(
+                    request,
+                    f'You\'re subscribed to {tier.name}. Welcome aboard.')
+        except StripeNotConfigured as exc:
+            logger.exception('Stripe not configured for maintenance signup')
+            messages.error(
+                request,
+                'Our payment processor is temporarily unavailable. '
+                'Try again in a few minutes or email us.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect('clients:portal_maintenance')
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Maintenance subscription failed')
+            messages.error(
+                request,
+                f'We couldn\'t complete that subscription: {exc}')
+            return redirect('clients:portal_maintenance')
+
+        return redirect(
+            f'{reverse("clients:portal_maintenance_success")}?tier={slug}')
+
+    # GET — render the confirmation page.
+    ctx = _portal_context(
+        request, 'subscriptions',
+        tier=tier,
+        tier_features=list(tier.features.all().order_by('sort_order')),
+        default_card=default_card,
+        is_change=is_change,
+        is_same_tier=is_same_tier,
+        current_tier_slug=state['current_tier_slug'],
+    )
+    return render(request, 'clients/portal_maintenance_confirm.html', ctx)
+
+
+@client_required
+def portal_maintenance_success(request):
+    """Thank-you page shown after a successful maintenance signup."""
+    profile = request.client_profile
+    slug = request.GET.get('tier', '') or ''
+    tier = None
+    if slug in _MAINTENANCE_TIER_SLUGS:
+        from billing.pricing_models import ServiceTier
+        tier = ServiceTier.objects.filter(slug=slug).first()
+    ctx = _portal_context(
+        request, 'subscriptions',
+        tier=tier,
+        profile=profile,
+    )
+    return render(request, 'clients/portal_maintenance_success.html', ctx)
+
+
+@client_required
+@require_POST
+def portal_maintenance_cancel(request):
+    """
+    Cancel the client's maintenance subscription at period end. They
+    keep service through the end of the cycle they've already paid for.
+    """
+    from billing.stripe_helpers import (
+        StripeNotConfigured, cancel_maintenance_subscription,
+    )
+
+    profile = request.client_profile
+    reason = (request.POST.get('reason') or '').strip()
+    try:
+        result = cancel_maintenance_subscription(profile, reason=reason)
+        if result is None:
+            messages.info(
+                request, 'No active maintenance subscription to cancel.')
+        else:
+            messages.success(
+                request,
+                'Maintenance subscription set to cancel at the end of '
+                'the current period. You can resume any time before '
+                'then.')
+    except StripeNotConfigured:
+        messages.error(
+            request,
+            'Our payment processor is temporarily unavailable. '
+            'Try again in a few minutes.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Maintenance cancel failed')
+        messages.error(request, f'Could not cancel: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
+@client_required
+@require_POST
+def portal_maintenance_resume(request):
+    """Undo a pending cancel-at-period-end."""
+    from billing.stripe_helpers import (
+        StripeNotConfigured, resume_maintenance_subscription,
+    )
+
+    profile = request.client_profile
+    try:
+        resume_maintenance_subscription(profile)
+        messages.success(
+            request, 'Maintenance subscription resumed. No change to '
+            'your renewal date.')
+    except StripeNotConfigured:
+        messages.error(
+            request,
+            'Our payment processor is temporarily unavailable. Try '
+            'again in a few minutes.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Maintenance resume failed')
+        messages.error(request, f'Could not resume: {exc}')
     return redirect('clients:portal_subscriptions')
 
 

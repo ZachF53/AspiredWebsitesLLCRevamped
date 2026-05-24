@@ -1,0 +1,84 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Confirm subscription — {{ tier.name }}{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <a href="{% url 'clients:portal_maintenance' %}" class="portal-back">← Back to plans</a>
+    <h1>
+        {% if is_change %}Switch to {{ tier.name }}{% else %}Confirm subscription — {{ tier.name }}{% endif %}
+    </h1>
+    <p class="portal-page-head__sub">
+        {% if is_change %}
+            We'll swap your maintenance plan immediately. Stripe handles the proration — you're billed (or credited) the difference on your next monthly invoice. No new charge today unless the upgrade leaves a balance owed.
+        {% else %}
+            One last look — confirm the plan + payment method below, then click Subscribe.
+        {% endif %}
+    </p>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+<div class="maint-confirm">
+    <section class="maint-confirm__plan">
+        <h2 class="maint-confirm__heading">{{ tier.name }}</h2>
+        <div class="maint-confirm__price">
+            <span class="maint-confirm__amount">${{ tier.price|floatformat:0 }}</span>
+            <span class="maint-confirm__interval">/ month</span>
+        </div>
+        <ul class="maint-confirm__features">
+            {% for f in tier_features %}
+                <li>
+                    <svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>{{ f.text }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="maint-confirm__payment">
+        <h3 class="maint-confirm__sub">Payment method</h3>
+        {% if default_card %}
+            <div class="maint-confirm__card">
+                <span class="pm-card__brand">{{ default_card.brand }}</span>
+                <span class="pm-card__last4">•••• {{ default_card.last4 }}</span>
+                <span class="pm-card__exp">{{ default_card.exp_month|stringformat:"02d" }}/{{ default_card.exp_year|stringformat:"02d"|slice:"-2:" }}</span>
+            </div>
+            <p class="form-hint form-hint--block">
+                This is the card marked Default on <a href="{% url 'clients:portal_subscriptions' %}">your subscriptions page</a>. To use a different card, change the default there first, then come back here.
+            </p>
+        {% else %}
+            <div class="maint-confirm__no-card">
+                <p><strong>No payment method on file.</strong></p>
+                <p>Add a card before subscribing.</p>
+                <a href="{% url 'clients:portal_subscriptions' %}" class="btn-primary">Add a card</a>
+            </div>
+        {% endif %}
+
+        <h3 class="maint-confirm__sub">What you're agreeing to</h3>
+        <ul class="maint-confirm__terms">
+            <li>Billed <strong>${{ tier.price|floatformat:0 }}/month</strong> automatically on the same date each month.</li>
+            <li>Month-to-month — <strong>cancel any time</strong> from your portal. You keep service through the end of the cycle you've paid for.</li>
+            <li>{% if is_change %}This tier change applies immediately. Stripe prorates the difference on your next invoice.{% else %}Your first charge happens right now.{% endif %}</li>
+        </ul>
+
+        <form method="post" action="{% url 'clients:portal_maintenance_start' tier.slug %}" class="maint-confirm__form">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary btn-block btn-lg" {% if not default_card %}disabled aria-disabled="true"{% endif %}>
+                {% if is_change %}Switch to {{ tier.name }}{% else %}Subscribe to {{ tier.name }}{% endif %}
+            </button>
+            <p class="maint-confirm__secure">
+                Secured by Stripe. Card details never touch our servers.
+            </p>
+        </form>
+    </section>
+</div>
+
+{% endblock %}

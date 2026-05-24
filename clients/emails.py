@@ -199,8 +199,25 @@ def send_stage_change_email(client, project, new_stage):
 
     portal_url = 'https://aspiredwebsites.com/portal/'
     text_body += (
-        f'View your portal: {portal_url}\n\n'
-        f'— Zachery Long\nAspired Websites LLC\n')
+        f'View your portal: {portal_url}\n\n')
+
+    # ── Maintenance upsell on the live-stage email ──
+    # Only fire when the project just went live AND the client doesn't
+    # already have an active maintenance subscription. This is the
+    # single highest-converting upsell touchpoint (the launch email).
+    show_maintenance_upsell = (
+        new_stage == 'live' and not getattr(client, 'maintenance_active', False))
+    maintenance_url = 'https://aspiredwebsites.com/portal/maintenance/'
+    if show_maintenance_upsell:
+        text_body += (
+            'Next step — keep your site protected.\n'
+            'You\'re covered for the first 2 weeks for free. After that, '
+            'a maintenance plan keeps your site secure, fast, and ranking. '
+            'Plans start at $299/mo, month-to-month, cancel any time.\n'
+            f'See plans: {maintenance_url}\n\n'
+        )
+
+    text_body += '— Zachery Long\nAspired Websites LLC\n'
 
     send_branded(
         subject=f'Project update — {stage_label}',
@@ -212,6 +229,8 @@ def send_stage_change_email(client, project, new_stage):
             'stage_description': copy['description'],
             'staging_url': staging_url,
             'portal_url': portal_url,
+            'show_maintenance_upsell': show_maintenance_upsell,
+            'maintenance_url': maintenance_url,
             'preheader': copy['headline'],
         },
         recipient_list=[client.user.email],
@@ -222,6 +241,78 @@ def send_stage_change_email(client, project, new_stage):
         # cert there, see clients/emails.send_secure_mail).
         secure=True,
     )
+
+
+def send_maintenance_upsell_email(client, day):
+    """
+    Stand-alone maintenance upsell email — used by the post-launch
+    nudge cron (Day 30 / Day 60). The Day-13 closing-support email
+    already exists; this fills the gap between "your site is live"
+    and "you forgot to set up maintenance."
+
+    `day` is purely descriptive — drives subject + lead copy. Today
+    supports 30 + 60; add more entries to `_UPSELL_COPY` to extend.
+    """
+    name = client.contact_name or client.firm_name
+    first_name = _first_name(client)
+    maintenance_url = 'https://aspiredwebsites.com/portal/maintenance/'
+
+    copy = _UPSELL_COPY.get(day)
+    if copy is None:
+        raise ValueError(f'No upsell copy registered for day {day}.')
+
+    text_body = (
+        f'Hi {first_name},\n\n'
+        f'{copy["lead"]}\n\n'
+        f'See your maintenance options: {maintenance_url}\n\n'
+        f'Month-to-month. Cancel any time.\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
+    )
+
+    send_branded(
+        subject=copy['subject'],
+        template='maintenance_upsell',
+        context={
+            'first_name': first_name,
+            'firm_name': client.firm_name,
+            'name': name,
+            'day': day,
+            'lead': copy['lead'],
+            'headline': copy['headline'],
+            'maintenance_url': maintenance_url,
+            'preheader': copy['preheader'],
+        },
+        recipient_list=[client.user.email],
+        text_body=text_body,
+        secure=True,
+    )
+
+
+_UPSELL_COPY = {
+    30: {
+        'subject': "How's your site doing? (a small check-in)",
+        'preheader': "One month live — here's how to keep it that way.",
+        'headline': "Your site has been live for a month — nice work.",
+        'lead': (
+            "Your site has been live for a month — that's the period where most "
+            "small-business sites either start gathering momentum or quietly "
+            "stall out. Maintenance is the difference. Monthly security patches, "
+            "performance tuning, content updates included, and the kind of "
+            "monitoring that catches problems before your visitors do."),
+    },
+    60: {
+        'subject': "Two months in — is your site still running clean?",
+        'preheader': "Maintenance plans start at $299/mo. Take a look.",
+        'headline': "Two months in — let's keep the momentum.",
+        'lead': (
+            "It's been about two months since launch. Sites without active "
+            "maintenance start to drift this fast: security patches pile up, "
+            "page speed creeps up, and Google starts demoting pages that "
+            "don't get updated. A maintenance plan reverses all three — and "
+            "the lowest tier costs less than a single hour of out-of-scope "
+            "work."),
+    },
+}
 
 
 def send_invoice_email(invoice):

@@ -498,6 +498,13 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'billing.tasks.reconcile_subscriptions_task',
         'schedule': crontab(hour=4, minute=0),            # daily 4am
     },
+    # Post-launch maintenance upsell — 30 + 60 day nudges. Daily run;
+    # the management command is idempotent and only mails clients who
+    # crossed the threshold since the last run.
+    'maintenance-upsell-nudges': {
+        'task': 'billing.tasks.send_maintenance_upsell_nudges_task',
+        'schedule': crontab(hour=9, minute=15),           # daily 9:15am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

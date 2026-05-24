@@ -1,0 +1,61 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ headline }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">
+    {{ headline }}
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }},
+</p>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    {{ lead }}
+</p>
+
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border:1px solid rgba(232,101,10,0.25);border-radius:8px;">
+    <div style="color:#FF7B1E;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:10px;">What you get</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+            <td style="padding:6px 0;color:#F8FAFC;font-size:14px;line-height:1.55;">
+                ✓ Monthly security patches + uptime monitoring
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:6px 0;color:#F8FAFC;font-size:14px;line-height:1.55;">
+                ✓ Included content-update hours every month
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:6px 0;color:#F8FAFC;font-size:14px;line-height:1.55;">
+                ✓ Monthly performance report
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:6px 0;color:#F8FAFC;font-size:14px;line-height:1.55;">
+                ✓ Emergency response, real humans, no ticket queue
+            </td>
+        </tr>
+    </table>
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ maintenance_url }}" style="display:inline-block;padding:14px 30px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                See maintenance plans →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:13px;line-height:1.6;">
+    Plans start at $299/mo. Month-to-month. Cancel any time from your portal.
+</p>
+
+<p style="margin:18px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

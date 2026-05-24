@@ -46,6 +46,24 @@
                             · Renews: {{ sub.current_period_end|date:"M j, Y" }}
                         {% endif %}
                     </div>
+                    {# Maintenance-sub-specific actions: cancel / resume / change tier #}
+                    {% if sub.id == request.client_profile.stripe_subscription_id %}
+                        <div class="sub-card__actions">
+                            {% if sub.cancel_at_period_end %}
+                                <form method="post" action="{% url 'clients:portal_maintenance_resume' %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">Resume subscription</button>
+                                </form>
+                            {% else %}
+                                <a href="{% url 'clients:portal_maintenance' %}" class="btn-link sub-card__link">Change plan</a>
+                                <form method="post" action="{% url 'clients:portal_maintenance_cancel' %}" style="display:inline;"
+                                      onsubmit="return confirm('Cancel maintenance at the end of the current period? You\'ll keep service through what you\'ve already paid for.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-link sub-card__link sub-card__link--danger">Cancel</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>
@@ -53,6 +71,60 @@
         <p class="portal-empty">No active subscriptions.</p>
     {% endif %}
 </section>
+
+{# ── Maintenance upsell card (shown only when client has no maintenance sub) ── #}
+{% if upsell_state.show_upsell and upsell_tiers %}
+    <section class="maint-upsell-card">
+        <div class="maint-upsell-card__pulse" aria-hidden="true"></div>
+        <div class="maint-upsell-card__inner">
+            <div class="maint-upsell-card__head">
+                {% if upsell_state.project_live %}
+                    <span class="maint-upsell-card__chip">Your site is live</span>
+                {% else %}
+                    <span class="maint-upsell-card__chip maint-upsell-card__chip--soft">Recommended</span>
+                {% endif %}
+                <h2 class="maint-upsell-card__title">
+                    {% if upsell_state.project_live %}
+                        Keep your site secure, updated, and ranking
+                    {% else %}
+                        Protect your site from day one
+                    {% endif %}
+                </h2>
+                <p class="maint-upsell-card__lead">
+                    {% if upsell_state.project_live %}
+                        Sites without active maintenance lose ground in two ways: security holes open up as the web changes, and Google quietly demotes pages that don't get fresh updates. A maintenance plan fixes both — for less than a single hour of out-of-scope work.
+                    {% else %}
+                        Add a maintenance plan now and we'll roll it into your post-launch handover automatically — no second signup later.
+                    {% endif %}
+                </p>
+            </div>
+
+            <ul class="maint-upsell-card__mini-grid">
+                {% for tier in upsell_tiers %}
+                    <li class="maint-upsell-mini {% if tier.is_featured %}is-featured{% endif %}">
+                        {% if tier.is_featured %}<span class="maint-upsell-mini__star">★ Most popular</span>{% endif %}
+                        <div class="maint-upsell-mini__name">{{ tier.name }}</div>
+                        <div class="maint-upsell-mini__price">
+                            <strong>${{ tier.price|floatformat:0 }}</strong><span>/mo</span>
+                        </div>
+                        <ul class="maint-upsell-mini__bullets">
+                            {% for f in tier.features.all|slice:":3" %}
+                                <li>{{ f.text }}</li>
+                            {% endfor %}
+                        </ul>
+                        <a href="{% url 'clients:portal_maintenance_start' tier.slug %}"
+                           class="btn-primary btn-block btn-sm">Choose {{ tier.name }}</a>
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <div class="maint-upsell-card__foot">
+                <a href="{% url 'clients:portal_maintenance' %}" class="btn-secondary">See full plan details + comparison</a>
+                <p class="maint-upsell-card__reassure">Month-to-month. Cancel any time. Backed by a CISSP-certified designer.</p>
+            </div>
+        </div>
+    </section>
+{% endif %}
 
 {# ── Payment methods ── #}
 <section class="portal-section">

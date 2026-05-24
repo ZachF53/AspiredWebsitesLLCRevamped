@@ -1,0 +1,36 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Subscription confirmed{% endblock %}
+
+{% block portal_content %}
+<div class="maint-success">
+    <div class="maint-success__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="3" />
+            <path d="M20 32l8 8 16-16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </div>
+    <h1 class="maint-success__title">
+        You're subscribed{% if tier %} to {{ tier.name }}{% endif %}.
+    </h1>
+    <p class="maint-success__lead">
+        Welcome aboard — you'll get a receipt in your inbox shortly. Your maintenance coverage starts immediately.
+    </p>
+
+    <section class="maint-success__what">
+        <h2>What happens next</h2>
+        <ol>
+            <li>You'll receive a payment receipt from Stripe within a few minutes.</li>
+            <li>We'll schedule your first security + performance check this week and send you the results.</li>
+            <li>Your monthly content-update hours start fresh on the 1st of next month — email us any time to use them.</li>
+            <li>Your monthly performance report drops on the 1st of each month.</li>
+        </ol>
+    </section>
+
+    <div class="maint-success__cta">
+        <a href="{% url 'clients:portal_subscriptions' %}" class="btn-primary">Go to my subscriptions</a>
+        <a href="{% url 'clients:dashboard' %}" class="btn-secondary">Back to portal</a>
+    </div>
+</div>
+{% endblock %}
