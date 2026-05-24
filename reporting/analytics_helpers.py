@@ -10,7 +10,7 @@ serializable dicts — safe to feed straight into templates or JSON.
 from collections import Counter
 from datetime import timedelta
 
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 
 from .models import PageSession
@@ -64,10 +64,15 @@ def overview_stats(client, days=DEFAULT_WINDOW_DAYS):
             'exit_intent_count': 0,
         }
 
+    # Use Count(filter=Q(...)) for the boolean rather than
+    # Sum('exit_intent_fired') — SQLite happily SUM()s booleans,
+    # but PostgreSQL refuses ("function sum(boolean) does not
+    # exist"), so the Sum version 500'd on prod even though tests
+    # passed locally.
     agg = qs.aggregate(
         avg_time=Avg('time_on_page_seconds'),
         avg_scroll=Avg('max_scroll_depth'),
-        exits=Sum('exit_intent_fired'),
+        exits=Count('id', filter=Q(exit_intent_fired=True)),
     )
 
     avg_time = (int(round(agg['avg_time']))
