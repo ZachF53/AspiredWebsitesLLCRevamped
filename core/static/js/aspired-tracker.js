@@ -373,48 +373,63 @@
     if (typeof record !== 'function') { return; }
 
     var recordingBuffer = [];
-    var stopRecording = record({
-      emit: function (event) {
-        recordingBuffer.push(event);
-        // Ship in 100-event chunks so a sudden
-        // close doesn't lose the whole session.
-        if (recordingBuffer.length >= 100) {
-          sendRecordingChunk(
-            recordingBuffer.splice(0, 100), false);
-        }
-      },
-      // ── PRIVACY (do not change without review) ──
-      maskAllInputs: true,
-      // Never record what the user types.
-      maskInputOptions: {
-        password: true,
-        email: true,
-        tel: true,
-        text: true,
-        number: true,
-        search: true,
-        textarea: true
-      },
-      // Add data-recording-block to any element
-      // that should never be recorded (sensitive
-      // content blocks, dashboards, etc.).
-      blockSelector: '[data-recording-block]',
-      // Sample mousemove every 50ms — captures
-      // gesture intent without ballooning data.
-      sampling: {
-        mousemove: 50,
-        mouseInteraction: true,
-        scroll: 150,
-        media: 800
-      },
-      // Emit a fresh FullSnapshot every 30s so
-      // each chunk we ship contains a baseline
-      // the Replayer can render from — even if
-      // the very first chunk is lost (network
-      // hiccup, bfcache restore, etc.) the next
-      // one is self-contained.
-      checkoutEveryNms: 30 * 1000
-    });
+    var stopRecording = null;
+
+    // Single source of truth for recorder options so the initial
+    // start and the bfcache-restore restart can't drift apart.
+    function recorderOptions() {
+      return {
+        emit: function (event) {
+          recordingBuffer.push(event);
+          // Ship in 100-event chunks so a sudden
+          // close doesn't lose the whole session.
+          if (recordingBuffer.length >= 100) {
+            sendRecordingChunk(
+              recordingBuffer.splice(0, 100), false);
+          }
+        },
+        // ── PRIVACY (do not change without review) ──
+        maskAllInputs: true,
+        // Never record what the user types.
+        maskInputOptions: {
+          password: true,
+          email: true,
+          tel: true,
+          text: true,
+          number: true,
+          search: true,
+          textarea: true
+        },
+        // Add data-recording-block to any element
+        // that should never be recorded (sensitive
+        // content blocks, dashboards, etc.).
+        blockSelector: '[data-recording-block]',
+        // Sample mousemove every 50ms — captures
+        // gesture intent without ballooning data.
+        sampling: {
+          mousemove: 50,
+          mouseInteraction: true,
+          scroll: 150,
+          media: 800
+        },
+        // Emit a fresh FullSnapshot every 30s so
+        // each chunk we ship contains a baseline
+        // the Replayer can render from — even if
+        // the very first chunk is lost (network
+        // hiccup, bfcache restore that beat the
+        // pageshow handler, etc.) the next one
+        // is self-contained.
+        checkoutEveryNms: 30 * 1000
+      };
+    }
+
+    function beginRecorder() {
+      try {
+        stopRecording = record(recorderOptions());
+      } catch (e) {
+        stopRecording = null;
+      }
+    }
 
     function sendRecordingChunk(events, isFinal) {
       if (!events || !events.length) { return; }
@@ -447,6 +462,27 @@
         } catch (e) { /* swallow */ }
       }
     }
+
+    // Initial start.
+    beginRecorder();
+
+    // ── BFCACHE RESTORE ──
+    // When a browser restores this page from the back/forward
+    // cache, `pageshow` fires with event.persisted=true. The
+    // previous rrweb instance was suspended (or killed by our
+    // pagehide handler) without emitting a fresh FullSnapshot,
+    // so the restored page would record only incrementals on a
+    // DOM the Replayer never saw. Treat it as a brand-new page
+    // view: ship anything in the buffer, mint a new sessionId
+    // (so the bfcache page lands in its own SessionRecording
+    // row), and start the recorder over.
+    window.addEventListener('pageshow', function (event) {
+      if (!event || !event.persisted) { return; }
+      try { if (stopRecording) { stopRecording(); } } catch (e) {}
+      sendRecordingChunk(recordingBuffer.splice(0), true);
+      sessionId = generateSessionId();
+      beginRecorder();
+    });
 
     // Final chunk on page unload.
     window.addEventListener('pagehide', function () {
