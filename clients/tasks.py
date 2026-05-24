@@ -715,11 +715,15 @@ def _recipient_email(client):
 
 def _send_setup_reminder(client, token):
     """Account-setup nudge — sent once per 24h until the token is consumed."""
+    from clients.emails import send_secure_mail
+
     name = _setup_first_name(client)
     recipient = _recipient_email(client)
     if not recipient:
         return
-    send_mail(
+    # SECURITY-SENSITIVE — contains the one-time setup token URL.
+    # Click tracking MUST stay off, see clients/emails.send_secure_mail.
+    send_secure_mail(
         subject='Reminder: Set up your Aspired Websites account',
         message=(
             f'Hi {name},\n\n'
@@ -743,11 +747,15 @@ def _send_setup_reminder(client, token):
 
 def _send_intake_reminder(client, token):
     """Intake-form nudge — sent once per 48h until the intake is submitted."""
+    from clients.emails import send_secure_mail
+
     name = _setup_first_name(client)
     recipient = _recipient_email(client)
     if not recipient:
         return
-    send_mail(
+    # Consistency with the rest of the onboarding flow — no SendGrid
+    # rewrite means the client always sees aspiredwebsites.com.
+    send_secure_mail(
         subject=(
             'Action needed: Complete your intake form '
             'to start your website'),

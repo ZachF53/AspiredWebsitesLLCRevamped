@@ -1,7 +1,57 @@
 """Transactional emails for the client portal (sent via SendGrid SMTP)."""
 
+import json
+
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, send_mail
+
+
+# SendGrid SMTP click-tracking-off / open-tracking-off header value.
+# Used for security-sensitive emails (account setup links, password
+# reset tokens, etc.) so SendGrid doesn't rewrite their URLs through
+# url6271.aspiredwebsites.com — a custom link-branding subdomain
+# whose SSL cert hasn't been enabled in the SendGrid UI, causing a
+# browser SSL error when the client clicks through.
+#
+# SendGrid honours `X-SMTPAPI` on SMTP-sent mail. The JSON below
+# disables both HTML and plain-text click tracking plus open
+# tracking, so every URL in the body is left exactly as written.
+_NO_TRACKING_HEADER = json.dumps({
+    'filters': {
+        'clicktrack': {
+            'settings': {'enable': 0, 'enable_text': 0},
+        },
+        'opentrack': {
+            'settings': {'enable': 0},
+        },
+    },
+})
+
+
+def send_secure_mail(*, subject, message, from_email, recipient_list,
+                     fail_silently=True):
+    """
+    `django.core.mail.send_mail` shaped, but adds X-SMTPAPI so SendGrid
+    leaves every URL in the body verbatim — no click-tracking rewrite.
+
+    Use for any email containing a one-time token URL (account setup,
+    password reset, magic-link login). Use the regular `send_mail`
+    for everything else so SendGrid analytics keep working.
+
+    Routes through `EmailMessage` rather than the `send_mail` helper
+    because `send_mail` doesn't expose headers — `EmailMessage`
+    does, via the `headers=` kwarg. The legal-address footer is
+    still applied (handled by `AspiredEmailBackend.send_messages`
+    on every outgoing message).
+    """
+    msg = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=from_email,
+        to=recipient_list,
+        headers={'X-SMTPAPI': _NO_TRACKING_HEADER},
+    )
+    msg.send(fail_silently=fail_silently)
 
 
 def _first_name(client):
@@ -32,7 +82,10 @@ def send_onboarding_setup_email(client, token):
         f'— Zachery Long\n'
         f'Aspired Websites LLC\n'
     )
-    send_mail(
+    # SECURITY-SENSITIVE — contains the one-time setup token.
+    # SendGrid click tracking must stay OFF or the URL gets rewritten
+    # through url6271.aspiredwebsites.com (no SSL cert → SSL error).
+    send_secure_mail(
         subject='Your Aspired Websites account is ready',
         message=body,
         from_email=settings.EMAIL_FROM_MAIN,
@@ -65,7 +118,11 @@ def send_account_setup_complete_email(client):
         f'Aspired Websites LLC\n'
         f'210-896-2536\n'
     )
-    send_mail(
+    # Contains /portal/intake/ — same domain as the portal login, so
+    # technically click tracking would still resolve, but we keep this
+    # off too so the whole onboarding flow has zero-rewrite URLs and
+    # the client never sees a different domain in any setup email.
+    send_secure_mail(
         subject='Your account is ready — one more step before we start',
         message=body,
         from_email=settings.EMAIL_FROM_MAIN,
