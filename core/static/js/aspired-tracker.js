@@ -377,12 +377,43 @@
 
     // Single source of truth for recorder options so the initial
     // start and the bfcache-restore restart can't drift apart.
+    //
+    // `baselineSent` MUST live inside this function (not the outer
+    // closure) so each call to beginRecorder() — initial start AND
+    // the bfcache pageshow restart — gets its own fresh flag and
+    // ships its own baseline chunk.
     function recorderOptions() {
+      var baselineSent = false;
+
       return {
         emit: function (event) {
           recordingBuffer.push(event);
-          // Ship in 100-event chunks so a sudden
-          // close doesn't lose the whole session.
+
+          // Type 2 = FullSnapshot. rrweb emits Meta (type 4) then
+          // FullSnapshot (type 2) the moment record() is called.
+          // We need BOTH in the first shipped chunk for the
+          // Replayer to render anything, but the old "wait for
+          // 100 events" rule meant short visits (< 30s, < 100
+          // events) ended without ever shipping a baseline.
+          //
+          // Fix: ship the buffer immediately when FullSnapshot
+          // lands. The 50ms timeout gives the Meta event (which
+          // arrives microseconds before) time to settle in the
+          // same buffer — they go out together.
+          if (!baselineSent && event.type === 2) {
+            baselineSent = true;
+            setTimeout(function () {
+              if (recordingBuffer.length > 0) {
+                sendRecordingChunk(
+                  recordingBuffer.splice(0), false);
+              }
+            }, 50);
+            return;
+          }
+
+          // After the baseline is shipped, batch in 100-event
+          // chunks so a sudden close doesn't lose the whole
+          // session.
           if (recordingBuffer.length >= 100) {
             sendRecordingChunk(
               recordingBuffer.splice(0, 100), false);
@@ -412,14 +443,13 @@
           scroll: 150,
           media: 800
         },
-        // Emit a fresh FullSnapshot every 30s so
-        // each chunk we ship contains a baseline
-        // the Replayer can render from — even if
-        // the very first chunk is lost (network
-        // hiccup, bfcache restore that beat the
-        // pageshow handler, etc.) the next one
-        // is self-contained.
-        checkoutEveryNms: 30 * 1000
+        // Emit a fresh FullSnapshot every 10s so longer sessions
+        // (or recordings that survive a network hiccup mid-flight)
+        // always have a recent baseline. The baseline-on-emit
+        // logic above covers the cold-start case; this covers
+        // SPA navigation, tab restore, and the gap between the
+        // very first FullSnapshot and the next page event.
+        checkoutEveryNms: 10 * 1000
       };
     }
 

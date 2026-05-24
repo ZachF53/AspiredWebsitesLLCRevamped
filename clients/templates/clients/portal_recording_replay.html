@@ -13,6 +13,12 @@
                 · {{ recording.duration_display }}
                 · Recorded {{ recording.created_at|date:"M j, Y H:i" }}
             </p>
+            <p class="muted text-sm replayer-diag">
+                Events: {{ event_count }}
+                · FullSnapshot:
+                <span class="{% if has_full_snapshot %}replayer-diag--ok{% else %}replayer-diag--bad{% endif %}">{% if has_full_snapshot %}Yes{% else %}No{% endif %}</span>
+                · First event type: <code>{% if first_event_type is not None %}{{ first_event_type }}{% else %}—{% endif %}</code>
+            </p>
         </div>
         <div>
             <a class="btn-secondary" href="{% url 'clients:portal_recording_download' recording.id %}">⬇ Download HTML</a>

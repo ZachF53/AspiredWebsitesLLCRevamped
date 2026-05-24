@@ -950,11 +950,20 @@ def portal_recording_replay(request, rec_id):
     rec = get_object_or_404(
         SessionRecording, id=rec_id, client=request.client_profile)
 
+    events = rec.get_all_events()
+    first_event_type = (events[0].get('type')
+                        if events and isinstance(events[0], dict)
+                        else None)
+    has_full_snapshot = any(
+        isinstance(e, dict) and e.get('type') == 2 for e in events)
+
     ctx = _portal_context(
         request, 'recordings',
         recording=rec,
-        events_json=_json.dumps(
-            rec.get_all_events(), cls=DjangoJSONEncoder),
+        events_json=_json.dumps(events, cls=DjangoJSONEncoder),
+        event_count=len(events),
+        first_event_type=first_event_type,
+        has_full_snapshot=has_full_snapshot,
     )
     return render(request, 'clients/portal_recording_replay.html', ctx)
 

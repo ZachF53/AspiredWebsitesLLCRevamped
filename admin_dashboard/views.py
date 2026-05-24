@@ -5057,6 +5057,17 @@ def recording_replay(request, client_id, rec_id):
     client = get_object_or_404(ClientProfile, id=client_id)
     rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
     events = rec.get_all_events()
+
+    # Lightweight diagnostics for the operator — surface whether
+    # the recording will actually replay before they click Play.
+    # rrweb event types: 0=DomContentLoaded, 1=Load, 2=FullSnapshot,
+    # 3=IncrementalSnapshot, 4=Meta, 5=Custom.
+    first_event_type = (events[0].get('type')
+                        if events and isinstance(events[0], dict)
+                        else None)
+    has_full_snapshot = any(
+        isinstance(e, dict) and e.get('type') == 2 for e in events)
+
     return render(
         request,
         'admin_dashboard/recording_replay.html',
@@ -5068,6 +5079,8 @@ def recording_replay(request, client_id, rec_id):
             # if any sneak into the rrweb chunks via custom plugins.
             events_json=json.dumps(events, cls=DjangoJSONEncoder),
             event_count=len(events),
+            first_event_type=first_event_type,
+            has_full_snapshot=has_full_snapshot,
         ),
     )
 

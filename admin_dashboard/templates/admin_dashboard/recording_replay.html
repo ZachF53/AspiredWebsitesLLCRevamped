@@ -19,6 +19,14 @@
                 · Expires in {{ recording.days_until_expiry }} day{{ recording.days_until_expiry|pluralize }}
                 · {{ event_count }} event{{ event_count|pluralize }}
             </p>
+            <p class="muted text-sm replayer-diag">
+                Events: {{ event_count }}
+                · FullSnapshot:
+                <span class="{% if has_full_snapshot %}replayer-diag--ok{% else %}replayer-diag--bad{% endif %}">{% if has_full_snapshot %}Yes{% else %}No{% endif %}</span>
+                · First event type:
+                <code>{% if first_event_type is not None %}{{ first_event_type }}{% else %}—{% endif %}</code>
+                <span class="muted">(0 DomContentLoaded · 1 Load · 2 FullSnapshot · 3 Incremental · 4 Meta)</span>
+            </p>
         </div>
         <div class="admin-page-actions">
             <a class="btn-secondary" href="{% url 'admin_dashboard:recording_download' client.id recording.id %}">⬇ Download HTML</a>
