@@ -1,4 +1,20 @@
+{% comment %}
+    Intake progress chip — top-of-form bar.
 
+    Each step in `intake_steps` becomes either a clickable
+    [data-wizard-goto] button or a plain <span>. A step is
+    clickable when:
+      - that step is `done` (completed steps are always jumpable),
+        OR
+      - step.number == 6 AND intake_completed_count >= 5
+        (steps 1-5 are all complete, so Review is unlocked even
+        though it isn't `done` until the user actually submits)
+
+    HTMX swaps this whole #intake-progress block on every
+    auto-save. The wizard JS handles [data-wizard-goto] clicks
+    via event delegation on document.body so the freshly-swapped
+    buttons work without re-wiring.
+{% endcomment %}
 <div id="intake-progress" class="intake-progress">
     <div class="intake-progress__head">
         <strong>Step {{ intake_completed_count }} of 6 complete</strong>
@@ -8,8 +24,17 @@
     <ul class="intake-progress__steps">
         {% for step in intake_steps %}
             <li class="{% if step.done %}is-done{% endif %}">
-                <span class="intake-progress__check" aria-hidden="true">{% if step.done %}&#10003;{% endif %}</span>
-                {{ step.number }}. {{ step.label }}
+                {% if step.done or step.number == 6 and intake_completed_count >= 5 %}
+                    <button type="button"
+                            class="intake-progress__jump{% if step.done %} is-done{% endif %}"
+                            data-wizard-goto="{{ step.number }}">
+                        <span class="intake-progress__check" aria-hidden="true">{% if step.done %}&#10003;{% endif %}</span>{{ step.number }}. {{ step.label }}
+                    </button>
+                {% else %}
+                    <span class="intake-progress__step intake-progress__step--locked">
+                        <span class="intake-progress__check" aria-hidden="true"></span>{{ step.number }}. {{ step.label }}
+                    </span>
+                {% endif %}
             </li>
         {% endfor %}
     </ul>

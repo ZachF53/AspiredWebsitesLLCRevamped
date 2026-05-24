@@ -321,18 +321,20 @@
             });
         }
 
-        // "Edit" buttons on the Step 6 review cards — jump straight to
-        // the named step. Generic via [data-wizard-goto="N"] so other
-        // jump-targets (e.g. from a flash error pointing at a missing
-        // field) can reuse it.
-        $$('[data-wizard-goto]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var target = parseInt(
-                    btn.getAttribute('data-wizard-goto'), 10);
-                if (target >= 1 && target <= total) {
-                    showStep(target);
-                }
-            });
+        // Jump-to-step handler — delegated on document.body so it
+        // works on:
+        //   - the Step 6 review cards' [Edit] buttons (static)
+        //   - the progress chip's per-step jump buttons (HTMX-swapped
+        //     on every auto-save, so per-element listeners would
+        //     evaporate after the first save)
+        document.body.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-wizard-goto]');
+            if (!btn) { return; }
+            var target = parseInt(
+                btn.getAttribute('data-wizard-goto'), 10);
+            if (target >= 1 && target <= total) {
+                showStep(target);
+            }
         });
 
         // Re-validate on every input change anywhere in the form.
