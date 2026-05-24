@@ -82,46 +82,71 @@
         }
 
         // ── FIT-TO-WIDTH ──
-        // The Replayer mounts an iframe sized to the captured viewport
-        // (often 1920x1080+). Without scaling, the replay overflows the
-        // stage horizontally and the user has to scroll. Apply a CSS
-        // scale transform to .replayer-wrapper so the iframe always
-        // fits the stage width. transform-origin is top-left (set in
-        // CSS) so the scale shrinks from the corner.
-        function fitToWidth() {
-            var wrapper = stage.querySelector('.replayer-wrapper');
-            if (!wrapper) { return; }
-            // Reset transform so we measure the natural (captured) size.
-            wrapper.style.transform = '';
-            var available = stage.clientWidth -
-                            (parseFloat(getComputedStyle(stage).paddingLeft)
-                             + parseFloat(getComputedStyle(stage).paddingRight));
-            var natural = wrapper.offsetWidth;
-            if (!natural || !available) { return; }
-            var scale = Math.min(1, available / natural);
-            wrapper.style.transform = 'scale(' + scale + ')';
-            // Collapse the empty space the scaled iframe leaves behind:
-            // set the stage's height to the scaled wrapper height + the
-            // existing vertical padding. min-height in CSS still acts
-            // as a floor for very short captures.
-            var paddingY = parseFloat(getComputedStyle(stage).paddingTop)
-                         + parseFloat(getComputedStyle(stage).paddingBottom);
-            stage.style.height = (wrapper.offsetHeight * scale + paddingY) + 'px';
+        // rrweb mounts an iframe sized to the captured viewport
+        // (often 1920x1080+). Without scaling, the replay overflows
+        // the stage horizontally. We compute the scale from the
+        // captured viewport dimensions (which live on the Meta event
+        // at the start of the stream — type=4, data.width/height)
+        // rather than measuring the wrapper, because rrweb's wrapper
+        // can briefly report stale offsetWidth before the iframe
+        // settles.
+        var captureW = 0, captureH = 0;
+        for (var mi = 0; mi < events.length; mi++) {
+            var ev = events[mi];
+            if (ev && ev.type === 4 && ev.data &&
+                ev.data.width && ev.data.height) {
+                captureW = ev.data.width;
+                captureH = ev.data.height;
+                break;
+            }
         }
 
-        // The wrapper is created asynchronously by the Replayer — give
-        // it a tick to mount, then keep checking for up to 1s. Once
-        // found, fit immediately, on every window resize, and on
-        // rrweb's own resize events (captured page resized mid-session).
+        function fitToWidth() {
+            var wrapper = stage.querySelector('.replayer-wrapper');
+            if (!wrapper || !captureW || !captureH) { return; }
+            var cs = getComputedStyle(stage);
+            var padX = parseFloat(cs.paddingLeft) +
+                       parseFloat(cs.paddingRight);
+            var padY = parseFloat(cs.paddingTop) +
+                       parseFloat(cs.paddingBottom);
+            var available = stage.clientWidth - padX;
+            if (available <= 0) { return; }
+            var scale = Math.min(1, available / captureW);
+            // Pin the wrapper to the captured viewport so the iframe
+            // inside has a container that matches its intrinsic size.
+            // Without this, rrweb sometimes leaves the wrapper at
+            // width:auto while the iframe is 1920px wide, and the
+            // iframe overflows the wrapper regardless of our scale.
+            wrapper.style.width = captureW + 'px';
+            wrapper.style.height = captureH + 'px';
+            wrapper.style.transform = 'scale(' + scale + ')';
+            // Also size the iframe child explicitly — belt-and-
+            // suspenders for the same overflow case above.
+            var iframe = wrapper.querySelector('iframe');
+            if (iframe) {
+                iframe.style.width = captureW + 'px';
+                iframe.style.height = captureH + 'px';
+            }
+            // Collapse the empty space the scaled wrapper leaves
+            // behind. min-height in CSS still acts as a floor.
+            stage.style.height = (captureH * scale + padY) + 'px';
+        }
+
+        // The wrapper is created asynchronously by the Replayer —
+        // poll for up to 1s. Once found, fit immediately, on window
+        // resize, and on rrweb's own resize events (captured page
+        // resized mid-session — pulls new width/height from payload).
         var fitTries = 0;
         function tryFit() {
             if (stage.querySelector('.replayer-wrapper')) {
                 fitToWidth();
                 window.addEventListener('resize', fitToWidth);
                 try {
-                    replayer.on('resize', function () {
-                        // The wrapper's intrinsic size has just changed —
-                        // recompute on the next frame so layout has settled.
+                    replayer.on('resize', function (payload) {
+                        if (payload && payload.width && payload.height) {
+                            captureW = payload.width;
+                            captureH = payload.height;
+                        }
                         requestAnimationFrame(fitToWidth);
                     });
                 } catch (e) { /* older rrweb without on() — ignore */ }
