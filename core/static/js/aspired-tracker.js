@@ -419,6 +419,18 @@
               recordingBuffer.splice(0, 100), false);
           }
         },
+        // ── RENDER FIDELITY ──
+        // Inline external stylesheets into the FullSnapshot
+        // so the replay viewer renders the page with correct
+        // styling. Makes recordings larger (500KB–2MB) but
+        // worth it — without this, the replay shows
+        // unstyled HTML.
+        inlineStylesheet: true,
+        // Do NOT inline images. Inlining base64-encodes every
+        // <img> source into the snapshot and bloats recordings
+        // by 10–50x. Broken images in the replay are
+        // acceptable.
+        inlineImages: false,
         // ── PRIVACY (do not change without review) ──
         maskAllInputs: true,
         // Never record what the user types.
