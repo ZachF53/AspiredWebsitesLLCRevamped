@@ -3726,6 +3726,85 @@ button.htmx-request {
     flex-wrap: wrap;
 }
 
+/* Admin client-detail Project Progress section — stage chips row +
+   quick-move form. Read-only display only; the form below the chips
+   does the actual transitions. */
+.admin-stage-bar {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+.admin-stage-bar__step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+.admin-stage-bar__step.is-current {
+    background: rgba(232, 101, 10, 0.12);
+    border-color: rgba(232, 101, 10, 0.45);
+    color: var(--color-text);
+    font-weight: 600;
+}
+.admin-stage-bar__dot {
+    color: var(--color-orange);
+    font-size: 10px;
+    line-height: 1;
+}
+.admin-stage-bar__step:not(.is-current) .admin-stage-bar__dot {
+    color: var(--color-border);
+}
+
+.admin-stage-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border);
+}
+.admin-stage-form__manual {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.admin-stage-form__note {
+    flex: 1 1 100%;
+    margin-top: 4px;
+    font-size: 13px;
+}
+
+.admin-stage-log {
+    margin-top: 14px;
+    border-top: 1px solid var(--color-border);
+    padding-top: 10px;
+}
+.admin-stage-log summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+.admin-stage-log__list {
+    list-style: none;
+    padding: 8px 0 0;
+    margin: 0;
+}
+.admin-stage-log__list li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+}
+.admin-stage-log__list li:last-child { border-bottom: none; }
+
 .needs-you-card {
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);

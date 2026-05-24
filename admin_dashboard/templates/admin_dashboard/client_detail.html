@@ -70,6 +70,76 @@
         </section>
     {% endif %}
 
+    {% if project %}
+        <section class="admin-card">
+            <div class="admin-card__head">
+                <h3 class="admin-card__title">Project Progress</h3>
+                <span class="muted">Current: <strong style="color:var(--color-text);">{{ project.get_stage_display }}</strong></span>
+            </div>
+
+            <ol class="admin-stage-bar">
+                {% for slug, label in project_stages %}
+                    {% if project.stage == slug %}
+                        <li class="admin-stage-bar__step is-current">
+                            <span class="admin-stage-bar__dot" aria-hidden="true">●</span>
+                            <span class="admin-stage-bar__label">{{ label }}</span>
+                        </li>
+                    {% else %}
+                        {% if forloop.counter0 < project_stages|length %}
+                            {% comment %}Determine if this slug comes before the current stage in the ordered list.{% endcomment %}
+                        {% endif %}
+                        <li class="admin-stage-bar__step">
+                            <span class="admin-stage-bar__dot" aria-hidden="true"></span>
+                            <span class="admin-stage-bar__label">{{ label }}</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+
+            <form method="post" action="{% url 'admin_dashboard:client_change_stage' client.id %}" class="admin-stage-form">
+                {% csrf_token %}
+
+                {% if next_stage_slug %}
+                    <button type="submit" name="stage" value="{{ next_stage_slug }}" class="btn-primary btn-sm"
+                            onclick="return confirm('Move project to the next stage and email the client?');">
+                        Move to next →
+                    </button>
+                {% endif %}
+
+                <div class="admin-stage-form__manual">
+                    <label class="muted" style="font-size:13px;">Or jump to:</label>
+                    <select name="stage" class="form-control" style="max-width:220px;">
+                        {% for slug, label in project_stages %}
+                            <option value="{{ slug }}" {% if project.stage == slug %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-secondary btn-sm"
+                            onclick="return confirm('Move project to the selected stage and email the client?');">
+                        Update
+                    </button>
+                </div>
+
+                <input type="text" name="note" class="form-control admin-stage-form__note" placeholder="Internal note (optional) — recorded in the audit log">
+            </form>
+
+            {% if recent_stage_logs %}
+                <details class="admin-stage-log">
+                    <summary>Stage history ({{ recent_stage_logs|length }} entries)</summary>
+                    <ul class="admin-stage-log__list">
+                        {% for log in recent_stage_logs %}
+                            <li>
+                                <strong>{{ log.from_stage|default:"start" }} → {{ log.to_stage }}</strong>
+                                <span class="muted">· {{ log.created_at|date:"M j, Y g:i A" }} · by {{ log.set_by|default:"system" }}</span>
+                                {% if log.client_notified %}<span style="color:var(--color-success);">· client notified</span>{% endif %}
+                                {% if log.note %}<div class="muted" style="font-size:13px;">{{ log.note }}</div>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+            {% endif %}
+        </section>
+    {% endif %}
+
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">Client Info</h3>

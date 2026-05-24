@@ -1,0 +1,45 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Project update — {{ stage_label }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">
+    {{ stage_headline }}
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — quick update on your website project.
+</p>
+
+<div style="margin:18px 0 22px;padding:20px 22px;background:rgba(232,101,10,0.06);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#E8650A;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Now in</div>
+    <div style="color:#F8FAFC;font-size:18px;font-weight:600;line-height:1.3;">{{ stage_label }}</div>
+</div>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    {{ stage_description }}
+</p>
+
+{% if staging_url %}
+    <div style="margin:0 0 18px;padding:16px 18px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;">
+        <div style="color:#5EEAD4;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:8px;">Staging link</div>
+        <div style="margin-bottom:10px;">
+            <a href="{{ staging_url }}" style="color:#E8650A;text-decoration:none;word-break:break-all;">{{ staging_url }}</a>
+        </div>
+    </div>
+{% endif %}
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                View my portal →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

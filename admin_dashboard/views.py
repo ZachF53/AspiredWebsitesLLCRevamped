@@ -1298,7 +1298,7 @@ def client_list(request):
 @admin_required
 def client_detail(request, client_id):
     """Per-client hub — uptime, GBP, NPS, testimonial, links to each tool."""
-    from clients.models import ClientProfile
+    from clients.models import ClientProfile, PROJECT_STAGES
     from reporting.models import GBPSyncCheck, NPSSurvey
     from reporting.uptime_helpers import (
         get_avg_response_time, get_current_status, get_uptime_percentage,
@@ -1367,7 +1367,27 @@ def client_detail(request, client_id):
         open_intel_suggestions=open_intel_suggestions,
         intel_pending_count=intel_pending_count,
         intel_sent_count=intel_sent_count,
+        # Project stage controls — list of (slug, label) and the
+        # next-stage slug for the "Move to next →" quick button.
+        project_stages=list(PROJECT_STAGES),
+        next_stage_slug=_compute_next_stage(project),
+        recent_stage_logs=list(
+            project.stage_logs.all()[:5]) if project else [],
     ))
+
+
+def _compute_next_stage(project):
+    """Return the slug of the stage following `project.stage`, or '' if
+    the project is already live (no further stage)."""
+    if project is None:
+        return ''
+    from clients.models import PROJECT_STAGES
+    slugs = [k for k, _ in PROJECT_STAGES]
+    try:
+        idx = slugs.index(project.stage)
+    except ValueError:
+        return ''
+    return slugs[idx + 1] if idx + 1 < len(slugs) else ''
 
 
 @admin_required
@@ -5584,6 +5604,98 @@ def invoice_send_intake_reminder(request, invoice_id):
         _msg.error(request, f'Could not send: {exc}')
     return redirect(
         'admin_dashboard:invoice_detail', invoice_id=profile.id)
+
+
+@admin_required
+@require_POST
+def client_change_stage(request, client_id):
+    """
+    Move a client's active project to a new stage. Triggered from the
+    Project Progress section on the admin client detail page.
+
+    Side effects:
+      - Updates Project.stage + updated_at
+      - Logs to ProjectStageLog (immutable audit trail)
+      - Sends the branded stage-change email to the client (unless the
+        new stage has no copy in _STAGE_COPY — e.g. 'intake' which is
+        the default starting state and doesn't need a notification)
+    """
+    from django.contrib import messages as _msg
+
+    from clients.emails import send_stage_change_email
+    from clients.models import (
+        ClientProfile, PROJECT_STAGES, ProjectStageLog,
+    )
+
+    profile = get_object_or_404(ClientProfile, id=client_id)
+    project = (profile.projects
+               .order_by('-created_at').first())
+    if project is None:
+        _msg.error(
+            request,
+            'No project on file for this client yet — '
+            'they need to complete intake first.')
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
+
+    valid = {key for key, _ in PROJECT_STAGES}
+    new_stage = (request.POST.get('stage') or '').strip()
+    if new_stage not in valid:
+        _msg.error(request, f'Unknown stage: {new_stage}')
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
+
+    if new_stage == project.stage:
+        _msg.info(request, 'Stage unchanged.')
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
+
+    from_stage = project.stage
+    project.stage = new_stage
+    project.save(update_fields=['stage', 'updated_at'])
+
+    note = (request.POST.get('note') or '').strip()
+    setter = (request.user.get_full_name()
+              or request.user.username
+              or 'admin')
+
+    ProjectStageLog.objects.create(
+        project=project,
+        from_stage=from_stage,
+        to_stage=new_stage,
+        note=note,
+        set_by=setter,
+        client_notified=False,
+    )
+
+    # Best-effort — email failure should not block the stage save.
+    notify_ok = False
+    try:
+        send_stage_change_email(profile, project, new_stage)
+        notify_ok = True
+    except Exception:
+        logger.exception(
+            'stage-change email failed for %s', profile.pk)
+
+    if notify_ok:
+        # Stamp the log so the audit trail records the notification.
+        latest = ProjectStageLog.objects.filter(
+            project=project).order_by('-created_at').first()
+        if latest:
+            latest.client_notified = True
+            latest.notification_sent_at = timezone.now()
+            latest.save(update_fields=[
+                'client_notified', 'notification_sent_at',
+                'updated_at'])
+
+    label = dict(PROJECT_STAGES).get(new_stage, new_stage)
+    _msg.success(
+        request,
+        f'Project moved to "{label}".'
+        + (' Client emailed.' if notify_ok else
+           ' (Client email skipped or failed.)'))
+    return redirect(
+        'admin_dashboard:client_detail', client_id=profile.id)
 
 
 @admin_required

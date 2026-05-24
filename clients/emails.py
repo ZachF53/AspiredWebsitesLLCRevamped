@@ -109,6 +109,121 @@ def _first_name(client):
     return raw.split(' ')[0] if raw else 'there'
 
 
+# ── Project stage change ────────────────────────────────────────────────────
+
+# Per-stage headline + description copy. Keeps email tone consistent
+# regardless of which admin triggers the transition. Headlines are the
+# H1 of the email; descriptions are the body paragraph under the
+# "Now in [stage]" callout.
+_STAGE_COPY = {
+    'structure': {
+        'headline': 'Your site\'s skeleton is taking shape.',
+        'description': (
+            'We\'re mapping out your site\'s structure — pages, '
+            'navigation, and what content goes where. This is the '
+            'blueprint we\'ll build the rest of the site on top of.'),
+    },
+    'design': {
+        'headline': 'Design phase has started.',
+        'description': (
+            'We\'re creating the visual look and feel of your site — '
+            'colors, typography, layout, and the overall vibe. You\'ll '
+            'see the first design preview as soon as it\'s ready.'),
+    },
+    'content': {
+        'headline': 'Putting your content into the design.',
+        'description': (
+            'We\'re placing your copy, photos, and brand details into '
+            'each page so you can see exactly how your site will look.'),
+    },
+    'review': {
+        'headline': 'Your site is ready to review.',
+        'description': (
+            'Take a look at the staging link below. Walk through every '
+            'page and let us know what you want changed — text, photos, '
+            'layout, anything. We\'ll handle the revisions next.'),
+    },
+    'revisions': {
+        'headline': 'Applying your revisions now.',
+        'description': (
+            'We\'re working through the changes you requested. You\'ll '
+            'get another review link once they\'re in.'),
+    },
+    'pre_launch': {
+        'headline': 'Final checks before launch.',
+        'description': (
+            'We\'re testing every page, every form, every link — and '
+            'getting the server ready for launch day.'),
+    },
+    'live': {
+        'headline': 'Your site is live!',
+        'description': (
+            'Congratulations — your site is officially out in the world. '
+            'You can find it at your domain right now. We\'ll keep an '
+            'eye on it for the next two weeks and handle any small '
+            'tweaks at no charge.'),
+    },
+}
+
+
+def send_stage_change_email(client, project, new_stage):
+    """
+    Notify the client that their project has moved to a new stage.
+
+    Looks up per-stage copy in `_STAGE_COPY`; if the stage isn't in
+    the map (e.g. 'intake'), the email is skipped — those transitions
+    aren't worth a notification (the client just got the intake-
+    received email seconds earlier).
+
+    For the 'review' stage, includes the staging URL in a green
+    callout box. Other stages just link to the portal dashboard.
+    """
+    copy = _STAGE_COPY.get(new_stage)
+    if copy is None:
+        return                  # nothing to say for this transition
+
+    name = _first_name(client)
+    stage_label = dict(project._meta.get_field('stage').choices).get(
+        new_stage, new_stage.replace('_', ' ').title())
+
+    text_body = (
+        f'Hi {name},\n\n'
+        f'{copy["headline"]}\n\n'
+        f'Your project is now in: {stage_label}\n\n'
+        f'{copy["description"]}\n\n')
+
+    staging_url = ''
+    if new_stage == 'review' and getattr(project, 'staging_url', ''):
+        staging_url = project.staging_url
+        text_body += f'Staging link: {staging_url}\n\n'
+
+    portal_url = 'https://aspiredwebsites.com/portal/'
+    text_body += (
+        f'View your portal: {portal_url}\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n')
+
+    send_branded(
+        subject=f'Project update — {stage_label}',
+        template='stage_change',
+        context={
+            'first_name': name,
+            'stage_label': stage_label,
+            'stage_headline': copy['headline'],
+            'stage_description': copy['description'],
+            'staging_url': staging_url,
+            'portal_url': portal_url,
+            'preheader': copy['headline'],
+        },
+        recipient_list=[client.user.email],
+        text_body=text_body,
+        # secure=True — the email contains the client's portal URL +
+        # potentially a staging link, both of which should never be
+        # rewritten through SendGrid's link-branding subdomain (no SSL
+        # cert there, see clients/emails.send_secure_mail).
+        secure=True,
+    )
+
+
 def send_invoice_email(invoice):
     """
     Branded invoice email — pointer to our /pay/<token>/ page where
