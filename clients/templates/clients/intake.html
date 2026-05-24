@@ -1,11 +1,12 @@
 {% extends "clients/base.html" %}
+{% load static %}
 
 {% block title %}Intake Form{% endblock %}
 
 {% block portal_content %}
 <header class="portal-page-head">
     <h1>Intake Form</h1>
-    <p class="portal-page-head__sub">Tell us everything we need to build your site.</p>
+    <p class="portal-page-head__sub">Tell us everything we need to build your site. Your answers save automatically as you work.</p>
 </header>
 
 {% if intake_locked %}
@@ -19,56 +20,171 @@
 
 {% include "clients/_intake_progress.html" %}
 
+{# ── MAIN INTAKE FORM ──
+   `hx-trigger="change, input changed delay:600ms"` fires:
+     - immediately on any `change` event (blur, checkbox click, file pick,
+       select change) — covers every input on the page
+     - debounced after 600ms of typing in any text input / textarea
+   So a client who tabs through fields, clicks anywhere, or just pauses
+   typing has their work saved without a manual save button. #}
 <form class="intake-form"
       method="post"
       action="{% url 'clients:intake_save' %}"
       hx-post="{% url 'clients:intake_save' %}"
-      hx-trigger="change delay:800ms"
+      hx-trigger="change, input changed delay:600ms"
       hx-target="#intake-progress"
       hx-swap="outerHTML"
       hx-encoding="multipart/form-data">
     {% csrf_token %}
 
+    {# ── Step 1 — Brand ── #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 1 — Brand</h2>
+
         <div class="form-group">
-            {{ form.brand_colors.label_tag }}{{ form.brand_colors }}
+            <label for="{{ form.brand_colors.id_for_label }}">Brand colors</label>
+            {{ form.brand_colors }}
+            <p class="form-hint">List the colors you want featured. If you have hex codes (#1A1A1A) include them — otherwise describe them.</p>
         </div>
+
         <div class="form-group">
-            {{ form.brand_fonts.label_tag }}{{ form.brand_fonts }}
+            <label for="{{ form.brand_fonts.id_for_label }}">Brand fonts</label>
+            {{ form.brand_fonts }}
+            <p class="form-hint">Specific fonts if you have them, or a feel (e.g. "serif and elegant" or "modern sans-serif").</p>
         </div>
+
         <div class="form-group">
-            {{ form.logo.label_tag }}{{ form.logo }}
+            <label for="{{ form.logo.id_for_label }}">Logo</label>
+            {{ form.logo }}
+            {% if intake.logo %}
+                <p class="form-hint">Current: <a href="{{ intake.logo.url }}" target="_blank" rel="noopener">{{ intake.logo.name|cut:"portal/intake/logos/" }}</a></p>
+            {% else %}
+                <p class="form-hint">Upload your logo (PNG, SVG, JPG). If you don't have one, leave blank and we'll talk options.</p>
+            {% endif %}
         </div>
     </section>
 
+    {# ── Step 2 — Photos ── #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 2 — Photos</h2>
-        <label class="checkbox-row">{{ form.photos_provided }}<span>I can provide headshots / team / office photos</span></label>
-        <div class="form-group">
-            {{ form.photos_note.label_tag }}{{ form.photos_note }}
+
+        <label class="checkbox-row">
+            {{ form.photos_provided }}
+            <span>I can provide headshots, team, or office photos</span>
+        </label>
+        <p class="form-hint">High-resolution photos always make a site stronger. If you don't have them yet, we can plan a shoot or sub in stock photos.</p>
+
+        {# Conditional reveal block — JS toggles `is-revealed` on/off based on
+           the checkbox above. The Photos textarea + upload widget live here. #}
+        <div class="intake-reveal {% if intake.photos_provided %}is-revealed{% endif %}"
+             data-reveal-when="id_photos_provided">
+
+            <div class="form-group">
+                <label for="{{ form.photos_note.id_for_label }}">Notes about photos</label>
+                {{ form.photos_note }}
+            </div>
+
+            {# Photo gallery + upload field (HTMX swap target) #}
+            {% include "clients/_intake_photos.html" with photos=intake.photos.all %}
         </div>
     </section>
 
+    {# ── Step 3 — Website Copy ── #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 3 — Website Copy</h2>
-        <div class="form-group">{{ form.about_copy.label_tag }}{{ form.about_copy }}</div>
-        <div class="form-group">{{ form.practice_areas.label_tag }}{{ form.practice_areas }}</div>
-        <div class="form-group">{{ form.attorney_bios.label_tag }}{{ form.attorney_bios }}</div>
+
+        <div class="form-group">
+            <label for="{{ form.about_copy.id_for_label }}">About your firm</label>
+            {{ form.about_copy }}
+            <p class="form-hint">A few paragraphs about your firm — your story, what makes you different, why clients should trust you. Don't worry about polish; we'll edit.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.practice_areas.id_for_label }}">Practice areas / services</label>
+            {{ form.practice_areas }}
+            <p class="form-hint">List each area you handle, one per line. A sentence or two about each helps us write better page copy.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.attorney_bios.id_for_label }}">Attorney / team bios</label>
+            {{ form.attorney_bios }}
+            <p class="form-hint">Name, role, bar admissions, years of experience, education, notable cases or wins. Rough draft is fine — we'll format into proper bios.</p>
+        </div>
     </section>
 
+    {# ── Step 4 — References ── #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 4 — References</h2>
-        <div class="form-group">{{ form.reference_sites.label_tag }}{{ form.reference_sites }}</div>
-        <div class="form-group">{{ form.competitors.label_tag }}{{ form.competitors }}</div>
+
+        <div class="form-group">
+            <label for="{{ form.reference_sites.id_for_label }}">Sites you like the look of</label>
+            {{ form.reference_sites }}
+            <p class="form-hint">List 3–5 websites you like. For each one, tell us what you like <em>and/or don't like</em> about it — colors, layout, photos, the overall feel. The dislikes are just as useful as the likes.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.competitors.id_for_label }}">Your competitors</label>
+            {{ form.competitors }}
+            <p class="form-hint">3–5 firms you compete with most directly. Name + website if you know it.</p>
+        </div>
     </section>
 
+    {# ── Step 5 — Domain &amp; Social ── #}
     <section class="portal-section intake-step">
-        <h2 class="portal-section__title">Step 5 — Domain &amp; Access</h2>
-        <div class="form-group">{{ form.domain_name.label_tag }}{{ form.domain_name }}</div>
-        <div class="form-group">{{ form.domain_registrar.label_tag }}{{ form.domain_registrar }}</div>
-        <label class="checkbox-row">{{ form.google_business_access }}<span>I’ve granted Google Business Profile access</span></label>
-        <div class="form-group">{{ form.social_links.label_tag }}{{ form.social_links }}</div>
+        <h2 class="portal-section__title">Step 5 — Domain &amp; Social</h2>
+
+        <div class="form-group">
+            <label for="{{ form.domain_name.id_for_label }}">Your domain</label>
+            {{ form.domain_name }}
+            <p class="form-hint">Your domain (e.g. <code>johnsonlaw.com</code>). If you don't have one yet, leave blank — we can help you choose.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.domain_registrar.id_for_label }}">Where the domain is registered</label>
+            {{ form.domain_registrar }}
+            <p class="form-hint">Where the domain is registered. We'll need access here to point DNS to your new site.</p>
+        </div>
+
+        {# "Other" registrar — revealed by JS when the select value is `other`. #}
+        <div class="form-group intake-reveal {% if intake.domain_registrar == 'other' %}is-revealed{% endif %}"
+             data-reveal-when="id_domain_registrar"
+             data-reveal-value="other">
+            <label for="{{ form.domain_registrar_other.id_for_label }}">{{ form.domain_registrar_other.label }}</label>
+            {{ form.domain_registrar_other }}
+        </div>
+
+        <h3 class="form-subhead">Social profiles</h3>
+        <p class="form-hint form-hint--block">Paste the URL for each profile you have. Leave blank for any you don't use.</p>
+
+        <div class="form-group">
+            <label for="{{ form.facebook_url.id_for_label }}">{{ form.facebook_url.label }}</label>
+            {{ form.facebook_url }}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.instagram_url.id_for_label }}">{{ form.instagram_url.label }}</label>
+            {{ form.instagram_url }}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.linkedin_url.id_for_label }}">{{ form.linkedin_url.label }}</label>
+            {{ form.linkedin_url }}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.twitter_url.id_for_label }}">{{ form.twitter_url.label }}</label>
+            {{ form.twitter_url }}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.google_business_url.id_for_label }}">{{ form.google_business_url.label }}</label>
+            {{ form.google_business_url }}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.social_links.id_for_label }}">{{ form.social_links.label }}</label>
+            {{ form.social_links }}
+        </div>
     </section>
 </form>
 
@@ -88,4 +204,8 @@
     {% endif %}
 </section>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/intake_form.js' %}" defer></script>
 {% endblock %}

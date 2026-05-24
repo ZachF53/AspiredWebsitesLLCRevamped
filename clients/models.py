@@ -299,8 +299,30 @@ class IntakeResponse(TimestampedModel):
     domain_registrar = models.CharField(
         max_length=30, choices=REGISTRAR_CHOICES, blank=True,
     )
+    # Free-text registrar name when domain_registrar='other'. Required by the
+    # form's JS when the dropdown is set to "Other" but stored blank
+    # otherwise so a registrar change doesn't strand stale text.
+    domain_registrar_other = models.CharField(max_length=120, blank=True)
+
+    # Google Business Profile access used to be a checkbox here; moved out of
+    # the client intake (it's a post-launch ops task, not something the
+    # client should grant before work even starts). The field is kept on the
+    # model so legacy data isn't lost and the admin can still see it.
     google_business_access = models.BooleanField(default=False)
-    social_links = models.TextField(blank=True)
+
+    # ── Step 5 — Social profiles ──
+    # Split out of the freeform `social_links` blob so we can render proper
+    # input boxes for the four common channels. The textarea below now
+    # captures only "everything else" (Pinterest, TikTok, Avvo, etc.).
+    facebook_url = models.URLField(blank=True)
+    instagram_url = models.URLField(blank=True)
+    linkedin_url = models.URLField(blank=True)
+    twitter_url = models.URLField(blank=True)
+    google_business_url = models.URLField(blank=True)
+    social_links = models.TextField(
+        blank=True,
+        help_text='Catch-all for any social profiles not in the four standard fields.',
+    )
 
     # SOURCE OF TRUTH for Moonieful-synced clients — typed fields above are
     # for direct Aspired clients only.
@@ -313,6 +335,36 @@ class IntakeResponse(TimestampedModel):
 
     def __str__(self):
         return f'Intake — {self.project.client.firm_name}'
+
+
+def intake_photo_path(instance, filename):
+    """Upload path: portal/intake/photos/<client_id>/<filename>."""
+    return (
+        f'portal/intake/photos/'
+        f'{instance.intake.project.client_id}/{filename}'
+    )
+
+
+class IntakePhoto(TimestampedModel):
+    """
+    A photo uploaded as part of the intake — headshots, team shots, office
+    photos. Separate from ClientDocument so the intake step can render its
+    own gallery + delete UI without dragging unrelated files into it.
+    """
+
+    intake = models.ForeignKey(
+        IntakeResponse, on_delete=models.CASCADE, related_name='photos',
+    )
+    file = models.FileField(upload_to=intake_photo_path)
+    label = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Intake Photo'
+        verbose_name_plural = 'Intake Photos'
+
+    def __str__(self):
+        return self.label or self.file.name
 
 
 class RevisionRequest(TimestampedModel):

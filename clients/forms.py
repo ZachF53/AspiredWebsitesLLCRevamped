@@ -13,7 +13,19 @@ from .models import (
 
 class IntakeForm(forms.ModelForm):
     """The full intake questionnaire — every field is optional so the form
-    can be saved partially as the client works through the steps."""
+    can be saved partially as the client works through the steps.
+
+    Notes:
+      - `google_business_access` is intentionally NOT exposed here; the
+        old "I've granted access" checkbox was misplaced (clients don't
+        have a reason to grant access before the build starts). It moves
+        to a post-launch operations task.
+      - Social profiles are split into four standard URL fields plus a
+        catch-all textarea. The freeform `social_links` blob is preserved
+        for "anything else".
+      - `domain_registrar_other` is rendered conditionally by the
+        template's JS when `domain_registrar` is set to "Other".
+    """
 
     class Meta:
         model = IntakeResponse
@@ -22,22 +34,85 @@ class IntakeForm(forms.ModelForm):
             'photos_provided', 'photos_note',
             'about_copy', 'practice_areas', 'attorney_bios',
             'reference_sites', 'competitors',
-            'domain_name', 'domain_registrar',
-            'google_business_access', 'social_links',
+            'domain_name', 'domain_registrar', 'domain_registrar_other',
+            'facebook_url', 'instagram_url', 'linkedin_url',
+            'twitter_url', 'google_business_url', 'social_links',
         ]
         widgets = {
-            'brand_colors': forms.TextInput(attrs={'class': 'form-control'}),
-            'brand_fonts': forms.TextInput(attrs={'class': 'form-control'}),
+            'brand_colors': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g. navy blue, gold, white',
+            }),
+            'brand_fonts': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g. Serif headings, sans-serif body',
+            }),
             'logo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
-            'photos_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'about_copy': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
-            'practice_areas': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'attorney_bios': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
-            'reference_sites': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'competitors': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'domain_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'domain_registrar': forms.Select(attrs={'class': 'form-control'}),
-            'social_links': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'photos_note': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': 'Notes about photos — what to use, what to avoid, anyone you don\'t want pictured, etc.',
+            }),
+            'about_copy': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 5,
+                'placeholder': 'Your story, what makes you different, why clients should trust you. Don\'t worry about polish — we\'ll edit.',
+            }),
+            'practice_areas': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 4,
+                'placeholder': 'One per line. A sentence or two about each if you can — Personal Injury, Family Law, etc.',
+            }),
+            'attorney_bios': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 5,
+                'placeholder': 'Name, role, bar admissions, years of experience, education, notable cases. We\'ll format into proper bios.',
+            }),
+            'reference_sites': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 4,
+                'placeholder': "3-5 sites you like the look of. For each one, tell us what you like and/or don't like — colors, layout, photos, feel.",
+            }),
+            'competitors': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': '3-5 firms you compete with most directly. Name + website if you know it.',
+            }),
+            'domain_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'johnsonlaw.com',
+            }),
+            'domain_registrar': forms.Select(attrs={
+                'class': 'form-control',
+                'data-registrar-select': '1',
+            }),
+            'domain_registrar_other': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Who is the domain registered with?',
+                'data-registrar-other': '1',
+            }),
+            'facebook_url': forms.URLInput(attrs={
+                'class': 'form-control', 'placeholder': 'https://facebook.com/your-firm',
+            }),
+            'instagram_url': forms.URLInput(attrs={
+                'class': 'form-control', 'placeholder': 'https://instagram.com/your-firm',
+            }),
+            'linkedin_url': forms.URLInput(attrs={
+                'class': 'form-control', 'placeholder': 'https://linkedin.com/company/your-firm',
+            }),
+            'twitter_url': forms.URLInput(attrs={
+                'class': 'form-control', 'placeholder': 'https://x.com/your-firm',
+            }),
+            'google_business_url': forms.URLInput(attrs={
+                'class': 'form-control', 'placeholder': 'https://maps.google.com/?cid=...',
+            }),
+            'social_links': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': 'Anything else — YouTube, TikTok, Avvo, Yelp, etc. One URL per line.',
+            }),
+        }
+        labels = {
+            'facebook_url': 'Facebook',
+            'instagram_url': 'Instagram',
+            'linkedin_url': 'LinkedIn',
+            'twitter_url': 'X (Twitter)',
+            'google_business_url': 'Google Business Profile',
+            'social_links': 'Other social profiles',
+            'domain_registrar_other': 'Registrar name',
         }
 
 

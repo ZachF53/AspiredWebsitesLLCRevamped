@@ -25,6 +25,7 @@ from .models import (
     PROJECT_STAGES,
     ClientDocument,
     Contract,
+    IntakePhoto,
     IntakeResponse,
     Project,
 )
@@ -158,8 +159,8 @@ def _project_timeline(project):
 
 
 _INTAKE_STEP_LABELS = [
-    'Brand', 'Photos', 'Website Copy', 'References', 'Domain & Access',
-    'Review & Submit',
+    'Brand', 'Photos', 'Website Copy', 'References',
+    'Domain & Social', 'Review & Submit',
 ]
 
 
@@ -168,12 +169,25 @@ def _intake_steps(intake):
     if intake is None:
         done = [False] * 6
     else:
+        # Step 2 — also counts as done when a photo has been uploaded
+        # (not only when the checkbox + note are set), since the upload
+        # is the meatier action.
+        has_photos = (
+            intake.photos.exists()
+            if hasattr(intake, 'photos') else False)
+        # Step 5 — domain or ANY of the split social fields constitutes
+        # progress; freeform `social_links` blob still counts.
+        social_any = any([
+            intake.facebook_url, intake.instagram_url,
+            intake.linkedin_url, intake.twitter_url,
+            intake.google_business_url, intake.social_links,
+        ])
         done = [
             bool(intake.brand_colors or intake.brand_fonts or intake.logo),
-            bool(intake.photos_provided or intake.photos_note),
+            bool(intake.photos_provided or intake.photos_note or has_photos),
             bool(intake.about_copy or intake.practice_areas or intake.attorney_bios),
             bool(intake.reference_sites or intake.competitors),
-            bool(intake.domain_name or intake.domain_registrar),
+            bool(intake.domain_name or intake.domain_registrar or social_any),
             bool(intake.completed),
         ]
     steps = [
@@ -394,6 +408,84 @@ def intake_save(request):
         'intake_percent': percent,
         'saved_at': timezone.now(),
     })
+
+
+# ── Intake photos (step 2) ──────────────────────────────────────────────────
+
+
+def _photo_gallery_response(request, intake_obj):
+    """Render the photo gallery partial — used by upload + delete."""
+    return render(request, 'clients/_intake_photos.html', {
+        'intake': intake_obj,
+        'photos': intake_obj.photos.all(),
+    })
+
+
+@client_required
+@allow_pending_intake
+@require_POST
+def intake_photo_upload(request):
+    """
+    HTMX endpoint: one file at a time from the photo step. Validates type
+    + size, appends an IntakePhoto, returns the refreshed gallery partial
+    that swaps into the page.
+    """
+    profile = request.client_profile
+    project = _active_project(profile)
+    if not _intake_unlocked(profile, project):
+        return HttpResponse(status=403)
+    if project is None:
+        project = _ensure_project_for_unlocked_intake(profile)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+
+    uploaded = request.FILES.get('file')
+    if uploaded is None:
+        return _photo_gallery_response(request, intake_obj)
+
+    # 50MB cap — same as the Files page (FileUploadForm).
+    if uploaded.size > 50 * 1024 * 1024:
+        messages.error(request, 'Photos must be 50MB or smaller.')
+        return _photo_gallery_response(request, intake_obj)
+
+    # Keep it to image MIME types so the upload field stays a photo step,
+    # not a generic dumping ground. Belt-and-suspenders: the template's
+    # accept="image/*" already filters in the file picker.
+    ctype = (uploaded.content_type or '').lower()
+    if not ctype.startswith('image/'):
+        messages.error(
+            request, 'Please upload an image file (JPG, PNG, etc.).')
+        return _photo_gallery_response(request, intake_obj)
+
+    label = (request.POST.get('label') or '').strip()
+    IntakePhoto.objects.create(
+        intake=intake_obj, file=uploaded, label=label)
+    return _photo_gallery_response(request, intake_obj)
+
+
+@client_required
+@allow_pending_intake
+@require_POST
+def intake_photo_delete(request, photo_id):
+    """HTMX endpoint: remove one IntakePhoto, return the refreshed gallery."""
+    profile = request.client_profile
+    project = _active_project(profile)
+    if project is None or not _intake_unlocked(profile, project):
+        return HttpResponse(status=403)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+
+    photo = (IntakePhoto.objects
+             .filter(id=photo_id, intake=intake_obj).first())
+    if photo:
+        # Best-effort delete of the underlying file too — never crash the
+        # request if storage cleanup fails (the row going away is what
+        # matters from the client's point of view).
+        try:
+            photo.file.delete(save=False)
+        except Exception:
+            logger.exception(
+                'IntakePhoto file delete failed for %s', photo.pk)
+        photo.delete()
+    return _photo_gallery_response(request, intake_obj)
 
 
 def _notify_admin_intake_complete(profile):

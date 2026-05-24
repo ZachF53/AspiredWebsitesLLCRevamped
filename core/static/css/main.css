@@ -4945,6 +4945,119 @@ button.htmx-request {
     font-size: 0.8125rem;
     color: var(--color-text-muted);
     margin: 0.5rem 0 0;
+    line-height: 1.45;
+}
+.form-hint--block {
+    margin: 0 0 0.75rem 0;
+}
+.form-hint code {
+    background: var(--color-bg-raised);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
+/* Section subhead inside intake — visual break above the split-out
+   social-profile inputs without using a full <h2>. */
+.form-subhead {
+    margin: var(--space-3) 0 0.5rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-3);
+}
+
+/* Conditional reveals on the intake form — controlled by intake_form.js
+   via the `is-revealed` class. Hidden by default so a flash of the
+   "Other registrar" field never appears for clients whose answer is
+   not "Other". */
+.intake-reveal {
+    display: none;
+    margin-top: var(--space-2);
+}
+.intake-reveal.is-revealed {
+    display: block;
+}
+
+/* Intake step 2 — photo uploader gallery. */
+.intake-photos {
+    margin-top: var(--space-3);
+}
+.intake-photo-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-3) 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+.intake-photo-grid__item {
+    position: relative;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.intake-photo-grid__item img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+}
+.intake-photo-grid__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    min-height: 28px;
+}
+.intake-photo-grid__meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.intake-photo-grid__delete {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
+}
+.intake-photo-grid__delete:hover { color: #ef4444; }
+
+.intake-photo-uploader__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--color-bg-raised);
+    border: 1px dashed var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    transition: border-color 0.15s, background 0.15s;
+}
+.intake-photo-uploader__label:hover {
+    border-color: #E8650A;
+    background: var(--color-bg);
+}
+.intake-photo-uploader__label input[type="file"] {
+    /* Visually hidden but still focusable via the label click. */
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
 }
 
 /* Invoice table */

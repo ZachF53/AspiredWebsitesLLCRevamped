@@ -1,0 +1,50 @@
+{# Intake step 2 photo gallery + uploader. Rendered standalone on first
+   page load and swapped in by the HTMX upload/delete endpoints. #}
+<div id="intake-photos" class="intake-photos">
+
+    {% if photos %}
+        <ul class="intake-photo-grid">
+            {% for photo in photos %}
+                <li class="intake-photo-grid__item">
+                    <a href="{{ photo.file.url }}" target="_blank" rel="noopener">
+                        <img src="{{ photo.file.url }}" alt="{{ photo.label|default:photo.file.name }}">
+                    </a>
+                    <div class="intake-photo-grid__meta">
+                        <span>{{ photo.label|default:photo.file.name|cut:"portal/intake/photos/" }}</span>
+                        <form method="post"
+                              action="{% url 'clients:intake_photo_delete' photo.id %}"
+                              hx-post="{% url 'clients:intake_photo_delete' photo.id %}"
+                              hx-target="#intake-photos"
+                              hx-swap="outerHTML"
+                              hx-confirm="Delete this photo?">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-link intake-photo-grid__delete" aria-label="Delete photo">&times;</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="form-hint form-hint--block">No photos uploaded yet. Use the field below to add them one at a time.</p>
+    {% endif %}
+
+    {# One-at-a-time uploader. `hx-trigger="change"` on the file input
+       posts immediately when a file is picked — no submit button needed.
+       The endpoint returns this whole partial; HTMX swaps it in place. #}
+    <form class="intake-photo-uploader"
+          method="post"
+          action="{% url 'clients:intake_photo_upload' %}"
+          enctype="multipart/form-data"
+          hx-post="{% url 'clients:intake_photo_upload' %}"
+          hx-target="#intake-photos"
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data"
+          hx-trigger="change from:input[type=file]">
+        {% csrf_token %}
+        <label class="intake-photo-uploader__label" for="intake-photo-file">
+            <span>+ Add a photo</span>
+            <input type="file" id="intake-photo-file" name="file" accept="image/*">
+        </label>
+        <p class="form-hint">JPG, PNG, or WebP. Up to 50MB each. Upload one at a time.</p>
+    </form>
+</div>
