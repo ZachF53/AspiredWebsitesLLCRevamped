@@ -179,9 +179,19 @@ class SettingsForm(forms.ModelForm):
         model = ClientProfile
         fields = ['phone', 'preferred_contact_method', 'notify_on_stage_change']
         widgets = {
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'type': 'tel',
+                'placeholder': '(210) 555-1234',
+                'inputmode': 'tel', 'autocomplete': 'tel',
+                'maxlength': '14',
+            }),
             'preferred_contact_method': forms.Select(attrs={'class': 'form-control'}),
         }
         labels = {
             'notify_on_stage_change': 'Email me when my project stage changes',
         }
+
+    def clean_phone(self):
+        from core.phone_utils import normalize_phone
+        return normalize_phone(self.cleaned_data.get('phone'))

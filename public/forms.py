@@ -74,6 +74,8 @@ class ContactForm(forms.Form):
             'type': 'tel',
             'placeholder': '(210) 555-1234',
             'autocomplete': 'tel',
+            'inputmode': 'tel',
+            'maxlength': '14',
         }),
     )
 
@@ -83,8 +85,19 @@ class ContactForm(forms.Form):
             'class': 'form-control',
             'placeholder': 'jane@business.com',
             'autocomplete': 'email',
+            'autocapitalize': 'none',
+            'autocorrect': 'off',
+            'spellcheck': 'false',
+            'inputmode': 'email',
         }),
     )
+
+    def clean_phone(self):
+        from core.phone_utils import normalize_phone
+        return normalize_phone(self.cleaned_data.get('phone'))
+
+    def clean_email(self):
+        return (self.cleaned_data.get('email') or '').strip().lower()
 
     source = forms.ChoiceField(
         label='How did you hear about us?',

@@ -82,8 +82,18 @@ class LeadAddForm(forms.ModelForm):
             'attorney_name':   forms.TextInput(attrs={'class': 'form-control'}),
             'practice_area':   forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Family Law'}),
             'business_type':   forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Law Firm, Contractor, Restaurant…'}),
-            'email':           forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone':           forms.TextInput(attrs={'class': 'form-control', 'placeholder': '(210) 555-1234'}),
+            'email':           forms.EmailInput(attrs={
+                'class': 'form-control',
+                'autocapitalize': 'none', 'autocorrect': 'off',
+                'spellcheck': 'false', 'inputmode': 'email',
+            }),
+            'phone':           forms.TextInput(attrs={
+                'class': 'form-control',
+                'type': 'tel',
+                'placeholder': '(210) 555-1234',
+                'inputmode': 'tel', 'autocomplete': 'tel',
+                'maxlength': '14',
+            }),
             'website':         forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://example.com'}),
             'city':            forms.TextInput(attrs={'class': 'form-control'}),
             'state':           forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Texas / Georgia'}),
@@ -95,6 +105,13 @@ class LeadAddForm(forms.ModelForm):
 
     def clean_firm_name(self):
         return (self.cleaned_data.get('firm_name') or '').strip()
+
+    def clean_phone(self):
+        from core.phone_utils import normalize_phone
+        return normalize_phone(self.cleaned_data.get('phone'))
+
+    def clean_email(self):
+        return (self.cleaned_data.get('email') or '').strip().lower()
 
 
 class LeadNoteForm(forms.ModelForm):
@@ -346,7 +363,13 @@ class ClientProfileEditForm(forms.ModelForm):
             'status':          forms.Select(attrs={'class': 'form-control'}),
             'city':            forms.TextInput(attrs={'class': 'form-control'}),
             'state':           forms.TextInput(attrs={'class': 'form-control'}),
-            'phone':           forms.TextInput(attrs={'class': 'form-control'}),
+            'phone':           forms.TextInput(attrs={
+                'class': 'form-control',
+                'type': 'tel',
+                'placeholder': '(210) 555-1234',
+                'inputmode': 'tel', 'autocomplete': 'tel',
+                'maxlength': '14',
+            }),
             'do_droplet_ip':   forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '161.35.108.209',
@@ -358,6 +381,10 @@ class ClientProfileEditForm(forms.ModelForm):
                 'class': 'form-control', 'rows': 6,
             }),
         }
+
+    def clean_phone(self):
+        from core.phone_utils import normalize_phone
+        return normalize_phone(self.cleaned_data.get('phone'))
 
 
 # Per-field quick-edit on the client detail page. The keys here are the

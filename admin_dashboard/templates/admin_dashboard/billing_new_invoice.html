@@ -40,11 +40,17 @@
                 </label>
                 <label class="form-row">
                     <span class="form-label">Email <span class="form-required">*</span></span>
-                    <input class="form-control" type="email" name="email" value="{{ form_data.email|default:'' }}" required>
+                    <input class="form-control" type="email" name="email"
+                           value="{{ form_data.email|default:'' }}"
+                           autocapitalize="none" autocorrect="off" spellcheck="false"
+                           inputmode="email" required>
                 </label>
                 <label class="form-row">
                     <span class="form-label">Phone</span>
-                    <input class="form-control" type="tel" name="phone" value="{{ form_data.phone|default:'' }}">
+                    <input class="form-control" type="tel" name="phone"
+                           value="{{ form_data.phone|default:'' }}"
+                           placeholder="(210) 555-1234"
+                           inputmode="tel" autocomplete="tel" maxlength="14">
                 </label>
                 <label class="form-row">
                     <span class="form-label">City</span>

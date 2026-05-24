@@ -42,7 +42,8 @@
             <div class="setup-field">
                 <label for="setup-password">Password</label>
                 <input id="setup-password" type="password" name="password"
-                       required minlength="8" autocomplete="new-password">
+                       required minlength="8" autocomplete="new-password"
+                       autocapitalize="none" autocorrect="off" spellcheck="false">
                 <div class="setup-hints">
                     <span class="setup-hint" data-hint="length">At least 8 characters</span>
                     <span class="setup-hint" data-hint="number">Contains a number</span>
@@ -52,7 +53,8 @@
             <div class="setup-field">
                 <label for="setup-password-confirm">Confirm password</label>
                 <input id="setup-password-confirm" type="password" name="password_confirm"
-                       required minlength="8" autocomplete="new-password">
+                       required minlength="8" autocomplete="new-password"
+                       autocapitalize="none" autocorrect="off" spellcheck="false">
                 <div class="setup-hints">
                     <span class="setup-hint" data-hint="match">Passwords match</span>
                 </div>
@@ -93,6 +95,7 @@
         Need help? Contact <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
     </div>
 
-    <script src="{% static 'js/onboarding_setup.js' %}" defer></script>
+    <script src="{% static 'js/onboarding_setup.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    <script src="{% static 'js/input_masks.js' %}?v={{ STATIC_VERSION }}" defer></script>
 </body>
 </html>

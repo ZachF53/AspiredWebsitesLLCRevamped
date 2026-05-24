@@ -3050,6 +3050,11 @@ def client_quick_edit_field(request, client_id):
 
     if request.method == 'POST':
         new_value = (request.POST.get('value') or '').strip()
+        # Phone always normalises to (###) ###-#### so the quick-edit
+        # path matches every other phone-accepting form.
+        if field_name == 'phone':
+            from core.phone_utils import normalize_phone
+            new_value = normalize_phone(new_value)
         # Live URL writes through to Project, everything else to the
         # client profile.
         if field_name == 'live_url':
@@ -5185,11 +5190,13 @@ def new_invoice(request):
     hosting_tier = _billing_hosting()
 
     if request.method == 'POST':
+        from core.phone_utils import normalize_phone
+
         first = (request.POST.get('first_name') or '').strip()
         last = (request.POST.get('last_name') or '').strip()
         firm_name = (request.POST.get('firm_name') or '').strip()
         email = (request.POST.get('email') or '').strip().lower()
-        phone = (request.POST.get('phone') or '').strip()
+        phone = normalize_phone(request.POST.get('phone') or '')
         city = (request.POST.get('city') or '').strip()
         state = (request.POST.get('state') or '').strip()
         package_slug = (request.POST.get('package') or '').strip()
@@ -5543,11 +5550,13 @@ def send_onboarding(request):
     )
 
     if request.method == 'POST':
+        from core.phone_utils import normalize_phone
+
         first = (request.POST.get('first_name') or '').strip()
         last = (request.POST.get('last_name') or '').strip()
         firm_name = (request.POST.get('firm_name') or '').strip()
         email = (request.POST.get('email') or '').strip().lower()
-        phone = (request.POST.get('phone') or '').strip()
+        phone = normalize_phone(request.POST.get('phone') or '')
         city = (request.POST.get('city') or '').strip()
         state = (request.POST.get('state') or '').strip()
         notes = (request.POST.get('internal_notes') or '').strip()
