@@ -1,0 +1,67 @@
+{% comment %}
+    Single intake-review card on the Needs You page.
+
+    Renders when a client has `needs_admin_review_at` set + no
+    `admin_reviewed_at` — i.e. they just submitted their intake form
+    and an admin hasn't yet acknowledged it.
+
+    Card surfaces a quick snapshot (firm, when submitted, a peek at
+    the goal text) + two actions: open the full client detail page
+    OR mark this task done.
+{% endcomment %}
+{% with client=review project=review.projects.first intake=review.projects.first.intake %}
+<div id="intake-review-{{ client.id }}" class="needs-you-card needs-you-card--intake">
+
+    <div class="needs-you-card__head">
+        <span class="needs-you-card__badge needs-you-card__badge--intake">New intake</span>
+        <span class="needs-you-card__when">
+            Submitted {{ client.needs_admin_review_at|timesince }} ago
+        </span>
+    </div>
+
+    <h3 class="needs-you-card__title">
+        <a href="{% url 'admin_dashboard:client_detail' client.id %}">{{ client.firm_name }}</a>
+    </h3>
+
+    <dl class="needs-you-card__dl">
+        <dt>Contact</dt>
+        <dd>
+            {% if client.contact_name %}{{ client.contact_name }}{% endif %}
+            {% if client.user.email %}<span class="muted">· {{ client.user.email }}</span>{% endif %}
+            {% if client.phone %}<span class="muted">· {{ client.phone }}</span>{% endif %}
+        </dd>
+
+        {% if intake %}
+            {% if intake.about_copy %}
+                <dt>About</dt>
+                <dd class="needs-you-card__truncate">{{ intake.about_copy|truncatechars:280 }}</dd>
+            {% endif %}
+            {% if intake.practice_areas %}
+                <dt>Practice areas</dt>
+                <dd class="needs-you-card__truncate">{{ intake.practice_areas|truncatechars:200 }}</dd>
+            {% endif %}
+            {% if intake.domain_name %}
+                <dt>Domain</dt>
+                <dd>{{ intake.domain_name }}</dd>
+            {% endif %}
+        {% endif %}
+    </dl>
+
+    <div class="needs-you-card__actions">
+        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:client_detail' client.id %}">
+            Open client →
+        </a>
+        <form method="post"
+              action="{% url 'admin_dashboard:intake_review_mark_done' client.id %}"
+              hx-post="{% url 'admin_dashboard:intake_review_mark_done' client.id %}"
+              hx-target="#needs-you-list"
+              hx-swap="outerHTML"
+              style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary btn-sm">
+                ✓ Mark reviewed
+            </button>
+        </form>
+    </div>
+</div>
+{% endwith %}

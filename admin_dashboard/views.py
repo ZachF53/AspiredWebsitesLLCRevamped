@@ -63,6 +63,16 @@ def _admin_context(active=None, **extra):
     needs_you_count = EmailReply.objects.filter(
         needs_human=True, handled=False
     ).count()
+    # Intake reviews (admin task generated when a client submits intake)
+    # count toward the same Needs You badge.
+    try:
+        from clients.models import ClientProfile as _ClientProfile
+        needs_you_count += _ClientProfile.objects.filter(
+            needs_admin_review_at__isnull=False,
+            admin_reviewed_at__isnull=True,
+        ).count()
+    except Exception:
+        pass
     try:
         critical_health_count = _critical_health_count()
     except Exception:
@@ -109,6 +119,14 @@ def home(request):
     needs_you_count = EmailReply.objects.filter(
         needs_human=True, handled=False
     ).count()
+    try:
+        from clients.models import ClientProfile as _ClientProfile
+        needs_you_count += _ClientProfile.objects.filter(
+            needs_admin_review_at__isnull=False,
+            admin_reviewed_at__isnull=True,
+        ).count()
+    except Exception:
+        pass
     emails_sent_today = EmailSent.objects.filter(sent_at__date=today).count()
 
     stats = [
@@ -479,24 +497,65 @@ def _needs_you_replies():
     )
 
 
+def _pending_intake_reviews():
+    """
+    Clients who submitted intake and are awaiting human review. Set by
+    `_on_intake_submitted` (clients/views.py); cleared by the Mark
+    Reviewed button on this page.
+    """
+    from clients.models import ClientProfile
+    return (
+        ClientProfile.objects
+        .filter(
+            needs_admin_review_at__isnull=False,
+            admin_reviewed_at__isnull=True,
+        )
+        .select_related('user')
+        .prefetch_related('projects', 'projects__intake')
+        .order_by('-needs_admin_review_at')
+    )
+
+
 def _render_needs_you_list(request):
     """Render the queue list partial (used as the HTMX response after an
     action). Includes an OOB swap that keeps the nav badge in sync."""
     replies = list(_needs_you_replies())
+    intake_reviews = list(_pending_intake_reviews())
+    total = len(replies) + len(intake_reviews)
     return render(request, 'admin_dashboard/_needs_you_list.html', {
         'replies': replies,
-        'needs_you_count': len(replies),
+        'intake_reviews': intake_reviews,
+        'needs_you_count': total,
     })
 
 
 @admin_required
 def needs_you(request):
     replies = list(_needs_you_replies())
+    intake_reviews = list(_pending_intake_reviews())
+    total = len(replies) + len(intake_reviews)
     return render(request, 'admin_dashboard/needs_you.html', _admin_context(
         active='needs_you',
         replies=replies,
-        needs_you_count=len(replies),
+        intake_reviews=intake_reviews,
+        needs_you_count=total,
     ))
+
+
+@admin_required
+@require_POST
+def intake_review_mark_done(request, client_id):
+    """
+    Clear the intake-review flag on a client and return the refreshed
+    Needs You list partial (HTMX swap).
+    """
+    from clients.models import ClientProfile
+    client = get_object_or_404(ClientProfile, id=client_id)
+    if client.needs_admin_review_at and not client.admin_reviewed_at:
+        client.admin_reviewed_at = timezone.now()
+        client.save(update_fields=[
+            'admin_reviewed_at', 'updated_at'])
+    return _render_needs_you_list(request)
 
 
 @admin_required

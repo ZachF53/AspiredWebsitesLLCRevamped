@@ -3625,7 +3625,105 @@ button.htmx-request {
 .needs-you-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
+}
+
+/* Section grouping inside the Needs You page — "New intakes" +
+   "Email replies" both render as sections of cards. */
+.needs-you-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.needs-you-section__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--color-text);
+}
+.needs-you-section__count {
+    background: var(--color-orange);
+    color: #FFFFFF;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    line-height: 1.4;
+}
+.needs-you-section__sub {
+    margin: 0 0 6px;
+    font-size: 0.875rem;
+}
+
+/* Intake-review card — slimmer than the email-reply card; orange
+   left-border so the section reads as the priority block above the
+   email-reply queue. */
+.needs-you-card--intake {
+    border-left: 3px solid var(--color-orange);
+}
+.needs-you-card__badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: rgba(232, 101, 10, 0.15);
+    color: #E8650A;
+}
+.needs-you-card__badge--intake { /* matches default; placeholder for future kinds */ }
+.needs-you-card__when {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    margin-left: 10px;
+}
+.needs-you-card__head {
+    display: flex;
+    align-items: center;
+}
+.needs-you-card__title {
+    margin: 6px 0 4px;
+    font-size: 1.05rem;
+}
+.needs-you-card__title a {
+    color: var(--color-text);
+    text-decoration: none;
+}
+.needs-you-card__title a:hover {
+    color: var(--color-orange);
+}
+.needs-you-card__dl {
+    margin: 8px 0 0;
+    display: grid;
+    grid-template-columns: minmax(80px, 110px) 1fr;
+    gap: 4px 14px;
+    font-size: 0.875rem;
+}
+.needs-you-card__dl dt {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    padding-top: 2px;
+}
+.needs-you-card__dl dd {
+    margin: 0;
+    color: var(--color-text);
+    line-height: 1.45;
+    word-break: break-word;
+}
+.needs-you-card__truncate {
+    color: var(--color-text-muted);
+}
+.needs-you-card__actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .needs-you-card {

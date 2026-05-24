@@ -34,6 +34,9 @@ urlpatterns = [
     path('needs-you/<int:pk>/send/', views.needs_you_send, name='needs_you_send'),
     path('needs-you/<int:pk>/archive/', views.needs_you_archive, name='needs_you_archive'),
     path('needs-you/<int:pk>/unsubscribe/', views.needs_you_unsubscribe, name='needs_you_unsubscribe'),
+    path('needs-you/intake-review/<uuid:client_id>/done/',
+         views.intake_review_mark_done,
+         name='intake_review_mark_done'),
 
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),

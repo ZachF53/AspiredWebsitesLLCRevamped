@@ -679,8 +679,15 @@ def _on_intake_submitted(profile, project):
 
     profile.onboarding_status = 'onboarding_complete'
     profile.onboarding_complete = True
+    # Flag the admin Needs You queue so the human review step is
+    # tracked alongside the existing email-reply triage. Cleared
+    # by the Mark Reviewed button in admin_dashboard.
+    profile.needs_admin_review_at = timezone.now()
+    profile.admin_reviewed_at = None
     profile.save(update_fields=[
-        'onboarding_status', 'onboarding_complete', 'updated_at',
+        'onboarding_status', 'onboarding_complete',
+        'needs_admin_review_at', 'admin_reviewed_at',
+        'updated_at',
     ])
 
     # Copy any client-uploaded intake files (logo + photos) into the

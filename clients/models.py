@@ -125,6 +125,14 @@ class ClientProfile(TimestampedModel):
         ),
     )
 
+    # ── Admin "Needs You" task tracking ──
+    # Set when the client submits their intake form (or any other
+    # event that needs human admin attention). Cleared by the admin
+    # via the Needs You page Mark Reviewed button. Both fields nullable
+    # so legacy clients don't show up retroactively.
+    needs_admin_review_at = models.DateTimeField(null=True, blank=True)
+    admin_reviewed_at = models.DateTimeField(null=True, blank=True)
+
     # ── DigitalOcean Droplet (one per client) ──
     do_droplet_id = models.CharField(max_length=50, blank=True)
     do_droplet_ip = models.GenericIPAddressField(null=True, blank=True)

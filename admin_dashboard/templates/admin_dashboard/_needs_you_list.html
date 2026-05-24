@@ -1,13 +1,42 @@
 
 <div id="needs-you-list" class="needs-you-list">
-    {% for reply in replies %}
-        {% include "admin_dashboard/_needs_you_card.html" with reply=reply %}
-    {% empty %}
+
+    {% if intake_reviews %}
+        <div class="needs-you-section">
+            <h2 class="needs-you-section__title">
+                New intakes
+                <span class="needs-you-section__count">{{ intake_reviews|length }}</span>
+            </h2>
+            <p class="needs-you-section__sub muted">
+                Clients who just submitted intake — confirm a project start date and mark reviewed.
+            </p>
+            {% for review in intake_reviews %}
+                {% include "admin_dashboard/_intake_review_card.html" with review=review %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if replies %}
+        <div class="needs-you-section">
+            <h2 class="needs-you-section__title">
+                Email replies
+                <span class="needs-you-section__count">{{ replies|length }}</span>
+            </h2>
+            <p class="needs-you-section__sub muted">
+                Replies the automation flagged for a human — questions, unclear responses, or hostile ones.
+            </p>
+            {% for reply in replies %}
+                {% include "admin_dashboard/_needs_you_card.html" with reply=reply %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if not intake_reviews and not replies %}
         <div class="admin-empty">
             <p><strong>Inbox zero.</strong> Nothing flagged for you right now.</p>
             <p><a class="btn-secondary" href="{% url 'admin_dashboard:home' %}">Back to Dashboard</a></p>
         </div>
-    {% endfor %}
+    {% endif %}
 </div>
 
 <span id="needs-you-badge"
