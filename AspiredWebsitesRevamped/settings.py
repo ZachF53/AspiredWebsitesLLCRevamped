@@ -123,6 +123,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # Exposes STATIC_VERSION (git short SHA) for cache-busting
+                # static asset URLs in base templates.
+                'core.context_processors.static_version',
             ],
         },
     },
@@ -185,6 +188,32 @@ STATIC_ROOT = env('STATIC_ROOT') or (BASE_DIR / 'staticfiles')
 # already collects core/static/. Listing it here as well made the finders
 # scan that folder twice — collectstatic flagged every file as a duplicate.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Cache-buster for static assets — appended to <link>/<script> URLs as
+# `?v={{ STATIC_VERSION }}` by the base templates. Derived from the
+# current git short SHA so every deploy yields a new value, forcing
+# browsers to re-fetch CSS/JS even if the underlying URL is unhashed
+# (the manifest storage above is currently not producing hashed
+# filenames in prod, and WhiteNoise's `Cache-Control: immutable`
+# header makes plain URLs stick in the browser cache for 30 days).
+# Fallback to a build-time timestamp if git isn't on PATH or this
+# isn't a git checkout (Docker images, tarball deploys).
+def _static_version():
+    import subprocess
+    from datetime import datetime
+    try:
+        sha = subprocess.check_output(
+            ['git', '-C', str(BASE_DIR), 'rev-parse', '--short', 'HEAD'],
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).decode().strip()
+        if sha:
+            return sha
+    except Exception:
+        pass
+    return datetime.utcnow().strftime('%Y%m%d%H%M%S')
+
+STATIC_VERSION = _static_version()
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = env('MEDIA_ROOT') or (BASE_DIR / 'media')

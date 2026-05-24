@@ -6,7 +6,7 @@
     <title>{% block title %}Client Portal{% endblock %} — Aspired Websites</title>
     <meta name="theme-color" content="#1A1A1A">
     <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body class="portal-body">

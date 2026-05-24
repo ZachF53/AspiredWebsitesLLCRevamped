@@ -13,7 +13,7 @@
 
     {# Disable HTMX's auto-injected indicator <style> — blocked by our strict CSP. #}
     <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
 
     {# Favicons #}
     <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
