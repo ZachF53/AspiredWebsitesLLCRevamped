@@ -1,20 +1,32 @@
-{% extends "base.html" %}
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Setup link not found — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="setup-body">
 
-{% block title %}Setup link not found — Aspired Websites{% endblock %}
-
-{% block content %}
-<section class="onboarding-setup">
-    <div class="container container--narrow">
-        <div class="onboarding-setup__card onboarding-setup__card--info">
-            <h1 class="onboarding-setup__title">Setup link not found.</h1>
-            <p class="onboarding-setup__sub">
-                This setup link is invalid or has been removed. If you've already set up your account, sign in below. Otherwise contact us and we'll send you a fresh link.
-            </p>
-            <p>
-                <a href="{% url 'public:login' %}" class="btn btn-primary">Log In</a>
-                <a href="{% url 'public:contact' %}" class="btn btn-secondary">Contact Us</a>
-            </p>
-        </div>
+    <div class="setup-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
     </div>
-</section>
-{% endblock %}
+
+    <div class="setup-card setup-card--info">
+        <h1 class="setup-title">Setup link not found.</h1>
+        <p class="setup-subtitle">
+            This setup link is invalid or has been removed. If you've already
+            set up your account, sign in below. Otherwise contact us and we'll
+            send you a fresh link.
+        </p>
+        <a href="{% url 'public:login' %}" class="setup-submit" style="display:inline-block;text-decoration:none;text-align:center;">Log In &rarr;</a>
+    </div>
+
+    <div class="setup-footer">
+        Need help? Contact <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+</body>
+</html>

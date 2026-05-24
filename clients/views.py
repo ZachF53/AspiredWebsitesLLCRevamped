@@ -1551,6 +1551,7 @@ def onboarding_setup(request, token):
                 {
                     'client': client,
                     'first_name': _onboarding_first_name(client),
+                    'email': user.email,
                     'token': onboarding_token,
                     'errors': errors,
                 },
@@ -1602,6 +1603,7 @@ def onboarding_setup(request, token):
         {
             'client': client,
             'first_name': _onboarding_first_name(client),
+            'email': user.email,
             'token': onboarding_token,
             'errors': [],
         },

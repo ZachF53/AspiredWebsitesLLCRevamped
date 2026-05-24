@@ -1,18 +1,47 @@
 /*
- * PIN auto-advance for the onboarding setup page.
+ * Onboarding setup page — client-side validation hints + PIN UX.
  *
- * Each PIN group has 4 single-digit <input> boxes (data-pin-group="pin"
- * or "pin_confirm"). Typing in box N moves focus to box N+1; backspace
- * on an empty box goes to box N-1; digits-only.
+ * Two independent jobs:
+ *  1. Live password-requirement hints (length / has digit / passwords match).
+ *     Hint elements carry `data-hint="length|number|match"` and toggle the
+ *     `is-valid` class as the user types — CSS handles the colour + glyph.
+ *
+ *  2. PIN box auto-advance. Each PIN group has 4 single-digit <input> boxes
+ *     wrapped in a `.setup-pin-row[data-pin-group]`. Typing advances focus
+ *     forward, backspace on an empty box jumps back, paste of a 4-digit
+ *     string spreads across the four boxes.
+ *
+ * Strict-CSP-safe: no inline handlers, no eval. Defer-loaded by
+ * onboarding_setup.html so the DOM is parsed by the time we run.
  */
 (function () {
     'use strict';
 
-    function wire(group) {
+    // ── 1. Password hints ────────────────────────────────────────────
+    var p1 = document.getElementById('setup-password');
+    var p2 = document.getElementById('setup-password-confirm');
+    var hintLen = document.querySelector('[data-hint="length"]');
+    var hintNum = document.querySelector('[data-hint="number"]');
+    var hintMatch = document.querySelector('[data-hint="match"]');
+
+    function syncPasswordHints() {
+        if (!p1) { return; }
+        var v = p1.value || '';
+        if (hintLen) { hintLen.classList.toggle('is-valid', v.length >= 8); }
+        if (hintNum) { hintNum.classList.toggle('is-valid', /\d/.test(v)); }
+        if (hintMatch) {
+            var match = p2 && p2.value.length > 0 && p2.value === v;
+            hintMatch.classList.toggle('is-valid', !!match);
+        }
+    }
+    if (p1) { p1.addEventListener('input', syncPasswordHints); }
+    if (p2) { p2.addEventListener('input', syncPasswordHints); }
+
+    // ── 2. PIN auto-advance ──────────────────────────────────────────
+    function wirePinGroup(group) {
         var boxes = group.querySelectorAll('input');
         boxes.forEach(function (box, idx) {
-            box.addEventListener('input', function (e) {
-                // Strip any non-digit the user pasted/typed.
+            box.addEventListener('input', function () {
                 box.value = (box.value || '').replace(/\D/g, '').slice(0, 1);
                 if (box.value && idx < boxes.length - 1) {
                     boxes[idx + 1].focus();
@@ -23,7 +52,6 @@
                     boxes[idx - 1].focus();
                 }
             });
-            // Paste a 4-digit PIN into the first box → spread across boxes.
             box.addEventListener('paste', function (e) {
                 var data = (e.clipboardData || window.clipboardData)
                     .getData('text');
@@ -38,6 +66,5 @@
             });
         });
     }
-
-    document.querySelectorAll('[data-pin-group]').forEach(wire);
+    document.querySelectorAll('[data-pin-group]').forEach(wirePinGroup);
 })();
