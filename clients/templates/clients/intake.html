@@ -204,8 +204,124 @@
                 Your intake form was submitted{% if intake.completed_at %} on {{ intake.completed_at|date:"F j, Y" }}{% endif %}. Thank you!
             </p>
         {% else %}
-            <p>Your answers save automatically as you work. When everything above looks right, submit your intake form below.</p>
-            <p class="form-hint">Use Previous to go back and edit any section.</p>
+            <p class="form-hint form-hint--block">Review everything below. If any section needs a tweak, click <strong style="color:var(--color-text);">Edit</strong> to jump back. When it all looks right, hit Submit at the bottom.</p>
+
+            {# ── Brand summary ── #}
+            <div class="review-card">
+                <div class="review-card__head">
+                    <h3 class="review-card__title">Brand</h3>
+                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="1">Edit</button>
+                </div>
+                <dl class="review-dl">
+                    <dt>Brand colors</dt>
+                    <dd>{{ intake.brand_colors|default:'—' }}</dd>
+                    <dt>Brand fonts</dt>
+                    <dd>{{ intake.brand_fonts|default:'—' }}</dd>
+                    <dt>Logo</dt>
+                    <dd>
+                        {% if intake.logo %}
+                            <a href="{{ intake.logo.url }}" target="_blank" rel="noopener">{{ intake.logo.name|cut:"portal/intake/logos/" }}</a>
+                        {% elif intake.no_logo_yet %}
+                            <span class="review-muted">I don't have a logo yet</span>
+                        {% else %}
+                            <span class="review-muted">—</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+
+            {# ── Photos summary ── #}
+            <div class="review-card">
+                <div class="review-card__head">
+                    <h3 class="review-card__title">Photos <span class="review-card__optional">(optional)</span></h3>
+                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="2">Edit</button>
+                </div>
+                <dl class="review-dl">
+                    <dt>Uploaded</dt>
+                    <dd>
+                        {% with photos=intake.photos.all %}
+                            {% if photos %}
+                                {{ photos|length }} photo{{ photos|length|pluralize }}
+                            {% else %}
+                                <span class="review-muted">No photos uploaded</span>
+                            {% endif %}
+                        {% endwith %}
+                    </dd>
+                    {% if intake.photos_note %}
+                        <dt>Notes</dt>
+                        <dd>{{ intake.photos_note|linebreaksbr }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+
+            {# ── Website Copy summary ── #}
+            <div class="review-card">
+                <div class="review-card__head">
+                    <h3 class="review-card__title">Website Copy</h3>
+                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="3">Edit</button>
+                </div>
+                <dl class="review-dl">
+                    <dt>About your firm</dt>
+                    <dd class="review-pre">{{ intake.about_copy|default:'—' }}</dd>
+                    <dt>Practice areas / services</dt>
+                    <dd class="review-pre">{{ intake.practice_areas|default:'—' }}</dd>
+                    <dt>Attorney / team bios</dt>
+                    <dd class="review-pre">{{ intake.attorney_bios|default:'—' }}</dd>
+                </dl>
+            </div>
+
+            {# ── References summary ── #}
+            <div class="review-card">
+                <div class="review-card__head">
+                    <h3 class="review-card__title">References</h3>
+                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="4">Edit</button>
+                </div>
+                <dl class="review-dl">
+                    <dt>Sites you like the look of</dt>
+                    <dd class="review-pre">{{ intake.reference_sites|default:'—' }}</dd>
+                    <dt>Your competitors</dt>
+                    <dd class="review-pre">{{ intake.competitors|default:'—' }}</dd>
+                </dl>
+            </div>
+
+            {# ── Domain & Social summary ── #}
+            <div class="review-card">
+                <div class="review-card__head">
+                    <h3 class="review-card__title">Domain &amp; Social</h3>
+                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="5">Edit</button>
+                </div>
+                <dl class="review-dl">
+                    <dt>Domain</dt>
+                    <dd>{{ intake.domain_name|default:'—' }}</dd>
+                    <dt>Registered with</dt>
+                    <dd>
+                        {% if intake.domain_registrar == 'other' %}
+                            Other — {{ intake.domain_registrar_other|default:'(not specified)' }}
+                        {% elif intake.domain_registrar %}
+                            {{ intake.get_domain_registrar_display }}
+                        {% else %}
+                            <span class="review-muted">—</span>
+                        {% endif %}
+                    </dd>
+
+                    {% if intake.facebook_url or intake.instagram_url or intake.linkedin_url or intake.twitter_url or intake.google_business_url or intake.social_links %}
+                        <dt>Social profiles</dt>
+                        <dd>
+                            <ul class="review-social-list">
+                                {% if intake.facebook_url %}<li><strong>Facebook:</strong> <a href="{{ intake.facebook_url }}" target="_blank" rel="noopener">{{ intake.facebook_url }}</a></li>{% endif %}
+                                {% if intake.instagram_url %}<li><strong>Instagram:</strong> <a href="{{ intake.instagram_url }}" target="_blank" rel="noopener">{{ intake.instagram_url }}</a></li>{% endif %}
+                                {% if intake.linkedin_url %}<li><strong>LinkedIn:</strong> <a href="{{ intake.linkedin_url }}" target="_blank" rel="noopener">{{ intake.linkedin_url }}</a></li>{% endif %}
+                                {% if intake.twitter_url %}<li><strong>X (Twitter):</strong> <a href="{{ intake.twitter_url }}" target="_blank" rel="noopener">{{ intake.twitter_url }}</a></li>{% endif %}
+                                {% if intake.google_business_url %}<li><strong>Google Business:</strong> <a href="{{ intake.google_business_url }}" target="_blank" rel="noopener">{{ intake.google_business_url }}</a></li>{% endif %}
+                                {% if intake.social_links %}<li><strong>Other:</strong> <span class="review-pre">{{ intake.social_links|linebreaksbr }}</span></li>{% endif %}
+                            </ul>
+                        </dd>
+                    {% else %}
+                        <dt>Social profiles</dt>
+                        <dd><span class="review-muted">None added</span></dd>
+                    {% endif %}
+                </dl>
+            </div>
         {% endif %}
     </section>
 

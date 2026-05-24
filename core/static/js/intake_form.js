@@ -321,6 +321,20 @@
             });
         }
 
+        // "Edit" buttons on the Step 6 review cards — jump straight to
+        // the named step. Generic via [data-wizard-goto="N"] so other
+        // jump-targets (e.g. from a flash error pointing at a missing
+        // field) can reuse it.
+        $$('[data-wizard-goto]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var target = parseInt(
+                    btn.getAttribute('data-wizard-goto'), 10);
+                if (target >= 1 && target <= total) {
+                    showStep(target);
+                }
+            });
+        });
+
         // Re-validate on every input change anywhere in the form.
         var form = $('form.intake-form');
         if (form) {

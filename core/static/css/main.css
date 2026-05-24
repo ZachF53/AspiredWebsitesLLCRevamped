@@ -5068,6 +5068,108 @@ button.htmx-request {
     margin-bottom: 4px;
 }
 
+/* Step 6 review cards — read-only summary of each prior step with
+   an Edit button that jumps the wizard back to the matching step.
+   Tighter padding than .portal-section so 5 cards stack visibly
+   without scrolling forever. */
+.review-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-top: 12px;
+}
+.review-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border);
+}
+.review-card__title {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--color-text);
+}
+.review-card__optional {
+    font-weight: 400;
+    color: var(--color-text-muted);
+    font-size: 0.75em;
+    margin-left: 4px;
+}
+.review-card__edit {
+    color: var(--color-orange);
+    font-size: 0.85rem;
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.review-card__edit:hover {
+    text-decoration: underline;
+}
+
+.review-dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(120px, 180px) 1fr;
+    gap: 8px 16px;
+}
+.review-dl dt {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    padding-top: 2px;
+}
+.review-dl dd {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+.review-pre {
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+.review-muted {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.review-social-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.review-social-list li {
+    margin: 4px 0;
+    font-size: 0.875rem;
+}
+.review-social-list a {
+    color: var(--color-orange);
+    text-decoration: none;
+    word-break: break-all;
+}
+.review-social-list a:hover { text-decoration: underline; }
+
+@media (max-width: 540px) {
+    .review-dl {
+        grid-template-columns: 1fr;
+        gap: 2px 0;
+    }
+    .review-dl dt {
+        padding-top: 8px;
+    }
+    .review-dl dt:first-child {
+        padding-top: 0;
+    }
+}
+
 /* Inline opt-out checkbox shown under a field that it modifies
    (e.g. the "I don't have a logo yet" toggle under the Logo upload).
    Sits flush under the field with a smaller font weight so it reads
