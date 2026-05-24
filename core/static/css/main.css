@@ -10563,13 +10563,21 @@ button.htmx-request {
     border: 1px solid var(--color-border);
     border-radius: 8px;
     min-height: 540px;
-    overflow: auto;
+    /* Hide horizontal overflow — the wrapper is scaled by JS to fit. */
+    overflow: hidden;
     margin: 14px 0;
     padding: 10px;
+    position: relative;
 }
-/* The rrweb Replayer injects an iframe + wrapper of its own —
-   leave plenty of vertical room and let it size naturally. */
-.replayer-stage .replayer-wrapper { margin: 0 auto; }
+/* rrweb injects .replayer-wrapper at the captured viewport size
+   (e.g. 1920x1080). We scale it down via transform so it always
+   fits the stage width. recording_replay.js sets transform + the
+   stage height; transform-origin must be top-left here so the
+   scale shrinks from the corner, not from the wrapper's centre. */
+.replayer-stage .replayer-wrapper {
+    margin: 0;
+    transform-origin: top left;
+}
 
 .replayer-empty {
     padding: 32px 24px;

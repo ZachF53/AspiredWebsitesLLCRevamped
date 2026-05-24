@@ -81,6 +81,56 @@
             return;
         }
 
+        // ── FIT-TO-WIDTH ──
+        // The Replayer mounts an iframe sized to the captured viewport
+        // (often 1920x1080+). Without scaling, the replay overflows the
+        // stage horizontally and the user has to scroll. Apply a CSS
+        // scale transform to .replayer-wrapper so the iframe always
+        // fits the stage width. transform-origin is top-left (set in
+        // CSS) so the scale shrinks from the corner.
+        function fitToWidth() {
+            var wrapper = stage.querySelector('.replayer-wrapper');
+            if (!wrapper) { return; }
+            // Reset transform so we measure the natural (captured) size.
+            wrapper.style.transform = '';
+            var available = stage.clientWidth -
+                            (parseFloat(getComputedStyle(stage).paddingLeft)
+                             + parseFloat(getComputedStyle(stage).paddingRight));
+            var natural = wrapper.offsetWidth;
+            if (!natural || !available) { return; }
+            var scale = Math.min(1, available / natural);
+            wrapper.style.transform = 'scale(' + scale + ')';
+            // Collapse the empty space the scaled iframe leaves behind:
+            // set the stage's height to the scaled wrapper height + the
+            // existing vertical padding. min-height in CSS still acts
+            // as a floor for very short captures.
+            var paddingY = parseFloat(getComputedStyle(stage).paddingTop)
+                         + parseFloat(getComputedStyle(stage).paddingBottom);
+            stage.style.height = (wrapper.offsetHeight * scale + paddingY) + 'px';
+        }
+
+        // The wrapper is created asynchronously by the Replayer — give
+        // it a tick to mount, then keep checking for up to 1s. Once
+        // found, fit immediately, on every window resize, and on
+        // rrweb's own resize events (captured page resized mid-session).
+        var fitTries = 0;
+        function tryFit() {
+            if (stage.querySelector('.replayer-wrapper')) {
+                fitToWidth();
+                window.addEventListener('resize', fitToWidth);
+                try {
+                    replayer.on('resize', function () {
+                        // The wrapper's intrinsic size has just changed —
+                        // recompute on the next frame so layout has settled.
+                        requestAnimationFrame(fitToWidth);
+                    });
+                } catch (e) { /* older rrweb without on() — ignore */ }
+                return;
+            }
+            if (fitTries++ < 20) { setTimeout(tryFit, 50); }
+        }
+        tryFit();
+
         // Wire the simple custom controls.
         wire('play-btn', function () { replayer.play(); });
         wire('pause-btn', function () { replayer.pause(); });
