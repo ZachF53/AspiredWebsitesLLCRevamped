@@ -10579,6 +10579,36 @@ button.htmx-request {
     transform-origin: top left;
 }
 
+/* The rrweb Replayer creates a .replayer-mouse div for the cursor
+   but the standalone bundle ships no default styling, so it's an
+   invisible 0×0 element. Draw an arrow cursor as an inline SVG
+   data URI (CSP allows data: in img-src). .active is the mousedown
+   state — tint orange so clicks pop visually. */
+.replayer-stage .replayer-mouse {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    margin: -3px 0 0 -3px;
+    transition: top 0.05s linear, left 0.05s linear;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M2.5 1.5 L2.5 19 L7.5 14.5 L10.8 22 L13.6 20.8 L10.3 13.5 L17 13.5 Z' fill='white' stroke='black' stroke-width='1.4' stroke-linejoin='round'/></svg>");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    pointer-events: none;
+    z-index: 10000;
+}
+.replayer-stage .replayer-mouse.active {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M2.5 1.5 L2.5 19 L7.5 14.5 L10.8 22 L13.6 20.8 L10.3 13.5 L17 13.5 Z' fill='%23E8650A' stroke='black' stroke-width='1.4' stroke-linejoin='round'/></svg>");
+}
+/* The mouse-tail canvas rrweb draws for the trail (mouseTail option
+   in recording_replay.js) — keep it above page content but below
+   the cursor SVG so the cursor is always on top of its own trail. */
+.replayer-stage .replayer-mouse-tail {
+    position: absolute;
+    pointer-events: none;
+    z-index: 9999;
+}
+
 .replayer-empty {
     padding: 32px 24px;
     color: var(--color-text-muted);

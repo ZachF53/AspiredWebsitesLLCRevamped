@@ -73,7 +73,14 @@
                 showWarning: false,
                 showDebug: false,
                 liveMode: false,
-                mouseTail: false
+                // Short trail in the brand orange so the cursor's
+                // path is easy to follow without becoming clutter.
+                mouseTail: {
+                    duration: 500,
+                    lineCap: 'round',
+                    lineWidth: 3,
+                    strokeStyle: '#E8650A'
+                }
             });
         } catch (e) {
             stage.innerHTML = renderEmptyState(
