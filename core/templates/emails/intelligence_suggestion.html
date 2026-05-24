@@ -1,0 +1,64 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Website improvement opportunity{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">A quick opportunity, {{ name }}.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    While reviewing your site's performance this month, I spotted an improvement that could move the needle for you.
+</p>
+
+<div style="margin:18px 0 22px;padding:20px 22px;background:rgba(232,101,10,0.06);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#E8650A;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Recommendation</div>
+    <div style="color:#F8FAFC;font-size:17px;font-weight:600;line-height:1.35;margin-bottom:12px;">{{ suggestion.title }}</div>
+    <div style="color:#94A3B8;font-size:14px;line-height:1.6;">{{ suggestion.description|linebreaksbr }}</div>
+</div>
+
+{% if suggestion.expected_impact %}
+<div style="margin:0 0 18px;padding:16px 18px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;">
+    <div style="color:#5EEAD4;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:6px;">Expected impact</div>
+    <div style="color:#F8FAFC;font-size:14px;line-height:1.5;">{{ suggestion.expected_impact }}</div>
+</div>
+{% endif %}
+
+<div style="margin:0 0 22px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    {{ investment_line }}
+</div>
+
+<p style="margin:0 0 18px;color:#F8FAFC;font-size:14px;line-height:1.6;">
+    {{ plan_para }}
+</p>
+
+{# Approve / Decline two-button row. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 0;">
+    <tr>
+        <td style="padding:0 8px 0 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#E8650A;border-radius:8px;">
+                <tr>
+                    <td align="center">
+                        <a href="{{ approve_url }}" style="display:inline-block;padding:13px 26px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                            Approve →
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+        <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#0F172A;border:1px solid #1E293B;border-radius:8px;">
+                <tr>
+                    <td align="center">
+                        <a href="{{ decline_url }}" style="display:inline-block;padding:12px 24px;color:#94A3B8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                            Not now
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Want to discuss first? Just reply to this email.
+</p>
+{% endblock %}

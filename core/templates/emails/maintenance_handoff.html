@@ -1,0 +1,35 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ subject_line }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">
+    {% if is_followup %}Hi {{ name }} — quick follow-up.{% else %}Your site is live, {{ name }}.{% endif %}
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    {% if is_followup %}
+        Following up — your website is live, but you haven't set up a maintenance plan yet.
+    {% else %}
+        Your website is now live and serving visitors.
+    {% endif %}
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Set up a maintenance plan to keep your site secure, updated, and performing.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ handoff_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Set up my maintenance plan →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(232,101,10,0.08);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#FBBF24;font-size:13px;line-height:1.5;">
+    <strong style="color:#FBBF24;">This link is valid for 48 hours.</strong> After it expires, just reply to this email and we'll send a fresh one.
+</div>
+{% endblock %}

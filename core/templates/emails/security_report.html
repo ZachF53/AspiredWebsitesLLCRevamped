@@ -1,0 +1,47 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your Security Report — {{ month_str }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Security report for {{ month_str }}.</h1>
+
+<p style="margin:0 0 20px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ name }} — your monthly security assessment for <strong style="color:#F8FAFC;">{{ client_firm }}</strong> is attached.
+</p>
+
+{% if critical_count or high_count %}
+    <div style="margin:0 0 20px;padding:18px 20px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;">
+        <div style="color:#FCA5A5;font-weight:600;font-size:14px;margin-bottom:8px;">Issues that need attention</div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="color:#F8FAFC;font-size:14px;line-height:1.6;">
+            {% if critical_count %}
+            <tr><td style="padding:2px 14px 2px 0;color:#FCA5A5;font-weight:600;">{{ critical_count }}</td><td style="padding:2px 0;">critical</td></tr>
+            {% endif %}
+            {% if high_count %}
+            <tr><td style="padding:2px 14px 2px 0;color:#FBBF24;font-weight:600;">{{ high_count }}</td><td style="padding:2px 0;">high</td></tr>
+            {% endif %}
+        </table>
+    </div>
+{% else %}
+    <div style="margin:0 0 20px;padding:18px 20px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#5EEAD4;font-size:14px;line-height:1.6;">
+        <strong style="color:#5EEAD4;">All clear.</strong> No critical or high severity issues were detected this month.
+    </div>
+{% endif %}
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Open the attached PDF for the full breakdown — every finding, its severity, and what we're doing about it.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#0F172A;border:1px solid #1E293B;border-radius:8px;">
+            <a href="{{ security_url }}" style="display:inline-block;padding:12px 24px;color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                View security history →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:20px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions about any finding? Just reply to this email.
+</p>
+{% endblock %}

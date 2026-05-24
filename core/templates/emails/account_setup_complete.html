@@ -1,0 +1,33 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your account is ready — one more step{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Account set up, {{ first_name }}.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your Aspired Websites account has been created. One quick step left before we start building.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We need a few details about your business and what you want from the site. The intake form takes about 10 minutes and gives us everything we need.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ intake_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Complete my intake →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<div style="margin-top:24px;padding:14px 16px;background:rgba(232,101,10,0.08);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#FBBF24;font-size:13px;line-height:1.5;">
+    <strong style="color:#FBBF24;">Important:</strong> work on your website can't begin until your intake form is submitted.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Once you submit it, we'll review your answers and reach out within 1 business day to confirm your project start date.
+</p>
+{% endblock %}

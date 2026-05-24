@@ -1,0 +1,19 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your contract is signed{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Thanks, {{ name }} — contract signed.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your website build contract is officially in place.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Your deposit invoice will arrive shortly in a separate email. Your project officially starts the moment your deposit is received.
+</p>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#5EEAD4;font-size:13px;line-height:1.5;">
+    Questions in the meantime? Just reply to this email.
+</div>
+{% endblock %}

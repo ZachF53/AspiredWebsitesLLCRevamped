@@ -1,0 +1,33 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Quick reminder: your intake form{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ first_name }} — quick reminder.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your account is set up — great. We're still waiting on your intake form before we can begin building your website.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    It takes about 10 minutes. Your answers auto-save as you work, so you can leave and come back if you need to.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ intake_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Complete my intake →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(232,101,10,0.08);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#FBBF24;font-size:13px;line-height:1.5;">
+    Work on your website will not begin until this is submitted.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Stuck on a question? Reply to this email and we'll walk you through it.
+</p>
+{% endblock %}

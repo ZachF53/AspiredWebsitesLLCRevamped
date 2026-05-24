@@ -1,0 +1,33 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Would you share your experience?{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — a small favor.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    It's been about a month since your site launched. I hope it's been working well for you.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    If you've had a good experience, I'd love a quick favor: would you be willing to record a 1–2 minute video sharing what the process was like?
+</p>
+
+<div style="margin:0 0 20px;padding:18px 20px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#F8FAFC;font-size:14px;line-height:1.6;">
+    Just record on your phone and email it back. Even 60 seconds would mean a lot.
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="mailto:zacherylong@aspiredwebsites.com?subject=My%20testimonial%20video" style="display:inline-block;padding:14px 28px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Send me your video →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:20px 0 0;color:#64748B;font-size:13px;line-height:1.55;">
+    No pressure at all — just thought I'd ask.
+</p>
+{% endblock %}

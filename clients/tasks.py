@@ -715,67 +715,70 @@ def _recipient_email(client):
 
 def _send_setup_reminder(client, token):
     """Account-setup nudge — sent once per 24h until the token is consumed."""
-    from clients.emails import send_secure_mail
+    from clients.emails import send_branded
 
     name = _setup_first_name(client)
     recipient = _recipient_email(client)
     if not recipient:
         return
+    setup_url = token.get_setup_url()
+    text_body = (
+        f'Hi {name},\n\n'
+        f'Just a reminder — your Aspired Websites account is waiting '
+        f'to be set up.\n\n'
+        f'Click the link below to create your password and access your '
+        f'portal:\n\n{setup_url}\n\n'
+        f'Work on your website cannot begin until your account is set '
+        f'up and your intake form is submitted.\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
+    )
     # SECURITY-SENSITIVE — contains the one-time setup token URL.
-    # Click tracking MUST stay off, see clients/emails.send_secure_mail.
-    send_secure_mail(
+    send_branded(
         subject='Reminder: Set up your Aspired Websites account',
-        message=(
-            f'Hi {name},\n\n'
-            f'Just a reminder — your Aspired Websites account is '
-            f'waiting to be set up.\n\n'
-            f'Click the link below to create your password and access '
-            f'your portal:\n\n'
-            f'{token.get_setup_url()}\n\n'
-            f'Work on your website cannot begin until your account is '
-            f'set up and your intake form is submitted.\n\n'
-            f'— Zachery Long\n'
-            f'Aspired Websites LLC\n'
-            f'210-896-2536\n'
-        ),
-        from_email=getattr(
-            settings, 'EMAIL_FROM_MAIN', settings.DEFAULT_FROM_EMAIL),
+        template='setup_reminder',
+        context={
+            'first_name': name,
+            'setup_url': setup_url,
+            'preheader': (
+                'Your account is still waiting to be set up.'),
+        },
         recipient_list=[recipient],
-        fail_silently=True,
+        text_body=text_body,
+        secure=True,
     )
 
 
 def _send_intake_reminder(client, token):
     """Intake-form nudge — sent once per 48h until the intake is submitted."""
-    from clients.emails import send_secure_mail
+    from clients.emails import send_branded
 
     name = _setup_first_name(client)
     recipient = _recipient_email(client)
     if not recipient:
         return
-    # Consistency with the rest of the onboarding flow — no SendGrid
-    # rewrite means the client always sees aspiredwebsites.com.
-    send_secure_mail(
+    intake_url = 'https://aspiredwebsites.com/portal/intake/'
+    text_body = (
+        f'Hi {name},\n\n'
+        f'Your account is set up — great. We still need your intake '
+        f'form before we can begin building your website. It takes '
+        f'about 10 minutes.\n\n'
+        f'Complete your intake form:\n{intake_url}\n\n'
+        f'Work on your website will not begin until this is submitted.\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
+    )
+    send_branded(
         subject=(
             'Action needed: Complete your intake form '
             'to start your website'),
-        message=(
-            f'Hi {name},\n\n'
-            f'Your account is set up — great!\n\n'
-            f'We still need your intake form before we can begin '
-            f'building your website. It takes about 10 minutes.\n\n'
-            f'Complete your intake form:\n'
-            f'https://aspiredwebsites.com/portal/intake/\n\n'
-            f'Work on your website will not begin until this is '
-            f'submitted.\n\n'
-            f'— Zachery Long\n'
-            f'Aspired Websites LLC\n'
-            f'210-896-2536\n'
-        ),
-        from_email=getattr(
-            settings, 'EMAIL_FROM_MAIN', settings.DEFAULT_FROM_EMAIL),
+        template='intake_reminder',
+        context={
+            'first_name': name,
+            'intake_url': intake_url,
+            'preheader': (
+                'Submit your intake form so we can start building.'),
+        },
         recipient_list=[recipient],
-        fail_silently=True,
+        text_body=text_body,
     )
 
 

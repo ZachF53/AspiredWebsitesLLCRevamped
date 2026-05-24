@@ -2801,66 +2801,51 @@ def send_scan_report(request, scan_id):
             "Your site is in good standing.")
 
     contact_name = client.contact_name or client.firm_name
-    html_content = (
-        f"<p>Hi {contact_name},</p>"
-        f"<p>Please find attached your monthly security assessment "
-        f"report for {month_str}.</p>"
-        f"<p>{severity_line}</p>"
-        f"<p>The full report is attached as a PDF. You can also log "
-        f"into your portal to view your security history:</p>"
-        f"<p><a href='{settings.SITE_BASE_URL}/portal/security/'>"
-        f"View Your Portal</a></p>"
-        f"<p>If you have any questions about the findings, please "
-        f"don't hesitate to reach out.</p>"
-        f"<p>— Zachery Long<br>"
-        f"Aspired Websites LLC<br>"
-        f"210-896-2536<br>"
-        f"zacherylong@aspiredwebsites.com</p>"
+    first_name = (contact_name or '').split(' ')[0] or 'there'
+
+    text_body = (
+        f'Hi {first_name},\n\n'
+        f'Please find attached your monthly security assessment report '
+        f'for {month_str}.\n\n'
+        f'{severity_line}\n\n'
+        f'The full report is attached as a PDF. You can also log into '
+        f'your portal to view your security history:\n'
+        f'{settings.SITE_BASE_URL}/portal/security/\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
 
-    try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import (
-            Attachment, Disposition, FileContent, FileName,
-            FileType, Mail,
-        )
-    except ImportError:
-        return _banner(
-            'error', 'SendGrid SDK not installed.', status=500)
-
-    # Stamp the legal address footer onto the HTML body before
-    # building the Mail. This SendGrid SDK path bypasses Django's
-    # email backend, so the AspiredEmailBackend signature work
-    # doesn't fire here automatically.
-    from core.email_signature import append_signature
-    _, html_content = append_signature(html=html_content)
-
-    message = Mail(
-        from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
-                           settings.DEFAULT_FROM_EMAIL),
-        to_emails=client_email,
-        subject=(f'Your Security Report — {month_str} — '
-                 f'{client.firm_name}'),
-        html_content=html_content,
-    )
-    with open(abs_path, 'rb') as fh:
-        encoded = base64.b64encode(fh.read()).decode()
     ext = os.path.splitext(abs_path)[1] or '.pdf'
-    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
-    attachment = Attachment(
-        FileContent(encoded),
-        FileName(f'security-report-{month_str}{ext}'),
-        FileType(mime),
-        Disposition('attachment'),
-    )
-    message.attachment = attachment
+    mime = 'application/pdf' if ext.lower() == '.pdf' else 'text/html'
+    with open(abs_path, 'rb') as fh:
+        pdf_bytes = fh.read()
 
+    from clients.emails import send_branded
     try:
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        sg.send(message)
+        send_branded(
+            subject=(f'Your Security Report — {month_str} — '
+                     f'{client.firm_name}'),
+            template='security_report',
+            context={
+                'name': first_name,
+                'client_firm': client.firm_name,
+                'month_str': month_str,
+                'critical_count': scan.critical_count,
+                'high_count': scan.high_count,
+                'security_url': (
+                    f'{settings.SITE_BASE_URL}/portal/security/'),
+                'preheader': severity_line,
+            },
+            recipient_list=[client_email],
+            text_body=text_body,
+            from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
+                               settings.DEFAULT_FROM_EMAIL),
+            attachments=[
+                (f'security-report-{month_str}{ext}', pdf_bytes, mime)],
+            fail_silently=False,
+        )
     except Exception as exc:  # noqa: BLE001 — surface to operator
         return _banner(
-            'error', f'SendGrid error: {str(exc)[:200]}', status=500)
+            'error', f'Email send failed: {str(exc)[:200]}', status=500)
 
     scan.sent_to_client = True
     scan.sent_at = timezone.now()
@@ -4221,39 +4206,9 @@ def intelligence_suggestion_send(request, suggestion_id):
         else 'Investment: included in your maintenance plan'
     )
 
-    html_body = (
-        f"<p>Hi {contact_name},</p>"
-        f"<p>While reviewing {client.firm_name}'s website performance "
-        f"this month, I identified an improvement that could benefit "
-        f"your business.</p>"
-        f"<h2 style='color:#E8650A; font-size:20px;'>{s.title}</h2>"
-        f"<p>{s.description}</p>"
-        f"<p><strong>Expected impact:</strong> {s.expected_impact}</p>"
-        f"<p><strong>{investment_line}</strong></p>"
-        f"<p style='color:#444;'><em>{plan_para}</em></p>"
-        f"<p>Reply to this email or use the buttons below to let me "
-        f"know if you'd like to proceed.</p>"
-        f"<p style='margin:18px 0;'>"
-        f"  <a href='{approve_url}' "
-        f"     style='background:#E8650A;color:#fff;padding:10px 18px;"
-        f"            text-decoration:none;border-radius:6px;"
-        f"            font-weight:600;margin-right:8px;'>"
-        f"    Approve"
-        f"    {' — $' + f'{s.one_time_fee:.0f}' if (not s.is_in_maintenance_scope and s.one_time_fee) else ''}"
-        f"  </a>"
-        f"  <a href='{decline_url}' "
-        f"     style='color:#444;padding:10px 18px;text-decoration:none;"
-        f"            border:1px solid #ddd;border-radius:6px;'>"
-        f"    Not Now"
-        f"  </a>"
-        f"</p>"
-        f"<p>— Zachery Long<br>"
-        f"Aspired Websites LLC<br>"
-        f"210-896-2536</p>"
-    )
-
+    first_name = (contact_name or '').split(' ')[0] or 'there'
     text_body = (
-        f"Hi {contact_name},\n\n"
+        f"Hi {first_name},\n\n"
         f"While reviewing {client.firm_name}'s website performance "
         f"this month, I identified an improvement that could benefit "
         f"your business.\n\n"
@@ -4268,14 +4223,26 @@ def intelligence_suggestion_send(request, suggestion_id):
         f"— Zachery Long\nAspired Websites LLC\n"
     )
 
+    from clients.emails import send_branded
     try:
-        send_mail(
+        send_branded(
             subject=(f'Website Improvement Opportunity — '
                      f'{client.firm_name}'),
-            message=text_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            template='intelligence_suggestion',
+            context={
+                'name': first_name,
+                'suggestion': s,
+                'investment_line': investment_line,
+                'plan_para': plan_para,
+                'approve_url': approve_url,
+                'decline_url': decline_url,
+                'preheader': (
+                    f'{s.title[:100]}'
+                    f'{"…" if len(s.title) > 100 else ""}'),
+            },
             recipient_list=[to_email],
-            html_message=html_body,
+            text_body=text_body,
+            secure=True,        # approve/decline magic links
             fail_silently=False,
         )
     except Exception as exc:  # noqa: BLE001
@@ -4457,71 +4424,48 @@ def annual_report_send(request, report_id):
                     or (client.user.get_full_name() if client.user else '')
                     or 'there')
 
-    html_body = (
-        f"<p>Hi {contact_name},</p>"
-        f"<p>Your <strong>{report.report_year} Annual Business "
-        f"Health Report</strong> is ready.</p>"
-        f"<p>It covers a full year of website performance, security "
-        f"work, and growth — uptime, scans, lead activity, and the "
-        f"opportunities I see for the year ahead.</p>"
-        f"<p>I'd love to schedule a quick call to walk through it "
-        f"together. Reply to this email with a couple of times "
-        f"that work, or call/text 210-896-2536.</p>"
-        f"<p>— Zachery Long<br>"
-        f"Aspired Websites LLC</p>"
-    )
+    first_name = (contact_name or '').split(' ')[0] or 'there'
+
     text_body = (
-        f"Hi {contact_name},\n\n"
+        f"Hi {first_name},\n\n"
         f"Your {report.report_year} Annual Business Health Report "
-        f"is attached. It covers a full year of website "
-        f"performance, security work, and growth.\n\n"
+        f"is attached. It covers a full year of website performance, "
+        f"security work, and growth.\n\n"
         f"I'd love to schedule a quick call to walk through it "
-        f"together. Reply with a couple of times that work, or "
-        f"call/text 210-896-2536.\n\n"
+        f"together. Reply with a couple of times that work for you.\n\n"
         f"— Zachery Long\nAspired Websites LLC\n"
     )
 
-    try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import (
-            Attachment, Disposition, FileContent, FileName,
-            FileType, Mail,
-        )
-    except ImportError:
-        return HttpResponse('SendGrid SDK not installed.', status=500)
-
-    # SDK path — stamp the legal address footer onto both parts
-    # since AspiredEmailBackend doesn't see SendGrid SDK sends.
-    from core.email_signature import append_signature
-    text_body, html_body = append_signature(text_body, html_body)
+    ext = os.path.splitext(abs_path)[1].lower() or '.pdf'
+    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
+    with open(abs_path, 'rb') as fh:
+        pdf_bytes = fh.read()
 
     subject = (f'Your {report.report_year} Annual Website '
                f'Performance Report — {client.firm_name}')
-    message = Mail(
-        from_email=getattr(settings, 'EMAIL_FROM_MAIN',
-                           settings.DEFAULT_FROM_EMAIL),
-        to_emails=to_email,
-        subject=subject,
-        plain_text_content=text_body,
-        html_content=html_body,
-    )
-    with open(abs_path, 'rb') as fh:
-        encoded = base64.b64encode(fh.read()).decode()
-    ext = os.path.splitext(abs_path)[1].lower() or '.pdf'
-    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
-    attachment = Attachment(
-        FileContent(encoded),
-        FileName(f'annual-report-{report.report_year}{ext}'),
-        FileType(mime),
-        Disposition('attachment'),
-    )
-    message.attachment = attachment
-
+    from clients.emails import send_branded
     try:
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        sg.send(message)
+        send_branded(
+            subject=subject,
+            template='annual_report',
+            context={
+                'name': first_name,
+                'client_firm': client.firm_name,
+                'report_year': report.report_year,
+                'preheader': (
+                    f'A full year of performance, security, and growth.'),
+            },
+            recipient_list=[to_email],
+            text_body=text_body,
+            from_email=getattr(settings, 'EMAIL_FROM_MAIN',
+                               settings.DEFAULT_FROM_EMAIL),
+            attachments=[
+                (f'annual-report-{report.report_year}{ext}',
+                 pdf_bytes, mime)],
+            fail_silently=False,
+        )
     except Exception as exc:  # noqa: BLE001
-        return HttpResponse(f'SendGrid error: {str(exc)[:200]}',
+        return HttpResponse(f'Email send failed: {str(exc)[:200]}',
                             status=500)
 
     report.status = 'sent'

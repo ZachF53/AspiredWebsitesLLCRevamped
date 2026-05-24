@@ -154,47 +154,43 @@ def send_onboarding_setup_email(client, token):
 def send_account_setup_complete_email(client):
     """
     Sent after the client finishes the setup page (password + PIN) —
-    nudges them straight into the intake form, the only portal page
-    they can reach in `pending_intake` state.
+    nudges them straight into the intake form.
     """
     name = _first_name(client)
-    body = (
+    intake_url = 'https://aspiredwebsites.com/portal/intake/'
+    text_body = (
         f'Hi {name},\n\n'
         f'Your Aspired Websites account has been created successfully.\n\n'
-        f'Before we can begin building your website, we need a few '
-        f'details from you. Please complete your intake form — it takes '
-        f'about 10 minutes and gives us everything we need to build '
-        f'your site.\n\n'
-        f'Complete your intake form:\n'
-        f'https://aspiredwebsites.com/portal/intake/\n\n'
-        f'Important: Work on your website cannot begin until your '
-        f'intake form is submitted.\n\n'
+        f'Before we can begin building your website, we need a few details '
+        f'from you. Please complete your intake form — it takes about 10 '
+        f'minutes and gives us everything we need to build your site.\n\n'
+        f'Complete your intake form:\n{intake_url}\n\n'
+        f'Important: Work on your website cannot begin until your intake '
+        f'form is submitted.\n\n'
         f'Once submitted, we\'ll review your information and reach out '
         f'within 1 business day to confirm your project start date.\n\n'
-        f'— Zachery Long\n'
-        f'Aspired Websites LLC\n'
-        f'210-896-2536\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
-    # Contains /portal/intake/ — same domain as the portal login, so
-    # technically click tracking would still resolve, but we keep this
-    # off too so the whole onboarding flow has zero-rewrite URLs and
-    # the client never sees a different domain in any setup email.
-    send_secure_mail(
+    send_branded(
         subject='Your account is ready — one more step before we start',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='account_setup_complete',
+        context={
+            'first_name': name,
+            'intake_url': intake_url,
+            'preheader': (
+                'Submit your intake form and we\'ll start building.'),
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        secure=True,
     )
 
 
 def send_intake_received_email(client):
-    """
-    Sent the moment the intake is submitted — closes the loop on
-    onboarding and sets expectations for the next 1 business day.
-    """
+    """Sent the moment the intake is submitted."""
     name = _first_name(client)
-    body = (
+    portal_url = 'https://aspiredwebsites.com/portal/'
+    text_body = (
         f'Hi {name},\n\n'
         f'Thank you for completing your intake form. We have everything '
         f'we need to start planning your website.\n\n'
@@ -204,16 +200,19 @@ def send_intake_received_email(client):
         f'start date\n'
         f'  3. Your website build begins\n\n'
         f'You can log into your portal anytime to track progress:\n'
-        f'https://aspiredwebsites.com/portal/\n\n'
-        f'— Zachery Long\n'
-        f'Aspired Websites LLC\n'
+        f'{portal_url}\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='We\'ve received your intake — we\'ll be in touch',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='intake_received',
+        context={
+            'first_name': name,
+            'portal_url': portal_url,
+            'preheader': 'We\'ll reach out within 1 business day.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
     )
 
 
@@ -221,20 +220,24 @@ def send_contract_ready_email(contract, sign_url):
     """Email the client their contract signing link (staff-triggered)."""
     client = contract.client
     name = client.contact_name or client.firm_name
-    body = (
+    text_body = (
         f'Hi {name},\n\n'
         f'Your website build contract with Aspired Websites is ready to sign.\n\n'
         f'Review and sign it here:\n{sign_url}\n\n'
-        f'Once signed, we’ll send your deposit invoice and get started.\n\n'
-        f'— Zachery Long\n'
-        f'Aspired Websites LLC\n'
+        f'Once signed, we\'ll send your deposit invoice and get started.\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Your contract is ready to sign — Aspired Websites',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='contract_ready',
+        context={
+            'name': name,
+            'sign_url': sign_url,
+            'preheader': 'Review and sign to lock in your project.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        secure=True,  # contains the unguessable contract sign URL
     )
 
 
@@ -242,88 +245,108 @@ def send_contract_signed_email(contract):
     """Confirm to the client that their contract was signed."""
     client = contract.client
     name = client.contact_name or client.firm_name
-    body = (
+    text_body = (
         f'Hi {name},\n\n'
-        f'Thanks — your website build contract with Aspired Websites is signed.\n\n'
-        f'Your deposit invoice is on its way and will arrive shortly in a separate '
-        f'email. Your project officially starts the moment your deposit is received.\n\n'
-        f'If you have any questions in the meantime, just reply to this email or '
-        f'call us at 210-896-2536.\n\n'
+        f'Thanks — your website build contract with Aspired Websites is '
+        f'signed.\n\n'
+        f'Your deposit invoice is on its way and will arrive shortly in a '
+        f'separate email. Your project officially starts the moment your '
+        f'deposit is received.\n\n'
+        f'If you have any questions in the meantime, just reply to this email.\n\n'
         f'— Aspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Your contract is signed — Aspired Websites',
-        message=body,
-        from_email=settings.EMAIL_FROM_NO_REPLY,
+        template='contract_signed',
+        context={
+            'name': name,
+            'preheader': 'Your deposit invoice is on its way.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        from_email=settings.EMAIL_FROM_NO_REPLY,
     )
 
 
 def send_welcome_email(client, project):
     """Sent once the deposit clears — project is active, intake unlocked."""
     name = client.contact_name or client.firm_name
-    body = (
+    intake_url = 'https://aspiredwebsites.com/portal/intake/'
+    login_url = 'https://aspiredwebsites.com/login/'
+    text_body = (
         f'Hi {name},\n\n'
         f'Your deposit is in — welcome aboard! Your website project is now '
-        f'active and we’re getting started.\n\n'
-        f'Your next step is to complete your intake form in the client portal '
-        f'so we have everything we need to build your site:\n'
-        f'https://aspiredwebsites.com/portal/intake/\n\n'
-        f'Sign in any time at https://aspiredwebsites.com/login/\n\n'
-        f'— Zachery Long\n'
-        f'Aspired Websites LLC\n'
+        f'active and we\'re getting started.\n\n'
+        f'Your next step is to complete your intake form in the client '
+        f'portal so we have everything we need to build your site:\n'
+        f'{intake_url}\n\n'
+        f'Sign in any time at {login_url}\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Welcome to Aspired Websites — your project is active',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='welcome_deposit',
+        context={
+            'name': name,
+            'intake_url': intake_url,
+            'login_url': login_url,
+            'preheader': 'Project active — complete your intake to begin.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
     )
 
 
 def send_intake_reminder_email(project, day):
-    """Day-2 / Day-4 nudge to finish the intake form."""
+    """Day-2 / Day-4 nudge (contract-flow) to finish the intake form."""
     client = project.client
     name = client.contact_name or client.firm_name
-    body = (
+    intake_url = 'https://aspiredwebsites.com/portal/intake/'
+    text_body = (
         f'Hi {name},\n\n'
         f'A quick reminder to complete your intake form so we can keep your '
-        f'website project moving:\n'
-        f'https://aspiredwebsites.com/portal/intake/\n\n'
-        f'It only takes a few minutes. If anything is unclear, just reply to '
-        f'this email or call 210-896-2536.\n\n'
+        f'website project moving:\n{intake_url}\n\n'
+        f'It only takes a few minutes. If anything is unclear, just reply '
+        f'to this email.\n\n'
         f'— Aspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Quick reminder: your intake form',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='intake_reminder',
+        context={
+            'first_name': (name or '').split(' ')[0] or 'there',
+            'intake_url': intake_url,
+            'preheader': 'Your project is on hold until intake is in.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
     )
 
 
 def send_payment_failed_email(client, day):
     """Payment-failure dunning email (Day 3 / 7 / 14)."""
     name = client.contact_name or client.firm_name
-    body = (
+    invoices_url = 'https://aspiredwebsites.com/portal/invoices/'
+    text_body = (
         f'Hi {name},\n\n'
         f'We were unable to process your recent payment to Aspired Websites. '
         f'Please update your payment details to keep your account in good '
-        f'standing:\n'
-        f'https://aspiredwebsites.com/portal/invoices/\n\n'
-        f'If you have any questions, call us at 210-896-2536 and we’ll help '
+        f'standing:\n{invoices_url}\n\n'
+        f'If you have any questions, reply to this email and we\'ll help '
         f'sort it out.\n\n'
         f'— Aspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Payment issue on your Aspired Websites account',
-        message=body,
-        from_email=settings.EMAIL_FROM_NO_REPLY,
+        template='payment_failed',
+        context={
+            'name': name,
+            'invoices_url': invoices_url,
+            'preheader': 'Please update your payment details.',
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        from_email=settings.EMAIL_FROM_NO_REPLY,
     )
 
 
@@ -333,27 +356,32 @@ def send_maintenance_handoff_email(client, handoff_url, followup_day=None):
     is set (3/7/14) for the reminder follow-ups, None for the first send.
     """
     name = client.contact_name or client.firm_name
-    if followup_day:
+    is_followup = bool(followup_day)
+    if is_followup:
         subject = 'Reminder: set up your website maintenance plan'
-        opener = (
-            'Following up — your website is live, but you haven’t set up a '
-            'maintenance plan yet.'
-        )
+        preheader = 'Your site is live — pick a maintenance plan.'
     else:
         subject = 'Your site is live — set up your maintenance plan'
-        opener = 'Your website is live!'
-    body = (
+        preheader = 'Pick a plan to keep your site secure and updated.'
+    text_body = (
         f'Hi {name},\n\n'
-        f'{opener}\n\n'
+        f'{"Following up — your website is live, but you haven\'t set up a maintenance plan yet." if is_followup else "Your website is now live and serving visitors."}\n\n'
         f'Set up a maintenance plan to keep your site secure, updated, and '
         f'performing:\n{handoff_url}\n\n'
         f'This link is valid for 48 hours.\n\n'
         f'— Aspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject=subject,
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='maintenance_handoff',
+        context={
+            'name': name,
+            'handoff_url': handoff_url,
+            'is_followup': is_followup,
+            'subject_line': subject,
+            'preheader': preheader,
+        },
         recipient_list=[client.user.email],
-        fail_silently=True,
+        text_body=text_body,
+        secure=True,  # contains the 48h signed maintenance token URL
     )

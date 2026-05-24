@@ -1,0 +1,63 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Quick question about your website{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.3;">Hi {{ name }} — quick question.</h1>
+
+<p style="margin:0 0 8px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    On a scale of 0 to 10, how likely are you to recommend Aspired Websites to a friend or colleague?
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:13px;line-height:1.5;">
+    Just tap the number that fits.
+</p>
+
+{% comment %}
+    0–10 score buttons. Two rows (0–5, 6–10) so they sit nicely on
+    phone width without horizontal scroll. Inline-table per button so
+    Outlook respects width + alignment.
+{% endcomment %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
+    <tr>
+        {% for n in scores_low %}
+        <td style="padding:3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#E8650A;border-radius:6px;">
+                <tr>
+                    <td align="center" style="width:42px;height:42px;">
+                        <a href="{{ base_url }}{{ n }}/" style="display:block;width:42px;height:42px;line-height:42px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;text-align:center;">{{ n }}</a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+        {% endfor %}
+    </tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+    <tr>
+        {% for n in scores_high %}
+        <td style="padding:3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#E8650A;border-radius:6px;">
+                <tr>
+                    <td align="center" style="width:42px;height:42px;">
+                        <a href="{{ base_url }}{{ n }}/" style="display:block;width:42px;height:42px;line-height:42px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;text-align:center;">{{ n }}</a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+        {% endfor %}
+    </tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;color:#64748B;font-size:11px;">
+    <tr>
+        <td align="left" style="padding:0 6px;">Not at all likely</td>
+        <td align="right" style="padding:0 6px;">Extremely likely</td>
+    </tr>
+</table>
+
+<p style="margin:20px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Thank you — your honest answer helps us keep improving.
+</p>
+{% endblock %}

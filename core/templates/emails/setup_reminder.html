@@ -1,0 +1,36 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Reminder: set up your Aspired Websites account{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ first_name }} — just a nudge.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your Aspired Websites account is still waiting to be set up. The setup link below stays valid until you use it.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ setup_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Set up my account →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 8px;color:#64748B;font-size:13px;line-height:1.55;">
+    Or paste this into your browser:
+</p>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:13px;line-height:1.55;word-break:break-all;">
+    <a href="{{ setup_url }}" style="color:#E8650A;text-decoration:none;">{{ setup_url }}</a>
+</p>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(232,101,10,0.08);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#FBBF24;font-size:13px;line-height:1.5;">
+    Work on your website can't begin until your account is set up and your intake form is submitted.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

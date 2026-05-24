@@ -356,18 +356,15 @@ def generate_scan_pdf(scan_id) -> str | None:
 
 def _auto_send_to_client(scan):
     """
-    SendGrid-deliver the freshly rendered PDF to the client when
+    Deliver the freshly rendered scan PDF to the client when
     `auto_send_scan_reports` is on. Raises on any failure so the caller
     in `_notify_admin_scan_complete` can fall back to the admin alert.
     """
-    import base64
     import os
 
     from django.conf import settings
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import (
-        Attachment, Disposition, FileContent, FileName, FileType, Mail,
-    )
+
+    from clients.emails import send_branded
 
     client = scan.client
     client_email = client.user.email if client.user else ''
@@ -386,51 +383,54 @@ def _auto_send_to_client(scan):
         raise RuntimeError('PDF not on disk after render')
 
     month_str = (scan.completed_at or scan.created_at).strftime('%B %Y')
-    severity_line = (
-        f'{scan.critical_count} critical and {scan.high_count} high '
-        f'severity issue(s) were identified that require attention.'
-        if (scan.critical_count or scan.high_count) else
-        'No critical or high severity issues were detected. '
-        'Your site is in good standing.'
-    )
     contact_name = client.contact_name or client.firm_name
-    html_content = (
-        f'<p>Hi {contact_name},</p>'
-        f'<p>Your monthly security assessment for {month_str} is attached.</p>'
-        f'<p>{severity_line}</p>'
-        f'<p>Full history in your portal: '
-        f"<a href='{settings.SITE_BASE_URL}/portal/security/'>"
-        f"Security Reports</a></p>"
-        f'<p>— Zachery Long<br>Aspired Websites LLC<br>'
-        f'210-896-2536<br>zacherylong@aspiredwebsites.com</p>'
+    first_name = (contact_name or '').split(' ')[0] or 'there'
+
+    if scan.critical_count or scan.high_count:
+        severity_line = (
+            f'{scan.critical_count} critical and {scan.high_count} high '
+            f'severity issue(s) were identified that require attention.')
+    else:
+        severity_line = (
+            'No critical or high severity issues were detected. '
+            'Your site is in good standing.')
+
+    text_body = (
+        f'Hi {first_name},\n\n'
+        f'Your monthly security assessment for {month_str} is attached.\n\n'
+        f'{severity_line}\n\n'
+        f'Full history in your portal: '
+        f'{settings.SITE_BASE_URL}/portal/security/\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
     )
 
-    # SDK path — append the legal address footer manually (this
-    # bypasses Django's mail backend, so AspiredEmailBackend's
-    # signature work doesn't fire here automatically).
-    from core.email_signature import append_signature
-    _, html_content = append_signature(html=html_content)
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+    mime = 'application/pdf' if ext.lower() == '.pdf' else 'text/html'
+    with open(abs_path, 'rb') as fh:
+        pdf_bytes = fh.read()
 
-    message = Mail(
-        from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
-                           settings.DEFAULT_FROM_EMAIL),
-        to_emails=client_email,
+    send_branded(
         subject=(f'Your Security Report — {month_str} — '
                  f'{client.firm_name}'),
-        html_content=html_content,
+        template='security_report',
+        context={
+            'name': first_name,
+            'client_firm': client.firm_name,
+            'month_str': month_str,
+            'critical_count': scan.critical_count,
+            'high_count': scan.high_count,
+            'security_url': (
+                f'{settings.SITE_BASE_URL}/portal/security/'),
+            'preheader': severity_line,
+        },
+        recipient_list=[client_email],
+        text_body=text_body,
+        from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
+                           settings.DEFAULT_FROM_EMAIL),
+        attachments=[
+            (f'security-report-{month_str}{ext}', pdf_bytes, mime)],
+        fail_silently=False,
     )
-    with open(abs_path, 'rb') as fh:
-        encoded = base64.b64encode(fh.read()).decode()
-    ext = os.path.splitext(abs_path)[1] or '.pdf'
-    mime = 'application/pdf' if ext == '.pdf' else 'text/html'
-    message.attachment = Attachment(
-        FileContent(encoded),
-        FileName(f'security-report-{month_str}{ext}'),
-        FileType(mime),
-        Disposition('attachment'),
-    )
-
-    SendGridAPIClient(settings.SENDGRID_API_KEY).send(message)
 
     scan.sent_to_client = True
     scan.sent_at = timezone.now()

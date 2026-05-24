@@ -1,0 +1,29 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Payment issue on your Aspired Websites account{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — payment issue.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    We were unable to process your recent payment.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Please update your payment details to keep your account in good standing.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ invoices_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Update payment details →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;color:#FCA5A5;font-size:13px;line-height:1.5;">
+    If we can't process your payment in the next few weeks, your site may be temporarily suspended. Reply to this email and we'll help you sort it out.
+</div>
+{% endblock %}

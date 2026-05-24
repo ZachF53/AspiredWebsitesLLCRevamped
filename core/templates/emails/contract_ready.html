@@ -1,0 +1,25 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your contract is ready to sign{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — your contract is ready.</h1>
+
+<p style="margin:0 0 24px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your website build contract is ready to sign. Review and sign using the button below.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ sign_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Review &amp; sign →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Once signed, we'll send your deposit invoice and get started right away.
+</p>
+{% endblock %}

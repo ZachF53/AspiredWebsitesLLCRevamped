@@ -405,10 +405,10 @@ def generate_monthly_report(client_id, report_month_str):
 
 
 def send_monthly_report_email(report):
-    """Email the report file to the client via the SendGrid SMTP backend."""
+    """Email the report file to the client via the branded HTML template."""
     import os
 
-    from django.core.mail import EmailMessage
+    from clients.emails import send_branded
 
     client = report.client
     month_str = report.report_month.strftime('%B %Y')
@@ -420,31 +420,43 @@ def send_monthly_report_email(report):
 
     name = client.contact_name or client.firm_name
     uptime = report.uptime_30d if report.uptime_30d is not None else 'N/A'
-    html = (
-        f'<p>Hi {name},</p>'
-        f'<p>Your monthly performance report for {month_str} is attached.</p>'
-        f'<p>Your site was online {uptime}% of {month_str}. Log into your '
-        f'portal anytime to see your full activity history:</p>'
-        f'<p><a href="https://aspiredwebsites.com/portal/reports/">'
-        f'View Your Portal</a></p>'
-        f'<p>— Zachery Long<br>Aspired Websites LLC<br>210-896-2536</p>'
-    )
-    email = EmailMessage(
-        subject=f'Your Monthly Report — {month_str} — {client.firm_name}',
-        body=html,
-        from_email=settings.EMAIL_FROM_NO_REPLY,
-        to=[recipient],
-    )
-    email.content_subtype = 'html'
+    portal_url = 'https://aspiredwebsites.com/portal/reports/'
 
+    text_body = (
+        f'Hi {name},\n\n'
+        f'Your monthly performance report for {month_str} is attached.\n\n'
+        f'Uptime this month: {uptime}{"%" if uptime != "N/A" else ""}\n\n'
+        f'Log into your portal anytime to see your full activity history:\n'
+        f'{portal_url}\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
+    )
+
+    attachments = None
     abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
     if report.pdf_path and os.path.exists(abs_path):
         mime = 'application/pdf' if abs_path.endswith('.pdf') else 'text/html'
         with open(abs_path, 'rb') as fh:
-            email.attach(os.path.basename(abs_path), fh.read(), mime)
+            attachments = [(os.path.basename(abs_path), fh.read(), mime)]
 
     try:
-        email.send(fail_silently=False)
+        send_branded(
+            subject=(f'Your Monthly Report — {month_str} — '
+                     f'{client.firm_name}'),
+            template='monthly_report',
+            context={
+                'name': name,
+                'month_str': month_str,
+                'uptime': uptime,
+                'portal_url': portal_url,
+                'preheader': (
+                    f'{month_str} performance report attached.'),
+            },
+            recipient_list=[recipient],
+            text_body=text_body,
+            from_email=settings.EMAIL_FROM_NO_REPLY,
+            attachments=attachments,
+            fail_silently=False,
+        )
         report.status = 'sent'
         report.sent_at = timezone.now()
     except Exception:
@@ -536,46 +548,37 @@ def generate_freshness_reports():
 # ── Phase 5b Part 3: NPS surveys ────────────────────────────────────────────
 
 def send_nps_email(client, survey):
-    """Send the NPS survey email with 0-10 scoring links."""
-    from django.core.mail import send_mail
+    """Send the NPS survey email with 0-10 scoring buttons."""
+    from clients.emails import send_branded
 
     recipient = getattr(client.user, 'email', '') if client.user_id else ''
     if not recipient:
         return
     name = client.contact_name or client.firm_name
-    base = f'{settings.SITE_BASE_URL}/nps/{survey.survey_token}/'
+    base_url = f'{settings.SITE_BASE_URL}/nps/{survey.survey_token}/'
 
     text_lines = [
         f'Hi {name},', '',
         'A quick question — on a scale of 0 to 10, how likely are you to '
         'recommend Aspired Websites to a friend or colleague?', '',
     ]
-    text_lines += [f'  {n}: {base}{n}/' for n in range(11)]
+    text_lines += [f'  {n}: {base_url}{n}/' for n in range(11)]
     text_lines += ['', 'Just click the number that fits. Thank you!', '',
                    '— Zachery Long', 'Aspired Websites LLC']
 
-    buttons = ''.join(
-        f'<a href="{base}{n}/" style="display:inline-block;width:34px;'
-        f'height:34px;line-height:34px;margin:3px;text-align:center;'
-        f'border-radius:6px;background:#E8650A;color:#ffffff;'
-        f'text-decoration:none;font-weight:bold;">{n}</a>'
-        for n in range(11)
-    )
-    html = (
-        f'<p>Hi {name},</p>'
-        f'<p>A quick question — on a scale of 0 to 10, how likely are you to '
-        f'recommend Aspired Websites to a friend or colleague?</p>'
-        f'<p>{buttons}</p>'
-        f'<p>Just tap the number that fits. Thank you!</p>'
-        f'<p>— Zachery Long<br>Aspired Websites LLC</p>'
-    )
-    send_mail(
+    send_branded(
         subject='Quick question about your website',
-        message='\n'.join(text_lines),
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='nps_survey',
+        context={
+            'name': name,
+            'base_url': base_url,
+            'scores_low': list(range(0, 6)),    # 0-5
+            'scores_high': list(range(6, 11)),  # 6-10
+            'preheader': (
+                'On a scale of 0–10, how likely are you to recommend us?'),
+        },
         recipient_list=[recipient],
-        html_message=html,
-        fail_silently=True,
+        text_body='\n'.join(text_lines),
     )
 
 
@@ -606,30 +609,34 @@ def send_nps_surveys():
 
 def send_testimonial_email(client):
     """Send the one-time video testimonial request email."""
-    from django.core.mail import send_mail
+    from clients.emails import send_branded
 
     recipient = getattr(client.user, 'email', '') if client.user_id else ''
     if not recipient:
         return
     name = client.contact_name or client.firm_name
-    body = (
+    text_body = (
         f'Hi {name},\n\n'
         f"It's been a month since your site launched — I hope it's been "
         f'working well for you.\n\n'
         f"If you've had a good experience, I'd love to ask a small favor: "
         f'would you be willing to record a quick 1-2 minute video sharing '
         f'what the process was like?\n\n'
-        f'You can record it on your phone and send it to '
-        f'zacherylong@aspiredwebsites.com — even 60 seconds would mean a lot.'
-        f'\n\nNo pressure at all — just thought I\'d ask!\n\n'
+        f'You can record it on your phone and email it back. Even 60 '
+        f'seconds would mean a lot.\n\n'
+        f'No pressure at all — just thought I\'d ask.\n\n'
         f'— Zachery Long\nAspired Websites LLC\n'
     )
-    send_mail(
+    send_branded(
         subject='Would you share your experience with Aspired Websites?',
-        message=body,
-        from_email=settings.EMAIL_FROM_MAIN,
+        template='testimonial_request',
+        context={
+            'name': name,
+            'preheader': (
+                'A quick favor — a 1–2 minute video of your experience.'),
+        },
         recipient_list=[recipient],
-        fail_silently=True,
+        text_body=text_body,
     )
 
 

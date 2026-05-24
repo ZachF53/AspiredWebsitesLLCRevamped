@@ -1,0 +1,29 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your {{ report_year }} Annual Report — {{ client_firm }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Your {{ report_year }} year in review.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ name }} — your <strong style="color:#F8FAFC;">{{ report_year }} Annual Business Health Report</strong> for {{ client_firm }} is attached.
+</p>
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    It covers a full year of website performance, security work, and growth — uptime, scans, lead activity, and the opportunities I see for the year ahead.
+</p>
+
+<div style="margin:0 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border-left:3px solid #E8650A;border-radius:6px;color:#F8FAFC;font-size:14px;line-height:1.6;">
+    I'd love to schedule a quick call to walk through it together. Reply to this email with a couple of times that work for you.
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="mailto:zacherylong@aspiredwebsites.com?subject=Annual%20review%20call%20{{ report_year }}" style="display:inline-block;padding:14px 28px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Book my review call →
+            </a>
+        </td>
+    </tr>
+</table>
+{% endblock %}
