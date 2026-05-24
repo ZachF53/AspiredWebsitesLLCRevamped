@@ -170,17 +170,24 @@ def _handle_payment_intent_succeeded(event):
 
 def _verify_event(payload, sig_header):
     """
-    Return the parsed Stripe event, or None if it cannot be trusted.
+    Return the parsed Stripe event AS A PLAIN DICT, or None if it can't
+    be trusted.
 
     With STRIPE_WEBHOOK_SECRET set the signature is verified (production).
-    Without it, an unverified payload is accepted ONLY when DEBUG is True so
-    the flow can be exercised locally.
+    Without it, an unverified payload is accepted ONLY when DEBUG is True
+    so the flow can be exercised locally.
+
+    Returned as a plain dict (not StripeObject) so the rest of the
+    webhook code can use `.get(...)` safely. Stripe Python v8+ removed
+    `.get()` from StripeObject — every previous webhook handler that
+    used it was silently 500ing.
     """
     if settings.STRIPE_WEBHOOK_SECRET:
         try:
-            return stripe.Webhook.construct_event(
+            event = stripe.Webhook.construct_event(
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET,
             )
+            return _to_plain_dict(event)
         except Exception:
             logger.warning('Stripe webhook signature verification failed.')
             return None
@@ -191,6 +198,15 @@ def _verify_event(payload, sig_header):
             return None
     logger.error('Stripe webhook rejected: STRIPE_WEBHOOK_SECRET not configured.')
     return None
+
+
+def _to_plain_dict(obj):
+    """Convert a StripeObject (or anything nested in one) to a plain
+    JSON-safe dict so downstream `.get()` calls work."""
+    if hasattr(obj, 'to_dict_recursive'):
+        return obj.to_dict_recursive()
+    # Fallback — round-trip through JSON to drop any custom classes.
+    return json.loads(json.dumps(obj, default=str))
 
 
 def _safe_payload(obj):
