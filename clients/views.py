@@ -605,6 +605,64 @@ def _notify_admin_intake_complete(profile):
     )
 
 
+def _copy_intake_files_to_documents(profile, project):
+    """
+    On intake submission, every file the client uploaded (the Logo on
+    Step 1 + each IntakePhoto on Step 2) gets copied into a
+    `ClientDocument` row so it shows up on the portal Files page.
+
+    File bytes are re-written into the docs upload path
+    (`portal/clients/<id>/docs/<filename>`) — not just linked — so the
+    intake row can be cleaned up later without orphaning the docs.
+    Idempotent at the row level: if a ClientDocument with a matching
+    `label` already exists for this client we skip it, so a re-run
+    (e.g. a future "redo intake" flow) doesn't pile up duplicates.
+    """
+    import os
+
+    from django.core.files import File
+
+    intake_obj = getattr(project, 'intake', None)
+    if intake_obj is None:
+        return
+
+    def _make_doc(label, file_field):
+        """Copy file_field into a new ClientDocument unless one with
+        this label already exists for the client."""
+        if not file_field:
+            return
+        if ClientDocument.objects.filter(
+                client=profile, label=label).exists():
+            return
+        try:
+            file_field.open('rb')
+            ClientDocument.objects.create(
+                client=profile,
+                project=project,
+                direction='from_client',
+                label=label,
+                description='Uploaded via intake form.',
+                uploaded_by=profile.user,
+                file=File(file_field, name=os.path.basename(
+                    file_field.name)),
+            )
+        finally:
+            try:
+                file_field.close()
+            except Exception:
+                pass
+
+    # ── Logo ──
+    if intake_obj.logo:
+        _make_doc('Intake — Logo', intake_obj.logo)
+
+    # ── Photos ──
+    for photo in intake_obj.photos.all():
+        base = os.path.basename(photo.file.name) if photo.file else ''
+        label = photo.label or f'Intake — Photo ({base})' or 'Intake — Photo'
+        _make_doc(label, photo.file)
+
+
 def _on_intake_submitted(profile, project):
     """
     Post-intake hook (Part 6) — flips onboarding state to complete,
@@ -624,6 +682,16 @@ def _on_intake_submitted(profile, project):
     profile.save(update_fields=[
         'onboarding_status', 'onboarding_complete', 'updated_at',
     ])
+
+    # Copy any client-uploaded intake files (logo + photos) into the
+    # portal Files page so they live alongside everything else the
+    # client has sent us. Best-effort — never block intake on file
+    # plumbing.
+    try:
+        _copy_intake_files_to_documents(profile, project)
+    except Exception:
+        logger.exception(
+            'intake -> Files copy failed for %s', profile.pk)
 
     # Internal changelog entry (staff-only — surfaces in admin client
     # detail). SiteChangelogEntry import is local so a missing model
