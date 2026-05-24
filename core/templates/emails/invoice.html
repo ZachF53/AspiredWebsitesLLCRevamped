@@ -1,0 +1,50 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your invoice from Aspired Websites{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Your invoice is ready, {{ name }}.</h1>
+
+<p style="margin:0 0 24px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Click the button below to view your invoice and pay securely on aspiredwebsites.com.
+</p>
+
+{# Itemized line-by-line table — same numbers the pay page will show. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 24px;border-collapse:collapse;color:#F8FAFC;font-size:14px;">
+    {% for item in line_items %}
+    <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #1E293B;color:#94A3B8;">{{ item.description }}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #1E293B;color:#F8FAFC;text-align:right;font-variant-numeric:tabular-nums;">${{ item.amount|floatformat:2 }}</td>
+    </tr>
+    {% endfor %}
+    <tr>
+        <td style="padding:14px 0 0;font-size:15px;font-weight:600;color:#F8FAFC;">Total</td>
+        <td style="padding:14px 0 0;font-size:15px;font-weight:600;color:#F8FAFC;text-align:right;font-variant-numeric:tabular-nums;">${{ total_amount|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ pay_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                View &amp; pay invoice →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 6px;color:#64748B;font-size:13px;line-height:1.55;">
+    Or paste this link into your browser:
+</p>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:13px;line-height:1.55;word-break:break-all;">
+    <a href="{{ pay_url }}" style="color:#E8650A;text-decoration:none;">{{ pay_url }}</a>
+</p>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#5EEAD4;font-size:13px;line-height:1.5;">
+    <strong style="color:#5EEAD4;">Pay securely on our site.</strong> Card processing is handled by Stripe — your card details are never seen by us.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions about the invoice? Just reply to this email.
+</p>
+{% endblock %}

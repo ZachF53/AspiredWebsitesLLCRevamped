@@ -1,0 +1,76 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pay your invoice — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card">
+
+        <div class="pay-card__head">
+            <span class="pay-card__eyebrow">Invoice</span>
+            <h1 class="pay-card__title">${{ invoice.total_amount|floatformat:2 }}</h1>
+            <p class="pay-card__sub">Due now · for {{ client.firm_name }}</p>
+        </div>
+
+        {# Line items #}
+        <table class="pay-lines">
+            <tbody>
+                {% for item in invoice.line_items %}
+                    <tr>
+                        <td class="pay-lines__desc">{{ item.description }}</td>
+                        <td class="pay-lines__amt">${{ item.amount|floatformat:2 }}</td>
+                    </tr>
+                {% endfor %}
+                <tr class="pay-lines__total">
+                    <td class="pay-lines__desc">Total</td>
+                    <td class="pay-lines__amt">${{ invoice.total_amount|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="pay-form-wrap">
+
+            {# Stripe Payment Element mounts here. #}
+            <form id="payment-form" novalidate>
+                <div id="payment-element">
+                    {# Stripe.js injects the card form here. #}
+                </div>
+
+                <div id="payment-message" class="pay-message" hidden></div>
+
+                <button id="submit" type="submit" class="pay-submit">
+                    <span id="button-text">Pay ${{ invoice.total_amount|floatformat:2 }}</span>
+                    <span id="spinner" class="pay-spinner" hidden></span>
+                </button>
+            </form>
+
+            <p class="pay-secure">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;">
+                    <path fill="currentColor" d="M12 2l8 4v6c0 5-3.5 9.7-8 10-4.5-.3-8-5-8-10V6l8-4z M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" fill="none"/>
+                </svg>
+                Secured by Stripe · your card details never touch our servers
+            </p>
+        </div>
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+    <script src="https://js.stripe.com/v3/" defer></script>
+    {{ stripe_config|json_script:"stripe-config" }}
+    <script src="{% static 'js/payment_page.js' %}?v={{ STATIC_VERSION }}" defer></script>
+</body>
+</html>

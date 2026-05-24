@@ -1,0 +1,193 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt — {{ client.firm_name }}</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0.75in;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #1A1A1A;
+            font-size: 11pt;
+            line-height: 1.5;
+            margin: 0;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 3px solid #E8650A;
+            padding-bottom: 18px;
+            margin-bottom: 28px;
+        }
+        .header__brand {
+            font-size: 18pt;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin: 0;
+        }
+        .header__meta {
+            text-align: right;
+            font-size: 9pt;
+            color: #666;
+            line-height: 1.45;
+        }
+        .header__meta strong {
+            color: #1A1A1A;
+            font-size: 10pt;
+        }
+
+        h1.receipt-title {
+            font-size: 24pt;
+            color: #1A1A1A;
+            margin: 0 0 4px;
+        }
+        .receipt-paid {
+            color: #0D9488;
+            font-weight: 600;
+            font-size: 11pt;
+            margin: 0 0 18px;
+        }
+
+        .billing-block {
+            display: flex;
+            justify-content: space-between;
+            margin: 28px 0;
+        }
+        .billing-block__col {
+            font-size: 10pt;
+            line-height: 1.5;
+        }
+        .billing-block__label {
+            text-transform: uppercase;
+            font-size: 8pt;
+            letter-spacing: 0.08em;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .billing-block__name {
+            color: #1A1A1A;
+            font-weight: 600;
+            font-size: 11pt;
+        }
+
+        table.lines {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+        table.lines th {
+            text-align: left;
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #666;
+            border-bottom: 2px solid #1A1A1A;
+            padding: 10px 4px;
+        }
+        table.lines th.amt { text-align: right; }
+        table.lines td {
+            padding: 12px 4px;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 11pt;
+        }
+        table.lines td.amt {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        table.lines tr.total td {
+            border-top: 2px solid #1A1A1A;
+            border-bottom: none;
+            padding-top: 16px;
+            font-weight: 700;
+            font-size: 13pt;
+        }
+        table.lines tr.total td.amt {
+            color: #0D9488;
+        }
+
+        .footer {
+            margin-top: 60px;
+            border-top: 1px solid #E5E7EB;
+            padding-top: 16px;
+            font-size: 9pt;
+            color: #666;
+            line-height: 1.5;
+        }
+        .footer strong {
+            color: #1A1A1A;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <p class="header__brand">Aspired Websites LLC</p>
+            <p style="margin:2px 0 0;font-size:9pt;color:#666;">aspiredwebsites.com</p>
+        </div>
+        <div class="header__meta">
+            <strong>Receipt #{{ invoice.id|stringformat:"s"|slice:":8" }}</strong><br>
+            {{ paid_at|date:"F j, Y" }}<br>
+            {{ paid_at|date:"g:i A T" }}
+        </div>
+    </div>
+
+    <h1 class="receipt-title">Payment received</h1>
+    <p class="receipt-paid">${{ total_amount|floatformat:2 }} paid in full</p>
+
+    <div class="billing-block">
+        <div class="billing-block__col">
+            <div class="billing-block__label">Billed to</div>
+            <div class="billing-block__name">{{ client.firm_name }}</div>
+            {% if client.contact_name %}<div>{{ client.contact_name }}</div>{% endif %}
+            {% if client.user.email %}<div>{{ client.user.email }}</div>{% endif %}
+            {% if client.address %}<div style="white-space:pre-line;">{{ client.address }}</div>{% endif %}
+            {% if client.city or client.state %}
+                <div>{{ client.city }}{% if client.city and client.state %}, {% endif %}{{ client.state }} {{ client.zip_code }}</div>
+            {% endif %}
+        </div>
+        <div class="billing-block__col" style="text-align:right;">
+            <div class="billing-block__label">From</div>
+            <div class="billing-block__name">Aspired Websites LLC</div>
+            <div>8735 Dunwoody Place, Ste R</div>
+            <div>Atlanta, GA 30350, USA</div>
+            <div>zacherylong@aspiredwebsites.com</div>
+        </div>
+    </div>
+
+    <table class="lines">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th class="amt">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in line_items %}
+            <tr>
+                <td>{{ item.description }}</td>
+                <td class="amt">${{ item.amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total">
+                <td>Total paid</td>
+                <td class="amt">${{ total_amount|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <strong>Thank you for your business.</strong><br>
+        Payment processed securely via Stripe.<br>
+        Aspired Websites LLC · 8735 Dunwoody Place, Ste R · Atlanta, GA 30350 · USA<br>
+        Receipt generated {{ rendered_at|date:"F j, Y g:i A T" }}
+    </div>
+
+</body>
+</html>

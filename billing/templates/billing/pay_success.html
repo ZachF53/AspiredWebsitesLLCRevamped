@@ -1,0 +1,60 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Payment received — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card pay-card--success">
+
+        <div class="pay-success-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="48" height="48">
+                <circle cx="12" cy="12" r="11" fill="none" stroke="#0D9488" stroke-width="2"></circle>
+                <path d="M7 12.5l3.5 3.5L17 9.5" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+        </div>
+
+        <h1 class="pay-card__title pay-card__title--success">Payment received</h1>
+        <p class="pay-card__sub">
+            Thank you, {{ client.firm_name }}.<br>
+            A branded receipt is on its way to your email.
+        </p>
+
+        {% if setup_url %}
+            <p class="pay-success-cta-help">
+                Next, set up your account so we can get to work.
+            </p>
+            <a href="{{ setup_url }}" class="pay-submit pay-submit--success" style="display:inline-block;text-decoration:none;text-align:center;">
+                Set up my account →
+            </a>
+            <p class="pay-success-redirect">
+                You'll be redirected automatically in <span id="redirect-countdown">8</span> seconds.
+            </p>
+        {% else %}
+            <p class="pay-success-cta-help">
+                We'll be in touch within 1 business day with next steps.
+            </p>
+        {% endif %}
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+    {% if setup_url %}
+        {{ setup_url|json_script:"setup-url" }}
+        <script src="{% static 'js/payment_success.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    {% endif %}
+</body>
+</html>

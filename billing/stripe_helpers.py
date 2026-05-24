@@ -129,6 +129,60 @@ def cancel_maintenance_subscription(client):
     client.save(update_fields=['maintenance_active', 'updated_at'])
 
 
+def create_onboarding_payment_intent(*, email, name, line_items,
+                                     client_profile_id, invoice_id):
+    """
+    Create-or-reuse a Stripe Customer + a single PaymentIntent for the
+    new on-site onboarding payment flow.
+
+    Replaces `create_onboarding_invoice` (which used Stripe Invoices +
+    Stripe-hosted hosted-invoice pages). We DON'T create a Stripe
+    Invoice — the line items live on our OnboardingInvoice row and
+    render on our own payment page. Stripe just processes the card.
+
+    Settings:
+      - `payment_method_types=['card']` — card-only. No Apple Pay /
+        Google Pay / Link / Affirm / etc. (Per spec — wallets are
+        explicitly off.)
+      - `receipt_email` is intentionally NOT set — Stripe only sends
+        its built-in receipt when this is provided. We send our own
+        branded PDF receipt instead.
+      - `metadata.invoice_id` lets the webhook find the OnboardingInvoice
+        on `payment_intent.succeeded`.
+
+    Returns (customer, payment_intent).
+    """
+    _init()
+    customer = stripe.Customer.create(
+        email=email,
+        name=name,
+        metadata={
+            'source': 'aspired_websites',
+            'client_profile_id': str(client_profile_id),
+        },
+    )
+
+    total = sum(item['amount'] for item in line_items)
+    description_lines = ' · '.join(item['description'] for item in line_items)
+
+    payment_intent = stripe.PaymentIntent.create(
+        amount=_cents(total),
+        currency='usd',
+        customer=customer.id,
+        # Card-only — wallets explicitly off per spec.
+        payment_method_types=['card'],
+        # No `receipt_email` => no Stripe receipt; we send our own.
+        description=f'Aspired Websites — {description_lines}'[:1000],
+        metadata={
+            'source': 'aspired_websites',
+            'kind': 'onboarding',
+            'client_profile_id': str(client_profile_id),
+            'invoice_id': str(invoice_id),
+        },
+    )
+    return customer, payment_intent
+
+
 def create_onboarding_invoice(*, email, name, line_items, client_profile_id):
     """
     Create + finalize a single one-off Stripe invoice for the new admin

@@ -6,6 +6,7 @@ non-staff users). Lead data comes from outreach.Lead.
 
 import datetime
 import json
+import logging
 import re
 import uuid
 
@@ -34,6 +35,8 @@ from outreach.scraper import (
     scrape_google_maps_sync,
     scrape_texas_bar_sync,
 )
+
+logger = logging.getLogger(__name__)
 
 from .decorators import admin_required
 from .forms import (
@@ -5144,13 +5147,11 @@ def _billing_hosting():
 
 @admin_required
 def billing_list(request):
-    """List every admin-created onboarding invoice + its onboarding state."""
-    from clients.models import ClientProfile
+    """List every OnboardingInvoice + its onboarding state."""
+    from clients.models import OnboardingInvoice
     qs = (
-        ClientProfile.objects
-        .exclude(stripe_invoice_id='')
-        .select_related('user')
-        .prefetch_related('onboarding_token')
+        OnboardingInvoice.objects
+        .select_related('client', 'client__user', 'client__onboarding_token')
         .order_by('-created_at')
     )
     return render(
@@ -5169,11 +5170,15 @@ def new_invoice(request):
     from django.contrib.auth import get_user_model
     from django.db import transaction
 
+    from decimal import Decimal as _Decimal
+
     from billing.stripe_helpers import (
-        StripeNotConfigured, create_onboarding_invoice,
+        StripeNotConfigured, create_onboarding_payment_intent,
     )
-    from clients.emails import send_onboarding_setup_email
-    from clients.models import ClientProfile, OnboardingToken
+    from clients.emails import send_invoice_email
+    from clients.models import (
+        ClientProfile, OnboardingInvoice, OnboardingToken,
+    )
 
     packages = _billing_packages()
     maintenance_plans = _billing_maintenance_plans()
@@ -5273,12 +5278,17 @@ def new_invoice(request):
 
         User = get_user_model()
 
-        # ── Single transaction for the DB-side records; Stripe is
-        #    called inside, so a Stripe failure rolls back our shell. ──
+        # Total — used both to create the PaymentIntent + the
+        # OnboardingInvoice snapshot.
+        total = sum((_Decimal(item['amount']) for item in line_items),
+                    _Decimal('0'))
+
+        # ── Single transaction; Stripe is called inside so a Stripe
+        #    failure rolls back the half-built client. ──
         try:
             with transaction.atomic():
-                # Create Django user (inactive — webhook activates on
-                # payment, or the setup-page POST in Part 4).
+                # Inactive user — activated when they consume the
+                # setup token after payment.
                 user, _created = User.objects.get_or_create(
                     username=email,
                     defaults={
@@ -5312,21 +5322,48 @@ def new_invoice(request):
                     internal_notes=notes,
                 )
 
-                customer, invoice = create_onboarding_invoice(
-                    email=email,
-                    name=display_name,
-                    line_items=line_items,
-                    client_profile_id=profile.id,
+                # OnboardingInvoice row (snapshot of what's being
+                # billed — line items render on our /pay/ page and
+                # on the PDF receipt).
+                invoice = OnboardingInvoice.objects.create(
+                    client=profile,
+                    line_items=[
+                        {'description': it['description'],
+                         'amount': str(it['amount'])}
+                        for it in line_items
+                    ],
+                    total_amount=total,
+                    status='draft',
                 )
+
+                # PaymentIntent (card-only, no Stripe receipt — our
+                # own branded receipt fires from the webhook).
+                customer, payment_intent = (
+                    create_onboarding_payment_intent(
+                        email=email,
+                        name=display_name,
+                        line_items=line_items,
+                        client_profile_id=profile.id,
+                        invoice_id=invoice.id,
+                    ))
                 profile.stripe_customer_id = customer.id
-                profile.stripe_invoice_id = invoice.id
                 profile.save(update_fields=[
-                    'stripe_customer_id', 'stripe_invoice_id',
-                    'updated_at',
+                    'stripe_customer_id', 'updated_at'])
+
+                invoice.stripe_payment_intent_id = payment_intent.id
+                invoice.stripe_client_secret = (
+                    payment_intent.client_secret or '')
+                invoice.status = 'sent'
+                invoice.sent_at = timezone.now()
+                invoice.save(update_fields=[
+                    'stripe_payment_intent_id',
+                    'stripe_client_secret',
+                    'status', 'sent_at', 'updated_at',
                 ])
 
-                # OnboardingToken is created up-front so the setup-link
-                # email can be sent the moment payment lands.
+                # OnboardingToken is created up-front so the setup
+                # link is ready the moment payment.intent.succeeded
+                # webhook fires.
                 OnboardingToken.objects.create(client=profile)
         except StripeNotConfigured:
             _msg.error(
@@ -5337,22 +5374,22 @@ def new_invoice(request):
         except Exception as exc:  # noqa: BLE001
             _msg.error(
                 request,
-                f'Stripe rejected the invoice: {exc}. '
+                f'Stripe rejected the request: {exc}. '
                 'Nothing was saved.')
             return redirect('admin_dashboard:new_invoice')
 
-        # Setup-link email is sent now too — useful for the admin to
-        # forward manually if the Stripe receipt gets caught in spam.
-        # The webhook will RE-send only if it was never sent (Part 3).
+        # Send the branded invoice email — points to our /pay/<token>/
+        # page. NO setup link yet — that's sent post-payment.
         try:
-            send_onboarding_setup_email(
-                profile, profile.onboarding_token)
+            send_invoice_email(invoice)
         except Exception:
-            pass
+            logger.exception(
+                'Invoice email send failed for %s', profile.pk)
 
         _msg.success(
             request,
-            f'Invoice created and sent to {email}. Setup link emailed.')
+            f'Invoice created and sent to {email}. '
+            f'Pay URL: {invoice.get_pay_url()}')
         return redirect(
             'admin_dashboard:invoice_detail',
             invoice_id=profile.id)
@@ -5373,22 +5410,13 @@ def new_invoice(request):
 @admin_required
 def invoice_detail(request, invoice_id):
     """Per-invoice admin page: status, onboarding state, resend actions."""
-    from clients.models import ClientProfile, OnboardingToken
+    from clients.models import (
+        ClientProfile, OnboardingInvoice, OnboardingToken,
+    )
     profile = get_object_or_404(
         ClientProfile.objects.select_related('user'), id=invoice_id)
     token = OnboardingToken.objects.filter(client=profile).first()
-
-    # Live Stripe status — read-only fetch, gracefully degrade if Stripe
-    # is down or unconfigured.
-    stripe_invoice = None
-    if profile.stripe_invoice_id:
-        try:
-            import stripe
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            stripe_invoice = stripe.Invoice.retrieve(
-                profile.stripe_invoice_id)
-        except Exception:
-            stripe_invoice = None
+    invoice = OnboardingInvoice.objects.filter(client=profile).first()
 
     return render(
         request,
@@ -5397,7 +5425,7 @@ def invoice_detail(request, invoice_id):
             active='billing',
             profile=profile,
             token=token,
-            stripe_invoice=stripe_invoice,
+            invoice=invoice,
         ),
     )
 
@@ -5430,24 +5458,29 @@ def invoice_resend_setup(request, invoice_id):
 
 @admin_required
 @require_POST
-def invoice_resend_stripe(request, invoice_id):
-    """Trigger a fresh Stripe email of the hosted invoice link."""
+def invoice_resend(request, invoice_id):
+    """Resend the branded invoice email — points to our /pay/ page."""
     from django.contrib import messages as _msg
 
-    from clients.models import ClientProfile
+    from clients.emails import send_invoice_email
+    from clients.models import ClientProfile, OnboardingInvoice
 
     profile = get_object_or_404(ClientProfile, id=invoice_id)
-    if not profile.stripe_invoice_id:
-        _msg.error(request, 'No Stripe invoice on file.')
+    invoice = OnboardingInvoice.objects.filter(client=profile).first()
+    if invoice is None:
+        _msg.error(request, 'No invoice on file for this client.')
+        return redirect(
+            'admin_dashboard:invoice_detail', invoice_id=profile.id)
+    if invoice.status == 'paid':
+        _msg.warning(
+            request, 'Invoice is already paid — nothing to resend.')
         return redirect(
             'admin_dashboard:invoice_detail', invoice_id=profile.id)
     try:
-        import stripe
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        stripe.Invoice.send_invoice(profile.stripe_invoice_id)
-        _msg.success(request, 'Invoice resent via Stripe.')
+        send_invoice_email(invoice)
+        _msg.success(request, 'Invoice email resent.')
     except Exception as exc:  # noqa: BLE001
-        _msg.error(request, f'Stripe error: {exc}')
+        _msg.error(request, f'Email send failed: {exc}')
     return redirect(
         'admin_dashboard:invoice_detail', invoice_id=profile.id)
 
@@ -5485,3 +5518,123 @@ def invoice_send_intake_reminder(request, invoice_id):
         _msg.error(request, f'Could not send: {exc}')
     return redirect(
         'admin_dashboard:invoice_detail', invoice_id=profile.id)
+
+
+@admin_required
+def send_onboarding(request):
+    """
+    SKIP-INVOICE onboarding flow — create a client + immediately mark
+    the invoice paid + email the setup link.
+
+    Useful for clients who paid offline, comped clients, or anyone who
+    shouldn't see the pay-this-invoice gate. Behind the scenes we still
+    mint a zero-amount, status=paid OnboardingInvoice so the downstream
+    gate logic is satisfied uniformly.
+    """
+    from decimal import Decimal as _Decimal
+
+    from django.contrib import messages as _msg
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+
+    from clients.emails import send_onboarding_setup_email
+    from clients.models import (
+        ClientProfile, OnboardingInvoice, OnboardingToken,
+    )
+
+    if request.method == 'POST':
+        first = (request.POST.get('first_name') or '').strip()
+        last = (request.POST.get('last_name') or '').strip()
+        firm_name = (request.POST.get('firm_name') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        phone = (request.POST.get('phone') or '').strip()
+        city = (request.POST.get('city') or '').strip()
+        state = (request.POST.get('state') or '').strip()
+        notes = (request.POST.get('internal_notes') or '').strip()
+
+        errors = []
+        if not email or '@' not in email:
+            errors.append('A valid email is required.')
+        if not firm_name and not (first or last):
+            errors.append(
+                'Enter a firm name or at least a first/last name.')
+
+        if errors:
+            for e in errors:
+                _msg.error(request, e)
+            return render(
+                request,
+                'admin_dashboard/billing_send_onboarding.html',
+                _admin_context(
+                    active='billing', form_data=request.POST),
+            )
+
+        User = get_user_model()
+        try:
+            with transaction.atomic():
+                user, _created = User.objects.get_or_create(
+                    username=email,
+                    defaults={
+                        'email': email,
+                        'first_name': first,
+                        'last_name': last,
+                        'is_active': False,
+                    },
+                )
+                user.set_unusable_password()
+                if not user.email:
+                    user.email = email
+                user.save()
+
+                display_name = (
+                    firm_name or f'{first} {last}'.strip()
+                    or email.split('@')[0])
+
+                profile = ClientProfile.objects.create(
+                    user=user,
+                    firm_name=display_name,
+                    contact_name=f'{first} {last}'.strip(),
+                    phone=phone,
+                    city=city,
+                    state=state,
+                    status='active',
+                    onboarding_status='pending_setup',
+                    onboarding_complete=False,
+                    maintenance_active=False,
+                    internal_notes=notes,
+                )
+
+                # Zero-amount paid invoice so the downstream gate
+                # treats this client identically to a paid client.
+                OnboardingInvoice.objects.create(
+                    client=profile,
+                    line_items=[],
+                    total_amount=_Decimal('0'),
+                    status='paid',
+                    sent_at=timezone.now(),
+                    paid_at=timezone.now(),
+                )
+
+                token = OnboardingToken.objects.create(client=profile)
+        except Exception as exc:  # noqa: BLE001
+            _msg.error(request, f'Could not create client: {exc}')
+            return redirect('admin_dashboard:send_onboarding')
+
+        # Branded setup email — the only email this flow produces.
+        try:
+            send_onboarding_setup_email(profile, token)
+        except Exception:
+            logger.exception(
+                'Setup email send failed for %s', profile.pk)
+
+        _msg.success(
+            request,
+            f'Onboarding link sent to {email}. No invoice required.')
+        return redirect(
+            'admin_dashboard:invoice_detail', invoice_id=profile.id)
+
+    return render(
+        request,
+        'admin_dashboard/billing_send_onboarding.html',
+        _admin_context(active='billing', form_data={}),
+    )

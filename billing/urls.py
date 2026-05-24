@@ -1,4 +1,11 @@
-"""Billing URL routes (mounted at /billing/)."""
+"""
+Billing URL routes (mounted at /billing/).
+
+The public payment pages (`/pay/<token>/` and `/pay/<token>/success/`)
+are wired directly in the project root urls.py — they live at the root
+so the URLs are short and friendly to email recipients. See
+`billing.views.pay_invoice` / `pay_success`.
+"""
 
 from django.urls import path
 

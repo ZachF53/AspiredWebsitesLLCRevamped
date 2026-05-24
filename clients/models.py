@@ -1307,3 +1307,82 @@ class OnboardingToken(TimestampedModel):
     def __str__(self):
         state = 'Used' if self.used else 'Pending'
         return f'{self.client.firm_name} — {state}'
+
+
+# ── Onboarding invoice ─────────────────────────────────────────────────────
+
+class OnboardingInvoice(TimestampedModel):
+    """
+    One-off invoice the admin generates at the start of a new engagement
+    (build fee + optional first-month maintenance + optional hosting).
+
+    Replaces the old "create a Stripe Invoice and let Stripe send the email"
+    flow. Now the client lands on aspiredwebsites.com/pay/<payment_token>/
+    where they pay via Stripe Elements on our own page. Stripe handles
+    card processing but the entire UX is on our domain.
+
+    Line items + total are snapshotted on creation so the payment page
+    can render them deterministically (the Stripe PaymentIntent itself
+    doesn't carry line items).
+    """
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('paid', 'Paid'),
+        ('canceled', 'Canceled'),
+    ]
+
+    # 1:1 with ClientProfile — at most one onboarding invoice per client.
+    # Follow-on / out-of-scope invoices use the existing MiniInvoice model.
+    client = models.OneToOneField(
+        ClientProfile,
+        on_delete=models.CASCADE,
+        related_name='onboarding_invoice',
+    )
+
+    # Snapshot of what's being billed — list of
+    # `[{"description": "...", "amount": "2500.00"}]` rendered on the
+    # payment page and the receipt PDF.
+    line_items = models.JSONField(default=list)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # ── Stripe references ──
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
+    stripe_client_secret = models.CharField(max_length=255, blank=True)
+
+    # Public payment-page token. UUID is unguessable enough that the URL
+    # `/pay/<token>/` is safe to embed in the invoice email without
+    # additional auth.
+    payment_token = models.UUIDField(
+        default=uuid.uuid4, unique=True, db_index=True,
+    )
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='draft',
+    )
+
+    sent_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Branded receipt PDF (generated after payment) ──
+    # Relative to MEDIA_ROOT — same pattern as monthly reports and
+    # contract PDFs. Falls back to .html on Windows dev.
+    receipt_pdf_path = models.CharField(max_length=500, blank=True)
+    receipt_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Onboarding Invoice'
+        verbose_name_plural = 'Onboarding Invoices'
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'${self.total_amount:,.2f} ({self.status})')
+
+    def get_pay_url(self):
+        """Absolute URL of the public payment page."""
+        base = getattr(
+            settings, 'SITE_BASE_URL',
+            'https://aspiredwebsites.com').rstrip('/')
+        return f'{base}/pay/{self.payment_token}/'

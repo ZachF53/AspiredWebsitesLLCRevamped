@@ -10989,3 +10989,165 @@ button.htmx-request {
     .setup-title { font-size: 24px; }
     .setup-pin-box { width: 48px; height: 48px; font-size: 22px; }
 }
+
+
+/* ──────────────────────────────────────────────────────────────────
+   Public payment page — /pay/<token>/  +  /pay/<token>/success/
+   Standalone (no portal nav), dark theme. Mirrors .setup-* but
+   prefixed `.pay-*` so the two pages stay independently style-able.
+   ────────────────────────────────────────────────────────────────── */
+.pay-body {
+    background: #070614;
+    color: #F8FAFC;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.pay-logo {
+    margin-bottom: 28px;
+    text-align: center;
+}
+.pay-logo img { height: 44px; width: auto; }
+.pay-card {
+    background: #0F172A;
+    border: 1px solid #1E293B;
+    border-radius: 16px;
+    padding: 40px 40px 36px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+.pay-card--info, .pay-card--success { text-align: center; }
+.pay-card__head { margin-bottom: 24px; }
+.pay-card__eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #E8650A;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+}
+.pay-card__title {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: #F8FAFC;
+    letter-spacing: -0.02em;
+}
+.pay-card__title--success {
+    font-size: 24px;
+    margin: 12px 0 12px;
+}
+.pay-card__sub {
+    color: #94A3B8;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.pay-lines {
+    width: 100%;
+    margin: 0 0 24px;
+    border-collapse: collapse;
+    color: #F8FAFC;
+    font-size: 14px;
+}
+.pay-lines td {
+    padding: 10px 0;
+    border-bottom: 1px solid #1E293B;
+}
+.pay-lines__desc {
+    color: #94A3B8;
+}
+.pay-lines__amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #F8FAFC;
+}
+.pay-lines__total td {
+    border-bottom: none;
+    padding-top: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+.pay-lines__total .pay-lines__desc { color: #F8FAFC; }
+
+.pay-form-wrap {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #1E293B;
+}
+#payment-element { margin-bottom: 16px; }
+.pay-message {
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+.pay-message--error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #FCA5A5;
+}
+.pay-submit {
+    display: block;
+    width: 100%;
+    background: #E8650A;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.pay-submit:hover:not(:disabled) { background: #d4580a; }
+.pay-submit:disabled { opacity: 0.7; cursor: wait; }
+.pay-submit--success { background: #0D9488; margin-top: 8px; }
+.pay-submit--success:hover:not(:disabled) { background: #0B7E73; }
+
+.pay-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #FFFFFF;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: paySpin 0.7s linear infinite;
+}
+@keyframes paySpin { to { transform: rotate(360deg); } }
+
+.pay-secure {
+    color: #64748B;
+    font-size: 11px;
+    text-align: center;
+    margin: 14px 0 0;
+}
+.pay-footer {
+    margin-top: 24px;
+    color: #64748B;
+    font-size: 12px;
+    text-align: center;
+}
+.pay-footer a { color: #E8650A; text-decoration: none; }
+
+.pay-success-mark { margin: 0 auto 16px; line-height: 0; }
+.pay-success-cta-help { color: #94A3B8; font-size: 14px; margin: 14px 0 12px; }
+.pay-success-redirect {
+    margin: 14px 0 0;
+    font-size: 12px;
+    color: #64748B;
+}
+
+@media (max-width: 560px) {
+    .pay-card { padding: 28px 22px 26px; }
+    .pay-card__title { font-size: 30px; }
+}

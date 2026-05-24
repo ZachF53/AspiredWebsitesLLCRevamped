@@ -1,0 +1,74 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Send Onboarding — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:billing_list' %}" class="admin-back-link">&larr; All invoices</a>
+            </span>
+            <h1 class="admin-page-title">Send Onboarding (skip invoice)</h1>
+            <p class="muted">
+                For clients who paid offline, comped clients, or anyone who shouldn't see the pay-this-invoice gate. Sends the branded setup-link email directly. No charge, no invoice.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}<div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% endif %}
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Client info</h2>
+            <div class="form-grid form-grid--2col">
+                <label class="form-row">
+                    <span class="form-label">First name</span>
+                    <input class="form-control" type="text" name="first_name" value="{{ form_data.first_name|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Last name</span>
+                    <input class="form-control" type="text" name="last_name" value="{{ form_data.last_name|default:'' }}">
+                </label>
+                <label class="form-row form-row--full">
+                    <span class="form-label">Firm / Business name</span>
+                    <input class="form-control" type="text" name="firm_name" value="{{ form_data.firm_name|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Email <span class="form-required">*</span></span>
+                    <input class="form-control" type="email" name="email" value="{{ form_data.email|default:'' }}" required>
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Phone</span>
+                    <input class="form-control" type="tel" name="phone" value="{{ form_data.phone|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">City</span>
+                    <input class="form-control" type="text" name="city" value="{{ form_data.city|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">State</span>
+                    <input class="form-control" type="text" name="state" value="{{ form_data.state|default:'' }}">
+                </label>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Internal notes</h2>
+            <label class="form-row form-row--full">
+                <span class="form-label">Notes (never shown to client)</span>
+                <textarea class="form-control" name="internal_notes" rows="3">{{ form_data.internal_notes|default:'' }}</textarea>
+            </label>
+        </div>
+
+        <div class="admin-form-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:billing_list' %}">Cancel</a>
+            <button type="submit" class="btn-primary">Send Onboarding Link</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

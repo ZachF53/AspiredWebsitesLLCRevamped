@@ -1,0 +1,28 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Invoice canceled — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card pay-card--info">
+        <h1 class="pay-card__title">This invoice has been canceled.</h1>
+        <p class="pay-card__sub">
+            If you think this is a mistake, please reach out and we'll send a fresh invoice.
+        </p>
+        <a href="mailto:zacherylong@aspiredwebsites.com" class="pay-submit pay-submit--success" style="display:inline-block;text-decoration:none;text-align:center;">
+            Contact us →
+        </a>
+    </div>
+
+</body>
+</html>

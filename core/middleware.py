@@ -44,6 +44,27 @@ CSP_TERMINAL = (
     "object-src 'none'"
 )
 
+# Payment page CSP — public /pay/<token>/ page. Loads Stripe.js from
+# js.stripe.com and the embedded Payment Element iframe runs on
+# js.stripe.com. We also need to allow Stripe to phone home to
+# api.stripe.com for the payment confirmation and 3DS redirects.
+# Per spec the wallets are off, so Apple/Google/Link payment hooks are
+# not enabled — but the Element still iframes a hooks subdomain for
+# its own UI so we permit the broader stripe.com space.
+CSP_PAYMENT = (
+    "default-src 'self'; "
+    "script-src 'self' https://js.stripe.com; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: https:; "
+    "font-src 'self' data:; "
+    "connect-src 'self' https://api.stripe.com; "
+    "frame-src https://js.stripe.com https://hooks.stripe.com; "
+    "frame-ancestors 'none'; "
+    "form-action 'self' https://js.stripe.com; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
 # Recording-replay CSP — admin + portal session-replay pages. The rrweb
 # Replayer mounts an iframe and reconstructs the captured client-site DOM
 # inside it; that iframe inherits the parent CSP, so we must allow whatever
@@ -122,6 +143,10 @@ class SecurityHeadersMiddleware:
         elif (path.startswith('/admin-dashboard/vault/')
               and path.endswith('/terminal/')):
             response['Content-Security-Policy'] = CSP_TERMINAL
+        elif path.startswith('/pay/'):
+            # Public payment page + success page. Allows Stripe.js,
+            # the Stripe Element iframe, and api.stripe.com calls.
+            response['Content-Security-Policy'] = CSP_PAYMENT
         elif '/recordings/' in path and path.endswith('/replay/'):
             # Matches both admin (/admin-dashboard/clients/<id>/recordings/
             # <rec>/replay/) and client portal (/portal/recordings/<rec>/

@@ -28,42 +28,63 @@
     <div class="admin-grid admin-grid--2col">
 
         <div class="admin-card">
-            <h2 class="admin-card__title">Stripe Invoice</h2>
-            <dl class="admin-dl">
-                <dt>Package</dt><dd>{{ profile.get_package_display|default:"Custom build" }}</dd>
-                <dt>Stripe Invoice ID</dt><dd>{{ profile.stripe_invoice_id|default:"—" }}</dd>
-                <dt>Stripe status</dt>
-                <dd>
-                    {% if stripe_invoice %}
-                        {% with s=stripe_invoice.status %}
-                            {% if s == 'paid' %}
-                                <span class="status-badge" style="background:#10b98122;color:#10b981;">Paid</span>
-                            {% elif s == 'open' %}
-                                <span class="status-badge" style="background:#3b82f622;color:#3b82f6;">Open (sent, awaiting pay)</span>
-                            {% elif s == 'draft' %}
-                                <span class="status-badge">Draft</span>
-                            {% elif s == 'void' or s == 'uncollectible' %}
-                                <span class="status-badge" style="background:#ef444422;color:#ef4444;">{{ s|title }}</span>
-                            {% else %}
-                                <span class="status-badge">{{ s|title }}</span>
-                            {% endif %}
-                        {% endwith %}
-                    {% else %}
-                        <span class="muted">Could not fetch live status</span>
+            <h2 class="admin-card__title">Invoice</h2>
+            {% if invoice %}
+                <dl class="admin-dl">
+                    <dt>Amount</dt>
+                    <dd>
+                        {% if invoice.total_amount %}
+                            ${{ invoice.total_amount|floatformat:2 }}
+                        {% else %}
+                            <span class="muted">—</span> (skip-invoice flow)
+                        {% endif %}
+                    </dd>
+                    <dt>Status</dt>
+                    <dd>
+                        {% if invoice.status == 'paid' %}
+                            <span class="status-badge" style="background:#10b98122;color:#10b981;">Paid</span>
+                            {% if invoice.paid_at %}<span class="muted">· {{ invoice.paid_at|date:"M j, Y" }}</span>{% endif %}
+                        {% elif invoice.status == 'sent' %}
+                            <span class="status-badge" style="background:#3b82f622;color:#3b82f6;">Sent</span>
+                            {% if invoice.sent_at %}<span class="muted">· {{ invoice.sent_at|date:"M j, Y" }}</span>{% endif %}
+                        {% elif invoice.status == 'draft' %}
+                            <span class="status-badge">Draft</span>
+                        {% elif invoice.status == 'canceled' %}
+                            <span class="status-badge" style="background:#ef444422;color:#ef4444;">Canceled</span>
+                        {% endif %}
+                    </dd>
+                    {% if invoice.total_amount %}
+                        <dt>Payment link</dt>
+                        <dd>
+                            <input class="form-control" type="text" readonly value="{{ invoice.get_pay_url }}" onclick="this.select();" style="font-family:monospace;font-size:12px;">
+                        </dd>
                     {% endif %}
-                </dd>
-                {% if stripe_invoice and stripe_invoice.hosted_invoice_url %}
-                    <dt>Hosted invoice</dt>
-                    <dd><a href="{{ stripe_invoice.hosted_invoice_url }}" target="_blank" rel="noopener">Open in Stripe &rarr;</a></dd>
+                    {% if invoice.line_items %}
+                        <dt>Line items</dt>
+                        <dd>
+                            <ul style="list-style:none;padding:0;margin:0;">
+                                {% for item in invoice.line_items %}
+                                    <li style="padding:4px 0;border-bottom:1px solid var(--color-border);">
+                                        {{ item.description }} — <strong>${{ item.amount }}</strong>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </dd>
+                    {% endif %}
+                    {% if invoice.stripe_payment_intent_id %}
+                        <dt>Stripe PaymentIntent</dt>
+                        <dd style="font-family:monospace;font-size:12px;">{{ invoice.stripe_payment_intent_id }}</dd>
+                    {% endif %}
+                </dl>
+                {% if invoice.status != 'paid' and invoice.total_amount %}
+                    <form method="post" action="{% url 'admin_dashboard:invoice_resend' profile.id %}" style="margin-top:12px;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Resend Invoice Email</button>
+                    </form>
                 {% endif %}
-                {% if stripe_invoice and stripe_invoice.amount_paid %}
-                    <dt>Paid</dt><dd>${{ stripe_invoice.amount_paid|floatformat:2 }} ({{ stripe_invoice.amount_paid|stringformat:"s" }} cents)</dd>
-                {% endif %}
-            </dl>
-            <form method="post" action="{% url 'admin_dashboard:invoice_resend_stripe' profile.id %}" style="margin-top:12px;">
-                {% csrf_token %}
-                <button type="submit" class="btn-secondary btn-sm">Resend Invoice via Stripe</button>
-            </form>
+            {% else %}
+                <p class="muted">No invoice on file.</p>
+            {% endif %}
         </div>
 
         <div class="admin-card">

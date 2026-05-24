@@ -230,15 +230,17 @@ urlpatterns = [
          views.intelligence_run_for_client,
          name='intelligence_run_for_client'),
 
-    # Billing — admin-created onboarding invoices (Part 2)
+    # Billing — admin-created onboarding invoices.
     path('billing/', views.billing_list, name='billing_list'),
     path('billing/new-invoice/', views.new_invoice, name='new_invoice'),
+    path('billing/send-onboarding/',
+         views.send_onboarding, name='send_onboarding'),
     path('billing/invoice/<uuid:invoice_id>/',
          views.invoice_detail, name='invoice_detail'),
     path('billing/invoice/<uuid:invoice_id>/resend-setup/',
          views.invoice_resend_setup, name='invoice_resend_setup'),
-    path('billing/invoice/<uuid:invoice_id>/resend-stripe/',
-         views.invoice_resend_stripe, name='invoice_resend_stripe'),
+    path('billing/invoice/<uuid:invoice_id>/resend/',
+         views.invoice_resend, name='invoice_resend'),
     path('billing/invoice/<uuid:invoice_id>/remind-intake/',
          views.invoice_send_intake_reminder,
          name='invoice_send_intake_reminder'),

@@ -4,6 +4,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from billing.views import pay_invoice, pay_success
 from clients.views import (
     intelligence_approve, intelligence_decline, onboarding_setup,
     proposal_view_tracking, referral_click,
@@ -17,6 +18,13 @@ urlpatterns = [
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
     path('portal/', include('clients.urls')),
     path('billing/', include('billing.urls')),
+
+    # Public payment pages — token-gated, no auth required. Mounted at
+    # the root so URLs read /pay/<token>/ instead of
+    # /billing/pay/<token>/ (shorter, friendlier to paste into email).
+    path('pay/<uuid:token>/', pay_invoice, name='pay_invoice'),
+    path('pay/<uuid:token>/success/',
+         pay_success, name='pay_success'),
     path('maintenance/', include('sync.maintenance_urls')),
     path('api/sync/', include('sync.urls')),
     path('api/', include('reporting.urls')),

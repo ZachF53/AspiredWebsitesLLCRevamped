@@ -40,7 +40,9 @@ def stripe_webhook(request):
 
     event_type = event.get('type', '')
     try:
-        if event_type == 'invoice.paid':
+        if event_type == 'payment_intent.succeeded':
+            _handle_payment_intent_succeeded(event)
+        elif event_type == 'invoice.paid':
             _handle_invoice_paid(event)
         elif event_type == 'invoice.payment_failed':
             _handle_invoice_payment_failed(event)
@@ -51,6 +53,77 @@ def stripe_webhook(request):
     except Exception:
         logger.exception('Stripe webhook handler error for %s', event_type)
     return HttpResponse(status=200)
+
+
+# ── payment_intent.succeeded ────────────────────────────────────────────────
+
+def _handle_payment_intent_succeeded(event):
+    """
+    Fires when the client successfully pays the onboarding invoice via
+    Stripe Elements on our /pay/<token>/ page.
+
+    Finds the OnboardingInvoice by `metadata.invoice_id`, marks it paid,
+    runs the same downstream onboarding flow that the legacy Stripe
+    Invoice path used (activate user, create Project, send setup link),
+    and queues the branded PDF receipt.
+    """
+    from clients.models import OnboardingInvoice
+
+    pi = event['data']['object']
+    metadata = pi.get('metadata') or {}
+    if metadata.get('kind') != 'onboarding':
+        # Some other PaymentIntent — ignore. Subscription PIs, etc.
+        logger.info(
+            'payment_intent.succeeded: skipped (kind=%s, pi=%s)',
+            metadata.get('kind'), pi.get('id'))
+        return
+
+    invoice_id = metadata.get('invoice_id')
+    invoice = OnboardingInvoice.objects.filter(id=invoice_id).first()
+    if invoice is None:
+        logger.warning(
+            'payment_intent.succeeded: no OnboardingInvoice for pi=%s '
+            '(invoice_id=%s)',
+            pi.get('id'), invoice_id)
+        return
+
+    if invoice.status == 'paid':
+        # Already processed — idempotent re-delivery from Stripe.
+        return
+
+    invoice.status = 'paid'
+    invoice.paid_at = timezone.now()
+    if not invoice.stripe_payment_intent_id:
+        invoice.stripe_payment_intent_id = pi.get('id', '')
+    invoice.save(update_fields=[
+        'status', 'paid_at', 'stripe_payment_intent_id', 'updated_at',
+    ])
+
+    client = invoice.client
+    _on_onboarding_invoice_paid(client)
+
+    # Generate the branded receipt PDF + email it. Best-effort; the
+    # invoice row already records the payment, so receipt issues don't
+    # block onboarding.
+    try:
+        from billing.receipt_pdf import generate_invoice_receipt_pdf
+        generate_invoice_receipt_pdf(invoice)
+    except Exception:
+        logger.exception(
+            'receipt PDF generation failed for invoice %s', invoice.pk)
+
+    try:
+        from clients.emails import send_invoice_receipt_email
+        send_invoice_receipt_email(invoice)
+        invoice.receipt_sent_at = timezone.now()
+        invoice.save(update_fields=['receipt_sent_at', 'updated_at'])
+    except Exception:
+        logger.exception(
+            'receipt email failed for invoice %s', invoice.pk)
+
+    logger.info(
+        'payment_intent.succeeded: OnboardingInvoice %s paid '
+        '(client=%s)', invoice.pk, client.pk)
 
 
 def _verify_event(payload, sig_header):
