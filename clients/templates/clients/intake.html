@@ -258,11 +258,13 @@
     </div>
 </form>
 
-{# Final-submit form — separate from the wizard auto-save form so
-   POSTs go to the intake view (which marks intake.completed=True)
-   rather than to intake_save (the HTMX partial endpoint).
-   JS shows this only on step 6 + only when no required fields are
-   missing across all steps. #}
+{% comment %}
+    Final-submit form — separate from the wizard auto-save form so
+    POSTs go to the intake view (which marks intake.completed=True)
+    rather than to intake_save (the HTMX partial endpoint). JS shows
+    this only on step 6 + only when no required fields are missing
+    across all steps.
+{% endcomment %}
 <form class="intake-final-submit" method="post" action="{% url 'clients:intake' %}"
       data-wizard-submit-form style="display:none;">
     {% csrf_token %}
