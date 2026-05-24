@@ -1801,33 +1801,46 @@ def portal_suggestions(request):
 # ── Portal subscriptions + payment methods ─────────────────────────────────
 
 def _subscription_card(stripe_sub):
-    """Normalise a Stripe Subscription into a flat dict for the template."""
+    """Normalise a Stripe Subscription into a flat dict for the template.
+
+    Stripe Python v8+ removed dict-like .get() on StripeObject — every
+    field is attribute-only. Wrap each access with getattr+default so a
+    missing or unexpanded field doesn't 500 the page."""
     if stripe_sub is None:
         return None
-    items = (stripe_sub.get('items') or {}).get('data') or []
-    price = items[0].get('price') if items else None
-    amount = (price.get('unit_amount') or 0) / 100 if price else 0
-    interval = ((price or {}).get('recurring') or {}).get('interval', '')
+
+    items_obj = getattr(stripe_sub, 'items', None)
+    items_data = list(items_obj.data) if (
+        items_obj is not None and hasattr(items_obj, 'data')) else []
+    price = items_data[0].price if items_data else None
+
+    amount = (getattr(price, 'unit_amount', 0) or 0) / 100 if price else 0
+    recurring = getattr(price, 'recurring', None) if price else None
+    interval = getattr(recurring, 'interval', '') if recurring else ''
+
     product_name = ''
-    if price and price.get('product'):
-        # The product may be a string ID; resolve via API.
+    product_ref = getattr(price, 'product', None) if price else None
+    if product_ref:
         try:
             import stripe as _stripe
             from django.conf import settings as _s
             _stripe.api_key = _s.STRIPE_SECRET_KEY
-            prod = _stripe.Product.retrieve(price.get('product'))
-            product_name = prod.get('name', '')
+            prod = _stripe.Product.retrieve(product_ref)
+            product_name = getattr(prod, 'name', '') or ''
         except Exception:
             pass
+
     return {
-        'id': stripe_sub.get('id'),
-        'status': stripe_sub.get('status'),
+        'id': getattr(stripe_sub, 'id', ''),
+        'status': getattr(stripe_sub, 'status', ''),
         'amount': amount,
         'interval': interval,
         'product_name': product_name,
-        'cancel_at_period_end': stripe_sub.get('cancel_at_period_end'),
-        'current_period_end': stripe_sub.get('current_period_end'),
-        'trial_end': stripe_sub.get('trial_end'),
+        'cancel_at_period_end': getattr(
+            stripe_sub, 'cancel_at_period_end', False),
+        'current_period_end': getattr(
+            stripe_sub, 'current_period_end', None),
+        'trial_end': getattr(stripe_sub, 'trial_end', None),
     }
 
 
@@ -1862,7 +1875,7 @@ def portal_subscriptions(request):
                 continue
             try:
                 sub = _stripe.Subscription.retrieve(sub_id)
-                if sub.get('status') in (
+                if getattr(sub, 'status', '') in (
                         'active', 'trialing', 'past_due', 'unpaid'):
                     subscriptions.append(_subscription_card(sub))
             except Exception:

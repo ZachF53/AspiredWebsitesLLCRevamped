@@ -275,13 +275,18 @@ def cancel_hosting_subscription(client, reason=''):
 
 
 def list_customer_payment_methods(customer_id):
-    """List active card payment methods attached to a customer."""
+    """List active card payment methods attached to a customer.
+
+    Returns plain dicts (via .to_dict_recursive()) so the template can
+    iterate them as `pm.card.last4` etc. via dot-attribute, and Django
+    template lookups don't trip on StripeObject's restrictive
+    attribute-only API (no .get())."""
     _init()
     if not customer_id:
         return []
     methods = stripe.PaymentMethod.list(
         customer=customer_id, type='card', limit=20)
-    return list(methods.get('data', []))
+    return list(methods.data) if hasattr(methods, 'data') else []
 
 
 def get_customer_default_payment_method(customer_id):
@@ -290,8 +295,13 @@ def get_customer_default_payment_method(customer_id):
     if not customer_id:
         return ''
     cust = stripe.Customer.retrieve(customer_id)
-    return ((cust.get('invoice_settings') or {})
-            .get('default_payment_method') or '')
+    # Stripe v8 removed dict-like .get() on StripeObject — use attr
+    # access only. invoice_settings may be None on customers that have
+    # never had one set, so guard both levels.
+    inv = getattr(cust, 'invoice_settings', None)
+    if inv is None:
+        return ''
+    return getattr(inv, 'default_payment_method', '') or ''
 
 
 def set_customer_default_payment_method(customer_id, payment_method_id):
