@@ -237,16 +237,25 @@
                     <button type="button" class="btn-link review-card__edit" data-wizard-goto="2">Edit</button>
                 </div>
                 <dl class="review-dl">
-                    <dt>Uploaded</dt>
-                    <dd>
-                        {% with photos=intake.photos.all %}
+                    {% with photos=intake.photos.all %}
+                        <dt>Uploaded</dt>
+                        <dd>
                             {% if photos %}
                                 {{ photos|length }} photo{{ photos|length|pluralize }}
+                                <ul class="review-photo-grid">
+                                    {% for photo in photos %}
+                                        <li class="review-photo-grid__item">
+                                            <a href="{{ photo.file.url }}" target="_blank" rel="noopener" title="{{ photo.label|default:photo.file.name }}">
+                                                <img src="{{ photo.file.url }}" alt="{{ photo.label|default:photo.file.name }}">
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
                             {% else %}
                                 <span class="review-muted">No photos uploaded</span>
                             {% endif %}
-                        {% endwith %}
-                    </dd>
+                        </dd>
+                    {% endwith %}
                     {% if intake.photos_note %}
                         <dt>Notes</dt>
                         <dd>{{ intake.photos_note|linebreaksbr }}</dd>

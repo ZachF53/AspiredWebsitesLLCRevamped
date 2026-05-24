@@ -5191,6 +5191,41 @@ button.htmx-request {
 }
 .review-social-list a:hover { text-decoration: underline; }
 
+/* Read-only photo thumbnail grid for the Step 6 review card.
+   Smaller than the Step 2 .intake-photo-grid (no delete button,
+   no labels) — these are at-a-glance previews; click to open full
+   size in a new tab. */
+.review-photo-grid {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+}
+.review-photo-grid__item {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+}
+.review-photo-grid__item a {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+.review-photo-grid__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.15s;
+}
+.review-photo-grid__item:hover img {
+    opacity: 0.85;
+}
+
 @media (max-width: 540px) {
     .review-dl {
         grid-template-columns: 1fr;
