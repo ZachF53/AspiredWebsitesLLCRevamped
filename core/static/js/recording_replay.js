@@ -128,7 +128,10 @@
                 iframe.style.height = captureH + 'px';
             }
             // Collapse the empty space the scaled wrapper leaves
-            // behind. min-height in CSS still acts as a floor.
+            // behind. Clear min-height (set in CSS for the loading
+            // state) so a short captured viewport doesn't leave
+            // white space below the iframe.
+            stage.style.minHeight = '0';
             stage.style.height = (captureH * scale + padY) + 'px';
         }
 
