@@ -66,6 +66,12 @@
                     ($50/month addon, billed separately).
                 {% endif %}
             </p>
+            <p class="muted text-sm">
+                <strong>Same script tag as Tier 1</strong> — just add
+                <code>data-tier="2"</code> to activate recording. One
+                file, one install. Replace the Tier 1 tag with this
+                one on the client's site.
+            </p>
             <textarea id="tier2-snippet" class="form-control mon-snippet" rows="3" readonly>{{ tier2_snippet }}</textarea>
             <div class="lead-add-form__actions">
                 <button type="button" class="btn-primary" data-copy-target="tier2-snippet">Copy Snippet</button>
@@ -96,7 +102,7 @@
     <section class="admin-card">
         <h3 class="admin-card__title">Installation</h3>
         <ol class="mon-steps">
-            <li>Copy each snippet above.</li>
+            <li>Install <strong>one</strong> snippet — Tier 1 for analytics-only, or Tier 2 to also record sessions. Don't install both; Tier 2 includes everything Tier 1 does.</li>
             <li>Paste it just before the closing <code>&lt;/body&gt;</code> tag on every page of the client's site.</li>
             <li>Tier 1 starts collecting events immediately — no other setup needed.</li>
             <li>Page sessions appear on the
