@@ -4980,6 +4980,98 @@ button.htmx-request {
     display: block;
 }
 
+/* ── Intake wizard ──
+   The form is JS-driven (intake_form.js): exactly one section is
+   visible at a time, navigation lives in a sticky bottom bar. The
+   `[data-wizard]` attribute on the <form> opts the form into wizard
+   mode — when JS isn't loaded (very rare these days), all sections
+   stay visible so the form is still usable. */
+.intake-form[data-wizard] .intake-step {
+    display: none;
+}
+.intake-form[data-wizard] .intake-step.is-current {
+    display: block;
+}
+
+.intake-wizard-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    margin-top: 16px;
+    position: sticky;
+    bottom: 14px;
+    z-index: 5;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+.intake-wizard-nav__status {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.intake-wizard-nav button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.intake-final-submit {
+    margin-top: 14px;
+    padding: 18px;
+    text-align: center;
+}
+.intake-final-submit__btn {
+    padding: 14px 32px;
+    font-size: 16px;
+}
+.intake-final-submit__btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.intake-final-submit__hint {
+    margin: 10px 0 0;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+/* Required-asterisk colour. */
+.form-required {
+    color: var(--color-orange);
+    margin-left: 2px;
+}
+
+/* Yes/No radio row for Step 2 (photos). */
+.intake-radio-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 6px;
+}
+.intake-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--color-text);
+    font-size: 14px;
+}
+.intake-radio input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-orange);
+}
+.intake-label {
+    display: block;
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    margin-bottom: 4px;
+}
+
 /* Intake-specific spacing — the global .form-group is intentionally tight
    (used in dense admin forms) but the intake is a long, scrolling client-
    facing form where every field deserves breathing room. Scope these

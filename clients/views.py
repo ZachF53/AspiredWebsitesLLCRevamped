@@ -302,6 +302,66 @@ def _intake_unlocked(client, project):
     return False
 
 
+def _intake_missing_required(intake_obj):
+    """
+    Return a list of human-readable labels for required intake fields
+    that are still empty. Matches the wizard's per-step rules in
+    intake_form.js so a bypass-JS submit gets the same gate.
+
+    Step 1 — Brand: brand_colors, brand_fonts, logo
+    Step 2 — Photos: if photos_provided, at least one IntakePhoto +
+                      a photos_note
+    Step 3 — Website Copy: about_copy, practice_areas, attorney_bios
+    Step 4 — References: reference_sites, competitors
+    Step 5 — Domain: domain_name, domain_registrar; if registrar ==
+                      "other", domain_registrar_other
+    """
+    missing = []
+
+    # Step 1
+    if not (intake_obj.brand_colors or '').strip():
+        missing.append('Brand colors')
+    if not (intake_obj.brand_fonts or '').strip():
+        missing.append('Brand fonts')
+    if not intake_obj.logo:
+        missing.append('Logo upload')
+
+    # Step 2 — only when client says they have photos
+    if intake_obj.photos_provided:
+        photo_count = (
+            intake_obj.photos.count()
+            if hasattr(intake_obj, 'photos') else 0)
+        if photo_count < 1:
+            missing.append('At least one photo')
+        if not (intake_obj.photos_note or '').strip():
+            missing.append('Notes about photos')
+
+    # Step 3
+    if not (intake_obj.about_copy or '').strip():
+        missing.append('About your firm')
+    if not (intake_obj.practice_areas or '').strip():
+        missing.append('Practice areas / services')
+    if not (intake_obj.attorney_bios or '').strip():
+        missing.append('Attorney / team bios')
+
+    # Step 4
+    if not (intake_obj.reference_sites or '').strip():
+        missing.append('Sites you like the look of')
+    if not (intake_obj.competitors or '').strip():
+        missing.append('Your competitors')
+
+    # Step 5
+    if not (intake_obj.domain_name or '').strip():
+        missing.append('Your domain')
+    if not (intake_obj.domain_registrar or '').strip():
+        missing.append('Where the domain is registered')
+    if intake_obj.domain_registrar == 'other':
+        if not (intake_obj.domain_registrar_other or '').strip():
+            missing.append('Registrar name (since you picked "Other")')
+
+    return missing
+
+
 def _ensure_project_for_unlocked_intake(client):
     """
     Lazily create the Project + IntakeResponse + ClientVault for a
@@ -359,8 +419,18 @@ def intake(request):
     intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
 
     if request.method == 'POST':
-        # Final submission — fields are already auto-saved; just finalize.
+        # Final submission — fields are already auto-saved; this just
+        # finalises after a server-side completeness check (mirrors the
+        # wizard JS's per-step gating, so JS-bypass submits get the
+        # same answer the UI would have given).
         if not intake_obj.completed:
+            missing = _intake_missing_required(intake_obj)
+            if missing:
+                messages.error(
+                    request,
+                    'Please finish these required fields before '
+                    'submitting: ' + ', '.join(missing) + '.')
+                return redirect('clients:intake')
             intake_obj.completed = True
             intake_obj.completed_at = timezone.now()
             intake_obj.save(update_fields=['completed', 'completed_at', 'updated_at'])
@@ -397,7 +467,21 @@ def intake_save(request):
         project = _ensure_project_for_unlocked_intake(profile)
 
     intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
-    form = IntakeForm(request.POST, request.FILES, instance=intake_obj)
+
+    # Step 2 radios POST `photos_provided=yes|no`. Django's
+    # CheckboxInput.value_from_datadict treats both as truthy (any
+    # non-empty string), so we have to translate explicitly:
+    #   yes  -> 'true'  (checkbox parses as True)
+    #   no   -> absent  (checkbox parses as False)
+    #   ''   -> absent  (initial state; left as False)
+    post = request.POST.copy()
+    val = (post.get('photos_provided') or '').strip().lower()
+    if val == 'yes':
+        post['photos_provided'] = 'true'
+    elif val == 'no' or val == '':
+        post.pop('photos_provided', None)
+
+    form = IntakeForm(post, request.FILES, instance=intake_obj)
     if form.is_valid():
         form.save()
         intake_obj.refresh_from_db()
