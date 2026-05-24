@@ -1562,9 +1562,13 @@ def client_tracker(request, client_id):
         f'<script src="{base}/static/js/aspired-tracker.js" '
         f'data-aspired-client="{client.id}" defer></script>'
     )
+    # Tier 2 = same script, plus data-tier="2" so the tracker loads
+    # the rrweb-record bundle and starts a session recording. One
+    # snippet per page is enough — Tier 1 analytics are bundled.
     tier2_snippet = (
-        f'<script src="{base}/static/js/aspired-recorder.js" '
-        f'data-aspired-client="{client.id}" defer></script>'
+        f'<script src="{base}/static/js/aspired-tracker.js" '
+        f'data-aspired-client="{client.id}" '
+        f'data-tier="2" defer></script>'
     )
 
     # Tier 2 is "included" when the client's package matches a plan
@@ -4962,3 +4966,184 @@ def lead_bulk_delete(request):
     qs.delete()
     _msg.success(request, f'Deleted {n} lead{"" if n == 1 else "s"}.')
     return redirect('admin_dashboard:leads_table')
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Tier 2 — Session recording (rrweb) admin views
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def recordings_list(request, client_id):
+    """
+    Per-client recordings table with storage stats + filters.
+
+    Filters (all optional, all GET): page, min_duration, q.
+    """
+    from django.db.models import Avg, Count, Sum
+    from django.utils import timezone
+
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+
+    qs = (SessionRecording.objects
+          .filter(client=client).order_by('-created_at'))
+
+    # Filters.
+    page_filter = (request.GET.get('page') or '').strip()
+    min_dur = (request.GET.get('min_duration') or '').strip()
+    if page_filter:
+        qs = qs.filter(page_url__icontains=page_filter)
+    if min_dur:
+        try:
+            qs = qs.filter(duration_seconds__gte=int(min_dur))
+        except (TypeError, ValueError):
+            pass
+
+    # Storage stats — never filtered, always full picture.
+    stats = SessionRecording.objects.filter(client=client).aggregate(
+        total_recordings=Count('id'),
+        total_size_kb=Sum('estimated_size_kb'),
+        avg_duration=Avg('duration_seconds'),
+    )
+    total_size_kb = stats['total_size_kb'] or 0
+    total_size_mb = round(total_size_kb / 1024, 1)
+
+    oldest = (SessionRecording.objects
+              .filter(client=client)
+              .order_by('created_at').first())
+    oldest_days = (timezone.now() - oldest.created_at).days if oldest else 0
+
+    # Distinct page URLs for the dropdown filter.
+    pages_seen = list(
+        SessionRecording.objects.filter(client=client)
+        .values_list('page_url', flat=True)
+        .distinct().order_by('page_url')[:30])
+
+    return render(
+        request,
+        'admin_dashboard/recordings_list.html',
+        _admin_context(
+            'clients',
+            client=client,
+            recordings=qs[:200],
+            total_recordings=stats['total_recordings'] or 0,
+            total_size_mb=total_size_mb,
+            oldest_days=oldest_days,
+            pages_seen=pages_seen,
+            filter_page=page_filter,
+            filter_min_duration=min_dur,
+        ),
+    )
+
+
+@admin_required
+def recording_replay(request, client_id, rec_id):
+    """Full-page rrweb-player viewer. Events JSON inlined into the page."""
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+    events = rec.get_all_events()
+    return render(
+        request,
+        'admin_dashboard/recording_replay.html',
+        _admin_context(
+            'clients',
+            client=client,
+            recording=rec,
+            events_json=json.dumps(events, default=str),
+            event_count=len(events),
+        ),
+    )
+
+
+@admin_required
+def recording_download(request, client_id, rec_id):
+    """
+    Stream a self-contained HTML file — rrweb-player CSS + JS +
+    the recording events all inlined. Recipient just opens it in
+    any browser, no server required.
+    """
+    from pathlib import Path
+
+    from django.http import HttpResponse
+
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+
+    static_root = Path(settings.BASE_DIR) / 'core' / 'static' / 'js'
+    try:
+        rrweb_css = (static_root / 'rrweb-player.css').read_text(
+            encoding='utf-8')
+    except OSError:
+        rrweb_css = ''
+    try:
+        rrweb_js = (static_root / 'rrweb-player.min.js').read_text(
+            encoding='utf-8')
+    except OSError:
+        rrweb_js = ''
+
+    events = rec.get_all_events()
+    events_json = json.dumps(events, default=str)
+
+    safe_page = (rec.page_url or '').replace(
+        'https://', '').replace('http://', '').replace('/', '_')[:60]
+    safe_page = safe_page or 'page'
+    filename = (f'recording-{rec.created_at:%Y%m%d-%H%M}-'
+                f'{safe_page}.html')
+
+    html = render(
+        request,
+        'admin_dashboard/recording_download.html',
+        {
+            'client': client,
+            'recording': rec,
+            'rrweb_css': rrweb_css,
+            'rrweb_js': rrweb_js,
+            'events_json': events_json,
+        },
+    ).content
+
+    response = HttpResponse(html, content_type='text/html')
+    response['Content-Disposition'] = (
+        f'attachment; filename="{filename}"')
+    return response
+
+
+@admin_required
+@require_POST
+def recording_delete(request, client_id, rec_id):
+    """Single-row delete from the recordings list."""
+    from django.contrib import messages as _msg
+
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+    rec.delete()
+    _msg.success(request, 'Recording deleted.')
+    return redirect('admin_dashboard:recordings_list',
+                    client_id=client.id)
+
+
+@admin_required
+@require_POST
+def recording_delete_all(request, client_id):
+    """Wipe every recording for one client (with confirmation in template)."""
+    from django.contrib import messages as _msg
+
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    n, _ = SessionRecording.objects.filter(client=client).delete()
+    _msg.success(request, f'Deleted {n} recording(s).')
+    return redirect('admin_dashboard:recordings_list',
+                    client_id=client.id)

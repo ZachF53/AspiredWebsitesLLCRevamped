@@ -544,3 +544,106 @@ class PageSession(TimestampedModel):
         return (f'{self.client.firm_name} — '
                 f'{(self.page_url or "")[:50]} — '
                 f'{self.created_at.date()}')
+
+
+# ── Tier 2 session recording (rrweb) ──────────────────────────────────────
+
+class SessionRecording(TimestampedModel):
+    """
+    Full rrweb session replay for one page view. Only created when
+    `ClientProfile.session_recording_enabled` is True. Each row holds
+    the recording chunks (each chunk = list of rrweb events) the
+    in-browser recorder beacons up every ~10 seconds.
+
+    Auto-deleted 30 days after creation by the
+    `delete_expired_recordings` Celery beat task. Clients can download
+    any session as a self-contained HTML before that.
+    """
+
+    STATUS_CHOICES = [
+        ('recording', 'Recording'),  # still receiving chunks
+        ('complete', 'Complete'),    # final chunk received
+        ('expired', 'Expired'),
+    ]
+
+    client = models.ForeignKey(
+        'clients.ClientProfile',
+        on_delete=models.CASCADE,
+        related_name='session_recordings',
+    )
+    session_id = models.CharField(max_length=100, db_index=True)
+    # Same session_id as the matching PageSession row.
+
+    page_url = models.URLField(max_length=2000, blank=True)
+    page_title = models.CharField(max_length=200, blank=True)
+
+    # Recording data — list of rrweb event chunks.
+    recording_chunks = models.JSONField(default=list, blank=True)
+
+    viewport_width = models.IntegerField(null=True, blank=True)
+    viewport_height = models.IntegerField(null=True, blank=True)
+    duration_seconds = models.IntegerField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='recording')
+
+    # 30-day retention.
+    expires_at = models.DateTimeField()
+
+    # Size tracking (rough — sum of JSON-serialised chunk sizes).
+    estimated_size_kb = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Session Recording'
+        verbose_name_plural = 'Session Recordings'
+        indexes = [
+            models.Index(
+                fields=['client', 'status', '-created_at']),
+            # Index on expires_at so the nightly delete task can
+            # find every expired row without scanning the table.
+            models.Index(fields=['expires_at']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            from datetime import timedelta as _td
+
+            from django.utils import timezone as _tz
+            self.expires_at = _tz.now() + _td(days=30)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — '
+                f'{(self.page_url or "")[:40]} — '
+                f'{self.created_at.date()}')
+
+    @property
+    def days_until_expiry(self):
+        from django.utils import timezone as _tz
+        delta = self.expires_at - _tz.now()
+        return max(0, delta.days)
+
+    @property
+    def size_display(self):
+        kb = self.estimated_size_kb or 0
+        if kb >= 1024:
+            return f'{kb / 1024:.1f} MB'
+        return f'{kb} KB'
+
+    @property
+    def duration_display(self):
+        s = self.duration_seconds
+        if not s:
+            return '—'
+        if s < 60:
+            return f'{s}s'
+        return f'{s // 60}m {s % 60}s'
+
+    def get_all_events(self):
+        """All rrweb events merged from every chunk, in order."""
+        out = []
+        for chunk in (self.recording_chunks or []):
+            if isinstance(chunk, list):
+                out.extend(chunk)
+        return out

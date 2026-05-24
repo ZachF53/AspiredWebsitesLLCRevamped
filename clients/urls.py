@@ -40,6 +40,16 @@ urlpatterns = [
     path('suggestions/', views.portal_suggestions,
          name='portal_suggestions'),
 
+    # Tier 2 — session recordings
+    path('recordings/', views.portal_recordings,
+         name='portal_recordings'),
+    path('recordings/<uuid:rec_id>/replay/',
+         views.portal_recording_replay,
+         name='portal_recording_replay'),
+    path('recordings/<uuid:rec_id>/download/',
+         views.portal_recording_download,
+         name='portal_recording_download'),
+
     # Contract signing — token-gated, no login required.
     path('contract/signed/', views.contract_signed, name='contract_signed'),
     path('contract/<uuid:contract_token>/', views.contract_sign, name='contract_sign'),

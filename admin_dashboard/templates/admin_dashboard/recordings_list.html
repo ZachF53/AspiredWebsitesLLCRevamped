@@ -1,0 +1,118 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ client.firm_name }} — Session Recordings{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a>
+            </span>
+            <h1 class="admin-page-title">Session Recordings — {{ client.firm_name }}</h1>
+            <p class="muted">Recordings auto-delete after 30 days. Download any you want to keep permanently.</p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+        </div>
+    </div>
+
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Total recordings</span>
+            <span class="admin-stat__value">{{ total_recordings }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Total size</span>
+            <span class="admin-stat__value">{{ total_size_mb }} MB</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Oldest recording</span>
+            <span class="admin-stat__value">{{ oldest_days }} day{{ oldest_days|pluralize }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Retention</span>
+            <span class="admin-stat__value">30 days</span>
+        </div>
+    </div>
+
+    <div class="recordings-toolbar">
+        <form method="get" class="intel-filter-bar">
+            <label>Page
+                <select name="page">
+                    <option value="">All pages</option>
+                    {% for p in pages_seen %}
+                        <option value="{{ p }}" {% if filter_page == p %}selected{% endif %}>{{ p|truncatechars:60 }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Min duration
+                <select name="min_duration">
+                    <option value="" {% if not filter_min_duration %}selected{% endif %}>Any</option>
+                    <option value="30"  {% if filter_min_duration == '30' %}selected{% endif %}>&gt; 30s</option>
+                    <option value="60"  {% if filter_min_duration == '60' %}selected{% endif %}>&gt; 60s</option>
+                    <option value="120" {% if filter_min_duration == '120' %}selected{% endif %}>&gt; 2 min</option>
+                </select>
+            </label>
+            <button type="submit" class="btn-secondary btn-sm">Filter</button>
+        </form>
+        {% if total_recordings %}
+            <form method="post" action="{% url 'admin_dashboard:recording_delete_all' client.id %}"
+                  onsubmit="return confirm('Delete ALL {{ total_recordings }} recording(s) for {{ client.firm_name|escapejs }}? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn-danger btn-sm">Delete All</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <section class="admin-section">
+        {% if recordings %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Date / time</th>
+                        <th>Page</th>
+                        <th class="num">Duration</th>
+                        <th class="num">Size</th>
+                        <th>Expires in</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in recordings %}
+                        <tr>
+                            <td>{{ r.created_at|date:"M j, Y H:i" }}</td>
+                            <td>
+                                <a href="{{ r.page_url }}" target="_blank" rel="noopener"
+                                   class="muted">{{ r.page_url|truncatechars:55 }}</a>
+                            </td>
+                            <td class="num">{{ r.duration_display }}</td>
+                            <td class="num">{{ r.size_display }}</td>
+                            <td>
+                                <span class="exp-pill {% if r.days_until_expiry < 7 %}exp-pill--soon{% endif %}">
+                                    {{ r.days_until_expiry }} day{{ r.days_until_expiry|pluralize }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge status-badge--{% if r.status == 'complete' %}won{% elif r.status == 'expired' %}unsubscribed{% else %}new{% endif %}">{{ r.get_status_display }}</span>
+                            </td>
+                            <td class="admin-table__actions">
+                                <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:recording_replay' client.id r.id %}">▶ Watch</a>
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:recording_download' client.id r.id %}">⬇ Download</a>
+                                <form method="post" action="{% url 'admin_dashboard:recording_delete' client.id r.id %}" style="display:inline;"
+                                      onsubmit="return confirm('Delete this recording?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">🗑</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No recordings yet. Make sure the client's site script tag has <code>data-tier="2"</code>, then visit the site to start a session.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

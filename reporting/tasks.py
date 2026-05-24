@@ -724,3 +724,82 @@ def check_scan_schedule():
         queued += 1
 
     return f'Queued {queued} scheduled scan(s).'
+
+
+# ── Tier 2 session recording — retention + storage report ─────────────────
+
+@shared_task
+def delete_expired_recordings():
+    """
+    Nightly at 02:00. Drops every `SessionRecording` whose
+    `expires_at` has passed (30-day retention enforced at write
+    time). Keeps the lightweight PageSession aggregate around —
+    only the heavy rrweb event blobs are pruned.
+
+    Returns a short summary string for Celery logs.
+    """
+    from django.utils import timezone as _tz
+    from reporting.models import SessionRecording
+
+    qs = SessionRecording.objects.filter(expires_at__lte=_tz.now())
+    count = qs.count()
+    if count:
+        # Log the affected clients before we drop the rows so the
+        # operator can audit if anything looks off.
+        affected = list(qs.values_list(
+            'client__firm_name', flat=True).distinct())
+        logger.info(
+            'session-recording purge: %d row(s) across %d client(s): %s',
+            count, len(affected), ', '.join(sorted(affected))[:200])
+        qs.delete()
+    return f'Deleted {count} expired recording(s).'
+
+
+@shared_task
+def recording_storage_report():
+    """
+    Weekly. Emails the operator a warning for any session-recording
+    client whose stored bytes exceed 500 MB. Lets us catch a chatty
+    site before it costs real storage.
+    """
+    from django.conf import settings as _s
+    from django.core.mail import send_mail
+    from django.db.models import Count, Sum
+
+    from clients.models import ClientProfile
+    from reporting.models import SessionRecording
+
+    clients = ClientProfile.objects.filter(
+        session_recording_enabled=True)
+    warnings = 0
+    for client in clients:
+        stats = SessionRecording.objects.filter(
+            client=client, status='complete',
+        ).aggregate(
+            total_recordings=Count('id'),
+            total_size_kb=Sum('estimated_size_kb'),
+        )
+        total_mb = (stats['total_size_kb'] or 0) / 1024
+        if total_mb <= 500:
+            continue
+        try:
+            send_mail(
+                subject=(f'Storage warning: {client.firm_name} '
+                         f'recordings at {total_mb:.0f}MB'),
+                message=(
+                    f'{client.firm_name} has '
+                    f'{stats["total_recordings"]} '
+                    f'session recording(s) using {total_mb:.0f}MB. '
+                    f'Consider reducing retention or archiving '
+                    f'older recordings.\n'),
+                from_email=getattr(
+                    _s, 'EMAIL_FROM_MAIN',
+                    _s.DEFAULT_FROM_EMAIL),
+                recipient_list=[_s.LEAD_NOTIFICATION_EMAIL],
+                fail_silently=True,
+            )
+            warnings += 1
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                'storage-report email failed for %s', client.pk)
+    return f'Sent {warnings} storage warning(s).'

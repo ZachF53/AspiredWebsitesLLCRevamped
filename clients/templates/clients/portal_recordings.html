@@ -1,0 +1,83 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Session Recordings{% endblock %}
+
+{% block portal_content %}
+<div class="portal-recordings">
+    <header class="portal-page-head">
+        <div>
+            <h1>Session Recordings</h1>
+            <p class="portal-page-head__sub">See exactly how visitors use your site.</p>
+        </div>
+    </header>
+
+    {% if not enabled %}
+        <section class="va-upsell">
+            <h3>Session recording is available on Growth and Dominant plans.</h3>
+            <p>Or as a $50/month add-on on Essentials. Contact Zachery to enable it.</p>
+            <p>
+                <a class="btn-primary" href="mailto:zacherylong@aspiredwebsites.com?subject=Enable%20Session%20Recording">
+                    Contact Zachery to upgrade →
+                </a>
+            </p>
+        </section>
+    {% else %}
+
+        <div class="retention-notice">
+            📹 <strong>Recordings auto-delete after 30 days.</strong>
+            Download any session you want to keep permanently —
+            once deleted, they cannot be recovered.
+        </div>
+
+        <div class="stat-grid">
+            <article class="stat-card">
+                <span class="stat-card__label">Total recordings</span>
+                <span class="stat-card__value">{{ total_recordings }}</span>
+            </article>
+            <article class="stat-card">
+                <span class="stat-card__label">Avg session duration</span>
+                <span class="stat-card__value">{{ avg_duration_display }}</span>
+            </article>
+            <article class="stat-card">
+                <span class="stat-card__label">Most visited page</span>
+                <span class="stat-card__value text-sm">{{ most_visited|truncatechars:30|default:"—" }}</span>
+            </article>
+            <article class="stat-card {% if expiring_soon %}stat-card--warn{% endif %}">
+                <span class="stat-card__label">Expiring in &lt; 7 days</span>
+                <span class="stat-card__value">{{ expiring_soon }}</span>
+            </article>
+        </div>
+
+        <section class="portal-section">
+            {% if recordings %}
+                <ul class="record-list">
+                    {% for r in recordings %}
+                        <li class="record-list__item">
+                            <span class="record-list__main">
+                                <strong>{{ r.created_at|date:"F j, Y H:i" }}</strong>
+                                <span class="record-list__sub">
+                                    {{ r.page_url|truncatechars:60 }}
+                                    · {{ r.duration_display }}
+                                    ·
+                                    <span class="exp-pill {% if r.days_until_expiry < 7 %}exp-pill--soon{% endif %}">
+                                        Expires in {{ r.days_until_expiry }} day{{ r.days_until_expiry|pluralize }}
+                                    </span>
+                                </span>
+                            </span>
+                            <span class="record-list__meta">
+                                <a class="btn-primary btn-sm" href="{% url 'clients:portal_recording_replay' r.id %}">▶ Watch</a>
+                                <a class="btn-secondary btn-sm" href="{% url 'clients:portal_recording_download' r.id %}">⬇ Download</a>
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="portal-empty">
+                    No recordings yet. They'll appear here as visitors arrive on your site.
+                </p>
+            {% endif %}
+        </section>
+
+    {% endif %}
+</div>
+{% endblock %}

@@ -210,6 +210,110 @@ def track_batch(request):
     return _ok()
 
 
+# ── Tier 2 session-recording endpoint (rrweb) ───────────────────────────────
+
+@csrf_exempt
+@require_POST
+@ratelimit(key='ip', rate='120/m', block=True)
+def track_recording(request):
+    """
+    Receives rrweb recording chunks from the in-browser recorder.
+    Called every ~10s during a session and once on page unload.
+
+    Only clients with `session_recording_enabled=True` get a
+    SessionRecording row written — everyone else is silently dropped
+    so the beacon never reveals enablement state.
+
+    Always returns 200, never raises.
+    """
+    import sys as _sys
+
+    from .models import SessionRecording
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return _ok()
+    if not isinstance(data, dict):
+        return _ok()
+
+    client_id = data.get('client_id', '')
+    session_id = str(data.get('session_id') or '')[:100]
+    events = data.get('events') or []
+    is_final = bool(data.get('is_final', False))
+    if not _is_uuid(client_id) or not session_id or not events:
+        return _ok()
+
+    client = ClientProfile.objects.filter(
+        id=client_id, session_recording_enabled=True).first()
+    if client is None:
+        return _ok()
+
+    viewport = data.get('viewport') or {}
+    try:
+        vp_w = int(viewport.get('width') or 0) or None
+        vp_h = int(viewport.get('height') or 0) or None
+    except (TypeError, ValueError):
+        vp_w = vp_h = None
+
+    try:
+        rec, _created = SessionRecording.objects.get_or_create(
+            client=client,
+            session_id=session_id,
+            defaults={
+                'page_url': str(data.get('page_url') or '')[:2000],
+                'page_title': str(data.get('page_title') or '')[:200],
+                'viewport_width': vp_w,
+                'viewport_height': vp_h,
+                'status': 'recording',
+            },
+        )
+    except Exception:  # noqa: BLE001
+        return _ok()
+
+    chunks = list(rec.recording_chunks or [])
+    chunks.append(events)
+    rec.recording_chunks = chunks
+
+    # Rough byte-size estimate so the storage report has numbers to
+    # work with — sys.getsizeof is the python overhead, but the
+    # serialised JSON length is the part we care about.
+    try:
+        chunk_bytes = len(json.dumps(events).encode('utf-8'))
+    except Exception:  # noqa: BLE001
+        chunk_bytes = _sys.getsizeof(events)
+    rec.estimated_size_kb = (
+        (rec.estimated_size_kb or 0) + max(1, chunk_bytes // 1024))
+
+    if is_final:
+        rec.status = 'complete'
+        # Compute total duration from the first chunk's first event
+        # to this final chunk's last event (rrweb stamps each event
+        # with a `timestamp` in ms).
+        try:
+            first_chunk = chunks[0] if chunks else []
+            first_ts = (first_chunk[0].get('timestamp')
+                        if first_chunk and
+                           isinstance(first_chunk[0], dict)
+                        else None)
+            last_ts = (events[-1].get('timestamp')
+                       if events and
+                          isinstance(events[-1], dict)
+                       else None)
+            if first_ts and last_ts and last_ts > first_ts:
+                rec.duration_seconds = int(
+                    (last_ts - first_ts) // 1000)
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        rec.save()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return _ok()
+
+
 # ── NPS survey response ─────────────────────────────────────────────────────
 
 def _nps_band(score):

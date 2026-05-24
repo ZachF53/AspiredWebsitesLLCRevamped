@@ -10400,3 +10400,71 @@ button.htmx-request {
     margin: 0 0 8px 0;
 }
 .va-upsell p { color: var(--color-text); }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tier 2 — Session recording (rrweb) admin + portal styling
+   Dark tokens. The replay stage gives the rrweb-player iframe a white
+   surface (rrweb expects to render the original page on light bg).
+   ───────────────────────────────────────────────────────────────────────── */
+
+.recordings-toolbar {
+    display: flex; justify-content: space-between;
+    gap: 14px; align-items: center; flex-wrap: wrap;
+    margin: 6px 0 12px;
+}
+
+.exp-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+.exp-pill--soon {
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.4);
+    background: rgba(248, 113, 113, 0.08);
+}
+
+/* The replay container — give the player a white-ish backdrop and a
+   max width so embedded site frames look natural. */
+.rrweb-stage {
+    margin: 18px auto;
+    max-width: 1080px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 12px;
+    overflow: auto;
+}
+.rrweb-stage .rr-player {
+    margin: 0 auto;
+}
+
+/* Stat-card warning state used in the portal "Expiring < 7 days" tile. */
+.stat-card--warn .stat-card__value {
+    color: var(--color-orange);
+}
+
+/* Portal retention notice — orange info box at top of recordings page. */
+.retention-notice {
+    background: rgba(232, 101, 10, 0.10);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    border-left: 3px solid var(--color-orange);
+    color: var(--color-text);
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin: 18px 0;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+/* Tighter admin-table action cell when buttons stack mostly icon-only. */
+.admin-table__actions .btn-sm + .btn-sm {
+    margin-left: 4px;
+}
+.admin-table__actions form {
+    margin: 0;
+    display: inline-block;
+}

@@ -1,0 +1,48 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Replay — {{ client.firm_name }}{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'js/rrweb-player.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:recordings_list' client.id %}" class="admin-back-link">&larr; All recordings</a>
+            </span>
+            <h1 class="admin-page-title">Session Replay</h1>
+            <p class="muted">
+                {{ client.firm_name }} ·
+                <a href="{{ recording.page_url }}" target="_blank" rel="noopener">{{ recording.page_url|truncatechars:60 }}</a>
+                · Duration: {{ recording.duration_display }}
+                · Recorded {{ recording.created_at|date:"M j, Y H:i" }}
+                · Expires in {{ recording.days_until_expiry }} day{{ recording.days_until_expiry|pluralize }}
+                · {{ event_count }} event{{ event_count|pluralize }}
+            </p>
+        </div>
+        <div class="admin-page-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:recording_download' client.id recording.id %}">⬇ Download HTML</a>
+        </div>
+    </div>
+
+    {% if event_count == 0 %}
+        <div class="banner">No recorded events on this session yet — try a longer visit.</div>
+    {% else %}
+        <div id="player-container" class="rrweb-stage"></div>
+    {% endif %}
+</div>
+
+{# Inline events JSON for the player to consume. Using json_script
+   keeps the payload safely escaped — no HTML/JS injection surface
+   even if a page title or URL contains funny characters. #}
+{{ events_json|json_script:"recording-events" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/rrweb-player.min.js' %}" defer></script>
+<script src="{% static 'js/recording_replay.js' %}" defer></script>
+{% endblock %}

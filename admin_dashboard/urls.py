@@ -80,6 +80,19 @@ urlpatterns = [
     path('clients/<uuid:client_id>/toggle-session-recording/',
          views.client_toggle_session_recording,
          name='client_toggle_session_recording'),
+
+    # Tier 2 — session recordings (rrweb)
+    path('clients/<uuid:client_id>/recordings/',
+         views.recordings_list, name='recordings_list'),
+    path('clients/<uuid:client_id>/recordings/<uuid:rec_id>/replay/',
+         views.recording_replay, name='recording_replay'),
+    path('clients/<uuid:client_id>/recordings/<uuid:rec_id>/download/',
+         views.recording_download, name='recording_download'),
+    path('clients/<uuid:client_id>/recordings/<uuid:rec_id>/delete/',
+         views.recording_delete, name='recording_delete'),
+    path('clients/<uuid:client_id>/recordings/delete-all/',
+         views.recording_delete_all,
+         name='recording_delete_all'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/flag/', views.gbp_flag, name='gbp_flag'),
     path('clients/<uuid:client_id>/gbp/<uuid:check_id>/resolve/', views.gbp_resolve, name='gbp_resolve'),
 

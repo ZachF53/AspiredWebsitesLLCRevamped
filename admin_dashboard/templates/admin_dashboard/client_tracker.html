@@ -85,7 +85,7 @@
             </p>
             <div class="lead-add-form__actions">
                 <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' client.id %}" style="display:inline;"
-                      onsubmit="return confirm('Enable session recording for {{ client.firm_name|escapejs }} (\$50/mo addon)?');">
+                      onsubmit="return confirm('Before enabling session recording, confirm:\n\n  - Client privacy policy discloses session recording\n  - Client is on Growth, Dominant, or has paid the $50/mo addon\n  - You have updated the script tag on their site to data-tier=&quot;2&quot;\n\nProceed?');">
                     {% csrf_token %}
                     <button type="submit" class="btn-primary">Enable Session Recording</button>
                 </form>

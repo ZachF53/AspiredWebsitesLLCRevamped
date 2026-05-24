@@ -379,6 +379,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'clients.tasks.run_monthly_competitor_gaps',
         'schedule': crontab(hour=10, minute=0, day_of_month=20),  # 20th 10am
     },
+    'delete-expired-recordings': {
+        'task': 'reporting.tasks.delete_expired_recordings',
+        'schedule': crontab(hour=2, minute=0),                    # daily 2am
+    },
+    'recording-storage-report': {
+        'task': 'reporting.tasks.recording_storage_report',
+        'schedule': crontab(hour=8, minute=0, day_of_week=1),     # Mon 8am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

@@ -71,6 +71,12 @@
                     <span>Security</span>
                     {% if security_has_open %}<span class="portal-nav__dot portal-nav__dot--alert" aria-label="Open security findings"></span>{% endif %}
                 </a>
+                {% if session_recording_nav_visible %}
+                <a class="portal-nav__link {% if active_portal_nav == 'recordings' %}is-active{% endif %}" href="{% url 'clients:portal_recordings' %}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+                    <span>Recordings</span>
+                </a>
+                {% endif %}
                 <a class="portal-nav__link {% if active_portal_nav == 'suggestions' %}is-active{% endif %}" href="{% url 'clients:portal_suggestions' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 4h4M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.5 1 2.3v1h6v-1c0-.8.3-1.7 1-2.3A7 7 0 0 0 12 2z"/></svg>
                     <span>Recommendations</span>

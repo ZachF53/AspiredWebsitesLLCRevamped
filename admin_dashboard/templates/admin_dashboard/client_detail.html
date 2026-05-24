@@ -157,6 +157,9 @@
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_keywords' client.id %}">Keywords</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+            {% if client.session_recording_enabled %}
+                <a class="mon-toollink" href="{% url 'admin_dashboard:recordings_list' client.id %}">Session Recordings ({{ client.session_recordings.count }})</a>
+            {% endif %}
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_freshness' client.id %}">Content Freshness{% if freshness_report %} ({{ freshness_report.pages_needing_update }} flagged){% endif %}</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_chatbot' client.id %}">Chatbot</a>
             <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' client.id %}">Changelog</a>

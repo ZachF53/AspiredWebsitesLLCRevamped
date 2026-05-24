@@ -1,0 +1,35 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Replay — {{ recording.created_at|date:"M j" }}{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'js/rrweb-player.css' %}">
+{% endblock %}
+
+{% block portal_content %}
+<div class="portal-recording-replay">
+    <header class="portal-page-head">
+        <div>
+            <h1>Session Replay</h1>
+            <p class="portal-page-head__sub">
+                {{ recording.page_url|truncatechars:60 }}
+                · {{ recording.duration_display }}
+                · Recorded {{ recording.created_at|date:"M j, Y H:i" }}
+            </p>
+        </div>
+        <div>
+            <a class="btn-secondary" href="{% url 'clients:portal_recording_download' recording.id %}">⬇ Download HTML</a>
+            <a class="btn-secondary" href="{% url 'clients:portal_recordings' %}">← All recordings</a>
+        </div>
+    </header>
+
+    <div id="player-container" class="rrweb-stage"></div>
+</div>
+{{ events_json|json_script:"recording-events" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/rrweb-player.min.js' %}" defer></script>
+<script src="{% static 'js/recording_replay.js' %}" defer></script>
+{% endblock %}

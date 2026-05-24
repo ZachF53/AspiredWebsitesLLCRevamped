@@ -111,6 +111,10 @@ def _portal_context(request, active_nav, **extra):
         'changelog_has_new': changelog_has_new,
         'security_has_open': security_has_open,
         'portal_suggestions_pending': portal_suggestions_pending,
+        # Tier 2 — only show the Recordings nav link when the addon
+        # is active for this client.
+        'session_recording_nav_visible': bool(
+            profile.session_recording_enabled),
     }
     ctx.update(extra)
     return ctx
@@ -834,6 +838,128 @@ def portal_reports(request):
         annual_reports=annual_reports,
     )
     return render(request, 'clients/portal_reports.html', ctx)
+
+
+@client_required
+def portal_recordings(request):
+    """
+    Client-facing list of their own site's session recordings.
+    Same data the operator sees in /admin-dashboard/clients/<id>/
+    recordings/, with the prominent retention notice on top.
+
+    When session_recording_enabled=False we still render the page,
+    but it shows the upgrade prompt instead of the table — keeps
+    the nav link from 404'ing on a deep-link.
+    """
+    from datetime import timedelta
+
+    from django.db.models import Avg, Count, Sum
+
+    from reporting.models import SessionRecording
+
+    profile = request.client_profile
+    enabled = bool(profile.session_recording_enabled)
+
+    recordings = SessionRecording.objects.filter(client=profile)
+    stats = recordings.aggregate(
+        total=Count('id'),
+        avg_dur=Avg('duration_seconds'),
+        total_kb=Sum('estimated_size_kb'),
+    )
+    expiring_soon = recordings.filter(
+        expires_at__lte=timezone.now() + timedelta(days=7),
+    ).count()
+
+    # Most-visited page across this client's recordings.
+    top = (recordings.values('page_url')
+           .annotate(n=Count('id')).order_by('-n').first())
+    most_visited = top['page_url'] if top else ''
+
+    ctx = _portal_context(
+        request, 'recordings',
+        enabled=enabled,
+        on_essentials=(profile.package == 'maintenance_essentials'),
+        recordings=recordings.order_by('-created_at')[:100],
+        total_recordings=stats['total'] or 0,
+        avg_duration_display=_format_seconds_simple(stats['avg_dur']),
+        most_visited=most_visited,
+        expiring_soon=expiring_soon,
+    )
+    return render(request, 'clients/portal_recordings.html', ctx)
+
+
+def _format_seconds_simple(s):
+    if not s:
+        return '—'
+    s = int(round(s))
+    if s < 60:
+        return f'{s}s'
+    return f'{s // 60}m {s % 60}s'
+
+
+@client_required
+def portal_recording_download(request, rec_id):
+    """Client-side download — same self-contained HTML as the admin."""
+    from pathlib import Path
+
+    from django.conf import settings as _s
+    from django.http import HttpResponse
+
+    from reporting.models import SessionRecording
+
+    rec = get_object_or_404(
+        SessionRecording, id=rec_id, client=request.client_profile)
+
+    static_root = Path(_s.BASE_DIR) / 'core' / 'static' / 'js'
+    try:
+        rrweb_css = (static_root / 'rrweb-player.css').read_text(
+            encoding='utf-8')
+    except OSError:
+        rrweb_css = ''
+    try:
+        rrweb_js = (static_root / 'rrweb-player.min.js').read_text(
+            encoding='utf-8')
+    except OSError:
+        rrweb_js = ''
+
+    import json as _json
+    events_json = _json.dumps(rec.get_all_events(), default=str)
+
+    safe_page = (rec.page_url or '').replace(
+        'https://', '').replace('http://', '').replace('/', '_')[:60]
+    safe_page = safe_page or 'page'
+    filename = (f'recording-{rec.created_at:%Y%m%d-%H%M}-'
+                f'{safe_page}.html')
+
+    body = render(request, 'admin_dashboard/recording_download.html', {
+        'client': request.client_profile,
+        'recording': rec,
+        'rrweb_css': rrweb_css,
+        'rrweb_js': rrweb_js,
+        'events_json': events_json,
+    }).content
+
+    resp = HttpResponse(body, content_type='text/html')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@client_required
+def portal_recording_replay(request, rec_id):
+    """Client-facing replay viewer."""
+    import json as _json
+
+    from reporting.models import SessionRecording
+
+    rec = get_object_or_404(
+        SessionRecording, id=rec_id, client=request.client_profile)
+
+    ctx = _portal_context(
+        request, 'recordings',
+        recording=rec,
+        events_json=_json.dumps(rec.get_all_events(), default=str),
+    )
+    return render(request, 'clients/portal_recording_replay.html', ctx)
 
 
 @client_required

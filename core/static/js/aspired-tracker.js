@@ -315,4 +315,116 @@
       eventQueue = [];
     }
   }, 30000);
+
+  // ── TIER 2: SESSION RECORDING (rrweb) ──
+  // Only activates when data-tier="2" is set
+  // on the script tag. Self-hosts the rrweb
+  // recorder from aspiredwebsites.com so no
+  // 3rd-party CDN call is made from the
+  // client's site. Privacy: all inputs are
+  // masked, [data-recording-block] elements
+  // are skipped entirely.
+
+  var TIER = tag ? (tag.getAttribute('data-tier') || '1') : '1';
+  var RECORDING_ENDPOINT =
+    'https://aspiredwebsites.com/api/track/recording/';
+
+  if (TIER === '2') {
+    var rrwebScript = document.createElement('script');
+    rrwebScript.src =
+      'https://aspiredwebsites.com/static/js/' +
+      'rrweb-record.min.js';
+    rrwebScript.defer = true;
+    rrwebScript.onload = function () { startRecording(); };
+    document.head.appendChild(rrwebScript);
+  }
+
+  function startRecording() {
+    // rrweb-record self-bundle exposes
+    // `window.rrwebRecord` (a callable). Some
+    // older builds expose `window.rrweb.record`
+    // — check both so this keeps working if we
+    // upgrade the bundle.
+    var record = (window.rrwebRecord
+                  || (window.rrweb && window.rrweb.record));
+    if (typeof record !== 'function') { return; }
+
+    var recordingBuffer = [];
+    var stopRecording = record({
+      emit: function (event) {
+        recordingBuffer.push(event);
+        // Ship in 100-event chunks so a sudden
+        // close doesn't lose the whole session.
+        if (recordingBuffer.length >= 100) {
+          sendRecordingChunk(
+            recordingBuffer.splice(0, 100), false);
+        }
+      },
+      // ── PRIVACY (do not change without review) ──
+      maskAllInputs: true,
+      // Never record what the user types.
+      maskInputOptions: {
+        password: true,
+        email: true,
+        tel: true,
+        text: true,
+        number: true,
+        search: true,
+        textarea: true
+      },
+      // Add data-recording-block to any element
+      // that should never be recorded (sensitive
+      // content blocks, dashboards, etc.).
+      blockSelector: '[data-recording-block]',
+      // Sample mousemove every 50ms — captures
+      // gesture intent without ballooning data.
+      sampling: {
+        mousemove: 50,
+        mouseInteraction: true,
+        scroll: 150,
+        media: 800
+      }
+    });
+
+    function sendRecordingChunk(events, isFinal) {
+      if (!events || !events.length) { return; }
+      var body = JSON.stringify({
+        client_id: CLIENT_ID,
+        session_id: sessionId,
+        page_url: window.location.href,
+        page_title: document.title,
+        events: events,
+        is_final: !!isFinal,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        timestamp: new Date().toISOString()
+      });
+
+      if (isFinal && navigator.sendBeacon) {
+        try {
+          navigator.sendBeacon(RECORDING_ENDPOINT, body);
+        } catch (e) { /* swallow */ }
+      } else {
+        try {
+          fetch(RECORDING_ENDPOINT, {
+            method: 'POST',
+            body: body,
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: isFinal
+          }).catch(function () { /* swallow */ });
+        } catch (e) { /* swallow */ }
+      }
+    }
+
+    // Final chunk on page unload.
+    window.addEventListener('pagehide', function () {
+      try { if (stopRecording) { stopRecording(); } } catch (e) {}
+      sendRecordingChunk(recordingBuffer.splice(0), true);
+    });
+    window.addEventListener('beforeunload', function () {
+      sendRecordingChunk(recordingBuffer.splice(0), true);
+    });
+  }
 })();

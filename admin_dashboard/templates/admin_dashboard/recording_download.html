@@ -1,0 +1,58 @@
+{% autoescape off %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Session Recording — {{ client.firm_name|escape }} — {{ recording.created_at|date:"Y-m-d H:i" }}</title>
+    <style>
+        body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+               background: #0F172A; color: #fff; margin: 0; padding: 24px; }
+        h1 { font-size: 18px; margin: 0 0 6px 0; color: #E8650A; }
+        p.meta { margin: 0 0 18px 0; color: #94A3B8; font-size: 13px; }
+        #player { background: #fff; border-radius: 8px; overflow: hidden;
+                  box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+        {{ rrweb_css }}
+    </style>
+</head>
+<body>
+    <h1>Aspired Websites — Session Recording</h1>
+    <p class="meta">
+        {{ client.firm_name|escape }} ·
+        {{ recording.page_url|escape }} ·
+        {{ recording.created_at|date:"F j, Y H:i" }} ·
+        Duration: {{ recording.duration_display }}
+    </p>
+    <div id="player"></div>
+
+    <script id="recording-events" type="application/json">{{ events_json }}</script>
+    <script>{{ rrweb_js }}</script>
+    <script>
+        (function () {
+            var raw = document.getElementById('recording-events').textContent;
+            var events;
+            try { events = JSON.parse(raw); }
+            catch (e) { events = []; }
+            if (typeof events === 'string') {
+                try { events = JSON.parse(events); } catch (e) {}
+            }
+            if (!Array.isArray(events) || !events.length) {
+                document.getElementById('player').textContent =
+                    'No events to replay in this file.';
+                return;
+            }
+            var Player = window.rrwebPlayer || rrwebPlayer;
+            new Player({
+                target: document.getElementById('player'),
+                props: {
+                    events: events,
+                    width: Math.min(1024, window.innerWidth - 80),
+                    height: Math.min(576, window.innerHeight - 200),
+                    autoPlay: false,
+                    showController: true,
+                    speedOption: [1, 2, 4, 8]
+                }
+            });
+        })();
+    </script>
+</body>
+</html>{% endautoescape %}
