@@ -147,6 +147,11 @@ class SecurityHeadersMiddleware:
             # Public payment page + success page. Allows Stripe.js,
             # the Stripe Element iframe, and api.stripe.com calls.
             response['Content-Security-Policy'] = CSP_PAYMENT
+        elif path.startswith('/portal/subscriptions/'):
+            # Portal subscriptions page — Stripe Elements for adding
+            # new cards via SetupIntent. Same Stripe permissions as
+            # the public pay page.
+            response['Content-Security-Policy'] = CSP_PAYMENT
         elif '/recordings/' in path and path.endswith('/replay/'):
             # Matches both admin (/admin-dashboard/clients/<id>/recordings/
             # <rec>/replay/) and client portal (/portal/recordings/<rec>/

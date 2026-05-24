@@ -3805,6 +3805,213 @@ button.htmx-request {
 }
 .admin-stage-log__list li:last-child { border-bottom: none; }
 
+
+/* ── Portal subscriptions page ─────────────────────────────────── */
+.sub-list,
+.pm-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sub-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+.sub-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.sub-card__title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1rem;
+}
+.sub-card__badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.sub-card__badge--ok {
+    background: rgba(13, 148, 136, 0.15);
+    color: #5EEAD4;
+}
+.sub-card__badge--info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93C5FD;
+}
+.sub-card__badge--warn {
+    background: rgba(234, 179, 8, 0.15);
+    color: #FBBF24;
+}
+.sub-card__badge--danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #FCA5A5;
+}
+.sub-card__meta {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+.sub-card__meta strong {
+    color: var(--color-text);
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Card on the payment methods list. */
+.pm-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.pm-card.is-default {
+    border-color: rgba(232, 101, 10, 0.5);
+    background: rgba(232, 101, 10, 0.04);
+}
+.pm-card__visual {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+.pm-card__brand {
+    font-weight: 700;
+    font-size: 12px;
+    padding: 4px 8px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+}
+.pm-card__last4 { font-weight: 600; }
+.pm-card__exp {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+.pm-card__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.pm-card__default-badge {
+    background: var(--color-orange);
+    color: #FFFFFF;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.pm-card__remove {
+    color: #FCA5A5;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 6px;
+}
+.pm-card__remove:hover { text-decoration: underline; }
+
+/* Add-card modal. */
+.add-card-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.add-card-modal[hidden] { display: none; }
+.add-card-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(7, 6, 20, 0.75);
+}
+.add-card-modal__panel {
+    position: relative;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 460px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+.add-card-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+.add-card-modal__head h3 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.1rem;
+}
+.add-card-modal__close {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+.add-card-modal__close:hover { color: var(--color-text); }
+.add-card-modal__message {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+.add-card-modal__message--error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #FCA5A5;
+}
+.add-card-modal__secure {
+    margin-top: 14px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 12px;
+}
+#add-card-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: #E8650A;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+#add-card-submit:disabled { opacity: 0.7; cursor: wait; }
+
 .needs-you-card {
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);

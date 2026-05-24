@@ -129,6 +129,204 @@ def cancel_maintenance_subscription(client):
     client.save(update_fields=['maintenance_active', 'updated_at'])
 
 
+def get_hosting_price_id():
+    """
+    Returns the Stripe Price ID for the annual hosting subscription.
+
+    Pulled from settings.STRIPE_PRICE_HOSTING_YEARLY (env var). The
+    `sync_stripe_subscription_products` management command bootstraps
+    the Stripe Product + Price and prints the ID for the operator to
+    paste into .env.
+    """
+    pid = getattr(settings, 'STRIPE_PRICE_HOSTING_YEARLY', '')
+    if not pid:
+        raise StripeNotConfigured(
+            'STRIPE_PRICE_HOSTING_YEARLY is not set in .env — run '
+            '`python manage.py sync_stripe_subscription_products` '
+            'to bootstrap the hosting Product + Price, then paste '
+            'the printed Price ID into .env.')
+    return pid
+
+
+def attach_payment_method_to_customer(customer_id, payment_method_id,
+                                      set_as_default=True):
+    """
+    Attach a payment method to a Stripe Customer, optionally setting
+    it as the default invoice payment method. Idempotent — Stripe
+    is fine with re-attaching the same PM.
+    """
+    _init()
+    try:
+        stripe.PaymentMethod.attach(
+            payment_method_id, customer=customer_id)
+    except stripe.error.InvalidRequestError as exc:
+        # "already attached to this customer" is OK; anything else
+        # is a real error.
+        if 'already' not in str(exc).lower():
+            raise
+    if set_as_default:
+        stripe.Customer.modify(
+            customer_id,
+            invoice_settings={
+                'default_payment_method': payment_method_id,
+            },
+        )
+
+
+def create_hosting_subscription(client, default_payment_method_id=None):
+    """
+    Create the annual hosting subscription for a client.
+
+    `trial_period_days=365` so the FIRST recurring charge fires 365
+    days from now — the lump-sum payment they just made covers year 1.
+    Subsequent renewals are gated by the `invoice.upcoming` webhook in
+    billing/webhooks.py.
+
+    Returns the Stripe Subscription object. Idempotent: if the client
+    already has a hosting subscription, returns the existing one
+    rather than double-billing.
+    """
+    _init()
+    if client.stripe_hosting_subscription_id:
+        try:
+            existing = stripe.Subscription.retrieve(
+                client.stripe_hosting_subscription_id)
+            if existing.get('status') not in ('canceled', 'incomplete_expired'):
+                logger.info(
+                    'create_hosting_subscription: client %s already has '
+                    'subscription %s — skipping', client.pk, existing.id)
+                return existing
+        except Exception:
+            # Subscription doesn't exist any more on Stripe's side —
+            # fall through and create a fresh one.
+            client.stripe_hosting_subscription_id = ''
+
+    if not client.stripe_customer_id:
+        raise ValueError(
+            f'Client {client.pk} has no stripe_customer_id — cannot '
+            f'create a subscription.')
+
+    kwargs = {
+        'customer': client.stripe_customer_id,
+        'items': [{'price': get_hosting_price_id()}],
+        'trial_period_days': 365,
+        'metadata': {
+            'kind': 'hosting',
+            'client_profile_id': str(client.id),
+        },
+        # When the trial ends and the first invoice is created,
+        # Stripe should use the customer's default payment method
+        # automatically (not error out).
+        'payment_behavior': 'allow_incomplete',
+        # Generate an invoice ~3 days before each renewal so our
+        # invoice.upcoming webhook fires the Droplet check in time
+        # to cancel without an accidental charge.
+        # (3 days is Stripe's default for upcoming-invoice webhook;
+        # no setting needed here.)
+    }
+    if default_payment_method_id:
+        kwargs['default_payment_method'] = default_payment_method_id
+
+    sub = stripe.Subscription.create(**kwargs)
+    client.stripe_hosting_subscription_id = sub.id
+    client.save(update_fields=[
+        'stripe_hosting_subscription_id', 'updated_at'])
+    logger.info(
+        'create_hosting_subscription: client %s subscribed (sub %s, '
+        'trial until %s)', client.pk, sub.id,
+        sub.get('trial_end'))
+    return sub
+
+
+def cancel_hosting_subscription(client, reason=''):
+    """
+    Cancel the client's hosting subscription at the end of the
+    current period (so they don't lose access mid-cycle). Sets
+    cancel_at_period_end=True; the row stays on Stripe for history
+    but won't generate any future invoices.
+
+    No-op if the client has no hosting sub or it's already canceled.
+    """
+    _init()
+    sub_id = client.stripe_hosting_subscription_id
+    if not sub_id:
+        return None
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+    except Exception:
+        # Already gone from Stripe — clear our reference.
+        client.stripe_hosting_subscription_id = ''
+        client.save(update_fields=[
+            'stripe_hosting_subscription_id', 'updated_at'])
+        return None
+    if sub.get('status') in ('canceled', 'incomplete_expired'):
+        return sub
+    updated = stripe.Subscription.modify(
+        sub_id,
+        cancel_at_period_end=True,
+        metadata={**(sub.get('metadata') or {}),
+                  'cancel_reason': reason[:200] if reason else ''},
+    )
+    logger.info(
+        'cancel_hosting_subscription: client %s sub %s set to '
+        'cancel_at_period_end (reason=%s)',
+        client.pk, sub_id, reason)
+    return updated
+
+
+def list_customer_payment_methods(customer_id):
+    """List active card payment methods attached to a customer."""
+    _init()
+    if not customer_id:
+        return []
+    methods = stripe.PaymentMethod.list(
+        customer=customer_id, type='card', limit=20)
+    return list(methods.get('data', []))
+
+
+def get_customer_default_payment_method(customer_id):
+    """Return the customer's default invoice payment method ID, or ''."""
+    _init()
+    if not customer_id:
+        return ''
+    cust = stripe.Customer.retrieve(customer_id)
+    return ((cust.get('invoice_settings') or {})
+            .get('default_payment_method') or '')
+
+
+def set_customer_default_payment_method(customer_id, payment_method_id):
+    """Set the default invoice payment method on a customer."""
+    _init()
+    stripe.Customer.modify(
+        customer_id,
+        invoice_settings={
+            'default_payment_method': payment_method_id,
+        },
+    )
+
+
+def detach_payment_method(payment_method_id):
+    """Detach (remove) a payment method from its customer."""
+    _init()
+    return stripe.PaymentMethod.detach(payment_method_id)
+
+
+def create_setup_intent_for_customer(customer_id):
+    """
+    Create a Stripe SetupIntent so a client can save a new card via
+    Stripe Elements on the portal without making a payment. Returns
+    the SetupIntent object — the caller hands its `client_secret`
+    to Stripe.js.
+    """
+    _init()
+    intent = stripe.SetupIntent.create(
+        customer=customer_id,
+        payment_method_types=['card'],
+        usage='off_session',
+    )
+    return intent
+
+
 def create_onboarding_payment_intent(*, email, name, line_items,
                                      client_profile_id, invoice_id):
     """
@@ -173,6 +371,11 @@ def create_onboarding_payment_intent(*, email, name, line_items,
         payment_method_types=['card'],
         # No `receipt_email` => no Stripe receipt; we send our own.
         description=f'Aspired Websites — {description_lines}'[:1000],
+        # Save the card off-session so the same card auto-renews the
+        # hosting subscription (and any future subs) without asking
+        # again. The webhook attaches it to the customer + sets as
+        # default after the PI succeeds.
+        setup_future_usage='off_session',
         metadata={
             'source': 'aspired_websites',
             'kind': 'onboarding',

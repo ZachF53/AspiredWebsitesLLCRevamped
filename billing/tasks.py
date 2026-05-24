@@ -84,3 +84,23 @@ def provision_manual_droplet_task(name, region, size, snapshot_id,
     except Exception:
         logger.exception('manual provision failed for %s', name)
         raise
+
+
+@shared_task
+def reconcile_subscriptions_task():
+    """
+    Daily safety net — Celery wrapper around the
+    `reconcile_subscriptions` management command. Confirms every
+    active hosting subscription still has a live Droplet; cancels
+    any drift before the next billing cycle.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    buf = StringIO()
+    call_command('reconcile_subscriptions', stdout=buf)
+    summary = buf.getvalue().splitlines()
+    last_line = summary[-1] if summary else ''
+    logger.info('reconcile_subscriptions: %s', last_line)
+    return last_line

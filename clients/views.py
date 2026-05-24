@@ -1798,6 +1798,183 @@ def portal_suggestions(request):
                   ))
 
 
+# ── Portal subscriptions + payment methods ─────────────────────────────────
+
+def _subscription_card(stripe_sub):
+    """Normalise a Stripe Subscription into a flat dict for the template."""
+    if stripe_sub is None:
+        return None
+    items = (stripe_sub.get('items') or {}).get('data') or []
+    price = items[0].get('price') if items else None
+    amount = (price.get('unit_amount') or 0) / 100 if price else 0
+    interval = ((price or {}).get('recurring') or {}).get('interval', '')
+    product_name = ''
+    if price and price.get('product'):
+        # The product may be a string ID; resolve via API.
+        try:
+            import stripe as _stripe
+            from django.conf import settings as _s
+            _stripe.api_key = _s.STRIPE_SECRET_KEY
+            prod = _stripe.Product.retrieve(price.get('product'))
+            product_name = prod.get('name', '')
+        except Exception:
+            pass
+    return {
+        'id': stripe_sub.get('id'),
+        'status': stripe_sub.get('status'),
+        'amount': amount,
+        'interval': interval,
+        'product_name': product_name,
+        'cancel_at_period_end': stripe_sub.get('cancel_at_period_end'),
+        'current_period_end': stripe_sub.get('current_period_end'),
+        'trial_end': stripe_sub.get('trial_end'),
+    }
+
+
+@client_required
+def portal_subscriptions(request):
+    """
+    Client-facing subscriptions + payment-methods page. Lists active
+    recurring charges (hosting, maintenance, domain when wired) and
+    every saved card on the Stripe customer. The default card is what
+    drives every renewal; the client can add/remove/set-default here.
+    """
+    import stripe as _stripe
+    from django.conf import settings as _s
+
+    from billing.stripe_helpers import (
+        get_customer_default_payment_method,
+        list_customer_payment_methods,
+    )
+
+    profile = request.client_profile
+    _stripe.api_key = _s.STRIPE_SECRET_KEY
+
+    subscriptions = []
+    if profile.stripe_customer_id:
+        # Fetch each known subscription by ID so we get current Stripe
+        # state (vs trusting the local boolean flags).
+        for sub_id in [
+            profile.stripe_hosting_subscription_id,
+            profile.stripe_subscription_id,
+        ]:
+            if not sub_id:
+                continue
+            try:
+                sub = _stripe.Subscription.retrieve(sub_id)
+                if sub.get('status') in (
+                        'active', 'trialing', 'past_due', 'unpaid'):
+                    subscriptions.append(_subscription_card(sub))
+            except Exception:
+                logger.exception(
+                    'Subscription fetch failed for %s', sub_id)
+
+    payment_methods = []
+    default_pm_id = ''
+    if profile.stripe_customer_id:
+        try:
+            payment_methods = list_customer_payment_methods(
+                profile.stripe_customer_id)
+            default_pm_id = get_customer_default_payment_method(
+                profile.stripe_customer_id)
+        except Exception:
+            logger.exception(
+                'Payment method fetch failed for client %s', profile.pk)
+
+    ctx = _portal_context(
+        request, 'subscriptions',
+        subscriptions=subscriptions,
+        payment_methods=payment_methods,
+        default_pm_id=default_pm_id,
+        stripe_publishable_key=getattr(
+            _s, 'STRIPE_PUBLISHABLE_KEY', ''),
+    )
+    return render(request, 'clients/portal_subscriptions.html', ctx)
+
+
+@client_required
+@require_POST
+def portal_payment_method_add(request):
+    """
+    Begin the add-card flow: create a SetupIntent for the customer +
+    return its client_secret + a fresh page URL.
+
+    HTMX call from the subscriptions page returns JSON; the page's JS
+    hands the client_secret to Stripe Elements.
+    """
+    from django.http import JsonResponse
+
+    from billing.stripe_helpers import (
+        StripeNotConfigured, create_setup_intent_for_customer,
+    )
+
+    profile = request.client_profile
+    if not profile.stripe_customer_id:
+        return JsonResponse(
+            {'error': 'No Stripe customer on file. '
+                      'Pay an invoice first to seed the customer.'},
+            status=400)
+    try:
+        intent = create_setup_intent_for_customer(
+            profile.stripe_customer_id)
+    except StripeNotConfigured as exc:
+        return JsonResponse({'error': str(exc)}, status=500)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('SetupIntent create failed')
+        return JsonResponse({'error': str(exc)[:200]}, status=500)
+
+    return JsonResponse({
+        'client_secret': intent.client_secret,
+    })
+
+
+@client_required
+@require_POST
+def portal_payment_method_remove(request, pm_id):
+    """Remove (detach) a saved card."""
+    from billing.stripe_helpers import (
+        detach_payment_method, list_customer_payment_methods,
+    )
+
+    profile = request.client_profile
+    # Sanity check — the PM must belong to this client's customer.
+    methods = list_customer_payment_methods(profile.stripe_customer_id)
+    if not any(m['id'] == pm_id for m in methods):
+        messages.error(request, 'That card is not on your account.')
+        return redirect('clients:portal_subscriptions')
+    try:
+        detach_payment_method(pm_id)
+        messages.success(request, 'Card removed.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Detach payment method failed')
+        messages.error(request, f'Could not remove card: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
+@client_required
+@require_POST
+def portal_payment_method_default(request, pm_id):
+    """Set the named card as the default for invoice payments."""
+    from billing.stripe_helpers import (
+        list_customer_payment_methods,
+        set_customer_default_payment_method,
+    )
+
+    profile = request.client_profile
+    methods = list_customer_payment_methods(profile.stripe_customer_id)
+    if not any(m['id'] == pm_id for m in methods):
+        messages.error(request, 'That card is not on your account.')
+        return redirect('clients:portal_subscriptions')
+    try:
+        set_customer_default_payment_method(
+            profile.stripe_customer_id, pm_id)
+        messages.success(request, 'Default payment method updated.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Set-default payment method failed')
+        messages.error(request, f'Could not update default: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
 # ── Phase 7 Part 2 — Client portal referral page ───────────────────────────
 
 @client_required

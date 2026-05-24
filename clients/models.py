@@ -97,7 +97,18 @@ class ClientProfile(TimestampedModel):
 
     # ── Stripe / maintenance ──
     stripe_customer_id = models.CharField(max_length=255, blank=True)
+    # Maintenance plan subscription (Essentials / Growth / Dominant).
+    # Created when the client subscribes via the maintenance handoff
+    # flow.
     stripe_subscription_id = models.CharField(max_length=255, blank=True)
+    # Annual hosting subscription. Created when the client buys hosting
+    # on the initial admin invoice ($150/yr line item). Uses Stripe's
+    # 365-day trial so the first recurring charge fires 365 days after
+    # the initial payment. Gated by the `invoice.upcoming` webhook —
+    # if the client's Droplet is no longer on our DO account at
+    # renewal time, the subscription cancels before charging.
+    stripe_hosting_subscription_id = models.CharField(
+        max_length=255, blank=True)
     # Stripe invoice ID for the one-time admin-created onboarding invoice
     # (Part 2 of the onboarding flow). Lets the webhook find this profile
     # by either customer or invoice ID — and lets the billing dashboard

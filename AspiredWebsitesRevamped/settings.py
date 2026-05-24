@@ -284,6 +284,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ── Email — SendGrid SMTP ───────────────────────────────────────────────────
 # Per CLAUDE.md: all transactional + outreach mail goes through SendGrid.
 SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
+
+# Stripe Price ID for the annual hosting subscription. Bootstrap with
+# `python manage.py sync_stripe_subscription_products` — it'll print
+# the ID to paste here.
+STRIPE_PRICE_HOSTING_YEARLY = env('STRIPE_PRICE_HOSTING_YEARLY', '')
 # Custom SMTP backend that auto-appends the legal address footer
 # (8735 Dunwoody Place, Ste R, Atlanta GA 30350) to every outgoing
 # email. Subclasses Django's SMTP backend; passes everything else
@@ -482,6 +487,16 @@ CELERY_BEAT_SCHEDULE = {
     'send-onboarding-reminders': {
         'task': 'clients.tasks.send_onboarding_reminders',
         'schedule': crontab(hour='*/12', minute=0),
+    },
+    # Subscription reconciliation — daily safety net catching drift
+    # between Stripe-subscription state and the underlying resource
+    # (Droplet for hosting). The real-time invoice.upcoming webhook
+    # is the primary gate; this is the second line of defense for
+    # subs whose resources were destroyed mid-cycle (so we cancel
+    # well before the renewal hits).
+    'reconcile-subscriptions': {
+        'task': 'billing.tasks.reconcile_subscriptions_task',
+        'schedule': crontab(hour=4, minute=0),            # daily 4am
     },
 }
 

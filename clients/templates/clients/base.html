@@ -119,6 +119,10 @@
 
                     {# ── ACCOUNT ── #}
                     <div class="portal-nav-group-label">Account</div>
+                    <a class="portal-nav__link {% if active_portal_nav == 'subscriptions' %}is-active{% endif %}" href="{% url 'clients:portal_subscriptions' %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18M7 15h3"/></svg>
+                        <span>Subscriptions</span>
+                    </a>
                     <a class="portal-nav__link {% if active_portal_nav == 'settings' %}is-active{% endif %}" href="{% url 'clients:settings' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg>
                         <span>Settings</span>

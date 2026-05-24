@@ -42,6 +42,8 @@ def stripe_webhook(request):
     try:
         if event_type == 'payment_intent.succeeded':
             _handle_payment_intent_succeeded(event)
+        elif event_type == 'invoice.upcoming':
+            _handle_invoice_upcoming(event)
         elif event_type == 'invoice.paid':
             _handle_invoice_paid(event)
         elif event_type == 'invoice.payment_failed':
@@ -100,6 +102,46 @@ def _handle_payment_intent_succeeded(event):
     ])
 
     client = invoice.client
+
+    # Attach the card to the customer + set as default so future
+    # subscriptions (hosting, domain) charge it automatically. PI had
+    # setup_future_usage='off_session' set, so Stripe has already
+    # attached the PaymentMethod — we just need to mark it default.
+    pm_id = pi.get('payment_method') or ''
+    if pm_id and client.stripe_customer_id:
+        try:
+            from billing.stripe_helpers import (
+                attach_payment_method_to_customer,
+            )
+            attach_payment_method_to_customer(
+                client.stripe_customer_id, pm_id,
+                set_as_default=True)
+        except Exception:
+            logger.exception(
+                'PM attach/default-set failed for client %s',
+                client.pk)
+
+    # Create the annual hosting subscription if hosting was on the
+    # invoice. Hosting line items are recognised by their description
+    # containing "hosting" (case-insensitive); we stored the line
+    # items verbatim on OnboardingInvoice.line_items.
+    if _invoice_has_hosting(invoice) and pm_id:
+        try:
+            from billing.stripe_helpers import (
+                StripeNotConfigured, create_hosting_subscription,
+            )
+            create_hosting_subscription(
+                client, default_payment_method_id=pm_id)
+        except StripeNotConfigured:
+            logger.warning(
+                'Hosting subscription skipped for client %s — '
+                'STRIPE_PRICE_HOSTING_YEARLY not configured',
+                client.pk)
+        except Exception:
+            logger.exception(
+                'Hosting subscription creation failed for client %s',
+                client.pk)
+
     _on_onboarding_invoice_paid(client)
 
     # Generate the branded receipt PDF + email it. Best-effort; the
@@ -346,10 +388,163 @@ def _handle_invoice_payment_failed(event):
 # ── customer.subscription.deleted ───────────────────────────────────────────
 
 def _handle_subscription_deleted(event):
+    """
+    Fires when a subscription is fully ended (either cancel_at_period_end
+    elapsed, or an immediate cancel). Clears our reference to it so the
+    portal stops showing a "subscribed" state.
+    """
     subscription = event['data']['object']
+    sub_id = subscription.get('id', '')
     client = _client_for_customer(subscription.get('customer'))
     if client is None:
         return
-    client.maintenance_active = False
-    client.save(update_fields=['maintenance_active', 'updated_at'])
-    logger.info('subscription.deleted: maintenance off for client %s', client.pk)
+
+    # Disambiguate which of our refs this was.
+    fields = []
+    if client.stripe_hosting_subscription_id == sub_id:
+        client.stripe_hosting_subscription_id = ''
+        fields.append('stripe_hosting_subscription_id')
+    if client.stripe_subscription_id == sub_id:
+        client.maintenance_active = False
+        client.stripe_subscription_id = ''
+        fields.extend(['maintenance_active', 'stripe_subscription_id'])
+
+    if fields:
+        fields.append('updated_at')
+        client.save(update_fields=fields)
+        logger.info(
+            'subscription.deleted: cleared %s for client %s',
+            ', '.join(fields), client.pk)
+    else:
+        logger.info(
+            'subscription.deleted: no matching ref for client %s '
+            '(sub %s)', client.pk, sub_id)
+
+
+# ── invoice.upcoming ────────────────────────────────────────────────────────
+
+def _handle_invoice_upcoming(event):
+    """
+    Stripe fires this ~3 days before each renewal invoice is created.
+    For HOSTING subscriptions, we check that the client's Droplet is
+    still alive on our DO account. If it isn't, cancel the subscription
+    at period end so the upcoming invoice never materialises — the
+    client doesn't get charged for hosting they no longer have.
+    """
+    invoice = event['data']['object']
+    sub_id = invoice.get('subscription') or ''
+    if not sub_id:
+        return
+
+    client = ClientProfile.objects.filter(
+        stripe_hosting_subscription_id=sub_id).first()
+    if client is None:
+        # Not one of our hosting subs — maintenance subs etc. have
+        # their own gate (or none).
+        return
+
+    if _droplet_alive(client):
+        logger.info(
+            'invoice.upcoming: hosting renewal cleared for client %s '
+            '(droplet %s alive)', client.pk, client.do_droplet_id)
+        return
+
+    # Droplet is gone — cancel the subscription so the renewal
+    # invoice doesn't generate a charge.
+    try:
+        from billing.stripe_helpers import cancel_hosting_subscription
+        cancel_hosting_subscription(
+            client,
+            reason=(
+                'invoice.upcoming gate: droplet '
+                f'{client.do_droplet_id or "(unknown)"} not active '
+                'on DO account at renewal time'))
+    except Exception:
+        logger.exception(
+            'auto-cancel of hosting sub %s failed', sub_id)
+        return
+
+    # Alert the admin so the offboarding isn't silent.
+    try:
+        from django.conf import settings as _s
+        from django.core.mail import send_mail
+        send_mail(
+            subject=(f'[Hosting auto-cancelled] {client.firm_name} — '
+                     f'droplet missing at renewal'),
+            message=(
+                f'The annual hosting subscription for {client.firm_name} '
+                f'has been cancelled because their Droplet is no longer '
+                f'on our DigitalOcean account.\n\n'
+                f'Subscription ID: {sub_id}\n'
+                f'Client ID:       {client.id}\n'
+                f'Last known droplet ID: {client.do_droplet_id or "(none)"}\n\n'
+                f'Confirm this was intentional. If the Droplet should '
+                f'still exist, recreate it + re-subscribe via the '
+                f'admin client detail page.\n'),
+            from_email=getattr(
+                _s, 'EMAIL_FROM_NO_REPLY', _s.DEFAULT_FROM_EMAIL),
+            recipient_list=[_s.LEAD_NOTIFICATION_EMAIL],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception('admin alert for hosting auto-cancel failed')
+
+
+def _droplet_alive(client):
+    """
+    True if the client's Droplet is recorded AND DigitalOcean still
+    reports it as active. False if the Droplet ID is missing OR the
+    DO API can't find it.
+
+    Best-effort: a transient DO API outage returns True (assume alive)
+    so we don't accidentally cancel a real client's subscription over
+    a temporary network blip. The daily reconcile cron catches any
+    drift the next morning.
+    """
+    if not client.do_droplet_id:
+        return False
+    try:
+        import requests
+        from django.conf import settings as _s
+        resp = requests.get(
+            f'https://api.digitalocean.com/v2/droplets/{client.do_droplet_id}',
+            headers={
+                'Authorization': f'Bearer {_s.DO_API_TOKEN}',
+            },
+            timeout=10,
+        )
+        if resp.status_code == 404:
+            return False                # explicitly gone
+        if resp.status_code >= 500:
+            # DO is having a moment — assume alive (safer than a
+            # false-cancel during an outage).
+            logger.warning(
+                'DO API %d on droplet %s status check — assuming alive',
+                resp.status_code, client.do_droplet_id)
+            return True
+        resp.raise_for_status()
+        status = (resp.json().get('droplet') or {}).get('status', '')
+        return status in ('active', 'new')
+    except Exception:
+        logger.exception(
+            'DO droplet status check failed for client %s — '
+            'assuming alive', client.pk)
+        return True
+
+
+# ── _invoice_has_hosting helper (used by payment_intent.succeeded) ──────────
+
+def _invoice_has_hosting(invoice):
+    """
+    Whether the OnboardingInvoice included a hosting line item.
+
+    Line items are stored as a list of {'description': ..., 'amount': ...}
+    on the OnboardingInvoice row. A hosting line is anything whose
+    description contains the word 'hosting' (case-insensitive). Robust
+    enough for the current product set; if we add new line types we
+    can switch to an explicit `kind` field on each line item.
+    """
+    for item in (invoice.line_items or []):
+        if 'hosting' in (item.get('description') or '').lower():
+            return True
+    return False
