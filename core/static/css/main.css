@@ -3959,6 +3959,14 @@ button.htmx-request {
     width: 100%;
     max-width: 460px;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    /* Stripe's Payment Element can render tall (card form +
+       optional "save my info" Link section + email + phone). Cap
+       at viewport height minus the wrapper padding so the panel
+       scrolls instead of getting cut off on short screens. */
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    /* iOS / Safari momentum scrolling. */
+    -webkit-overflow-scrolling: touch;
 }
 .add-card-modal__head {
     display: flex;
