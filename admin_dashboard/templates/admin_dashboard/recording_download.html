@@ -9,9 +9,19 @@
                background: #0F172A; color: #fff; margin: 0; padding: 24px; }
         h1 { font-size: 18px; margin: 0 0 6px 0; color: #E8650A; }
         p.meta { margin: 0 0 18px 0; color: #94A3B8; font-size: 13px; }
-        #player { background: #fff; border-radius: 8px; overflow: hidden;
-                  box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
-        {{ rrweb_css }}
+        #replayer { background: #fff; border-radius: 8px;
+                    overflow: auto; min-height: 480px;
+                    box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+        .controls { display: flex; gap: 8px; align-items: center;
+                    margin-top: 12px; }
+        .controls button, .controls select {
+            background: #1E293B; color: #fff;
+            border: 1px solid #334155; padding: 6px 12px;
+            border-radius: 6px; font: inherit; cursor: pointer;
+        }
+        .controls button:hover { background: #334155; }
+        .empty { padding: 32px; color: #94A3B8;
+                 text-align: center; line-height: 1.6; }
     </style>
 </head>
 <body>
@@ -22,12 +32,28 @@
         {{ recording.created_at|date:"F j, Y H:i" }} ·
         Duration: {{ recording.duration_display }}
     </p>
-    <div id="player"></div>
+    <div id="replayer"></div>
+    <div class="controls">
+        <button type="button" id="play-btn">▶ Play</button>
+        <button type="button" id="pause-btn">⏸ Pause</button>
+        <button type="button" id="restart-btn">↺ Restart</button>
+        <label>
+            Speed:
+            <select id="speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+                <option value="8">8x</option>
+            </select>
+        </label>
+    </div>
 
     <script id="recording-events" type="application/json">{{ events_json }}</script>
     <script>{{ rrweb_js }}</script>
     <script>
         (function () {
+            var stage = document.getElementById('replayer');
             var raw = document.getElementById('recording-events').textContent;
             var events;
             try { events = JSON.parse(raw); }
@@ -35,23 +61,53 @@
             if (typeof events === 'string') {
                 try { events = JSON.parse(events); } catch (e) {}
             }
-            if (!Array.isArray(events) || !events.length) {
-                document.getElementById('player').textContent =
-                    'No events to replay in this file.';
+            if (!Array.isArray(events) || events.length === 0) {
+                stage.innerHTML =
+                    '<div class="empty">No events to replay.</div>';
                 return;
             }
-            var Player = window.rrwebPlayer || rrwebPlayer;
-            new Player({
-                target: document.getElementById('player'),
-                props: {
-                    events: events,
-                    width: Math.min(1024, window.innerWidth - 80),
-                    height: Math.min(576, window.innerHeight - 200),
-                    autoPlay: false,
-                    showController: true,
-                    speedOption: [1, 2, 4, 8]
+            var hasFullSnapshot = false;
+            for (var i = 0; i < events.length; i++) {
+                if (events[i] && events[i].type === 2) {
+                    hasFullSnapshot = true; break;
                 }
+            }
+            if (!hasFullSnapshot) {
+                stage.innerHTML =
+                    '<div class="empty">' +
+                    'Recording captured ' + events.length +
+                    ' interaction events, but the initial DOM ' +
+                    'snapshot is missing. Replay needs the baseline ' +
+                    'snapshot to render the page.' +
+                    '</div>';
+                return;
+            }
+            if (!window.rrweb || typeof rrweb.Replayer !== 'function') {
+                stage.innerHTML =
+                    '<div class="empty">rrweb did not load.</div>';
+                return;
+            }
+            var replayer = new rrweb.Replayer(events, {
+                root: stage,
+                skipInactive: true,
+                showWarning: false,
+                showDebug: false,
+                liveMode: false,
+                mouseTail: false
             });
+            document.getElementById('play-btn')
+                .addEventListener('click', function () { replayer.play(); });
+            document.getElementById('pause-btn')
+                .addEventListener('click', function () { replayer.pause(); });
+            document.getElementById('restart-btn')
+                .addEventListener('click', function () { replayer.play(0); });
+            document.getElementById('speed-select')
+                .addEventListener('change', function () {
+                    replayer.setConfig({
+                        speed: parseFloat(this.value) || 1
+                    });
+                });
+            replayer.play();
         })();
     </script>
 </body>

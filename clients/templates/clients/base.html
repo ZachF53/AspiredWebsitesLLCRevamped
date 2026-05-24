@@ -19,6 +19,9 @@
             </a>
 
             <nav class="portal-nav" aria-label="Client portal">
+
+                {# ── PROJECT ── #}
+                <div class="portal-nav-group-label portal-nav-group-label--first">Project</div>
                 <a class="portal-nav__link {% if active_portal_nav == 'dashboard' %}is-active{% endif %}" href="{% url 'clients:dashboard' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
                     <span>Dashboard</span>
@@ -41,6 +44,9 @@
                     <span>Revisions</span>
                     {% if pending_revisions %}<span class="portal-badge">{{ pending_revisions }}</span>{% endif %}
                 </a>
+
+                {# ── SUPPORT ── #}
+                <div class="portal-nav-group-label">Support</div>
                 <a class="portal-nav__link {% if active_portal_nav == 'support' %}is-active{% endif %}" href="{% url 'clients:support' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5 5l4 4m6 6l4 4M19 5l-4 4M5 19l4-4"/></svg>
                     <span>Support</span>
@@ -58,6 +64,9 @@
                     <span>Activity Log</span>
                     {% if changelog_has_new %}<span class="portal-nav__dot" aria-label="New activity"></span>{% endif %}
                 </a>
+
+                {# ── INSIGHTS ── #}
+                <div class="portal-nav-group-label">Insights</div>
                 <a class="portal-nav__link {% if active_portal_nav == 'seo' %}is-active{% endif %}" href="{% url 'clients:portal_seo' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
                     <span>SEO &amp; Conversions</span>
@@ -82,10 +91,16 @@
                     <span>Recommendations</span>
                     {% if portal_suggestions_pending %}<span class="portal-nav__dot portal-nav__dot--alert" aria-label="Pending recommendation"></span>{% endif %}
                 </a>
+
+                {# ── GROWTH ── #}
+                <div class="portal-nav-group-label">Growth</div>
                 <a class="portal-nav__link {% if active_portal_nav == 'referral' %}is-active{% endif %}" href="{% url 'clients:portal_referral' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
                     <span>Refer a Friend</span>
                 </a>
+
+                {# ── ACCOUNT ── #}
+                <div class="portal-nav-group-label">Account</div>
                 <a class="portal-nav__link {% if active_portal_nav == 'settings' %}is-active{% endif %}" href="{% url 'clients:settings' %}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg>
                     <span>Settings</span>

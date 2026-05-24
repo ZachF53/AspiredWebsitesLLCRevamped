@@ -4248,6 +4248,35 @@ button.htmx-request {
     position: sticky;
     top: 0;
     height: 100vh;
+    /* The portal nav has 14+ items in 5 groups — when the viewport
+       is shorter than the full list (laptops, half-screens), let
+       the sidebar scroll on its own without taking the page with
+       it. The logout form below the nav stays in view because
+       flex-grow on .portal-nav lets the nav own the slack. */
+    overflow-y: auto;
+}
+/* Slimmer scrollbar so it doesn't dominate the 248px column. */
+.portal-sidebar::-webkit-scrollbar { width: 6px; }
+.portal-sidebar::-webkit-scrollbar-track { background: transparent; }
+.portal-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08); border-radius: 3px;
+}
+.portal-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+.portal-nav-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748B;
+    padding: 14px var(--space-2) 4px;
+    /* No top padding on the first group — its parent already has
+       the logo + section break. */
+}
+.portal-nav-group-label--first {
+    padding-top: 4px;
 }
 
 .portal-logo {
@@ -10467,4 +10496,106 @@ button.htmx-request {
 .admin-table__actions form {
     margin: 0;
     display: inline-block;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Click activity heatmap (replaces the old 10x10 grid) + replayer stage
+   ───────────────────────────────────────────────────────────────────────── */
+
+.click-activity {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+    margin-top: 8px;
+}
+@media (max-width: 900px) {
+    .click-activity { grid-template-columns: 1fr; }
+}
+
+.section-bars {
+    display: flex; flex-direction: column; gap: 10px;
+}
+.section-bar {
+    display: grid;
+    grid-template-columns: 140px 1fr 60px;
+    gap: 12px; align-items: center;
+}
+.section-bar__label {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.section-bar__track {
+    height: 18px; border-radius: 9px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+}
+.section-bar__fill {
+    height: 100%; border-radius: 9px 0 0 9px;
+    background: var(--color-orange);
+    transition: width 0.2s ease;
+    min-width: 2px;
+}
+.section-bar__count {
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 600;
+}
+
+.click-canvas {
+    display: block;
+    width: 100%; max-width: 600px;
+    height: auto; aspect-ratio: 3 / 2;
+    background: #0F172A;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+/* ── rrweb Replayer stage + simple controls ── */
+
+.replayer-stage {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    min-height: 540px;
+    overflow: auto;
+    margin: 14px 0;
+    padding: 10px;
+}
+/* The rrweb Replayer injects an iframe + wrapper of its own —
+   leave plenty of vertical room and let it size naturally. */
+.replayer-stage .replayer-wrapper { margin: 0 auto; }
+
+.replayer-empty {
+    padding: 32px 24px;
+    color: var(--color-text-muted);
+    text-align: center;
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.replayer-controls {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 10px 12px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    margin-bottom: 14px;
+}
+.replayer-speed {
+    display: inline-flex; gap: 6px; align-items: center;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+.replayer-speed select {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 4px 8px; border-radius: 6px;
+    font: inherit;
 }

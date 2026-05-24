@@ -1,48 +1,114 @@
-/* Boots the rrweb player on the admin / portal replay page. */
+/*
+ * Boots the rrweb Replayer on the admin / portal replay page.
+ * Uses the raw Replayer API (not the rrweb-player wrapper) for
+ * reliability — the wrapper has been blank on real recordings.
+ *
+ * Required in the host page:
+ *   <div id="replayer"></div>
+ *   {{ events_json|json_script:"recording-events" }}
+ *   buttons:  #play-btn  #pause-btn  #restart-btn
+ *   select:   #speed-select  with value="0.5|1|2|4|8"
+ */
 (function () {
     'use strict';
 
     function init() {
-        if (typeof rrwebPlayer !== 'function'
-            && typeof window.rrwebPlayer !== 'function') {
-            // Player bundle hasn't loaded yet — try again on next tick.
+        if (!window.rrweb || typeof rrweb.Replayer !== 'function') {
+            // rrweb.min.js hasn't finished loading — try again.
             return setTimeout(init, 100);
         }
-        var target = document.getElementById('player-container');
-        if (!target) { return; }
 
-        var raw;
+        var stage = document.getElementById('replayer');
         var dataEl = document.getElementById('recording-events');
-        if (!dataEl) { return; }
+        if (!stage || !dataEl) { return; }
+
+        var events;
         try {
-            raw = JSON.parse(dataEl.textContent);
+            events = JSON.parse(dataEl.textContent);
         } catch (e) {
-            target.textContent = 'Could not parse the recording.';
+            stage.innerHTML = renderEmptyState(
+                'Could not parse the recording payload.');
+            return;
+        }
+        if (typeof events === 'string') {
+            try { events = JSON.parse(events); } catch (e) { /* keep */ }
+        }
+        if (!Array.isArray(events) || events.length === 0) {
+            stage.innerHTML = renderEmptyState(
+                'No recording events found. The recording may ' +
+                'still be in progress.');
             return;
         }
 
-        // json_script + JSON.dumps((..., default=str)) leaves us with
-        // the events list as a JS string — parse once more if needed.
-        if (typeof raw === 'string') {
-            try { raw = JSON.parse(raw); } catch (e) { /* keep */ }
-        }
-        if (!Array.isArray(raw) || raw.length === 0) {
-            target.textContent = 'No events to replay.';
-            return;
-        }
-
-        var Player = window.rrwebPlayer || rrwebPlayer;
-        new Player({
-            target: target,
-            props: {
-                events: raw,
-                width: 1024,
-                height: 576,
-                autoPlay: false,
-                showController: true,
-                speedOption: [1, 2, 4, 8]
+        // rrweb's Replayer requires at least one FullSnapshot
+        // (type=2) and one Meta (type=4) event to render the
+        // baseline DOM. Without those, the player shows blank
+        // controls over an empty stage. Detect that up-front and
+        // explain what happened instead of silently showing nothing.
+        var hasFullSnapshot = false;
+        for (var i = 0; i < events.length; i++) {
+            if (events[i] && events[i].type === 2) {
+                hasFullSnapshot = true;
+                break;
             }
-        });
+        }
+        if (!hasFullSnapshot) {
+            stage.innerHTML = renderEmptyState(
+                'Recording captured ' + events.length +
+                ' interaction event' + (events.length === 1 ? '' : 's') +
+                ', but the initial DOM snapshot is missing. ' +
+                'This usually happens when the page is restored ' +
+                'from the browser&rsquo;s back/forward cache before ' +
+                'the recorder can re-baseline. The session timeline ' +
+                'is still stored — replay will work on the next ' +
+                'fresh page-load recording.');
+            return;
+        }
+
+        var replayer;
+        try {
+            replayer = new rrweb.Replayer(events, {
+                root: stage,
+                skipInactive: true,
+                showWarning: false,
+                showDebug: false,
+                liveMode: false,
+                mouseTail: false
+            });
+        } catch (e) {
+            stage.innerHTML = renderEmptyState(
+                'Replayer failed to initialise: ' + (e.message || e));
+            return;
+        }
+
+        // Wire the simple custom controls.
+        wire('play-btn', function () { replayer.play(); });
+        wire('pause-btn', function () { replayer.pause(); });
+        wire('restart-btn', function () { replayer.play(0); });
+
+        var speedSelect = document.getElementById('speed-select');
+        if (speedSelect) {
+            speedSelect.addEventListener('change', function () {
+                var s = parseFloat(speedSelect.value) || 1;
+                replayer.setConfig({ speed: s });
+            });
+        }
+
+        // Auto-play. The custom controls work fine if user pauses.
+        try { replayer.play(); } catch (e) { /* ignore */ }
+    }
+
+    function wire(id, handler) {
+        var el = document.getElementById(id);
+        if (el) { el.addEventListener('click', handler); }
+    }
+
+    function renderEmptyState(msg) {
+        return (
+            '<div class="replayer-empty">' +
+            '<p>' + msg + '</p>' +
+            '</div>'
+        );
     }
 
     if (document.readyState === 'loading') {

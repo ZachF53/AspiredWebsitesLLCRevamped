@@ -3,10 +3,6 @@
 
 {% block title %}Replay — {{ recording.created_at|date:"M j" }}{% endblock %}
 
-{% block extra_head %}
-    <link rel="stylesheet" href="{% static 'js/rrweb-player.css' %}">
-{% endblock %}
-
 {% block portal_content %}
 <div class="portal-recording-replay">
     <header class="portal-page-head">
@@ -24,12 +20,28 @@
         </div>
     </header>
 
-    <div id="player-container" class="rrweb-stage"></div>
+    <div id="replayer" class="replayer-stage"></div>
+
+    <div class="replayer-controls">
+        <button type="button" id="play-btn" class="btn-secondary btn-sm">▶ Play</button>
+        <button type="button" id="pause-btn" class="btn-secondary btn-sm">⏸ Pause</button>
+        <button type="button" id="restart-btn" class="btn-secondary btn-sm">↺ Restart</button>
+        <label class="replayer-speed">
+            Speed:
+            <select id="speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+                <option value="8">8x</option>
+            </select>
+        </label>
+    </div>
 </div>
 {{ events_json|json_script:"recording-events" }}
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/rrweb-player.min.js' %}" defer></script>
+<script src="{% static 'js/rrweb.min.js' %}" defer></script>
 <script src="{% static 'js/recording_replay.js' %}" defer></script>
 {% endblock %}

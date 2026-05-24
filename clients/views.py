@@ -912,12 +912,7 @@ def portal_recording_download(request, rec_id):
 
     static_root = Path(_s.BASE_DIR) / 'core' / 'static' / 'js'
     try:
-        rrweb_css = (static_root / 'rrweb-player.css').read_text(
-            encoding='utf-8')
-    except OSError:
-        rrweb_css = ''
-    try:
-        rrweb_js = (static_root / 'rrweb-player.min.js').read_text(
+        rrweb_js = (static_root / 'rrweb.min.js').read_text(
             encoding='utf-8')
     except OSError:
         rrweb_js = ''
@@ -934,7 +929,6 @@ def portal_recording_download(request, rec_id):
     body = render(request, 'admin_dashboard/recording_download.html', {
         'client': request.client_profile,
         'recording': rec,
-        'rrweb_css': rrweb_css,
         'rrweb_js': rrweb_js,
         'events_json': events_json,
     }).content
@@ -949,6 +943,8 @@ def portal_recording_replay(request, rec_id):
     """Client-facing replay viewer."""
     import json as _json
 
+    from django.core.serializers.json import DjangoJSONEncoder
+
     from reporting.models import SessionRecording
 
     rec = get_object_or_404(
@@ -957,7 +953,8 @@ def portal_recording_replay(request, rec_id):
     ctx = _portal_context(
         request, 'recordings',
         recording=rec,
-        events_json=_json.dumps(rec.get_all_events(), default=str),
+        events_json=_json.dumps(
+            rec.get_all_events(), cls=DjangoJSONEncoder),
     )
     return render(request, 'clients/portal_recording_replay.html', ctx)
 

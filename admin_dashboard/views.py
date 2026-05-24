@@ -1519,15 +1519,18 @@ def client_conversions(request, client_id):
     legacy clients still on v1 tracker) — every helper returns an
     empty/zeroed shape.
     """
+    from django.core.serializers.json import DjangoJSONEncoder
+
     from clients.models import ClientProfile
     from reporting.analytics_helpers import (
-        click_heatmap_grid, conversion_funnel, overview_stats,
+        click_breakdown, conversion_funnel, overview_stats,
         recent_sessions, scroll_distribution, top_pages,
     )
     from reporting.conversion_helpers import conversion_counts
     from reporting.models import ConversionEvent
 
     client = get_object_or_404(ClientProfile, id=client_id)
+    breakdown = click_breakdown(client)
     return render(request, 'admin_dashboard/client_conversions.html',
                   _admin_context(
                       'clients',
@@ -1537,7 +1540,12 @@ def client_conversions(request, client_id):
                       funnel=conversion_funnel(client),
                       top_pages=top_pages(client, limit=10),
                       scroll_dist=scroll_distribution(client),
-                      heatmap_grid=click_heatmap_grid(client),
+                      click_sections=breakdown['sections'],
+                      click_overlay_json=json.dumps(
+                          breakdown['overlay_clicks'],
+                          cls=DjangoJSONEncoder),
+                      click_top_elements=breakdown['top_elements'],
+                      click_total=breakdown['total_clicks'],
                       sessions=recent_sessions(client, limit=50),
                       events=ConversionEvent.objects.filter(
                           client=client)[:20],
@@ -5034,7 +5042,15 @@ def recordings_list(request, client_id):
 
 @admin_required
 def recording_replay(request, client_id, rec_id):
-    """Full-page rrweb-player viewer. Events JSON inlined into the page."""
+    """
+    Full-page rrweb Replayer view. Events are inlined via
+    `{{ events_json|json_script:"recording-events" }}` so the
+    payload is automatically HTML-escaped inside a typed
+    <script type="application/json"> tag (XSS-safe). The replay
+    JS parses that with JSON.parse — no |safe filter needed.
+    """
+    from django.core.serializers.json import DjangoJSONEncoder
+
     from clients.models import ClientProfile
     from reporting.models import SessionRecording
 
@@ -5048,7 +5064,9 @@ def recording_replay(request, client_id, rec_id):
             'clients',
             client=client,
             recording=rec,
-            events_json=json.dumps(events, default=str),
+            # DjangoJSONEncoder handles datetime/UUID/Decimal cleanly
+            # if any sneak into the rrweb chunks via custom plugins.
+            events_json=json.dumps(events, cls=DjangoJSONEncoder),
             event_count=len(events),
         ),
     )
@@ -5073,12 +5091,7 @@ def recording_download(request, client_id, rec_id):
 
     static_root = Path(settings.BASE_DIR) / 'core' / 'static' / 'js'
     try:
-        rrweb_css = (static_root / 'rrweb-player.css').read_text(
-            encoding='utf-8')
-    except OSError:
-        rrweb_css = ''
-    try:
-        rrweb_js = (static_root / 'rrweb-player.min.js').read_text(
+        rrweb_js = (static_root / 'rrweb.min.js').read_text(
             encoding='utf-8')
     except OSError:
         rrweb_js = ''
@@ -5098,7 +5111,6 @@ def recording_download(request, client_id, rec_id):
         {
             'client': client,
             'recording': rec,
-            'rrweb_css': rrweb_css,
             'rrweb_js': rrweb_js,
             'events_json': events_json,
         },

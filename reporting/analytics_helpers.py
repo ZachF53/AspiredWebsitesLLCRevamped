@@ -218,6 +218,9 @@ def click_heatmap_grid(client, days=DEFAULT_WINDOW_DAYS, grid=10):
     Aggregate every click in the window into a `grid` × `grid`
     density matrix. Returns list-of-list-of-dicts so the template
     can iterate rows then cells without arithmetic.
+
+    Kept for backwards-compat with anything still calling it —
+    the conversions page now uses click_breakdown() instead.
     """
     qs = _qs(client, days)
     cells = Counter()
@@ -247,6 +250,83 @@ def click_heatmap_grid(client, days=DEFAULT_WINDOW_DAYS, grid=10):
             out_row.append({'count': n, 'band': _band(n)})
         out.append(out_row)
     return out
+
+
+# ── Click breakdown (section bar chart + canvas overlay) ──────────────────
+
+# Page sections by vertical position (y_pct).
+_SECTIONS = (
+    ('Header / Nav',     0, 15),
+    ('Hero',            15, 30),
+    ('Upper Content',   30, 50),
+    ('Middle Content',  50, 70),
+    ('Lower Content',   70, 85),
+    ('Footer',          85, 101),
+)
+
+
+def click_breakdown(client, days=DEFAULT_WINDOW_DAYS,
+                    overlay_cap=500):
+    """
+    Three pieces of click-heatmap data for the conversions page:
+
+        sections       list of dicts:
+                       [{label, count, pct, total}]
+        overlay_clicks list of {x_pct, y_pct} for the canvas
+                       (capped at `overlay_cap` to keep payload sane)
+        top_elements   list of (text, count) tuples — top 10 most-
+                       clicked element texts across the window
+
+    All single-pass over the session set — one query.
+    """
+    qs = _qs(client, days).only('click_heatmap')
+
+    section_counts = Counter()
+    overlay = []
+    element_texts = []
+
+    for session in qs:
+        for click in (session.click_heatmap or []):
+            try:
+                y = int(click.get('y_pct', 0))
+                x = int(click.get('x_pct', 0))
+            except (TypeError, ValueError):
+                continue
+            y = max(0, min(100, y))
+            x = max(0, min(100, x))
+
+            # Section by y_pct.
+            for label, lo, hi in _SECTIONS:
+                if lo <= y < hi:
+                    section_counts[label] += 1
+                    break
+
+            # Overlay coordinate (only stash up to overlay_cap).
+            if len(overlay) < overlay_cap:
+                overlay.append({'x_pct': x, 'y_pct': y})
+
+            # Element text for the top-clicked list.
+            text = (click.get('text') or '').strip()
+            if text and len(text) > 2:
+                element_texts.append(text[:80])
+
+    total = sum(section_counts.values())
+    sections = []
+    for label, _lo, _hi in _SECTIONS:
+        n = section_counts.get(label, 0)
+        pct = int(round((n / total) * 100)) if total else 0
+        sections.append({
+            'label': label, 'count': n, 'pct': pct, 'total': total,
+        })
+
+    top_elements = Counter(element_texts).most_common(10)
+
+    return {
+        'sections': sections,
+        'overlay_clicks': overlay,
+        'top_elements': top_elements,
+        'total_clicks': total,
+    }
 
 
 def recent_sessions(client, limit=50):

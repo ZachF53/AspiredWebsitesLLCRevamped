@@ -406,7 +406,14 @@
         mouseInteraction: true,
         scroll: 150,
         media: 800
-      }
+      },
+      // Emit a fresh FullSnapshot every 30s so
+      // each chunk we ship contains a baseline
+      // the Replayer can render from — even if
+      // the very first chunk is lost (network
+      // hiccup, bfcache restore, etc.) the next
+      // one is self-contained.
+      checkoutEveryNms: 30 * 1000
     });
 
     function sendRecordingChunk(events, isFinal) {

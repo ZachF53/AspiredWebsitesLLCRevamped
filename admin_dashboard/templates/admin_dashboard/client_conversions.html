@@ -1,6 +1,11 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}{{ client.firm_name }} — Conversions{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/click_overlay.js' %}" defer></script>
+{% endblock %}
 
 {% block content %}
 <div class="admin-container">
@@ -130,21 +135,56 @@
         </div>
     </section>
 
-    {# ─── Click heatmap grid ─────────────────────────────── #}
+    {# ─── Click activity (section breakdown + canvas overlay) ── #}
     <section class="admin-section">
-        <div class="admin-section__header"><h2>Click density (last {{ overview.days }} days)</h2></div>
-        <p class="muted">Brighter cells = more clicks in that area of the page.</p>
-        <div class="heatmap-grid">
-            {% for row in heatmap_grid %}
-                <div class="heatmap-grid__row">
-                    {% for cell in row %}
-                        <div class="heatmap-cell heatmap-cell--{{ cell.band }}"
-                             title="{{ cell.count }} click{{ cell.count|pluralize }}"></div>
-                    {% endfor %}
+        <div class="admin-section__header"><h2>Click activity (last {{ overview.days }} days)</h2></div>
+        {% if click_total %}
+            <p class="muted">{{ click_total }} click{{ click_total|pluralize }} across {{ overview.total_page_views }} session{{ overview.total_page_views|pluralize }}.</p>
+            <div class="click-activity">
+                <div class="click-activity__col">
+                    <h3 class="admin-subsection-title">By page section</h3>
+                    <div class="section-bars">
+                        {% for s in click_sections %}
+                            <div class="section-bar">
+                                <span class="section-bar__label">{{ s.label }}</span>
+                                <div class="section-bar__track">
+                                    <div class="section-bar__fill" style="width: {{ s.pct }}%;"
+                                         title="{{ s.pct }}% of all clicks"></div>
+                                </div>
+                                <span class="section-bar__count">{{ s.count }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
-            {% endfor %}
-        </div>
+                <div class="click-activity__col">
+                    <h3 class="admin-subsection-title">Where on the page</h3>
+                    <canvas id="heatmap-canvas" width="600" height="400"
+                            class="click-canvas"></canvas>
+                    <p class="muted text-sm">Each click is a dot at its position on the page (top-left = top-left of the visited page).</p>
+                </div>
+            </div>
+
+            {% if click_top_elements %}
+                <h3 class="admin-subsection-title" style="margin-top: 18px;">Most clicked elements</h3>
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>Element text</th><th class="num">Clicks</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for text, n in click_top_elements %}
+                            <tr>
+                                <td>{{ text|truncatechars:80 }}</td>
+                                <td class="num">{{ n }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        {% else %}
+            <p class="muted">No clicks recorded yet.</p>
+        {% endif %}
     </section>
+    {{ click_overlay_json|json_script:"click-overlay-data" }}
     {% endif %}
 
     {# ─── Recent sessions ────────────────────────────────── #}

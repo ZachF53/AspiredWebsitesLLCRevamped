@@ -3,10 +3,6 @@
 
 {% block title %}Replay — {{ client.firm_name }}{% endblock %}
 
-{% block extra_head %}
-    <link rel="stylesheet" href="{% static 'js/rrweb-player.css' %}">
-{% endblock %}
-
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
@@ -29,20 +25,28 @@
         </div>
     </div>
 
-    {% if event_count == 0 %}
-        <div class="banner">No recorded events on this session yet — try a longer visit.</div>
-    {% else %}
-        <div id="player-container" class="rrweb-stage"></div>
-    {% endif %}
-</div>
+    <div id="replayer" class="replayer-stage"></div>
 
-{# Inline events JSON for the player to consume. Using json_script
-   keeps the payload safely escaped — no HTML/JS injection surface
-   even if a page title or URL contains funny characters. #}
+    <div class="replayer-controls">
+        <button type="button" id="play-btn" class="btn-secondary btn-sm">▶ Play</button>
+        <button type="button" id="pause-btn" class="btn-secondary btn-sm">⏸ Pause</button>
+        <button type="button" id="restart-btn" class="btn-secondary btn-sm">↺ Restart</button>
+        <label class="replayer-speed">
+            Speed:
+            <select id="speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+                <option value="8">8x</option>
+            </select>
+        </label>
+    </div>
+</div>
 {{ events_json|json_script:"recording-events" }}
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/rrweb-player.min.js' %}" defer></script>
+<script src="{% static 'js/rrweb.min.js' %}" defer></script>
 <script src="{% static 'js/recording_replay.js' %}" defer></script>
 {% endblock %}
