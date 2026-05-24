@@ -20,13 +20,17 @@
 
 {% include "clients/_intake_progress.html" %}
 
-{# ── MAIN INTAKE FORM ──
-   `hx-trigger="change, input changed delay:600ms"` fires:
-     - immediately on any `change` event (blur, checkbox click, file pick,
-       select change) — covers every input on the page
-     - debounced after 600ms of typing in any text input / textarea
-   So a client who tabs through fields, clicks anywhere, or just pauses
-   typing has their work saved without a manual save button. #}
+{% comment %}
+    Main intake form.
+
+    hx-trigger="change, input changed delay:600ms" fires:
+      - immediately on any `change` event (blur, checkbox click, file
+        pick, select change) — covers every input on the page
+      - debounced after 600ms of typing in any text input / textarea
+
+    So a client who tabs through fields, clicks anywhere, or just pauses
+    typing has their work saved without a manual save button.
+{% endcomment %}
 <form class="intake-form"
       method="post"
       action="{% url 'clients:intake_save' %}"
@@ -37,50 +41,54 @@
       hx-encoding="multipart/form-data">
     {% csrf_token %}
 
-    {# ── Step 1 — Brand ── #}
+    {# Step 1 — Brand #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 1 — Brand</h2>
 
         <div class="form-group">
             <label for="{{ form.brand_colors.id_for_label }}">Brand colors</label>
-            {{ form.brand_colors }}
             <p class="form-hint">List the colors you want featured. If you have hex codes (#1A1A1A) include them — otherwise describe them.</p>
+            {{ form.brand_colors }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.brand_fonts.id_for_label }}">Brand fonts</label>
-            {{ form.brand_fonts }}
             <p class="form-hint">Specific fonts if you have them, or a feel (e.g. "serif and elegant" or "modern sans-serif").</p>
+            {{ form.brand_fonts }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.logo.id_for_label }}">Logo</label>
-            {{ form.logo }}
             {% if intake.logo %}
                 <p class="form-hint">Current: <a href="{{ intake.logo.url }}" target="_blank" rel="noopener">{{ intake.logo.name|cut:"portal/intake/logos/" }}</a></p>
             {% else %}
                 <p class="form-hint">Upload your logo (PNG, SVG, JPG). If you don't have one, leave blank and we'll talk options.</p>
             {% endif %}
+            {{ form.logo }}
         </div>
     </section>
 
-    {# ── Step 2 — Photos ── #}
+    {# Step 2 — Photos #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 2 — Photos</h2>
 
+        <p class="form-hint form-hint--block">High-resolution photos always make a site stronger. If you don't have them yet, we can plan a shoot or sub in stock photos.</p>
         <label class="checkbox-row">
             {{ form.photos_provided }}
             <span>I can provide headshots, team, or office photos</span>
         </label>
-        <p class="form-hint">High-resolution photos always make a site stronger. If you don't have them yet, we can plan a shoot or sub in stock photos.</p>
 
-        {# Conditional reveal block — JS toggles `is-revealed` on/off based on
-           the checkbox above. The Photos textarea + upload widget live here. #}
+        {% comment %}
+            Conditional reveal block. intake_form.js toggles `is-revealed`
+            on/off based on the checkbox above. The Photos note textarea
+            and upload gallery live inside.
+        {% endcomment %}
         <div class="intake-reveal {% if intake.photos_provided %}is-revealed{% endif %}"
              data-reveal-when="id_photos_provided">
 
             <div class="form-group">
                 <label for="{{ form.photos_note.id_for_label }}">Notes about photos</label>
+                <p class="form-hint">Anything we should know — what to use, what to avoid, anyone you don't want pictured, etc.</p>
                 {{ form.photos_note }}
             </div>
 
@@ -89,60 +97,60 @@
         </div>
     </section>
 
-    {# ── Step 3 — Website Copy ── #}
+    {# Step 3 — Website Copy #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 3 — Website Copy</h2>
 
         <div class="form-group">
             <label for="{{ form.about_copy.id_for_label }}">About your firm</label>
-            {{ form.about_copy }}
             <p class="form-hint">A few paragraphs about your firm — your story, what makes you different, why clients should trust you. Don't worry about polish; we'll edit.</p>
+            {{ form.about_copy }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.practice_areas.id_for_label }}">Practice areas / services</label>
-            {{ form.practice_areas }}
             <p class="form-hint">List each area you handle, one per line. A sentence or two about each helps us write better page copy.</p>
+            {{ form.practice_areas }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.attorney_bios.id_for_label }}">Attorney / team bios</label>
-            {{ form.attorney_bios }}
             <p class="form-hint">Name, role, bar admissions, years of experience, education, notable cases or wins. Rough draft is fine — we'll format into proper bios.</p>
+            {{ form.attorney_bios }}
         </div>
     </section>
 
-    {# ── Step 4 — References ── #}
+    {# Step 4 — References #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 4 — References</h2>
 
         <div class="form-group">
             <label for="{{ form.reference_sites.id_for_label }}">Sites you like the look of</label>
-            {{ form.reference_sites }}
             <p class="form-hint">List 3–5 websites you like. For each one, tell us what you like <em>and/or don't like</em> about it — colors, layout, photos, the overall feel. The dislikes are just as useful as the likes.</p>
+            {{ form.reference_sites }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.competitors.id_for_label }}">Your competitors</label>
-            {{ form.competitors }}
             <p class="form-hint">3–5 firms you compete with most directly. Name + website if you know it.</p>
+            {{ form.competitors }}
         </div>
     </section>
 
-    {# ── Step 5 — Domain &amp; Social ── #}
+    {# Step 5 — Domain & Social #}
     <section class="portal-section intake-step">
         <h2 class="portal-section__title">Step 5 — Domain &amp; Social</h2>
 
         <div class="form-group">
             <label for="{{ form.domain_name.id_for_label }}">Your domain</label>
-            {{ form.domain_name }}
             <p class="form-hint">Your domain (e.g. <code>johnsonlaw.com</code>). If you don't have one yet, leave blank — we can help you choose.</p>
+            {{ form.domain_name }}
         </div>
 
         <div class="form-group">
             <label for="{{ form.domain_registrar.id_for_label }}">Where the domain is registered</label>
-            {{ form.domain_registrar }}
             <p class="form-hint">Where the domain is registered. We'll need access here to point DNS to your new site.</p>
+            {{ form.domain_registrar }}
         </div>
 
         {# "Other" registrar — revealed by JS when the select value is `other`. #}
@@ -150,6 +158,7 @@
              data-reveal-when="id_domain_registrar"
              data-reveal-value="other">
             <label for="{{ form.domain_registrar_other.id_for_label }}">{{ form.domain_registrar_other.label }}</label>
+            <p class="form-hint">Tell us who the domain is registered with so we know who to contact for DNS access.</p>
             {{ form.domain_registrar_other }}
         </div>
 
@@ -183,6 +192,7 @@
 
         <div class="form-group">
             <label for="{{ form.social_links.id_for_label }}">{{ form.social_links.label }}</label>
+            <p class="form-hint">Anything else — YouTube, TikTok, Avvo, Yelp, etc. One URL per line.</p>
             {{ form.social_links }}
         </div>
     </section>

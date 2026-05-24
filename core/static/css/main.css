@@ -4980,6 +4980,24 @@ button.htmx-request {
     display: block;
 }
 
+/* Intake-specific spacing — the global .form-group is intentionally tight
+   (used in dense admin forms) but the intake is a long, scrolling client-
+   facing form where every field deserves breathing room. Scope these
+   overrides to .intake-form so other forms keep their compact layout. */
+.intake-form .form-group {
+    gap: 0.625rem;            /* label → hint → input vertical rhythm */
+    margin-bottom: 1.5rem;    /* breathing room between fields */
+}
+.intake-form .form-group label {
+    margin-bottom: 0.25rem;   /* extra nudge under the bold label */
+}
+.intake-form .form-group .form-hint {
+    margin: 0 0 0.25rem 0;    /* tuck the hint up under the label */
+}
+.intake-form .checkbox-row {
+    margin: 0.5rem 0 1rem 0;
+}
+
 /* Intake step 2 — photo uploader gallery. */
 .intake-photos {
     margin-top: var(--space-3);
