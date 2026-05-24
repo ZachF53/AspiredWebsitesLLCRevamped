@@ -171,4 +171,8 @@ clients/media/
 *.swp
 .sass-cache/
 .grunt/
-bower_components/.commit_msg.txt
+bower_components/
+
+# Scratch file for multi-line commit messages (apostrophes break
+# PowerShell here-strings; write to .commit_msg.txt then git commit -F).
+.commit_msg.txt
