@@ -1,0 +1,125 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Invoice — {{ profile.firm_name }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:billing_list' %}" class="admin-back-link">&larr; All invoices</a>
+            </span>
+            <h1 class="admin-page-title">{{ profile.firm_name }}</h1>
+            <p class="muted">
+                {{ profile.user.email }}
+                {% if profile.contact_name %}· {{ profile.contact_name }}{% endif %}
+                {% if profile.phone %}· {{ profile.phone }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' profile.id %}">Client detail &rarr;</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}<div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% endif %}
+
+    <div class="admin-grid admin-grid--2col">
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Stripe Invoice</h2>
+            <dl class="admin-dl">
+                <dt>Package</dt><dd>{{ profile.get_package_display|default:"Custom build" }}</dd>
+                <dt>Stripe Invoice ID</dt><dd>{{ profile.stripe_invoice_id|default:"—" }}</dd>
+                <dt>Stripe status</dt>
+                <dd>
+                    {% if stripe_invoice %}
+                        {% with s=stripe_invoice.status %}
+                            {% if s == 'paid' %}
+                                <span class="status-badge" style="background:#10b98122;color:#10b981;">Paid</span>
+                            {% elif s == 'open' %}
+                                <span class="status-badge" style="background:#3b82f622;color:#3b82f6;">Open (sent, awaiting pay)</span>
+                            {% elif s == 'draft' %}
+                                <span class="status-badge">Draft</span>
+                            {% elif s == 'void' or s == 'uncollectible' %}
+                                <span class="status-badge" style="background:#ef444422;color:#ef4444;">{{ s|title }}</span>
+                            {% else %}
+                                <span class="status-badge">{{ s|title }}</span>
+                            {% endif %}
+                        {% endwith %}
+                    {% else %}
+                        <span class="muted">Could not fetch live status</span>
+                    {% endif %}
+                </dd>
+                {% if stripe_invoice and stripe_invoice.hosted_invoice_url %}
+                    <dt>Hosted invoice</dt>
+                    <dd><a href="{{ stripe_invoice.hosted_invoice_url }}" target="_blank" rel="noopener">Open in Stripe &rarr;</a></dd>
+                {% endif %}
+                {% if stripe_invoice and stripe_invoice.amount_paid %}
+                    <dt>Paid</dt><dd>${{ stripe_invoice.amount_paid|floatformat:2 }} ({{ stripe_invoice.amount_paid|stringformat:"s" }} cents)</dd>
+                {% endif %}
+            </dl>
+            <form method="post" action="{% url 'admin_dashboard:invoice_resend_stripe' profile.id %}" style="margin-top:12px;">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary btn-sm">Resend Invoice via Stripe</button>
+            </form>
+        </div>
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Onboarding</h2>
+
+            {% if profile.onboarding_status == 'pending_setup' %}
+                <p>
+                    <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
+                </p>
+                <p class="muted">Account created — awaiting password + PIN setup.</p>
+                {% if token %}
+                    <label class="form-row form-row--full">
+                        <span class="form-label">Setup link</span>
+                        <input class="form-control" type="text" readonly value="{{ token.get_setup_url }}" onclick="this.select();">
+                    </label>
+                    <p class="muted">
+                        Reminders sent: {{ token.setup_reminders_sent }}
+                        {% if token.last_setup_reminder_at %}· last {{ token.last_setup_reminder_at|timesince }} ago{% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:invoice_resend_setup' profile.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Resend Setup Email</button>
+                    </form>
+                {% endif %}
+
+            {% elif profile.onboarding_status == 'pending_intake' %}
+                <p>
+                    <span class="status-badge" style="background:#eab30822;color:#eab308;">Pending Intake</span>
+                </p>
+                <p class="muted">Account is set up — awaiting intake form submission.</p>
+                {% if token %}
+                    <p class="muted">
+                        Reminders sent: {{ token.intake_reminders_sent }}
+                        {% if token.last_intake_reminder_at %}· last {{ token.last_intake_reminder_at|timesince }} ago{% endif %}
+                    </p>
+                {% endif %}
+                <form method="post" action="{% url 'admin_dashboard:invoice_send_intake_reminder' profile.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary btn-sm">Remind Client</button>
+                </form>
+
+            {% elif profile.onboarding_status == 'onboarding_complete' %}
+                <p>
+                    <span class="status-badge" style="background:#10b98122;color:#10b981;">&check; Onboarding Complete</span>
+                </p>
+                <p class="muted">Intake submitted. Portal fully unlocked.</p>
+            {% endif %}
+        </div>
+
+    </div>
+
+    {% if profile.internal_notes %}
+        <div class="admin-card">
+            <h2 class="admin-card__title">Internal notes</h2>
+            <pre class="admin-pre">{{ profile.internal_notes }}</pre>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

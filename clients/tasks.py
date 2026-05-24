@@ -610,6 +610,167 @@ def check_annual_report_schedule():
     return f'Queued {queued} annual report(s).'
 
 
+# ── Onboarding reminders (Part 7) ───────────────────────────────────────────
+
+@shared_task
+def send_onboarding_reminders():
+    """
+    Beat-every-12h sweep — emails clients who haven't finished onboarding:
+
+      - pending_setup  → 24h between nudges (the link is in their inbox;
+        a daily reminder is enough)
+      - pending_intake → 48h between nudges (they're logged in; this is
+        a softer ask)
+
+    Throttle is checked against the per-token timestamp so a slow Celery
+    run or a manually triggered task doesn't double-send.
+    """
+    from clients.models import ClientProfile, OnboardingToken
+
+    now = timezone.now()
+    DAY = 86400      # seconds
+    TWO_DAYS = 172800
+
+    setup_qs = (
+        ClientProfile.objects
+        .filter(
+            onboarding_status='pending_setup',
+            status='active',
+            user__is_active=False,
+        )
+        .select_related('user', 'onboarding_token')
+    )
+
+    setup_sent = 0
+    for client in setup_qs:
+        token = OnboardingToken.objects.filter(
+            client=client).first()
+        if token is None or token.used:
+            continue
+        last = token.last_setup_reminder_at
+        if last and (now - last).total_seconds() < DAY:
+            continue
+        try:
+            _send_setup_reminder(client, token)
+            token.setup_reminders_sent += 1
+            token.last_setup_reminder_at = now
+            token.save(update_fields=[
+                'setup_reminders_sent',
+                'last_setup_reminder_at',
+                'updated_at',
+            ])
+            setup_sent += 1
+        except Exception:
+            logger.exception(
+                'setup reminder failed for %s', client.pk)
+
+    intake_qs = (
+        ClientProfile.objects
+        .filter(
+            onboarding_status='pending_intake',
+            status='active',
+            user__is_active=True,
+        )
+        .select_related('user', 'onboarding_token')
+    )
+
+    intake_sent = 0
+    for client in intake_qs:
+        token = OnboardingToken.objects.filter(
+            client=client).first()
+        if token is None:
+            continue
+        last = token.last_intake_reminder_at
+        if last and (now - last).total_seconds() < TWO_DAYS:
+            continue
+        try:
+            _send_intake_reminder(client, token)
+            token.intake_reminders_sent += 1
+            token.last_intake_reminder_at = now
+            token.save(update_fields=[
+                'intake_reminders_sent',
+                'last_intake_reminder_at',
+                'updated_at',
+            ])
+            intake_sent += 1
+        except Exception:
+            logger.exception(
+                'intake reminder failed for %s', client.pk)
+
+    return (f'Setup reminders sent: {setup_sent}, '
+            f'intake reminders sent: {intake_sent}')
+
+
+def _setup_first_name(client):
+    raw = (client.contact_name or client.firm_name or '').strip()
+    return raw.split(' ')[0] if raw else 'there'
+
+
+def _recipient_email(client):
+    """Best-effort recipient — the user record always has the canonical email."""
+    if client.user and client.user.email:
+        return client.user.email
+    return ''
+
+
+def _send_setup_reminder(client, token):
+    """Account-setup nudge — sent once per 24h until the token is consumed."""
+    name = _setup_first_name(client)
+    recipient = _recipient_email(client)
+    if not recipient:
+        return
+    send_mail(
+        subject='Reminder: Set up your Aspired Websites account',
+        message=(
+            f'Hi {name},\n\n'
+            f'Just a reminder — your Aspired Websites account is '
+            f'waiting to be set up.\n\n'
+            f'Click the link below to create your password and access '
+            f'your portal:\n\n'
+            f'{token.get_setup_url()}\n\n'
+            f'Work on your website cannot begin until your account is '
+            f'set up and your intake form is submitted.\n\n'
+            f'— Zachery Long\n'
+            f'Aspired Websites LLC\n'
+            f'210-896-2536\n'
+        ),
+        from_email=getattr(
+            settings, 'EMAIL_FROM_MAIN', settings.DEFAULT_FROM_EMAIL),
+        recipient_list=[recipient],
+        fail_silently=True,
+    )
+
+
+def _send_intake_reminder(client, token):
+    """Intake-form nudge — sent once per 48h until the intake is submitted."""
+    name = _setup_first_name(client)
+    recipient = _recipient_email(client)
+    if not recipient:
+        return
+    send_mail(
+        subject=(
+            'Action needed: Complete your intake form '
+            'to start your website'),
+        message=(
+            f'Hi {name},\n\n'
+            f'Your account is set up — great!\n\n'
+            f'We still need your intake form before we can begin '
+            f'building your website. It takes about 10 minutes.\n\n'
+            f'Complete your intake form:\n'
+            f'https://aspiredwebsites.com/portal/intake/\n\n'
+            f'Work on your website will not begin until this is '
+            f'submitted.\n\n'
+            f'— Zachery Long\n'
+            f'Aspired Websites LLC\n'
+            f'210-896-2536\n'
+        ),
+        from_email=getattr(
+            settings, 'EMAIL_FROM_MAIN', settings.DEFAULT_FROM_EMAIL),
+        recipient_list=[recipient],
+        fail_silently=True,
+    )
+
+
 @shared_task
 def expire_old_proposals():
     """

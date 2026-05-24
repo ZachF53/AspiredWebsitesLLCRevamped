@@ -129,6 +129,50 @@ def cancel_maintenance_subscription(client):
     client.save(update_fields=['maintenance_active', 'updated_at'])
 
 
+def create_onboarding_invoice(*, email, name, line_items, client_profile_id):
+    """
+    Create + finalize a single one-off Stripe invoice for the new admin
+    onboarding-invoice flow (Part 2 of the onboarding build).
+
+    `line_items` is a list of {'description': str, 'amount': Decimal} dicts.
+    Returns (customer, invoice) where invoice is already finalized — Stripe
+    automatically emails the hosted invoice link to the customer.
+
+    Metadata kind='onboarding_setup' is set on the invoice so the webhook
+    handler can distinguish this from contract-flow deposit/final invoices.
+    """
+    _init()
+    customer = stripe.Customer.create(
+        email=email,
+        name=name,
+        metadata={
+            'source': 'aspired_websites',
+            'client_profile_id': str(client_profile_id),
+        },
+    )
+    for item in line_items:
+        stripe.InvoiceItem.create(
+            customer=customer.id,
+            amount=_cents(item['amount']),
+            currency='usd',
+            description=item['description'],
+        )
+    invoice = stripe.Invoice.create(
+        customer=customer.id,
+        collection_method='send_invoice',
+        days_until_due=7,
+        auto_advance=True,
+        metadata={
+            'kind': 'onboarding_setup',
+            'client_profile_id': str(client_profile_id),
+        },
+    )
+    invoice = stripe.Invoice.finalize_invoice(invoice.id)
+    # finalize_invoice with collection_method='send_invoice' auto-emails
+    # the hosted invoice link — no separate send_invoice() call required.
+    return customer, invoice
+
+
 def issue_deposit_invoice(contract):
     """
     Best-effort deposit invoice send, called right after a contract is signed.

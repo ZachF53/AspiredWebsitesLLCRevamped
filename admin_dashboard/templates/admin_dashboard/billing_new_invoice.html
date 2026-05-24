@@ -1,0 +1,134 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}New Invoice — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:billing_list' %}" class="admin-back-link">&larr; All invoices</a>
+            </span>
+            <h1 class="admin-page-title">Create Invoice & Send</h1>
+            <p class="muted">
+                Creates the Stripe customer, generates and emails the invoice, and provisions a setup link the client will receive on payment.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}<div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% endif %}
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Prospect Info</h2>
+            <div class="form-grid form-grid--2col">
+                <label class="form-row">
+                    <span class="form-label">First name</span>
+                    <input class="form-control" type="text" name="first_name" value="{{ form_data.first_name|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Last name</span>
+                    <input class="form-control" type="text" name="last_name" value="{{ form_data.last_name|default:'' }}">
+                </label>
+                <label class="form-row form-row--full">
+                    <span class="form-label">Firm / Business name</span>
+                    <input class="form-control" type="text" name="firm_name" value="{{ form_data.firm_name|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Email <span class="form-required">*</span></span>
+                    <input class="form-control" type="email" name="email" value="{{ form_data.email|default:'' }}" required>
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Phone</span>
+                    <input class="form-control" type="tel" name="phone" value="{{ form_data.phone|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">City</span>
+                    <input class="form-control" type="text" name="city" value="{{ form_data.city|default:'' }}">
+                </label>
+                <label class="form-row">
+                    <span class="form-label">State</span>
+                    <input class="form-control" type="text" name="state" value="{{ form_data.state|default:'' }}">
+                </label>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Package</h2>
+            <label class="form-row form-row--full">
+                <span class="form-label">Build package <span class="form-required">*</span></span>
+                <select class="form-control" name="package" id="package-select" required>
+                    <option value="">— Select —</option>
+                    {% for t in packages %}
+                        <option value="{{ t.slug }}" {% if form_data.package == t.slug %}selected{% endif %}>
+                            {{ t.name }} — ${{ t.price|floatformat:0 }}
+                        </option>
+                    {% endfor %}
+                    <option value="custom" {% if form_data.package == 'custom' %}selected{% endif %}>Custom amount</option>
+                </select>
+            </label>
+
+            <label class="form-row form-row--full" id="custom-amount-row" style="display:none;">
+                <span class="form-label">Custom amount (USD)</span>
+                <input class="form-control" type="number" min="1" step="0.01" name="custom_amount" value="{{ form_data.custom_amount|default:'' }}">
+            </label>
+
+            <label class="form-row form-row--full">
+                <span class="form-label">Maintenance plan (optional)</span>
+                <select class="form-control" name="maintenance_plan">
+                    <option value="">None</option>
+                    {% for t in maintenance_plans %}
+                        <option value="{{ t.slug }}" {% if form_data.maintenance_plan == t.slug %}selected{% endif %}>
+                            {{ t.name }} — ${{ t.price|floatformat:0 }}/mo (first month billed now)
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            {% if hosting_tier %}
+                <label class="form-row form-row--full form-row--checkbox">
+                    <input type="checkbox" name="add_hosting" value="1" {% if form_data.add_hosting or form_data is None or form_data|length == 0 %}checked{% endif %}>
+                    <span>Add hosting — ${{ hosting_tier.price|floatformat:0 }}/yr</span>
+                </label>
+            {% endif %}
+        </div>
+
+        <div class="admin-card">
+            <h2 class="admin-card__title">Internal notes</h2>
+            <label class="form-row form-row--full">
+                <span class="form-label">Notes (never shown to client)</span>
+                <textarea class="form-control" name="internal_notes" rows="3">{{ form_data.internal_notes|default:'' }}</textarea>
+            </label>
+        </div>
+
+        <div class="admin-form-actions">
+            <a class="btn-secondary" href="{% url 'admin_dashboard:billing_list' %}">Cancel</a>
+            <button type="submit" class="btn-primary">Create Invoice & Send</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    {% comment %}
+        Reveal the custom-amount input only when the "custom" package
+        option is selected. Plain vanilla JS — no inline handlers so
+        the page stays CSP-safe.
+    {% endcomment %}
+    (function () {
+        var sel = document.getElementById('package-select');
+        var row = document.getElementById('custom-amount-row');
+        if (!sel || !row) { return; }
+        function sync() {
+            row.style.display = (sel.value === 'custom') ? '' : 'none';
+        }
+        sel.addEventListener('change', sync);
+        sync();
+    })();
+</script>
+{% endblock %}

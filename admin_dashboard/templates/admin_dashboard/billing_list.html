@@ -1,0 +1,65 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Billing — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Billing</span>
+            <h1 class="admin-page-title">{{ invoices|length }} invoice{{ invoices|length|pluralize }}</h1>
+        </div>
+        <div>
+            <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:new_invoice' %}">+ New Invoice</a>
+        </div>
+    </div>
+
+    {% if invoices %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Email</th>
+                        <th>Package</th>
+                        <th>Onboarding</th>
+                        <th>Created</th>
+                        <th class="lead-table__col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in invoices %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_dashboard:invoice_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a>
+                            </td>
+                            <td>{{ c.user.email|default:"—" }}</td>
+                            <td>{{ c.get_package_display|default:"—" }}</td>
+                            <td>
+                                {% if c.onboarding_status == 'pending_setup' %}
+                                    <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
+                                {% elif c.onboarding_status == 'pending_intake' %}
+                                    <span class="status-badge" style="background:#eab30822;color:#eab308;">Pending Intake</span>
+                                {% elif c.onboarding_status == 'onboarding_complete' %}
+                                    <span class="status-badge" style="background:#10b98122;color:#10b981;">Complete</span>
+                                {% else %}
+                                    <span class="status-badge">{{ c.get_onboarding_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ c.created_at|date:"M j, Y" }}</td>
+                            <td class="lead-table__col-actions">
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:invoice_detail' c.id %}">Open &rarr;</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No invoices yet.</p>
+            <p><a class="btn-primary btn-sm" href="{% url 'admin_dashboard:new_invoice' %}">Create your first invoice</a></p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

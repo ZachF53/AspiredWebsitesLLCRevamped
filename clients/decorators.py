@@ -2,7 +2,9 @@
 
 from functools import wraps
 
+from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
+from django.shortcuts import redirect
 
 from .models import ClientProfile
 
@@ -14,6 +16,22 @@ def client_required(view_func):
 
     On success the resolved ClientProfile is attached as
     `request.client_profile` so portal views don't each re-query it.
+
+    ── Onboarding gate (Part 5) ──
+    Once a profile is loaded, we additionally enforce the onboarding state:
+
+      - `pending_setup`  → bounce to the setup link (token URL). Unlikely
+        path — by the time someone is logged in their setup should already
+        be done — but covers admin-created edge cases.
+      - `pending_intake` → bounce to /portal/intake/. Only the intake form
+        itself (and a few utility views marked `allow_pending_intake=True`)
+        are reachable until the intake is submitted.
+      - `onboarding_complete` → allow through.
+
+    Views that need to be reachable while still pending_intake (intake
+    itself, the HTMX intake-save, logout) set
+    ``view.allow_pending_intake = True`` after the decorator wraps them —
+    see clients/views.py at the bottom of the file.
     """
 
     @wraps(view_func)
@@ -28,6 +46,47 @@ def client_required(view_func):
         if profile is None:
             return redirect_to_login(request.get_full_path())
         request.client_profile = profile
+
+        # Onboarding gate.
+        status = getattr(profile, 'onboarding_status', 'onboarding_complete')
+
+        if status == 'pending_setup':
+            # Shouldn't happen — the user shouldn't have a password until
+            # they've consumed the token — but if it does, send them to
+            # finish setup rather than into a half-broken portal.
+            token = getattr(profile, 'onboarding_token', None)
+            if token and not token.used:
+                return redirect(token.get_setup_url())
+            # No usable token → bail to login so an admin can rebuild.
+            return redirect_to_login(request.get_full_path())
+
+        if status == 'pending_intake':
+            # Allow only views that explicitly opt in (intake itself,
+            # intake_save HTMX endpoint, and any future utility view
+            # like logout that should work pre-intake).
+            if not getattr(view_func, 'allow_pending_intake', False):
+                messages.info(
+                    request,
+                    'Please complete your intake form to access your '
+                    'portal. Work on your website cannot begin until '
+                    'this is submitted.',
+                )
+                return redirect('clients:intake')
+
         return view_func(request, *args, **kwargs)
 
     return _wrapped
+
+
+def allow_pending_intake(view_func):
+    """
+    Marker that lets a `client_required`-wrapped view stay reachable
+    while the client is still in the `pending_intake` state.
+
+    Set on the inner view function so the wrapping order doesn't matter:
+        @client_required
+        @allow_pending_intake
+        def intake(request): ...
+    """
+    view_func.allow_pending_intake = True
+    return view_func

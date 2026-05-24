@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Set up your account — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="onboarding-setup">
+    <div class="container container--narrow">
+        <div class="onboarding-setup__card">
+            <h1 class="onboarding-setup__title">Welcome to Aspired Websites</h1>
+            <p class="onboarding-setup__sub">
+                Hi {{ first_name }} — you're almost ready.
+                Set your password and security PIN below to access your portal.
+            </p>
+
+            {% if errors %}
+                <ul class="onboarding-setup__errors">
+                    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+
+            <form method="post" class="onboarding-setup__form" autocomplete="off">
+                {% csrf_token %}
+
+                <fieldset class="onboarding-setup__section">
+                    <legend>1. Create your password</legend>
+
+                    <label class="onboarding-setup__row">
+                        <span class="onboarding-setup__label">Email</span>
+                        <input type="email" value="{{ client.user.email }}" readonly disabled>
+                    </label>
+
+                    <label class="onboarding-setup__row">
+                        <span class="onboarding-setup__label">Password</span>
+                        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+                    </label>
+
+                    <label class="onboarding-setup__row">
+                        <span class="onboarding-setup__label">Confirm password</span>
+                        <input type="password" name="password_confirm" required minlength="8" autocomplete="new-password">
+                    </label>
+
+                    <ul class="onboarding-setup__hints">
+                        <li>At least 8 characters</li>
+                        <li>Must contain a number</li>
+                        <li>Passwords must match</li>
+                    </ul>
+                </fieldset>
+
+                <fieldset class="onboarding-setup__section">
+                    <legend>2. Set your security PIN</legend>
+                    <p class="onboarding-setup__note">
+                        Your PIN protects your credentials vault. Choose 4 digits you'll remember.
+                    </p>
+
+                    <div class="onboarding-setup__pin-row">
+                        <span class="onboarding-setup__label">PIN</span>
+                        <div class="onboarding-setup__pin-boxes" data-pin-group="pin">
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_1" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_2" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_3" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_4" required>
+                        </div>
+                    </div>
+
+                    <div class="onboarding-setup__pin-row">
+                        <span class="onboarding-setup__label">Confirm PIN</span>
+                        <div class="onboarding-setup__pin-boxes" data-pin-group="pin_confirm">
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_confirm_1" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_confirm_2" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_confirm_3" required>
+                            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" name="pin_confirm_4" required>
+                        </div>
+                    </div>
+
+                    <p class="onboarding-setup__note onboarding-setup__note--small">
+                        This PIN is separate from your password.
+                        You'll enter it to access your stored credentials.
+                    </p>
+                </fieldset>
+
+                <button type="submit" class="btn btn-primary onboarding-setup__submit">Create My Account</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/onboarding_setup.js' %}" defer></script>
+{% endblock %}

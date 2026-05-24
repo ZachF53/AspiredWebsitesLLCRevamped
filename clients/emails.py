@@ -4,6 +4,105 @@ from django.conf import settings
 from django.core.mail import send_mail
 
 
+def _first_name(client):
+    """Best-effort first name for personalising emails."""
+    raw = (client.contact_name or client.firm_name or '').strip()
+    return raw.split(' ')[0] if raw else 'there'
+
+
+def send_onboarding_setup_email(client, token):
+    """
+    First touchpoint after invoice payment — emails the setup-link so the
+    client can create their password + PIN and unlock the portal. Token
+    URL is opaque; the OnboardingToken row authenticates the request.
+    """
+    name = _first_name(client)
+    body = (
+        f'Hi {name},\n\n'
+        f'Thank you for your payment — your Aspired Websites account is '
+        f'ready to be set up.\n\n'
+        f'Click the link below to create your password and security PIN:\n\n'
+        f'{token.get_setup_url()}\n\n'
+        f'Once your account is set up, you\'ll be asked to complete a '
+        f'short intake form so we have everything we need to start '
+        f'building your website. Work on your site can\'t begin until '
+        f'the intake is submitted.\n\n'
+        f'If you have any questions, just reply to this email or call '
+        f'210-896-2536.\n\n'
+        f'— Zachery Long\n'
+        f'Aspired Websites LLC\n'
+    )
+    send_mail(
+        subject='Your Aspired Websites account is ready',
+        message=body,
+        from_email=settings.EMAIL_FROM_MAIN,
+        recipient_list=[client.user.email],
+        fail_silently=True,
+    )
+
+
+def send_account_setup_complete_email(client):
+    """
+    Sent after the client finishes the setup page (password + PIN) —
+    nudges them straight into the intake form, the only portal page
+    they can reach in `pending_intake` state.
+    """
+    name = _first_name(client)
+    body = (
+        f'Hi {name},\n\n'
+        f'Your Aspired Websites account has been created successfully.\n\n'
+        f'Before we can begin building your website, we need a few '
+        f'details from you. Please complete your intake form — it takes '
+        f'about 10 minutes and gives us everything we need to build '
+        f'your site.\n\n'
+        f'Complete your intake form:\n'
+        f'https://aspiredwebsites.com/portal/intake/\n\n'
+        f'Important: Work on your website cannot begin until your '
+        f'intake form is submitted.\n\n'
+        f'Once submitted, we\'ll review your information and reach out '
+        f'within 1 business day to confirm your project start date.\n\n'
+        f'— Zachery Long\n'
+        f'Aspired Websites LLC\n'
+        f'210-896-2536\n'
+    )
+    send_mail(
+        subject='Your account is ready — one more step before we start',
+        message=body,
+        from_email=settings.EMAIL_FROM_MAIN,
+        recipient_list=[client.user.email],
+        fail_silently=True,
+    )
+
+
+def send_intake_received_email(client):
+    """
+    Sent the moment the intake is submitted — closes the loop on
+    onboarding and sets expectations for the next 1 business day.
+    """
+    name = _first_name(client)
+    body = (
+        f'Hi {name},\n\n'
+        f'Thank you for completing your intake form. We have everything '
+        f'we need to start planning your website.\n\n'
+        f'What happens next:\n'
+        f'  1. We\'ll review your information\n'
+        f'  2. Reach out within 1 business day to confirm your project '
+        f'start date\n'
+        f'  3. Your website build begins\n\n'
+        f'You can log into your portal anytime to track progress:\n'
+        f'https://aspiredwebsites.com/portal/\n\n'
+        f'— Zachery Long\n'
+        f'Aspired Websites LLC\n'
+    )
+    send_mail(
+        subject='We\'ve received your intake — we\'ll be in touch',
+        message=body,
+        from_email=settings.EMAIL_FROM_MAIN,
+        recipient_list=[client.user.email],
+        fail_silently=True,
+    )
+
+
 def send_contract_ready_email(contract, sign_url):
     """Email the client their contract signing link (staff-triggered)."""
     client = contract.client

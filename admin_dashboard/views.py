@@ -5166,3 +5166,378 @@ def recording_delete_all(request, client_id):
     _msg.success(request, f'Deleted {n} recording(s).')
     return redirect('admin_dashboard:recordings_list',
                     client_id=client.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Billing — admin-created onboarding invoices (Part 2)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def _billing_packages():
+    """Build options for the new-invoice form: website-build tiers + Custom."""
+    from billing.pricing_models import ServiceTier
+    tiers = list(ServiceTier.objects.filter(
+        category='website_build', is_active=True
+    ).order_by('sort_order', 'price'))
+    return tiers
+
+
+def _billing_maintenance_plans():
+    """Optional first-month maintenance line for the onboarding invoice."""
+    from billing.pricing_models import ServiceTier
+    return list(ServiceTier.objects.filter(
+        category='maintenance', is_active=True
+    ).order_by('sort_order', 'price'))
+
+
+def _billing_hosting():
+    """The single hosting line ($150/yr)."""
+    from billing.pricing_models import ServiceTier
+    return ServiceTier.objects.filter(
+        category='hosting', is_active=True
+    ).order_by('price').first()
+
+
+@admin_required
+def billing_list(request):
+    """List every admin-created onboarding invoice + its onboarding state."""
+    from clients.models import ClientProfile
+    qs = (
+        ClientProfile.objects
+        .exclude(stripe_invoice_id='')
+        .select_related('user')
+        .prefetch_related('onboarding_token')
+        .order_by('-created_at')
+    )
+    return render(
+        request,
+        'admin_dashboard/billing_list.html',
+        _admin_context(active='billing', invoices=qs),
+    )
+
+
+@admin_required
+def new_invoice(request):
+    """Create a Stripe customer + invoice + client shell + setup token."""
+    from decimal import Decimal, InvalidOperation
+
+    from django.contrib import messages as _msg
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+
+    from billing.stripe_helpers import (
+        StripeNotConfigured, create_onboarding_invoice,
+    )
+    from clients.emails import send_onboarding_setup_email
+    from clients.models import ClientProfile, OnboardingToken
+
+    packages = _billing_packages()
+    maintenance_plans = _billing_maintenance_plans()
+    hosting_tier = _billing_hosting()
+
+    if request.method == 'POST':
+        first = (request.POST.get('first_name') or '').strip()
+        last = (request.POST.get('last_name') or '').strip()
+        firm_name = (request.POST.get('firm_name') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        phone = (request.POST.get('phone') or '').strip()
+        city = (request.POST.get('city') or '').strip()
+        state = (request.POST.get('state') or '').strip()
+        package_slug = (request.POST.get('package') or '').strip()
+        custom_amount_raw = (request.POST.get('custom_amount') or '').strip()
+        maintenance_slug = (
+            request.POST.get('maintenance_plan') or '').strip()
+        add_hosting = bool(request.POST.get('add_hosting'))
+        notes = (request.POST.get('internal_notes') or '').strip()
+
+        errors = []
+        if not email or '@' not in email:
+            errors.append('A valid email is required.')
+        if not package_slug:
+            errors.append('Please choose a package.')
+
+        # ── Resolve project line ──
+        project_amount = None
+        project_label = ''
+        package_db_slug = ''  # for ClientProfile.package
+        if package_slug == 'custom':
+            try:
+                project_amount = Decimal(custom_amount_raw)
+                if project_amount <= 0:
+                    raise InvalidOperation()
+            except (InvalidOperation, ValueError):
+                errors.append(
+                    'Custom amount must be a positive number.')
+            project_label = 'Custom website build'
+        elif package_slug:
+            tier = next((t for t in packages
+                         if t.slug == package_slug), None)
+            if tier is None:
+                errors.append('Unknown package selected.')
+            else:
+                project_amount = tier.price
+                project_label = tier.name
+                # Map ServiceTier slug → ClientProfile.PACKAGE_CHOICES.
+                package_db_slug = (
+                    'essential_build' if 'essential' in tier.slug
+                    else 'premium_build' if 'premium' in tier.slug
+                    else '')
+
+        # ── Optional maintenance + hosting lines ──
+        line_items = []
+        maintenance_tier = None
+        if maintenance_slug:
+            maintenance_tier = next(
+                (t for t in maintenance_plans
+                 if t.slug == maintenance_slug), None)
+            if maintenance_tier is None:
+                errors.append('Unknown maintenance plan selected.')
+
+        if errors:
+            for e in errors:
+                _msg.error(request, e)
+            return render(
+                request,
+                'admin_dashboard/billing_new_invoice.html',
+                _admin_context(
+                    active='billing',
+                    packages=packages,
+                    maintenance_plans=maintenance_plans,
+                    hosting_tier=hosting_tier,
+                    form_data=request.POST,
+                ),
+            )
+
+        # Build the line items for Stripe — descriptions are what the
+        # client sees on the hosted invoice.
+        line_items.append({
+            'description': project_label,
+            'amount': project_amount,
+        })
+        if maintenance_tier:
+            line_items.append({
+                'description': (
+                    f'{maintenance_tier.name} — first month'),
+                'amount': maintenance_tier.price,
+            })
+        if add_hosting and hosting_tier:
+            line_items.append({
+                'description': (
+                    f'{hosting_tier.name} (annual)'),
+                'amount': hosting_tier.price,
+            })
+
+        User = get_user_model()
+
+        # ── Single transaction for the DB-side records; Stripe is
+        #    called inside, so a Stripe failure rolls back our shell. ──
+        try:
+            with transaction.atomic():
+                # Create Django user (inactive — webhook activates on
+                # payment, or the setup-page POST in Part 4).
+                user, _created = User.objects.get_or_create(
+                    username=email,
+                    defaults={
+                        'email': email,
+                        'first_name': first,
+                        'last_name': last,
+                        'is_active': False,
+                    },
+                )
+                user.set_unusable_password()
+                if not user.email:
+                    user.email = email
+                user.save()
+
+                display_name = (
+                    firm_name or f'{first} {last}'.strip()
+                    or email.split('@')[0])
+
+                profile = ClientProfile.objects.create(
+                    user=user,
+                    firm_name=display_name,
+                    contact_name=f'{first} {last}'.strip(),
+                    phone=phone,
+                    city=city,
+                    state=state,
+                    package=package_db_slug,
+                    status='active',
+                    onboarding_status='pending_setup',
+                    onboarding_complete=False,
+                    maintenance_active=False,
+                    internal_notes=notes,
+                )
+
+                customer, invoice = create_onboarding_invoice(
+                    email=email,
+                    name=display_name,
+                    line_items=line_items,
+                    client_profile_id=profile.id,
+                )
+                profile.stripe_customer_id = customer.id
+                profile.stripe_invoice_id = invoice.id
+                profile.save(update_fields=[
+                    'stripe_customer_id', 'stripe_invoice_id',
+                    'updated_at',
+                ])
+
+                # OnboardingToken is created up-front so the setup-link
+                # email can be sent the moment payment lands.
+                OnboardingToken.objects.create(client=profile)
+        except StripeNotConfigured:
+            _msg.error(
+                request,
+                'Stripe is not configured (STRIPE_SECRET_KEY missing). '
+                'Invoice not created.')
+            return redirect('admin_dashboard:billing_list')
+        except Exception as exc:  # noqa: BLE001
+            _msg.error(
+                request,
+                f'Stripe rejected the invoice: {exc}. '
+                'Nothing was saved.')
+            return redirect('admin_dashboard:new_invoice')
+
+        # Setup-link email is sent now too — useful for the admin to
+        # forward manually if the Stripe receipt gets caught in spam.
+        # The webhook will RE-send only if it was never sent (Part 3).
+        try:
+            send_onboarding_setup_email(
+                profile, profile.onboarding_token)
+        except Exception:
+            pass
+
+        _msg.success(
+            request,
+            f'Invoice created and sent to {email}. Setup link emailed.')
+        return redirect(
+            'admin_dashboard:invoice_detail',
+            invoice_id=profile.id)
+
+    return render(
+        request,
+        'admin_dashboard/billing_new_invoice.html',
+        _admin_context(
+            active='billing',
+            packages=packages,
+            maintenance_plans=maintenance_plans,
+            hosting_tier=hosting_tier,
+            form_data={},
+        ),
+    )
+
+
+@admin_required
+def invoice_detail(request, invoice_id):
+    """Per-invoice admin page: status, onboarding state, resend actions."""
+    from clients.models import ClientProfile, OnboardingToken
+    profile = get_object_or_404(
+        ClientProfile.objects.select_related('user'), id=invoice_id)
+    token = OnboardingToken.objects.filter(client=profile).first()
+
+    # Live Stripe status — read-only fetch, gracefully degrade if Stripe
+    # is down or unconfigured.
+    stripe_invoice = None
+    if profile.stripe_invoice_id:
+        try:
+            import stripe
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            stripe_invoice = stripe.Invoice.retrieve(
+                profile.stripe_invoice_id)
+        except Exception:
+            stripe_invoice = None
+
+    return render(
+        request,
+        'admin_dashboard/billing_invoice_detail.html',
+        _admin_context(
+            active='billing',
+            profile=profile,
+            token=token,
+            stripe_invoice=stripe_invoice,
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def invoice_resend_setup(request, invoice_id):
+    """Resend the account-setup link email."""
+    from django.contrib import messages as _msg
+
+    from clients.emails import send_onboarding_setup_email
+    from clients.models import ClientProfile
+
+    profile = get_object_or_404(ClientProfile, id=invoice_id)
+    token = getattr(profile, 'onboarding_token', None)
+    if token is None:
+        _msg.error(request, 'No onboarding token on file.')
+    elif token.used:
+        _msg.warning(
+            request, 'Setup link has already been used.')
+    else:
+        try:
+            send_onboarding_setup_email(profile, token)
+            _msg.success(request, 'Setup link resent.')
+        except Exception as exc:  # noqa: BLE001
+            _msg.error(request, f'Could not send: {exc}')
+    return redirect(
+        'admin_dashboard:invoice_detail', invoice_id=profile.id)
+
+
+@admin_required
+@require_POST
+def invoice_resend_stripe(request, invoice_id):
+    """Trigger a fresh Stripe email of the hosted invoice link."""
+    from django.contrib import messages as _msg
+
+    from clients.models import ClientProfile
+
+    profile = get_object_or_404(ClientProfile, id=invoice_id)
+    if not profile.stripe_invoice_id:
+        _msg.error(request, 'No Stripe invoice on file.')
+        return redirect(
+            'admin_dashboard:invoice_detail', invoice_id=profile.id)
+    try:
+        import stripe
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        stripe.Invoice.send_invoice(profile.stripe_invoice_id)
+        _msg.success(request, 'Invoice resent via Stripe.')
+    except Exception as exc:  # noqa: BLE001
+        _msg.error(request, f'Stripe error: {exc}')
+    return redirect(
+        'admin_dashboard:invoice_detail', invoice_id=profile.id)
+
+
+@admin_required
+@require_POST
+def invoice_send_intake_reminder(request, invoice_id):
+    """One-click intake reminder from the client detail / invoice page."""
+    from django.contrib import messages as _msg
+    from django.utils import timezone
+
+    from clients.models import ClientProfile
+    from clients.tasks import _send_intake_reminder
+
+    profile = get_object_or_404(ClientProfile, id=invoice_id)
+    token = getattr(profile, 'onboarding_token', None)
+    if profile.onboarding_status != 'pending_intake' or token is None:
+        _msg.warning(
+            request,
+            'Client is not in the pending-intake state — '
+            'no reminder sent.')
+        return redirect(
+            'admin_dashboard:invoice_detail', invoice_id=profile.id)
+    try:
+        _send_intake_reminder(profile, token)
+        token.intake_reminders_sent += 1
+        token.last_intake_reminder_at = timezone.now()
+        token.save(update_fields=[
+            'intake_reminders_sent',
+            'last_intake_reminder_at',
+            'updated_at',
+        ])
+        _msg.success(request, 'Intake reminder sent.')
+    except Exception as exc:  # noqa: BLE001
+        _msg.error(request, f'Could not send: {exc}')
+    return redirect(
+        'admin_dashboard:invoice_detail', invoice_id=profile.id)

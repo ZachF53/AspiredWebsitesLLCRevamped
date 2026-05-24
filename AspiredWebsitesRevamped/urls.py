@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from clients.views import (
-    intelligence_approve, intelligence_decline,
+    intelligence_approve, intelligence_decline, onboarding_setup,
     proposal_view_tracking, referral_click,
 )
 from reporting.views import nps_response
@@ -31,6 +31,10 @@ urlpatterns = [
          intelligence_approve, name='intelligence_approve'),
     path('intelligence/respond/<uuid:token>/decline/',
          intelligence_decline, name='intelligence_decline'),
+
+    # Onboarding setup (public — token authenticates) — Part 4
+    path('onboarding/setup/<uuid:token>/',
+         onboarding_setup, name='onboarding_setup'),
 
     # Legal pages — mounted before public.urls so the specific paths
     # /privacy-policy/ and /terms/ resolve via core.views rather than

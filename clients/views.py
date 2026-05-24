@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from vault.crypto import generate_salt, hash_client_pin, verify_client_pin
 
-from .decorators import client_required
+from .decorators import allow_pending_intake, client_required
 from .emails import send_contract_signed_email
 from .forms import (
     FileUploadForm,
@@ -257,6 +257,7 @@ def _intake_unlocked(project):
 
 
 @client_required
+@allow_pending_intake
 def intake(request):
     profile = request.client_profile
     project = _active_project(profile)
@@ -273,6 +274,7 @@ def intake(request):
             intake_obj.completed = True
             intake_obj.completed_at = timezone.now()
             intake_obj.save(update_fields=['completed', 'completed_at', 'updated_at'])
+            _on_intake_submitted(profile, project)
             _notify_admin_intake_complete(profile)
             messages.success(request, 'Intake form submitted — thank you!')
         return redirect('clients:intake')
@@ -290,6 +292,7 @@ def intake(request):
 
 
 @client_required
+@allow_pending_intake
 def intake_save(request):
     """HTMX auto-save endpoint — persists the intake form on every change."""
     profile = request.client_profile
@@ -315,12 +318,73 @@ def _notify_admin_intake_complete(profile):
     from django.conf import settings
     from django.core.mail import send_mail
     send_mail(
-        subject=f'{profile.firm_name} completed intake',
-        message=f'{profile.firm_name} has submitted their intake form.',
+        subject=f'New intake: {profile.firm_name} — review and confirm timeline',
+        message=(
+            f'{profile.firm_name} has submitted their intake form.\n\n'
+            f'Review and confirm their project start date:\n'
+            f'{settings.SITE_BASE_URL}/admin-dashboard/clients/'
+            f'{profile.id}/\n'
+        ),
         from_email=settings.EMAIL_FROM_NO_REPLY,
         recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
         fail_silently=True,
     )
+
+
+def _on_intake_submitted(profile, project):
+    """
+    Post-intake hook (Part 6) — flips onboarding state to complete,
+    logs the milestone to the changelog, enqueues Droplet provisioning,
+    and emails the client a confirmation.
+
+    Best-effort everywhere — a Celery hiccup or SendGrid outage must not
+    leave the intake stuck "submitted but not registered" from the
+    client's point of view.
+    """
+    from datetime import date
+
+    from .emails import send_intake_received_email
+
+    profile.onboarding_status = 'onboarding_complete'
+    profile.onboarding_complete = True
+    profile.save(update_fields=[
+        'onboarding_status', 'onboarding_complete', 'updated_at',
+    ])
+
+    # Internal changelog entry (staff-only — surfaces in admin client
+    # detail). SiteChangelogEntry import is local so a missing model
+    # never breaks intake submission.
+    try:
+        from .models import SiteChangelogEntry
+        SiteChangelogEntry.objects.create(
+            client=profile,
+            change_type='other',
+            title='Intake form submitted',
+            description=(
+                'Client completed intake form. Project started.'),
+            date_of_change=date.today(),
+            is_client_visible=False,
+        )
+    except Exception:
+        logger.exception(
+            'changelog entry failed for %s', profile.pk)
+
+    # Enqueue Droplet provisioning — moved here from the webhook
+    # (was previously triggered on deposit_paid, now waits for intake
+    # so we don't waste a Droplet on a paid-but-stalled client).
+    try:
+        from billing.tasks import provision_droplet_task
+        provision_droplet_task.delay(str(profile.id))
+    except Exception:
+        logger.exception(
+            'Droplet provisioning enqueue failed for %s', profile.pk)
+
+    # Confirmation email.
+    try:
+        send_intake_received_email(profile)
+    except Exception:
+        logger.exception(
+            'intake-received email failed for %s', profile.pk)
 
 
 # ── Page 4: Files ───────────────────────────────────────────────────────────
@@ -1402,3 +1466,143 @@ def portal_referral(request):
                   _portal_context(request, 'referral',
                                   link=link,
                                   referral_url=link.get_referral_url()))
+
+
+# ── Onboarding setup page ───────────────────────────────────────────────────
+
+
+def _onboarding_first_name(client):
+    """First name for the setup page greeting; falls back to firm name."""
+    raw = (client.contact_name or client.firm_name or '').strip()
+    return raw.split(' ')[0] if raw else 'there'
+
+
+def onboarding_setup(request, token):
+    """
+    Public account-setup landing page hit from the email setup-link.
+
+    The UUID `token` authenticates the request — no Django login required
+    coming in. On a valid POST we set the user's password, the client's
+    4-digit portal PIN, mark the token used, log the user in, and redirect
+    them to the intake form (the only portal page they can reach in the
+    `pending_intake` state).
+
+    Re-visits after the token is consumed show an "already set up" page
+    with a Sign-In CTA — never an error.
+    """
+    from django.contrib.auth import login
+
+    from .emails import send_account_setup_complete_email
+    from .models import OnboardingToken
+
+    onboarding_token = (
+        OnboardingToken.objects
+        .select_related('client', 'client__user')
+        .filter(token=token)
+        .first()
+    )
+    if onboarding_token is None:
+        return render(
+            request,
+            'clients/onboarding_setup_invalid.html',
+            {},
+            status=404,
+        )
+
+    client = onboarding_token.client
+    user = client.user
+
+    if onboarding_token.used:
+        return render(
+            request,
+            'clients/onboarding_setup_used.html',
+            {'client': client},
+        )
+
+    if request.method == 'POST':
+        password = (request.POST.get('password') or '').strip()
+        password_confirm = (request.POST.get(
+            'password_confirm') or '').strip()
+        pin = ''.join(
+            (request.POST.get(f'pin_{i}') or '').strip()
+            for i in range(1, 5)
+        )
+        pin_confirm = ''.join(
+            (request.POST.get(f'pin_confirm_{i}') or '').strip()
+            for i in range(1, 5)
+        )
+
+        errors = []
+        if len(password) < 8:
+            errors.append('Password must be at least 8 characters.')
+        if not any(c.isdigit() for c in password):
+            errors.append('Password must contain a number.')
+        if password != password_confirm:
+            errors.append('Passwords do not match.')
+        if not (pin.isdigit() and len(pin) == 4):
+            errors.append('PIN must be exactly 4 digits.')
+        if pin != pin_confirm:
+            errors.append('PINs do not match.')
+
+        if errors:
+            return render(
+                request,
+                'clients/onboarding_setup.html',
+                {
+                    'client': client,
+                    'first_name': _onboarding_first_name(client),
+                    'token': onboarding_token,
+                    'errors': errors,
+                },
+            )
+
+        # Activate + set password.
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+
+        # Set the client portal PIN (same crypto path as the
+        # in-portal setup flow — `vault.crypto.hash_client_pin`).
+        salt = generate_salt()
+        client.client_pin_salt = salt
+        client.client_pin_hash = hash_client_pin(pin, salt)
+        client.client_pin_set = True
+        client.client_pin_failed_attempts = 0
+        client.client_pin_lockout_until = None
+        client.onboarding_status = 'pending_intake'
+        client.save(update_fields=[
+            'client_pin_salt', 'client_pin_hash', 'client_pin_set',
+            'client_pin_failed_attempts', 'client_pin_lockout_until',
+            'onboarding_status', 'updated_at',
+        ])
+
+        # Burn the token so the link can't be re-used.
+        onboarding_token.used = True
+        onboarding_token.used_at = timezone.now()
+        onboarding_token.save(update_fields=[
+            'used', 'used_at', 'updated_at'])
+
+        # Log them in and send them to the intake form (the only
+        # portal page they can reach in pending_intake).
+        login(request, user,
+              backend='django.contrib.auth.backends.ModelBackend')
+        try:
+            send_account_setup_complete_email(client)
+        except Exception:
+            logger.exception(
+                'setup-complete email failed for %s', client.pk)
+        messages.success(
+            request,
+            "Account set up! Please complete your intake form below.")
+        return redirect('clients:intake')
+
+    return render(
+        request,
+        'clients/onboarding_setup.html',
+        {
+            'client': client,
+            'first_name': _onboarding_first_name(client),
+            'token': onboarding_token,
+            'errors': [],
+        },
+    )

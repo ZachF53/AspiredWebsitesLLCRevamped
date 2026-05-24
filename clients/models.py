@@ -98,8 +98,32 @@ class ClientProfile(TimestampedModel):
     # ── Stripe / maintenance ──
     stripe_customer_id = models.CharField(max_length=255, blank=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True)
+    # Stripe invoice ID for the one-time admin-created onboarding invoice
+    # (Part 2 of the onboarding flow). Lets the webhook find this profile
+    # by either customer or invoice ID — and lets the billing dashboard
+    # link back to Stripe directly.
+    stripe_invoice_id = models.CharField(max_length=255, blank=True)
     maintenance_active = models.BooleanField(default=False)
     maintenance_started_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Onboarding workflow (admin invoice → setup → intake → live) ──
+    ONBOARDING_STATUS_CHOICES = [
+        ('pending_setup', 'Pending Account Setup'),
+        ('pending_intake', 'Pending Intake'),
+        ('onboarding_complete', 'Complete'),
+    ]
+    onboarding_status = models.CharField(
+        max_length=30,
+        choices=ONBOARDING_STATUS_CHOICES,
+        default='onboarding_complete',
+        help_text=(
+            'Gate state for the client portal. NEW admin-invoice flow '
+            'sets this to pending_setup explicitly; default is '
+            'onboarding_complete so legacy paths (contract-signing, '
+            'Moonieful sync, manual admin creation) and the existing '
+            'portal continue to work without the gate.'
+        ),
+    )
 
     # ── DigitalOcean Droplet (one per client) ──
     do_droplet_id = models.CharField(max_length=50, blank=True)
@@ -1182,3 +1206,52 @@ class CompetitorGapReport(TimestampedModel):
     def __str__(self):
         return (f'{self.client.firm_name} — Gap Report '
                 f'{self.report_month.strftime("%B %Y")}')
+
+
+# ── Onboarding token ────────────────────────────────────────────────────────
+
+class OnboardingToken(TimestampedModel):
+    """
+    One-time token gating the account-setup page (/onboarding/setup/<token>/).
+
+    Created when the admin generates the onboarding invoice; the token URL is
+    emailed to the client after Stripe confirms payment. The token never
+    expires — the link stays valid until the client uses it — but it can only
+    be consumed once (`used=True` is set on first successful submit).
+    """
+
+    client = models.OneToOneField(
+        ClientProfile,
+        on_delete=models.CASCADE,
+        related_name='onboarding_token',
+    )
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        db_index=True,
+    )
+    used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    # Reminder tracking — keys the Celery reminder task uses to throttle
+    # (24h between setup nudges, 48h between intake nudges).
+    setup_reminders_sent = models.IntegerField(default=0)
+    last_setup_reminder_at = models.DateTimeField(null=True, blank=True)
+    intake_reminders_sent = models.IntegerField(default=0)
+    last_intake_reminder_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Onboarding Token'
+        verbose_name_plural = 'Onboarding Tokens'
+
+    def get_setup_url(self):
+        """Absolute URL of the public setup page. Safe to embed in emails."""
+        base = getattr(
+            settings, 'SITE_BASE_URL',
+            'https://aspiredwebsites.com').rstrip('/')
+        return f'{base}/onboarding/setup/{self.token}/'
+
+    def __str__(self):
+        state = 'Used' if self.used else 'Pending'
+        return f'{self.client.firm_name} — {state}'

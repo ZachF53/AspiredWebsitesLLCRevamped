@@ -16,7 +16,11 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from clients.emails import send_payment_failed_email, send_welcome_email
+from clients.emails import (
+    send_onboarding_setup_email,
+    send_payment_failed_email,
+    send_welcome_email,
+)
 from clients.models import ClientProfile, IntakeResponse
 
 logger = logging.getLogger(__name__)
@@ -88,14 +92,24 @@ def _client_for_customer(customer_id):
     return ClientProfile.objects.filter(stripe_customer_id=customer_id).first()
 
 
+def _client_for_invoice(invoice_id):
+    if not invoice_id:
+        return None
+    return ClientProfile.objects.filter(stripe_invoice_id=invoice_id).first()
+
+
 # ── invoice.paid ────────────────────────────────────────────────────────────
 
 def _handle_invoice_paid(event):
     invoice = event['data']['object']
-    client = _client_for_customer(invoice.get('customer'))
+    # Look up by invoice ID first (set on admin-created onboarding invoices),
+    # fall back to customer ID for contract-flow invoices that pre-date the
+    # stripe_invoice_id field.
+    client = (_client_for_invoice(invoice.get('id'))
+              or _client_for_customer(invoice.get('customer')))
     if client is None:
-        logger.warning('invoice.paid: no client for customer %s',
-                       invoice.get('customer'))
+        logger.warning('invoice.paid: no client for invoice %s / customer %s',
+                       invoice.get('id'), invoice.get('customer'))
         return
 
     # An invoice tied to a subscription is a maintenance-plan payment —
@@ -111,12 +125,18 @@ def _handle_invoice_paid(event):
                     client.pk)
         return
 
-    project = client.projects.order_by('-created_at').first()
-    if project is None:
-        logger.warning('invoice.paid: no project for client %s', client.pk)
+    kind = (invoice.get('metadata') or {}).get('kind')
+
+    # ── NEW admin onboarding-invoice flow (Part 3) ──
+    # Triggered by the admin invoice-creation form. Creates the Project
+    # the intake form needs, activates the Django user so they can log
+    # in, and emails the setup link. Droplet provisioning is deferred
+    # until intake completion (Part 6).
+    if kind == 'onboarding_setup' or not client.projects.exists():
+        _on_onboarding_invoice_paid(client)
         return
 
-    kind = (invoice.get('metadata') or {}).get('kind')
+    project = client.projects.order_by('-created_at').first()
     if kind == 'final':
         project.payment_status = 'fully_paid'
         project.final_paid_at = timezone.now()
@@ -130,26 +150,85 @@ def _handle_invoice_paid(event):
         _on_deposit_paid(client, project)
 
 
-def _on_deposit_paid(client, project):
-    """Post-deposit onboarding: intake, vault, welcome email, Droplet, reminders."""
-    # Activate the intake form (ensure the row exists for the portal).
+def _on_onboarding_invoice_paid(client):
+    """
+    First-touch handler for the admin onboarding-invoice flow.
+
+    The client paid the single one-off invoice that covers their build
+    (and optionally first-month maintenance + hosting). We:
+      1. Activate the Django user so they can use the setup link
+      2. Mark the profile active + pending_setup
+      3. Create the Project + IntakeResponse so the intake page works
+         once they log in
+      4. Email the setup link (only if it wasn't already sent at invoice
+         creation time)
+
+    Note: Droplet provisioning is intentionally deferred to intake
+    completion — we don't want to spin up a $6 Droplet for someone who
+    paid but never submits intake. See `clients/views.intake` (Part 6).
+    """
+    from clients.models import Project
+    from vault.models import ClientVault
+
+    if client.user and not client.user.is_active:
+        client.user.is_active = True
+        client.user.save(update_fields=['is_active'])
+
+    fields_to_save = ['status', 'updated_at']
+    client.status = 'active'
+    if client.onboarding_status not in (
+            'pending_intake', 'onboarding_complete'):
+        client.onboarding_status = 'pending_setup'
+        fields_to_save.append('onboarding_status')
+    client.save(update_fields=fields_to_save)
+
+    project, _ = Project.objects.get_or_create(
+        client=client,
+        defaults={
+            # `payment_status='fully_paid'` because the admin onboarding
+            # invoice is a single one-off — not split into deposit/final.
+            'payment_status': 'fully_paid',
+            'package': (
+                client.package
+                if client.package in ('essential_build', 'premium_build')
+                else ''),
+            'stage': 'intake',
+            'final_paid_at': timezone.now(),
+        },
+    )
     IntakeResponse.objects.get_or_create(project=project)
-    # Ensure the client has a credential vault (the ClientProfile post_save
-    # signal also does this — belt and suspenders).
+    ClientVault.objects.get_or_create(client=client)
+
+    # Resend the setup link unless the token has already been used. The
+    # admin view sent it once at invoice creation; this catches the
+    # case where the prior send failed (e.g. SendGrid was down).
+    token = getattr(client, 'onboarding_token', None)
+    if token and not token.used:
+        try:
+            send_onboarding_setup_email(client, token)
+        except Exception:
+            logger.exception(
+                'onboarding setup email failed for %s', client.pk)
+
+    logger.info(
+        'invoice.paid (onboarding_setup): client %s activated, '
+        'project %s pending intake', client.pk, project.pk)
+
+
+def _on_deposit_paid(client, project):
+    """
+    Legacy contract-flow handler — kept for the existing contract-signing
+    path. Sends the welcome email + schedules Day-2/4 intake reminders.
+
+    Droplet provisioning used to happen here; it's been moved to intake
+    completion (Part 6) so a paid-but-never-submitted client doesn't
+    waste a Droplet.
+    """
+    IntakeResponse.objects.get_or_create(project=project)
     from vault.models import ClientVault
     ClientVault.objects.get_or_create(client=client)
     send_welcome_email(client, project)
-    _provision_droplet(client)
     _schedule_intake_reminders(project)
-
-
-def _provision_droplet(client):
-    """Enqueue Droplet provisioning (Part 6). Best effort — never blocks 200."""
-    try:
-        from billing.tasks import provision_droplet_task
-        provision_droplet_task.delay(str(client.id))
-    except Exception:
-        logger.exception('Could not enqueue Droplet provisioning for %s', client.pk)
 
 
 def _schedule_intake_reminders(project):

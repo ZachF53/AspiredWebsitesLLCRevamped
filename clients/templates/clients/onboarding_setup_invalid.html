@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Setup link not found — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="onboarding-setup">
+    <div class="container container--narrow">
+        <div class="onboarding-setup__card onboarding-setup__card--info">
+            <h1 class="onboarding-setup__title">Setup link not found.</h1>
+            <p class="onboarding-setup__sub">
+                This setup link is invalid or has been removed. If you've already set up your account, sign in below. Otherwise contact us and we'll send you a fresh link.
+            </p>
+            <p>
+                <a href="{% url 'public:login' %}" class="btn btn-primary">Log In</a>
+                <a href="{% url 'public:contact' %}" class="btn btn-secondary">Contact Us</a>
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}

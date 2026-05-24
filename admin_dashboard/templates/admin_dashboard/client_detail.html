@@ -30,6 +30,46 @@
         </div>
     </div>
 
+    {% if client.onboarding_status and client.onboarding_status != 'onboarding_complete' %}
+        <section class="admin-card" style="border-left:4px solid {% if client.onboarding_status == 'pending_setup' %}#f59e0b{% else %}#eab308{% endif %};">
+            <div class="admin-card__head">
+                <h3 class="admin-card__title">Onboarding</h3>
+                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:invoice_detail' client.id %}">Manage &rarr;</a>
+            </div>
+            {% if client.onboarding_status == 'pending_setup' %}
+                <p><strong style="color:#f59e0b;">Awaiting account setup</strong> — payment received but the client hasn't created their password + PIN yet.</p>
+                {% with token=client.onboarding_token %}
+                    {% if token %}
+                        <label style="display:block;margin:8px 0 4px;color:var(--color-text-muted);font-size:13px;">Setup link</label>
+                        <input type="text" class="form-control" readonly value="{{ token.get_setup_url }}" onclick="this.select();" style="width:100%;font-family:monospace;font-size:12px;">
+                        <p class="muted" style="margin-top:8px;">
+                            Reminders sent: {{ token.setup_reminders_sent }}
+                            {% if token.last_setup_reminder_at %}· last {{ token.last_setup_reminder_at|timesince }} ago{% endif %}
+                        </p>
+                        <form method="post" action="{% url 'admin_dashboard:invoice_resend_setup' client.id %}" style="margin-top:8px;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">Resend Setup Email</button>
+                        </form>
+                    {% endif %}
+                {% endwith %}
+            {% elif client.onboarding_status == 'pending_intake' %}
+                <p><strong style="color:#eab308;">Account set up — intake not submitted</strong></p>
+                {% with token=client.onboarding_token %}
+                    {% if token %}
+                        <p class="muted">
+                            Reminders sent: {{ token.intake_reminders_sent }}
+                            {% if token.last_intake_reminder_at %}· last {{ token.last_intake_reminder_at|timesince }} ago{% endif %}
+                        </p>
+                    {% endif %}
+                {% endwith %}
+                <form method="post" action="{% url 'admin_dashboard:invoice_send_intake_reminder' client.id %}" style="margin-top:8px;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary btn-sm">Remind Client</button>
+                </form>
+            {% endif %}
+        </section>
+    {% endif %}
+
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">Client Info</h3>

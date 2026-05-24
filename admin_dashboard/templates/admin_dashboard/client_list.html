@@ -25,7 +25,7 @@
         <div class="lead-table-wrapper">
             <table class="lead-table">
                 <thead>
-                    <tr><th>Client</th><th>Status</th><th>Package</th><th>Server IP</th><th>Last Scan</th><th class="lead-table__col-actions">Monitoring</th></tr>
+                    <tr><th>Client</th><th>Status</th><th>Onboarding</th><th>Package</th><th>Server IP</th><th>Last Scan</th><th class="lead-table__col-actions">Monitoring</th></tr>
                 </thead>
                 <tbody>
                     {% for r in rows %}
@@ -36,6 +36,17 @@
                                     {% if c.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
                                 </td>
                                 <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
+                                <td>
+                                    {% if c.onboarding_status == 'pending_setup' %}
+                                        <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
+                                    {% elif c.onboarding_status == 'pending_intake' %}
+                                        <span class="status-badge" style="background:#eab30822;color:#eab308;">Pending Intake</span>
+                                    {% elif c.onboarding_status == 'onboarding_complete' %}
+                                        <span class="status-badge" style="background:#10b98122;color:#10b981;">Complete</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ c.get_package_display|default:"—" }}</td>
                                 <td>{{ c.do_droplet_ip|default:"—" }}</td>
                                 <td class="client-list__last-scan">

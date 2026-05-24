@@ -387,6 +387,13 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.recording_storage_report',
         'schedule': crontab(hour=8, minute=0, day_of_week=1),     # Mon 8am
     },
+    # Onboarding reminders — every 12h. The task itself debounces per
+    # client (24h between setup nudges, 48h between intake nudges) so a
+    # cadence faster than the per-client throttle is fine here.
+    'send-onboarding-reminders': {
+        'task': 'clients.tasks.send_onboarding_reminders',
+        'schedule': crontab(hour='*/12', minute=0),
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────
