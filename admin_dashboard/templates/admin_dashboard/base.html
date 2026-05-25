@@ -208,6 +208,12 @@
 
     <script src="{% static 'js/main.js' %}" defer></script>
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    {% comment %}
+        Wires Django's CSRF cookie into every htmx request as the
+        X-CSRFToken header. Without it, every hx-post silently 403s
+        because the empty error body swaps over the button's target.
+    {% endcomment %}
+    <script src="{% static 'js/htmx_csrf.js' %}" defer></script>
     <script src="{% static 'js/sidebar.js' %}" defer></script>
     <script src="{% static 'js/input_masks.js' %}?v={{ STATIC_VERSION }}" defer></script>
     {% block extra_scripts %}{% endblock %}

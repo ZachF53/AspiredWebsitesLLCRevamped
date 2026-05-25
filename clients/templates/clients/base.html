@@ -174,6 +174,8 @@
     </div>
 
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    {# CSRF token injected into every htmx POST/PUT/PATCH/DELETE. #}
+    <script src="{% static 'js/htmx_csrf.js' %}" defer></script>
     <script src="{% static 'js/input_masks.js' %}?v={{ STATIC_VERSION }}" defer></script>
     {% block extra_scripts %}{% endblock %}
 </body>

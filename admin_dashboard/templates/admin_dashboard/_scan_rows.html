@@ -29,7 +29,7 @@ hx-swap='innerHTML' target cleanly.
                         <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
                     </td>
                     <td>
-                        <span class="scan-type scan-type--{{ s.scan_type }}">{{ s.get_scan_type_display }}</span>
+                        <span class="scan-type scan-type--{{ s.scan_type }}">{{ s.get_scan_type_display|cut:" Scan" }}</span>
                     </td>
                     <td>
                         <span class="scan-status scan-status--{{ s.status }}">
