@@ -12849,3 +12849,123 @@ button.htmx-request {
     flex-wrap: wrap;
 }
 .domain-dns-form__actions > div { display: flex; gap: 12px; align-items: center; }
+
+/* ── Namecheap sandbox/live mode UI (admin) ── */
+.admin-sandbox-banner {
+    background: linear-gradient(120deg, rgba(232, 101, 10, 0.12), rgba(13, 148, 136, 0.06));
+    border: 1px solid rgba(232, 101, 10, 0.4);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 12px 0 16px;
+    color: #F8FAFC;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+.admin-sandbox-banner a {
+    color: var(--color-orange-light);
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: 6px;
+}
+.admin-sandbox-banner a:hover { text-decoration: underline; }
+
+.namecheap-mode {
+    padding: 16px;
+    border-radius: 10px;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    margin-bottom: 16px;
+}
+.namecheap-mode--sandbox {
+    border-left: 4px solid var(--color-teal);
+}
+.namecheap-mode--live {
+    border-left: 4px solid var(--color-danger);
+    background: linear-gradient(140deg, rgba(248, 113, 113, 0.06), var(--color-bg-deep));
+}
+.namecheap-mode__chip {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+}
+.namecheap-mode--live .namecheap-mode__chip {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--color-danger);
+}
+.namecheap-mode__desc {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.55;
+    margin: 0 0 10px;
+}
+.namecheap-mode__desc code {
+    background: rgba(255,255,255,0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--color-orange-light);
+}
+.namecheap-mode__history {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    margin: 0;
+}
+
+.namecheap-ping {
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+}
+.namecheap-ping--ok {
+    border-left: 4px solid var(--color-success);
+}
+.namecheap-ping--err {
+    border-left: 4px solid var(--color-danger);
+    background: rgba(248, 113, 113, 0.04);
+}
+.namecheap-ping strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--color-text);
+}
+.namecheap-ping--ok strong { color: var(--color-success); }
+.namecheap-ping--err strong { color: var(--color-danger); }
+.namecheap-ping p {
+    margin: 0 0 8px;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+.namecheap-ping code {
+    background: rgba(255,255,255,0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--color-orange-light);
+}
+.namecheap-ping ul {
+    margin: 6px 0 0 0;
+    padding-left: 20px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.admin-config-howto {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    padding-left: 22px;
+    margin: 0;
+}
+.admin-config-howto li { margin-bottom: 6px; }
+.admin-config-howto code {
+    background: rgba(255,255,255,0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--color-orange-light);
+}

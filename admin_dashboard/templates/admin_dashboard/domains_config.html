@@ -1,0 +1,89 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Namecheap config — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:admin_domain_list' %}" class="admin-back-link">← All domains</a></span>
+            <h1 class="admin-page-title">Namecheap configuration</h1>
+            <p class="muted">Toggle between sandbox + live API. Takes effect immediately for every new request — no restart needed.</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="admin-grid-2">
+        <section class="admin-panel">
+            <h2>Current mode</h2>
+            <div class="namecheap-mode namecheap-mode--{% if config.sandbox_mode %}sandbox{% else %}live{% endif %}">
+                <div class="namecheap-mode__chip">
+                    {% if config.sandbox_mode %}🧪 SANDBOX{% else %}🔴 LIVE{% endif %}
+                </div>
+                <p class="namecheap-mode__desc">
+                    {% if config.sandbox_mode %}
+                        All API calls hit <code>api.sandbox.namecheap.com</code>. Test registrations are free, play-money only, and live on a separate registry from the real internet.
+                    {% else %}
+                        All API calls hit <code>api.namecheap.com</code>. <strong>Real registrations</strong> against the live registry, charged against your Namecheap account balance.
+                    {% endif %}
+                </p>
+                {% if config.last_toggled_at %}
+                    <p class="namecheap-mode__history">
+                        Last toggled
+                        {% if config.last_toggled_by %}by <strong>{{ config.last_toggled_by.username }}</strong>{% endif %}
+                        on {{ config.last_toggled_at|date:"Y-m-d H:i" }}.
+                    </p>
+                {% endif %}
+            </div>
+
+            <form method="post" action="{% url 'admin_dashboard:admin_domain_config_toggle' %}"
+                  onsubmit="return confirm('{% if config.sandbox_mode %}Switch to LIVE mode? Real registrations will charge real money.{% else %}Switch BACK to sandbox mode? New registrations will be play-money only.{% endif %}');">
+                {% csrf_token %}
+                {% if config.sandbox_mode %}
+                    <button type="submit" class="btn-primary">Switch to LIVE</button>
+                {% else %}
+                    <button type="submit" class="btn-secondary">Switch back to SANDBOX</button>
+                {% endif %}
+            </form>
+        </section>
+
+        <section class="admin-panel">
+            <h2>Live connection test</h2>
+            {% if ping_ok %}
+                <div class="namecheap-ping namecheap-ping--ok">
+                    <strong>✓ API reachable</strong>
+                    <p>Just successfully called <code>domains.check</code> against <code>aspiredwebsites.com</code>. Credentials + IP whitelist working.</p>
+                </div>
+            {% else %}
+                <div class="namecheap-ping namecheap-ping--err">
+                    <strong>✗ API call failed</strong>
+                    <p>{{ ping_error|default:"Unknown error" }}</p>
+                    <p>Common causes:</p>
+                    <ul>
+                        <li>Missing creds for this env (check <code>.env</code>)</li>
+                        <li>Server IP not whitelisted on Namecheap API panel</li>
+                        <li>API access not yet approved by Namecheap (sandbox: instant; live: 24-48h after $50 balance)</li>
+                    </ul>
+                </div>
+            {% endif %}
+            <p class="muted">This test runs every time you load this page. Refresh to re-test.</p>
+        </section>
+    </div>
+
+    <section class="admin-panel">
+        <h2>How the toggle works</h2>
+        <ol class="admin-config-howto">
+            <li>The flag lives on the <code>NamecheapConfig</code> singleton row in the DB — it's NOT an env var.</li>
+            <li>Every API call calls <code>NamecheapConfig.is_sandbox()</code> at request time. No restart needed after toggling.</li>
+            <li>The <code>get_client()</code> helper does NOT cache — every call gets a fresh client targeting the current env.</li>
+            <li>On first deploy, the singleton seeds from <code>settings.NAMECHEAP_SANDBOX</code> in <code>.env</code>; thereafter the DB wins.</li>
+            <li>Every toggle is logged at <code>WARNING</code> level + recorded above with timestamp + admin username.</li>
+        </ol>
+    </section>
+</div>
+{% endblock %}

@@ -70,6 +70,69 @@ DNS_RECORD_TYPE_CHOICES = [
 
 # ── Models ───────────────────────────────────────────────────────────────────
 
+class NamecheapConfig(TimestampedModel):
+    """
+    Singleton config row for the Namecheap integration. The only
+    user-facing knob is `sandbox_mode` — flips every API call between
+    api.sandbox.namecheap.com and api.namecheap.com without a
+    redeploy or env-var edit.
+
+    Defaults to whatever's in settings.NAMECHEAP_SANDBOX on first
+    seed; after that the DB is the source of truth. Audit trail
+    fields (`last_toggled_at`, `last_toggled_by`) let staff trace
+    who flipped what when.
+
+    Use `NamecheapConfig.get_solo()` everywhere — it materialises
+    the singleton on first access. Never call .create() directly.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    sandbox_mode = models.BooleanField(
+        default=True,
+        help_text=(
+            'When ON, every Namecheap API call hits the sandbox '
+            'endpoint (api.sandbox.namecheap.com). When OFF, real '
+            'registrations on api.namecheap.com that charge the '
+            'account balance.'),
+    )
+
+    last_toggled_at = models.DateTimeField(null=True, blank=True)
+    last_toggled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+',
+    )
+
+    class Meta:
+        verbose_name = 'Namecheap configuration'
+        verbose_name_plural = 'Namecheap configuration'
+
+    def __str__(self):
+        mode = 'SANDBOX' if self.sandbox_mode else 'LIVE'
+        return f'Namecheap config — {mode}'
+
+    @classmethod
+    def get_solo(cls):
+        """
+        Materialise + return the singleton row. On first call (empty
+        table), creates a row seeded from settings.NAMECHEAP_SANDBOX
+        so the existing behaviour is preserved during rollout.
+        """
+        row = cls.objects.first()
+        if row is not None:
+            return row
+        from django.conf import settings as _s
+        default = getattr(_s, 'NAMECHEAP_SANDBOX', True)
+        return cls.objects.create(sandbox_mode=bool(default))
+
+    @classmethod
+    def is_sandbox(cls):
+        """Convenience — True if currently in sandbox mode."""
+        return cls.get_solo().sandbox_mode
+
+
 class DomainRegistration(TimestampedModel):
     """
     One registered (or pending) domain owned by a client account.

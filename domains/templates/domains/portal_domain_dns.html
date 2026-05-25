@@ -79,23 +79,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-    const tbody = document.getElementById('dns-rows');
-    const tmpl  = document.getElementById('dns-row-template');
-    const addBtn = document.getElementById('add-record');
-
-    addBtn.addEventListener('click', function () {
-        const clone = tmpl.content.cloneNode(true);
-        tbody.appendChild(clone);
-    });
-
-    tbody.addEventListener('click', function (e) {
-        const remove = e.target.closest('[data-remove]');
-        if (!remove) return;
-        const row = remove.closest('tr');
-        if (row) row.remove();
-    });
-})();
-</script>
+<script src="{% static 'js/domain_dns_edit.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

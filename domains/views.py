@@ -311,6 +311,32 @@ def portal_domain_dns(request, pk):
                 'mx_pref': mx_pref,
             })
 
+        # Refuse to push an empty record set — that would make the
+        # domain unreachable (no A record, nothing). User has to
+        # leave at least one A or CNAME to avoid foot-shooting.
+        if not new_records:
+            messages.error(
+                request,
+                'You must keep at least one record — pushing an empty '
+                'DNS set would take your site offline. Add a record '
+                'before saving, or cancel.')
+            return redirect('domains:portal_domain_dns', pk=pk)
+
+        # Foot-shoot guard #2 — at least one of {apex A, apex CNAME}
+        # so the bare domain still resolves.
+        has_apex = any(
+            r['host'] in ('@', '')
+            and r['type'] in ('A', 'AAAA', 'CNAME', 'URL', 'URL301', 'FRAME')
+            for r in new_records)
+        if not has_apex:
+            messages.error(
+                request,
+                'You need at least one apex record (host = "@") that '
+                'resolves the bare domain — otherwise visiting '
+                f'{registration.domain_name} directly will fail. '
+                'Add an A, CNAME, or URL record with host "@".')
+            return redirect('domains:portal_domain_dns', pk=pk)
+
         try:
             replace_dns_records(registration, new_records)
         except NamecheapError as exc:

@@ -43,6 +43,11 @@ urlpatterns = [
 
     # Domain registrations (Namecheap)
     path('domains/', views.admin_domain_list, name='admin_domain_list'),
+    path('domains/config/', views.admin_domain_config,
+         name='admin_domain_config'),
+    path('domains/config/toggle-sandbox/',
+         views.admin_domain_config_toggle,
+         name='admin_domain_config_toggle'),
     path('domains/<uuid:reg_id>/', views.admin_domain_detail,
          name='admin_domain_detail'),
     path('domains/<uuid:reg_id>/sync/', views.admin_domain_sync,

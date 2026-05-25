@@ -84,9 +84,36 @@ class NamecheapClient:
     SANDBOX_ENDPOINT = 'https://api.sandbox.namecheap.com/xml.response'
 
     def __init__(self, *, sandbox=None):
-        """If `sandbox` is None, take it from settings."""
-        self.sandbox = (
-            settings.NAMECHEAP_SANDBOX if sandbox is None else bool(sandbox))
+        """
+        Build a client for the active environment.
+
+        Resolution order for which environment to hit:
+          1. Explicit `sandbox=` kwarg if passed (used by tests + admin
+             diagnostics that need to target a specific env).
+          2. DB-backed `NamecheapConfig.is_sandbox()` — admin can flip
+             this from /admin-dashboard/domains/config/ without a
+             restart.
+          3. `settings.NAMECHEAP_SANDBOX` env var — fallback for the
+             first-ever request before the config row exists, and for
+             any context where the DB lookup itself would fail
+             (tests with no migrations, manage.py shell on a fresh
+             DB, etc.).
+        """
+        if sandbox is not None:
+            self.sandbox = bool(sandbox)
+        else:
+            try:
+                from domains.models import NamecheapConfig
+                self.sandbox = NamecheapConfig.is_sandbox()
+            except Exception:
+                # DB unavailable / migration not yet run / no app
+                # registry yet — fall back to env. Logged at WARNING
+                # so misconfiguration is visible without crashing.
+                logger.warning(
+                    'NamecheapConfig lookup failed; falling back to '
+                    'settings.NAMECHEAP_SANDBOX', exc_info=True)
+                self.sandbox = settings.NAMECHEAP_SANDBOX
+
         if self.sandbox:
             self.api_user = settings.NAMECHEAP_API_USER
             self.api_key = settings.NAMECHEAP_API_KEY
@@ -531,16 +558,14 @@ class NamecheapClient:
         }
 
 
-# Convenience singleton — callers should use this rather than
-# instantiating the class repeatedly. NamecheapClient() is cheap to
-# construct but a single import-time instance is one fewer round-trip
-# to settings on every API call.
-default_client = None
-
-
 def get_client():
-    """Lazily build + return the default Namecheap client."""
-    global default_client
-    if default_client is None:
-        default_client = NamecheapClient()
-    return default_client
+    """
+    Return a fresh Namecheap client for the currently-active env.
+
+    We DON'T cache the instance globally — when an admin flips
+    sandbox mode in the admin dashboard, the next API call needs to
+    target the new endpoint immediately (without a gunicorn
+    restart). Instantiation is cheap: it's just reading 3 env
+    strings + 1 DB lookup, no network I/O.
+    """
+    return NamecheapClient()

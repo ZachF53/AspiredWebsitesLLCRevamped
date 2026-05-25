@@ -9,7 +9,20 @@
             <h1 class="admin-page-title">Domain registrations</h1>
             <p class="muted">Every domain registered through Aspired Websites on the Namecheap account.</p>
         </div>
+        <div>
+            <a href="{% url 'admin_dashboard:admin_domain_config' %}" class="btn-secondary">
+                {% if sandbox_mode %}🧪 Sandbox mode{% else %}🔴 LIVE mode{% endif %} — Config
+            </a>
+        </div>
     </div>
+
+    {% if sandbox_mode %}
+        <div class="admin-sandbox-banner">
+            <strong>🧪 Sandbox mode is ON.</strong>
+            Every domain registration goes to the Namecheap <em>sandbox</em> registry — they aren't real, can't be resolved publicly, and don't charge money.
+            <a href="{% url 'admin_dashboard:admin_domain_config' %}">Switch to live →</a>
+        </div>
+    {% endif %}
 
     {% if messages %}
         {% for m in messages %}

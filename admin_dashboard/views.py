@@ -5825,7 +5825,7 @@ def send_onboarding(request):
 @admin_required
 def admin_domain_list(request):
     """Admin overview of every DomainRegistration across all clients."""
-    from domains.models import DomainRegistration
+    from domains.models import DomainRegistration, NamecheapConfig
 
     domains_qs = (
         DomainRegistration.objects
@@ -5838,6 +5838,7 @@ def admin_domain_list(request):
         _admin_context(
             active='domains',
             domains=domains_qs,
+            sandbox_mode=NamecheapConfig.is_sandbox(),
             counts={
                 'active':  domains_qs.filter(status='active').count(),
                 'pending': domains_qs.filter(status='pending').count(),
@@ -5846,6 +5847,88 @@ def admin_domain_list(request):
             },
         ),
     )
+
+
+@admin_required
+def admin_domain_config(request):
+    """
+    Namecheap configuration page — sandbox/live toggle + a live
+    connection test against whichever environment is currently
+    active. The toggle itself is a separate POST endpoint so the
+    page can be safely refreshed without re-firing it.
+    """
+    from domains.models import NamecheapConfig
+    from domains.namecheap_client import NamecheapError, NamecheapClient
+
+    config = NamecheapConfig.get_solo()
+
+    # Live ping — verify the active credentials still work. Cheap,
+    # read-only call (domains.check), so it's safe to fire on every
+    # GET. No retries — surface failure fast.
+    ping_ok = None
+    ping_error = ''
+    try:
+        client = NamecheapClient()
+        result = client.check_availability(['aspiredwebsites.com'])
+        ping_ok = bool(result)
+    except NamecheapError as exc:
+        ping_ok = False
+        ping_error = str(exc)
+    except Exception as exc:  # noqa: BLE001
+        ping_ok = False
+        ping_error = f'unexpected: {exc}'
+
+    return render(
+        request,
+        'admin_dashboard/domains_config.html',
+        _admin_context(
+            active='domains',
+            config=config,
+            ping_ok=ping_ok,
+            ping_error=ping_error,
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def admin_domain_config_toggle(request):
+    """
+    Flip sandbox_mode on the singleton config row. Records who did
+    it + when so the toggle history is traceable. Followed up with
+    a flash message warning if they just switched to LIVE.
+    """
+    from django.contrib import messages as _msg
+    from django.utils import timezone as _tz
+    from domains.models import NamecheapConfig
+
+    config = NamecheapConfig.get_solo()
+    was_sandbox = config.sandbox_mode
+    config.sandbox_mode = not was_sandbox
+    config.last_toggled_at = _tz.now()
+    config.last_toggled_by = request.user
+    config.save(update_fields=[
+        'sandbox_mode', 'last_toggled_at',
+        'last_toggled_by', 'updated_at'])
+
+    logger.warning(
+        'Namecheap mode toggled by %s: %s -> %s',
+        request.user, 'SANDBOX' if was_sandbox else 'LIVE',
+        'LIVE' if was_sandbox else 'SANDBOX')
+
+    if was_sandbox:
+        # Just switched TO live — make this the loudest possible flash.
+        _msg.warning(
+            request,
+            '⚠ Namecheap is now in LIVE mode. Real registrations will '
+            'charge the Namecheap account balance ($50.00 currently '
+            'available). Switch back to sandbox for testing.')
+    else:
+        _msg.success(
+            request,
+            'Namecheap is back in SANDBOX mode. Registrations are '
+            'free play-money against the sandbox registry.')
+    return redirect('admin_dashboard:admin_domain_config')
 
 
 @admin_required
