@@ -182,6 +182,8 @@ urlpatterns = [
     path('scans/table/', views.scans_table, name='scans_table'),
     path('scans/run/', views.run_scan, name='scan_run'),
     path('scans/<uuid:scan_id>/', views.scan_detail, name='scan_detail'),
+    path('scans/<uuid:scan_id>/cancel/',
+         views.scan_cancel, name='scan_cancel'),
     path('scans/findings/<uuid:finding_id>/status/',
          views.update_finding_status, name='finding_status'),
     # Phase 6c Part 3 — PDF + send-to-client + auto-send toggle

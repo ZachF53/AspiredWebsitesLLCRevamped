@@ -3023,7 +3023,14 @@ def run_scan(request):
     client = get_object_or_404(ClientProfile, id=client_id)
     project = (client.projects.filter(stage='live').first()
                or client.projects.first())
-    target_url = (project.live_url if project else '') or ''
+    # client.website is the canonical live URL (post-2026-05-25 fix);
+    # fall back to project.live_url for legacy data on clients whose
+    # URL was only ever stored on Project.
+    target_url = (
+        (client.website or '')
+        or (project.live_url if project else '')
+        or ''
+    )
     target_ip = client.do_droplet_ip or ''
 
     if not (target_url or target_ip):
@@ -3037,7 +3044,9 @@ def run_scan(request):
         scan_type=scan_type,
         is_scheduled=False,
     )
-    run_vulnerability_scan_task.delay(str(scan.id))
+    async_result = run_vulnerability_scan_task.delay(str(scan.id))
+    scan.celery_task_id = async_result.id or ''
+    scan.save(update_fields=['celery_task_id', 'updated_at'])
 
     if request.headers.get('HX-Request') == 'true':
         return HttpResponse(
@@ -3046,6 +3055,66 @@ def run_scan(request):
             f'<a href="{reverse("admin_dashboard:scans_list")}">Scans</a> '
             f'for results.</div>')
     return redirect('admin_dashboard:scans_list')
+
+
+@admin_required
+@require_POST
+def scan_cancel(request, scan_id):
+    """
+    Stop a stuck/long-running scan from the scan detail page.
+
+    Two-part teardown:
+      1. Revoke the Celery task (terminate=True kills the worker
+         process running it — necessary because the scan subprocess
+         calls nmap/Nikto which can hang indefinitely on network
+         issues)
+      2. Mark the scan row as 'cancelled' so the UI reflects it
+         immediately + the daily auto-scan cron won't see it as
+         'last completed' and reset its scheduling window
+
+    Safe to call on a scan whose Celery task is already gone (worker
+    restart, etc.) — revoke is best-effort, the DB update always runs.
+    Only acts on scans in 'pending' or 'running' status.
+    """
+    from django.contrib import messages
+    from django.utils import timezone
+    from reporting.models import VulnerabilityScan
+
+    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
+    if scan.status not in ('pending', 'running'):
+        messages.info(
+            request,
+            f'This scan is already {scan.get_status_display().lower()} — '
+            f'nothing to cancel.')
+        return redirect('admin_dashboard:scan_detail', scan_id=scan_id)
+
+    if scan.celery_task_id:
+        try:
+            from AspiredWebsitesRevamped.celery import app as celery_app
+            celery_app.control.revoke(
+                scan.celery_task_id, terminate=True, signal='SIGTERM')
+            logger.info(
+                'scan_cancel: revoked celery task %s for scan %s',
+                scan.celery_task_id, scan.id)
+        except Exception:
+            logger.exception(
+                'scan_cancel: revoke failed for task %s — proceeding '
+                'with DB-only cancellation',
+                scan.celery_task_id)
+
+    scan.status = 'cancelled'
+    scan.completed_at = timezone.now()
+    scan.error_message = (
+        f'Cancelled by admin ({request.user}) at '
+        f'{timezone.now().isoformat()}'
+    )[:2000]
+    scan.save(update_fields=[
+        'status', 'completed_at', 'error_message', 'updated_at'])
+    messages.success(
+        request,
+        f'Scan cancelled. '
+        f'{"Worker process killed." if scan.celery_task_id else ""}')
+    return redirect('admin_dashboard:scan_detail', scan_id=scan_id)
 
 
 # ────────────────────────────────────────────────────────────────────────────

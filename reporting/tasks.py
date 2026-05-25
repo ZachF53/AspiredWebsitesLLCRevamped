@@ -701,7 +701,13 @@ def check_scan_schedule():
         if not client.do_droplet_ip:
             continue
         project = client.projects.filter(stage='live').first()
-        if not project or not project.live_url:
+        # Canonical URL: client.website; legacy fallback: project.live_url.
+        target_url = (
+            (client.website or '')
+            or (project.live_url if project else '')
+            or ''
+        )
+        if not target_url:
             continue
 
         last = (VulnerabilityScan.objects
@@ -722,12 +728,14 @@ def check_scan_schedule():
 
         scan = VulnerabilityScan.objects.create(
             client=client,
-            target_url=project.live_url,
+            target_url=target_url,
             target_ip=client.do_droplet_ip,
             scan_type='full',
             is_scheduled=True,
         )
-        run_vulnerability_scan_task.delay(str(scan.id))
+        async_result = run_vulnerability_scan_task.delay(str(scan.id))
+        scan.celery_task_id = async_result.id or ''
+        scan.save(update_fields=['celery_task_id', 'updated_at'])
         queued += 1
 
     return f'Queued {queued} scheduled scan(s).'

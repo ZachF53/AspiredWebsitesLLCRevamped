@@ -78,6 +78,15 @@
                     <input type="hidden" name="scan_type" value="{{ scan.scan_type }}">
                     <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
                 </form>
+
+                {% if scan.status == 'pending' or scan.status == 'running' %}
+                    <form method="post" action="{% url 'admin_dashboard:scan_cancel' scan.id %}" class="droplet-inline-form"
+                          onsubmit="return confirm('Stop this scan now? The worker process is killed and the scan is marked Cancelled. Cannot be resumed — use Re-scan to start fresh.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm admin-btn-danger">Stop scan</button>
+                    </form>
+                {% endif %}
+
                 <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:scans_list' %}">All scans</a>
             </div>
             <div id="scan-action-result" class="scan-action-result"></div>

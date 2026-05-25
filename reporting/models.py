@@ -345,6 +345,7 @@ class VulnerabilityScan(TimestampedModel):
         ('running', 'Running'),
         ('complete', 'Complete'),
         ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
     ]
 
     client = models.ForeignKey(
@@ -357,6 +358,11 @@ class VulnerabilityScan(TimestampedModel):
         max_length=10, choices=SCAN_TYPE_CHOICES, default='full')
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, default='pending')
+
+    # Celery task ID — stored on dispatch so admin can revoke a
+    # stuck/long-running scan from the detail page without SSHing in.
+    # Empty string for pre-Celery-tracked scans (older rows).
+    celery_task_id = models.CharField(max_length=80, blank=True)
 
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
