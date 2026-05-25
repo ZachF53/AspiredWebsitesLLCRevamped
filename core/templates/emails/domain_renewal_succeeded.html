@@ -1,0 +1,28 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ domain }} renewed{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.25;">
+    {{ domain }} renewed for another year.
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — your domain renewal cleared cleanly.
+</p>
+
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(74,222,128,0.06);border-left:3px solid #4ADE80;border-radius:6px;">
+    <div style="color:#4ADE80;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Next renewal</div>
+    <div style="color:#F8FAFC;font-size:16px;font-weight:600;">{% if expires_at %}{{ expires_at|date:"F j, Y" }}{% else %}One year from now{% endif %}</div>
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:12px 28px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                View receipt + domain →
+            </a>
+        </td>
+    </tr>
+</table>
+{% endblock %}

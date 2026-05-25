@@ -1,0 +1,80 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Search Domains{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <a href="{% url 'domains:portal_domains' %}" class="portal-back">← Back to my domains</a>
+    <h1>Find a domain</h1>
+    <p class="portal-page-head__sub">
+        Type a name (without the .com — we'll show every TLD we offer). All registrations include WHOIS privacy for life.
+    </p>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+<form method="post" action="{% url 'domains:portal_domains_search' %}" class="domain-search-form">
+    {% csrf_token %}
+    <label for="domain-name" class="domain-search-form__label">Domain name</label>
+    <div class="domain-search-form__row">
+        <input type="text" id="domain-name" name="name"
+               value="{{ query }}"
+               autocomplete="off" autocapitalize="none"
+               autocorrect="off" spellcheck="false"
+               placeholder="yourfirm" required>
+        <button type="submit" class="btn-primary">Search</button>
+    </div>
+    <p class="domain-search-form__hint">
+        Letters, digits, and hyphens only. We'll check all {{ tld_count }} TLDs.
+    </p>
+</form>
+
+{% if error %}
+    <div class="domain-search-error">{{ error }}</div>
+{% endif %}
+
+{% if results %}
+    <section class="domain-results">
+        <h2 class="domain-results__title">Results for <strong>{{ query }}</strong></h2>
+        <ul class="domain-results__list">
+            {% for r in results %}
+                <li class="domain-result {% if not r.available %}domain-result--taken{% endif %}">
+                    <div class="domain-result__main">
+                        <div class="domain-result__name">{{ r.domain }}</div>
+                        <div class="domain-result__price">
+                            {% if r.available %}
+                                ${{ r.retail_price|floatformat:0 }}/year
+                                {% if r.is_premium %}
+                                    <span class="domain-result__premium">premium</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="domain-result__taken">Already registered</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="domain-result__cta">
+                        {% if r.available and not r.is_premium %}
+                            <a href="{% url 'domains:portal_domain_register' domain=r.domain %}"
+                               class="btn-primary btn-sm">Register</a>
+                        {% elif r.is_premium %}
+                            <button type="button" class="btn-secondary btn-sm" disabled>Contact us</button>
+                        {% else %}
+                            <button type="button" class="btn-secondary btn-sm" disabled>Unavailable</button>
+                        {% endif %}
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+        <p class="domain-results__note">
+            <strong>What's included with every registration:</strong>
+            1 year of registration · WHOIS privacy · DNS management in your portal · auto-renewal handled by us (you stay in control)
+        </p>
+    </section>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ reg.domain_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:admin_domain_list' %}" class="admin-back-link">← All domains</a></span>
+            <h1 class="admin-page-title">{{ reg.domain_name }}</h1>
+            <p class="muted">
+                Client:
+                <a href="{% url 'admin_dashboard:client_detail' client_id=reg.client.id %}">{{ reg.client.firm_name }}</a>
+                · Status: <span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span>
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="admin-grid-2">
+        <section class="admin-panel">
+            <h2>Registration</h2>
+            <dl class="admin-dl">
+                <dt>Domain</dt><dd>{{ reg.domain_name }}</dd>
+                <dt>TLD</dt><dd>.{{ reg.tld }}</dd>
+                <dt>Pricing tier</dt><dd>{{ reg.pricing_tier_slug }}</dd>
+                <dt>Registered</dt><dd>{% if reg.registered_at %}{{ reg.registered_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
+                <dt>Expires</dt><dd>{% if reg.expires_at %}{{ reg.expires_at|date:"Y-m-d" }}{% else %}—{% endif %}</dd>
+                <dt>WHOIS privacy</dt><dd>{{ reg.whois_privacy_enabled|yesno:"On,Off" }}</dd>
+                <dt>Registrar lock</dt><dd>{{ reg.registrar_lock|yesno:"On,Off" }}</dd>
+                <dt>NS auto-renew</dt><dd>{{ reg.auto_renew_at_registrar|yesno:"On,Off" }}</dd>
+                <dt>Stripe sub</dt><dd><code>{{ reg.stripe_subscription_id|default:"—" }}</code></dd>
+                <dt>Auto-A set at</dt><dd>{% if reg.auto_a_record_set_at %}{{ reg.auto_a_record_set_at|date:"Y-m-d H:i" }}{% else %}never{% endif %}</dd>
+                <dt>Last sync</dt><dd>{% if reg.last_synced_at %}{{ reg.last_synced_at|date:"Y-m-d H:i" }}{% else %}never{% endif %}</dd>
+                <dt>Last API error</dt><dd>{{ reg.last_api_error|default:"none" }}</dd>
+                <dt>Nameservers</dt><dd>{% for ns in reg.nameservers %}<div>{{ ns }}</div>{% empty %}—{% endfor %}</dd>
+            </dl>
+        </section>
+
+        <section class="admin-panel">
+            <h2>Actions</h2>
+
+            <form method="post" action="{% url 'admin_dashboard:admin_domain_sync' reg_id=reg.id %}" class="admin-action-form">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Sync from Namecheap</button>
+                <p class="muted">Pulls fresh state (expiry / lock / privacy / nameservers).</p>
+            </form>
+
+            <form method="post" action="{% url 'admin_dashboard:admin_domain_repoint' reg_id=reg.id %}" class="admin-action-form">
+                {% csrf_token %}
+                <label>Force-point A record at IP <span class="muted">(blank = use client's Droplet IP {{ reg.client.do_droplet_ip|default:"—" }})</span></label>
+                <input type="text" name="ip" placeholder="161.35.108.209" autocomplete="off">
+                <button type="submit" class="btn-secondary">Re-point A record</button>
+            </form>
+
+            <form method="post" action="{% url 'admin_dashboard:admin_domain_transfer_out' reg_id=reg.id %}" class="admin-action-form admin-action-form--danger"
+                  onsubmit="return confirm('Trigger transfer-out for {{ reg.domain_name }}? Unlocks the domain, pulls EPP, cancels Stripe sub, emails client.');">
+                {% csrf_token %}
+                <label>Transfer-out reason <span class="muted">(internal)</span></label>
+                <input type="text" name="reason" placeholder="Client requested via email" autocomplete="off">
+                <button type="submit" class="btn-secondary admin-btn-danger">Force transfer-out</button>
+            </form>
+        </section>
+    </div>
+
+    <section class="admin-panel">
+        <h2>Local DNS record set</h2>
+        <p class="muted">Mirrors what we last pushed to Namecheap. Edits happen through the client portal (or via "Re-point A record" above).</p>
+        <table class="admin-table">
+            <thead>
+                <tr><th>Type</th><th>Host</th><th>Value</th><th>TTL</th><th>MX pri</th><th>Auto?</th></tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                    <tr>
+                        <td><code>{{ r.record_type }}</code></td>
+                        <td><code>{{ r.host }}</code></td>
+                        <td><code>{{ r.value|truncatechars:60 }}</code></td>
+                        <td>{{ r.ttl }}</td>
+                        <td>{% if r.record_type == 'MX' %}{{ r.mx_priority }}{% else %}—{% endif %}</td>
+                        <td>{{ r.auto_managed|yesno:"yes,no" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="muted">No DNS records recorded locally.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="admin-panel">
+        <h2>Internal notes</h2>
+        <pre class="admin-notes">{{ reg.internal_notes|default:"(none)" }}</pre>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Transfer-out package — {{ domain }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.25;">
+    Transfer-out package for {{ domain }}
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — you cancelled {{ domain }}. Your service continues until {% if expires_at %}<strong>{{ expires_at|date:"F j, Y" }}</strong>{% else %}the end of your current cycle{% endif %}. After that the domain expires unless you transfer it to another registrar first.
+</p>
+
+{% if epp_code %}
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border:1px solid rgba(232,101,10,0.25);border-radius:8px;">
+    <div style="color:#FF7B1E;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Your transfer auth (EPP) code</div>
+    <div style="background:#070614;border:1px solid rgba(255,255,255,0.14);border-radius:6px;padding:14px 16px;">
+        <code style="color:#FF7B1E;font-size:18px;font-weight:700;word-break:break-all;">{{ epp_code }}</code>
+    </div>
+</div>
+
+<h2 style="margin:24px 0 12px;color:#F8FAFC;font-size:16px;font-weight:700;">How to transfer</h2>
+<ol style="color:#94A3B8;font-size:14px;line-height:1.6;padding-left:22px;margin:0 0 20px;">
+    <li>Sign up at any registrar — <a href="https://www.namecheap.com" style="color:#E8650A;text-decoration:none;">Namecheap</a>, <a href="https://godaddy.com" style="color:#E8650A;text-decoration:none;">GoDaddy</a>, <a href="https://cloudflare.com" style="color:#E8650A;text-decoration:none;">Cloudflare</a> — your choice.</li>
+    <li>Find their "Transfer in a domain" flow.</li>
+    <li>Enter <strong>{{ domain }}</strong> and paste the auth code above.</li>
+    <li>Confirm the transfer email the registry sends to your address — transfers usually finish in 5-7 days.</li>
+</ol>
+{% else %}
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border:1px solid rgba(232,101,10,0.25);border-radius:8px;color:#F8FAFC;font-size:14px;line-height:1.55;">
+    For your TLD, the registry sends the auth code in a separate verification email — check your inbox in the next 24 hours.
+</div>
+{% endif %}
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

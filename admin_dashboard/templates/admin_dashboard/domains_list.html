@@ -1,0 +1,56 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Domains — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <h1 class="admin-page-title">Domain registrations</h1>
+            <p class="muted">Every domain registered through Aspired Websites on the Namecheap account.</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="admin-stat-row">
+        <div class="admin-stat"><strong>{{ counts.active }}</strong><span>active</span></div>
+        <div class="admin-stat"><strong>{{ counts.pending }}</strong><span>pending</span></div>
+        <div class="admin-stat"><strong>{{ counts.grace }}</strong><span>grace</span></div>
+        <div class="admin-stat admin-stat--bad"><strong>{{ counts.failed }}</strong><span>failed</span></div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Client</th>
+                <th>Status</th>
+                <th>Renews</th>
+                <th>Last sync</th>
+                <th>Last error</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reg in domains %}
+                <tr>
+                    <td><a href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}">{{ reg.domain_name }}</a></td>
+                    <td><a href="{% url 'admin_dashboard:client_detail' client_id=reg.client.id %}">{{ reg.client.firm_name }}</a></td>
+                    <td><span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span></td>
+                    <td>{% if reg.expires_at %}{{ reg.expires_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+                    <td>{% if reg.last_synced_at %}{{ reg.last_synced_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+                    <td class="admin-table__error">{{ reg.last_api_error|truncatechars:60 }}</td>
+                    <td><a class="btn-link" href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}">Manage →</a></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="muted">No domains registered yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -91,6 +91,7 @@ LOCAL_APPS = [
     'admin_dashboard',
     'vault',
     'counselsouth',
+    'domains',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -332,6 +333,24 @@ DO_API_TOKEN = env('DO_API_TOKEN', '')
 DO_BASE_SNAPSHOT_ID = env('DO_BASE_SNAPSHOT_ID', '')
 
 
+# ── Namecheap (domain registration + DNS) ───────────────────────────────────
+# Two credential sets — switch with NAMECHEAP_SANDBOX (true/false).
+# domains.namecheap_client.NamecheapClient picks the right one at
+# import time so flipping the flag + a service restart is the full
+# go-live procedure.
+NAMECHEAP_SANDBOX = env('NAMECHEAP_SANDBOX', 'true').lower() == 'true'
+NAMECHEAP_API_USER = env('NAMECHEAP_API_USER', '')
+NAMECHEAP_API_KEY = env('NAMECHEAP_API_KEY', '')
+NAMECHEAP_USERNAME = env('NAMECHEAP_USERNAME', '')
+NAMECHEAP_LIVE_API_USER = env('NAMECHEAP_LIVE_API_USER', '')
+NAMECHEAP_LIVE_API_KEY = env('NAMECHEAP_LIVE_API_KEY', '')
+NAMECHEAP_LIVE_USERNAME = env('NAMECHEAP_LIVE_USERNAME', '')
+# Public-facing IP that's been whitelisted in the Namecheap API
+# panel. Pinned here rather than auto-detected so a Droplet IP
+# change doesn't silently break every Namecheap call.
+NAMECHEAP_CLIENT_IP = env('NAMECHEAP_CLIENT_IP', '161.35.108.209')
+
+
 # ── Anthropic Claude ────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', '')
 
@@ -504,6 +523,13 @@ CELERY_BEAT_SCHEDULE = {
     'maintenance-upsell-nudges': {
         'task': 'billing.tasks.send_maintenance_upsell_nudges_task',
         'schedule': crontab(hour=9, minute=15),           # daily 9:15am
+    },
+    # Domain reconciliation — daily sync of every DomainRegistration
+    # with Namecheap (status, expiry, lock, privacy, nameservers)
+    # plus 7-day pre-renewal heads-up emails.
+    'reconcile-domains': {
+        'task': 'billing.tasks.reconcile_domains_task',
+        'schedule': crontab(hour=4, minute=30),           # daily 4:30am
     },
 }
 

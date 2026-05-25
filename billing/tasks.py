@@ -107,6 +107,25 @@ def reconcile_subscriptions_task():
 
 
 @shared_task
+def reconcile_domains_task():
+    """
+    Daily — pull every active DomainRegistration's state from
+    Namecheap, mirror locally, and send 7-day pre-renewal heads-ups
+    to clients whose subs renew this week.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    buf = StringIO()
+    call_command('reconcile_domains', stdout=buf)
+    summary = buf.getvalue().splitlines()
+    last_line = summary[-1] if summary else ''
+    logger.info('reconcile_domains: %s', last_line)
+    return last_line
+
+
+@shared_task
 def send_maintenance_upsell_nudges_task():
     """
     Daily — drains the 30-day / 60-day post-launch maintenance upsell

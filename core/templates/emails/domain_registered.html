@@ -1,0 +1,37 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ domain }} is registered{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">
+    {{ domain }} is yours.
+</h1>
+
+<p style="margin:0 0 18px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — your domain is registered, WHOIS-protected, and pointed at your website.
+</p>
+
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#E8650A;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Registration details</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr><td style="padding:4px 0;color:#94A3B8;font-size:13px;width:140px;">Domain</td><td style="padding:4px 0;color:#F8FAFC;font-size:14px;font-weight:600;">{{ domain }}</td></tr>
+        <tr><td style="padding:4px 0;color:#94A3B8;font-size:13px;">Status</td><td style="padding:4px 0;color:#4ADE80;font-size:14px;font-weight:600;">Active</td></tr>
+        <tr><td style="padding:4px 0;color:#94A3B8;font-size:13px;">WHOIS privacy</td><td style="padding:4px 0;color:#F8FAFC;font-size:14px;">On (free for life)</td></tr>
+        {% if expires_at %}<tr><td style="padding:4px 0;color:#94A3B8;font-size:13px;">Renews</td><td style="padding:4px 0;color:#F8FAFC;font-size:14px;">{{ expires_at|date:"F j, Y" }}</td></tr>{% endif %}
+    </table>
+</div>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.55;">
+    We've already pointed {{ domain }} at your website. DNS propagation usually takes 5-15 minutes — you'll be able to visit your site at this address shortly.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:14px 30px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Manage in portal →
+            </a>
+        </td>
+    </tr>
+</table>
+{% endblock %}

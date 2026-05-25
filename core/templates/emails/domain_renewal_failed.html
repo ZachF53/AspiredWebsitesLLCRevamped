@@ -1,0 +1,21 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Renewal hiccup — {{ domain }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.25;">
+    Working on a renewal for {{ domain }}.
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — heads-up.
+</p>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We hit a snag renewing {{ domain }} with the registrar — but your card was charged and your domain stays active while we sort it. We're handling it manually now; you don't need to do anything.
+</p>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We'll email you again once it's resolved (typically within 1-2 business days).
+</p>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ domain }} renews soon{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.25;">
+    {{ domain }} renews in {{ days_until }} days.
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — quick heads-up.
+</p>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We'll automatically charge the card on file when the renewal date arrives. Nothing for you to do — but if you'd like to cancel before then, you can do that from your portal.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:12px 28px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                Manage domain →
+            </a>
+        </td>
+    </tr>
+</table>
+{% endblock %}

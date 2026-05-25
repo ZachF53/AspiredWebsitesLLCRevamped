@@ -1,0 +1,88 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Register {{ domain }}{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <a href="{% url 'domains:portal_domains_search' %}" class="portal-back">← Back to search</a>
+    <h1>Register {{ domain }}</h1>
+    <p class="portal-page-head__sub">
+        One last look — confirm the details below and we'll register the domain on your behalf.
+    </p>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+<div class="domain-confirm">
+    <section class="domain-confirm__main">
+        <h2 class="domain-confirm__heading">{{ domain }}</h2>
+        <div class="domain-confirm__price">
+            <span class="domain-confirm__amount">${{ tier.price|floatformat:0 }}</span>
+            <span class="domain-confirm__interval">/ year</span>
+        </div>
+        <ul class="domain-confirm__features">
+            <li><svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>1 year of registration</span></li>
+            <li><svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>WHOIS privacy included for life</span></li>
+            <li><svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>DNS management in your portal</span></li>
+            <li><svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Auto-renews via Stripe — cancel any time, transfer-out package emailed automatically</span></li>
+            <li><svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>We'll auto-point this domain to your website immediately after registration</span></li>
+        </ul>
+    </section>
+
+    <section class="domain-confirm__side">
+        <h3 class="domain-confirm__sub">Payment method</h3>
+        {% if default_card %}
+            <div class="maint-confirm__card">
+                <span class="pm-card__brand">{{ default_card.brand }}</span>
+                <span class="pm-card__last4">•••• {{ default_card.last4 }}</span>
+                <span class="pm-card__exp">{{ default_card.exp_month|stringformat:"02d" }}/{{ default_card.exp_year|stringformat:"02d"|slice:"-2:" }}</span>
+            </div>
+            <p class="form-hint form-hint--block">
+                Charged immediately. <a href="{% url 'clients:portal_subscriptions' %}">Change default card</a>
+            </p>
+        {% else %}
+            <div class="maint-confirm__no-card">
+                <p><strong>No payment method on file.</strong></p>
+                <p>Add a card before registering.</p>
+                <a href="{% url 'clients:portal_subscriptions' %}" class="btn-primary">Add a card</a>
+            </div>
+        {% endif %}
+
+        <h3 class="domain-confirm__sub">WHOIS registrant</h3>
+        {% if profile_complete %}
+            <p class="form-hint form-hint--block">
+                We'll register the domain using your account info (name, business name, address, phone, email). WHOIS privacy keeps these details hidden from the public WHOIS database.
+            </p>
+        {% else %}
+            <div class="maint-confirm__no-card">
+                <p><strong>Profile incomplete.</strong></p>
+                <p>Domain registration needs your name, address, city, state, ZIP, and phone — please <a href="{% url 'clients:settings' %}">finish your profile</a> first.</p>
+            </div>
+        {% endif %}
+
+        <h3 class="domain-confirm__sub">What you're agreeing to</h3>
+        <ul class="maint-confirm__terms">
+            <li>Billed <strong>${{ tier.price|floatformat:0 }}</strong> today, then auto-renewed annually on the same date.</li>
+            <li>Cancel any time — we'll email you the transfer-out package immediately so you can move the domain to another registrar.</li>
+            <li>Domain registrations are <strong>non-refundable</strong> once registered (we've already paid the registry).</li>
+        </ul>
+
+        <form method="post" action="{% url 'domains:portal_domain_register' domain=domain %}" class="maint-confirm__form">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary btn-block btn-lg"
+                    {% if not default_card or not profile_complete %}disabled aria-disabled="true"{% endif %}>
+                Register {{ domain }} — ${{ tier.price|floatformat:0 }}
+            </button>
+            <p class="maint-confirm__secure">
+                Secured by Stripe. Card details never touch our servers.
+            </p>
+        </form>
+    </section>
+</div>
+
+{% endblock %}

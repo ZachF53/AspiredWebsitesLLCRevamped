@@ -41,6 +41,18 @@ urlpatterns = [
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
 
+    # Domain registrations (Namecheap)
+    path('domains/', views.admin_domain_list, name='admin_domain_list'),
+    path('domains/<uuid:reg_id>/', views.admin_domain_detail,
+         name='admin_domain_detail'),
+    path('domains/<uuid:reg_id>/sync/', views.admin_domain_sync,
+         name='admin_domain_sync'),
+    path('domains/<uuid:reg_id>/repoint/', views.admin_domain_repoint,
+         name='admin_domain_repoint'),
+    path('domains/<uuid:reg_id>/transfer-out/',
+         views.admin_domain_transfer_out,
+         name='admin_domain_transfer_out'),
+
     # Pricing manager
     path('pricing/', views.pricing_list, name='pricing_list'),
     path('pricing/<uuid:tier_id>/edit/', views.pricing_edit, name='pricing_edit'),

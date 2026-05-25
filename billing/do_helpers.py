@@ -163,7 +163,40 @@ def provision_client_droplet(client):
         _alert_vault_setup_failure(client, None,
                                    'Droplet never reported a public IP.')
 
+    # ── Auto-point any client-owned domains at the new Droplet IP ────────
+    # Best-effort. A Namecheap or DNS failure here doesn't roll back
+    # the Droplet — provisioning still succeeded, we just log + alert.
+    if ip:
+        _auto_point_domains_to_droplet(client, ip)
+
     return droplet
+
+
+def _auto_point_domains_to_droplet(client, droplet_ip):
+    """
+    For each active domain the client has registered through us,
+    push an apex-A + www-CNAME record set pointing at `droplet_ip`.
+    Idempotent — re-running with the same IP is a no-op past the
+    Namecheap rate limit.
+    """
+    try:
+        from domains.models import DomainRegistration
+        from domains.services import set_auto_a_record
+    except Exception:  # pragma: no cover — domains app missing in some envs
+        logger.warning('Auto-A: domains app unavailable, skipping')
+        return
+
+    regs = list(DomainRegistration.objects.filter(
+        client=client, status='active'))
+    for reg in regs:
+        try:
+            set_auto_a_record(reg, str(droplet_ip))
+            logger.info(
+                'Auto-A: pointed %s -> %s', reg.domain_name, droplet_ip)
+        except Exception:
+            logger.exception(
+                'Auto-A: failed for %s — manual intervention needed',
+                reg.domain_name)
 
 
 def setup_vault_key_for_droplet(client, droplet_ip, root_password,

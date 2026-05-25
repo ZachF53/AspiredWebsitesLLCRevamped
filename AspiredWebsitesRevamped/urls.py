@@ -17,6 +17,7 @@ urlpatterns = [
     path('admin-dashboard/vault/', include('vault.urls')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
     path('portal/', include('clients.urls')),
+    path('portal/domains/', include('domains.urls')),
     path('billing/', include('billing.urls')),
 
     # Public payment pages — token-gated, no auth required. Mounted at

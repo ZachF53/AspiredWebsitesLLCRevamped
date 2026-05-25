@@ -1,0 +1,69 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Domains{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <div class="portal-page-head__row">
+        <div>
+            <h1>Your Domains</h1>
+            <p class="portal-page-head__sub">
+                Every domain you've registered through Aspired Websites. WHOIS privacy is on for all of them.
+            </p>
+        </div>
+        <a href="{% url 'domains:portal_domains_search' %}" class="btn-primary">+ Register a new domain</a>
+    </div>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+{% if has_any_domain %}
+    <ul class="domain-list">
+        {% for reg in registrations %}
+            <li class="domain-card domain-card--{{ reg.status }}">
+                <div class="domain-card__head">
+                    <a href="{% url 'domains:portal_domain_detail' pk=reg.id %}" class="domain-card__name">{{ reg.domain_name }}</a>
+                    <span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span>
+                </div>
+                <div class="domain-card__meta">
+                    {% if reg.expires_at %}
+                        <span>Renews {{ reg.expires_at|date:"M j, Y" }}</span>
+                    {% endif %}
+                    {% if reg.auto_a_record_set_at %}
+                        <span>· Pointed to your site</span>
+                    {% elif reg.status == 'active' and reg.client.do_droplet_ip %}
+                        <span>· DNS not pointed yet</span>
+                    {% endif %}
+                    {% if reg.whois_privacy_enabled %}
+                        <span>· WHOIS privacy on</span>
+                    {% endif %}
+                </div>
+                <div class="domain-card__actions">
+                    <a href="{% url 'domains:portal_domain_detail' pk=reg.id %}" class="btn-secondary btn-sm">Manage</a>
+                    {% if reg.status == 'active' %}
+                        <a href="{% url 'domains:portal_domain_dns' pk=reg.id %}" class="btn-link">DNS records</a>
+                    {% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <section class="domain-empty">
+        <h2 class="domain-empty__title">You don't own any domains through us yet.</h2>
+        <p>Register a domain to:</p>
+        <ul>
+            <li>Point your site to your custom address (yourfirm.com instead of staging-name.com)</li>
+            <li>Get a professional email (info@yourfirm.com)</li>
+            <li>Build SEO authority over time</li>
+        </ul>
+        <a href="{% url 'domains:portal_domains_search' %}" class="btn-primary">Search for a domain</a>
+        <p class="domain-empty__price">Starts at $75/year. WHOIS privacy included free.</p>
+    </section>
+{% endif %}
+
+{% endblock %}

@@ -260,6 +260,11 @@ def _handle_invoice_paid(event):
                 'invoice.paid (hosting sub): client %s hosting renewed',
                 client.pk)
             return
+        # Domain subscription renewal — call Namecheap renew + extend
+        # local expires_at. The Stripe charge has already cleared, so
+        # we owe the renewal regardless of Namecheap outcome.
+        if _maybe_handle_domain_renewal(client, sub_id, invoice):
+            return
         if sub_id == client.stripe_subscription_id:
             client.maintenance_active = True
             if not client.maintenance_started_at:
@@ -469,6 +474,25 @@ def _handle_subscription_deleted(event):
             'subscription.deleted: no matching ref for client %s '
             '(sub %s)', client.pk, sub_id)
 
+    # Domain subscription deletion — flip the matching DomainRegistration
+    # row to 'expired' so the portal stops showing it as active.
+    try:
+        from domains.models import DomainRegistration
+        reg = DomainRegistration.objects.filter(
+            stripe_subscription_id=sub_id).first()
+        if reg:
+            reg.status = 'expired' if reg.status == 'grace' else reg.status
+            reg.stripe_subscription_id = ''
+            reg.save(update_fields=[
+                'status', 'stripe_subscription_id', 'updated_at'])
+            logger.info(
+                'subscription.deleted: domain %s now %s',
+                reg.domain_name, reg.status)
+    except Exception:
+        logger.exception(
+            'subscription.deleted: domain cleanup failed for sub %s',
+            sub_id)
+
 
 # ── invoice.upcoming ────────────────────────────────────────────────────────
 
@@ -476,13 +500,23 @@ def _handle_invoice_upcoming(event):
     """
     Stripe fires this ~3 days before each renewal invoice is created.
     For HOSTING subscriptions, we check that the client's Droplet is
-    still alive on our DO account. If it isn't, cancel the subscription
-    at period end so the upcoming invoice never materialises — the
-    client doesn't get charged for hosting they no longer have.
+    still alive on our DO account. For DOMAIN subscriptions, we check
+    that the domain is still on the Namecheap account (it might have
+    been transferred out by the client manually). For maintenance,
+    there's no gate.
+
+    If a gate fails we cancel the subscription before Stripe creates
+    the renewal invoice, so the client never sees a charge for a
+    resource they no longer have.
     """
     invoice = event['data']['object']
     sub_id = invoice.get('subscription') or ''
     if not sub_id:
+        return
+
+    # Domain gate fires first — different cancel helper, different
+    # alert recipient.
+    if _domain_renewal_gate(sub_id):
         return
 
     client = ClientProfile.objects.filter(
@@ -597,6 +631,188 @@ def _invoice_has_hosting(invoice):
         if 'hosting' in (item.get('description') or '').lower():
             return True
     return False
+
+
+# ── Domain subscription helpers ─────────────────────────────────────────────
+
+def _maybe_handle_domain_renewal(client, sub_id, invoice):
+    """
+    Handle the `invoice.paid` event for a domain subscription:
+      1. Look up the matching DomainRegistration
+      2. Call Namecheap renew (we already charged the client, so we
+         owe the registration regardless)
+      3. Push expires_at forward 365 days on success
+
+    Returns True if this WAS a domain-sub invoice and we handled it
+    (or attempted to), False if it isn't a domain sub at all.
+    """
+    try:
+        from domains.models import DomainRegistration
+        reg = DomainRegistration.objects.filter(
+            stripe_subscription_id=sub_id, client=client).first()
+    except Exception:
+        logger.exception(
+            'invoice.paid: domain lookup failed for sub %s', sub_id)
+        return False
+    if reg is None:
+        return False
+
+    from datetime import timedelta
+
+    from domains.namecheap_client import NamecheapError, get_client
+
+    nc = get_client()
+    try:
+        result = nc.renew_domain(reg.domain_name, years=1)
+        if result.get('renewed'):
+            reg.expires_at = (
+                (reg.expires_at or timezone.now())
+                + timedelta(days=365))
+            reg.last_api_error = ''
+            reg.last_api_call_at = timezone.now()
+            reg.save(update_fields=[
+                'expires_at', 'last_api_error',
+                'last_api_call_at', 'updated_at',
+            ])
+            logger.info(
+                'invoice.paid (domain): %s renewed for client %s',
+                reg.domain_name, client.pk)
+        else:
+            reg.last_api_error = (
+                'Namecheap reported renewal not completed'
+            )[:2000]
+            reg.save(update_fields=['last_api_error', 'updated_at'])
+            _alert_admin_domain_renewal_failed(reg)
+    except NamecheapError as exc:
+        reg.last_api_error = f'renew: {exc}'[:2000]
+        reg.save(update_fields=['last_api_error', 'updated_at'])
+        _alert_admin_domain_renewal_failed(reg)
+    except Exception:
+        logger.exception(
+            'invoice.paid (domain): renew call failed for %s',
+            reg.domain_name)
+
+    return True
+
+
+def _domain_renewal_gate(sub_id):
+    """
+    Pre-renewal gate for domain subscriptions. If the client has
+    cancelled or the domain is no longer on our Namecheap account
+    (transferred out, etc.), cancel the Stripe sub at period end so
+    the renewal invoice never generates.
+
+    Returns True if `sub_id` IS a domain sub and we've handled it,
+    False if it isn't.
+    """
+    try:
+        from domains.models import DomainRegistration
+        reg = DomainRegistration.objects.filter(
+            stripe_subscription_id=sub_id).first()
+    except Exception:
+        logger.exception(
+            'invoice.upcoming: domain lookup failed for sub %s',
+            sub_id)
+        return False
+    if reg is None:
+        return False
+
+    # If client already cancelled it (status=grace, expired, etc.),
+    # cancel the sub so no renewal fires.
+    if reg.status != 'active':
+        try:
+            stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+            logger.info(
+                'invoice.upcoming (domain): cancelling %s renewal '
+                '(local status=%s)', reg.domain_name, reg.status)
+        except Exception:
+            logger.exception(
+                'invoice.upcoming (domain): cancel failed for %s',
+                sub_id)
+        return True
+
+    # Status is active locally — confirm the domain is still on our
+    # NC account before we let the renewal charge fire.
+    try:
+        from domains.namecheap_client import NamecheapError, get_client
+        nc = get_client()
+        info = nc.get_info(reg.domain_name)
+        if not info.get('is_owner', False):
+            stripe.Subscription.modify(
+                sub_id, cancel_at_period_end=True,
+                metadata={
+                    'cancel_reason':
+                        f'invoice.upcoming gate: {reg.domain_name} '
+                        f'no longer on Namecheap account',
+                },
+            )
+            reg.status = 'transferred_out'
+            reg.save(update_fields=['status', 'updated_at'])
+            _alert_admin_domain_gate_cancel(reg, 'transferred out')
+    except NamecheapError as exc:
+        # Transient NC error → assume domain still ours (safer than
+        # accidentally cancelling a real renewal). Daily reconcile
+        # cron catches actual drift.
+        logger.warning(
+            'invoice.upcoming (domain): NC check failed for %s '
+            '(%s) — letting renewal proceed', reg.domain_name, exc)
+    except Exception:
+        logger.exception(
+            'invoice.upcoming (domain): gate failed for %s',
+            reg.domain_name)
+    return True
+
+
+def _alert_admin_domain_renewal_failed(registration):
+    """Email admin so a failed renewal doesn't go silent."""
+    try:
+        from django.conf import settings as _s
+        from django.core.mail import send_mail
+        send_mail(
+            subject=(
+                f'[Domain renewal failed] {registration.domain_name} '
+                f'({registration.client.firm_name})'),
+            message=(
+                f'Stripe charged the client for the renewal of '
+                f'{registration.domain_name}, but the Namecheap renew '
+                f'call failed.\n\n'
+                f'Last API error: {registration.last_api_error}\n\n'
+                f'Client: {registration.client.firm_name} '
+                f'<{registration.client.user.email if registration.client.user else "(no user)"}>\n'
+                f'Registration ID: {registration.id}\n\n'
+                f'Manually renew on Namecheap, or refund the client.\n'),
+            from_email=getattr(
+                _s, 'EMAIL_FROM_NO_REPLY', _s.DEFAULT_FROM_EMAIL),
+            recipient_list=[_s.LEAD_NOTIFICATION_EMAIL],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception('admin alert for domain renewal failed')
+
+
+def _alert_admin_domain_gate_cancel(registration, reason):
+    """Email admin when invoice.upcoming gate auto-cancels a domain."""
+    try:
+        from django.conf import settings as _s
+        from django.core.mail import send_mail
+        send_mail(
+            subject=(
+                f'[Domain auto-cancelled] {registration.domain_name} '
+                f'({reason})'),
+            message=(
+                f'The Stripe subscription for '
+                f'{registration.domain_name} has been cancelled '
+                f'because the domain is {reason} from our Namecheap '
+                f'account.\n\n'
+                f'Client: {registration.client.firm_name}\n'
+                f'Registration ID: {registration.id}\n'),
+            from_email=getattr(
+                _s, 'EMAIL_FROM_NO_REPLY', _s.DEFAULT_FROM_EMAIL),
+            recipient_list=[_s.LEAD_NOTIFICATION_EMAIL],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception('admin alert for domain gate cancel failed')
 
 
 def _invoice_lines_mention_maintenance(stripe_invoice_dict):

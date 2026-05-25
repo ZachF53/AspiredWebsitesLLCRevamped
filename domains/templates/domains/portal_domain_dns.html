@@ -1,0 +1,101 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}DNS — {{ reg.domain_name }}{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <a href="{% url 'domains:portal_domain_detail' pk=reg.id %}" class="portal-back">← Back to {{ reg.domain_name }}</a>
+    <h1>DNS records — {{ reg.domain_name }}</h1>
+    <p class="portal-page-head__sub">
+        Changes save in full to Namecheap when you click Save. Propagation typically takes 5-15 minutes. <strong>If you're not sure what a record does, leave it alone</strong> — bad DNS records can take your site offline.
+    </p>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+<form method="post" action="{% url 'domains:portal_domain_dns' pk=reg.id %}" id="dns-form" class="domain-dns-form">
+    {% csrf_token %}
+    <table class="domain-dns-edit">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Host</th>
+                <th>Value</th>
+                <th>TTL (sec)</th>
+                <th>MX priority</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="dns-rows">
+            {% for r in records %}
+                <tr class="domain-dns-row">
+                    <td>
+                        <select name="types[]">
+                            {% for code, label in record_types %}
+                                <option value="{{ code }}" {% if r.record_type == code %}selected{% endif %}>{{ code }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="text" name="hosts[]" value="{{ r.host }}" autocapitalize="none" autocorrect="off" spellcheck="false"></td>
+                    <td><input type="text" name="values[]" value="{{ r.value }}" autocapitalize="none" autocorrect="off" spellcheck="false" required></td>
+                    <td><input type="number" name="ttls[]" min="60" max="86400" value="{{ r.ttl }}" required></td>
+                    <td><input type="number" name="mx_prefs[]" min="0" max="100" value="{{ r.mx_priority }}"></td>
+                    <td><button type="button" class="btn-link domain-dns-edit__remove" data-remove>Remove</button></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="domain-dns-form__actions">
+        <button type="button" id="add-record" class="btn-secondary">+ Add record</button>
+        <div>
+            <a href="{% url 'domains:portal_domain_detail' pk=reg.id %}" class="btn-link">Cancel</a>
+            <button type="submit" class="btn-primary">Save records</button>
+        </div>
+    </div>
+</form>
+
+<template id="dns-row-template">
+    <tr class="domain-dns-row">
+        <td>
+            <select name="types[]">
+                {% for code, label in record_types %}
+                    <option value="{{ code }}">{{ code }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td><input type="text" name="hosts[]" value="@" autocapitalize="none" autocorrect="off" spellcheck="false"></td>
+        <td><input type="text" name="values[]" value="" autocapitalize="none" autocorrect="off" spellcheck="false" required></td>
+        <td><input type="number" name="ttls[]" min="60" max="86400" value="1800" required></td>
+        <td><input type="number" name="mx_prefs[]" min="0" max="100" value="10"></td>
+        <td><button type="button" class="btn-link domain-dns-edit__remove" data-remove>Remove</button></td>
+    </tr>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    const tbody = document.getElementById('dns-rows');
+    const tmpl  = document.getElementById('dns-row-template');
+    const addBtn = document.getElementById('add-record');
+
+    addBtn.addEventListener('click', function () {
+        const clone = tmpl.content.cloneNode(true);
+        tbody.appendChild(clone);
+    });
+
+    tbody.addEventListener('click', function (e) {
+        const remove = e.target.closest('[data-remove]');
+        if (!remove) return;
+        const row = remove.closest('tr');
+        if (row) row.remove();
+    });
+})();
+</script>
+{% endblock %}

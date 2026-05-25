@@ -5818,3 +5818,127 @@ def send_onboarding(request):
         'admin_dashboard/billing_send_onboarding.html',
         _admin_context(active='billing', form_data={}),
     )
+
+
+# ── Domain registrations (Namecheap) ────────────────────────────────────────
+
+@admin_required
+def admin_domain_list(request):
+    """Admin overview of every DomainRegistration across all clients."""
+    from domains.models import DomainRegistration
+
+    domains_qs = (
+        DomainRegistration.objects
+        .select_related('client', 'client__user')
+        .order_by('-created_at')
+    )
+    return render(
+        request,
+        'admin_dashboard/domains_list.html',
+        _admin_context(
+            active='domains',
+            domains=domains_qs,
+            counts={
+                'active':  domains_qs.filter(status='active').count(),
+                'pending': domains_qs.filter(status='pending').count(),
+                'grace':   domains_qs.filter(status='grace').count(),
+                'failed':  domains_qs.filter(status='failed').count(),
+            },
+        ),
+    )
+
+
+@admin_required
+def admin_domain_detail(request, reg_id):
+    """Full admin view of one DomainRegistration."""
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    records = reg.dns_records.all().order_by('host', 'record_type')
+    return render(
+        request,
+        'admin_dashboard/domains_detail.html',
+        _admin_context(active='domains', reg=reg, records=records),
+    )
+
+
+@admin_required
+@require_POST
+def admin_domain_sync(request, reg_id):
+    """Manual Namecheap state sync trigger."""
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import sync_one
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    try:
+        sync_one(reg)
+        _msg.success(request, f'Synced {reg.domain_name} from Namecheap.')
+    except Exception as exc:  # noqa: BLE001
+        _msg.error(request, f'Sync failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+@admin_required
+@require_POST
+def admin_domain_repoint(request, reg_id):
+    """
+    Manual re-point of the auto-A record. Used when a client's
+    Droplet IP changes (manual rebuild) and the daily reconcile cron
+    hasn't fired yet, or when staff wants to force a re-sync.
+    """
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import set_auto_a_record
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    target_ip = (request.POST.get('ip') or '').strip()
+    if not target_ip:
+        target_ip = str(reg.client.do_droplet_ip or '')
+    if not target_ip:
+        _msg.error(
+            request,
+            f'No Droplet IP on client + no IP supplied — can\'t re-point.')
+        return redirect(
+            'admin_dashboard:admin_domain_detail', reg_id=reg.id)
+    try:
+        set_auto_a_record(reg, target_ip)
+        _msg.success(request, f'Pointed {reg.domain_name} -> {target_ip}.')
+    except Exception as exc:  # noqa: BLE001
+        _msg.error(request, f'Re-point failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+@admin_required
+@require_POST
+def admin_domain_transfer_out(request, reg_id):
+    """
+    Force the transfer-out package (unlock + EPP + email) from admin.
+    Used when a client requests transfer-out via support channel
+    rather than the portal.
+    """
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import begin_transfer_out
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    reason = (request.POST.get('reason') or 'admin-initiated').strip()
+    try:
+        epp = begin_transfer_out(reg, reason=reason)
+        if epp:
+            _msg.success(
+                request,
+                f'Transfer-out started for {reg.domain_name}. EPP code '
+                f'emailed to client.')
+        else:
+            _msg.success(
+                request,
+                f'Transfer-out started for {reg.domain_name}. EPP '
+                f'will arrive separately from the registry.')
+    except Exception as exc:  # noqa: BLE001
+        _msg.error(request, f'Transfer-out failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)

@@ -607,6 +607,166 @@ def create_onboarding_invoice(*, email, name, line_items, client_profile_id):
     return customer, invoice
 
 
+def get_domain_tier(tld):
+    """
+    Return the ServiceTier that prices a domain in `tld`.
+
+    Premium TLDs (currently just .law) use the 'domain-law' tier;
+    everything else uses 'domain-standard'. The mapping lives in
+    domains.models.tier_slug_for_tld so adding new premium TLDs is
+    a one-line change there.
+    """
+    from billing.pricing_models import ServiceTier
+    from domains.models import tier_slug_for_tld
+
+    slug = tier_slug_for_tld(tld.lower().lstrip('.'))
+    tier = ServiceTier.objects.filter(
+        slug=slug, is_active=True, category='addon').first()
+    if tier is None:
+        raise ValueError(
+            f'No active domain pricing tier "{slug}" — run seed_pricing.')
+    if not tier.stripe_price_id:
+        raise ValueError(
+            f'Domain tier "{slug}" has no Stripe Price ID — run '
+            f'`python manage.py sync_stripe_products`.')
+    return tier
+
+
+def create_domain_subscription(client, registration):
+    """
+    Create a Stripe Subscription for a domain registration.
+
+    The subscription:
+      - charges $75 (or $175 for .law) IMMEDIATELY on the customer's
+        default card (no trial — they're paying for year 1 right now)
+      - auto-renews in 365 days
+      - is gated by invoice.upcoming (we cancel if the domain has
+        been transferred out or the client cancelled their plan
+        between renewals)
+
+    The webhook for the initial invoice.paid is what marks the
+    DomainRegistration row as billed; this function only kicks off
+    the charge.
+
+    Returns the Stripe Subscription object. Raises ValueError if the
+    customer has no default payment method on file (the portal flow
+    forces an add-card step before calling this).
+    """
+    _init()
+    tier = get_domain_tier(registration.tld)
+    customer = create_or_get_customer(client)
+
+    default_pm = get_customer_default_payment_method(customer.id)
+    if not default_pm:
+        raise ValueError(
+            'No default payment method on file. Add a card on the '
+            'subscriptions page before registering a domain.')
+
+    sub = stripe.Subscription.create(
+        customer=customer.id,
+        items=[{'price': tier.stripe_price_id}],
+        metadata={
+            'kind': 'domain',
+            'client_profile_id': str(client.id),
+            'domain_registration_id': str(registration.id),
+            'domain_name': registration.domain_name,
+            'tld': registration.tld,
+        },
+        # Stop the API call if the saved card declines — better than
+        # an `incomplete` sub that creates a paid-zero placeholder.
+        payment_behavior='error_if_incomplete',
+    )
+    registration.stripe_subscription_id = sub.id
+    registration.pricing_tier_slug = tier.slug
+    registration.save(update_fields=[
+        'stripe_subscription_id', 'pricing_tier_slug', 'updated_at'])
+    logger.info(
+        'create_domain_subscription: client %s domain %s sub %s',
+        client.pk, registration.domain_name, sub.id)
+    return sub
+
+
+def cancel_domain_subscription(registration, reason=''):
+    """
+    Cancel a domain Stripe Subscription at period end so the client
+    keeps the domain through what they've already paid for. They get
+    a transfer-out email immediately so they can move it elsewhere
+    before the grace period ends.
+
+    Returns the updated Stripe Subscription object or None if no sub
+    on file.
+    """
+    _init()
+    sub_id = registration.stripe_subscription_id
+    if not sub_id:
+        return None
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+    except Exception:
+        registration.stripe_subscription_id = ''
+        registration.save(update_fields=[
+            'stripe_subscription_id', 'updated_at'])
+        return None
+    if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
+        return sub
+    updated = stripe.Subscription.modify(
+        sub_id,
+        cancel_at_period_end=True,
+        metadata={**(getattr(sub, 'metadata', {}) or {}),
+                  'cancel_reason': reason[:200] if reason else ''},
+    )
+    logger.info(
+        'cancel_domain_subscription: domain %s sub %s '
+        'cancel_at_period_end=True', registration.domain_name, sub_id)
+    return updated
+
+
+def refund_failed_domain_registration(stripe_subscription_id, reason=''):
+    """
+    Best-effort cleanup when a Stripe charge succeeded but the
+    follow-up Namecheap registration FAILED. Cancels the
+    subscription + refunds the most recent charge so the client
+    isn't out money for a domain we couldn't register.
+
+    Returns True on a successful refund, False otherwise (caller
+    logs + alerts admin so it can be handled manually).
+    """
+    _init()
+    if not stripe_subscription_id:
+        return False
+    try:
+        # Cancel immediately so no future invoices generate.
+        stripe.Subscription.cancel(
+            stripe_subscription_id, invoice_now=False, prorate=False)
+    except Exception:
+        logger.exception(
+            'refund_failed_domain_registration: subscription cancel '
+            'failed for %s', stripe_subscription_id)
+
+    # Find the most recent invoice on the sub and refund its PI.
+    try:
+        invs = stripe.Invoice.list(
+            subscription=stripe_subscription_id, limit=1)
+        invs_data = list(getattr(invs, 'data', None) or [])
+        if not invs_data:
+            return False
+        invoice = invs_data[0]
+        pi = getattr(invoice, 'payment_intent', None)
+        if not pi:
+            return False
+        stripe.Refund.create(
+            payment_intent=pi,
+            reason='duplicate' if not reason else 'requested_by_customer',
+            metadata={'note': reason[:200] if reason else ''},
+        )
+        return True
+    except Exception:
+        logger.exception(
+            'refund_failed_domain_registration: refund failed for %s',
+            stripe_subscription_id)
+        return False
+
+
 def issue_deposit_invoice(contract):
     """
     Best-effort deposit invoice send, called right after a contract is signed.

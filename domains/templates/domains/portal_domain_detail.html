@@ -1,0 +1,105 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}{{ reg.domain_name }}{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <a href="{% url 'domains:portal_domains' %}" class="portal-back">← All domains</a>
+    <div class="portal-page-head__row">
+        <div>
+            <h1>{{ reg.domain_name }}</h1>
+            <p class="portal-page-head__sub">
+                <span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span>
+                {% if reg.expires_at %}<span class="domain-detail__exp">Renews {{ reg.expires_at|date:"M j, Y" }}</span>{% endif %}
+            </p>
+        </div>
+        {% if reg.status == 'active' %}
+            <a href="{% url 'domains:portal_domain_dns' pk=reg.id %}" class="btn-primary">Edit DNS records</a>
+        {% endif %}
+    </div>
+</header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
+
+{% if reg.status == 'grace' and epp_code %}
+    <section class="domain-detail__panel domain-detail__panel--warning">
+        <h2>Transfer-out package</h2>
+        <p>You cancelled this domain. Use the auth code below to transfer it to another registrar. Your service continues until <strong>{{ reg.expires_at|date:"M j, Y" }}</strong>.</p>
+        <div class="domain-detail__epp">
+            <label>Auth (EPP) code</label>
+            <code>{{ epp_code }}</code>
+        </div>
+        <p class="domain-detail__epp-help">Sign up at any registrar (Namecheap, GoDaddy, Cloudflare, etc.) and paste this code into their "transfer in" flow. Most transfers complete within 5-7 days.</p>
+    </section>
+{% endif %}
+
+<div class="domain-detail__grid">
+    <section class="domain-detail__panel">
+        <h2>Registration</h2>
+        <dl class="domain-detail__dl">
+            <dt>Status</dt>
+            <dd>{{ reg.display_status }}</dd>
+            <dt>Registered</dt>
+            <dd>{% if reg.registered_at %}{{ reg.registered_at|date:"M j, Y" }}{% else %}—{% endif %}</dd>
+            <dt>Renews</dt>
+            <dd>{% if reg.expires_at %}{{ reg.expires_at|date:"M j, Y" }}{% else %}—{% endif %}</dd>
+            <dt>WHOIS privacy</dt>
+            <dd>{{ reg.whois_privacy_enabled|yesno:"On,Off" }}</dd>
+            <dt>Registrar lock</dt>
+            <dd>{{ reg.registrar_lock|yesno:"On,Off" }}</dd>
+            <dt>Nameservers</dt>
+            <dd>
+                {% if reg.nameservers %}
+                    {% for ns in reg.nameservers %}<div>{{ ns }}</div>{% endfor %}
+                {% else %}—{% endif %}
+            </dd>
+        </dl>
+    </section>
+
+    <section class="domain-detail__panel">
+        <h2>Current DNS records</h2>
+        {% if records %}
+            <table class="domain-dns-table">
+                <thead>
+                    <tr><th>Type</th><th>Host</th><th>Value</th><th>TTL</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                        <tr>
+                            <td><code>{{ r.record_type }}</code></td>
+                            <td><code>{{ r.host }}</code></td>
+                            <td><code>{{ r.value }}</code>{% if r.auto_managed %}<span class="domain-dns-table__auto">auto</span>{% endif %}</td>
+                            <td>{{ r.ttl }}s</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="portal-empty">No DNS records yet. They'll appear here once propagation completes (or once you add them below).</p>
+        {% endif %}
+        {% if reg.status == 'active' %}
+            <a href="{% url 'domains:portal_domain_dns' pk=reg.id %}" class="btn-secondary">Edit records</a>
+        {% endif %}
+    </section>
+</div>
+
+{% if reg.status == 'active' %}
+    <section class="domain-detail__danger">
+        <h2>Cancel this domain</h2>
+        <p>Cancellation lifts the registrar lock, emails you your transfer-out auth code, and stops future billing. You keep the domain through <strong>{{ reg.expires_at|date:"M j, Y" }}</strong>.</p>
+        <form method="post" action="{% url 'domains:portal_domain_cancel' pk=reg.id %}"
+              onsubmit="return confirm('Cancel {{ reg.domain_name }}? We\'ll send you the transfer-out package immediately. Domain registrations are non-refundable.');">
+            {% csrf_token %}
+            <label for="cancel-reason" class="domain-detail__reason-label">Why are you cancelling? <span class="form-hint">Optional, but helpful.</span></label>
+            <textarea id="cancel-reason" name="reason" rows="3" placeholder="Switching registrars / shutting down / etc."></textarea>
+            <button type="submit" class="btn-secondary domain-detail__cancel-btn">Cancel and start transfer-out</button>
+        </form>
+    </section>
+{% endif %}
+
+{% endblock %}

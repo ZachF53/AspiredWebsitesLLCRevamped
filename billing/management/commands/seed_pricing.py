@@ -164,6 +164,35 @@ TIERS = [
             'SSL certificate management',
         ],
     },
+    # ─── Domain registrations ───
+    {
+        'slug': 'domain-standard', 'category': 'addon',
+        'name': 'Domain Registration', 'price': Decimal('75.00'),
+        'is_recurring': True, 'billing_interval': 'year',
+        'sort_order': 10, 'is_featured': False,
+        'env': 'STRIPE_PRICE_DOMAIN_STANDARD',
+        'features': [
+            'WHOIS privacy included free for life',
+            'DNS management through your client portal',
+            'Auto-renewal handled by Stripe (you stay in control)',
+            'Cancel any time — transfer-out package sent automatically',
+            'Covers .com, .net, .org, .legal, .attorney',
+        ],
+    },
+    {
+        'slug': 'domain-law', 'category': 'addon',
+        'name': 'Domain Registration — .law', 'price': Decimal('175.00'),
+        'is_recurring': True, 'billing_interval': 'year',
+        'sort_order': 11, 'is_featured': False,
+        'env': 'STRIPE_PRICE_DOMAIN_LAW',
+        'features': [
+            'Premium .law TLD — verified attorney TLD',
+            'WHOIS privacy included free for life',
+            'DNS management through your client portal',
+            'Auto-renewal handled by Stripe',
+            'Cancel any time — transfer-out package sent automatically',
+        ],
+    },
 ]
 
 ADDONS = [
