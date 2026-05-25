@@ -22,7 +22,9 @@
             <p class="muted">
                 {{ client.get_status_display }}
                 {% if project %} · {{ project.get_stage_display }}{% endif %}
-                {% if project.live_url %} · <a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a>{% endif %}
+                {% with live_url=client.website|default:project.live_url|default:"" %}
+                    {% if live_url %} · <a href="{{ live_url }}" target="_blank" rel="noopener">{{ live_url }}</a>{% endif %}
+                {% endwith %}
             </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -147,7 +149,7 @@
             <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_edit' client.id %}">Edit all fields &rarr;</a>
         </div>
         <ul class="quick-edit-list">
-            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="live_url" label="Live URL" value=project.live_url|default:"" %}</li>
+            <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="live_url" label="Live URL" value=client.website|default:project.live_url|default:"" %}</li>
             <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="do_droplet_ip" label="Droplet IP" value=client.do_droplet_ip|default:"" %}</li>
             <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="contact_name" label="Contact name" value=client.contact_name|default:"" %}</li>
             <li>{% include "admin_dashboard/_quick_edit_display.html" with client=client field="phone" label="Phone" value=client.phone|default:"" %}</li>

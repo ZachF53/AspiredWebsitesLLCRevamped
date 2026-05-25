@@ -70,6 +70,13 @@ class ClientProfile(TimestampedModel):
     firm_name = models.CharField(max_length=255)
     contact_name = models.CharField(max_length=255, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    # `website` is the canonical live URL for the client (the address
+    # visitors actually go to). Not unique — different clients can
+    # share temporary preview/staging URLs while in development.
+    # `Project.live_url` is the legacy storage; we keep it in sync on
+    # every write but `website` is the source of truth so URLs work
+    # even on clients without a Project row (e.g. the auxiliary
+    # vault-only profiles).
     website = models.URLField(blank=True)
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)

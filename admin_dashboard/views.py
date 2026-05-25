@@ -3044,9 +3044,19 @@ def run_scan(request):
 @admin_required
 def client_edit(request, client_id):
     """
-    Full client edit form. live_url isn't stored on ClientProfile — it
-    lives on the Project — so the form surfaces it as a top-level field
-    and the view writes it back to the live (or first) project.
+    Full client edit form.
+
+    The live URL lives on `ClientProfile.website` (the canonical
+    field). For backward-compat with existing code that reads
+    `Project.live_url` (uptime monitor, scans, monthly reports), we
+    also mirror writes to the project when one exists. Initial value
+    is read from website first, then falls back to project.live_url
+    so legacy data still surfaces correctly.
+
+    Critical: the save MUST work even when the client has no Project
+    (auxiliary vault-only profiles, freshly-created accounts, etc.).
+    The old code silently no-op'd in that case while flashing
+    "saved" — losing the URL.
     """
     from clients.models import ClientProfile
     from django.contrib import messages
@@ -3056,19 +3066,25 @@ def client_edit(request, client_id):
     client = get_object_or_404(ClientProfile, id=client_id)
     project = (client.projects.filter(stage='live').first()
                or client.projects.first())
-    current_live_url = (project.live_url if project else '') or ''
+    # Source of truth: client.website. Fall back to project.live_url
+    # for legacy clients whose URL was only ever stored on Project.
+    current_live_url = (
+        client.website or (project.live_url if project else '') or ''
+    )
 
     if request.method == 'POST':
         form = ClientProfileEditForm(request.POST, instance=client)
         if form.is_valid():
-            form.save()
-            # live_url lives on Project. Only save when changed so we
-            # don't bump updated_at on no-op edits.
-            if project:
-                new_url = (form.cleaned_data.get('live_url') or '').strip()
-                if new_url != (project.live_url or ''):
-                    project.live_url = new_url
-                    project.save(update_fields=['live_url', 'updated_at'])
+            client = form.save(commit=False)
+            new_url = (form.cleaned_data.get('live_url') or '').strip()
+            client.website = new_url
+            client.save()
+            # Mirror to Project.live_url for backward compat. Skipped
+            # silently when no project exists — website is the source
+            # of truth so no data is lost.
+            if project and new_url != (project.live_url or ''):
+                project.live_url = new_url
+                project.save(update_fields=['live_url', 'updated_at'])
             messages.success(request, 'Client updated successfully.')
             return redirect(
                 'admin_dashboard:client_detail', client_id=client.id)
@@ -3124,7 +3140,13 @@ def client_quick_edit_field(request, client_id):
 
     def _current_value():
         if field_name == 'live_url':
-            return (project.live_url if project else '') or ''
+            # client.website is canonical; fall back to project.live_url
+            # for legacy data.
+            return (
+                client.website
+                or (project.live_url if project else '')
+                or ''
+            )
         return getattr(client, field_name, '') or ''
 
     if request.method == 'POST':
@@ -3140,13 +3162,15 @@ def client_quick_edit_field(request, client_id):
         if field_name == 'live_url' and new_value:
             if not new_value.lower().startswith(('http://', 'https://')):
                 new_value = f'https://{new_value}'
-        # Live URL writes through to Project, everything else to the
-        # client profile.
+        # Live URL writes to client.website (canonical) AND mirrors to
+        # Project.live_url when a project exists (backward compat for
+        # uptime / scans / reports that still read project.live_url).
         if field_name == 'live_url':
-            if not project:
-                return HttpResponseBadRequest('client has no project yet')
-            project.live_url = new_value
-            project.save(update_fields=['live_url', 'updated_at'])
+            client.website = new_value
+            client.save(update_fields=['website', 'updated_at'])
+            if project:
+                project.live_url = new_value
+                project.save(update_fields=['live_url', 'updated_at'])
         else:
             setattr(client, field_name, new_value)
             client.save(update_fields=[field_name, 'updated_at'])
