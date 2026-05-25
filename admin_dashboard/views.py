@@ -1348,15 +1348,10 @@ def client_detail(request, client_id):
     intel_sent_count = client.intelligence_suggestions.filter(
         status='sent_to_client').count()
 
-    # Resolved live URL — client.website is canonical, fall back to
-    # project.live_url for legacy data. Done here in the view so the
-    # template doesn't have to dereference project (which is None for
-    # auxiliary vault profiles, breaking |default: in template land).
-    resolved_live_url = (
-        (client.website or '')
-        or (project.live_url if project else '')
-        or ''
-    )
+    # Resolved live URL — canonical = client.website. Legacy
+    # project.live_url data was backfilled into client.website on
+    # 2026-05-25.
+    resolved_live_url = client.website or ''
 
     return render(request, 'admin_dashboard/client_detail.html', _admin_context(
         'clients',
@@ -3023,14 +3018,10 @@ def run_scan(request):
     client = get_object_or_404(ClientProfile, id=client_id)
     project = (client.projects.filter(stage='live').first()
                or client.projects.first())
-    # client.website is the canonical live URL (post-2026-05-25 fix);
-    # fall back to project.live_url for legacy data on clients whose
-    # URL was only ever stored on Project.
-    target_url = (
-        (client.website or '')
-        or (project.live_url if project else '')
-        or ''
-    )
+    # client.website is the canonical live URL (post-2026-05-25 fix).
+    # Legacy project.live_url data was backfilled, so we don't need
+    # the fallback any more.
+    target_url = client.website or ''
     target_ip = client.do_droplet_ip or ''
 
     if not (target_url or target_ip):
@@ -3146,11 +3137,9 @@ def client_edit(request, client_id):
     client = get_object_or_404(ClientProfile, id=client_id)
     project = (client.projects.filter(stage='live').first()
                or client.projects.first())
-    # Source of truth: client.website. Fall back to project.live_url
-    # for legacy clients whose URL was only ever stored on Project.
-    current_live_url = (
-        client.website or (project.live_url if project else '') or ''
-    )
+    # Single source of truth: client.website. Legacy project.live_url
+    # data was backfilled on 2026-05-25.
+    current_live_url = client.website or ''
 
     if request.method == 'POST':
         form = ClientProfileEditForm(request.POST, instance=client)
@@ -3220,13 +3209,7 @@ def client_quick_edit_field(request, client_id):
 
     def _current_value():
         if field_name == 'live_url':
-            # client.website is canonical; fall back to project.live_url
-            # for legacy data.
-            return (
-                client.website
-                or (project.live_url if project else '')
-                or ''
-            )
+            return client.website or ''
         return getattr(client, field_name, '') or ''
 
     if request.method == 'POST':

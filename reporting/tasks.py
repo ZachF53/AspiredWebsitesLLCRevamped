@@ -700,13 +700,8 @@ def check_scan_schedule():
     for client in eligible:
         if not client.do_droplet_ip:
             continue
-        project = client.projects.filter(stage='live').first()
-        # Canonical URL: client.website; legacy fallback: project.live_url.
-        target_url = (
-            (client.website or '')
-            or (project.live_url if project else '')
-            or ''
-        )
+        # Canonical URL: client.website (post-2026-05-25 backfill).
+        target_url = client.website or ''
         if not target_url:
             continue
 
