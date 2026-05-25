@@ -1,0 +1,83 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Accounts — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Accounts</span>
+            <h1 class="admin-page-title">{{ total }} account{{ total|pluralize }}</h1>
+            <p class="admin-page-sub">One account = one login = one Stripe customer = one set of WHOIS contact info. Each account can own multiple websites and domains.</p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:websites_list' %}">All Websites &rarr;</a>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_list' %}">Legacy Clients view</a>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <input type="search" name="q" value="{{ query }}" class="form-control lead-filter-bar__search"
+               placeholder="Search by account name, email, phone…">
+        <button type="submit" class="btn-primary">Search</button>
+        {% if query %}<a href="{% url 'admin_dashboard:accounts_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
+    </form>
+
+    {% if rows %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Onboarding</th>
+                        <th>Websites</th>
+                        <th class="lead-table__col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                        {% with acc=r.account %}
+                            <tr {% if acc.is_tester %}class="client-row--tester"{% endif %}>
+                                <td>
+                                    <a href="{% url 'admin_dashboard:account_detail' acc.id %}" class="lead-table__firm">{{ acc.name }}</a>
+                                    {% if acc.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
+                                </td>
+                                <td>{{ acc.user.email|default:"—" }}</td>
+                                <td><span class="status-badge status-badge--{{ acc.status }}">{{ acc.get_status_display }}</span></td>
+                                <td>
+                                    {% if acc.onboarding_status == 'pending_setup' %}
+                                        <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
+                                    {% elif acc.onboarding_status == 'complete' %}
+                                        <span class="status-badge" style="background:#10b98122;color:#10b981;">Complete</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if r.website_count == 0 %}
+                                        <span class="muted">Account only</span>
+                                    {% else %}
+                                        <strong>{{ r.website_count }}</strong>
+                                        <span class="muted">
+                                            ({% for w in r.websites %}<a href="{% url 'admin_dashboard:website_detail' w.id %}">{{ w.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %})
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:account_detail' acc.id %}">Edit</a>
+                                </td>
+                            </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">
+            No accounts match "{{ query }}".
+        </p>
+    {% endif %}
+</div>
+{% endblock %}

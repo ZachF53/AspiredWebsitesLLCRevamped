@@ -406,7 +406,8 @@ def client_vault(request, client_id):
     groups = []
     for cat_key, cat_label in VaultCredential.CATEGORY_CHOICES:
         items = []
-        for cred in vault.credentials.filter(category=cat_key):
+        for cred in vault.credentials.filter(
+                category=cat_key).select_related('website_new'):
             items.append({
                 'id': cred.id,
                 'label': cred.label,
@@ -416,15 +417,75 @@ def client_vault(request, client_id):
                 'has_password': bool(cred.password_encrypted),
                 'visible_to_client': cred.visible_to_client,
                 'is_ssh_credential': cred.is_ssh_credential,
+                # Phase C5 — per-credential website tag. Renders next
+                # to the label so admins can see which build each cred
+                # belongs to without leaving the vault page.
+                'website_name': (
+                    cred.website_new.name if cred.website_new_id
+                    else 'Account-wide'),
+                'website_id': (
+                    cred.website_new_id if cred.website_new_id else None),
             })
         if items:
             groups.append({'key': cat_key, 'label': cat_label, 'items': items})
+
+    # Phase C5 — alternate "grouped by website" view of the same
+    # credentials. Renders alongside the category grouping in the
+    # template via a tab toggle. One pass over the queryset; no
+    # extra DB hits.
+    site_groups = {}
+    for cat_key, cat_label in VaultCredential.CATEGORY_CHOICES:
+        for cred in vault.credentials.filter(
+                category=cat_key).select_related('website_new'):
+            site_id = cred.website_new_id or '__account_wide__'
+            site_name = (
+                cred.website_new.name if cred.website_new_id
+                else 'Account-wide')
+            bucket = site_groups.setdefault(site_id, {
+                'site_id': cred.website_new_id,
+                'site_name': site_name,
+                'items': [],
+            })
+            bucket['items'].append({
+                'id': cred.id,
+                'label': cred.label,
+                'category_label': cat_label,
+                'username_hint': cred.username_hint or '—',
+                'url': decrypt_value(cred.url_encrypted, key),
+                'notes': decrypt_value(cred.notes_encrypted, key),
+                'has_password': bool(cred.password_encrypted),
+                'visible_to_client': cred.visible_to_client,
+                'is_ssh_credential': cred.is_ssh_credential,
+            })
+    # Stable ordering: account-wide first, then site name A-Z.
+    sorted_site_groups = []
+    if '__account_wide__' in site_groups:
+        sorted_site_groups.append(site_groups.pop('__account_wide__'))
+    sorted_site_groups.extend(
+        sorted(site_groups.values(), key=lambda g: g['site_name']))
+
+    # Pull the account's websites for the cred-add form's site-tag
+    # dropdown (Phase C5 — add-credential UI gets a "Belongs to which
+    # website?" picker). Resolve via the Account derived from this
+    # client. Falls back to [] for environments where the backfill
+    # hasn't run.
+    websites_for_tagging = []
+    try:
+        from clients.account_models import Account
+        acc = Account.objects.filter(legacy_client_profile=client).first()
+        if acc is not None:
+            websites_for_tagging = list(
+                acc.websites.all().order_by('name'))
+    except Exception:
+        pass
 
     return render(request, 'vault/client_vault.html', {
         'active': 'vault',
         'client': client,
         'vault': vault,
         'groups': groups,
+        'site_groups': sorted_site_groups,
+        'websites_for_tagging': websites_for_tagging,
         'provisioning_reencrypted_count': provisioning_reencrypted_count,
         'seconds_remaining': _seconds_remaining(request),
     })

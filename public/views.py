@@ -868,7 +868,18 @@ def login_page(request):
 
 @require_POST
 def logout_view(request):
-    """POST-only logout (modern Django requires POST for CSRF-safe logout)."""
+    """POST-only logout (modern Django requires POST for CSRF-safe logout).
+
+    Clears the Phase C ``active_website_slug`` session pick before
+    flushing the rest of the session so a re-login lands on a fresh
+    chooser, not whatever site was picked last.
+    """
+    try:
+        from clients.portal_resolvers import clear_active_website
+        clear_active_website(request)
+    except Exception:
+        # Never block logout over a helper import — fail open.
+        pass
     logout(request)
     return redirect('public:home')
 
@@ -891,10 +902,16 @@ def _post_login_redirect(user, next_url):
         next_url, allowed_hosts=None, require_https=False
     ):
         return redirect(next_url)
-    # Staff → admin dashboard. Everyone else → client portal.
+    # Staff → admin dashboard.
     if user.is_staff:
         return redirect('admin_dashboard:home')
-    return redirect('clients:dashboard')
+    # Phase C — every fresh client sign-in lands on the website chooser.
+    # The chooser auto-redirects to the dashboard for single-website
+    # accounts (so single-site users never see an interstitial); accounts
+    # with multiple sites get the picker. Legacy accounts with no
+    # backfill (no Account row) fall back to /portal/ which renders the
+    # legacy dashboard via the same view.
+    return redirect('clients:chooser')
 
 
 def portal_coming_soon(request):

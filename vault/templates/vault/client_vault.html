@@ -29,7 +29,87 @@
         </div>
     {% endif %}
 
-    {% if groups %}
+    {# Phase C5 — view-by toggle (category vs website grouping). The
+       same credentials, just sliced differently. Pure CSS toggle so
+       no JS dependency. #}
+    <div class="vault-viewby">
+        <span class="vault-viewby__label">Group by:</span>
+        <a href="?view=category" class="vault-viewby__opt {% if request.GET.view != 'website' %}is-active{% endif %}">Category</a>
+        <a href="?view=website" class="vault-viewby__opt {% if request.GET.view == 'website' %}is-active{% endif %}">Website</a>
+    </div>
+
+    {% if request.GET.view == 'website' %}
+        {# Website-grouped view — same cards as the category view,
+           but bucketed by the website tag. Account-wide creds (no
+           site tag) get their own bucket at the top. #}
+        {% if site_groups %}
+            {% for sg in site_groups %}
+                <details class="vault-catgroup" open>
+                    <summary>
+                        {% if sg.site_id %}
+                            <a href="{% url 'admin_dashboard:website_detail' sg.site_id %}">{{ sg.site_name }}</a>
+                        {% else %}
+                            {{ sg.site_name }}
+                        {% endif %}
+                        <span class="vault-catgroup__count">{{ sg.items|length }}</span>
+                    </summary>
+                    <div class="vault-cred-list">
+                        {% for item in sg.items %}
+                            <article class="vault-cred"
+                                     data-reveal-url="{% url 'vault:reveal_credential' client.id item.id %}">
+                                <div class="vault-cred__head">
+                                    <span class="vault-cred__label">{{ item.label }}</span>
+                                    <span class="vault-cat-badge">{{ item.category_label }}</span>
+                                </div>
+                                <div class="vault-cred__grid">
+                                    <div class="vault-cred__field">
+                                        <span class="vault-cred__fieldlabel">Username</span>
+                                        <span class="vault-cred__value" data-field="username">{{ item.username_hint }}</span>
+                                    </div>
+                                    <div class="vault-cred__field">
+                                        <span class="vault-cred__fieldlabel">Password</span>
+                                        <span class="vault-cred__value" data-field="password">{% if item.has_password %}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;{% else %}&mdash;{% endif %}</span>
+                                    </div>
+                                </div>
+                                <div class="vault-cred__revealrow">
+                                    <button type="button" class="vault-reveal btn-secondary btn-sm">Reveal</button>
+                                    <div class="vault-reveal-bar" hidden><span></span></div>
+                                </div>
+                                {% if item.url %}
+                                    <p class="vault-cred__url">
+                                        <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a>
+                                    </p>
+                                {% endif %}
+                                {% if item.notes %}
+                                    <details class="vault-cred__notes">
+                                        <summary>Notes</summary>
+                                        <p>{{ item.notes }}</p>
+                                    </details>
+                                {% endif %}
+                                <div class="vault-cred__foot">
+                                    {% include "vault/_visibility_toggle.html" with client_id=client.id cred_id=item.id visible=item.visible_to_client %}
+                                    <span class="vault-cred__actions">
+                                        {% if item.is_ssh_credential %}
+                                            <a class="btn-primary btn-sm vault-connect-btn" href="{% url 'vault:terminal' item.id %}">Connect &rarr;</a>
+                                            <a class="btn-secondary btn-sm vault-ops-btn" href="{% url 'vault:ops_agent' item.id %}">AI Ops</a>
+                                            <a class="btn-secondary btn-sm" href="{% url 'vault:command_library' item.id %}">Commands</a>
+                                        {% endif %}
+                                        <a class="btn-secondary btn-sm" href="{% url 'vault:edit_credential' client.id item.id %}">Edit</a>
+                                        <form method="post" action="{% url 'vault:delete_credential' client.id item.id %}" class="vault-cred__delete">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-secondary btn-sm vault-delete-btn">Delete</button>
+                                        </form>
+                                    </span>
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+                </details>
+            {% endfor %}
+        {% else %}
+            <p class="vault-muted">No credentials stored yet.</p>
+        {% endif %}
+    {% elif groups %}
         {% for group in groups %}
             <details class="vault-catgroup" open>
                 <summary>{{ group.label }} <span class="vault-catgroup__count">{{ group.items|length }}</span></summary>
@@ -38,7 +118,11 @@
                         <article class="vault-cred"
                                  data-reveal-url="{% url 'vault:reveal_credential' client.id item.id %}">
                             <div class="vault-cred__head">
-                                <span class="vault-cred__label">{{ item.label }}</span>
+                                <span class="vault-cred__label">
+                                    {{ item.label }}
+                                    {# Phase C5 — website tag inline on each credential card. #}
+                                    <span class="vault-site-tag" title="Belongs to website">{{ item.website_name }}</span>
+                                </span>
                                 <span class="vault-cat-badge">{{ group.label }}</span>
                             </div>
 
@@ -106,4 +190,45 @@
 
 {% block extra_scripts %}
 <script src="{% static 'js/vault.js' %}" defer></script>
+<style>
+/* Phase C5 — vault group-by toggle + per-credential site tag. */
+.vault-viewby {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--color-bg-elevated, #1f1f1f);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.vault-viewby__label {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.vault-viewby__opt {
+    padding: 4px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.vault-viewby__opt.is-active {
+    background: var(--color-orange-soft, rgba(232, 101, 10, .15));
+    color: var(--color-orange-light, #E8650A);
+}
+.vault-site-tag {
+    display: inline-block;
+    background: rgba(255, 255, 255, .05);
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 0.5rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+</style>
 {% endblock %}

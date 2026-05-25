@@ -60,6 +60,33 @@
                             {% endif %}
                         </div>
                     {% endif %}
+
+                    {% comment %}
+                        Phase C4 — per-subscription payment-method picker.
+                        Stripe lets a subscription override the customer
+                        default with its own default_payment_method. The
+                        dropdown maps "Default" → empty value (clears the
+                        override, falls back to account default).
+                    {% endcomment %}
+                    {% if payment_methods %}
+                        <form method="post"
+                              action="{% url 'clients:portal_subscription_payment_method' sub.id %}"
+                              class="sub-card__pm">
+                            {% csrf_token %}
+                            <label class="sub-card__pm-label" for="pm_{{ sub.id }}">Charge to:</label>
+                            <select id="pm_{{ sub.id }}" name="payment_method_id"
+                                    class="sub-card__pm-select"
+                                    onchange="this.form.submit()">
+                                <option value=""{% if not sub.default_payment_method %} selected{% endif %}>Default payment method</option>
+                                {% for pm in payment_methods %}
+                                    <option value="{{ pm.id }}"{% if pm.id == sub.default_payment_method %} selected{% endif %}>
+                                        {{ pm.brand|capfirst }} •••• {{ pm.last4 }}{% if pm.id == default_pm_id %} (default){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <noscript><button type="submit" class="btn-secondary btn-sm">Save</button></noscript>
+                        </form>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>

@@ -1,0 +1,246 @@
+{% load static %}<!DOCTYPE html>
+{% comment %}
+Website chooser — Phase C entry point.
+
+Rendered after login when an account has more than one Website. Accounts
+with exactly one Website auto-redirect from the view; account-only
+legacy clients (e.g. the auxiliary vault profile) see a chooser with
+zero Website cards and only the account-wide quick links.
+
+Deliberately renders WITHOUT the portal sidebar so it's visibly a
+"pick what to enter" gate rather than a normal portal page.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ meta_title|default:"Choose a Site — Aspired Websites" }}</title>
+    <meta name="theme-color" content="#1A1A1A">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <style>
+        .chooser-shell {
+            min-height: 100vh;
+            background: #1A1A1A;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 48px 24px 80px;
+            color: #FFFFFF;
+        }
+        .chooser-header {
+            text-align: center;
+            margin-bottom: 40px;
+            max-width: 640px;
+        }
+        .chooser-header img {
+            height: 56px;
+            width: auto;
+            margin-bottom: 24px;
+        }
+        .chooser-header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0 0 8px;
+        }
+        .chooser-header p {
+            color: #999;
+            margin: 0;
+            font-size: 15px;
+        }
+
+        .chooser-section-label {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+            color: #888;
+            margin: 24px 0 12px;
+            font-weight: 600;
+            width: 100%;
+            max-width: 960px;
+        }
+
+        .chooser-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            width: 100%;
+            max-width: 960px;
+        }
+        .chooser-card {
+            background: #262626;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            transition: border-color .15s, transform .15s;
+        }
+        .chooser-card:hover {
+            border-color: #E8650A;
+            transform: translateY(-2px);
+        }
+        .chooser-card__name {
+            font-size: 17px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin: 0 0 4px;
+        }
+        .chooser-card__meta {
+            font-size: 13px;
+            color: #999;
+            margin: 0 0 16px;
+            min-height: 1.4em;
+        }
+        .chooser-card__stage {
+            display: inline-block;
+            background: rgba(232, 101, 10, .15);
+            color: #E8650A;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+            align-self: flex-start;
+        }
+        .chooser-card__url {
+            font-size: 12px;
+            color: #777;
+            margin: 0 0 16px;
+            word-break: break-all;
+        }
+        .chooser-card__button {
+            margin-top: auto;
+            display: block;
+            background: #E8650A;
+            color: #FFFFFF;
+            text-align: center;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            border: 0;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .chooser-card__button:hover {
+            background: #d05a08;
+        }
+
+        .chooser-account-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            width: 100%;
+            max-width: 960px;
+            margin-bottom: 32px;
+        }
+        .chooser-account-link {
+            background: #1F1F1F;
+            border: 1px solid #2A2A2A;
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: #DDD;
+            text-decoration: none;
+            font-size: 14px;
+            transition: border-color .15s;
+        }
+        .chooser-account-link:hover {
+            border-color: #555;
+            color: #FFF;
+        }
+        .chooser-account-link__label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .chooser-account-link__hint {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .chooser-logout {
+            margin-top: 32px;
+        }
+        .chooser-logout button {
+            background: transparent;
+            border: 1px solid #444;
+            color: #999;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .chooser-logout button:hover {
+            color: #FFF;
+            border-color: #666;
+        }
+
+        .chooser-empty {
+            text-align: center;
+            color: #888;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="chooser-shell">
+        <header class="chooser-header">
+            <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+            <h1>Welcome back{% if account.name %}, {{ account.name }}{% endif %}.</h1>
+            <p>Pick a website to manage, or jump to your account settings.</p>
+        </header>
+
+        {% if websites %}
+            <div class="chooser-section-label">Your Websites</div>
+            <div class="chooser-grid">
+                {% for w in websites %}
+                    <form method="post" action="{% url 'clients:chooser_pick' w.slug %}" class="chooser-card">
+                        {% csrf_token %}
+                        <span class="chooser-card__stage">{{ w.get_stage_display }}</span>
+                        <h2 class="chooser-card__name">{{ w.name }}</h2>
+                        <p class="chooser-card__meta">
+                            {% if w.package %}{{ w.get_package_display }}{% else %}No package selected{% endif %}
+                        </p>
+                        {% if w.url %}
+                            <p class="chooser-card__url">{{ w.url }}</p>
+                        {% endif %}
+                        <button type="submit" class="chooser-card__button">Open</button>
+                    </form>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="chooser-section-label">Your Websites</div>
+            <div class="chooser-empty">
+                No websites yet. Use the account links below.
+            </div>
+        {% endif %}
+
+        <div class="chooser-section-label" style="margin-top: 40px;">Account</div>
+        <div class="chooser-account-links">
+            <a class="chooser-account-link" href="{% url 'clients:portal_subscriptions' %}">
+                <span class="chooser-account-link__label">Subscriptions &amp; Billing</span>
+                <span class="chooser-account-link__hint">All your subs &amp; payment methods</span>
+            </a>
+            <a class="chooser-account-link" href="{% url 'domains:portal_domains' %}">
+                <span class="chooser-account-link__label">Domains</span>
+                <span class="chooser-account-link__hint">Your registered domain names</span>
+            </a>
+            <a class="chooser-account-link" href="{% url 'clients:support' %}">
+                <span class="chooser-account-link__label">Support</span>
+                <span class="chooser-account-link__hint">Open tickets &amp; new requests</span>
+            </a>
+            <a class="chooser-account-link" href="{% url 'clients:settings' %}">
+                <span class="chooser-account-link__label">Account Settings</span>
+                <span class="chooser-account-link__hint">Contact info &amp; preferences</span>
+            </a>
+        </div>
+
+        <form method="post" action="{% url 'public:logout' %}" class="chooser-logout">
+            {% csrf_token %}
+            <button type="submit">Sign out</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -46,9 +46,19 @@
 
                 {# ── CLIENTS ── #}
                 <div class="nav-group-label">Clients</div>
+                {# Phase C — new primary entry. Old All Clients link
+                   kept just below for the transition. #}
+                <a class="nav-link {% if '/admin-dashboard/accounts/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:accounts_list' %}">
+                    <span class="nav-link__text">Accounts</span>
+                </a>
+                <a class="nav-link {% if '/admin-dashboard/websites/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:websites_list' %}">
+                    <span class="nav-link__text">Websites</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/clients/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:client_list' %}">
-                    <span class="nav-link__text">All Clients</span>
+                    <span class="nav-link__text">All Clients (legacy)</span>
                 </a>
                 <a class="nav-link {% if '/admin-dashboard/billing/' in request.path and 'new-invoice' not in request.path and 'send-onboarding' not in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:billing_list' %}">

@@ -310,4 +310,18 @@ urlpatterns = [
     path('case-studies/<uuid:cs_id>/publish-toggle/',
          views.case_study_toggle_publish,
          name='case_study_toggle_publish'),
+
+    # ── Phase C — Account + Website admin ──
+    # New top-level entity. The legacy /clients/ list stays available
+    # so existing bookmarks and tooling keep working.
+    path('accounts/', views.accounts_list, name='accounts_list'),
+    path('accounts/<uuid:account_id>/', views.account_detail,
+         name='account_detail'),
+    path('websites/', views.websites_list, name='websites_list'),
+    path('websites/<uuid:website_id>/', views.website_detail,
+         name='website_detail'),
+    path('websites/<uuid:website_id>/move-account/',
+         views.website_move_account, name='website_move_account'),
+    path('domains/<uuid:reg_id>/move-account/',
+         views.domain_move_account, name='domain_move_account'),
 ]

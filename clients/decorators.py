@@ -7,6 +7,10 @@ from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 
 from .models import ClientProfile
+from .portal_resolvers import (
+    resolve_account_for_user,
+    resolve_website,
+)
 
 
 def client_required(view_func):
@@ -14,8 +18,17 @@ def client_required(view_func):
     Gate a portal view: the user must be authenticated AND have a
     ClientProfile. Anyone else is bounced to /login/ with a ?next= back here.
 
-    On success the resolved ClientProfile is attached as
-    `request.client_profile` so portal views don't each re-query it.
+    On success the following are attached to the request:
+
+      request.client_profile  — legacy single profile (unchanged).
+      request.account         — Account (Phase C resolver, derived
+                                from the profile during the transition).
+      request.website         — Website the request is scoped to, or
+                                None if the caller will redirect to
+                                the chooser. Picked from a
+                                ``website_slug`` URL kwarg first, then
+                                the session, then the account's sole
+                                website.
 
     ── Onboarding gate (Part 5) ──
     Once a profile is loaded, we additionally enforce the onboarding state:
@@ -46,6 +59,18 @@ def client_required(view_func):
         if profile is None:
             return redirect_to_login(request.get_full_path())
         request.client_profile = profile
+
+        # ── Phase C — resolve Account + Website ──
+        # Account: 1:1 with User (after Phase B backfill).
+        request.account = resolve_account_for_user(request.user)
+        # Website: from URL kwarg (when mounted under /portal/site/<slug>/),
+        # else session, else the account's sole website if exactly one.
+        # Per-website views consume `request.website`; account-wide views
+        # ignore it. The slug kwarg is consumed here so the wrapped
+        # view doesn't have to declare it.
+        slug_kwarg = kwargs.pop('website_slug', None)
+        request.website = resolve_website(
+            request, request.account, slug_from_url=slug_kwarg)
 
         # Onboarding gate.
         status = getattr(profile, 'onboarding_status', 'onboarding_complete')

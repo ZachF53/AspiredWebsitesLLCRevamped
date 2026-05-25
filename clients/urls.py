@@ -7,6 +7,14 @@ from . import views
 app_name = 'clients'
 
 urlpatterns = [
+    # ── Phase C — Website chooser (account → pick which site to enter) ──
+    # Login redirects here on every fresh sign-in; the chooser
+    # auto-skips to the dashboard when the account has exactly one
+    # website so single-site users don't see an interstitial.
+    path('chooser/', views.chooser, name='chooser'),
+    path('chooser/pick/<slug:slug>/', views.chooser_pick,
+         name='chooser_pick'),
+
     path('', views.dashboard, name='dashboard'),
     path('project/', views.project_detail, name='project'),
     path('intake/', views.intake, name='intake'),
@@ -35,6 +43,10 @@ urlpatterns = [
     path('subscriptions/payment-methods/<str:pm_id>/default/',
          views.portal_payment_method_default,
          name='portal_payment_method_default'),
+    # Phase C4 — per-subscription default card override.
+    path('subscriptions/<str:sub_id>/payment-method/',
+         views.portal_subscription_payment_method,
+         name='portal_subscription_payment_method'),
 
     # Maintenance-plan upsell + signup
     path('maintenance/', views.portal_maintenance,

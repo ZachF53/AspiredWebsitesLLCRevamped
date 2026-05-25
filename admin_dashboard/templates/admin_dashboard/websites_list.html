@@ -1,0 +1,73 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Websites — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Websites</span>
+            <h1 class="admin-page-title">{{ websites|length }} website{{ websites|length|pluralize }}</h1>
+            <p class="admin-page-sub">Every website across every account. Use the Accounts page for grouped management; this list is for "I know the site name but not the account" searches.</p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:accounts_list' %}">&larr; Accounts</a>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <input type="search" name="q" value="{{ query }}" class="form-control lead-filter-bar__search"
+               placeholder="Search by website name, URL, or slug…">
+        <select name="stage" class="form-control" style="max-width:200px;">
+            <option value="">All stages</option>
+            {% for value, label in stages %}
+                <option value="{{ value }}"{% if value == active_stage %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn-primary">Filter</button>
+        {% if query or active_stage %}<a href="{% url 'admin_dashboard:websites_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
+    </form>
+
+    {% if websites %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Website</th>
+                        <th>Account</th>
+                        <th>Stage</th>
+                        <th>URL</th>
+                        <th>Package</th>
+                        <th>Maintenance</th>
+                        <th class="lead-table__col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in websites %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_dashboard:website_detail' w.id %}" class="lead-table__firm">{{ w.name }}</a>
+                                <span class="muted" style="font-size:0.75rem; display:block;">{{ w.slug }}</span>
+                            </td>
+                            <td><a href="{% url 'admin_dashboard:account_detail' w.account_id %}">{{ w.account.name }}</a></td>
+                            <td><span class="status-badge status-badge--{{ w.stage }}">{{ w.get_stage_display }}</span></td>
+                            <td>{{ w.url|default:"—" }}</td>
+                            <td>{{ w.get_package_display|default:"—" }}</td>
+                            <td>
+                                {% if w.maintenance_active %}
+                                    <span style="color:#10b981;">Active</span>
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:website_detail' w.id %}">Edit</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">No websites match your filter.</p>
+    {% endif %}
+</div>
+{% endblock %}

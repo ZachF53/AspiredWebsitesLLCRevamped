@@ -6556,3 +6556,364 @@ def admin_domain_transfer_out(request, reg_id):
     except Exception as exc:  # noqa: BLE001
         _msg.error(request, f'Transfer-out failed: {exc}')
     return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Phase C — Account + Website admin
+# ────────────────────────────────────────────────────────────────────────────
+
+# Account-level fields exposed on the edit form. Keyed by the model
+# field; metadata drives the renderer (input type, optional choices,
+# section grouping). Kept here rather than in a Form class so the
+# template can render the whole thing as a single "edit everything"
+# page per the user's spec.
+_ACCOUNT_EDIT_SECTIONS = [
+    ('Identity', [
+        ('name',            'Account holder name',     'text'),
+        ('contact_name',    'Secondary contact name',  'text'),
+        ('phone',           'Phone',                   'tel'),
+        ('email_alt',       'Billing email (optional)', 'email'),
+    ]),
+    ('Mailing / WHOIS Address', [
+        ('address',         'Street address',          'text'),
+        ('city',            'City',                    'text'),
+        ('state',           'State',                   'text'),
+        ('zip_code',        'ZIP code',                'text'),
+        ('country',         'Country (2-letter)',      'text'),
+    ]),
+    ('Account State', [
+        ('status',          'Status',                  'select'),
+        ('is_tester',       'Tester account',          'checkbox'),
+        ('stripe_customer_id', 'Stripe customer ID',   'text'),
+    ]),
+    ('Communication Preferences', [
+        ('preferred_contact_method', 'Preferred contact method', 'select'),
+        ('notify_on_stage_change',   'Notify on stage change',   'checkbox'),
+        ('notify_on_invoice',        'Notify on invoice',         'checkbox'),
+        ('notify_on_scan_complete',  'Notify on scan complete',   'checkbox'),
+    ]),
+    ('Onboarding', [
+        ('onboarding_status',   'Onboarding status',           'select'),
+        ('onboarding_complete', 'Onboarding marked complete',  'checkbox'),
+    ]),
+    ('Internal', [
+        ('internal_notes',  'Internal notes (staff only)', 'textarea'),
+    ]),
+]
+
+
+@admin_required
+def accounts_list(request):
+    """
+    Primary admin list — accounts (the new top-level entity), with
+    each account's website cards inline. Replaces /clients/ as the
+    main entry point; the old /clients/ list stays available and
+    redirects here only at the user's discretion.
+    """
+    from clients.account_models import Account
+
+    query = (request.GET.get('q') or '').strip()
+    accounts = Account.objects.all().order_by('is_tester', 'name')
+    if query:
+        accounts = accounts.filter(
+            Q(name__icontains=query)
+            | Q(user__email__icontains=query)
+            | Q(phone__icontains=query))
+
+    accounts = list(accounts.prefetch_related('websites'))
+    # Inline per-account summary for the table.
+    rows = []
+    for acc in accounts:
+        websites = list(acc.websites.all().order_by('name'))
+        rows.append({
+            'account': acc,
+            'website_count': len(websites),
+            'websites': websites,
+        })
+
+    return render(request, 'admin_dashboard/accounts_list.html', _admin_context(
+        'accounts', rows=rows, query=query, total=len(accounts),
+    ))
+
+
+@admin_required
+def account_detail(request, account_id):
+    """
+    Single-page editor for everything on an Account — per the user's
+    spec, "virtually everything in django admin on my dashboard i can
+    edit". POST updates fields on the Account; nested website cards
+    deep-link to website_detail.
+    """
+    from clients.account_models import Account
+
+    account = get_object_or_404(Account, id=account_id)
+
+    if request.method == 'POST':
+        errors = []
+        # Build allowed-fields whitelist from the section metadata so a
+        # crafted POST can't write to fields outside this surface.
+        allowed = {
+            fname for _, group in _ACCOUNT_EDIT_SECTIONS for fname, _, _ in group
+        }
+        for field in allowed:
+            if field not in request.POST and field not in ('is_tester',
+                                                           'onboarding_complete',
+                                                           'notify_on_stage_change',
+                                                           'notify_on_invoice',
+                                                           'notify_on_scan_complete'):
+                continue
+            spec = _account_field_spec(field)
+            if spec['type'] == 'checkbox':
+                setattr(account, field, request.POST.get(field) == 'on')
+            elif spec['type'] == 'select':
+                value = (request.POST.get(field) or '').strip()
+                # Validate against the model's choices set so a crafted
+                # POST can't write a status the model doesn't accept.
+                choices = dict(account._meta.get_field(field).choices or [])
+                if value and value not in choices:
+                    errors.append(f'{field}: invalid value {value!r}')
+                else:
+                    setattr(account, field, value)
+            else:
+                value = (request.POST.get(field) or '').strip()
+                setattr(account, field, value)
+
+        from django.contrib import messages
+        if errors:
+            for e in errors:
+                messages.error(request, e)
+        else:
+            try:
+                account.save()
+                messages.success(request, 'Account saved.')
+                return redirect(
+                    'admin_dashboard:account_detail', account_id=account.id)
+            except Exception as exc:  # noqa: BLE001
+                messages.error(request, f'Save failed: {exc}')
+
+    # Build the section render data with current values.
+    sections = []
+    for section_label, fields in _ACCOUNT_EDIT_SECTIONS:
+        rendered = []
+        for fname, flabel, ftype in fields:
+            current = getattr(account, fname, '')
+            choices = []
+            if ftype == 'select':
+                # Read choices from the model so the renderer
+                # never goes out of sync with model migrations.
+                choices = list(account._meta.get_field(fname).choices or [])
+            rendered.append({
+                'name': fname,
+                'label': flabel,
+                'type': ftype,
+                'value': current,
+                'checked': bool(current) if ftype == 'checkbox' else False,
+                'choices': choices,
+            })
+        sections.append({'label': section_label, 'fields': rendered})
+
+    websites = list(account.websites.all().order_by('name'))
+    domains = list(account.domains.all().order_by('domain_name'))
+
+    return render(
+        request, 'admin_dashboard/account_detail.html',
+        _admin_context(
+            'accounts',
+            account=account,
+            sections=sections,
+            websites=websites,
+            domains=domains,
+        ),
+    )
+
+
+def _account_field_spec(field):
+    """Return the renderer spec for a single Account field."""
+    for _, fields in _ACCOUNT_EDIT_SECTIONS:
+        for fname, flabel, ftype in fields:
+            if fname == field:
+                return {'name': fname, 'label': flabel, 'type': ftype}
+    return {'name': field, 'label': field, 'type': 'text'}
+
+
+@admin_required
+def websites_list(request):
+    """
+    Secondary admin list — all Websites across all accounts. Useful
+    when an admin knows the site name but not the account, or wants
+    to scan all builds in a particular stage.
+    """
+    from clients.account_models import Website
+
+    query = (request.GET.get('q') or '').strip()
+    stage = (request.GET.get('stage') or '').strip()
+
+    websites = Website.objects.select_related('account').order_by('name')
+    if query:
+        websites = websites.filter(
+            Q(name__icontains=query)
+            | Q(url__icontains=query)
+            | Q(slug__icontains=query))
+    if stage:
+        websites = websites.filter(stage=stage)
+
+    return render(request, 'admin_dashboard/websites_list.html', _admin_context(
+        'accounts',
+        websites=list(websites),
+        query=query,
+        active_stage=stage,
+        stages=Website._meta.get_field('stage').choices,
+    ))
+
+
+@admin_required
+def website_detail(request, website_id):
+    """
+    Single Website edit page. Direct counterpart to account_detail —
+    covers per-build state (stage, URL, droplet, payment, etc.).
+    """
+    from clients.account_models import Website
+
+    website = get_object_or_404(
+        Website.objects.select_related('account'), id=website_id)
+
+    if request.method == 'POST':
+        from django.contrib import messages
+        # Whitelist of editable Website fields. Anything else is
+        # ignored — admin can't accidentally clobber timestamps or FKs.
+        text_fields = (
+            'name', 'business_type', 'url', 'staging_url',
+            'do_droplet_id', 'do_droplet_name',
+            'stripe_hosting_subscription_id',
+            'stripe_maintenance_subscription_id',
+            'stripe_invoice_id', 'testimonial_url',
+        )
+        select_fields = (
+            'status', 'stage', 'package', 'onboarding_status',
+            'payment_status',
+        )
+        bool_fields = (
+            'maintenance_active', 'session_recording_enabled',
+            'auto_send_scan_reports', 'testimonial_received',
+            'moonieful_referred',
+        )
+        int_fields = ('revision_count', 'revision_limit')
+
+        try:
+            for f in text_fields:
+                if f in request.POST:
+                    setattr(website, f, (request.POST.get(f) or '').strip())
+            for f in select_fields:
+                if f in request.POST:
+                    value = (request.POST.get(f) or '').strip()
+                    choices = dict(website._meta.get_field(f).choices or [])
+                    if value and value not in choices:
+                        messages.error(request, f'{f}: invalid value {value!r}')
+                        continue
+                    setattr(website, f, value)
+            for f in bool_fields:
+                setattr(website, f, request.POST.get(f) == 'on')
+            for f in int_fields:
+                if f in request.POST:
+                    try:
+                        setattr(website, f,
+                                int(request.POST.get(f) or 0))
+                    except (TypeError, ValueError):
+                        messages.error(request, f'{f}: must be a number.')
+            website.save()
+            messages.success(request, 'Website saved.')
+            return redirect(
+                'admin_dashboard:website_detail', website_id=website.id)
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, f'Save failed: {exc}')
+
+    domains = list(website.domains.all().order_by('domain_name'))
+
+    return render(
+        request, 'admin_dashboard/website_detail.html',
+        _admin_context(
+            'accounts',
+            website=website,
+            account=website.account,
+            domains=domains,
+            stages=website._meta.get_field('stage').choices,
+            packages=website._meta.get_field('package').choices,
+            payment_statuses=website._meta.get_field('payment_status').choices,
+            onboarding_statuses=(
+                website._meta.get_field('onboarding_status').choices),
+            statuses=website._meta.get_field('status').choices,
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def website_move_account(request, website_id):
+    """
+    Reassign a Website to a different Account. Edge-case admin tool
+    per user spec G — needed when (for example) a sole-prop client
+    forms an LLC and the new entity should own the site, or a Moonieful
+    client buys their second site under a separate account.
+
+    Domains pointed at the website come along (they belong to the
+    account too); admin can re-point them afterward if needed.
+    """
+    from django.contrib import messages
+
+    from clients.account_models import Account, Website
+
+    website = get_object_or_404(Website, id=website_id)
+    target_account_id = (request.POST.get('account_id') or '').strip()
+    new_account = Account.objects.filter(id=target_account_id).first()
+    if new_account is None:
+        messages.error(request, 'Unknown destination account.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
+    if new_account.id == website.account_id:
+        messages.info(request, 'Website is already on that account.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+    old_account_id = website.account_id
+    website.account = new_account
+    website.save(update_fields=['account', 'updated_at'])
+    # Move every domain currently pointed at this website to the new
+    # account too — a domain follows its site.
+    moved = website.domains.update(account_new=new_account)
+    messages.success(
+        request,
+        f'Website moved to {new_account.name}. '
+        f'{moved} domain(s) reassigned. Old account: {old_account_id}.',
+    )
+    return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+
+@admin_required
+@require_POST
+def domain_move_account(request, reg_id):
+    """
+    Reassign a DomainRegistration to a different Account (user spec G).
+    Resets ``pointed_at_website`` since the old site's accounts may not
+    include it any more — admin must re-point if needed.
+    """
+    from django.contrib import messages
+
+    from clients.account_models import Account
+    from domains.models import DomainRegistration
+
+    reg = get_object_or_404(DomainRegistration, id=reg_id)
+    target_account_id = (request.POST.get('account_id') or '').strip()
+    new_account = Account.objects.filter(id=target_account_id).first()
+    if new_account is None:
+        messages.error(request, 'Unknown destination account.')
+        return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+    if new_account.id == reg.account_new_id:
+        messages.info(request, 'Domain is already on that account.')
+        return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+    reg.account_new = new_account
+    reg.pointed_at_website = None
+    reg.save(update_fields=['account_new', 'pointed_at_website', 'updated_at'])
+    messages.success(
+        request,
+        f'Domain {reg.domain_name} moved to {new_account.name}. '
+        f'Re-point to a website on the new account when ready.')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)

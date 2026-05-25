@@ -28,6 +28,10 @@ from .models import (
     IntakePhoto,
     IntakeResponse,
 )
+from .portal_resolvers import (
+    SESSION_KEY_ACTIVE_WEBSITE,
+    resolve_account_for_user,
+)
 from .pdf_utils import render_contract_pdf
 from .vault_helpers import (
     get_client_vault_remaining_seconds,
@@ -138,6 +142,19 @@ def _portal_context(request, active_nav, **extra):
         # never break portal chrome over a missing config row.
         namecheap_sandbox_mode = False
 
+    # Phase C — surface Account + Website + the account's website
+    # list so templates can render the "viewing: <site name>" header,
+    # a switch link, and account-vs-website nav distinctions. All
+    # nullable so legacy templates / fresh-install environments
+    # still render.
+    account = getattr(request, 'account', None)
+    website = getattr(request, 'website', None)
+    if account is not None:
+        websites_list = list(account.websites.all().order_by('name'))
+    else:
+        websites_list = []
+    multi_website = len(websites_list) > 1
+
     ctx = {
         'profile': profile,
         # `project` kept in the context as an alias to profile so any
@@ -158,6 +175,11 @@ def _portal_context(request, active_nav, **extra):
             profile.session_recording_enabled),
         'intake_only': intake_only,
         'namecheap_sandbox_mode': namecheap_sandbox_mode,
+        # Phase C — Account / Website context.
+        'account': account,
+        'website': website,
+        'websites_list': websites_list,
+        'multi_website': multi_website,
     }
     ctx.update(extra)
     return ctx
@@ -1884,6 +1906,12 @@ def _subscription_card(stripe_sub):
         'current_period_end': getattr(
             stripe_sub, 'current_period_end', None),
         'trial_end': getattr(stripe_sub, 'trial_end', None),
+        # Phase C4 — Stripe's own per-subscription payment-method
+        # override. None / '' means the subscription uses the
+        # customer-level default. The portal renders a dropdown that
+        # writes back via portal_subscription_payment_method.
+        'default_payment_method': (
+            getattr(stripe_sub, 'default_payment_method', '') or ''),
     }
 
 
@@ -2491,3 +2519,166 @@ def onboarding_setup(request, token):
             'errors': [],
         },
     )
+
+
+# ── Phase C — Website chooser ──────────────────────────────────────────────
+
+def chooser(request):
+    """
+    Shown on every fresh login (per spec). Lists every Website the
+    account owns plus account-wide quick links. An account with
+    exactly one Website auto-redirects to its dashboard so a chooser
+    with a single card never becomes a useless click.
+
+    Account-only legacy clients (e.g. the auxiliary vault profile)
+    see only the account-wide quick links — no Website cards.
+
+    Uses the bare base template chrome — no portal sidebar so the
+    page is visibly the "choose what to enter" gate, not a normal
+    portal page.
+    """
+    if not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.path)
+
+    account = resolve_account_for_user(request.user)
+    if account is None:
+        # Authenticated but no Account row — staff / pre-backfill envs.
+        if request.user.is_staff:
+            return redirect('admin_dashboard:home')
+        # No account — bounce to legacy dashboard so they're not stranded.
+        return redirect('clients:dashboard')
+
+    websites = list(account.websites.all().order_by('name'))
+
+    # Single-website accounts: skip the chooser entirely. Lock the
+    # session pick + go straight to the dashboard. Same behaviour as
+    # if they'd clicked the lone card.
+    if len(websites) == 1:
+        request.session[SESSION_KEY_ACTIVE_WEBSITE] = websites[0].slug
+        return redirect('clients:dashboard')
+
+    return render(request, 'clients/chooser.html', {
+        'account': account,
+        'websites': websites,
+        'meta_title': 'Choose a Site — Aspired Websites',
+    })
+
+
+@client_required
+@require_POST
+def portal_subscription_payment_method(request, sub_id):
+    """
+    Phase C4 — set the per-subscription Stripe default payment method.
+
+    Stripe natively supports ``Subscription.default_payment_method``
+    which takes precedence over the customer-level default. Posting
+    an empty string clears it (revert to account default).
+
+    Also mirrors the choice locally into
+    ``SubscriptionPaymentMethod`` so the admin tooling can see which
+    cards are pinned to which subs without round-tripping Stripe.
+    """
+    import stripe as _stripe
+    from django.conf import settings as _s
+
+    from billing.stripe_helpers import list_customer_payment_methods
+    from clients.account_models import SubscriptionPaymentMethod
+
+    profile = request.client_profile
+    account = getattr(request, 'account', None)
+    _stripe.api_key = _s.STRIPE_SECRET_KEY
+
+    pm_id = (request.POST.get('payment_method_id') or '').strip()
+
+    # Guard: the customer must own both the sub and the PM. Defensive
+    # against a crafted POST trying to bind someone else's card.
+    if not profile.stripe_customer_id:
+        messages.error(request, 'No billing account on file.')
+        return redirect('clients:portal_subscriptions')
+
+    try:
+        sub = _stripe.Subscription.retrieve(sub_id)
+        if getattr(sub, 'customer', '') != profile.stripe_customer_id:
+            messages.error(request, 'That subscription is not on your account.')
+            return redirect('clients:portal_subscriptions')
+    except Exception:
+        logger.exception('Failed to retrieve sub %s for PM update', sub_id)
+        messages.error(request, 'Subscription lookup failed. Try again.')
+        return redirect('clients:portal_subscriptions')
+
+    if pm_id:
+        valid_ids = {p['id'] for p in list_customer_payment_methods(
+            profile.stripe_customer_id)}
+        if pm_id not in valid_ids:
+            messages.error(request, 'That card is not on your account.')
+            return redirect('clients:portal_subscriptions')
+
+    # Push the change to Stripe. Empty string → clear (use customer default).
+    try:
+        _stripe.Subscription.modify(
+            sub_id,
+            default_payment_method=pm_id or None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Stripe update failed for sub %s', sub_id)
+        messages.error(request, f'Could not update card: {exc}')
+        return redirect('clients:portal_subscriptions')
+
+    # Mirror locally for the admin view + so we have a record without
+    # a Stripe round-trip. The label/kind are best-effort; the source
+    # of truth is always Stripe.
+    if account is not None:
+        kind_guess = 'other'
+        # Match the sub against the website's known IDs so the local
+        # row's `kind` lines up with what the admin reads.
+        for ws in account.websites.all():
+            if ws.stripe_hosting_subscription_id == sub_id:
+                kind_guess = 'hosting'
+                break
+            if ws.stripe_maintenance_subscription_id == sub_id:
+                kind_guess = 'maintenance'
+                break
+        SubscriptionPaymentMethod.objects.update_or_create(
+            stripe_subscription_id=sub_id,
+            defaults={
+                'account': account,
+                'payment_method_id': pm_id,
+                'kind': kind_guess,
+            },
+        )
+
+    if pm_id:
+        messages.success(
+            request, 'Saved. This subscription now uses the selected card.')
+    else:
+        messages.success(
+            request,
+            'Saved. This subscription now uses your default card.')
+    return redirect('clients:portal_subscriptions')
+
+
+@require_POST
+def chooser_pick(request, slug):
+    """
+    Persist the website pick in the session, then bounce to the
+    dashboard. POST-only so the action is CSRF-protected and never
+    triggered by a stray GET / bot crawl.
+    """
+    if not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.path)
+
+    account = resolve_account_for_user(request.user)
+    if account is None:
+        return redirect('public:login')
+
+    # Verify the slug belongs to this account before persisting — same
+    # privacy guard as resolve_website().
+    ws = account.websites.filter(slug=slug).first()
+    if ws is None:
+        messages.error(request, 'That website is no longer available.')
+        return redirect('clients:chooser')
+
+    request.session[SESSION_KEY_ACTIVE_WEBSITE] = ws.slug
+    return redirect('clients:dashboard')

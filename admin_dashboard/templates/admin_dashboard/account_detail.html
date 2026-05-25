@@ -1,0 +1,152 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ account.name }} — Account{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:accounts_list' %}">Accounts</a></span>
+            <h1 class="admin-page-title">{{ account.name }}</h1>
+            <p class="admin-page-sub">
+                {{ account.user.email|default:"—" }}
+                {% if account.is_tester %}&nbsp;·&nbsp;<span class="tester-badge">TESTER</span>{% endif %}
+            </p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' account.legacy_client_profile_id %}">Legacy Client view &rarr;</a>
+        </div>
+    </div>
+
+    {# Account editor (one big form, all sections, single Save). #}
+    <form method="post" class="account-edit-form">
+        {% csrf_token %}
+        {% for section in sections %}
+            <div class="admin-card account-edit-section">
+                <div class="admin-card__header">
+                    <h2 class="admin-card__title">{{ section.label }}</h2>
+                </div>
+                <div class="admin-card__body">
+                    {% for f in section.fields %}
+                        <div class="form-row form-row--inline">
+                            <label class="form-row__label" for="acc_{{ f.name }}">{{ f.label }}</label>
+                            <div class="form-row__field">
+                                {% if f.type == 'text' or f.type == 'tel' or f.type == 'email' %}
+                                    <input type="{{ f.type }}" name="{{ f.name }}" id="acc_{{ f.name }}"
+                                           value="{{ f.value }}" class="form-control">
+                                {% elif f.type == 'textarea' %}
+                                    <textarea name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control" rows="4">{{ f.value }}</textarea>
+                                {% elif f.type == 'checkbox' %}
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" name="{{ f.name }}" id="acc_{{ f.name }}"
+                                               {% if f.value %}checked{% endif %}>
+                                        <span>{{ f.label }}</span>
+                                    </label>
+                                {% elif f.type == 'select' %}
+                                    <select name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control">
+                                        <option value=""{% if not f.value %} selected{% endif %}>— Not set —</option>
+                                        {% for choice_value, choice_label in f.choices %}
+                                            <option value="{{ choice_value }}"{% if choice_value == f.value %} selected{% endif %}>{{ choice_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Save Account</button>
+        </div>
+    </form>
+
+    {# Websites under this account — cards with deep-links. #}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Websites ({{ websites|length }})</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if websites %}
+                <div class="website-card-grid">
+                    {% for w in websites %}
+                        <div class="website-card">
+                            <div class="website-card__head">
+                                <a href="{% url 'admin_dashboard:website_detail' w.id %}"><strong>{{ w.name }}</strong></a>
+                                <span class="status-badge status-badge--{{ w.stage }}">{{ w.get_stage_display }}</span>
+                            </div>
+                            <p class="website-card__url">{{ w.url|default:"— no URL —" }}</p>
+                            <p class="website-card__meta">
+                                {% if w.package %}{{ w.get_package_display }}{% else %}<span class="muted">No package</span>{% endif %}
+                                {% if w.maintenance_active %}&nbsp;·&nbsp;<span style="color:#10b981;">Maintenance active</span>{% endif %}
+                            </p>
+                            <p class="website-card__slug muted">slug: <code>{{ w.slug }}</code></p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="muted">This account has no websites yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Domains under this account. #}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Domains ({{ domains|length }})</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if domains %}
+                <table class="lead-table">
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th>Status</th>
+                            <th>Pointed at</th>
+                            <th>Expires</th>
+                            <th class="lead-table__col-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in domains %}
+                            <tr>
+                                <td><a href="{% url 'admin_dashboard:admin_domain_detail' d.id %}">{{ d.domain_name }}</a></td>
+                                <td><span class="status-badge">{{ d.get_status_display }}</span></td>
+                                <td>
+                                    {% if d.pointed_at_website %}
+                                        <a href="{% url 'admin_dashboard:website_detail' d.pointed_at_website_id %}">{{ d.pointed_at_website.name }}</a>
+                                    {% else %}
+                                        <span class="muted">— not pointed —</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ d.expires_at|date:"Y-m-d"|default:"—" }}</td>
+                                <td><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:admin_domain_detail' d.id %}">Manage</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No domains registered for this account.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.account-edit-section { margin-bottom: 1rem; }
+.form-row--inline { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; padding: 0.5rem 0; align-items: flex-start; border-bottom: 1px solid var(--color-border-subtle, #2a2a2a); }
+.form-row--inline:last-child { border-bottom: 0; }
+.form-row__label { color: var(--color-text-muted); font-size: 0.875rem; padding-top: 0.5rem; }
+.form-row__field { min-width: 0; }
+.checkbox-row { display: flex; align-items: center; gap: 0.5rem; padding-top: 0.5rem; }
+.form-actions { margin: 2rem 0; }
+
+.website-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+.website-card { background: var(--color-bg-elevated, #1f1f1f); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; }
+.website-card__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+.website-card__url { color: var(--color-text-muted); font-size: 0.85rem; margin: 0 0 0.5rem; word-break: break-all; }
+.website-card__meta { font-size: 0.85rem; margin: 0 0 0.25rem; }
+.website-card__slug { font-size: 0.75rem; margin: 0; }
+</style>
+{% endblock %}

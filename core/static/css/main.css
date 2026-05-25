@@ -4820,6 +4820,80 @@ button.htmx-request {
     color: var(--color-orange-light);
 }
 
+/* Phase C4 — per-subscription payment-method picker on the
+   subscription card. JS-less change submits via onchange; noscript
+   fallback shows a Save button. */
+.sub-card__pm {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border-subtle, #2a2a2a);
+}
+.sub-card__pm-label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.sub-card__pm-select {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    min-width: 220px;
+}
+
+/* Phase C — active-website header bar on portal pages. Renders
+   only when the account has more than one Website. Uses portal
+   dark-theme tokens (admin theme tokens would be wrong here). */
+.portal-site-bar {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    margin-bottom: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.portal-site-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.portal-site-bar__label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.portal-site-bar__name {
+    color: var(--color-text);
+    font-size: 0.95rem;
+}
+.portal-site-bar__stage {
+    background: var(--color-orange-soft, rgba(232, 101, 10, 0.15));
+    color: var(--color-orange-light, #E8650A);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+.portal-site-bar__switch {
+    color: var(--color-orange-light, #E8650A);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.portal-site-bar__switch:hover {
+    text-decoration: underline;
+}
+
 .portal-page-head {
     margin-bottom: var(--space-4);
 }

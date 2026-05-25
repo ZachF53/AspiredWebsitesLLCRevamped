@@ -144,6 +144,24 @@
         </aside>
 
         <main class="portal-main" id="portal-main">
+            {% comment %}
+                Phase C — active-website header strip. Only renders on
+                multi-website accounts so single-site users (the majority
+                during transition) don't see chrome they don't need.
+                Quietly hidden in intake-only mode since the page already
+                takes over the full chrome.
+            {% endcomment %}
+            {% if website and multi_website and not intake_only %}
+                <div class="portal-site-bar">
+                    <div class="portal-site-bar__left">
+                        <span class="portal-site-bar__label">Viewing:</span>
+                        <strong class="portal-site-bar__name">{{ website.name }}</strong>
+                        <span class="portal-site-bar__stage">{{ website.get_stage_display }}</span>
+                    </div>
+                    <a class="portal-site-bar__switch" href="{% url 'clients:chooser' %}">Switch website</a>
+                </div>
+            {% endif %}
+
             {% if messages %}
                 <div class="portal-messages">
                     {% for message in messages %}
