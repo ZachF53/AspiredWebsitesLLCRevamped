@@ -30,9 +30,14 @@ TLD_CHOICES = [
 ]
 
 # TLDs in this set use the "domain-law" ServiceTier ($175/yr); everything
-# else uses the "domain-standard" ServiceTier ($75/yr). Easy to extend
-# when we add new premium TLDs.
-PREMIUM_TLDS = frozenset({'law'})
+# else uses the "domain-standard" ServiceTier ($75/yr).
+#
+# All three attorney-niche TLDs (.law, .legal, .attorney) sit on the
+# premium tier — they're bought for the same reason (signal "I'm an
+# attorney") so they get consistent pricing. Wholesale costs from
+# Namecheap also justify it: ~$100/yr .law, ~$45 .legal, ~$50
+# .attorney, leaving healthy margin at $175 retail across the board.
+PREMIUM_TLDS = frozenset({'law', 'legal', 'attorney'})
 
 
 def tier_slug_for_tld(tld):

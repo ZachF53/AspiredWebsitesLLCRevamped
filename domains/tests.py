@@ -27,16 +27,22 @@ User = get_user_model()
 )
 class DomainModelTests(TestCase):
     def test_tier_slug_for_tld_returns_law_for_premium(self):
-        self.assertEqual(tier_slug_for_tld('law'), 'domain-law')
+        # All three attorney-niche TLDs sit on the premium tier.
+        for tld in ('law', 'legal', 'attorney'):
+            self.assertEqual(
+                tier_slug_for_tld(tld), 'domain-law',
+                f'{tld} should be premium (domain-law tier)')
 
     def test_tier_slug_for_tld_returns_standard_for_others(self):
-        for tld in ('com', 'net', 'org', 'legal', 'attorney'):
+        for tld in ('com', 'net', 'org'):
             self.assertEqual(
                 tier_slug_for_tld(tld), 'domain-standard',
                 f'{tld} should be standard')
 
-    def test_premium_tlds_only_contains_law(self):
-        self.assertEqual(PREMIUM_TLDS, frozenset({'law'}))
+    def test_premium_tlds_set(self):
+        self.assertEqual(
+            PREMIUM_TLDS,
+            frozenset({'law', 'legal', 'attorney'}))
 
     def test_decrypt_epp_code_when_unset_returns_empty(self):
         reg = DomainRegistration(domain_name='x.com', tld='com')
