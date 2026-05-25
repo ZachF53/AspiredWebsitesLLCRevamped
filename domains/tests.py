@@ -1663,3 +1663,237 @@ class PortalResumeViewTests(TestCase):
                 f'/portal/domains/{self.reg.id}/resume/')
             mock_resume.assert_not_called()
         self.assertEqual(resp.status_code, 302)
+
+
+# ── Delete failed-registration flow ────────────────────────────────────────
+
+class DeleteFailedRegistrationTests(TestCase):
+    """
+    Failed regs can be deleted from either UI; both delete the same DB
+    row. Active / grace / expired regs CANNOT be deleted from this
+    button — that needs the proper cancel/transfer-out flow.
+    """
+
+    def setUp(self):
+        from django.test import Client as DjangoTestClient
+        from domains.models import DomainRegistration, NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='del', email='del@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Del Co')
+        self.reg_failed = DomainRegistration.objects.create(
+            client=self.profile, domain_name='bad.com', tld='com',
+            status='failed',
+            last_api_error='Namecheap: domain reserved')
+        self.reg_active = DomainRegistration.objects.create(
+            client=self.profile, domain_name='good.com', tld='com',
+            status='active')
+
+        self.tc = DjangoTestClient()
+        self.tc.force_login(self.user)
+        # Staff user for admin tests
+        self.staff = User.objects.create_user(
+            username='staff', email='s@example.com', password='x',
+            is_staff=True, is_superuser=True)
+
+    # ── Portal ─────────────────────────────────────────────
+
+    def test_portal_post_delete_removes_failed_reg(self):
+        from domains.models import DomainRegistration
+        resp = self.tc.post(
+            f'/portal/domains/{self.reg_failed.id}/delete/')
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(
+            DomainRegistration.objects.filter(
+                pk=self.reg_failed.pk).exists())
+
+    def test_portal_post_delete_refuses_active_reg(self):
+        from domains.models import DomainRegistration
+        resp = self.tc.post(
+            f'/portal/domains/{self.reg_active.id}/delete/')
+        # Redirect with error flash; row NOT deleted
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            DomainRegistration.objects.filter(
+                pk=self.reg_active.pk).exists())
+
+    def test_portal_get_delete_returns_405(self):
+        resp = self.tc.get(
+            f'/portal/domains/{self.reg_failed.id}/delete/')
+        self.assertEqual(resp.status_code, 405)
+
+    def test_portal_delete_cascades_dns_records(self):
+        from domains.models import DNSRecord
+        DNSRecord.objects.create(
+            domain=self.reg_failed, record_type='A', host='@',
+            value='1.2.3.4', ttl=1800)
+        self.assertEqual(DNSRecord.objects.count(), 1)
+        self.tc.post(f'/portal/domains/{self.reg_failed.id}/delete/')
+        self.assertEqual(DNSRecord.objects.count(), 0)
+
+    def test_portal_cannot_delete_someone_elses_failed_reg(self):
+        """Hostile-input: client A trying to delete client B's row."""
+        from domains.models import DomainRegistration
+        otheruser = User.objects.create_user(
+            username='other', email='o@example.com', password='x')
+        otherprofile = ClientProfile.objects.create(
+            user=otheruser, firm_name='Other')
+        their_failed = DomainRegistration.objects.create(
+            client=otherprofile, domain_name='other-failed.com',
+            tld='com', status='failed')
+        # Logged in as self.user, try to delete other's reg
+        resp = self.tc.post(
+            f'/portal/domains/{their_failed.id}/delete/')
+        # get_object_or_404 returns 404 since client filter excludes it
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(
+            DomainRegistration.objects.filter(
+                pk=their_failed.pk).exists())
+
+    # ── Admin ──────────────────────────────────────────────
+
+    def test_admin_post_delete_removes_failed_reg(self):
+        from domains.models import DomainRegistration
+        tc = self.client  # Django test client
+        tc.force_login(self.staff)
+        resp = tc.post(
+            f'/admin-dashboard/domains/{self.reg_failed.id}/delete/')
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(
+            DomainRegistration.objects.filter(
+                pk=self.reg_failed.pk).exists())
+
+    def test_admin_post_delete_refuses_active_reg(self):
+        from domains.models import DomainRegistration
+        tc = self.client
+        tc.force_login(self.staff)
+        resp = tc.post(
+            f'/admin-dashboard/domains/{self.reg_active.id}/delete/')
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            DomainRegistration.objects.filter(
+                pk=self.reg_active.pk).exists())
+
+    def test_admin_get_delete_returns_405(self):
+        tc = self.client
+        tc.force_login(self.staff)
+        resp = tc.get(
+            f'/admin-dashboard/domains/{self.reg_failed.id}/delete/')
+        self.assertEqual(resp.status_code, 405)
+
+
+# ── create_or_get_customer no-silent-swap regression test ─────────────────
+
+class CreateOrGetCustomerSafetyTests(TestCase):
+    """
+    Regression — when the Stripe API errors transiently (network blip,
+    rate limit, anything other than a 404), create_or_get_customer must
+    RAISE rather than silently create a new customer + overwrite the
+    client's stripe_customer_id. Doing so orphans the existing
+    customer's cards / invoices / subscriptions in Stripe but our DB
+    points at the new empty customer — that's how a saved card
+    "disappears" for the client.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='c', email='c@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Customer Co',
+            stripe_customer_id='cus_EXISTING')
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_x')
+    def test_existing_customer_returned_when_retrieval_succeeds(self):
+        """Happy path — existing customer with cards is returned
+        unmodified; stripe_customer_id NOT swapped."""
+        from billing.stripe_helpers import create_or_get_customer
+        import billing.stripe_helpers as helpers
+
+        mock_customer = type('SO', (), {
+            'id': 'cus_EXISTING', 'deleted': False,
+        })()
+        with patch.object(helpers.stripe.Customer, 'retrieve',
+                          return_value=mock_customer) as mock_retrieve, \
+             patch.object(helpers.stripe.Customer, 'create') as mock_create:
+            result = create_or_get_customer(self.profile)
+            mock_retrieve.assert_called_once_with('cus_EXISTING')
+            mock_create.assert_not_called()
+        self.assertEqual(result.id, 'cus_EXISTING')
+        self.profile.refresh_from_db()
+        self.assertEqual(
+            self.profile.stripe_customer_id, 'cus_EXISTING')
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_x')
+    def test_404_falls_through_to_create_new(self):
+        """If the customer is GENUINELY gone (404), we DO create a
+        new one — that's the only safe rotation case."""
+        from billing.stripe_helpers import create_or_get_customer
+        import billing.stripe_helpers as helpers
+        import stripe
+
+        new_customer = type('SO', (), {'id': 'cus_NEW'})()
+        with patch.object(
+                helpers.stripe.Customer, 'retrieve',
+                side_effect=stripe.error.InvalidRequestError(
+                    'No such customer', 'cus_EXISTING')), \
+             patch.object(helpers.stripe.Customer, 'create',
+                          return_value=new_customer) as mock_create:
+            create_or_get_customer(self.profile)
+            mock_create.assert_called_once()
+        self.profile.refresh_from_db()
+        self.assertEqual(
+            self.profile.stripe_customer_id, 'cus_NEW')
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_x')
+    def test_transient_error_raises_does_not_silently_swap(self):
+        """A network blip / rate-limit / parser error MUST raise.
+        Silently creating a new customer would orphan the saved card.
+        This is the bug that hit the user in production."""
+        from billing.stripe_helpers import create_or_get_customer
+        import billing.stripe_helpers as helpers
+
+        with patch.object(
+                helpers.stripe.Customer, 'retrieve',
+                side_effect=RuntimeError('transient blip')), \
+             patch.object(helpers.stripe.Customer, 'create') as mock_create:
+            with self.assertRaises(RuntimeError):
+                create_or_get_customer(self.profile)
+            mock_create.assert_not_called()
+        # stripe_customer_id MUST be unchanged
+        self.profile.refresh_from_db()
+        self.assertEqual(
+            self.profile.stripe_customer_id, 'cus_EXISTING')
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_x')
+    def test_attributeerror_on_get_does_not_swap(self):
+        """Specifically test the exact bug shape — StripeObject without
+        .get() raising AttributeError used to fall into the silent-swap
+        branch. Now it must raise."""
+        from billing.stripe_helpers import create_or_get_customer
+        import billing.stripe_helpers as helpers
+
+        class FakeStripeObject:
+            id = 'cus_EXISTING'
+            # No .get method, no .deleted attr — but accessing .get
+            # would raise AttributeError on access by old code that
+            # used customer.get('deleted'). The new code uses getattr
+            # which is safe.
+            def __getattr__(self, name):
+                if name == 'get':
+                    raise AttributeError(
+                        "'StripeObject' object has no attribute 'get'")
+                raise AttributeError(name)
+
+        # The new code uses getattr(customer, 'deleted', False) which
+        # works fine. Verify: same return path as happy case.
+        with patch.object(helpers.stripe.Customer, 'retrieve',
+                          return_value=FakeStripeObject()), \
+             patch.object(helpers.stripe.Customer, 'create') as mock_create:
+            result = create_or_get_customer(self.profile)
+            mock_create.assert_not_called()
+        self.assertEqual(result.id, 'cus_EXISTING')
+        self.profile.refresh_from_db()
+        self.assertEqual(
+            self.profile.stripe_customer_id, 'cus_EXISTING')

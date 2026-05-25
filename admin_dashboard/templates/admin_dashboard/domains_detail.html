@@ -101,6 +101,15 @@
                 <input type="text" name="reason" placeholder="Client requested via email" autocomplete="off">
                 <button type="submit" class="btn-secondary admin-btn-danger">Force transfer-out</button>
             </form>
+
+            {% if reg.status == 'failed' %}
+                <form method="post" action="{% url 'admin_dashboard:admin_domain_delete' reg_id=reg.id %}" class="admin-action-form admin-action-form--danger"
+                      onsubmit="return confirm('Permanently delete the failed registration row for {{ reg.domain_name }}? Removes from BOTH admin + client portal (single source of truth). Stripe was already refunded if it had a charge, and Namecheap has nothing on file.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary admin-btn-danger">Delete failed registration</button>
+                    <p class="muted">Available only on failed status. Cascades DNS records.</p>
+                </form>
+            {% endif %}
         </section>
     </div>
 

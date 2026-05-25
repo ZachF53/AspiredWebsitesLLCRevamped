@@ -25,8 +25,9 @@
                 {% if project.live_url %} · <a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a>{% endif %}
             </p>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a class="btn-primary" href="{% url 'admin_dashboard:client_edit' client.id %}">Edit Client</a>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:admin_stripe_customer_recovery' client_id=client.id %}" title="If their saved card 'disappeared', use this to find + relink the right Stripe customer.">Stripe customer recovery</a>
         </div>
     </div>
 

@@ -5823,6 +5823,112 @@ def send_onboarding(request):
 # ── Domain registrations (Namecheap) ────────────────────────────────────────
 
 @admin_required
+def admin_stripe_customer_recovery(request, client_id):
+    """
+    GET — list every Stripe Customer matching the client's email,
+    showing the cards on each so admin can identify the right one
+    and relink. Solves "saved card disappeared" scenarios where the
+    DB's stripe_customer_id got swapped (e.g. by the now-fixed
+    `create_or_get_customer` bug that silently orphaned customers).
+    """
+    import stripe
+    from django.conf import settings as _s
+    from django.shortcuts import get_object_or_404
+    from clients.models import ClientProfile
+
+    stripe.api_key = _s.STRIPE_SECRET_KEY
+    profile = get_object_or_404(ClientProfile, pk=client_id)
+    email = (profile.user.email or '').strip() if profile.user else ''
+
+    candidates = []
+    error = ''
+    if not email:
+        error = 'Client has no email on file — cannot search Stripe.'
+    else:
+        try:
+            results = stripe.Customer.list(email=email, limit=20)
+            for c in (getattr(results, 'data', None) or []):
+                # Pull cards for each candidate so we can show
+                # last4 + brand — that's how admin tells them apart.
+                cards = []
+                try:
+                    pms = stripe.PaymentMethod.list(
+                        customer=c.id, type='card', limit=10)
+                    for pm in (getattr(pms, 'data', None) or []):
+                        card = getattr(pm, 'card', None)
+                        if card is not None:
+                            cards.append({
+                                'pm_id': pm.id,
+                                'brand': getattr(card, 'brand', '').upper(),
+                                'last4': getattr(card, 'last4', ''),
+                                'exp_month': getattr(card, 'exp_month', ''),
+                                'exp_year': getattr(card, 'exp_year', ''),
+                            })
+                except Exception:
+                    logger.exception(
+                        'PM list failed for candidate %s', c.id)
+                inv_settings = getattr(c, 'invoice_settings', None)
+                default_pm = (
+                    getattr(inv_settings, 'default_payment_method', '')
+                    if inv_settings else ''
+                ) or ''
+                candidates.append({
+                    'id':           c.id,
+                    'created':      getattr(c, 'created', None),
+                    'name':         getattr(c, 'name', '') or '',
+                    'is_current':   c.id == profile.stripe_customer_id,
+                    'cards':        cards,
+                    'default_pm':   default_pm,
+                    'metadata':     getattr(c, 'metadata', None) or {},
+                })
+        except Exception as exc:  # noqa: BLE001
+            error = f'Stripe customer search failed: {exc}'
+            logger.exception('Stripe customer search failed')
+
+    return render(
+        request,
+        'admin_dashboard/stripe_customer_recovery.html',
+        _admin_context(
+            active='clients',
+            profile=profile,
+            email=email,
+            candidates=candidates,
+            error=error,
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def admin_stripe_customer_relink(request, client_id):
+    """Switch a client's stripe_customer_id to the chosen Stripe Customer."""
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from clients.models import ClientProfile
+
+    profile = get_object_or_404(ClientProfile, pk=client_id)
+    new_customer_id = (request.POST.get('customer_id') or '').strip()
+    if not new_customer_id.startswith('cus_'):
+        _msg.error(request, 'Invalid Stripe customer ID.')
+        return redirect(
+            'admin_dashboard:admin_stripe_customer_recovery',
+            client_id=client_id)
+
+    old_id = profile.stripe_customer_id
+    profile.stripe_customer_id = new_customer_id
+    profile.save(update_fields=['stripe_customer_id', 'updated_at'])
+    logger.warning(
+        'admin_stripe_customer_relink: client %s switched %s -> %s by %s',
+        client_id, old_id, new_customer_id, request.user)
+    _msg.success(
+        request,
+        f'Relinked {profile.firm_name} to Stripe customer '
+        f'{new_customer_id}. (Was: {old_id or "(none)"})')
+    return redirect(
+        'admin_dashboard:client_detail', client_id=client_id)
+
+
+@admin_required
 def admin_domain_list(request):
     """Admin overview of every DomainRegistration across all clients."""
     from domains.models import DomainRegistration, NamecheapConfig
@@ -6307,6 +6413,39 @@ def admin_domain_unpark(request, reg_id):
         logger.exception('Admin unpark failed for %s', reg.pk)
         _msg.error(request, f'Unpark failed: {exc}')
     return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+@admin_required
+@require_POST
+def admin_domain_delete(request, reg_id):
+    """
+    Admin permanent-delete for a FAILED domain registration row.
+    Same status guard as the client-portal version. Cascades
+    DNSRecord rows. The row goes away for everyone — single source
+    of truth (the DB).
+    """
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    if reg.status != 'failed':
+        _msg.error(
+            request,
+            f'Refusing to delete {reg.domain_name} — only failed '
+            f'registrations can be deleted from this button. Current '
+            f'status: {reg.get_status_display()}.')
+        return redirect(
+            'admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+    name = reg.domain_name
+    client_name = reg.client.firm_name
+    reg.delete()
+    _msg.success(
+        request,
+        f'Deleted failed registration {name} '
+        f'(belonged to {client_name}).')
+    return redirect('admin_dashboard:admin_domain_list')
 
 
 @admin_required

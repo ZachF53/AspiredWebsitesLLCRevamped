@@ -129,4 +129,16 @@
     </section>
 {% endif %}
 
+{% if reg.status == 'failed' %}
+    <section class="domain-detail__danger">
+        <h2>Delete this failed registration</h2>
+        <p>This registration didn't complete. {% if reg.last_api_error %}Error: <code>{{ reg.last_api_error|truncatechars:200 }}</code>.{% endif %} Removing it clears it from your portal — nothing to refund, nothing at the registrar to undo.</p>
+        <form method="post" action="{% url 'domains:portal_domain_delete' pk=reg.id %}"
+              onsubmit="return confirm('Permanently delete this failed registration for {{ reg.domain_name }}? Cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary domain-detail__cancel-btn">Delete failed registration</button>
+        </form>
+    </section>
+{% endif %}
+
 {% endblock %}

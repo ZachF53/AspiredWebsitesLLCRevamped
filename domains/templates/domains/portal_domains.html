@@ -45,6 +45,13 @@
                     {% if reg.status == 'active' %}
                         <a href="{% url 'domains:portal_domain_dns' pk=reg.id %}" class="btn-link">DNS records</a>
                     {% endif %}
+                    {% if reg.status == 'failed' %}
+                        <form method="post" action="{% url 'domains:portal_domain_delete' pk=reg.id %}" style="display:inline;"
+                              onsubmit="return confirm('Delete this failed registration permanently? It will disappear from your portal.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-link sub-card__link--danger">Delete</button>
+                        </form>
+                    {% endif %}
                 </div>
             </li>
         {% endfor %}

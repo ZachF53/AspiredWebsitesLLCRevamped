@@ -470,3 +470,35 @@ def portal_domain_resume(request, pk):
         f'emailed you is now invalid — if you change your mind '
         f'again you\'ll need to cancel again to get a fresh one.')
     return redirect('domains:portal_domain_detail', pk=pk)
+
+
+@client_required
+@require_POST
+def portal_domain_delete(request, pk):
+    """
+    Permanently delete a FAILED domain registration row. Allowed
+    only for status='failed' — active/grace/expired registrations
+    represent real domains and need a proper transfer-out flow.
+
+    Cascade-deletes the DNSRecord rows. Safe because the orchestrator
+    has already cancelled + refunded the Stripe sub (if there was
+    one) and Namecheap has nothing on file (registration failed).
+    Scoped to the client's own registrations — they can't touch
+    anyone else's.
+    """
+    profile = request.client_profile
+    registration = get_object_or_404(
+        DomainRegistration, pk=pk, client=profile)
+    if registration.status != 'failed':
+        messages.error(
+            request,
+            'Only failed registrations can be deleted. Active '
+            'or grace-period domains need the cancel flow.')
+        return redirect('domains:portal_domain_detail', pk=pk)
+
+    name = registration.domain_name
+    registration.delete()
+    messages.success(
+        request,
+        f'Deleted failed registration for {name}.')
+    return redirect('domains:portal_domains')

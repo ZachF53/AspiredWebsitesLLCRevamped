@@ -69,7 +69,16 @@
                     <td>{% if reg.expires_at %}{{ reg.expires_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
                     <td>{% if reg.last_synced_at %}{{ reg.last_synced_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
                     <td class="admin-table__error">{{ reg.last_api_error|truncatechars:60 }}</td>
-                    <td><a class="btn-link" href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}">Manage →</a></td>
+                    <td>
+                        <a class="btn-link" href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}">Manage →</a>
+                        {% if reg.status == 'failed' %}
+                            <form method="post" action="{% url 'admin_dashboard:admin_domain_delete' reg_id=reg.id %}" style="display:inline;margin-left:10px;"
+                                  onsubmit="return confirm('Delete failed registration {{ reg.domain_name }}? Removes the row from BOTH admin + client portal (single source of truth).');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-link sub-card__link--danger">Delete</button>
+                            </form>
+                        {% endif %}
+                    </td>
                 </tr>
             {% empty %}
                 <tr><td colspan="7" class="muted">No domains registered yet.</td></tr>

@@ -1,0 +1,96 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Stripe Customer Recovery — {{ profile.firm_name }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client_id=profile.id %}" class="admin-back-link">← {{ profile.firm_name }}</a></span>
+            <h1 class="admin-page-title">Stripe customer recovery</h1>
+            <p class="muted">
+                Searching Stripe for every customer matching <strong>{{ email }}</strong>.
+                If their saved card "disappeared", the DB's <code>stripe_customer_id</code> got pointed at the wrong customer — pick the right one below and relink.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if error %}
+        <div class="admin-flash admin-flash--error">{{ error }}</div>
+    {% endif %}
+
+    <section class="admin-panel">
+        <h2>Currently linked</h2>
+        <p><code>{{ profile.stripe_customer_id|default:"(none)" }}</code></p>
+    </section>
+
+    <section class="admin-panel">
+        <h2>Stripe candidates for {{ email }}</h2>
+        {% if candidates %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Customer ID</th>
+                        <th>Created</th>
+                        <th>Cards</th>
+                        <th>Linked metadata</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in candidates %}
+                        <tr {% if c.is_current %}style="background:rgba(13,148,136,0.06);"{% endif %}>
+                            <td>
+                                <code>{{ c.id }}</code>
+                                {% if c.is_current %}<span class="domain-card__badge domain-card__badge--active" style="margin-left:8px;">CURRENT</span>{% endif %}
+                            </td>
+                            <td>{% if c.created %}{{ c.created|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+                            <td>
+                                {% if c.cards %}
+                                    {% for card in c.cards %}
+                                        <div>
+                                            <strong>{{ card.brand }}</strong> •••• {{ card.last4 }}
+                                            <span class="muted">({{ card.exp_month }}/{{ card.exp_year }})</span>
+                                            {% if card.pm_id == c.default_pm %}
+                                                <span class="domain-card__badge domain-card__badge--active" style="margin-left:6px;">DEFAULT</span>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="muted">no cards</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.metadata.client_profile_id %}
+                                    <code>{{ c.metadata.client_profile_id }}</code>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                {% if not c.is_current %}
+                                    <form method="post" action="{% url 'admin_dashboard:admin_stripe_customer_relink' client_id=profile.id %}" style="display:inline;"
+                                          onsubmit="return confirm('Relink {{ profile.firm_name }} to {{ c.id }}? The current stripe_customer_id will be overwritten — make sure you picked the right one.');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="customer_id" value="{{ c.id }}">
+                                        <button type="submit" class="btn-primary admin-btn-sm">Relink to this one</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="muted" style="margin-top:14px;">
+                <strong>How to pick:</strong> the customer with the card the client expects to see is the right one. The "linked metadata" column is <code>client_profile_id</code> from when the customer was created — if it matches, that customer was created for this account.
+            </p>
+        {% else %}
+            <p class="muted">No Stripe customers found with email {{ email }}.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

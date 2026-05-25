@@ -30,18 +30,59 @@ def _cents(amount):
 
 
 def create_or_get_customer(client):
-    """Return the client's Stripe Customer, creating + storing it if needed."""
+    """
+    Return the client's Stripe Customer, creating + storing it ONLY if
+    we've never had one for them OR the existing one has been
+    explicitly hard-deleted at Stripe.
+
+    CRITICAL: this function must NEVER silently swap a stripe_customer_id
+    on a transient error. Doing so orphans the customer's saved cards,
+    invoices, and subscriptions — they all stay on the old Stripe
+    customer but the DB now points elsewhere. From the client's POV
+    their card "disappears" mid-flow.
+
+    The old version used `customer.get('deleted')` to detect deletes,
+    which raises AttributeError on Stripe Python v15 StripeObjects
+    (no `.get` method). The bare `except Exception` swallowed that
+    error and silently created a replacement on every single call.
+    """
     _init()
     if client.stripe_customer_id:
         try:
             customer = stripe.Customer.retrieve(client.stripe_customer_id)
-            if not customer.get('deleted'):
-                return customer
+        except stripe.error.InvalidRequestError as exc:
+            # Stripe returns 404 → InvalidRequestError. This is the
+            # only safe-to-rotate case: the customer is genuinely
+            # gone (manually purged in the dashboard, or never
+            # existed in this Stripe environment, e.g. live vs test
+            # mode mismatch).
+            logger.error(
+                'Stripe customer %s NOT FOUND for client %s — '
+                'creating a replacement. Old customer\'s cards + '
+                'history are orphaned in Stripe; manual recovery '
+                'may be needed. Underlying error: %s',
+                client.stripe_customer_id, client.pk, exc)
         except Exception:
-            logger.warning(
-                'Stripe customer %s not retrievable — creating a new one.',
-                client.stripe_customer_id,
-            )
+            # ANY other failure (network, rate limit, parser quirk,
+            # auth) — re-raise. We must NOT silently create a new
+            # customer; that's exactly the bug that lost a card.
+            logger.exception(
+                'Stripe customer retrieval error for client %s — '
+                'refusing to create a replacement (would orphan '
+                'card/history); raising.', client.pk)
+            raise
+        else:
+            # StripeObject inherits from dict so [] indexing works,
+            # but `.get()` was removed in v15 — use getattr for safety.
+            if not getattr(customer, 'deleted', False):
+                return customer
+            # Customer exists but is in deleted state — only path
+            # where we fall through to recreation.
+            logger.error(
+                'Stripe customer %s is in DELETED state for client '
+                '%s — creating a replacement',
+                client.stripe_customer_id, client.pk)
+
     customer = stripe.Customer.create(
         email=client.user.email,
         name=client.firm_name,

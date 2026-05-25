@@ -41,6 +41,16 @@ urlpatterns = [
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
 
+    # Stripe customer recovery — relink a client to a specific
+    # Stripe customer ID when the linkage got broken (e.g. an
+    # orphaned customer with their saved card).
+    path('clients/<uuid:client_id>/stripe-customer/',
+         views.admin_stripe_customer_recovery,
+         name='admin_stripe_customer_recovery'),
+    path('clients/<uuid:client_id>/stripe-customer/relink/',
+         views.admin_stripe_customer_relink,
+         name='admin_stripe_customer_relink'),
+
     # Domain registrations (Namecheap)
     path('domains/', views.admin_domain_list, name='admin_domain_list'),
     path('domains/config/', views.admin_domain_config,
@@ -72,6 +82,9 @@ urlpatterns = [
     path('domains/<uuid:reg_id>/unpark/',
          views.admin_domain_unpark,
          name='admin_domain_unpark'),
+    path('domains/<uuid:reg_id>/delete/',
+         views.admin_domain_delete,
+         name='admin_domain_delete'),
 
     # Pricing manager
     path('pricing/', views.pricing_list, name='pricing_list'),
