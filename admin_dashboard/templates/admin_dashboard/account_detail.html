@@ -19,8 +19,12 @@
         </div>
     </div>
 
-    {# Account editor (one big form, all sections, single Save). #}
-    <form method="post" class="account-edit-form">
+    {% comment %}
+        Account editor (one big form, all sections, single Save).
+        Other cards (Login & Password) use `form="account-main-form"`
+        on their inputs to submit alongside this one.
+    {% endcomment %}
+    <form method="post" id="account-main-form" class="account-edit-form">
         {% csrf_token %}
         {% for section in sections %}
             <div class="admin-card account-edit-section">
@@ -129,6 +133,71 @@
                 </table>
             {% else %}
                 <p class="muted">No domains registered for this account.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% comment %}
+        Login / account-access controls.  is_active lives on the User
+        row, not on Account — but for the admin it's all "this
+        account". The same Save Account button (top of page) writes
+        the checkbox too.
+
+        Vault-only placeholders default to is_active=False so they
+        "never log in"; the gotcha is that resetting the password on
+        an inactive user does NOT enable login (Django's auth
+        backend silently rejects inactive users). This toggle makes
+        the gate visible + fixable from the UI.
+    {% endcomment %}
+    <div class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Login &amp; Password</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if user %}
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Email / Username</label>
+                    <div class="form-row__field">
+                        <input type="text" value="{{ user.email|default:user.username }}" class="form-control" disabled>
+                        <p class="muted" style="font-size:0.75rem; margin:0.25rem 0 0;">
+                            Edit the email in Django admin if it needs to change.
+                        </p>
+                    </div>
+                </div>
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Login enabled</label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="user_is_active" form="account-main-form"{% if user.is_active %} checked{% endif %}>
+                        <span>User can sign in to the portal</span>
+                    </label>
+                </div>
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Last login</label>
+                    <div class="form-row__field">
+                        {% if user.last_login %}
+                            {{ user.last_login|date:"M j, Y g:i a" }}
+                        {% else %}
+                            <span class="muted">Never</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Password reset</label>
+                    <div class="form-row__field">
+                        <form method="post" action="{% url 'admin_dashboard:account_send_password_reset' account.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">Email a reset link to {{ user.email|default:"this user" }}</button>
+                        </form>
+                        <p class="muted" style="font-size:0.75rem; margin:0.5rem 0 0;">
+                            Sends the same email a client gets when they click "Forgot password?" on the login page. The link is good for 3 days.
+                            {% if not user.is_active %}
+                                <br><strong>Note:</strong> Login is currently disabled — turn it on first or the reset email won't go through.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            {% else %}
+                <p class="muted">This account has no User row — sign-in is not possible.</p>
             {% endif %}
         </div>
     </div>

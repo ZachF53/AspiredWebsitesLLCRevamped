@@ -6647,8 +6647,17 @@ def account_detail(request, account_id):
     from clients.account_models import Account
 
     account = get_object_or_404(Account, id=account_id)
+    user = account.user  # surfaced separately for the Login section
 
     if request.method == 'POST':
+        # Login-enabled toggle is on user.is_active, not on Account.
+        # Handle it here BEFORE the Account-field loop so a single
+        # Save button writes both.
+        if 'user_is_active' in request.POST and user is not None:
+            new_active = request.POST.get('user_is_active') == 'on'
+            if user.is_active != new_active:
+                user.is_active = new_active
+                user.save(update_fields=['is_active'])
         errors = []
         # Build allowed-fields whitelist from the section metadata so a
         # crafted POST can't write to fields outside this surface.
@@ -6761,12 +6770,69 @@ def account_detail(request, account_id):
         _admin_context(
             'accounts',
             account=account,
+            user=user,
             sections=sections,
             websites=websites,
             domains=domains,
             delete_impact=delete_impact,
         ),
     )
+
+
+@admin_required
+@require_POST
+def account_send_password_reset(request, account_id):
+    """
+    Admin-triggered password reset email — fires the same Django
+    PasswordResetForm flow the public /password-reset/ page uses,
+    but bypasses the public form so a tier-1 support call can be
+    handled from the admin page directly.
+
+    Requires the account's User to be is_active=True (Django's
+    PasswordResetForm filters inactive users). Surfaces a clear
+    message when blocked.
+    """
+    from django.contrib import messages
+    from django.contrib.auth.forms import PasswordResetForm
+
+    from clients.account_models import Account
+
+    account = get_object_or_404(Account, id=account_id)
+    user = account.user
+    if user is None or not user.email:
+        messages.error(
+            request,
+            'This account has no user / email on file — cannot send a '
+            'password reset.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+    if not user.is_active:
+        messages.error(
+            request,
+            'Login is disabled for this account. Toggle "Login enabled" '
+            'on first, then send the reset.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    form = PasswordResetForm({'email': user.email})
+    if not form.is_valid():
+        messages.error(request, f'Reset form invalid: {form.errors}')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    form.save(
+        request=request,
+        use_https=request.is_secure(),
+        email_template_name='public/password_reset_email.txt',
+        subject_template_name='public/password_reset_subject.txt',
+        from_email=None,  # Falls back to DEFAULT_FROM_EMAIL.
+    )
+    messages.success(
+        request,
+        f'Password reset email sent to {user.email}. The link is good '
+        f'for 3 days.')
+    return redirect(
+        'admin_dashboard:account_detail', account_id=account.id)
 
 
 @admin_required
