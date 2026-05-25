@@ -242,7 +242,21 @@ class Command(BaseCommand):
         last_category = None
 
         for data in TIERS:
-            stripe_id = os.environ.get(data['env'], '') or ''
+            env_stripe_id = os.environ.get(data['env'], '') or ''
+            existing = ServiceTier.objects.filter(slug=data['slug']).first()
+            # DB is the source of truth for stripe_price_id once set.
+            # Only fall back to the env var on FIRST seed (when the
+            # row doesn't yet exist) or when the row's id was never
+            # populated. This protects sync_stripe_products' output
+            # from being clobbered by a re-seed.
+            preserve_id = (
+                existing.stripe_price_id if existing
+                and existing.stripe_price_id else env_stripe_id
+            )
+            preserve_product = (
+                existing.stripe_product_id if existing
+                and existing.stripe_product_id else ''
+            )
             tier, _ = ServiceTier.objects.update_or_create(
                 slug=data['slug'],
                 defaults={
@@ -251,7 +265,8 @@ class Command(BaseCommand):
                     'price': data['price'],
                     'is_recurring': data['is_recurring'],
                     'billing_interval': data['billing_interval'],
-                    'stripe_price_id': stripe_id,
+                    'stripe_price_id': preserve_id,
+                    'stripe_product_id': preserve_product,
                     'is_active': True,
                     'is_featured': data['is_featured'],
                     'sort_order': data['sort_order'],
@@ -261,6 +276,9 @@ class Command(BaseCommand):
                 },
             )
             tier_count += 1
+            # Use the preserved id for the status line so re-seeds
+            # accurately reflect what's actually in the DB.
+            stripe_id = preserve_id
 
             # Rebuild features so re-running stays clean.
             tier.features.all().delete()
