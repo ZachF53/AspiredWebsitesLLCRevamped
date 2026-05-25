@@ -317,6 +317,8 @@ urlpatterns = [
     path('accounts/', views.accounts_list, name='accounts_list'),
     path('accounts/<uuid:account_id>/', views.account_detail,
          name='account_detail'),
+    path('accounts/<uuid:account_id>/delete/', views.account_delete,
+         name='account_delete'),
     path('websites/', views.websites_list, name='websites_list'),
     path('websites/<uuid:website_id>/', views.website_detail,
          name='website_detail'),

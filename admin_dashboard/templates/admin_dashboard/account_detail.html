@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}{{ account.name }} — Account{% endblock %}
 
@@ -131,6 +132,99 @@
             {% endif %}
         </div>
     </div>
+
+    {% comment %}
+        Hard-delete the entire account + everything that cascades.
+        Same danger-card pattern as the move-website section, but the
+        modal additionally locks the Delete button until the admin
+        types the account name (case-insensitive) to prove intent.
+    {% endcomment %}
+    <div class="admin-card danger-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title danger-card__title">⚠ Delete this Account</h2>
+        </div>
+        <div class="admin-card__body">
+            <p class="muted" style="margin-top: 0;">
+                Permanently deletes this account and everything cascading from it.
+                <strong>This cannot be undone.</strong>
+            </p>
+            <ul class="danger-impact-list">
+                <li>{{ delete_impact.websites }} website{{ delete_impact.websites|pluralize }}</li>
+                <li>{{ delete_impact.domains }} domain registration{{ delete_impact.domains|pluralize }}</li>
+                <li>{{ delete_impact.vault_credentials }} vault credential{{ delete_impact.vault_credentials|pluralize }}</li>
+                <li>{{ delete_impact.support_tickets }} support ticket{{ delete_impact.support_tickets|pluralize }}</li>
+                <li>{{ delete_impact.documents }} document{{ delete_impact.documents|pluralize }}</li>
+                <li>{{ delete_impact.revisions }} revision request{{ delete_impact.revisions|pluralize }}</li>
+                <li>{{ delete_impact.scans }} security scan{{ delete_impact.scans|pluralize }} + findings</li>
+                <li>The login account &mdash; the email becomes free to re-onboard.</li>
+            </ul>
+            <button type="button"
+                    id="open-delete-account-modal"
+                    class="btn-danger-solid">
+                Delete account
+            </button>
+        </div>
+    </div>
 </div>
 
+{% comment %}
+    Delete-account confirmation modal. The Delete button stays
+    disabled until the typed name matches account.name (case-
+    insensitive). Same value is sent to the server which re-checks
+    so a crafted POST cannot skip the gate.
+{% endcomment %}
+<div class="danger-modal" id="delete-account-modal" hidden role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">
+    <div class="danger-modal__backdrop" id="delete-account-backdrop"></div>
+    <div class="danger-modal__card" role="document">
+        <header class="danger-modal__head">
+            <h2 id="delete-account-modal-title">⚠ Permanently delete account</h2>
+        </header>
+        <div class="danger-modal__body">
+            <p>You're about to permanently delete <strong>{{ account.name }}</strong> and everything cascading from it.</p>
+
+            {% if delete_impact.active_droplets or delete_impact.active_subscriptions %}
+                <div class="danger-modal__warning">
+                    <strong>⚠ External state will NOT be cleaned up automatically:</strong>
+                    <ul>
+                        {% if delete_impact.active_droplets %}
+                            <li>{{ delete_impact.active_droplets }} DigitalOcean droplet{{ delete_impact.active_droplets|pluralize }} &mdash; destroy in the DO panel first or you'll be billed for orphan servers.</li>
+                        {% endif %}
+                        {% if delete_impact.active_subscriptions %}
+                            <li>{{ delete_impact.active_subscriptions }} Stripe subscription{{ delete_impact.active_subscriptions|pluralize }} &mdash; cancel in Stripe first or the customer will be charged at next renewal.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            <p>To confirm, type the account name below:</p>
+            <p class="danger-modal__expected"><code>{{ account.name }}</code></p>
+
+            <form method="post" action="{% url 'admin_dashboard:account_delete' account.id %}" id="delete-account-form">
+                {% csrf_token %}
+                <input type="text"
+                       id="delete-account-confirm-input"
+                       name="confirm_name"
+                       class="form-control"
+                       autocomplete="off"
+                       autocapitalize="off"
+                       spellcheck="false"
+                       data-expected-name="{{ account.name|lower }}"
+                       placeholder="Type the account name to unlock the Delete button"
+                       required>
+                <p class="danger-modal__hint muted">Case-insensitive.</p>
+            </form>
+        </div>
+        <footer class="danger-modal__foot">
+            <button type="button" class="btn-secondary btn-sm" id="cancel-delete-account-modal">Cancel</button>
+            <button type="button"
+                    class="btn-danger-solid"
+                    id="confirm-delete-account-modal"
+                    disabled>
+                Delete account permanently
+            </button>
+        </footer>
+    </div>
+</div>
+
+<script src="{% static 'js/account_detail.js' %}" defer></script>
 {% endblock %}

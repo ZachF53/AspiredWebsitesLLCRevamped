@@ -6715,6 +6715,47 @@ def account_detail(request, account_id):
     websites = list(account.websites.all().order_by('name'))
     domains = list(account.domains.all().order_by('domain_name'))
 
+    # Delete-impact summary for the danger card modal — shows the
+    # admin exactly what will be wiped before they type the name to
+    # confirm. Counts are cheap one-shot aggregates; nothing N+1.
+    legacy_cp = account.legacy_client_profile
+    delete_impact = {
+        'websites': len(websites),
+        'domains': len(domains),
+        'vault_credentials': 0,
+        'support_tickets': 0,
+        'documents': 0,
+        'revisions': 0,
+        'scans': 0,
+        'active_droplets': 0,
+        'active_subscriptions': 0,
+    }
+    if legacy_cp is not None:
+        try:
+            delete_impact['vault_credentials'] = (
+                legacy_cp.vault.credentials.count()
+                if hasattr(legacy_cp, 'vault') and legacy_cp.vault else 0)
+        except Exception:
+            pass
+        delete_impact['support_tickets'] = legacy_cp.tickets.count()
+        delete_impact['documents'] = legacy_cp.documents.count()
+        delete_impact['revisions'] = legacy_cp.revisions.count()
+        try:
+            from reporting.models import VulnerabilityScan
+            delete_impact['scans'] = VulnerabilityScan.objects.filter(
+                client=legacy_cp).count()
+        except Exception:
+            pass
+    # External-state warnings — these are NOT cascaded by the DB
+    # delete, so admin must handle them separately. Surfaced in the
+    # modal so the admin doesn't end up with orphan resources.
+    for w in websites:
+        if w.do_droplet_id:
+            delete_impact['active_droplets'] += 1
+        if (w.stripe_hosting_subscription_id
+                or w.stripe_maintenance_subscription_id):
+            delete_impact['active_subscriptions'] += 1
+
     return render(
         request, 'admin_dashboard/account_detail.html',
         _admin_context(
@@ -6723,8 +6764,102 @@ def account_detail(request, account_id):
             sections=sections,
             websites=websites,
             domains=domains,
+            delete_impact=delete_impact,
         ),
     )
+
+
+@admin_required
+@require_POST
+def account_delete(request, account_id):
+    """
+    Hard-delete an Account and everything that cascades from it —
+    Websites, Domains, the legacy ClientProfile (which itself
+    cascades vault, intake, tickets, scans, reports, etc.), and the
+    Django User row so the email can be re-onboarded clean.
+
+    Confirmation gate: the admin must POST a ``confirm_name`` value
+    that case-insensitively matches the Account's name. The frontend
+    already enforces this with a disabled button until the typed
+    value matches; the server re-checks so a crafted POST can't skip
+    the gate.
+
+    NOT touched (external state — admin handles separately before
+    calling this):
+      - DigitalOcean droplets (destroy in DO panel or via the
+        droplets dashboard before deleting)
+      - Stripe customer + subscriptions (cancel in Stripe first
+        so no orphan charges happen at next renewal)
+
+    The modal surfaces both as warnings.
+    """
+    from django.contrib import messages
+    from django.db import transaction
+
+    from clients.account_models import Account
+
+    account = get_object_or_404(Account, id=account_id)
+
+    # Safety rail — refuse to delete the account that backs the
+    # currently-logged-in admin (no foot-shooting). Also refuse to
+    # delete a staff/superuser account; those have admin powers and
+    # should be removed via Django admin with explicit intent.
+    if account.user_id == request.user.id:
+        messages.error(
+            request, 'You cannot delete the account you are signed in as.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+    if account.user and (account.user.is_staff or account.user.is_superuser):
+        messages.error(
+            request,
+            'Refusing to delete a staff/superuser account from this '
+            'page. Use Django admin if that is really what you want.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    # Confirmation — name typed in the modal must match (no case).
+    typed = (request.POST.get('confirm_name') or '').strip().lower()
+    expected = (account.name or '').strip().lower()
+    if not expected or typed != expected:
+        messages.error(
+            request,
+            'Account name did not match. Deletion cancelled.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    legacy_cp = account.legacy_client_profile
+    user = account.user
+    label = account.name
+
+    try:
+        with transaction.atomic():
+            # Order matters for clean cascade:
+            # 1. Account delete → Websites, Domains, vault_credentials,
+            #    onboarding_token, onboarding_invoice, etc. (everything
+            #    with FK to Account with on_delete=CASCADE)
+            # 2. Legacy ClientProfile delete → vault, intake, tickets,
+            #    scans, reports, freshness, NPS, chatbot, etc.
+            # 3. User delete → auth row gone so the email is free to
+            #    re-onboard.
+            account.delete()
+            if legacy_cp is not None:
+                # CP.legacy_account FK had on_delete=SET_NULL so the
+                # CP survived step 1; now finish it.
+                legacy_cp.delete()
+            if user is not None:
+                user.delete()
+    except Exception as exc:  # noqa: BLE001
+        messages.error(request, f'Deletion failed: {exc}')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account_id)
+
+    messages.success(
+        request,
+        f'Account "{label}" deleted (including all websites, domains, '
+        f'vault credentials, and the login). External resources '
+        f'(DigitalOcean droplets, Stripe customer) were NOT touched — '
+        f'handle those separately.')
+    return redirect('admin_dashboard:accounts_list')
 
 
 def _account_field_spec(field):
