@@ -93,9 +93,13 @@
                 <label for="run-scan-client">Client</label>
                 <select id="run-scan-client" name="client_id" class="form-control" required>
                     <option value="">— Select a client —</option>
+                    {# data-url: prefer the canonical client.website
+                       (post-2026-05-25 fix), then fall back to the
+                       legacy project.live_url for clients whose URL
+                       was only ever recorded on the Project. #}
                     {% for c in clients %}
                         <option value="{{ c.id }}"
-                                data-url="{{ c.projects.first.live_url|default:'' }}"
+                                data-url="{{ c.website|default:c.projects.first.live_url|default:'' }}"
                                 data-ip="{{ c.do_droplet_ip|default:'' }}">{{ c.firm_name }}</option>
                     {% endfor %}
                 </select>
