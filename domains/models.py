@@ -149,6 +149,23 @@ class DomainRegistration(TimestampedModel):
         on_delete=models.PROTECT,
         related_name='domain_registrations',
     )
+    # Phase A — domains are owned at the Account level (per the new
+    # model, one Account can have multiple sites + multiple domains).
+    account_new = models.ForeignKey(
+        'clients.Account',
+        on_delete=models.PROTECT,
+        related_name='domains',
+        null=True, blank=True,
+    )
+    # Which Website this domain currently points at. Nullable — a
+    # domain may be registered but parked between builds, or held by
+    # the Account without yet being attached to a specific site.
+    pointed_at_website = models.ForeignKey(
+        'clients.Website',
+        on_delete=models.SET_NULL,
+        related_name='domains',
+        null=True, blank=True,
+    )
 
     # The full domain name, lower-cased, e.g. "johnsonlawfirm.com".
     domain_name = models.CharField(max_length=253, unique=True)

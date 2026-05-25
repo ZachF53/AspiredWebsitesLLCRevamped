@@ -23,6 +23,20 @@ class DeploymentLog(TimestampedModel):
         null=True, blank=True,
         related_name='deployment_logs',
     )
+    # Phase A — deployments target a specific Website (one Droplet per
+    # build). Account FK kept for legacy-row resolution.
+    account_new = models.ForeignKey(
+        'clients.Account',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='deployment_logs_new',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='deployment_logs_new',
+    )
     github_repo = models.CharField(max_length=500, blank=True)
     notes = models.TextField(blank=True)
     success = models.BooleanField(default=True)

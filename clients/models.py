@@ -13,6 +13,17 @@ from django.utils import timezone
 
 from core.models import TimestampedModel
 
+# Account / Website live in a separate module — re-export so Django's
+# app registry discovers them via clients.models, and downstream code
+# can write `from clients.models import Account, Website` without
+# touching the new file directly.
+from clients.account_models import (  # noqa: E402,F401
+    Account,
+    Website,
+    WebsiteStageLog,
+    SubscriptionPaymentMethod,
+)
+
 
 # ── Shared choice sets ───────────────────────────────────────────────────────
 
@@ -359,6 +370,15 @@ class ProjectStageLog(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='stage_logs', null=True, blank=True,
     )
+    # Phase A — new FK to the post-refactor Website model. Nullable
+    # so the additive migration doesn't require backfill order. Phase
+    # C readers prefer ``website`` when set; Phase D drops the legacy
+    # ``project`` and ``client`` columns and renames this back to
+    # ``website`` without the ``_new`` suffix (kept here for clarity).
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='stage_logs_new', null=True, blank=True,
+    )
     from_stage = models.CharField(max_length=20, blank=True)
     to_stage = models.CharField(max_length=20, blank=True)
     note = models.TextField(blank=True)
@@ -403,6 +423,11 @@ class IntakeResponse(TimestampedModel):
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE,
         related_name='intake', null=True, blank=True,
+    )
+    # Phase A — new FK to Website. Nullable for the additive migration.
+    website_new = models.OneToOneField(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='intake_new', null=True, blank=True,
     )
     completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -530,6 +555,11 @@ class RevisionRequest(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='revisions', null=True, blank=True,
     )
+    # Phase A — new FK to Website.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='revisions_new', null=True, blank=True,
+    )
     source = models.CharField(
         max_length=20, choices=SOURCE_CHOICES, default='aspired_portal',
     )
@@ -566,6 +596,11 @@ class ClientDocument(TimestampedModel):
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, null=True, blank=True,
         related_name='documents',
+    )
+    # Phase A — new FK to Website (per user spec, files belong per-build).
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='documents_new', null=True, blank=True,
     )
     direction = models.CharField(max_length=20, choices=DIRECTION_CHOICES)
     file = models.FileField(upload_to=client_document_path)
@@ -607,6 +642,17 @@ class SupportTicket(TimestampedModel):
         Project, on_delete=models.CASCADE, null=True, blank=True,
         related_name='tickets',
     )
+    # Phase A — tickets are account-scoped with an optional website link
+    # (a ticket can be about a specific build or about the account in
+    # general, e.g. billing).
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.CASCADE,
+        related_name='tickets_new', null=True, blank=True,
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='tickets_new', null=True, blank=True,
+    )
     subject = models.CharField(max_length=255)
     description = models.TextField()
     priority = models.CharField(
@@ -634,6 +680,11 @@ class Contract(TimestampedModel):
 
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE, related_name='contracts',
+    )
+    # Phase A — contracts are per-build.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='contracts_new', null=True, blank=True,
     )
     package = models.CharField(max_length=20, choices=BUILD_PACKAGE_CHOICES)
     build_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -683,6 +734,11 @@ class SiteChangelogEntry(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='changelog_entries',
     )
+    # Phase A — per-build.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='changelog_entries_new', null=True, blank=True,
+    )
     change_type = models.CharField(
         max_length=20, choices=CHANGE_TYPE_CHOICES, default='other',
     )
@@ -725,6 +781,10 @@ class UptimeRecord(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='uptime_records',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='uptime_records_new', null=True, blank=True,
+    )
     checked_at = models.DateTimeField(auto_now_add=True)
     response_time_ms = models.IntegerField(null=True, blank=True)
     status_code = models.IntegerField(null=True, blank=True)
@@ -748,6 +808,10 @@ class UptimeAlert(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='uptime_alerts',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='uptime_alerts_new', null=True, blank=True,
     )
     alerted_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
@@ -830,6 +894,10 @@ class ClientHealthScore(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='health_scores',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='health_scores_new', null=True, blank=True,
+    )
     calculated_at = models.DateTimeField(auto_now_add=True)
 
     # Overall (0-100). Component scores are also kept so the dashboard
@@ -903,6 +971,11 @@ class ReferralLink(TimestampedModel):
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE,
         related_name='referral_link',
+    )
+    # Phase A — referral links are account-level (one per Account).
+    account_new = models.OneToOneField(
+        'clients.Account', on_delete=models.CASCADE,
+        related_name='referral_link_new', null=True, blank=True,
     )
     code = models.CharField(max_length=20, unique=True)
     clicks = models.IntegerField(default=0)
@@ -1050,6 +1123,12 @@ class CaseStudy(TimestampedModel):
         ClientProfile, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='case_studies',
     )
+    # Phase A — case study is about one Website (SET_NULL because the
+    # case study survives a website deletion).
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='case_studies_new',
+    )
 
     title = models.CharField(max_length=300)
     business_type = models.CharField(max_length=100, blank=True)
@@ -1112,6 +1191,10 @@ class IntelligenceReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='intelligence_reports',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='intelligence_reports_new', null=True, blank=True,
     )
     report_month = models.DateField(
         help_text='First day of the month, e.g. 2026-05-01.')
@@ -1184,6 +1267,11 @@ class IntelligenceSuggestion(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='intelligence_suggestions',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='intelligence_suggestions_new',
+        null=True, blank=True,
     )
     # Set when generated as part of a batch — null if created by hand.
     report = models.ForeignKey(
@@ -1286,6 +1374,10 @@ class AnnualReport(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='annual_reports',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='annual_reports_new', null=True, blank=True,
+    )
     report_year = models.IntegerField(
         help_text='Calendar year covered, e.g. 2025.')
 
@@ -1335,6 +1427,10 @@ class ClientCompetitor(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='competitors',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='competitors_new', null=True, blank=True,
+    )
     name = models.CharField(max_length=200)
     domain = models.URLField()
     notes = models.CharField(max_length=300, blank=True)
@@ -1372,6 +1468,11 @@ class CompetitorGapReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='competitor_gap_reports',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='competitor_gap_reports_new',
+        null=True, blank=True,
     )
     report_month = models.DateField(
         help_text='First day of the month, e.g. 2026-05-01.')
@@ -1425,6 +1526,12 @@ class OnboardingToken(TimestampedModel):
         ClientProfile,
         on_delete=models.CASCADE,
         related_name='onboarding_token',
+    )
+    # Phase A — onboarding token gates the account setup page (WHOIS +
+    # PIN), so it's account-level (one per Account).
+    account_new = models.OneToOneField(
+        'clients.Account', on_delete=models.CASCADE,
+        related_name='onboarding_token_new', null=True, blank=True,
     )
     token = models.UUIDField(
         default=uuid.uuid4,
@@ -1488,6 +1595,20 @@ class OnboardingInvoice(TimestampedModel):
         ClientProfile,
         on_delete=models.CASCADE,
         related_name='onboarding_invoice',
+    )
+    # Phase A — onboarding invoice is per-build (a second Website needs
+    # its own deposit + build fee invoice). 1:1 with Website. Account
+    # FK is also kept so Stripe Customer resolution is unambiguous
+    # even before Website backfill on legacy rows.
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.CASCADE,
+        related_name='onboarding_invoices_new',
+        null=True, blank=True,
+    )
+    website_new = models.OneToOneField(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='onboarding_invoice_new',
+        null=True, blank=True,
     )
 
     # Snapshot of what's being billed — list of

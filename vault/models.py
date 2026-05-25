@@ -67,6 +67,12 @@ class ClientVault(TimestampedModel):
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE, related_name='vault',
     )
+    # Phase A — vault is account-level. One PIN unlocks every cred for
+    # every Website under that Account.
+    account_new = models.OneToOneField(
+        'clients.Account', on_delete=models.CASCADE,
+        related_name='vault_new', null=True, blank=True,
+    )
     notes = models.TextField(
         blank=True,
         help_text='General plaintext notes about this client\'s setup '
@@ -95,6 +101,15 @@ class VaultCredential(TimestampedModel):
 
     vault = models.ForeignKey(
         ClientVault, on_delete=models.CASCADE, related_name='credentials',
+    )
+    # Phase A — per-Account vault view groups credentials by Website
+    # tag (so SSH key for site A and site B render under their
+    # respective headings). Nullable — credentials not tied to a
+    # specific build show under an "Account-wide" bucket.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        related_name='vault_credentials_new',
+        null=True, blank=True,
     )
     category = models.CharField(
         max_length=20, choices=CATEGORY_CHOICES, default='custom',
@@ -195,6 +210,16 @@ class SSHSessionLog(TimestampedModel):
         'clients.ClientProfile', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='ssh_sessions',
     )
+    # Phase A — account-level audit trail (and optional website tag
+    # mirrors the credential's website_new).
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ssh_sessions_new',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ssh_sessions_new',
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(null=True, blank=True)
@@ -266,6 +291,15 @@ class OpsSession(TimestampedModel):
     client = models.ForeignKey(
         'clients.ClientProfile', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='ops_sessions',
+    )
+    # Phase A — account/website tags for the audit trail.
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ops_sessions_new',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ops_sessions_new',
     )
 
     started_at = models.DateTimeField(auto_now_add=True)

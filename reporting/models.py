@@ -27,6 +27,11 @@ class GBPSyncCheck(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='gbp_sync_checks',
     )
+    # Phase A — Website-scoped (each build has its own GBP listing).
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='gbp_sync_checks_new', null=True, blank=True,
+    )
     checked_at = models.DateTimeField(auto_now_add=True)
     field_name = models.CharField(max_length=20, choices=FIELD_CHOICES)
     website_value = models.TextField(blank=True)
@@ -52,6 +57,10 @@ class TrackedKeyword(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='tracked_keywords',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='tracked_keywords_new', null=True, blank=True,
     )
     keyword = models.CharField(max_length=200)
     target_url = models.URLField(
@@ -106,6 +115,10 @@ class ConversionEvent(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='conversion_events',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='conversion_events_new', null=True, blank=True,
+    )
     event_type = models.CharField(max_length=20, choices=EVENT_TYPE_CHOICES)
     element_id = models.CharField(max_length=100, blank=True)
     element_text = models.CharField(max_length=100, blank=True)
@@ -139,6 +152,10 @@ class MonthlyReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='monthly_reports',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='monthly_reports_new', null=True, blank=True,
     )
     report_month = models.DateField(help_text='First day of the reported month.')
     status = models.CharField(
@@ -174,6 +191,10 @@ class ContentFreshnessReport(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='freshness_reports',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='freshness_reports_new', null=True, blank=True,
+    )
     generated_at = models.DateTimeField(auto_now_add=True)
     pages_analyzed = models.IntegerField(default=0)
     pages_needing_update = models.IntegerField(default=0)
@@ -196,6 +217,10 @@ class NPSSurvey(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='nps_surveys',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='nps_surveys_new', null=True, blank=True,
     )
     sent_at = models.DateTimeField(auto_now_add=True)
     survey_token = models.UUIDField(default=uuid.uuid4, unique=True)
@@ -241,6 +266,10 @@ class BlogPost(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE,
         related_name='blog_posts',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='blog_posts_new', null=True, blank=True,
+    )
     topic = models.CharField(max_length=200)
     target_keyword = models.CharField(max_length=200, blank=True)
     # Original generation parameters — reused by "Regenerate".
@@ -281,6 +310,11 @@ class ClientChatbot(TimestampedModel):
 
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE, related_name='chatbot',
+    )
+    # Phase A — chatbot is per-Website (each site has its own visitor JS).
+    website_new = models.OneToOneField(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='chatbot_new', null=True, blank=True,
     )
     is_active = models.BooleanField(default=False)
     greeting_message = models.TextField(default=DEFAULT_GREETING)
@@ -351,6 +385,10 @@ class VulnerabilityScan(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='vulnerability_scans',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='vulnerability_scans_new', null=True, blank=True,
     )
     target_url = models.URLField(blank=True)
     target_ip = models.CharField(max_length=100, blank=True)
@@ -507,6 +545,10 @@ class PageSession(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='page_sessions',
     )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='page_sessions_new', null=True, blank=True,
+    )
     session_id = models.CharField(max_length=100)
     # Browser-generated UUID per page view (no cookies).
 
@@ -576,6 +618,10 @@ class SessionRecording(TimestampedModel):
         'clients.ClientProfile',
         on_delete=models.CASCADE,
         related_name='session_recordings',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='session_recordings_new', null=True, blank=True,
     )
     session_id = models.CharField(max_length=100, db_index=True)
     # Same session_id as the matching PageSession row.

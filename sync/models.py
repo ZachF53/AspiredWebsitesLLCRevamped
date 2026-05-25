@@ -41,6 +41,17 @@ class SyncJob(TimestampedModel):
         ClientProfile, on_delete=models.CASCADE, null=True, blank=True,
         related_name='sync_jobs',
     )
+    # Phase A — sync routes to the Account (Miki refers a PERSON).
+    # Website-level events still carry website_new when known so the
+    # handler doesn't have to guess which build the event is about.
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='sync_jobs_new',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='sync_jobs_new',
+    )
     moonieful_client_id = models.UUIDField(null=True, blank=True)
     event_type = models.CharField(max_length=30, choices=SYNC_EVENT_CHOICES)
     payload = models.JSONField(default=dict, blank=True)

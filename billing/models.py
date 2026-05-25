@@ -35,6 +35,16 @@ class MiniInvoice(TimestampedModel):
         Project, on_delete=models.CASCADE, null=True, blank=True,
         related_name='mini_invoices',
     )
+    # Phase A — out-of-scope work is per-build; account FK kept so
+    # Stripe Customer resolution is unambiguous on legacy rows.
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='mini_invoices_new',
+    )
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='mini_invoices_new',
+    )
     revision = models.ForeignKey(
         RevisionRequest, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='mini_invoices',
