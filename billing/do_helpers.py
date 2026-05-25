@@ -140,6 +140,19 @@ def provision_client_droplet(client):
     client.save(update_fields=[
         'do_droplet_id', 'do_droplet_ip', 'do_droplet_created_at', 'updated_at',
     ])
+
+    # Phase C follow-up — mirror the droplet metadata onto the
+    # corresponding Website so the new admin UI shows it without a
+    # separate backfill. Falls back silently if the Account / Website
+    # rows don't exist yet (pre-backfill environments, or a Stripe
+    # webhook firing before the chooser hits — both rare but possible).
+    try:
+        _mirror_droplet_to_website(client, droplet_id, name, ip)
+    except Exception:
+        logger.exception(
+            'DO: failed to mirror droplet metadata to Website for %s '
+            '(non-blocking)', client.pk)
+
     _notify_admin(client, droplet_id, ip)
 
     # ── Automated vault key bootstrap (non-blocking) ──────────────────────
@@ -170,6 +183,48 @@ def provision_client_droplet(client):
         _auto_point_domains_to_droplet(client, ip)
 
     return droplet
+
+
+def _mirror_droplet_to_website(client, droplet_id, droplet_name, ip):
+    """
+    Copy fresh droplet metadata from the legacy ClientProfile onto the
+    matching Website. Idempotent — only writes fields that changed.
+
+    Resolves the Website via the Account derived from the client's
+    user. If no Website exists yet (admin-created CP that never went
+    through onboarding), this is a no-op so provisioning doesn't
+    crash on missing rows.
+    """
+    from clients.account_models import Account
+    account = Account.objects.filter(user=client.user).first()
+    if account is None:
+        return
+    # Pick the website by matching the legacy CP one-to-one. If the
+    # account already has multiple sites and this CP maps to one, the
+    # backfill stamped legacy_client_profile on the Account itself —
+    # so the most natural match is the single Website under it (the
+    # case at provisioning time is always 1 client → 1 site).
+    ws = account.websites.first()
+    if ws is None:
+        return
+    dirty = False
+    if ws.do_droplet_id != str(droplet_id):
+        ws.do_droplet_id = str(droplet_id)
+        dirty = True
+    if ws.do_droplet_name != (droplet_name or ''):
+        ws.do_droplet_name = droplet_name or ''
+        dirty = True
+    if ip and str(ws.do_droplet_ip or '') != str(ip):
+        ws.do_droplet_ip = ip
+        dirty = True
+    if (ws.do_droplet_created_at is None) and ip:
+        ws.do_droplet_created_at = timezone.now()
+        dirty = True
+    if dirty:
+        ws.save(update_fields=[
+            'do_droplet_id', 'do_droplet_name', 'do_droplet_ip',
+            'do_droplet_created_at', 'updated_at',
+        ])
 
 
 def _auto_point_domains_to_droplet(client, droplet_ip):

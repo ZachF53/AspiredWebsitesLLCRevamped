@@ -35,6 +35,13 @@ from django.db import transaction
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
+def _suppress_autocreate_signal(client):
+    """Mark a ClientProfile so the post_save Account/Website
+    autocreate signal short-circuits — this command does its own
+    creation and we don't want a duplicate fire."""
+    client._skip_autocreate = True
+
+
 def _legacy_project_for(client):
     """
     Pick the canonical Project to source per-build fields from for a

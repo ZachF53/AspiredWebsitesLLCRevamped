@@ -61,8 +61,12 @@ class Command(BaseCommand):
             f'{len(by_ip)} have public IPs.')
         self.stdout.write('')
 
-        targets = Website.objects.filter(
-            do_droplet_ip__isnull=False).exclude(do_droplet_ip='')
+        # ``do_droplet_ip`` is a GenericIPAddressField — empty values are
+        # NULL in DB, never ''. Don't chain an ``.exclude(...='')`` after
+        # this: comparing an IP-typed column to a string literal casts
+        # weirdly and silently excludes every row (the bug that returned
+        # "matched: 0" on the first pass against prod).
+        targets = Website.objects.filter(do_droplet_ip__isnull=False)
 
         matched = 0
         already_set = 0
