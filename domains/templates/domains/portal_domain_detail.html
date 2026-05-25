@@ -4,6 +4,7 @@
 {% block title %}{{ reg.domain_name }}{% endblock %}
 
 {% block portal_content %}
+{% include "domains/_sandbox_banner.html" %}
 <header class="portal-page-head">
     <a href="{% url 'domains:portal_domains' %}" class="portal-back">← All domains</a>
     <div class="portal-page-head__row">

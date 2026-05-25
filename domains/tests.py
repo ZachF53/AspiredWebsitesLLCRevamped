@@ -839,7 +839,11 @@ class MultiDomainPerClientTests(TestCase):
 # ── Sandbox banner context wiring ─────────────────────────────────────────
 
 class SandboxBannerContextTests(TestCase):
-    """The portal context must include namecheap_sandbox_mode."""
+    """
+    Banner must show on domain pages but NOT on other portal pages.
+    Avoids spooking clients who are on a non-domain page (dashboard,
+    invoices, etc.) by surfacing an irrelevant "testing mode" warning.
+    """
 
     def setUp(self):
         from django.test import Client as DjangoTestClient
@@ -852,17 +856,73 @@ class SandboxBannerContextTests(TestCase):
         self.tc.force_login(self.user)
         NamecheapConfig.objects.all().delete()
 
-    def test_banner_present_when_sandbox_on(self):
+    def test_banner_present_on_domain_search_when_sandbox_on(self):
         from domains.models import NamecheapConfig
         NamecheapConfig.objects.create(sandbox_mode=True)
-        resp = self.tc.get('/portal/')
+        resp = self.tc.get('/portal/domains/search/')
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Testing mode')
         self.assertContains(resp, 'Nothing is permanent')
 
-    def test_banner_absent_when_sandbox_off(self):
+    def test_banner_present_on_domain_list_when_sandbox_on(self):
         from domains.models import NamecheapConfig
-        NamecheapConfig.objects.create(sandbox_mode=False)
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        resp = self.tc.get('/portal/domains/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Testing mode')
+
+    def test_banner_absent_on_dashboard_even_when_sandbox_on(self):
+        """Non-domain portal pages should NOT carry the banner."""
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.create(sandbox_mode=True)
         resp = self.tc.get('/portal/')
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, 'Testing mode')
+
+    def test_banner_absent_on_domain_pages_when_sandbox_off(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.create(sandbox_mode=False)
+        resp = self.tc.get('/portal/domains/search/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'Testing mode')
+
+
+# ── Settings form has all the WHOIS-required fields ───────────────────────
+
+class SettingsFormFieldsTests(TestCase):
+    """Settings form must include every field domain registration needs."""
+
+    def test_form_includes_all_whois_required_fields(self):
+        from clients.forms import SettingsForm
+        form = SettingsForm()
+        for field in ('contact_name', 'phone', 'address',
+                      'city', 'state', 'zip_code'):
+            self.assertIn(field, form.fields,
+                          f'SettingsForm missing required WHOIS field {field}')
+
+    def test_settings_form_persists_address(self):
+        from clients.forms import SettingsForm
+        user = User.objects.create_user(
+            username='setting', email='s@example.com', password='x')
+        profile = ClientProfile.objects.create(
+            user=user, firm_name='Settings Co')
+        form = SettingsForm(
+            data={
+                'contact_name': 'Test User',
+                'phone': '(512) 555-1234',
+                'address': '500 W St',
+                'city': 'Austin',
+                'state': 'TX',
+                'zip_code': '78701',
+                'preferred_contact_method': 'email',
+                'notify_on_stage_change': True,
+            },
+            instance=profile,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        saved = form.save()
+        self.assertEqual(saved.contact_name, 'Test User')
+        self.assertEqual(saved.address, '500 W St')
+        self.assertEqual(saved.city, 'Austin')
+        self.assertEqual(saved.state, 'TX')
+        self.assertEqual(saved.zip_code, '78701')

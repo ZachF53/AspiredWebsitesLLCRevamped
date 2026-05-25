@@ -1,0 +1,16 @@
+{% comment %}
+    Sandbox-mode banner — included at the top of every domain-related
+    portal template. Rendered only when NamecheapConfig.is_sandbox()
+    is True (the flag arrives in context as namecheap_sandbox_mode
+    via _portal_context). Tells the client "nothing you do here is
+    permanent" so they can test the registration flow freely.
+{% endcomment %}
+{% if namecheap_sandbox_mode %}
+    <div class="portal-sandbox-banner" role="alert">
+        <div class="portal-sandbox-banner__chip">🧪 Testing mode</div>
+        <div class="portal-sandbox-banner__body">
+            <strong>Heads up — we're currently in testing mode.</strong>
+            Any domain you search, register, or change goes to a test environment, not the real internet. <strong>Nothing is permanent</strong>, no money is charged, and the domains you "register" aren't real. You can play freely without consequence.
+        </div>
+    </div>
+{% endif %}

@@ -4,6 +4,7 @@
 {% block title %}DNS — {{ reg.domain_name }}{% endblock %}
 
 {% block portal_content %}
+{% include "domains/_sandbox_banner.html" %}
 <header class="portal-page-head">
     <a href="{% url 'domains:portal_domain_detail' pk=reg.id %}" class="portal-back">← Back to {{ reg.domain_name }}</a>
     <h1>DNS records — {{ reg.domain_name }}</h1>

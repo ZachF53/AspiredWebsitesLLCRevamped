@@ -4,6 +4,7 @@
 {% block title %}Search Domains{% endblock %}
 
 {% block portal_content %}
+{% include "domains/_sandbox_banner.html" %}
 <header class="portal-page-head">
     <a href="{% url 'domains:portal_domains' %}" class="portal-back">← Back to my domains</a>
     <h1>Find a domain</h1>

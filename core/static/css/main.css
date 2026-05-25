@@ -4227,6 +4227,27 @@ button.htmx-request {
     justify-content: flex-end;
 }
 
+/* Multi-column form row — used on settings (city / state / zip) and
+   anywhere else we want fields side-by-side on desktop, stacked on
+   mobile. The form-group--N modifier sets the flex basis. */
+.form-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.form-row > .form-group { flex: 1 1 100%; }
+@media (min-width: 720px) {
+    .form-row > .form-group--two-thirds { flex: 0 0 calc(66.66% - 10px); }
+    .form-row > .form-group--sixth      { flex: 0 0 calc(16.66% - 10px); }
+    .form-row > .form-group--third      { flex: 0 0 calc(33.33% - 10px); }
+    .form-row > .form-group--half       { flex: 0 0 calc(50%    - 7px); }
+}
+.form-error {
+    color: var(--color-danger);
+    font-size: 0.82rem;
+    margin: 4px 0 0;
+}
+
 /* Trust-level segmented control — pure CSS, driven by hidden radios */
 .trust-control { position: relative; }
 
@@ -13008,8 +13029,11 @@ button.htmx-request {
     .portal-sandbox-banner { flex-direction: column; gap: 8px; }
 }
 
-/* ── Admin register form stack ── */
-.admin-form-stack label {
+/* ── Admin form inputs — applies to BOTH .admin-form-stack and
+   the lighter .admin-action-form (used for one-off action panels
+   on detail pages and the HTMX check-availability widget). ── */
+.admin-form-stack label,
+.admin-action-form label {
     display: block;
     margin: 12px 0 6px;
     color: var(--color-text);
@@ -13018,11 +13042,19 @@ button.htmx-request {
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.admin-form-stack label:first-of-type { margin-top: 0; }
+.admin-form-stack label:first-of-type,
+.admin-action-form label:first-of-type { margin-top: 0; }
+
 .admin-form-stack input[type="text"],
 .admin-form-stack input[type="number"],
+.admin-form-stack input[type="email"],
 .admin-form-stack select,
-.admin-form-stack textarea {
+.admin-form-stack textarea,
+.admin-action-form input[type="text"],
+.admin-action-form input[type="number"],
+.admin-action-form input[type="email"],
+.admin-action-form select,
+.admin-action-form textarea {
     width: 100%;
     background: var(--color-bg-deep);
     border: 1px solid var(--color-border-strong);
@@ -13034,9 +13066,26 @@ button.htmx-request {
 }
 .admin-form-stack input:focus,
 .admin-form-stack select:focus,
-.admin-form-stack textarea:focus {
+.admin-form-stack textarea:focus,
+.admin-action-form input:focus,
+.admin-action-form select:focus,
+.admin-action-form textarea:focus {
     border-color: var(--color-orange);
     outline: none;
 }
-.admin-form-stack .muted { font-size: 0.78rem; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--color-text-muted); }
+.admin-form-stack select option,
+.admin-action-form select option {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+}
+.admin-form-stack .muted,
+.admin-action-form .muted {
+    font-size: 0.78rem; text-transform: none;
+    letter-spacing: 0; font-weight: 400;
+    color: var(--color-text-muted);
+}
 .admin-form-submit { margin-top: 18px; }
+
+/* When the action form needs a button BESIDE the input (like the
+   HTMX check-availability widget) instead of below it. */
+.admin-action-form button { margin-top: 14px; }

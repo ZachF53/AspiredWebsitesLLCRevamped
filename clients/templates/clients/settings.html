@@ -5,8 +5,14 @@
 {% block portal_content %}
 <header class="portal-page-head">
     <h1>Settings</h1>
-    <p class="portal-page-head__sub">Manage your account preferences.</p>
+    <p class="portal-page-head__sub">Manage your account info, contact preferences, and the details we use for domain registration.</p>
 </header>
+
+{% if messages %}
+    {% for m in messages %}
+        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+{% endif %}
 
 <section class="portal-section">
     <h2 class="portal-section__title">Account</h2>
@@ -17,18 +23,65 @@
     <p class="form-hint">To change your email or firm name, contact us at 210-896-2536.</p>
 </section>
 
-<section class="portal-section">
-    <h2 class="portal-section__title">Preferences</h2>
-    <form method="post" action="{% url 'clients:settings' %}" class="settings-form">
-        {% csrf_token %}
+<form method="post" action="{% url 'clients:settings' %}" class="settings-form">
+    {% csrf_token %}
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Your contact info</h2>
+        <p class="form-hint form-hint--block">
+            Required for domain registration. WHOIS privacy keeps your address + phone hidden from public WHOIS lookups — these details are used by the registry only.
+        </p>
+
         <div class="form-group">
-            {{ form.phone.label_tag }}{{ form.phone }}
+            {{ form.contact_name.label_tag }}
+            {{ form.contact_name }}
+            {% if form.contact_name.help_text %}<p class="form-hint">{{ form.contact_name.help_text }}</p>{% endif %}
+            {% if form.contact_name.errors %}<p class="form-error">{{ form.contact_name.errors|join:", " }}</p>{% endif %}
         </div>
+
         <div class="form-group">
-            {{ form.preferred_contact_method.label_tag }}{{ form.preferred_contact_method }}
+            {{ form.phone.label_tag }}
+            {{ form.phone }}
+            {% if form.phone.errors %}<p class="form-error">{{ form.phone.errors|join:", " }}</p>{% endif %}
+        </div>
+
+        <div class="form-group">
+            {{ form.address.label_tag }}
+            {{ form.address }}
+            {% if form.address.help_text %}<p class="form-hint">{{ form.address.help_text }}</p>{% endif %}
+            {% if form.address.errors %}<p class="form-error">{{ form.address.errors|join:", " }}</p>{% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group form-group--two-thirds">
+                {{ form.city.label_tag }}
+                {{ form.city }}
+                {% if form.city.errors %}<p class="form-error">{{ form.city.errors|join:", " }}</p>{% endif %}
+            </div>
+            <div class="form-group form-group--sixth">
+                {{ form.state.label_tag }}
+                {{ form.state }}
+                {% if form.state.errors %}<p class="form-error">{{ form.state.errors|join:", " }}</p>{% endif %}
+            </div>
+            <div class="form-group form-group--sixth">
+                {{ form.zip_code.label_tag }}
+                {{ form.zip_code }}
+                {% if form.zip_code.errors %}<p class="form-error">{{ form.zip_code.errors|join:", " }}</p>{% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Preferences</h2>
+        <div class="form-group">
+            {{ form.preferred_contact_method.label_tag }}
+            {{ form.preferred_contact_method }}
         </div>
         <label class="checkbox-row">{{ form.notify_on_stage_change }}<span>{{ form.notify_on_stage_change.label }}</span></label>
-        <button type="submit" class="btn-primary">Save Settings</button>
-    </form>
-</section>
+    </section>
+
+    <div class="settings-form__actions">
+        <button type="submit" class="btn-primary">Save settings</button>
+    </div>
+</form>
 {% endblock %}

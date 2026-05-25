@@ -173,12 +173,24 @@ class FileUploadForm(forms.ModelForm):
 
 
 class SettingsForm(forms.ModelForm):
-    """Client-editable account settings."""
+    """Client-editable account settings — covers contact preferences
+    + the WHOIS-registrant info needed for domain registration."""
 
     class Meta:
         model = ClientProfile
-        fields = ['phone', 'preferred_contact_method', 'notify_on_stage_change']
+        fields = [
+            # Contact identity (required for WHOIS registrant)
+            'contact_name', 'phone',
+            'address', 'city', 'state', 'zip_code',
+            # Preferences
+            'preferred_contact_method', 'notify_on_stage_change',
+        ]
         widgets = {
+            'contact_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Jane Smith',
+                'autocomplete': 'name',
+            }),
             'phone': forms.TextInput(attrs={
                 'class': 'form-control',
                 'type': 'tel',
@@ -186,12 +198,55 @@ class SettingsForm(forms.ModelForm):
                 'inputmode': 'tel', 'autocomplete': 'tel',
                 'maxlength': '14',
             }),
+            'address': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '123 Main Street, Suite 200',
+                'autocomplete': 'street-address',
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Austin',
+                'autocomplete': 'address-level2',
+            }),
+            'state': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'TX',
+                'autocomplete': 'address-level1',
+                'maxlength': '50',
+            }),
+            'zip_code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '78701',
+                'inputmode': 'numeric', 'autocomplete': 'postal-code',
+                'maxlength': '10',
+            }),
             'preferred_contact_method': forms.Select(attrs={'class': 'form-control'}),
         }
         labels = {
+            'contact_name': 'Your name',
+            'phone': 'Phone',
+            'address': 'Street address',
+            'city': 'City',
+            'state': 'State',
+            'zip_code': 'ZIP code',
             'notify_on_stage_change': 'Email me when my project stage changes',
+        }
+        help_texts = {
+            'contact_name': 'Used on invoices, contracts, and as the WHOIS registrant for any domains you register.',
+            'address': 'Your business address. Required for domain registration (kept private by WHOIS privacy).',
         }
 
     def clean_phone(self):
         from core.phone_utils import normalize_phone
         return normalize_phone(self.cleaned_data.get('phone'))
+
+    def clean_state(self):
+        # 2-letter state code preferred but allow longer names.
+        state = (self.cleaned_data.get('state') or '').strip()
+        return state.upper() if len(state) == 2 else state
+
+    def clean_zip_code(self):
+        zip_code = (self.cleaned_data.get('zip_code') or '').strip()
+        # Strip out any non-alphanumeric chars (allow ZIP+4 like
+        # "78701-1234"). US-format check is best-effort.
+        return zip_code

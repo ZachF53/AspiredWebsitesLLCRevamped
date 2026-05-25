@@ -4,6 +4,7 @@
 {% block title %}Register {{ domain }}{% endblock %}
 
 {% block portal_content %}
+{% include "domains/_sandbox_banner.html" %}
 <header class="portal-page-head">
     <a href="{% url 'domains:portal_domains_search' %}" class="portal-back">← Back to search</a>
     <h1>Register {{ domain }}</h1>

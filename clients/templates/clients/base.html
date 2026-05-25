@@ -144,15 +144,6 @@
         </aside>
 
         <main class="portal-main" id="portal-main">
-            {% if namecheap_sandbox_mode %}
-                <div class="portal-sandbox-banner" role="alert">
-                    <div class="portal-sandbox-banner__chip">🧪 Testing mode</div>
-                    <div class="portal-sandbox-banner__body">
-                        <strong>Heads up — we're currently in testing mode.</strong>
-                        Any domain you search, register, or change goes to a test environment, not the real internet. <strong>Nothing is permanent</strong>, no money is charged, and the domains you "register" aren't real. You can play freely without consequence.
-                    </div>
-                </div>
-            {% endif %}
             {% if messages %}
                 <div class="portal-messages">
                     {% for message in messages %}
