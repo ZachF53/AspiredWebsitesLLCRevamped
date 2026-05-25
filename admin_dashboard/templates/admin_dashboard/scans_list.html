@@ -93,14 +93,16 @@
                 <label for="run-scan-client">Client</label>
                 <select id="run-scan-client" name="client_id" class="form-control" required>
                     <option value="">— Select a client —</option>
-                    {# data-url reads only client.website — the
-                       canonical URL field since 2026-05-25. Legacy
-                       data was backfilled from project.live_url
-                       in the same change. Don't chain |default: to
-                       project.live_url here: Django's filter args
-                       don't short-circuit, so a client with no
-                       project (auxiliary vault profiles) blows up
-                       the whole template on .live_url-of-None. #}
+                    {% comment %}
+                        data-url reads only client.website — the
+                        canonical URL field since 2026-05-25. Legacy
+                        data was backfilled from project.live_url
+                        in the same change. Don't chain |default: to
+                        project.live_url here: Django's filter args
+                        don't short-circuit, so a client with no
+                        project (auxiliary vault profiles) blows up
+                        the whole template on .live_url-of-None.
+                    {% endcomment %}
                     {% for c in clients %}
                         <option value="{{ c.id }}"
                                 data-url="{{ c.website|default:'' }}"

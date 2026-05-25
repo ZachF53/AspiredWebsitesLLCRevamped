@@ -29,9 +29,11 @@
         </div>
     {% endif %}
 
-    {# Phase C5 — view-by toggle (category vs website grouping). The
-       same credentials, just sliced differently. Pure CSS toggle so
-       no JS dependency. #}
+    {% comment %}
+        Phase C5 — view-by toggle (category vs website grouping). The
+        same credentials, just sliced differently. Pure CSS toggle so
+        no JS dependency.
+    {% endcomment %}
     <div class="vault-viewby">
         <span class="vault-viewby__label">Group by:</span>
         <a href="?view=category" class="vault-viewby__opt {% if request.GET.view != 'website' %}is-active{% endif %}">Category</a>
@@ -39,9 +41,11 @@
     </div>
 
     {% if request.GET.view == 'website' %}
-        {# Website-grouped view — same cards as the category view,
-           but bucketed by the website tag. Account-wide creds (no
-           site tag) get their own bucket at the top. #}
+        {% comment %}
+            Website-grouped view — same cards as the category view,
+            but bucketed by the website tag. Account-wide creds (no
+            site tag) get their own bucket at the top.
+        {% endcomment %}
         {% if site_groups %}
             {% for sg in site_groups %}
                 <details class="vault-catgroup" open>
