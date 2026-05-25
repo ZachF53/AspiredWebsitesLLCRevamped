@@ -127,3 +127,40 @@ class DomainSubscriptionHelperTests(TestCase):
         self.tier_std.save()
         with self.assertRaises(ValueError):
             get_domain_tier('com')
+
+
+class AvailabilityPricingTests(TestCase):
+    """Regression guard — every TLD must route through tier_slug_for_tld."""
+
+    def setUp(self):
+        ServiceTier.objects.create(
+            slug='domain-standard', category='addon',
+            name='Standard', price=Decimal('75'),
+            is_recurring=True, billing_interval='year',
+            stripe_price_id='price_std')
+        ServiceTier.objects.create(
+            slug='domain-law', category='addon',
+            name='Premium', price=Decimal('175'),
+            is_recurring=True, billing_interval='year',
+            stripe_price_id='price_premium')
+
+    def test_attorney_tlds_priced_premium(self):
+        from domains.services import check_availability_all_tlds
+
+        with patch(
+            'domains.services.get_client'
+        ) as mock_get:
+            mock_get.return_value.check_availability.return_value = [
+                {'domain': f'firmname.{t}', 'available': True,
+                 'is_premium': False, 'premium_price': Decimal('0')}
+                for t in ('com', 'net', 'org', 'law', 'legal', 'attorney')
+            ]
+            results = check_availability_all_tlds('firmname')
+
+        prices = {r['tld']: float(r['retail_price']) for r in results}
+        self.assertEqual(prices['com'], 75)
+        self.assertEqual(prices['net'], 75)
+        self.assertEqual(prices['org'], 75)
+        self.assertEqual(prices['law'], 175)
+        self.assertEqual(prices['legal'], 175)
+        self.assertEqual(prices['attorney'], 175)

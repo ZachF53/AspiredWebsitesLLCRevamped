@@ -42,11 +42,15 @@ def check_availability_all_tlds(name, tlds=None):
     client = get_client()
     raw = client.check_availability(candidates)
 
-    # Pre-load retail prices once.
+    # Pre-load retail prices once, keyed by tier slug so adding new
+    # premium TLDs is a one-line change in PREMIUM_TLDS (no second
+    # edit needed here).
     standard = ServiceTier.objects.filter(slug='domain-standard').first()
     law = ServiceTier.objects.filter(slug='domain-law').first()
-    std_price = standard.price if standard else Decimal('75')
-    law_price = law.price if law else Decimal('175')
+    price_by_slug = {
+        'domain-standard': standard.price if standard else Decimal('75'),
+        'domain-law':      law.price      if law      else Decimal('175'),
+    }
 
     by_domain = {r['domain'].lower(): r for r in raw}
     out = []
@@ -57,7 +61,7 @@ def check_availability_all_tlds(name, tlds=None):
             'tld': tld,
             'domain': d,
             'available': bool(r.get('available')),
-            'retail_price': law_price if tld == 'law' else std_price,
+            'retail_price': price_by_slug[tier_slug_for_tld(tld)],
             'is_premium': bool(r.get('is_premium')),
         })
     return out
