@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Site offline — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<section class="section thanks-page">
+    <div class="container container--narrow">
+        <div class="thanks-page__card">
+            <span class="eyebrow">Site temporarily offline</span>
+            <h1>
+                {% if for_domain %}
+                    {{ for_domain }} is offline.
+                {% else %}
+                    This site is currently offline.
+                {% endif %}
+            </h1>
+            <p class="lead">
+                {% if for_domain %}
+                    The domain <strong>{{ for_domain }}</strong> is registered, but the website it normally points to isn't running right now.
+                {% else %}
+                    The domain you visited is registered, but the website it normally points to isn't running right now.
+                {% endif %}
+            </p>
+            <p class="thanks-page__hint">
+                <strong>If you're the site owner</strong> — your hosting was cancelled or paused.
+                Contact us to restore service:
+            </p>
+            <p class="thanks-page__hint">
+                <a href="mailto:hello@aspiredwebsites.com">hello@aspiredwebsites.com</a>
+                ·
+                <a href="tel:+12108962536">210-896-2536</a>
+            </p>
+            <a class="btn-secondary btn-lg" href="https://aspiredwebsites.com/">Visit Aspired Websites &rarr;</a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

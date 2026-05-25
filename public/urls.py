@@ -18,4 +18,9 @@ urlpatterns = [
     path('login/', views.login_page, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('portal/coming-soon/', views.portal_coming_soon, name='portal_coming_soon'),
+
+    # Domain parking page — destination for cancelled-hosting domains
+    # whose DNS has been re-pointed via URL301 to here. Called by
+    # `domains.services.park_domain`.
+    path('parked/', views.domain_parked, name='domain_parked'),
 ]

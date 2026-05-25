@@ -63,6 +63,15 @@ urlpatterns = [
     path('domains/<uuid:reg_id>/transfer-out/',
          views.admin_domain_transfer_out,
          name='admin_domain_transfer_out'),
+    path('domains/<uuid:reg_id>/resume/',
+         views.admin_domain_resume,
+         name='admin_domain_resume'),
+    path('domains/<uuid:reg_id>/park/',
+         views.admin_domain_park,
+         name='admin_domain_park'),
+    path('domains/<uuid:reg_id>/unpark/',
+         views.admin_domain_unpark,
+         name='admin_domain_unpark'),
 
     # Pricing manager
     path('pricing/', views.pricing_list, name='pricing_list'),

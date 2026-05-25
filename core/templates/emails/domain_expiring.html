@@ -1,0 +1,44 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}{{ domain }} expires in {{ days_remaining }} day{{ days_remaining|pluralize }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:22px;font-weight:700;line-height:1.25;">
+    ⚠ {{ domain }} expires in {{ days_remaining }} day{{ days_remaining|pluralize }}.
+</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ first_name }} — final heads-up.
+</p>
+
+<p style="margin:0 0 18px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Your domain <strong>{{ domain }}</strong> expires
+    {% if expires_at %}on <strong>{{ expires_at|date:"F j, Y" }}</strong>{% endif %}.
+    After that the registry releases the name and <strong>anyone can register it</strong>.
+    Once it's gone we usually can't get it back.
+</p>
+
+<div style="margin:18px 0 22px;padding:18px 20px;background:rgba(232,101,10,0.06);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#FF7B1E;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Two options</div>
+    <p style="margin:0 0 12px;color:#F8FAFC;font-size:14px;line-height:1.55;">
+        <strong>1. Restore the subscription</strong> — fastest way to keep it. Click "Resume" on your portal.
+    </p>
+    <p style="margin:0;color:#F8FAFC;font-size:14px;line-height:1.55;">
+        <strong>2. Transfer it out</strong> to another registrar before the expiry date. Use the auth code we already emailed you.
+    </p>
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:14px 30px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Manage in portal →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:13px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

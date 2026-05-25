@@ -21,21 +21,39 @@
     </div>
 </header>
 
-{% if messages %}
-    {% for m in messages %}
-        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-{% endif %}
+{# Flash messages are rendered by clients/base.html — no need to repeat them here. #}
 
-{% if reg.status == 'grace' and epp_code %}
+{% if reg.status == 'grace' %}
     <section class="domain-detail__panel domain-detail__panel--warning">
         <h2>Transfer-out package</h2>
-        <p>You cancelled this domain. Use the auth code below to transfer it to another registrar. Your service continues until <strong>{{ reg.expires_at|date:"M j, Y" }}</strong>.</p>
-        <div class="domain-detail__epp">
-            <label>Auth (EPP) code</label>
-            <code>{{ epp_code }}</code>
-        </div>
-        <p class="domain-detail__epp-help">Sign up at any registrar (Namecheap, GoDaddy, Cloudflare, etc.) and paste this code into their "transfer in" flow. Most transfers complete within 5-7 days.</p>
+        <p>You cancelled this domain. Service continues until <strong>{{ reg.expires_at|date:"M j, Y" }}</strong> — after that the domain expires and the name is released.</p>
+
+        {% if epp_code %}
+            <div class="domain-detail__epp">
+                <label>Auth (EPP) code</label>
+                <code>{{ epp_code }}</code>
+            </div>
+            <p class="domain-detail__epp-help">Sign up at any registrar (Namecheap, GoDaddy, Cloudflare, etc.) and paste this code into their "transfer in" flow. Most transfers complete within 5-7 days.</p>
+        {% else %}
+            <p class="domain-detail__epp-help">Your transfer auth code arrived in a separate email from the registry. Check your inbox.</p>
+        {% endif %}
+
+        <p style="margin: 18px 0 8px; color: var(--color-text); font-weight: 600;">Changed your mind?</p>
+        <form method="post" action="{% url 'domains:portal_domain_resume' pk=reg.id %}"
+              onsubmit="return confirm('Resume {{ reg.domain_name }}? The auth code above will be invalidated and the registration goes back to auto-renew. You can cancel again later if you change your mind.');">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Resume subscription</button>
+        </form>
+    </section>
+{% endif %}
+
+{% if reg.parked_at %}
+    <section class="domain-detail__panel domain-detail__panel--warning">
+        <h2>This domain is parked</h2>
+        <p>
+            Your hosting was cancelled, so visitors to <strong>{{ reg.domain_name }}</strong> currently see our temporary "site offline" page. The domain itself is still yours — when you're ready to bring the site back, contact us to restore hosting.
+        </p>
+        <p style="margin-bottom:0;">📞 <a href="tel:+12108962536">210-896-2536</a> · ✉️ <a href="mailto:hello@aspiredwebsites.com">hello@aspiredwebsites.com</a></p>
     </section>
 {% endif %}
 
@@ -47,8 +65,16 @@
             <dd>{{ reg.display_status }}</dd>
             <dt>Registered</dt>
             <dd>{% if reg.registered_at %}{{ reg.registered_at|date:"M j, Y" }}{% else %}—{% endif %}</dd>
-            <dt>Renews</dt>
-            <dd>{% if reg.expires_at %}{{ reg.expires_at|date:"M j, Y" }}{% else %}—{% endif %}</dd>
+            <dt>Auto-renew</dt>
+            <dd>
+                {% if reg.status == 'grace' %}
+                    <span style="color:var(--color-orange-light);">Off — cancelling on {{ reg.expires_at|date:"M j, Y" }}</span>
+                {% elif reg.expires_at %}
+                    On — renews ${{ reg.pricing_tier_slug|cut:"domain-"|capfirst|default:"75" }} on {{ reg.expires_at|date:"M j, Y" }}
+                {% else %}
+                    On
+                {% endif %}
+            </dd>
             <dt>WHOIS privacy</dt>
             <dd>{{ reg.whois_privacy_enabled|yesno:"On,Off" }}</dd>
             <dt>Registrar lock</dt>

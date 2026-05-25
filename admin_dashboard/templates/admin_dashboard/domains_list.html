@@ -36,6 +36,16 @@
         <div class="admin-stat"><strong>{{ counts.pending }}</strong><span>pending</span></div>
         <div class="admin-stat"><strong>{{ counts.grace }}</strong><span>grace</span></div>
         <div class="admin-stat admin-stat--bad"><strong>{{ counts.failed }}</strong><span>failed</span></div>
+        {% if nc_balance %}
+            <div class="admin-stat admin-stat--balance {% if nc_balance.available_balance < 25 %}admin-stat--bad{% endif %}">
+                <strong>${{ nc_balance.available_balance|floatformat:2 }}</strong>
+                <span>NC balance ({{ nc_balance.currency }})</span>
+            </div>
+        {% elif nc_balance_error %}
+            <div class="admin-stat admin-stat--bad" title="{{ nc_balance_error }}">
+                <strong>?</strong><span>balance unreachable</span>
+            </div>
+        {% endif %}
     </div>
 
     <table class="admin-table">

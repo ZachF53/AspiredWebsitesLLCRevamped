@@ -23,6 +23,7 @@ from .services import (
     check_availability_all_tlds,
     register_domain_for_client,
     replace_dns_records,
+    resume_domain,
     sync_one,
 )
 
@@ -162,8 +163,15 @@ def portal_domain_register(request, domain):
         messages.error(request, str(exc))
         return redirect('domains:portal_domains_search')
 
+    # Sandbox mode lets clients (or admin) test the whole flow without
+    # a payment method on file — there's no Stripe charge in sandbox
+    # so requiring a card would block the test you set up sandbox
+    # mode to enable.
+    from domains.models import NamecheapConfig
+    is_sandbox = NamecheapConfig.is_sandbox()
+
     if request.method == 'POST':
-        if not default_card:
+        if not default_card and not is_sandbox:
             messages.error(
                 request,
                 'Add a payment method first — domain registration '
@@ -209,13 +217,23 @@ def portal_domain_register(request, domain):
         tld=tld,
         tier=tier,
         default_card=default_card,
+        # Profile completeness no longer blocks registration — Aspired
+        # Websites is the WHOIS registrant on every domain we manage.
+        # We surface it as a soft hint instead: clients who fill it
+        # out get a frictionless transfer-out later on (we update
+        # registrant -> client at cancel time, which needs full data).
         profile_complete=_is_profile_complete(profile),
+        is_sandbox=is_sandbox,
     )
     return render(request, 'domains/portal_domain_register.html', ctx)
 
 
 def _is_profile_complete(profile):
-    """Has the profile got everything we need for WHOIS registrant?"""
+    """
+    Has the client filled in everything we'd need to LATER update the
+    WHOIS registrant to them at transfer-out? Not gating registration;
+    purely informational on the register confirm page.
+    """
     user_email = getattr(profile.user, 'email', '') if profile.user else ''
     return all([
         (profile.contact_name or '').strip(),
@@ -409,4 +427,46 @@ def portal_domain_cancel(request, pk):
             'Cancellation started. Your transfer auth code will arrive '
             'in your email shortly (some TLDs send it as a separate '
             'verification email).')
+    return redirect('domains:portal_domain_detail', pk=pk)
+
+
+@client_required
+@require_POST
+def portal_domain_resume(request, pk):
+    """
+    Undo a cancel — re-lock the domain at the registrar, swap the
+    registrant back to Aspired, cancel the Stripe cancel, clear the
+    issued EPP code (it's been emailed already so we treat it as
+    burned), and put the registration back to active.
+    """
+    profile = request.client_profile
+    registration = get_object_or_404(
+        DomainRegistration, pk=pk, client=profile)
+    if registration.status != 'grace':
+        messages.info(
+            request,
+            'This domain isn\'t in cancellation, so there\'s nothing '
+            'to resume.')
+        return redirect('domains:portal_domain_detail', pk=pk)
+
+    try:
+        resume_domain(registration)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('domains:portal_domain_detail', pk=pk)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'Resume failed for %s', registration.pk)
+        messages.error(
+            request,
+            f'We couldn\'t resume the subscription: {exc}. '
+            f'We\'ve been notified.')
+        return redirect('domains:portal_domain_detail', pk=pk)
+
+    messages.success(
+        request,
+        f'Resumed. {registration.domain_name} is active again and '
+        f'set to auto-renew. The transfer auth code we previously '
+        f'emailed you is now invalid — if you change your mind '
+        f'again you\'ll need to cancel again to get a fresh one.')
     return redirect('domains:portal_domain_detail', pk=pk)

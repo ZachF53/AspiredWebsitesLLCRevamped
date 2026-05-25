@@ -130,6 +130,56 @@ def send_renewal_failed_email(registration):
     )
 
 
+def send_expiring_warning_email(registration, days_remaining):
+    """
+    Final-warning email when a domain is about to ACTUALLY EXPIRE at
+    Namecheap (not just at Stripe). Sent at 7/3/1 days remaining to
+    domains in 'grace' or 'expired_pending' status — the client
+    cancelled or renewal failed repeatedly, and the domain is on
+    track to fall off the registry unless they act.
+
+    Says: "Either transfer it out now or restore the subscription —
+    after expiry it's gone."
+    """
+    client = registration.client
+    portal_url = (
+        f'https://aspiredwebsites.com/portal/domains/{registration.id}/'
+    )
+    text_body = (
+        f'Hi {_first_name(client)},\n\n'
+        f'Important — your domain {registration.domain_name} expires '
+        f'in {days_remaining} day{"s" if days_remaining != 1 else ""}. '
+        f'After that date the registry releases the name and anyone '
+        f'can take it.\n\n'
+        f'You have two options:\n'
+        f'  1. Restore the subscription — fastest way to keep it. '
+        f'Click "Resume" on your portal:\n     {portal_url}\n'
+        f'  2. Transfer it to another registrar before the expiry '
+        f'date. Use the auth code we already emailed you.\n\n'
+        f'Questions? Just reply.\n\n'
+        f'— Zachery Long\nAspired Websites LLC\n'
+    )
+    send_branded(
+        subject=(
+            f'⚠ {registration.domain_name} expires in '
+            f'{days_remaining} day{"s" if days_remaining != 1 else ""}'),
+        template='domain_expiring',
+        context={
+            'first_name': _first_name(client),
+            'domain': registration.domain_name,
+            'days_remaining': days_remaining,
+            'expires_at': registration.expires_at,
+            'portal_url': portal_url,
+            'preheader': (
+                f'Restore the subscription or transfer before '
+                f'{days_remaining} day{"s" if days_remaining != 1 else ""}.'),
+        },
+        recipient_list=[client.user.email],
+        text_body=text_body,
+        secure=True,
+    )
+
+
 def send_transfer_out_email(registration, epp_code):
     """
     Cancel-out email with the EPP/auth code + transfer instructions.

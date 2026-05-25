@@ -5826,12 +5826,23 @@ def send_onboarding(request):
 def admin_domain_list(request):
     """Admin overview of every DomainRegistration across all clients."""
     from domains.models import DomainRegistration, NamecheapConfig
+    from domains.namecheap_client import NamecheapClient
 
     domains_qs = (
         DomainRegistration.objects
         .select_related('client', 'client__user')
         .order_by('-created_at')
     )
+
+    # Live NC account balance widget. Best-effort: failure here
+    # shows '?' on the dashboard but doesn't break the page.
+    nc_balance = None
+    nc_balance_error = ''
+    try:
+        nc_balance = NamecheapClient().get_balances()
+    except Exception as exc:  # noqa: BLE001
+        nc_balance_error = str(exc)
+
     return render(
         request,
         'admin_dashboard/domains_list.html',
@@ -5839,6 +5850,8 @@ def admin_domain_list(request):
             active='domains',
             domains=domains_qs,
             sandbox_mode=NamecheapConfig.is_sandbox(),
+            nc_balance=nc_balance,
+            nc_balance_error=nc_balance_error,
             counts={
                 'active':  domains_qs.filter(status='active').count(),
                 'pending': domains_qs.filter(status='pending').count(),
@@ -6212,6 +6225,88 @@ def admin_domain_dns(request, reg_id):
             record_types=DNS_RECORD_TYPE_CHOICES,
         ),
     )
+
+
+@admin_required
+@require_POST
+def admin_domain_resume(request, reg_id):
+    """Admin equivalent of the portal resume button."""
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import resume_domain
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    try:
+        resume_domain(reg)
+        _msg.success(
+            request,
+            f'{reg.domain_name} resumed. Registrant restored to '
+            f'Aspired Websites, registrar lock re-enabled, Stripe '
+            f'cancel reversed, EPP code invalidated.')
+    except ValueError as exc:
+        _msg.error(request, str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Admin resume failed for %s', reg.pk)
+        _msg.error(request, f'Resume failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+@admin_required
+@require_POST
+def admin_domain_park(request, reg_id):
+    """
+    Force-park a domain (replace DNS with URL301 redirects to
+    /parked/). Normally fired automatically when hosting cancels;
+    this is the manual escape hatch for admin.
+    """
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import park_domain
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    try:
+        park_domain(reg)
+        _msg.success(
+            request,
+            f'{reg.domain_name} parked. Visitors now see our '
+            f'parking page until you unpark or repoint.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Admin park failed for %s', reg.pk)
+        _msg.error(request, f'Park failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+@admin_required
+@require_POST
+def admin_domain_unpark(request, reg_id):
+    """Repoint a parked domain at a specified IP (typically the
+    client's new Droplet)."""
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import DomainRegistration
+    from domains.services import unpark_domain
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+    target_ip = (request.POST.get('ip') or '').strip()
+    if not target_ip:
+        target_ip = str(reg.client.do_droplet_ip or '')
+    if not target_ip:
+        _msg.error(
+            request,
+            'No IP supplied + client has no Droplet IP on file. '
+            'Unparking needs a destination address.')
+        return redirect(
+            'admin_dashboard:admin_domain_detail', reg_id=reg.id)
+    try:
+        unpark_domain(reg, target_ip)
+        _msg.success(
+            request, f'{reg.domain_name} unparked -> {target_ip}.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Admin unpark failed for %s', reg.pk)
+        _msg.error(request, f'Unpark failed: {exc}')
+    return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
 
 
 @admin_required

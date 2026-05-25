@@ -8,11 +8,7 @@
     <p class="portal-page-head__sub">Manage your account info, contact preferences, and the details we use for domain registration.</p>
 </header>
 
-{% if messages %}
-    {% for m in messages %}
-        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-{% endif %}
+{# Flash messages are rendered by clients/base.html — no need to repeat them here. #}
 
 <section class="portal-section">
     <h2 class="portal-section__title">Account</h2>

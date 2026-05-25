@@ -18,4 +18,6 @@ urlpatterns = [
          name='portal_domain_dns'),
     path('<uuid:pk>/cancel/', views.portal_domain_cancel,
          name='portal_domain_cancel'),
+    path('<uuid:pk>/resume/', views.portal_domain_resume,
+         name='portal_domain_resume'),
 ]

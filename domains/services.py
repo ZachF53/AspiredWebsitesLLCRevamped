@@ -26,6 +26,39 @@ from .namecheap_client import NamecheapError, get_client
 logger = logging.getLogger(__name__)
 
 
+# ── ASPIRED WEBSITES as the WHOIS registrant ──────────────────────────────
+# Per the agency / managed-domain model (Option B), Aspired Websites is the
+# public-facing registrant on every domain we register on a client's
+# behalf. This means:
+#   - Client never receives Namecheap / ICANN registration emails
+#   - ICANN contact-verification is one-time for us (when we go live);
+#     every subsequent registration reuses the verified contact
+#   - All renewal / expiry / transfer notifications come to us
+#   - On transfer-out we update the registrant to the CLIENT first
+#     (via NamecheapClient.set_contacts) so they take ownership cleanly
+#
+# Constants kept here (not settings.py) because they are stable business-
+# identity values, not deployment configuration.
+ASPIRED_REGISTRANT = {
+    'first_name': 'Zachery',
+    'last_name': 'Long',
+    'organization_name': 'Aspired Websites LLC',
+    'address1': '8735 Dunwoody Place, Ste R',
+    'address2': '',
+    'city': 'Atlanta',
+    'state_province': 'GA',
+    'postal_code': '30350',
+    'country': 'US',
+    'phone': '+1.2108962536',
+    'email_address': 'zachery@aspiredwebsites.com',
+}
+
+
+def aspired_registrant():
+    """Return a fresh dict of the Aspired WHOIS registrant info."""
+    return dict(ASPIRED_REGISTRANT)
+
+
 # ── Public availability check ────────────────────────────────────────────────
 
 def check_availability_all_tlds(name, tlds=None):
@@ -151,6 +184,16 @@ def register_domain_for_client(client, domain_name, tld):
 
     Returns the DomainRegistration row.
 
+    SANDBOX MODE BYPASS:
+    When NamecheapConfig.is_sandbox() is True, this function does NOT
+    create a Stripe subscription and does NOT require a payment
+    method — the whole flow runs free against the Namecheap sandbox
+    so an admin (or curious client) can rehearse the UI without
+    burning real money. The DomainRegistration row gets
+    stripe_subscription_id='' as the marker. Flipping back to live
+    mode means future registrations charge normally — old sandbox
+    registrations are just informational artifacts.
+
     Raises:
       ValueError                — bad inputs, profile incomplete, name
                                   no longer available
@@ -161,6 +204,9 @@ def register_domain_for_client(client, domain_name, tld):
         create_domain_subscription,
         refund_failed_domain_registration,
     )
+    from domains.models import NamecheapConfig
+
+    is_sandbox = NamecheapConfig.is_sandbox()
 
     tld = tld.lower().lstrip('.')
     domain_name = domain_name.lower()
@@ -191,8 +237,11 @@ def register_domain_for_client(client, domain_name, tld):
             f'{domain_name} is a premium name. Contact us directly '
             f'to register it.')
 
-    # 2. Build registrant.
-    registrant = registrant_from_client(client)
+    # 2. Build registrant — always Aspired Websites (Option B). The
+    # client never receives Namecheap emails this way. Client owns
+    # the domain in our DB and via the contract; legal ownership
+    # transfers to them via set_contacts during transfer-out.
+    registrant = aspired_registrant()
 
     # 3. Create the local row in pending state.
     registration = DomainRegistration.objects.create(
@@ -205,18 +254,28 @@ def register_domain_for_client(client, domain_name, tld):
         pricing_tier_slug=tier_slug_for_tld(tld),
     )
 
-    # 4. Charge first — if the card declines we want to know before
-    # we burn a $9 Namecheap balance entry.
+    # 4. Charge via Stripe — UNLESS we're in sandbox mode, in which
+    # case skip Stripe entirely. Sandbox is for free rehearsal of
+    # the whole flow; charging a real card while pretending the
+    # domain is real would be the exact opposite of that.
     sub_id_for_refund = ''
-    try:
-        sub = create_domain_subscription(client, registration)
-        sub_id_for_refund = getattr(sub, 'id', '') or ''
-    except Exception as exc:
-        registration.status = 'failed'
-        registration.last_api_error = f'Stripe: {exc}'[:2000]
+    if is_sandbox:
+        registration.internal_notes = (
+            (registration.internal_notes or '')
+            + '\n[Sandbox registration — no Stripe sub created]'
+        ).strip()
         registration.save(update_fields=[
-            'status', 'last_api_error', 'updated_at'])
-        raise
+            'internal_notes', 'updated_at'])
+    else:
+        try:
+            sub = create_domain_subscription(client, registration)
+            sub_id_for_refund = getattr(sub, 'id', '') or ''
+        except Exception as exc:
+            registration.status = 'failed'
+            registration.last_api_error = f'Stripe: {exc}'[:2000]
+            registration.save(update_fields=[
+                'status', 'last_api_error', 'updated_at'])
+            raise
 
     # 5. Register with Namecheap.
     try:
@@ -234,10 +293,16 @@ def register_domain_for_client(client, domain_name, tld):
         logger.exception(
             'Namecheap registration failed for %s — refunding %s',
             domain_name, sub_id_for_refund)
-        refunded = refund_failed_domain_registration(
-            sub_id_for_refund,
-            reason=f'Namecheap registration failed: {exc}',
-        )
+        if sub_id_for_refund:
+            refunded = refund_failed_domain_registration(
+                sub_id_for_refund,
+                reason=f'Namecheap registration failed: {exc}',
+            )
+        else:
+            # Sandbox flow — no Stripe sub was ever created so
+            # there's nothing to refund. Treat as refund-succeeded
+            # so the user-facing message stays clean.
+            refunded = True
         registration.status = 'failed'
         registration.last_api_error = f'Namecheap: {exc}'[:2000]
         registration.save(update_fields=[
@@ -335,7 +400,9 @@ def admin_register_domain_for_client(
 
     # NOTE: no premium rejection — admin can override.
 
-    registrant = registrant_from_client(client)
+    # WHOIS registrant: Aspired Websites (Option B managed model).
+    # Same reasoning as the client-facing path.
+    registrant = aspired_registrant()
 
     registration = DomainRegistration.objects.create(
         client=client,
@@ -540,12 +607,16 @@ def sync_one(registration):
 
 def begin_transfer_out(registration, reason=''):
     """
-    Start the transfer-out / cancel flow for `registration`:
-      1. Lift the registrar lock
-      2. Pull the EPP code
-      3. Set local status='grace'
-      4. Cancel the Stripe subscription at period end
-      5. Email the client the transfer-out package
+    Start the transfer-out / cancel flow for `registration`.
+
+    Five steps in order (each best-effort, never fail the whole flow):
+      1. Update WHOIS registrant from Aspired -> the client (so they
+         take legal ownership cleanly before transfer). Skipped if
+         the client's profile is incomplete; admin emailed instead.
+      2. Lift the registrar lock so a transfer-out can be initiated
+      3. Pull the EPP code from Namecheap
+      4. Set local status='grace' + cancel the Stripe sub at period end
+      5. Email the client the transfer-out package with EPP + steps
 
     Returns the EPP code (already saved encrypted on the row).
     """
@@ -555,14 +626,42 @@ def begin_transfer_out(registration, reason=''):
     nc = get_client()
     epp = ''
 
+    # 1. Update WHOIS to the client (Option B managed-model handover).
+    # If their profile is incomplete we keep Aspired as registrant
+    # for now — admin can manually update once the client fills in
+    # their settings. Logged either way so an admin can review.
+    try:
+        client_registrant = registrant_from_client(registration.client)
+        nc.set_contacts(registration.domain_name, client_registrant)
+        logger.info(
+            'begin_transfer_out: registrant updated to client for %s',
+            registration.domain_name)
+    except ValueError as exc:
+        # Profile incomplete — proceed with Aspired as registrant.
+        # Admin gets the alert at end so they can resolve manually.
+        logger.warning(
+            'begin_transfer_out: cannot update registrant for %s — '
+            'client profile incomplete (%s). Aspired remains '
+            'registrant; admin will need to update manually.',
+            registration.domain_name, exc)
+        registration.last_api_error = (
+            f'registrant update skipped: {exc}'[:2000])
+    except NamecheapError as exc:
+        logger.exception(
+            'set_contacts failed for %s', registration.domain_name)
+        registration.last_api_error = f'set_contacts: {exc}'[:2000]
+
+    # 2. Lift the registrar lock.
     try:
         nc.set_registrar_lock(registration.domain_name, lock=False)
         registration.registrar_lock = False
     except NamecheapError as exc:
         logger.exception(
-            'Unlock failed for %s during transfer-out', registration.domain_name)
+            'Unlock failed for %s during transfer-out',
+            registration.domain_name)
         registration.last_api_error = f'unlock: {exc}'[:2000]
 
+    # 3. Pull EPP code.
     try:
         epp = nc.get_epp_code(registration.domain_name)
     except NamecheapError as exc:
@@ -576,12 +675,14 @@ def begin_transfer_out(registration, reason=''):
     registration.status = 'grace'
     registration.save()
 
+    # 4. Cancel the Stripe sub at period end.
     try:
         cancel_domain_subscription(registration, reason=reason)
     except Exception:
         logger.exception(
             'Stripe sub cancel failed for %s', registration.domain_name)
 
+    # 5. Email the client.
     try:
         send_transfer_out_email(registration, epp)
     except Exception:
@@ -589,3 +690,136 @@ def begin_transfer_out(registration, reason=''):
             'Transfer-out email failed for %s', registration.domain_name)
 
     return epp
+
+
+# ── Resume / undo cancel ────────────────────────────────────────────────────
+
+def resume_domain(registration):
+    """
+    Undo a cancel-at-period-end on a domain registration. Inverse of
+    `begin_transfer_out`:
+      1. Re-lock the domain at Namecheap (registrar lock back on)
+      2. Update WHOIS back to Aspired Websites (in case it was changed
+         to the client during the previous transfer-out attempt)
+      3. Cancel the Stripe-side cancel (cancel_at_period_end=False)
+      4. Clear the locally-stored EPP code (it would have been
+         compromised by the prior email; force them to re-cancel
+         to get a fresh one)
+      5. Status back to 'active'
+
+    Returns the updated DomainRegistration. Raises ValueError if the
+    registration isn't currently in grace status — there's nothing
+    to resume from any other state.
+    """
+    from billing.stripe_helpers import resume_domain_subscription
+
+    if registration.status != 'grace':
+        raise ValueError(
+            f'Cannot resume {registration.domain_name} — it is '
+            f'{registration.get_status_display()}, not in grace.')
+
+    nc = get_client()
+
+    # 1. Re-lock at registrar.
+    try:
+        nc.set_registrar_lock(registration.domain_name, lock=True)
+        registration.registrar_lock = True
+    except NamecheapError as exc:
+        logger.exception(
+            'Re-lock failed for %s during resume', registration.domain_name)
+        registration.last_api_error = f're-lock: {exc}'[:2000]
+
+    # 2. Restore Aspired as registrant.
+    try:
+        nc.set_contacts(registration.domain_name, aspired_registrant())
+    except NamecheapError as exc:
+        logger.exception(
+            'restore-registrant failed for %s', registration.domain_name)
+        registration.last_api_error = (
+            f'restore registrant: {exc}'[:2000])
+
+    # 3. Cancel the Stripe cancel.
+    try:
+        resume_domain_subscription(registration)
+    except Exception:
+        logger.exception(
+            'Stripe resume failed for %s', registration.domain_name)
+
+    # 4. Clear EPP code — the one we already emailed is compromised.
+    registration.set_epp_code('')
+
+    # 5. Back to active.
+    registration.status = 'active'
+    registration.last_api_call_at = timezone.now()
+    registration.save()
+    logger.info(
+        'resume_domain: %s back to active for client %s',
+        registration.domain_name, registration.client_id)
+
+    return registration
+
+
+# ── Park (hosting cancelled, domain stays) ─────────────────────────────────
+
+def park_domain(registration):
+    """
+    Replace DNS with URL301 redirects pointing at our parking page.
+
+    Called when the client cancels hosting but keeps the domain.
+    Instead of letting visitors hit a dead Droplet IP and see
+    "connection refused", their browser gets a clean HTTP 301 to
+    https://aspiredwebsites.com/parked/?for=<their-domain>.
+
+    Implemented via Namecheap's URL301 record type so we don't
+    need any nginx config or shared IP infrastructure for this.
+    Apex + www both redirect.
+    """
+    nc = get_client()
+    parking_url = (
+        f'https://aspiredwebsites.com/parked/'
+        f'?for={registration.domain_name}'
+    )
+    new_records = [
+        {'host': '@',   'type': 'URL301',
+         'value': parking_url, 'ttl': 1800, 'auto_managed': True},
+        {'host': 'www', 'type': 'URL301',
+         'value': parking_url, 'ttl': 1800, 'auto_managed': True},
+    ]
+    nc.set_dns_records(registration.domain_name, new_records)
+
+    # Mirror locally.
+    DNSRecord.objects.filter(domain=registration).delete()
+    for r in new_records:
+        DNSRecord.objects.create(
+            domain=registration,
+            record_type=r['type'],
+            host=r['host'],
+            value=r['value'],
+            ttl=r['ttl'],
+            auto_managed=True,
+        )
+
+    registration.parked_at = timezone.now()
+    registration.auto_a_record_set_at = None
+    registration.last_api_call_at = timezone.now()
+    registration.save(update_fields=[
+        'parked_at', 'auto_a_record_set_at',
+        'last_api_call_at', 'updated_at',
+    ])
+    logger.info(
+        'park_domain: %s now points at parking page',
+        registration.domain_name)
+
+
+def unpark_domain(registration, new_ip):
+    """
+    Inverse of park_domain — replace the URL301s with apex A + www
+    CNAME pointing at `new_ip`. Called when a parked domain gets
+    new hosting and needs to come back online.
+    """
+    set_auto_a_record(registration, new_ip)
+    registration.parked_at = None
+    registration.save(update_fields=['parked_at', 'updated_at'])
+    logger.info(
+        'unpark_domain: %s repointed to %s',
+        registration.domain_name, new_ip)

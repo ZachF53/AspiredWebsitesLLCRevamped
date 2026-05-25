@@ -721,6 +721,37 @@ def cancel_domain_subscription(registration, reason=''):
     return updated
 
 
+def resume_domain_subscription(registration):
+    """
+    Undo a pending cancel-at-period-end on a domain Stripe sub. Used
+    by `resume_domain` when a client (or admin) changes their mind
+    after starting the transfer-out flow.
+
+    No-op if no sub on file (sandbox registrations) or if the sub
+    isn't currently scheduled to cancel.
+    """
+    _init()
+    sub_id = registration.stripe_subscription_id
+    if not sub_id:
+        return None
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+    except Exception:
+        registration.stripe_subscription_id = ''
+        registration.save(update_fields=[
+            'stripe_subscription_id', 'updated_at'])
+        return None
+    if not getattr(sub, 'cancel_at_period_end', False):
+        return sub                          # already not scheduled to cancel
+    updated = stripe.Subscription.modify(
+        sub_id, cancel_at_period_end=False)
+    logger.info(
+        'resume_domain_subscription: client %s domain %s '
+        'cancel_at_period_end reset', registration.client_id,
+        registration.domain_name)
+    return updated
+
+
 def refund_failed_domain_registration(stripe_subscription_id, reason=''):
     """
     Best-effort cleanup when a Stripe charge succeeded but the

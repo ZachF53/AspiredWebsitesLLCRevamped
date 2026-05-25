@@ -36,6 +36,7 @@
                 <dt>NS auto-renew</dt><dd>{{ reg.auto_renew_at_registrar|yesno:"On,Off" }}</dd>
                 <dt>Stripe sub</dt><dd><code>{{ reg.stripe_subscription_id|default:"—" }}</code></dd>
                 <dt>Auto-A set at</dt><dd>{% if reg.auto_a_record_set_at %}{{ reg.auto_a_record_set_at|date:"Y-m-d H:i" }}{% else %}never{% endif %}</dd>
+                <dt>Parked at</dt><dd>{% if reg.parked_at %}<span style="color:var(--color-orange-light);">{{ reg.parked_at|date:"Y-m-d H:i" }} (DNS redirecting)</span>{% else %}—{% endif %}</dd>
                 <dt>Last sync</dt><dd>{% if reg.last_synced_at %}{{ reg.last_synced_at|date:"Y-m-d H:i" }}{% else %}never{% endif %}</dd>
                 <dt>Last API error</dt><dd>{{ reg.last_api_error|default:"none" }}</dd>
                 <dt>Nameservers</dt><dd>{% for ns in reg.nameservers %}<div>{{ ns }}</div>{% empty %}—{% endfor %}</dd>
@@ -50,6 +51,34 @@
                     <a href="{% url 'admin_dashboard:admin_domain_dns' reg_id=reg.id %}" class="btn-primary">Edit DNS records →</a>
                     <p class="muted">Full record editor — push any A/AAAA/CNAME/MX/TXT/URL change to Namecheap.</p>
                 </div>
+            {% endif %}
+
+            {% if reg.status == 'grace' %}
+                <form method="post" action="{% url 'admin_dashboard:admin_domain_resume' reg_id=reg.id %}" class="admin-action-form"
+                      onsubmit="return confirm('Resume {{ reg.domain_name }}? Restores Aspired as registrant, re-locks at NC, cancels the Stripe cancel, invalidates the issued EPP code.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary">Resume subscription</button>
+                    <p class="muted">Undoes a cancel — only available in grace status.</p>
+                </form>
+            {% endif %}
+
+            {% if reg.status == 'active' and not reg.parked_at %}
+                <form method="post" action="{% url 'admin_dashboard:admin_domain_park' reg_id=reg.id %}" class="admin-action-form"
+                      onsubmit="return confirm('Park {{ reg.domain_name }}? Replaces DNS with URL301 redirects to the offline page. Use unpark to bring it back.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary">Park domain</button>
+                    <p class="muted">Replaces DNS with redirects to our /parked/ page. Fires automatically on hosting cancel; manual override here.</p>
+                </form>
+            {% endif %}
+
+            {% if reg.parked_at %}
+                <form method="post" action="{% url 'admin_dashboard:admin_domain_unpark' reg_id=reg.id %}" class="admin-action-form">
+                    {% csrf_token %}
+                    <label>Unpark — IP to point at <span class="muted">(blank uses client's Droplet IP {{ reg.client.do_droplet_ip|default:"—" }})</span></label>
+                    <input type="text" name="ip" placeholder="161.35.108.209" autocomplete="off">
+                    <button type="submit" class="btn-primary">Unpark + repoint A record</button>
+                    <p class="muted">Parked {{ reg.parked_at|date:"M j, Y" }} — currently redirecting to our offline page.</p>
+                </form>
             {% endif %}
 
             <form method="post" action="{% url 'admin_dashboard:admin_domain_sync' reg_id=reg.id %}" class="admin-action-form">

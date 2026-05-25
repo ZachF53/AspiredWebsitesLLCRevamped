@@ -13029,6 +13029,49 @@ button.htmx-request {
     .portal-sandbox-banner { flex-direction: column; gap: 8px; }
 }
 
+/* ── Admin .admin-stat-row + helpers (used on domains list) ── */
+.admin-stat-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 14px 0 18px;
+}
+.admin-stat-row .admin-stat {
+    flex: 0 1 auto;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    box-shadow: none;
+    transition: border-color 0.15s ease;
+}
+.admin-stat-row .admin-stat:hover { transform: none; }
+.admin-stat-row .admin-stat strong {
+    display: block;
+    font-size: 1.4rem;
+    line-height: 1.1;
+    color: var(--color-text);
+    font-weight: 800;
+}
+.admin-stat-row .admin-stat span {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+}
+.admin-stat-row .admin-stat--bad {
+    border-color: rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.04);
+}
+.admin-stat-row .admin-stat--bad strong { color: var(--color-danger); }
+.admin-stat-row .admin-stat--balance {
+    border-color: rgba(232, 101, 10, 0.35);
+    background: rgba(232, 101, 10, 0.04);
+}
+.admin-stat-row .admin-stat--balance strong { color: var(--color-orange-light); }
+
 /* ── Admin form inputs — applies to BOTH .admin-form-stack and
    the lighter .admin-action-form (used for one-off action panels
    on detail pages and the HTMX check-availability widget). ── */

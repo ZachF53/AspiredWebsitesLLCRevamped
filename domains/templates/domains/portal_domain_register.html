@@ -13,11 +13,7 @@
     </p>
 </header>
 
-{% if messages %}
-    {% for m in messages %}
-        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-{% endif %}
+{# Flash messages are rendered by clients/base.html — no need to repeat them here. #}
 
 <div class="domain-confirm">
     <section class="domain-confirm__main">
@@ -37,7 +33,15 @@
 
     <section class="domain-confirm__side">
         <h3 class="domain-confirm__sub">Payment method</h3>
-        {% if default_card %}
+        {% if is_sandbox %}
+            <div class="maint-confirm__card" style="background:rgba(13,148,136,0.08);border-color:rgba(13,148,136,0.35);">
+                <span class="pm-card__brand">🧪 TEST</span>
+                <span class="pm-card__last4">No charge in testing mode</span>
+            </div>
+            <p class="form-hint form-hint--block">
+                Sandbox mode is on — we skip the card and skip Stripe entirely. You can register freely to test the flow; nothing is billed and nothing is permanent.
+            </p>
+        {% elif default_card %}
             <div class="maint-confirm__card">
                 <span class="pm-card__brand">{{ default_card.brand }}</span>
                 <span class="pm-card__last4">•••• {{ default_card.last4 }}</span>
@@ -54,33 +58,53 @@
             </div>
         {% endif %}
 
-        <h3 class="domain-confirm__sub">WHOIS registrant</h3>
-        {% if profile_complete %}
-            <p class="form-hint form-hint--block">
-                We'll register the domain using your account info (name, business name, address, phone, email). WHOIS privacy keeps these details hidden from the public WHOIS database.
+        <h3 class="domain-confirm__sub">Who owns it</h3>
+        <p class="form-hint form-hint--block">
+            <strong>You own this domain</strong> — recorded in your
+            account here. Aspired Websites is listed as the public WHOIS
+            registrant so you never get the registry's verification +
+            renewal emails. If you ever cancel, we update the WHOIS to
+            your name and hand you the transfer auth code so you can
+            move it to any registrar you like.
+        </p>
+        {% if not profile_complete %}
+            <p class="form-hint form-hint--block" style="color: var(--color-orange-light);">
+                <strong>Quick tip:</strong>
+                fill out your address + phone on <a href="{% url 'clients:settings' %}">Settings</a> — you don't need them today, but it makes future transfer-out instant instead of needing to gather info then.
             </p>
-        {% else %}
-            <div class="maint-confirm__no-card">
-                <p><strong>Profile incomplete.</strong></p>
-                <p>Domain registration needs your name, address, city, state, ZIP, and phone — please <a href="{% url 'clients:settings' %}">finish your profile</a> first.</p>
-            </div>
         {% endif %}
 
         <h3 class="domain-confirm__sub">What you're agreeing to</h3>
-        <ul class="maint-confirm__terms">
-            <li>Billed <strong>${{ tier.price|floatformat:0 }}</strong> today, then auto-renewed annually on the same date.</li>
-            <li>Cancel any time — we'll email you the transfer-out package immediately so you can move the domain to another registrar.</li>
-            <li>Domain registrations are <strong>non-refundable</strong> once registered (we've already paid the registry).</li>
-        </ul>
+        {% if is_sandbox %}
+            <ul class="maint-confirm__terms">
+                <li><strong>No charge</strong> — we're in testing mode, this is a free rehearsal.</li>
+                <li>The registered "domain" lives on the Namecheap sandbox registry — it doesn't resolve on the public internet.</li>
+                <li>When testing mode is turned off, future registrations will charge normally.</li>
+            </ul>
+        {% else %}
+            <ul class="maint-confirm__terms">
+                <li>Billed <strong>${{ tier.price|floatformat:0 }}</strong> today, then auto-renewed annually on the same date.</li>
+                <li>Cancel any time — we'll email you the transfer-out package immediately so you can move the domain to another registrar.</li>
+                <li>Domain registrations are <strong>non-refundable</strong> once registered (we've already paid the registry).</li>
+            </ul>
+        {% endif %}
 
         <form method="post" action="{% url 'domains:portal_domain_register' domain=domain %}" class="maint-confirm__form">
             {% csrf_token %}
             <button type="submit" class="btn-primary btn-block btn-lg"
-                    {% if not default_card or not profile_complete %}disabled aria-disabled="true"{% endif %}>
-                Register {{ domain }} — ${{ tier.price|floatformat:0 }}
+                    {% if not is_sandbox and not default_card %}disabled aria-disabled="true"{% endif %}>
+                {% if is_sandbox %}
+                    Register {{ domain }} (sandbox)
+                {% else %}
+                    Register {{ domain }} — ${{ tier.price|floatformat:0 }}
+                {% endif %}
             </button>
             <p class="maint-confirm__secure">
-                Secured by Stripe. Card details never touch our servers.
+                {% if is_sandbox %}
+                    No money is charged — testing mode is on.
+                {% else %}
+                    Secured by Stripe. Card details never touch our servers.
+                {% endif %}
             </p>
         </form>
     </section>

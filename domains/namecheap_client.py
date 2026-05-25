@@ -474,6 +474,78 @@ class NamecheapClient:
         )
         return True
 
+    def set_contacts(self, domain, registrant):
+        """
+        Update WHOIS contacts on an existing registration. Pushes the
+        same contact dict under all four roles (Registrant, Tech,
+        Admin, AuxBilling) — same as we do on registration.
+
+        Used at transfer-out time: we change registrant from Aspired
+        Websites to the client's name so they take over legal
+        ownership cleanly before they transfer to another registrar.
+
+        Returns True on success.
+        """
+        params = {'DomainName': domain}
+        for role in ('Registrant', 'Tech', 'Admin', 'AuxBilling'):
+            params.update({
+                f'{role}FirstName':       registrant['first_name'],
+                f'{role}LastName':        registrant['last_name'],
+                f'{role}Address1':        registrant['address1'],
+                f'{role}Address2':        registrant.get('address2', ''),
+                f'{role}City':            registrant['city'],
+                f'{role}StateProvince':   registrant['state_province'],
+                f'{role}PostalCode':      registrant['postal_code'],
+                f'{role}Country':         registrant['country'],
+                f'{role}Phone':           registrant['phone'],
+                f'{role}EmailAddress':    registrant['email_address'],
+                f'{role}OrganizationName':
+                    registrant.get('organization_name', ''),
+            })
+        self._call(
+            'namecheap.domains.setContacts',
+            params=params, allow_retry=False,
+        )
+        return True
+
+    def get_balances(self):
+        """
+        Return the Namecheap account balance breakdown:
+          {'available_balance': Decimal, 'account_balance': Decimal,
+           'earned_amount': Decimal, 'withdrawable_amount': Decimal,
+           'funds_required_for_auto_renew': Decimal, 'currency': str}
+
+        Used by the admin balance widget so we can alert before
+        running out of funds for registrations / renewals.
+        """
+        root = self._call(
+            'namecheap.users.getBalances',
+            allow_retry=True,
+        )
+        result = root.find('.//nc:UserGetBalancesResult', NAMESPACE)
+        if result is None:
+            return {
+                'available_balance':              Decimal('0'),
+                'account_balance':                Decimal('0'),
+                'earned_amount':                  Decimal('0'),
+                'withdrawable_amount':            Decimal('0'),
+                'funds_required_for_auto_renew':  Decimal('0'),
+                'currency':                       'USD',
+            }
+        def _d(name):
+            try:
+                return Decimal(result.get(name, '0') or '0')
+            except Exception:
+                return Decimal('0')
+        return {
+            'available_balance':              _d('AvailableBalance'),
+            'account_balance':                _d('AccountBalance'),
+            'earned_amount':                  _d('EarnedAmount'),
+            'withdrawable_amount':            _d('WithdrawableAmount'),
+            'funds_required_for_auto_renew':  _d('FundsRequiredForAutoRenew'),
+            'currency':                       result.get('Currency', 'USD'),
+        }
+
     def set_registrar_lock(self, domain, lock):
         """Toggle the transfer-protect registrar lock."""
         self._call(

@@ -458,6 +458,10 @@ def _handle_subscription_deleted(event):
     if client.stripe_hosting_subscription_id == sub_id:
         client.stripe_hosting_subscription_id = ''
         fields.append('stripe_hosting_subscription_id')
+        # Hosting cancelled → park every domain still pointing at
+        # this client's now-defunct Droplet. Best-effort: failure
+        # here doesn't block the rest of subscription teardown.
+        _park_client_domains_on_hosting_cancel(client)
     if client.stripe_subscription_id == sub_id:
         client.maintenance_active = False
         client.stripe_subscription_id = ''
@@ -761,6 +765,34 @@ def _domain_renewal_gate(sub_id):
             'invoice.upcoming (domain): gate failed for %s',
             reg.domain_name)
     return True
+
+
+def _park_client_domains_on_hosting_cancel(client):
+    """
+    Re-point every active domain the client owns at our parking page
+    when hosting is cancelled. Without this, visitors hit a dead
+    Droplet IP. Best-effort: never raise — just log.
+    """
+    try:
+        from domains.models import DomainRegistration
+        from domains.services import park_domain
+        regs = list(DomainRegistration.objects.filter(
+            client=client, status='active'))
+        for reg in regs:
+            try:
+                park_domain(reg)
+                logger.info(
+                    'hosting cancel: parked domain %s',
+                    reg.domain_name)
+            except Exception:
+                logger.exception(
+                    'hosting cancel: park failed for %s — admin '
+                    'will need to manually park',
+                    reg.domain_name)
+    except Exception:
+        logger.exception(
+            'hosting cancel: bulk domain park step failed '
+            'for client %s', client.pk)
 
 
 def _alert_admin_domain_renewal_failed(registration):

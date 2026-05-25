@@ -902,3 +902,23 @@ def portal_coming_soon(request):
         'active_nav': 'login',
         'meta_title': 'Portal Coming Soon — Aspired Websites',
     })
+
+
+def domain_parked(request):
+    """
+    Landing page for cancelled-hosting domains whose DNS now redirects
+    here. ?for=clientdomain.com tells us which domain so we can show
+    it on the page. We do NOT trust the param — only display it after
+    a strict shape check; the page never queries any client info.
+    """
+    raw = (request.GET.get('for') or '').strip().lower()
+    # Hostname-shape check — letters, digits, dots, hyphens only.
+    safe_for = ''
+    if raw and 0 < len(raw) <= 253:
+        if all(c.isalnum() or c in '.-' for c in raw):
+            safe_for = raw
+    return render(request, 'public/domain_parked.html', {
+        'active_nav': '',
+        'for_domain': safe_for,
+        'meta_title': 'Site offline — Aspired Websites',
+    })

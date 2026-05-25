@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from billing.pricing_models import ServiceTier, TierFeature
 from clients.models import ClientProfile
@@ -16,6 +17,19 @@ from domains.models import (
 from domains.services import registrant_from_client
 
 User = get_user_model()
+
+
+def _healthy_balance():
+    """A safe stub for `NamecheapClient.get_balances()` — used in tests
+    that patch the client but don't care about the balance widget."""
+    return {
+        'available_balance':             Decimal('100'),
+        'account_balance':               Decimal('100'),
+        'earned_amount':                 Decimal('0'),
+        'withdrawable_amount':           Decimal('0'),
+        'funds_required_for_auto_renew': Decimal('0'),
+        'currency':                      'USD',
+    }
 
 
 @override_settings(
@@ -800,6 +814,74 @@ class AdminRegisterDomainTests(TestCase):
             self.assertIn('not available', str(ctx.exception))
 
 
+# ── Sandbox mode bypasses Stripe ──────────────────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class SandboxBypassesStripeTests(TestCase):
+    """
+    When sandbox mode is on, register_domain_for_client MUST NOT
+    touch Stripe — no subscription created, no payment-method check,
+    no charge. Otherwise sandbox testing requires a real card on
+    file, defeating the whole point.
+    """
+
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='sb', email='sb@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='SB Co',
+            contact_name='Sandy B', address='1 Way',
+            city='Austin', state='TX', zip_code='78701',
+            phone='5125551212')
+
+    def test_sandbox_register_does_not_call_stripe(self):
+        from domains.services import register_domain_for_client
+        with patch('domains.services.get_client') as mock_nc, \
+             patch('billing.stripe_helpers.create_domain_subscription') as mock_stripe:
+            mock_nc.return_value.check_availability.return_value = [
+                {'domain': 'sbtest.com', 'available': True,
+                 'is_premium': False, 'premium_price': Decimal('0')}
+            ]
+            mock_nc.return_value.register_domain.return_value = {
+                'domain': 'sbtest.com', 'registered': True,
+                'domain_id': 'nc_sb1', 'whois_guard_enabled': True,
+                'charged_amount': Decimal('9.00'),
+                'order_id': 'ord_sb1', 'transaction_id': 'tx_sb1',
+            }
+            reg = register_domain_for_client(self.profile, 'sbtest', 'com')
+
+        mock_stripe.assert_not_called()
+        self.assertEqual(reg.stripe_subscription_id, '')
+        self.assertEqual(reg.status, 'active')
+        self.assertIn('Sandbox', reg.internal_notes)
+
+    def test_sandbox_register_does_not_require_default_card(self):
+        """Profile with NO stripe_customer_id must still be able to
+        register in sandbox mode."""
+        from domains.services import register_domain_for_client
+        self.assertEqual(self.profile.stripe_customer_id, '')
+        with patch('domains.services.get_client') as mock_nc:
+            mock_nc.return_value.check_availability.return_value = [
+                {'domain': 'nocard.com', 'available': True,
+                 'is_premium': False, 'premium_price': Decimal('0')}
+            ]
+            mock_nc.return_value.register_domain.return_value = {
+                'domain': 'nocard.com', 'registered': True,
+                'domain_id': 'nc_nc1', 'whois_guard_enabled': True,
+                'charged_amount': Decimal('9.00'),
+                'order_id': 'ord_nc1', 'transaction_id': 'tx_nc1',
+            }
+            reg = register_domain_for_client(self.profile, 'nocard', 'com')
+        self.assertEqual(reg.status, 'active')
+
+
 # ── Multi-domain per client ───────────────────────────────────────────────
 
 class MultiDomainPerClientTests(TestCase):
@@ -900,6 +982,57 @@ class SettingsFormFieldsTests(TestCase):
             self.assertIn(field, form.fields,
                           f'SettingsForm missing required WHOIS field {field}')
 
+    def test_message_blocks_not_duplicated_in_domain_templates(self):
+        """Regression — each domain template must NOT render its own
+        messages block; base.html handles all flashes."""
+        import os
+        import re
+        domain_templates_dir = os.path.join(
+            os.path.dirname(__file__), 'templates', 'domains')
+        offending = []
+        msg_block = re.compile(r'\{%\s*if messages\s*%\}')
+        for fname in os.listdir(domain_templates_dir):
+            if not fname.endswith('.html'):
+                continue
+            if fname.startswith('_'):
+                continue   # partials are fine, they're includes
+            path = os.path.join(domain_templates_dir, fname)
+            with open(path, encoding='utf-8') as f:
+                if msg_block.search(f.read()):
+                    offending.append(fname)
+        self.assertEqual(
+            offending, [],
+            f'Templates duplicating the messages block: {offending}. '
+            f'Remove these — base.html renders flash messages already.')
+
+    def test_aspired_constants_match_claude_md(self):
+        """Lock the WHOIS registrant identity so a refactor doesn't
+        silently change what's recorded at the registry."""
+        from domains.services import ASPIRED_REGISTRANT
+        self.assertEqual(ASPIRED_REGISTRANT['first_name'], 'Zachery')
+        self.assertEqual(ASPIRED_REGISTRANT['last_name'], 'Long')
+        self.assertEqual(
+            ASPIRED_REGISTRANT['organization_name'],
+            'Aspired Websites LLC')
+        self.assertEqual(
+            ASPIRED_REGISTRANT['address1'],
+            '8735 Dunwoody Place, Ste R')
+        self.assertEqual(ASPIRED_REGISTRANT['city'], 'Atlanta')
+        self.assertEqual(ASPIRED_REGISTRANT['state_province'], 'GA')
+        self.assertEqual(ASPIRED_REGISTRANT['postal_code'], '30350')
+        self.assertEqual(ASPIRED_REGISTRANT['country'], 'US')
+        self.assertEqual(ASPIRED_REGISTRANT['phone'], '+1.2108962536')
+        self.assertEqual(
+            ASPIRED_REGISTRANT['email_address'],
+            'zachery@aspiredwebsites.com')
+
+    def test_aspired_registrant_returns_fresh_dict(self):
+        """Caller mutation shouldn't poison the constant."""
+        from domains.services import aspired_registrant, ASPIRED_REGISTRANT
+        d = aspired_registrant()
+        d['first_name'] = 'EVIL'
+        self.assertEqual(ASPIRED_REGISTRANT['first_name'], 'Zachery')
+
     def test_settings_form_persists_address(self):
         from clients.forms import SettingsForm
         user = User.objects.create_user(
@@ -926,3 +1059,607 @@ class SettingsFormFieldsTests(TestCase):
         self.assertEqual(saved.city, 'Austin')
         self.assertEqual(saved.state, 'TX')
         self.assertEqual(saved.zip_code, '78701')
+
+
+# ── Aspired-as-registrant is what we send to Namecheap ─────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=False,
+    NAMECHEAP_LIVE_API_USER='x', NAMECHEAP_LIVE_API_KEY='x',
+    NAMECHEAP_LIVE_USERNAME='x',
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class AspiredRegistrantOnRegisterTests(TestCase):
+    """Both register paths must use Aspired (not the client) as registrant."""
+
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=False)
+        # Add a Stripe domain tier so create_domain_subscription
+        # can resolve a Price ID (the client path uses Stripe live).
+        ServiceTier.objects.create(
+            slug='domain-standard', category='addon',
+            name='Std', price=Decimal('75'),
+            is_recurring=True, billing_interval='year',
+            stripe_price_id='price_test_std')
+        self.user = User.objects.create_user(
+            username='aspired_test', email='a@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Client Inc',
+            contact_name='Client Person',
+            address='100 Client St', city='Houston',
+            state='TX', zip_code='77002', phone='5125550100',
+            stripe_customer_id='cus_test')
+
+    def _setup_nc_mocks(self, mock_get):
+        nc = mock_get.return_value
+        nc.check_availability.return_value = [
+            {'domain': 'foo.com', 'available': True,
+             'is_premium': False, 'premium_price': Decimal('0')}
+        ]
+        nc.register_domain.return_value = {
+            'domain': 'foo.com', 'registered': True,
+            'domain_id': 'nc_1', 'whois_guard_enabled': True,
+            'charged_amount': Decimal('9'),
+            'order_id': 'ord', 'transaction_id': 'tx',
+        }
+        return nc
+
+    def test_client_register_path_sends_aspired_as_registrant(self):
+        from domains.services import (
+            ASPIRED_REGISTRANT, register_domain_for_client,
+        )
+        with patch('domains.services.get_client') as mock_nc, \
+             patch('billing.stripe_helpers.create_domain_subscription') as mock_sub:
+            mock_sub.return_value.id = 'sub_test'
+            self._setup_nc_mocks(mock_nc)
+            register_domain_for_client(self.profile, 'foo', 'com')
+
+            # The registrant kwarg passed to NC.register_domain MUST
+            # match the Aspired constants, NOT the client's details.
+            call_kwargs = mock_nc.return_value.register_domain.call_args.kwargs
+            sent_registrant = call_kwargs['registrant']
+        for key in ('first_name', 'last_name', 'organization_name',
+                    'address1', 'city', 'state_province',
+                    'postal_code', 'country', 'phone',
+                    'email_address'):
+            self.assertEqual(
+                sent_registrant[key], ASPIRED_REGISTRANT[key],
+                f'{key} should be Aspired, got {sent_registrant[key]}')
+        # Specifically NOT the client's data
+        self.assertNotEqual(
+            sent_registrant['email_address'], 'a@example.com')
+        self.assertNotEqual(sent_registrant['city'], 'Houston')
+
+    def test_admin_register_path_sends_aspired_as_registrant(self):
+        from domains.services import (
+            ASPIRED_REGISTRANT, admin_register_domain_for_client,
+        )
+        with patch('domains.services.get_client') as mock_nc:
+            self._setup_nc_mocks(mock_nc)
+            admin_register_domain_for_client(
+                self.profile, 'foo', 'com', send_email=False)
+
+            sent_registrant = (
+                mock_nc.return_value.register_domain.call_args
+                .kwargs['registrant'])
+        self.assertEqual(
+            sent_registrant['email_address'],
+            ASPIRED_REGISTRANT['email_address'])
+        self.assertEqual(
+            sent_registrant['organization_name'],
+            'Aspired Websites LLC')
+
+
+# ── resume_domain ─────────────────────────────────────────────────────────
+
+class ResumeDomainTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='rs', email='rs@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Resume Co',
+            stripe_customer_id='cus_resume')
+        from domains.models import DomainRegistration
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='undo.com', tld='com',
+            status='grace', stripe_subscription_id='sub_rs')
+        self.reg.set_epp_code('abc123')
+        self.reg.registrar_lock = False
+        self.reg.save()
+
+    def test_resume_lifts_lock_swaps_registrant_back_clears_epp(self):
+        from domains.services import resume_domain
+        with patch('domains.services.get_client') as mock_nc, \
+             patch('billing.stripe_helpers.resume_domain_subscription') as mock_resume:
+            resume_domain(self.reg)
+            # Re-locked
+            mock_nc.return_value.set_registrar_lock.assert_called_once_with(
+                'undo.com', lock=True)
+            # Registrant swapped back to Aspired
+            mock_nc.return_value.set_contacts.assert_called_once()
+            args, kwargs = mock_nc.return_value.set_contacts.call_args
+            sent = args[1]
+            self.assertEqual(
+                sent['email_address'], 'zachery@aspiredwebsites.com')
+            # Stripe resume called
+            mock_resume.assert_called_once_with(self.reg)
+        self.reg.refresh_from_db()
+        self.assertEqual(self.reg.status, 'active')
+        self.assertTrue(self.reg.registrar_lock)
+        self.assertEqual(self.reg.decrypt_epp_code(), '')
+
+    def test_resume_refuses_on_non_grace_status(self):
+        from domains.services import resume_domain
+        self.reg.status = 'active'
+        self.reg.save()
+        with self.assertRaises(ValueError) as ctx:
+            resume_domain(self.reg)
+        self.assertIn('grace', str(ctx.exception))
+
+
+# ── transfer-out updates registrant to client ─────────────────────────────
+
+class TransferOutRegistrantSwapTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='to', email='to@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='TO Co',
+            contact_name='Out Person', address='5 W',
+            city='Dallas', state='TX', zip_code='75201',
+            phone='5125559999',
+            stripe_customer_id='cus_to')
+        from domains.models import DomainRegistration
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='leaving.com', tld='com',
+            status='active', stripe_subscription_id='sub_to')
+
+    def test_transfer_out_calls_set_contacts_with_client_data(self):
+        from domains.services import begin_transfer_out
+        with patch('domains.services.get_client') as mock_nc, \
+             patch('billing.stripe_helpers.cancel_domain_subscription'), \
+             patch('domains.emails.send_branded'):
+            mock_nc.return_value.get_epp_code.return_value = 'EPP123'
+            begin_transfer_out(self.reg, reason='leaving')
+            mock_nc.return_value.set_contacts.assert_called_once()
+            sent_registrant = mock_nc.return_value.set_contacts.call_args.args[1]
+        # Should be the CLIENT's data, not Aspired's.
+        self.assertEqual(
+            sent_registrant['email_address'], 'to@example.com')
+        self.assertEqual(sent_registrant['city'], 'Dallas')
+        self.assertEqual(sent_registrant['postal_code'], '75201')
+
+    def test_transfer_out_proceeds_when_client_profile_incomplete(self):
+        """If client profile is incomplete, skip set_contacts but
+        continue the unlock + EPP + email flow."""
+        from domains.services import begin_transfer_out
+        # Empty out the address fields
+        self.profile.address = ''
+        self.profile.save()
+
+        with patch('domains.services.get_client') as mock_nc, \
+             patch('billing.stripe_helpers.cancel_domain_subscription'), \
+             patch('domains.emails.send_branded'):
+            mock_nc.return_value.get_epp_code.return_value = 'EPP456'
+            epp = begin_transfer_out(self.reg, reason='no profile')
+            # set_contacts NOT called
+            mock_nc.return_value.set_contacts.assert_not_called()
+            # but unlock and getEPP still called
+            mock_nc.return_value.set_registrar_lock.assert_called_once_with(
+                'leaving.com', lock=False)
+        self.assertEqual(epp, 'EPP456')
+        self.reg.refresh_from_db()
+        self.assertEqual(self.reg.status, 'grace')
+
+
+# ── park_domain / unpark_domain ───────────────────────────────────────────
+
+class ParkUnparkTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='pk', email='pk@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Park Co')
+        from domains.models import DomainRegistration, DNSRecord
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='park.com', tld='com',
+            status='active')
+
+    def test_park_pushes_url301_for_apex_and_www(self):
+        from domains.services import park_domain
+        with patch('domains.services.get_client') as mock_nc:
+            park_domain(self.reg)
+            args, _ = mock_nc.return_value.set_dns_records.call_args
+            self.assertEqual(args[0], 'park.com')
+            pushed = args[1]
+        # Two URL301 redirects, apex + www
+        hosts = [(r['host'], r['type']) for r in pushed]
+        self.assertIn(('@', 'URL301'), hosts)
+        self.assertIn(('www', 'URL301'), hosts)
+        # Value contains the parking URL with the domain in the query
+        for r in pushed:
+            self.assertIn(
+                '/parked/?for=park.com', r['value'])
+        self.reg.refresh_from_db()
+        self.assertIsNotNone(self.reg.parked_at)
+
+    def test_park_mirrors_records_locally(self):
+        from domains.models import DNSRecord
+        from domains.services import park_domain
+        DNSRecord.objects.create(
+            domain=self.reg, record_type='A', host='@',
+            value='1.2.3.4', ttl=1800)
+        with patch('domains.services.get_client'):
+            park_domain(self.reg)
+        local = list(self.reg.dns_records.all())
+        self.assertEqual(len(local), 2)
+        for r in local:
+            self.assertEqual(r.record_type, 'URL301')
+            self.assertTrue(r.auto_managed)
+
+    def test_unpark_calls_set_auto_a_record(self):
+        from domains.services import unpark_domain
+        self.reg.parked_at = timezone.now()
+        self.reg.save()
+        with patch('domains.services.set_auto_a_record') as mock_set_a:
+            unpark_domain(self.reg, '5.6.7.8')
+            mock_set_a.assert_called_once_with(self.reg, '5.6.7.8')
+        self.reg.refresh_from_db()
+        self.assertIsNone(self.reg.parked_at)
+
+
+# ── Hosting subscription.deleted webhook triggers park ────────────────────
+
+class HostingCancelParksDomainsTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='hc', email='hc@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='HC Co',
+            stripe_customer_id='cus_hc',
+            stripe_hosting_subscription_id='sub_hosting_xyz')
+        from domains.models import DomainRegistration
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='hostparked.com',
+            tld='com', status='active')
+
+    def test_hosting_subscription_deleted_parks_active_domains(self):
+        from billing.webhooks import _handle_subscription_deleted
+        event = {'data': {'object': {
+            'id': 'sub_hosting_xyz', 'customer': 'cus_hc',
+        }}}
+        with patch('domains.services.get_client') as mock_nc:
+            _handle_subscription_deleted(event)
+        # park called once for this domain
+        mock_nc.return_value.set_dns_records.assert_called_once()
+        self.reg.refresh_from_db()
+        self.assertIsNotNone(self.reg.parked_at)
+
+    def test_hosting_cancel_skips_non_active_domains(self):
+        from billing.webhooks import _handle_subscription_deleted
+        self.reg.status = 'grace'
+        self.reg.save()
+        event = {'data': {'object': {
+            'id': 'sub_hosting_xyz', 'customer': 'cus_hc',
+        }}}
+        with patch('domains.services.get_client') as mock_nc:
+            _handle_subscription_deleted(event)
+        mock_nc.return_value.set_dns_records.assert_not_called()
+
+
+# ── NamecheapClient: set_contacts + get_balances XML ──────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class NamecheapClientNewMethodsTests(TestCase):
+    def test_set_contacts_posts_under_four_roles(self):
+        from domains.namecheap_client import NamecheapClient
+        from unittest.mock import MagicMock
+        xml = (b'<?xml version="1.0"?>'
+               b'<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">'
+               b'<CommandResponse><DomainSetContactResult Domain="x.com" IsSuccess="true"/>'
+               b'</CommandResponse></ApiResponse>')
+        mock_resp = MagicMock(status_code=200, text=xml.decode('utf-8'))
+        registrant = {
+            'first_name': 'A', 'last_name': 'B',
+            'organization_name': 'Org',
+            'address1': '1 St', 'address2': '',
+            'city': 'Austin', 'state_province': 'TX',
+            'postal_code': '78701', 'country': 'US',
+            'phone': '+1.5125551212',
+            'email_address': 'a@b.com',
+        }
+        with patch('domains.namecheap_client.requests.post',
+                   return_value=mock_resp) as mock_post:
+            client = NamecheapClient(sandbox=True)
+            self.assertTrue(client.set_contacts('x.com', registrant))
+        # Verify the sent params include all four role prefixes.
+        sent_data = mock_post.call_args.kwargs['data']
+        for role in ('Registrant', 'Tech', 'Admin', 'AuxBilling'):
+            self.assertEqual(sent_data[f'{role}FirstName'], 'A')
+            self.assertEqual(sent_data[f'{role}EmailAddress'], 'a@b.com')
+
+    def test_get_balances_parses_xml(self):
+        from domains.namecheap_client import NamecheapClient
+        from unittest.mock import MagicMock
+        xml = (b'<?xml version="1.0"?>'
+               b'<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">'
+               b'<CommandResponse><UserGetBalancesResult '
+               b'Currency="USD" AvailableBalance="42.50" '
+               b'AccountBalance="50.00" EarnedAmount="0" '
+               b'WithdrawableAmount="42.50" '
+               b'FundsRequiredForAutoRenew="0"/>'
+               b'</CommandResponse></ApiResponse>')
+        mock_resp = MagicMock(status_code=200, text=xml.decode('utf-8'))
+        with patch('domains.namecheap_client.requests.post',
+                   return_value=mock_resp):
+            client = NamecheapClient(sandbox=True)
+            balances = client.get_balances()
+        self.assertEqual(balances['available_balance'], Decimal('42.50'))
+        self.assertEqual(balances['account_balance'], Decimal('50.00'))
+        self.assertEqual(balances['currency'], 'USD')
+
+
+# ── Parking page view ─────────────────────────────────────────────────────
+
+class ParkingPageViewTests(TestCase):
+    def test_parking_page_renders_with_safe_domain(self):
+        from django.test import Client as DjangoTestClient
+        tc = DjangoTestClient()
+        resp = tc.get('/parked/?for=parked-test.com')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'parked-test.com')
+        self.assertContains(resp, 'aspiredwebsites.com')
+
+    def test_parking_page_strips_unsafe_for_param(self):
+        from django.test import Client as DjangoTestClient
+        tc = DjangoTestClient()
+        # XSS attempt
+        resp = tc.get('/parked/?for=<script>alert(1)</script>')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, '<script>alert(1)</script>')
+
+    def test_parking_page_works_without_for_param(self):
+        from django.test import Client as DjangoTestClient
+        tc = DjangoTestClient()
+        resp = tc.get('/parked/')
+        self.assertEqual(resp.status_code, 200)
+
+
+# ── Expiration warning emails (cron) ──────────────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class ExpirationCascadeTests(TestCase):
+    def setUp(self):
+        from django.utils import timezone as _tz
+        from datetime import timedelta
+        from domains.models import DomainRegistration, NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='ex', email='ex@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Ex Co')
+        # In grace, expires in 3 days
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='ex.com', tld='com',
+            status='grace',
+            expires_at=_tz.now() + timedelta(days=3))
+
+    def test_3_day_warning_fires_in_window(self):
+        from django.core.management import call_command
+        from io import StringIO
+        with patch('domains.management.commands.reconcile_domains.sync_one'), \
+             patch('domains.management.commands.reconcile_domains.get_client') as mock_get, \
+             patch('domains.management.commands.reconcile_domains.send_expiring_warning_email') as mock_send:
+            mock_get.return_value.get_balances.return_value = _healthy_balance()
+            call_command('reconcile_domains', stdout=StringIO())
+        mock_send.assert_called_once()
+        args, _ = mock_send.call_args
+        self.assertEqual(args[0].pk, self.reg.pk)
+        self.assertEqual(args[1], 3)
+
+    def test_outside_window_no_warning(self):
+        from datetime import timedelta
+        from django.core.management import call_command
+        from io import StringIO
+        self.reg.expires_at = timezone.now() + timedelta(days=14)
+        self.reg.save()
+        with patch('domains.management.commands.reconcile_domains.sync_one'), \
+             patch('domains.management.commands.reconcile_domains.get_client') as mock_get, \
+             patch('domains.management.commands.reconcile_domains.send_expiring_warning_email') as mock_send:
+            mock_get.return_value.get_balances.return_value = _healthy_balance()
+            call_command('reconcile_domains', stdout=StringIO())
+        mock_send.assert_not_called()
+
+    def test_active_status_does_not_get_expiry_warning(self):
+        from django.core.management import call_command
+        from io import StringIO
+        self.reg.status = 'active'
+        self.reg.save()
+        with patch('domains.management.commands.reconcile_domains.sync_one'), \
+             patch('domains.management.commands.reconcile_domains.get_client') as mock_get, \
+             patch('domains.management.commands.reconcile_domains.send_expiring_warning_email') as mock_send:
+            mock_get.return_value.get_balances.return_value = _healthy_balance()
+            call_command('reconcile_domains', stdout=StringIO())
+        mock_send.assert_not_called()
+
+
+# ── Failed-renewal retry (cron) ───────────────────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class RenewRetryTests(TestCase):
+    def setUp(self):
+        from domains.models import DomainRegistration, NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='rr', email='rr@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='RR Co')
+        # Active row with last_api_error indicating a failed renew
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='rr.com', tld='com',
+            status='active',
+            stripe_subscription_id='sub_rr',
+            last_api_error='renew: Namecheap returned ERROR',
+        )
+
+    def test_retry_fires_when_marker_present(self):
+        from django.core.management import call_command
+        from io import StringIO
+        with patch('domains.management.commands.reconcile_domains.sync_one'), \
+             patch('domains.management.commands.reconcile_domains.get_client') as mock_get:
+            mock_get.return_value.renew_domain.return_value = {
+                'renewed': True,
+                'charged_amount': Decimal('9'),
+            }
+            mock_get.return_value.get_balances.return_value = _healthy_balance()
+            call_command('reconcile_domains', stdout=StringIO())
+        self.reg.refresh_from_db()
+        # Should have cleared the error + appended retry marker
+        self.assertEqual(self.reg.last_api_error, '')
+        self.assertIn('[renew-retry]', self.reg.internal_notes)
+
+    def test_retry_stops_after_3_attempts(self):
+        from django.core.management import call_command
+        from io import StringIO
+        # Pretend we already retried 3 times
+        self.reg.internal_notes = (
+            '[renew-retry] t1\n[renew-retry] t2\n[renew-retry] t3')
+        self.reg.save()
+        with patch('domains.management.commands.reconcile_domains.sync_one'), \
+             patch('domains.management.commands.reconcile_domains.get_client') as mock_get:
+            mock_get.return_value.get_balances.return_value = _healthy_balance()
+            call_command('reconcile_domains', stdout=StringIO())
+            # No new renew call
+            mock_get.return_value.renew_domain.assert_not_called()
+
+
+# ── Account balance widget + low-balance alert ────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class BalanceCheckTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+
+    def test_low_balance_triggers_admin_email(self):
+        from django.core.management import call_command
+        from django.core import mail
+        from io import StringIO
+        with patch('domains.management.commands.reconcile_domains.get_client') as mock_get:
+            mock_get.return_value.get_balances.return_value = {
+                'available_balance': Decimal('10'),
+                'account_balance':   Decimal('10'),
+                'earned_amount':     Decimal('0'),
+                'withdrawable_amount': Decimal('0'),
+                'funds_required_for_auto_renew': Decimal('0'),
+                'currency':          'USD',
+            }
+            mail.outbox = []
+            call_command('reconcile_domains', stdout=StringIO())
+        # An admin alert should have been sent
+        balance_alerts = [
+            m for m in mail.outbox
+            if '[Namecheap balance low]' in m.subject
+        ]
+        self.assertEqual(len(balance_alerts), 1)
+
+    def test_healthy_balance_no_alert(self):
+        from django.core.management import call_command
+        from django.core import mail
+        from io import StringIO
+        with patch('domains.management.commands.reconcile_domains.get_client') as mock_get:
+            mock_get.return_value.get_balances.return_value = {
+                'available_balance': Decimal('100'),
+                'account_balance':   Decimal('100'),
+                'earned_amount':     Decimal('0'),
+                'withdrawable_amount': Decimal('0'),
+                'funds_required_for_auto_renew': Decimal('0'),
+                'currency':          'USD',
+            }
+            mail.outbox = []
+            call_command('reconcile_domains', stdout=StringIO())
+        balance_alerts = [
+            m for m in mail.outbox
+            if '[Namecheap balance low]' in m.subject
+        ]
+        self.assertEqual(len(balance_alerts), 0)
+
+
+# ── Resume view (portal) integration ──────────────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class PortalResumeViewTests(TestCase):
+    def setUp(self):
+        from django.test import Client as DjangoTestClient
+        from domains.models import DomainRegistration, NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='prv', email='prv@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='PRV Co')
+        self.reg = DomainRegistration.objects.create(
+            client=self.profile, domain_name='resumetest.com', tld='com',
+            status='grace')
+        self.tc = DjangoTestClient()
+        self.tc.force_login(self.user)
+
+    def test_post_resume_calls_service(self):
+        with patch('domains.views.resume_domain') as mock_resume:
+            resp = self.tc.post(
+                f'/portal/domains/{self.reg.id}/resume/')
+            mock_resume.assert_called_once()
+        self.assertEqual(resp.status_code, 302)
+
+    def test_get_resume_405(self):
+        resp = self.tc.get(
+            f'/portal/domains/{self.reg.id}/resume/')
+        # require_POST returns 405
+        self.assertEqual(resp.status_code, 405)
+
+    def test_post_resume_on_active_status_redirects_with_info(self):
+        self.reg.status = 'active'
+        self.reg.save()
+        with patch('domains.views.resume_domain') as mock_resume:
+            resp = self.tc.post(
+                f'/portal/domains/{self.reg.id}/resume/')
+            mock_resume.assert_not_called()
+        self.assertEqual(resp.status_code, 302)

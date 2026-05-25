@@ -198,6 +198,12 @@ class DomainRegistration(TimestampedModel):
     # successfully. Re-runs of the sync update it.
     auto_a_record_set_at = models.DateTimeField(null=True, blank=True)
 
+    # Set when the domain has been parked (DNS replaced with URL301
+    # redirects to our parking page). Happens when the client cancels
+    # hosting but keeps the domain. Cleared by unpark_domain when new
+    # hosting comes online.
+    parked_at = models.DateTimeField(null=True, blank=True)
+
     # Last successful API call to Namecheap for THIS domain (any
     # operation). Diagnostic only.
     last_api_call_at = models.DateTimeField(null=True, blank=True)

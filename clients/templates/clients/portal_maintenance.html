@@ -11,11 +11,7 @@
     </p>
 </header>
 
-{% if messages %}
-    {% for m in messages %}
-        <div class="portal-message portal-message--{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-{% endif %}
+{# Flash messages are rendered by clients/base.html — no need to repeat them here. #}
 
 {# ── Current plan banner (only if subscribed) ── #}
 {% if upsell_state.is_subscribed %}
