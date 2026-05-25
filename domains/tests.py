@@ -719,3 +719,150 @@ class DNSEditViewTests(TestCase):
             self._post(
                 types=['A'], hosts=['@'], values=['1.2.3.4'])
             mock_replace.assert_called_once()
+
+
+# ── Admin-side registration ────────────────────────────────────────────────
+
+@override_settings(
+    NAMECHEAP_SANDBOX=True,
+    NAMECHEAP_API_USER='x', NAMECHEAP_API_KEY='x', NAMECHEAP_USERNAME='x',
+    NAMECHEAP_CLIENT_IP='127.0.0.1',
+)
+class AdminRegisterDomainTests(TestCase):
+    def setUp(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.all().delete()
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        self.user = User.objects.create_user(
+            username='adm', email='adm@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Admin Co',
+            contact_name='Adam B', address='1 St', city='Austin',
+            state='TX', zip_code='78701', phone='5125551212')
+
+    def test_admin_register_skips_stripe_subscription(self):
+        from domains.services import admin_register_domain_for_client
+        with patch('domains.services.get_client') as mock_nc:
+            mock_nc.return_value.check_availability.return_value = [
+                {'domain': 'gift.com', 'available': True,
+                 'is_premium': False, 'premium_price': Decimal('0')}
+            ]
+            mock_nc.return_value.register_domain.return_value = {
+                'domain': 'gift.com', 'registered': True,
+                'domain_id': 'nc_123', 'whois_guard_enabled': True,
+                'charged_amount': Decimal('9.00'),
+                'order_id': 'ord_1', 'transaction_id': 'tx_1',
+            }
+            reg = admin_register_domain_for_client(
+                self.profile, 'gift', 'com',
+                send_email=False, internal_notes='referral gift')
+        # No Stripe sub created.
+        self.assertEqual(reg.stripe_subscription_id, '')
+        self.assertEqual(reg.status, 'active')
+        self.assertEqual(reg.internal_notes, 'referral gift')
+        self.assertEqual(reg.domain_name, 'gift.com')
+
+    def test_admin_register_allows_premium_names(self):
+        """Standard registration rejects premium; admin can override."""
+        from domains.services import admin_register_domain_for_client
+        with patch('domains.services.get_client') as mock_nc:
+            mock_nc.return_value.check_availability.return_value = [
+                {'domain': 'short.com', 'available': True,
+                 'is_premium': True,
+                 'premium_price': Decimal('5000')}
+            ]
+            mock_nc.return_value.register_domain.return_value = {
+                'domain': 'short.com', 'registered': True,
+                'domain_id': 'nc_999', 'whois_guard_enabled': True,
+                'charged_amount': Decimal('5000'),
+                'order_id': 'ord_2', 'transaction_id': 'tx_2',
+            }
+            reg = admin_register_domain_for_client(
+                self.profile, 'short', 'com', send_email=False)
+        self.assertEqual(reg.status, 'active')
+
+    def test_admin_register_rejects_invalid_chars(self):
+        from domains.services import admin_register_domain_for_client
+        with self.assertRaises(ValueError):
+            admin_register_domain_for_client(
+                self.profile, 'bad name', 'com', send_email=False)
+
+    def test_admin_register_rejects_unavailable_domain(self):
+        from domains.services import admin_register_domain_for_client
+        with patch('domains.services.get_client') as mock_nc:
+            mock_nc.return_value.check_availability.return_value = [
+                {'domain': 'taken.com', 'available': False,
+                 'is_premium': False, 'premium_price': Decimal('0')}
+            ]
+            with self.assertRaises(ValueError) as ctx:
+                admin_register_domain_for_client(
+                    self.profile, 'taken', 'com', send_email=False)
+            self.assertIn('not available', str(ctx.exception))
+
+
+# ── Multi-domain per client ───────────────────────────────────────────────
+
+class MultiDomainPerClientTests(TestCase):
+    def test_client_can_have_many_domains(self):
+        from domains.models import DomainRegistration
+        user = User.objects.create_user(
+            username='multi', email='multi@example.com', password='x')
+        profile = ClientProfile.objects.create(
+            user=user, firm_name='Multi Co')
+        for name in ('one.com', 'two.com', 'three.law', 'four.legal'):
+            DomainRegistration.objects.create(
+                client=profile, domain_name=name,
+                tld=name.split('.')[-1], status='active')
+        self.assertEqual(profile.domain_registrations.count(), 4)
+
+    def test_domain_name_globally_unique(self):
+        """Same domain can't be registered twice (across clients)."""
+        from domains.models import DomainRegistration
+        from django.db import IntegrityError
+        user1 = User.objects.create_user(
+            username='u_a', email='a@example.com', password='x')
+        user2 = User.objects.create_user(
+            username='u_b', email='b@example.com', password='x')
+        p1 = ClientProfile.objects.create(
+            user=user1, firm_name='A Inc')
+        p2 = ClientProfile.objects.create(
+            user=user2, firm_name='B Inc')
+        DomainRegistration.objects.create(
+            client=p1, domain_name='unique.com', tld='com',
+            status='active')
+        with self.assertRaises(IntegrityError):
+            DomainRegistration.objects.create(
+                client=p2, domain_name='unique.com', tld='com',
+                status='active')
+
+
+# ── Sandbox banner context wiring ─────────────────────────────────────────
+
+class SandboxBannerContextTests(TestCase):
+    """The portal context must include namecheap_sandbox_mode."""
+
+    def setUp(self):
+        from django.test import Client as DjangoTestClient
+        from domains.models import NamecheapConfig
+        self.user = User.objects.create_user(
+            username='banner', email='banner@example.com', password='x')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Banner Co')
+        self.tc = DjangoTestClient()
+        self.tc.force_login(self.user)
+        NamecheapConfig.objects.all().delete()
+
+    def test_banner_present_when_sandbox_on(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.create(sandbox_mode=True)
+        resp = self.tc.get('/portal/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Testing mode')
+        self.assertContains(resp, 'Nothing is permanent')
+
+    def test_banner_absent_when_sandbox_off(self):
+        from domains.models import NamecheapConfig
+        NamecheapConfig.objects.create(sandbox_mode=False)
+        resp = self.tc.get('/portal/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'Testing mode')

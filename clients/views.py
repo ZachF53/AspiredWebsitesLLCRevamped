@@ -108,6 +108,19 @@ def _portal_context(request, active_nav, **extra):
     intake_only = (
         getattr(profile, 'onboarding_status', '') == 'pending_intake')
 
+    # Namecheap sandbox mode — when on, every domain action goes to
+    # the sandbox registry (not real, not permanent). Surfaced on
+    # every portal page so a client in the middle of testing knows
+    # nothing they do binds them to anything.
+    namecheap_sandbox_mode = False
+    try:
+        from domains.models import NamecheapConfig
+        namecheap_sandbox_mode = NamecheapConfig.is_sandbox()
+    except Exception:
+        # domains app might not be migrated yet (fresh clone) —
+        # never break portal chrome over a missing config row.
+        namecheap_sandbox_mode = False
+
     ctx = {
         'profile': profile,
         'project': project,
@@ -124,6 +137,7 @@ def _portal_context(request, active_nav, **extra):
         'session_recording_nav_visible': bool(
             profile.session_recording_enabled),
         'intake_only': intake_only,
+        'namecheap_sandbox_mode': namecheap_sandbox_mode,
     }
     ctx.update(extra)
     return ctx

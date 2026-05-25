@@ -5996,6 +5996,225 @@ def admin_domain_repoint(request, reg_id):
 
 
 @admin_required
+def admin_domain_register(request):
+    """
+    Admin "register a domain for a client" form.
+
+    GET shows the form (client picker + name input + TLD picker +
+    optional notes). POST runs the no-Stripe-charge admin path
+    via `admin_register_domain_for_client`.
+
+    Multi-domain is supported natively — DomainRegistration has no
+    unique-per-client constraint, so the same client can have any
+    number of domains.
+    """
+    from django.contrib import messages as _msg
+    from clients.models import ClientProfile
+    from domains.models import TLD_CHOICES, NamecheapConfig
+    from domains.namecheap_client import NamecheapError
+    from domains.services import admin_register_domain_for_client
+
+    clients = (
+        ClientProfile.objects
+        .filter(status='active')
+        .select_related('user')
+        .order_by('firm_name')
+    )
+
+    if request.method == 'POST':
+        client_id = request.POST.get('client_id', '')
+        sld = (request.POST.get('sld') or '').strip().lower()
+        tld = (request.POST.get('tld') or '').strip().lower()
+        notes = (request.POST.get('notes') or '').strip()
+
+        client = ClientProfile.objects.filter(pk=client_id).first()
+        if client is None:
+            _msg.error(request, 'Pick a client.')
+            return redirect('admin_dashboard:admin_domain_register')
+
+        if not sld:
+            _msg.error(request, 'Enter a domain name.')
+            return redirect('admin_dashboard:admin_domain_register')
+        if tld not in dict(TLD_CHOICES):
+            _msg.error(request, 'Pick a TLD.')
+            return redirect('admin_dashboard:admin_domain_register')
+
+        try:
+            reg = admin_register_domain_for_client(
+                client, sld, tld,
+                send_email=True,
+                internal_notes=notes)
+        except ValueError as exc:
+            _msg.error(request, str(exc))
+            return redirect('admin_dashboard:admin_domain_register')
+        except NamecheapError as exc:
+            _msg.error(
+                request,
+                f'Namecheap rejected the registration: {exc}')
+            return redirect('admin_dashboard:admin_domain_register')
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Admin domain registration failed')
+            _msg.error(request, f'Registration failed: {exc}')
+            return redirect('admin_dashboard:admin_domain_register')
+
+        _msg.success(
+            request,
+            f'{reg.domain_name} registered to {client.firm_name} — '
+            f'no Stripe sub created (admin gift / promo).')
+        return redirect(
+            'admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+    return render(
+        request,
+        'admin_dashboard/domains_register.html',
+        _admin_context(
+            active='domains',
+            clients=clients,
+            tld_choices=TLD_CHOICES,
+            sandbox_mode=NamecheapConfig.is_sandbox(),
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def admin_domain_register_check(request):
+    """
+    HTMX endpoint — checks availability for the entered name across
+    all 6 TLDs in real time on the admin register form. Returns a
+    fragment that swaps into the form.
+    """
+    from domains.services import check_availability_all_tlds
+
+    sld = (request.POST.get('sld') or '').strip().lower()
+    if not sld:
+        return render(
+            request,
+            'admin_dashboard/_domains_register_check.html',
+            {'results': [], 'error': 'Enter a name to check.'})
+
+    try:
+        results = check_availability_all_tlds(sld)
+        error = ''
+    except Exception as exc:  # noqa: BLE001
+        results = []
+        error = f'Namecheap check failed: {exc}'
+
+    return render(
+        request,
+        'admin_dashboard/_domains_register_check.html',
+        {'results': results, 'sld': sld, 'error': error})
+
+
+@admin_required
+def admin_domain_dns(request, reg_id):
+    """
+    Admin DNS-record editor for any client's domain.
+
+    GET — show the editor pre-filled with the current record set.
+    POST — replace the full record set on Namecheap + mirror locally.
+
+    Same foot-shoot guards as the client portal version (no empty
+    set, must keep an apex record).
+    """
+    from django.contrib import messages as _msg
+    from django.shortcuts import get_object_or_404
+    from domains.models import (
+        DNS_RECORD_TYPE_CHOICES, DomainRegistration,
+    )
+    from domains.namecheap_client import NamecheapError
+    from domains.services import replace_dns_records
+
+    reg = get_object_or_404(DomainRegistration, pk=reg_id)
+
+    if request.method == 'POST':
+        types = request.POST.getlist('types[]')
+        hosts = request.POST.getlist('hosts[]')
+        values = request.POST.getlist('values[]')
+        ttls = request.POST.getlist('ttls[]')
+        prefs = request.POST.getlist('mx_prefs[]')
+
+        new_records = []
+        valid_types = {k for k, _ in DNS_RECORD_TYPE_CHOICES}
+        for i, raw_value in enumerate(values):
+            value = (raw_value or '').strip()
+            if not value:
+                continue
+            r_type = (types[i] if i < len(types) else 'A').upper()
+            if r_type not in valid_types:
+                continue
+            host = (hosts[i] if i < len(hosts) else '@').strip() or '@'
+            try:
+                ttl = int(ttls[i] if i < len(ttls) else 1800)
+            except (ValueError, TypeError):
+                ttl = 1800
+            ttl = max(60, min(ttl, 86400))
+            try:
+                mx_pref = int(prefs[i] if i < len(prefs) else 10)
+            except (ValueError, TypeError):
+                mx_pref = 10
+            new_records.append({
+                'host': host, 'type': r_type, 'value': value,
+                'ttl': ttl, 'mx_pref': mx_pref,
+            })
+
+        if not new_records:
+            _msg.error(
+                request,
+                'Refusing to push an empty record set — that would '
+                'break the domain. Add at least one record before '
+                'saving.')
+            return redirect(
+                'admin_dashboard:admin_domain_dns', reg_id=reg.id)
+
+        has_apex = any(
+            r['host'] in ('@', '')
+            and r['type'] in ('A', 'AAAA', 'CNAME', 'URL',
+                              'URL301', 'FRAME')
+            for r in new_records)
+        if not has_apex:
+            _msg.error(
+                request,
+                f'No apex record (host = "@") for {reg.domain_name}. '
+                f'Add an A/CNAME/URL with host "@" or the bare '
+                f'domain won\'t resolve.')
+            return redirect(
+                'admin_dashboard:admin_domain_dns', reg_id=reg.id)
+
+        try:
+            replace_dns_records(reg, new_records)
+        except NamecheapError as exc:
+            _msg.error(
+                request, f'Namecheap rejected the record set: {exc}')
+            return redirect(
+                'admin_dashboard:admin_domain_dns', reg_id=reg.id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Admin DNS update failed for %s', reg.pk)
+            _msg.error(request, f'DNS update failed: {exc}')
+            return redirect(
+                'admin_dashboard:admin_domain_dns', reg_id=reg.id)
+
+        _msg.success(
+            request,
+            f'DNS records saved for {reg.domain_name}. Propagation '
+            f'takes 5-15 minutes.')
+        return redirect(
+            'admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+    records = list(reg.dns_records.all().order_by('host', 'record_type'))
+    return render(
+        request,
+        'admin_dashboard/domains_dns.html',
+        _admin_context(
+            active='domains',
+            reg=reg,
+            records=records,
+            record_types=DNS_RECORD_TYPE_CHOICES,
+        ),
+    )
+
+
+@admin_required
 @require_POST
 def admin_domain_transfer_out(request, reg_id):
     """

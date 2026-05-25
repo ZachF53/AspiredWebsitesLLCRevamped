@@ -282,6 +282,127 @@ def register_domain_for_client(client, domain_name, tld):
     return registration
 
 
+def admin_register_domain_for_client(
+        client, domain_name, tld, *, send_email=True,
+        internal_notes=''):
+    """
+    Admin-side registration. Same as `register_domain_for_client`
+    EXCEPT:
+      - No Stripe Subscription is created — admin registrations are
+        gift / promo / migration cases that the business swallows
+        the Namecheap cost on
+      - The Namecheap account balance still gets debited; that's
+        intentional and visible from the NC dashboard
+      - No 'is_premium' rejection — admin can override and register
+        premium names manually (warns but proceeds)
+      - Notes field is exposed so the admin can record WHY it was
+        gifted (referral / migration from another registrar / etc.)
+
+    The DomainRegistration row has stripe_subscription_id='' as the
+    marker that this isn't billed. The renewal-gate webhook handler
+    treats no-sub domains as "let it expire" — admin can re-register
+    or set up a Stripe sub later.
+
+    Returns the DomainRegistration row.
+
+    Raises:
+      ValueError      — bad inputs, name unavailable, profile
+                        missing required WHOIS fields
+      NamecheapError  — registration failed at NC
+    """
+    tld = tld.lower().lstrip('.')
+    domain_name = domain_name.lower()
+    if not domain_name.endswith(f'.{tld}'):
+        domain_name = f'{domain_name}.{tld}'
+
+    sld = domain_name[:-(len(tld) + 1)]
+    if len(sld) < 1 or len(sld) > 63:
+        raise ValueError(f'Domain name "{sld}" must be 1-63 chars.')
+    if not all(c.isalnum() or c == '-' for c in sld):
+        raise ValueError(
+            f'Domain name "{sld}" can only contain letters, digits, '
+            f'and hyphens.')
+    if sld.startswith('-') or sld.endswith('-'):
+        raise ValueError(
+            f'Domain name "{sld}" cannot start or end with -.')
+
+    nc = get_client()
+    avail = nc.check_availability([domain_name])
+    if not avail or not avail[0].get('available'):
+        raise ValueError(
+            f'{domain_name} is not available on the current '
+            f'Namecheap environment.')
+
+    # NOTE: no premium rejection — admin can override.
+
+    registrant = registrant_from_client(client)
+
+    registration = DomainRegistration.objects.create(
+        client=client,
+        domain_name=domain_name,
+        tld=tld,
+        status='pending',
+        whois_privacy_enabled=True,
+        registrar_lock=True,
+        pricing_tier_slug=tier_slug_for_tld(tld),
+        internal_notes=internal_notes,
+    )
+
+    try:
+        result = nc.register_domain(
+            domain=domain_name,
+            years=1,
+            registrant=registrant,
+            enable_whois_privacy=True,
+        )
+        if not result.get('registered'):
+            raise NamecheapError(
+                f'Namecheap reported domain not registered for {domain_name}',
+                command='namecheap.domains.create')
+    except NamecheapError as exc:
+        logger.exception(
+            'Admin Namecheap registration failed for %s', domain_name)
+        registration.status = 'failed'
+        registration.last_api_error = f'Namecheap: {exc}'[:2000]
+        registration.save(update_fields=[
+            'status', 'last_api_error', 'updated_at'])
+        raise
+
+    registration.status = 'active'
+    registration.registered_at = timezone.now()
+    registration.expires_at = timezone.now() + timedelta(days=365)
+    registration.last_synced_at = timezone.now()
+    registration.last_api_call_at = timezone.now()
+    registration.last_api_error = ''
+    registration.save(update_fields=[
+        'status', 'registered_at', 'expires_at', 'last_synced_at',
+        'last_api_call_at', 'last_api_error', 'updated_at',
+    ])
+    logger.info(
+        'admin_register_domain_for_client: %s registered for client '
+        '%s (no Stripe sub — admin gift)', domain_name, client.pk)
+
+    if client.do_droplet_ip:
+        try:
+            set_auto_a_record(
+                registration, str(client.do_droplet_ip))
+        except Exception:
+            logger.exception(
+                'Auto-A record failed for admin registration %s',
+                registration.pk)
+
+    if send_email:
+        try:
+            from domains.emails import send_registered_email
+            send_registered_email(registration)
+        except Exception:
+            logger.exception(
+                'Registered email failed for %s',
+                registration.domain_name)
+
+    return registration
+
+
 # ── DNS management ───────────────────────────────────────────────────────────
 
 def set_auto_a_record(registration, ip_address):

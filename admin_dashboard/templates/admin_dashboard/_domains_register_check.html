@@ -1,0 +1,28 @@
+{% if error %}
+    <div class="admin-flash admin-flash--error" style="margin-top:14px;">{{ error }}</div>
+{% endif %}
+
+{% if results %}
+    <table class="admin-table" style="margin-top:14px;">
+        <thead>
+            <tr><th>TLD</th><th>Domain</th><th>Status</th><th>Retail</th></tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+                <tr>
+                    <td><code>.{{ r.tld }}</code></td>
+                    <td>{{ r.domain }}</td>
+                    <td>
+                        {% if r.available %}
+                            <span class="domain-card__badge domain-card__badge--active">Available</span>
+                            {% if r.is_premium %}<span class="domain-result__premium">premium</span>{% endif %}
+                        {% else %}
+                            <span class="domain-card__badge domain-card__badge--expired">Taken</span>
+                        {% endif %}
+                    </td>
+                    <td>${{ r.retail_price|floatformat:0 }}/yr</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

@@ -12969,3 +12969,74 @@ button.htmx-request {
     border-radius: 4px;
     color: var(--color-orange-light);
 }
+
+/* ── Client portal sandbox-mode banner ── */
+.portal-sandbox-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 18px;
+    margin: 0 0 18px;
+    border-radius: 10px;
+    background: linear-gradient(120deg, rgba(232, 101, 10, 0.14), rgba(13, 148, 136, 0.06));
+    border: 1px solid rgba(232, 101, 10, 0.45);
+    border-left-width: 4px;
+}
+.portal-sandbox-banner__chip {
+    flex: 0 0 auto;
+    background: rgba(232, 101, 10, 0.18);
+    color: var(--color-orange-light);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.portal-sandbox-banner__body {
+    flex: 1;
+    color: var(--color-text);
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+.portal-sandbox-banner__body strong {
+    color: var(--color-text);
+    font-weight: 700;
+}
+@media (max-width: 640px) {
+    .portal-sandbox-banner { flex-direction: column; gap: 8px; }
+}
+
+/* ── Admin register form stack ── */
+.admin-form-stack label {
+    display: block;
+    margin: 12px 0 6px;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.admin-form-stack label:first-of-type { margin-top: 0; }
+.admin-form-stack input[type="text"],
+.admin-form-stack input[type="number"],
+.admin-form-stack select,
+.admin-form-stack textarea {
+    width: 100%;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+.admin-form-stack input:focus,
+.admin-form-stack select:focus,
+.admin-form-stack textarea:focus {
+    border-color: var(--color-orange);
+    outline: none;
+}
+.admin-form-stack .muted { font-size: 0.78rem; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--color-text-muted); }
+.admin-form-submit { margin-top: 18px; }

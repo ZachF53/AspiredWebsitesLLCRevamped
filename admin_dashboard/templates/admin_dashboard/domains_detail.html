@@ -45,6 +45,13 @@
         <section class="admin-panel">
             <h2>Actions</h2>
 
+            {% if reg.status == 'active' %}
+                <div class="admin-action-form">
+                    <a href="{% url 'admin_dashboard:admin_domain_dns' reg_id=reg.id %}" class="btn-primary">Edit DNS records →</a>
+                    <p class="muted">Full record editor — push any A/AAAA/CNAME/MX/TXT/URL change to Namecheap.</p>
+                </div>
+            {% endif %}
+
             <form method="post" action="{% url 'admin_dashboard:admin_domain_sync' reg_id=reg.id %}" class="admin-action-form">
                 {% csrf_token %}
                 <button type="submit" class="btn-secondary">Sync from Namecheap</button>

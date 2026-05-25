@@ -1,0 +1,99 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Register domain — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:admin_domain_list' %}" class="admin-back-link">← All domains</a></span>
+            <h1 class="admin-page-title">Register a domain for a client</h1>
+            <p class="muted">
+                Admin-side registration — <strong>no Stripe charge</strong>, no client subscription created. The Namecheap account balance is debited at wholesale. Use for gifts, migrations from other registrars, or promo registrations.
+            </p>
+        </div>
+    </div>
+
+    {% if sandbox_mode %}
+        <div class="admin-sandbox-banner">
+            <strong>🧪 Sandbox mode is ON.</strong>
+            Registrations go to the sandbox registry — they aren't real, can't be resolved publicly, and don't charge money.
+        </div>
+    {% endif %}
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="admin-grid-2">
+        <section class="admin-panel">
+            <h2>Check availability</h2>
+            <p class="muted">Type a name and see availability + pricing across all 6 TLDs before committing.</p>
+
+            <form
+                hx-post="{% url 'admin_dashboard:admin_domain_register_check' %}"
+                hx-target="#availability-results"
+                hx-swap="innerHTML"
+                hx-trigger="submit"
+                class="admin-action-form">
+                {% csrf_token %}
+                <label for="check-sld">Domain name (without TLD)</label>
+                <input type="text" id="check-sld" name="sld"
+                       placeholder="johnsonlaw"
+                       autocomplete="off" autocapitalize="none"
+                       autocorrect="off" spellcheck="false">
+                <button type="submit" class="btn-secondary">Check availability</button>
+            </form>
+
+            <div id="availability-results"></div>
+        </section>
+
+        <section class="admin-panel">
+            <h2>Register</h2>
+            <p class="muted">
+                Submitting registers immediately. The selected client must have a complete profile (address, phone, email) — those go to the Namecheap WHOIS registrant data (privacy-protected publicly).
+            </p>
+
+            <form method="post" action="{% url 'admin_dashboard:admin_domain_register' %}" class="admin-action-form admin-form-stack">
+                {% csrf_token %}
+
+                <label for="client_id">Client</label>
+                <select id="client_id" name="client_id" required>
+                    <option value="">— Choose a client —</option>
+                    {% for c in clients %}
+                        <option value="{{ c.id }}">
+                            {{ c.firm_name }}
+                            {% if c.user %} — {{ c.user.email }}{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <label for="reg-sld">Domain name (without TLD)</label>
+                <input type="text" id="reg-sld" name="sld" required
+                       placeholder="johnsonlaw"
+                       autocomplete="off" autocapitalize="none"
+                       autocorrect="off" spellcheck="false">
+
+                <label for="reg-tld">TLD</label>
+                <select id="reg-tld" name="tld" required>
+                    {% for code, label in tld_choices %}
+                        <option value="{{ code }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="reg-notes">Internal notes <span class="muted">(why is this a gift / where did it come from)</span></label>
+                <textarea id="reg-notes" name="notes" rows="3"
+                          placeholder="Migrated from GoDaddy for Q3 referral promo"></textarea>
+
+                <button type="submit" class="btn-primary admin-form-submit"
+                        onclick="return confirm('Register this domain at Namecheap? The account balance will be charged at wholesale and no Stripe sub will be created (admin gift). Continue?');">
+                    Register domain
+                </button>
+            </form>
+        </section>
+    </div>
+</div>
+{% endblock %}
