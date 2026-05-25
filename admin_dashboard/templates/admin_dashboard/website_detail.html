@@ -285,34 +285,107 @@
         Destructive action — pushed to the very bottom + framed in
         red so a stray click doesn't reassign the website. Dropdown
         replaces the bare UUID textbox so admins pick from known
-        accounts.
+        accounts. The submit shows a modal confirm instead of the
+        browser native confirm() so the warning text + the
+        consequences are clearly visible.
     {% endcomment %}
-    <div class="admin-card admin-card--danger">
+    <div class="admin-card danger-card">
         <div class="admin-card__header">
-            <h2 class="admin-card__title">⚠ Move to a different Account</h2>
+            <h2 class="admin-card__title danger-card__title">⚠ Move to a different Account</h2>
         </div>
         <div class="admin-card__body">
             <p class="muted" style="margin-top: 0;">
                 Edge-case admin action — reassigns this website (and the domains pointed at it) to another account.
                 Only the account FK changes; data and history stay intact. Use sparingly.
             </p>
-            <form method="post" action="{% url 'admin_dashboard:website_move_account' website.id %}" class="admin-danger-form">
+            <form method="post"
+                  action="{% url 'admin_dashboard:website_move_account' website.id %}"
+                  id="move-account-form"
+                  class="admin-danger-form">
                 {% csrf_token %}
                 <label for="move_account_id">Destination account:</label>
-                <select id="move_account_id" name="account_id" class="form-control" required>
+                <select id="move_account_id" name="account_id" class="form-control danger-card__select" required>
                     <option value="">— Pick an account —</option>
                     {% for acc in other_accounts %}
-                        <option value="{{ acc.id }}">{{ acc.name }}{% if acc.user.email %} ({{ acc.user.email }}){% endif %}</option>
+                        <option value="{{ acc.id }}" data-name="{{ acc.name }}">{{ acc.name }}{% if acc.user.email %} ({{ acc.user.email }}){% endif %}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="btn-danger"
-                        onclick="return confirm('Move this website (and its domains) to a different account? This is reversible but be sure.');">
+                <button type="button"
+                        id="open-move-modal"
+                        class="btn-danger-solid">
                     Move to selected account
                 </button>
             </form>
         </div>
     </div>
+
+    {# Confirmation modal — only fires on the move-account submit. #}
+    <div class="danger-modal" id="move-account-modal" hidden role="dialog" aria-modal="true" aria-labelledby="move-account-modal-title">
+        <div class="danger-modal__backdrop" id="move-account-backdrop"></div>
+        <div class="danger-modal__card" role="document">
+            <header class="danger-modal__head">
+                <h2 id="move-account-modal-title">⚠ Confirm account move</h2>
+            </header>
+            <div class="danger-modal__body">
+                <p>You're about to move <strong>{{ website.name }}</strong> from
+                   <strong>{{ account.name }}</strong> to
+                   <strong id="move-account-target-name">—</strong>.</p>
+                <p class="muted">All domains pointed at this website will also be reassigned. The change is reversible by moving it back, but please be sure.</p>
+            </div>
+            <footer class="danger-modal__foot">
+                <button type="button" class="btn-secondary btn-sm" id="cancel-move-modal">Cancel</button>
+                <button type="button" class="btn-danger-solid" id="confirm-move-modal">Yes, move it</button>
+            </footer>
+        </div>
+    </div>
 </div>
+
+<script>
+(function () {
+    var openBtn = document.getElementById('open-move-modal');
+    var modal = document.getElementById('move-account-modal');
+    var backdrop = document.getElementById('move-account-backdrop');
+    var cancelBtn = document.getElementById('cancel-move-modal');
+    var confirmBtn = document.getElementById('confirm-move-modal');
+    var form = document.getElementById('move-account-form');
+    var select = document.getElementById('move_account_id');
+    var targetName = document.getElementById('move-account-target-name');
+
+    if (!openBtn || !modal || !form) { return; }
+
+    function show() {
+        var opt = select.options[select.selectedIndex];
+        if (!opt || !opt.value) {
+            // Native required-message — user hasn't picked anything.
+            select.reportValidity();
+            return;
+        }
+        targetName.textContent = opt.getAttribute('data-name') || opt.text;
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
+    function hide() {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+    }
+
+    openBtn.addEventListener('click', show);
+    cancelBtn.addEventListener('click', hide);
+    backdrop.addEventListener('click', hide);
+    confirmBtn.addEventListener('click', function () {
+        // Real submit — bypass any onsubmit handlers by using requestSubmit
+        // where available (modern browsers), falling back to .submit().
+        if (form.requestSubmit) {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) { hide(); }
+    });
+})();
+</script>
 
 <style>
 /* Phase C2 follow-up — Website detail layout polish.
@@ -406,13 +479,26 @@
     color: #FFFFFF;
 }
 
-/* Danger card framing for the move-account section. */
-.admin-card--danger {
+/* Danger card framing for the move-account section. Bold 2px red
+   border so the warning is unambiguous; the inner select gets an
+   explicit neutral border so it doesn't read as a second warning. */
+.danger-card {
     margin-top: 3rem;
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    background: rgba(239, 68, 68, 0.04);
+    border: 2px solid #ef4444 !important;
+    background: rgba(239, 68, 68, 0.06);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
 }
-.admin-card--danger .admin-card__title { color: #ef4444; }
+.danger-card__title {
+    color: #ef4444 !important;
+}
+.danger-card__select {
+    /* Explicit neutral border — never inherit from the danger card. */
+    border-color: var(--color-border) !important;
+}
+.danger-card__select:focus {
+    border-color: var(--color-orange-light, #E8650A) !important;
+    outline: none;
+}
 .admin-danger-form {
     display: flex;
     flex-wrap: wrap;
@@ -421,16 +507,81 @@
     margin-top: 0.5rem;
 }
 .admin-danger-form select { flex: 1; min-width: 240px; }
-.btn-danger {
+.admin-danger-form label {
+    flex-basis: 100%;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Solid-red SUBMIT button — distinct class so it doesn't fight with
+   the subtle .btn-danger outline defined in main.css. */
+.btn-danger-solid {
     background: #ef4444;
     border: 1px solid #ef4444;
     color: #FFFFFF;
-    padding: 8px 16px;
+    padding: 8px 18px;
     border-radius: 6px;
     font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
+    transition: background .15s, border-color .15s;
 }
-.btn-danger:hover { background: #dc2626; border-color: #dc2626; }
+.btn-danger-solid:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+/* Confirmation modal — vanilla, no framework. */
+.danger-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.danger-modal[hidden] { display: none; }
+.danger-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+.danger-modal__card {
+    position: relative;
+    background: var(--color-bg-raised);
+    border: 2px solid #ef4444;
+    border-radius: 10px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+.danger-modal__head {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.danger-modal__head h2 {
+    margin: 0;
+    color: #ef4444;
+    font-size: 1.125rem;
+}
+.danger-modal__body {
+    padding: 1.5rem;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.danger-modal__body p { margin: 0 0 0.75rem; }
+.danger-modal__body p:last-child { margin-bottom: 0; }
+.danger-modal__foot {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
 </style>
 {% endblock %}
