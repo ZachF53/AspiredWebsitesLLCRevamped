@@ -329,6 +329,9 @@ urlpatterns = [
          views.website_move_account, name='website_move_account'),
     path('websites/<uuid:website_id>/change-stage/',
          views.website_change_stage, name='website_change_stage'),
+    path('websites/<uuid:website_id>/intake-complete/',
+         views.website_intake_mark_complete,
+         name='website_intake_mark_complete'),
     path('domains/<uuid:reg_id>/move-account/',
          views.domain_move_account, name='domain_move_account'),
 ]

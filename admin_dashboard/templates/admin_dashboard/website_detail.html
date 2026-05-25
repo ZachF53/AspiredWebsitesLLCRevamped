@@ -271,6 +271,72 @@
         </div>
     </form>
 
+    {% comment %}
+        Intake override card — sits outside the main edit form because
+        it POSTs to its own endpoint. Built for legacy websites where
+        intake was actually completed long before the new model
+        existed and the imported pending_intake flag is stuck.
+
+        The override view writes the same flags a real client submit
+        would (IntakeResponse.completed + legacy CP.onboarding_status
+        + Website.onboarding_status) but DOES NOT enqueue the
+        provision_droplet_task or send the confirmation email.
+    {% endcomment %}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Intake Form</h2>
+        </div>
+        <div class="admin-card__body">
+            <div class="form-row form-row--inline">
+                <label class="form-row__label">Current state</label>
+                <div class="form-row__field">
+                    {% if intake_response and intake_response.completed %}
+                        <span class="status-badge" style="background:rgba(74,222,128,0.15); color:#4ADE80;">Complete</span>
+                        {% if intake_response.completed_at %}
+                            <span class="muted" style="margin-left:0.5rem; font-size:0.85rem;">
+                                {{ intake_response.completed_at|date:"M j, Y g:i a" }}
+                            </span>
+                        {% endif %}
+                    {% elif intake_response %}
+                        <span class="status-badge" style="background:rgba(245,158,11,0.15); color:#f59e0b;">In progress</span>
+                    {% else %}
+                        <span class="muted">No intake response on file.</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="form-row form-row--inline">
+                <label class="form-row__label">Onboarding gates</label>
+                <div class="form-row__field">
+                    <code>website: {{ website.get_onboarding_status_display }}</code>
+                    {% if legacy_cp %}
+                        <br>
+                        <code>legacy: {{ legacy_cp.get_onboarding_status_display }}</code>
+                    {% endif %}
+                </div>
+            </div>
+            {% if intake_needs_admin_complete %}
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Admin override</label>
+                    <div class="form-row__field">
+                        <form method="post" action="{% url 'admin_dashboard:website_intake_mark_complete' website.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm"
+                                    onclick="return confirm('Mark intake as complete? This will NOT provision a droplet or email the client — flags only.');">
+                                Mark intake complete (no droplet)
+                            </button>
+                        </form>
+                        <p class="muted" style="font-size:0.75rem; margin:0.5rem 0 0; max-width:520px;">
+                            Flips the intake + onboarding flags so the client can reach their portal dashboard.
+                            Does <strong>not</strong> trigger droplet provisioning or send a confirmation email — use this for legacy sites only.
+                        </p>
+                    </div>
+                </div>
+            {% else %}
+                <p class="muted" style="margin:0;">Intake gate already cleared — no admin action needed.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="admin-card" style="margin-top: 2rem;">
         <div class="admin-card__header"><h2 class="admin-card__title">Domains pointed at this site ({{ domains|length }})</h2></div>
         <div class="admin-card__body">

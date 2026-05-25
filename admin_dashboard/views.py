@@ -7066,6 +7066,18 @@ def website_detail(request, website_id):
         f'https://cloud.digitalocean.com/droplets/{website.do_droplet_id}'
         if website.do_droplet_id else '')
 
+    # Resolve the IntakeResponse via the legacy ClientProfile (intake
+    # still lives there during Phase C). Used by the template's
+    # admin-override card so the button only renders when intake
+    # actually needs the manual flip.
+    legacy_cp = website.account.legacy_client_profile if website.account else None
+    intake_response = getattr(legacy_cp, 'intake', None) if legacy_cp else None
+    intake_needs_admin_complete = (
+        website.onboarding_status == 'pending_intake'
+        or (intake_response is not None and not intake_response.completed)
+        or (legacy_cp is not None
+            and legacy_cp.onboarding_status == 'pending_intake'))
+
     return render(
         request, 'admin_dashboard/website_detail.html',
         _admin_context(
@@ -7084,8 +7096,89 @@ def website_detail(request, website_id):
             next_stage=next_stage,
             other_accounts=other_accounts,
             do_console_url=do_console_url,
+            intake_response=intake_response,
+            intake_needs_admin_complete=intake_needs_admin_complete,
+            legacy_cp=legacy_cp,
         ),
     )
+
+
+@admin_required
+@require_POST
+def website_intake_mark_complete(request, website_id):
+    """
+    Admin override — mark a Website's intake as complete WITHOUT
+    triggering droplet provisioning or the client confirmation email.
+
+    Used to clean up legacy websites that were imported with the
+    `pending_intake` gate set even though intake was already done
+    long before the new model existed.
+
+    What this writes:
+      - Website.onboarding_status      → 'intake_complete'
+      - IntakeResponse.completed       → True
+      - IntakeResponse.completed_at    → now (if not already set)
+      - Legacy ClientProfile.onboarding_status → 'onboarding_complete'
+        (so the portal stops redirecting the client to /intake/)
+      - WebsiteStageLog entry          → audit trail
+
+    What this DOES NOT do:
+      - provision_droplet_task  (the whole point — admin is opting out)
+      - send_intake_received_email (this is an admin override, not a
+        client action)
+    """
+    from django.contrib import messages
+
+    from clients.account_models import Website, WebsiteStageLog
+
+    website = get_object_or_404(Website, id=website_id)
+    account = website.account
+
+    # 1. Website flag. Only upgrade if currently 'pending_intake' —
+    #    don't downgrade a site that's already 'complete' (a more
+    #    advanced state on the same scale).
+    if website.onboarding_status == 'pending_intake':
+        website.onboarding_status = 'intake_complete'
+        website.save(update_fields=['onboarding_status', 'updated_at'])
+
+    # 2. IntakeResponse on the legacy ClientProfile (where intake
+    #    actually lives during Phase C). Look up via the account's
+    #    legacy CP link.
+    legacy_cp = account.legacy_client_profile if account else None
+    intake = getattr(legacy_cp, 'intake', None) if legacy_cp else None
+    if intake is not None and not intake.completed:
+        intake.completed = True
+        if intake.completed_at is None:
+            intake.completed_at = timezone.now()
+        intake.save(update_fields=[
+            'completed', 'completed_at', 'updated_at'])
+
+    # 3. Legacy CP onboarding gate — this is what the client-portal
+    #    @client_required decorator reads to decide whether to bounce
+    #    a logged-in client to /portal/intake/. Flip it so they can
+    #    actually see their dashboard.
+    if legacy_cp is not None and (
+            legacy_cp.onboarding_status != 'onboarding_complete'):
+        legacy_cp.onboarding_status = 'onboarding_complete'
+        legacy_cp.onboarding_complete = True
+        legacy_cp.save(update_fields=[
+            'onboarding_status', 'onboarding_complete', 'updated_at'])
+
+    # 4. Audit trail — same pattern as a stage change.
+    WebsiteStageLog.objects.create(
+        website=website,
+        from_stage=website.stage,
+        to_stage=website.stage,  # no stage change, just an annotation
+        note='Intake marked complete by admin override (no droplet).',
+        set_by=request.user.get_full_name() or request.user.username,
+    )
+
+    messages.success(
+        request,
+        'Intake marked complete. No droplet was provisioned and no '
+        'confirmation email was sent — flags only.')
+    return redirect(
+        'admin_dashboard:website_detail', website_id=website.id)
 
 
 @admin_required
