@@ -3,7 +3,7 @@
 {% block title %}{{ website.name }} — Website{% endblock %}
 
 {% block content %}
-<div class="admin-container">
+<div class="admin-container website-detail">
     <div class="admin-page-header">
         <div>
             <span class="eyebrow">
@@ -20,19 +20,67 @@
         </div>
     </div>
 
-    {# Move-to-different-account control. Spec G — edge case. #}
-    <div class="admin-card" style="margin-bottom: 1.5rem;">
+    {% comment %}
+        Stage tracker — same pill stepper the client sees on their
+        dashboard, with admin-only forward / back / skip controls
+        below. Lives at the top so admins can move a project without
+        scrolling through the whole edit form.
+    {% endcomment %}
+    <div class="admin-card">
         <div class="admin-card__header">
-            <h2 class="admin-card__title">Move to a different Account</h2>
+            <h2 class="admin-card__title">Project Progress</h2>
+            <span class="muted">Current: <strong style="color:var(--color-text);">{{ website.get_stage_display }}</strong></span>
         </div>
         <div class="admin-card__body">
-            <p class="muted" style="margin-top: 0;">Edge-case admin action — moves this website (and its domains) onto another account. Only the account FK changes; data and history stay.</p>
-            <form method="post" action="{% url 'admin_dashboard:website_move_account' website.id %}" style="display: flex; gap: 0.5rem; align-items: center;">
-                {% csrf_token %}
-                <label>Destination account ID:</label>
-                <input type="text" name="account_id" class="form-control" placeholder="UUID of target account" style="flex: 1;">
-                <button type="submit" class="btn-secondary" onclick="return confirm('Move this website to a different account?');">Move</button>
-            </form>
+            <ol class="admin-stage-bar admin-stage-bar--steps">
+                {% for step in stage_steps %}
+                    <li class="admin-stage-bar__step admin-stage-bar__step--{{ step.status }}">
+                        <span class="admin-stage-bar__dot" aria-hidden="true">
+                            {% if step.status == 'completed' %}&#10003;{% elif step.status == 'current' %}&#9679;{% endif %}
+                        </span>
+                        <span class="admin-stage-bar__label">{{ step.label }}</span>
+                    </li>
+                {% endfor %}
+            </ol>
+
+            <div class="admin-stage-controls">
+                {% if prev_stage %}
+                    <form method="post" action="{% url 'admin_dashboard:website_change_stage' website.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="stage" value="{{ prev_stage }}">
+                        <button type="submit" class="btn-back-phase"
+                                onclick="return confirm('Move this website BACK one phase?');">
+                            ← Back a phase
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if next_stage %}
+                    <form method="post" action="{% url 'admin_dashboard:website_change_stage' website.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="stage" value="{{ next_stage }}">
+                        <button type="submit" class="btn-primary">
+                            Push to next phase →
+                        </button>
+                    </form>
+                {% else %}
+                    <span class="muted">Already at the final phase.</span>
+                {% endif %}
+
+                <form method="post" action="{% url 'admin_dashboard:website_change_stage' website.id %}" class="admin-stage-skip">
+                    {% csrf_token %}
+                    <label class="muted" style="font-size:13px;">Skip to:</label>
+                    <select name="stage" class="form-control" style="max-width:200px;">
+                        {% for slug, label in stages %}
+                            <option value="{{ slug }}"{% if slug == website.stage %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-secondary btn-sm"
+                            onclick="return confirm('Jump this website to the selected phase?');">
+                        Go
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -98,7 +146,12 @@
             <div class="admin-card__body">
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Droplet ID</label>
-                    <input type="text" name="do_droplet_id" value="{{ website.do_droplet_id }}" class="form-control">
+                    <div class="form-row__field-with-link">
+                        <input type="text" name="do_droplet_id" value="{{ website.do_droplet_id }}" class="form-control">
+                        {% if do_console_url %}
+                            <a href="{{ do_console_url }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Open in DigitalOcean ↗</a>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Droplet name</label>
@@ -106,7 +159,13 @@
                 </div>
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Droplet IP</label>
-                    <input type="text" value="{{ website.do_droplet_ip|default:'—' }}" class="form-control" disabled>
+                    <div class="form-row__field-with-link">
+                        <input type="text" value="{{ website.do_droplet_ip|default:'—' }}" class="form-control" disabled>
+                        {% if website.do_droplet_ip %}
+                            <a href="http://{{ website.do_droplet_ip }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Visit IP ↗</a>
+                            <a href="ssh://root@{{ website.do_droplet_ip }}" class="btn-secondary btn-sm">SSH</a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -221,13 +280,157 @@
             {% endif %}
         </div>
     </div>
+
+    {% comment %}
+        Destructive action — pushed to the very bottom + framed in
+        red so a stray click doesn't reassign the website. Dropdown
+        replaces the bare UUID textbox so admins pick from known
+        accounts.
+    {% endcomment %}
+    <div class="admin-card admin-card--danger">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">⚠ Move to a different Account</h2>
+        </div>
+        <div class="admin-card__body">
+            <p class="muted" style="margin-top: 0;">
+                Edge-case admin action — reassigns this website (and the domains pointed at it) to another account.
+                Only the account FK changes; data and history stay intact. Use sparingly.
+            </p>
+            <form method="post" action="{% url 'admin_dashboard:website_move_account' website.id %}" class="admin-danger-form">
+                {% csrf_token %}
+                <label for="move_account_id">Destination account:</label>
+                <select id="move_account_id" name="account_id" class="form-control" required>
+                    <option value="">— Pick an account —</option>
+                    {% for acc in other_accounts %}
+                        <option value="{{ acc.id }}">{{ acc.name }}{% if acc.user.email %} ({{ acc.user.email }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-danger"
+                        onclick="return confirm('Move this website (and its domains) to a different account? This is reversible but be sure.');">
+                    Move to selected account
+                </button>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
-.form-row--inline { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; padding: 0.5rem 0; align-items: flex-start; border-bottom: 1px solid var(--color-border-subtle, #2a2a2a); }
-.form-row--inline:last-child { border-bottom: 0; }
-.form-row__label { color: var(--color-text-muted); font-size: 0.875rem; padding-top: 0.5rem; }
-.checkbox-row { display: flex; align-items: center; gap: 0.5rem; padding-top: 0.5rem; }
-.form-actions { margin: 2rem 0; }
+/* Phase C2 follow-up — Website detail layout polish.
+   Scoped to .website-detail so it doesn't bleed into other admin pages. */
+.website-detail .admin-card { margin-bottom: 1.25rem; }
+
+.website-detail .form-row--inline {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
+}
+.website-detail .form-row--inline:last-child { border-bottom: 0; }
+.website-detail .form-row__label {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    padding-top: 0.5rem;
+}
+.website-detail .form-row__field-with-link {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.website-detail .form-row__field-with-link .form-control { flex: 1; }
+.website-detail .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+}
+.website-detail .form-actions { margin: 2rem 0; }
+
+/* Stage controls below the stepper. */
+.admin-stage-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+.admin-stage-skip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* Completed (green-tinted) + upcoming (muted) variants on the
+   stepper — the existing .admin-stage-bar only knew is-current. */
+.admin-stage-bar--steps .admin-stage-bar__step--completed {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.45);
+    color: var(--color-text);
+}
+.admin-stage-bar--steps .admin-stage-bar__step--completed .admin-stage-bar__dot {
+    color: #10b981;
+    font-weight: bold;
+}
+.admin-stage-bar--steps .admin-stage-bar__step--current {
+    background: rgba(232, 101, 10, 0.12);
+    border-color: rgba(232, 101, 10, 0.45);
+    color: var(--color-text);
+    font-weight: 600;
+}
+.admin-stage-bar--steps .admin-stage-bar__step--current .admin-stage-bar__dot {
+    color: var(--color-orange);
+}
+.admin-stage-bar--steps .admin-stage-bar__step--upcoming {
+    opacity: 0.6;
+}
+
+/* Back-a-phase button — per spec: red outline + transparent fill +
+   red text; hover flips to red fill + white text. */
+.btn-back-phase {
+    background: transparent;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.btn-back-phase:hover {
+    background: #ef4444;
+    color: #FFFFFF;
+}
+
+/* Danger card framing for the move-account section. */
+.admin-card--danger {
+    margin-top: 3rem;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.04);
+}
+.admin-card--danger .admin-card__title { color: #ef4444; }
+.admin-danger-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.admin-danger-form select { flex: 1; min-width: 240px; }
+.btn-danger {
+    background: #ef4444;
+    border: 1px solid #ef4444;
+    color: #FFFFFF;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.btn-danger:hover { background: #dc2626; border-color: #dc2626; }
 </style>
 {% endblock %}

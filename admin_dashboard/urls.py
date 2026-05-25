@@ -322,6 +322,8 @@ urlpatterns = [
          name='website_detail'),
     path('websites/<uuid:website_id>/move-account/',
          views.website_move_account, name='website_move_account'),
+    path('websites/<uuid:website_id>/change-stage/',
+         views.website_change_stage, name='website_change_stage'),
     path('domains/<uuid:reg_id>/move-account/',
          views.domain_move_account, name='domain_move_account'),
 ]

@@ -6827,7 +6827,43 @@ def website_detail(request, website_id):
         except Exception as exc:  # noqa: BLE001
             messages.error(request, f'Save failed: {exc}')
 
+    from clients.account_models import Account
+
     domains = list(website.domains.all().order_by('domain_name'))
+
+    # Stage stepper pills — same shape as the client portal Project
+    # Progress stepper. `current_idx` drives prev/next buttons.
+    stage_choices = list(
+        website._meta.get_field('stage').choices)
+    stage_keys = [k for k, _ in stage_choices]
+    try:
+        current_idx = stage_keys.index(website.stage)
+    except ValueError:
+        current_idx = 0
+    stage_steps = []
+    for i, (key, label) in enumerate(stage_choices):
+        if i < current_idx:
+            status = 'completed'
+        elif i == current_idx:
+            status = 'current'
+        else:
+            status = 'upcoming'
+        stage_steps.append({'key': key, 'label': label, 'status': status})
+    prev_stage = stage_keys[current_idx - 1] if current_idx > 0 else ''
+    next_stage = (
+        stage_keys[current_idx + 1]
+        if current_idx + 1 < len(stage_keys) else '')
+
+    # All accounts for the move-account dropdown. Exclude the current
+    # account so the user can't pick a no-op.
+    other_accounts = list(Account.objects.exclude(
+        id=website.account_id).order_by('name'))
+
+    # Build the DigitalOcean control-panel URL for the linked droplet
+    # info — clickable straight from the admin page.
+    do_console_url = (
+        f'https://cloud.digitalocean.com/droplets/{website.do_droplet_id}'
+        if website.do_droplet_id else '')
 
     return render(
         request, 'admin_dashboard/website_detail.html',
@@ -6836,14 +6872,71 @@ def website_detail(request, website_id):
             website=website,
             account=website.account,
             domains=domains,
-            stages=website._meta.get_field('stage').choices,
+            stages=stage_choices,
             packages=website._meta.get_field('package').choices,
             payment_statuses=website._meta.get_field('payment_status').choices,
             onboarding_statuses=(
                 website._meta.get_field('onboarding_status').choices),
             statuses=website._meta.get_field('status').choices,
+            stage_steps=stage_steps,
+            prev_stage=prev_stage,
+            next_stage=next_stage,
+            other_accounts=other_accounts,
+            do_console_url=do_console_url,
         ),
     )
+
+
+@admin_required
+@require_POST
+def website_change_stage(request, website_id):
+    """
+    Move a Website to a new stage from the admin website page. Three
+    entry points POST to this view:
+      - "Push to next phase" submits the next stage slug.
+      - "Back a phase" submits the previous stage slug.
+      - "Skip to <stage>" submits any stage slug from the dropdown.
+
+    Validates the slug against the model choices, writes a stage-log
+    row, and (for forward moves) fires the stage-change email so the
+    client sees the transition in their portal.
+    """
+    from django.contrib import messages
+
+    from clients.account_models import Website, WebsiteStageLog
+
+    website = get_object_or_404(Website, id=website_id)
+    new_stage = (request.POST.get('stage') or '').strip()
+    note = (request.POST.get('note') or '').strip()
+
+    valid = [k for k, _ in website._meta.get_field('stage').choices]
+    if new_stage not in valid:
+        messages.error(request, f'Unknown stage: {new_stage!r}')
+        return redirect(
+            'admin_dashboard:website_detail', website_id=website.id)
+
+    if new_stage == website.stage:
+        messages.info(request, 'Already in that stage.')
+        return redirect(
+            'admin_dashboard:website_detail', website_id=website.id)
+
+    from_stage = website.stage
+    website.stage = new_stage
+    website.save(update_fields=['stage', 'updated_at'])
+
+    WebsiteStageLog.objects.create(
+        website=website,
+        from_stage=from_stage,
+        to_stage=new_stage,
+        note=note,
+        set_by=request.user.get_full_name() or request.user.username,
+    )
+
+    messages.success(
+        request,
+        f'Stage moved {from_stage} → {new_stage}.')
+    return redirect(
+        'admin_dashboard:website_detail', website_id=website.id)
 
 
 @admin_required
