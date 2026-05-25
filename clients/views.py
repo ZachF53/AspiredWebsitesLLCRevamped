@@ -50,25 +50,35 @@ CLIENT_PIN_LOCKOUT_MINUTES = 30
 
 # ── Shared helpers ──────────────────────────────────────────────────────────
 
-def _active_project(profile):
+def _active_project(request):
     """
-    Transitional shim — the Project model is being dropped; every
-    former Project field now lives directly on ClientProfile, so this
-    function just returns the profile itself.
+    Phase C shim — returns the per-request "project" object for portal
+    views.
 
-    Callers that read `project.stage`, `project.revisions`,
-    `project.stage_logs`, `project.revision_count`, etc. keep working
-    unchanged (those attributes / related-managers all exist on
-    ClientProfile now).
+    Resolution order:
+      1. ``request.website`` — the post-refactor Website the chooser
+         picked. Source of truth for per-build state when set.
+      2. ``request.client_profile`` — the legacy single ClientProfile.
+         Falls back to this so single-website (and pre-backfill)
+         accounts keep working unchanged.
 
-    Writers that did `obj.project = active_project_result` need to be
-    updated to `obj.client = active_project_result` — but with this
-    shim the value being assigned is now a ClientProfile, so the FK
-    type still matches the new schema.
+    Why: an Account can own multiple Websites but only ONE legacy
+    ClientProfile (User is OneToOne with CP). When the admin pushes
+    stage on Website A, the CP.stage mirror immediately gets
+    overwritten by the next push on Website B — same field, two
+    writers. The portal needs per-pick state, not the shared CP.
 
-    Returns the ClientProfile, or None if the input was None.
+    Returns whichever is non-None, or None if neither is set.
+
+    Both Website and ClientProfile expose the same read attributes
+    callers use (`.stage`, `.revisions`, `.stage_logs`, `.revision_count`,
+    `.payment_status`, `.launch_date`, `.support_window_ends`, etc.)
+    so existing call sites don't need per-type branching.
     """
-    return profile
+    site = getattr(request, 'website', None)
+    if site is not None:
+        return site
+    return getattr(request, 'client_profile', None)
 
 
 def _portal_context(request, active_nav, **extra):
@@ -157,10 +167,12 @@ def _portal_context(request, active_nav, **extra):
 
     ctx = {
         'profile': profile,
-        # `project` kept in the context as an alias to profile so any
-        # template that still says {{ project.stage }} keeps working
-        # through the transition. New code uses {{ profile.stage }}.
-        'project': profile,
+        # `project` is an alias used by every legacy template that
+        # reads {{ project.stage }} / {{ project.revisions }} / etc.
+        # During Phase C we prefer the active Website (so multi-
+        # website accounts show per-pick data), falling back to the
+        # legacy single ClientProfile.
+        'project': website or profile,
         'intake': intake,
         'active_portal_nav': active_nav,
         'intake_incomplete': intake is None or not intake.completed,
@@ -260,7 +272,7 @@ def _intake_steps(intake):
 @client_required
 def dashboard(request):
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
 
     next_invoice = None
     stage_steps = []
@@ -294,7 +306,7 @@ def dashboard(request):
 @client_required
 def project_detail(request):
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
 
     timeline = []
     revisions = []
@@ -456,7 +468,7 @@ def _ensure_project_for_unlocked_intake(client):
 @allow_pending_intake
 def intake(request):
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
 
     if not _intake_unlocked(profile, project):
         ctx = _portal_context(request, 'intake', intake_locked=True)
@@ -508,7 +520,7 @@ def intake(request):
 def intake_save(request):
     """HTMX auto-save endpoint — persists the intake form on every change."""
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
     if request.method != 'POST' or not _intake_unlocked(profile, project):
         return redirect('clients:intake')
 
@@ -572,7 +584,7 @@ def intake_photo_upload(request):
     many case uniformly.
     """
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
     if not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
     if project is None:
@@ -625,7 +637,7 @@ def intake_photo_upload(request):
 def intake_photo_delete(request, photo_id):
     """HTMX endpoint: remove one IntakePhoto, return the refreshed gallery."""
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
     if project is None or not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
     intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
@@ -844,7 +856,7 @@ def _hourly_rate():
 @client_required
 def revisions(request):
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
     revision_list = list(project.revisions.all()) if project else []
     ctx = _portal_context(
         request, 'revisions',
@@ -858,7 +870,7 @@ def revisions(request):
 @client_required
 def revision_new(request):
     profile = request.client_profile
-    project = _active_project(profile)
+    project = _active_project(request)
     if project is None:
         messages.error(request, 'You need an active project to request a revision.')
         return redirect('clients:revisions')
@@ -2116,7 +2128,7 @@ def _maintenance_upsell_state(profile):
       days_since_live — int or None
       current_tier_slug — '' or the active tier slug
     """
-    project = _active_project(profile)
+    project = _active_project(request)
     project_live = bool(project and project.stage == 'live')
     days_since_live = None
     if project and getattr(project, 'launch_date', None):
