@@ -50,11 +50,11 @@ def check_client_uptime():
 
     checked = 0
     for client in active_clients:
-        project = client.projects.filter(stage='live').first()
-        if not project or not project.live_url:
+        # client.website is the canonical live URL (2026-05-25 refactor).
+        if not client.website:
             continue
 
-        url = project.live_url
+        url = client.website
         if not url.startswith('http'):
             url = f'https://{url}'
 
@@ -116,8 +116,7 @@ def check_and_fire_alert(client):
     UptimeAlert.objects.create(
         client=client, consecutive_failures=3, alert_sent=True)
 
-    project = client.projects.filter(stage='live').first()
-    live_url = project.live_url if project else '(unknown)'
+    live_url = client.website or '(unknown)'
     send_admin_alert(
         subject=f'🔴 Site Down: {client.firm_name}',
         message=(
@@ -158,8 +157,7 @@ def check_gbp_sync():
     clients = ClientProfile.objects.filter(status='active')
     recorded = 0
     for client in clients:
-        project = client.projects.filter(stage='live').first()
-        if not project:
+        if client.stage != 'live':
             continue
 
         if not _gbp_is_connected(client):
@@ -499,11 +497,10 @@ def generate_freshness_report(client_id):
     client = ClientProfile.objects.filter(id=client_id).first()
     if client is None:
         return 'No such client.'
-    project = client.projects.filter(stage='live').first()
-    if not project or not project.live_url:
+    if not client.website:
         return 'No live site to crawl.'
 
-    base_url = project.live_url
+    base_url = client.website
     if not base_url.startswith('http'):
         base_url = f'https://{base_url}'
 
@@ -645,12 +642,13 @@ def send_testimonial_requests():
     """One-time testimonial request ~30 days after a client's site launched."""
     from clients.models import ClientProfile
 
+    # Post-2026-05-25 refactor: stage + launch_date on ClientProfile.
     thirty_days_ago = (timezone.now() - timedelta(days=30)).date()
     eligible = ClientProfile.objects.filter(
-        projects__stage='live',
-        projects__launch_date__lte=thirty_days_ago,
+        stage='live',
+        launch_date__lte=thirty_days_ago,
         testimonial_requested_at__isnull=True,
-    ).distinct()
+    )
 
     count = 0
     for client in eligible:

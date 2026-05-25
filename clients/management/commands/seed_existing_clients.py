@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from clients.models import ClientProfile, Project
+from clients.models import ClientProfile
 from vault.models import ClientVault
 
 User = get_user_model()
@@ -201,19 +201,19 @@ class Command(BaseCommand):
             },
         )
 
-        Project.objects.update_or_create(
-            client=profile,
-            defaults={
-                'stage': 'live',
-                'package': (data['package']
-                            if data['package'] in {'essential_build',
-                                                   'premium_build'}
-                            else 'essential_build'),
-                'live_url': data['live_url'],
-                'payment_status': 'fully_paid',
-                'moonieful_referred': is_moonieful,
-            },
-        )
+        # 2026-05-25 refactor: former Project fields live on
+        # ClientProfile directly. Set them in-place.
+        profile.stage = 'live'
+        if data['package'] in {'essential_build', 'premium_build'}:
+            profile.package = data['package']
+        elif not profile.package:
+            profile.package = 'essential_build'
+        profile.website = data['live_url'] or profile.website
+        profile.payment_status = 'fully_paid'
+        profile.save(update_fields=[
+            'stage', 'package', 'website',
+            'payment_status', 'updated_at',
+        ])
 
         ClientVault.objects.get_or_create(client=profile)
 

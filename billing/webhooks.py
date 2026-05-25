@@ -296,27 +296,27 @@ def _handle_invoice_paid(event):
 
     kind = (invoice.get('metadata') or {}).get('kind')
 
-    # ── NEW admin onboarding-invoice flow (Part 3) ──
-    # Triggered by the admin invoice-creation form. Creates the Project
-    # the intake form needs, activates the Django user so they can log
-    # in, and emails the setup link. Droplet provisioning is deferred
-    # until intake completion (Part 6).
-    if kind == 'onboarding_setup' or not client.projects.exists():
+    # ── Admin onboarding-invoice flow ──
+    # Triggered by the admin invoice-creation form. Activates the user,
+    # bootstraps the IntakeResponse + ClientVault, and emails the setup
+    # link. Droplet provisioning is deferred until intake completion.
+    if kind == 'onboarding_setup' or client.stage in ('', 'intake'):
         _on_onboarding_invoice_paid(client)
         return
 
-    project = client.projects.order_by('-created_at').first()
     if kind == 'final':
-        project.payment_status = 'fully_paid'
-        project.final_paid_at = timezone.now()
-        project.save(update_fields=['payment_status', 'final_paid_at', 'updated_at'])
-        logger.info('invoice.paid (final): project %s fully paid', project.pk)
+        client.payment_status = 'fully_paid'
+        client.final_paid_at = timezone.now()
+        client.save(update_fields=[
+            'payment_status', 'final_paid_at', 'updated_at'])
+        logger.info('invoice.paid (final): client %s fully paid', client.pk)
     else:
         # Anything not explicitly 'final' is treated as the deposit.
-        project.payment_status = 'deposit_paid'
-        project.deposit_paid_at = timezone.now()
-        project.save(update_fields=['payment_status', 'deposit_paid_at', 'updated_at'])
-        _on_deposit_paid(client, project)
+        client.payment_status = 'deposit_paid'
+        client.deposit_paid_at = timezone.now()
+        client.save(update_fields=[
+            'payment_status', 'deposit_paid_at', 'updated_at'])
+        _on_deposit_paid(client)
 
 
 def _on_onboarding_invoice_paid(client):
@@ -327,16 +327,14 @@ def _on_onboarding_invoice_paid(client):
     (and optionally first-month maintenance + hosting). We:
       1. Activate the Django user so they can use the setup link
       2. Mark the profile active + pending_setup
-      3. Create the Project + IntakeResponse so the intake page works
-         once they log in
-      4. Email the setup link (only if it wasn't already sent at invoice
-         creation time)
+      3. Bootstrap the IntakeResponse + ClientVault
+      4. Mark payment_status='fully_paid' (admin invoice = single one-off)
+      5. Email the setup link
 
     Note: Droplet provisioning is intentionally deferred to intake
     completion — we don't want to spin up a $6 Droplet for someone who
     paid but never submits intake. See `clients/views.intake` (Part 6).
     """
-    from clients.models import Project
     from vault.models import ClientVault
 
     if client.user and not client.user.is_active:
@@ -349,23 +347,20 @@ def _on_onboarding_invoice_paid(client):
             'pending_intake', 'onboarding_complete'):
         client.onboarding_status = 'pending_setup'
         fields_to_save.append('onboarding_status')
+
+    # Admin onboarding invoice is single-pay (not split deposit/final),
+    # so mark it fully paid up front. Stage stays 'intake' (the default).
+    if client.payment_status != 'fully_paid':
+        client.payment_status = 'fully_paid'
+        client.final_paid_at = timezone.now()
+        fields_to_save += ['payment_status', 'final_paid_at']
+    if not client.stage:
+        client.stage = 'intake'
+        fields_to_save.append('stage')
+
     client.save(update_fields=fields_to_save)
 
-    project, _ = Project.objects.get_or_create(
-        client=client,
-        defaults={
-            # `payment_status='fully_paid'` because the admin onboarding
-            # invoice is a single one-off — not split into deposit/final.
-            'payment_status': 'fully_paid',
-            'package': (
-                client.package
-                if client.package in ('essential_build', 'premium_build')
-                else ''),
-            'stage': 'intake',
-            'final_paid_at': timezone.now(),
-        },
-    )
-    IntakeResponse.objects.get_or_create(project=project)
+    IntakeResponse.objects.get_or_create(client=client)
     ClientVault.objects.get_or_create(client=client)
 
     # Resend the setup link unless the token has already been used. The
@@ -381,10 +376,10 @@ def _on_onboarding_invoice_paid(client):
 
     logger.info(
         'invoice.paid (onboarding_setup): client %s activated, '
-        'project %s pending intake', client.pk, project.pk)
+        'pending intake', client.pk)
 
 
-def _on_deposit_paid(client, project):
+def _on_deposit_paid(client):
     """
     Legacy contract-flow handler — kept for the existing contract-signing
     path. Sends the welcome email + schedules Day-2/4 intake reminders.
@@ -393,21 +388,24 @@ def _on_deposit_paid(client, project):
     completion (Part 6) so a paid-but-never-submitted client doesn't
     waste a Droplet.
     """
-    IntakeResponse.objects.get_or_create(project=project)
+    IntakeResponse.objects.get_or_create(client=client)
     from vault.models import ClientVault
     ClientVault.objects.get_or_create(client=client)
-    send_welcome_email(client, project)
-    _schedule_intake_reminders(project)
+    send_welcome_email(client)
+    _schedule_intake_reminders(client)
 
 
-def _schedule_intake_reminders(project):
+def _schedule_intake_reminders(client):
     """Schedule Day-2 + Day-4 intake reminders. Best effort."""
     try:
         from billing.tasks import send_intake_reminder_task
-        send_intake_reminder_task.apply_async((str(project.id), 2), countdown=2 * DAY)
-        send_intake_reminder_task.apply_async((str(project.id), 4), countdown=4 * DAY)
+        send_intake_reminder_task.apply_async(
+            (str(client.id), 2), countdown=2 * DAY)
+        send_intake_reminder_task.apply_async(
+            (str(client.id), 4), countdown=4 * DAY)
     except Exception:
-        logger.exception('Could not schedule intake reminders for %s', project.pk)
+        logger.exception(
+            'Could not schedule intake reminders for %s', client.pk)
 
 
 # ── invoice.payment_failed ──────────────────────────────────────────────────

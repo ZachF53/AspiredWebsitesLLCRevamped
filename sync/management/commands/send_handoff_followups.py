@@ -23,23 +23,17 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
+        # 2026-05-25 refactor: moonieful_handoff_at now on ClientProfile,
+        # not on a separate Project row.
         candidates = ClientProfile.objects.filter(
             synced_from_moonieful=True,
             maintenance_active=False,
-            projects__moonieful_handoff_at__isnull=False,
-        ).distinct()
+            moonieful_handoff_at__isnull=False,
+        )
 
         total = 0
         for client in candidates:
-            project = (
-                client.projects
-                .filter(moonieful_handoff_at__isnull=False)
-                .order_by('-moonieful_handoff_at')
-                .first()
-            )
-            if project is None:
-                continue
-            days_since = (now - project.moonieful_handoff_at).days
+            days_since = (now - client.moonieful_handoff_at).days
             sent = dict(client.handoff_followup_sent or {})
             changed = False
 

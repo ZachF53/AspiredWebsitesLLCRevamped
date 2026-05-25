@@ -27,7 +27,6 @@ from .models import (
     Contract,
     IntakePhoto,
     IntakeResponse,
-    Project,
 )
 from .pdf_utils import render_contract_pdf
 from .vault_helpers import (
@@ -48,17 +47,35 @@ CLIENT_PIN_LOCKOUT_MINUTES = 30
 # ── Shared helpers ──────────────────────────────────────────────────────────
 
 def _active_project(profile):
-    return profile.projects.order_by('-created_at').first()
+    """
+    Transitional shim — the Project model is being dropped; every
+    former Project field now lives directly on ClientProfile, so this
+    function just returns the profile itself.
+
+    Callers that read `project.stage`, `project.revisions`,
+    `project.stage_logs`, `project.revision_count`, etc. keep working
+    unchanged (those attributes / related-managers all exist on
+    ClientProfile now).
+
+    Writers that did `obj.project = active_project_result` need to be
+    updated to `obj.client = active_project_result` — but with this
+    shim the value being assigned is now a ClientProfile, so the FK
+    type still matches the new schema.
+
+    Returns the ClientProfile, or None if the input was None.
+    """
+    return profile
 
 
 def _portal_context(request, active_nav, **extra):
     """Common context for every portal page — drives the sidebar + badges."""
     profile = request.client_profile
-    project = _active_project(profile)
-    intake = getattr(project, 'intake', None) if project else None
-    pending_revisions = (
-        project.revisions.filter(status='pending').count() if project else 0
-    )
+    # Project fields are now flat on ClientProfile (2026-05-25 refactor).
+    # `intake` lookup checks the new client FK first, falls back to the
+    # old project FK so legacy IntakeResponse rows (with client=NULL but
+    # project=<row>) still resolve until the data backfill catches them.
+    intake = getattr(profile, 'intake', None)
+    pending_revisions = profile.revisions.filter(status='pending').count()
     open_tickets = profile.tickets.filter(
         status__in=['open', 'in_progress']
     ).count()
@@ -123,10 +140,13 @@ def _portal_context(request, active_nav, **extra):
 
     ctx = {
         'profile': profile,
-        'project': project,
+        # `project` kept in the context as an alias to profile so any
+        # template that still says {{ project.stage }} keeps working
+        # through the transition. New code uses {{ profile.stage }}.
+        'project': profile,
         'intake': intake,
         'active_portal_nav': active_nav,
-        'intake_incomplete': bool(project) and (intake is None or not intake.completed),
+        'intake_incomplete': intake is None or not intake.completed,
         'pending_revisions': pending_revisions,
         'open_tickets': open_tickets,
         'changelog_has_new': changelog_has_new,
@@ -373,40 +393,41 @@ def _intake_missing_required(intake_obj):
 
 def _ensure_project_for_unlocked_intake(client):
     """
-    Lazily create the Project + IntakeResponse + ClientVault for a
-    new-flow client who has reached the intake page without a real
-    Stripe webhook having fired (test/demo path, or a webhook that
-    silently failed and was never retried).
+    Lazily create the IntakeResponse + ClientVault for a new-flow
+    client who has reached the intake page without a real Stripe
+    webhook having fired (test/demo path, or a webhook that silently
+    failed and was never retried).
 
-    Idempotent — returns the existing Project if one already exists.
+    Post-2026-05-25 refactor: Project no longer exists as a separate
+    row — the former Project fields live on ClientProfile directly.
+    This function now just ensures the row that HOLDS the intake
+    answers exists, and seeds reasonable defaults on the client
+    (stage='intake', payment_status='fully_paid' for new-flow).
+    Returns the client (formerly returned the Project) so callers
+    that pass the result around still get something truthy.
+
+    Idempotent.
     """
-    project = _active_project(client)
-    if project is not None:
-        # Ensure the row that holds intake answers exists.
-        IntakeResponse.objects.get_or_create(project=project)
-        return project
+    fields_to_save = []
+    if not client.stage:
+        client.stage = 'intake'
+        fields_to_save.append('stage')
+    if not client.payment_status or client.payment_status == 'awaiting_deposit':
+        client.payment_status = 'fully_paid'
+        client.final_paid_at = timezone.now()
+        fields_to_save += ['payment_status', 'final_paid_at']
+    if fields_to_save:
+        fields_to_save.append('updated_at')
+        client.save(update_fields=fields_to_save)
 
-    package = (
-        client.package
-        if client.package in ('essential_build', 'premium_build')
-        else '')
-    project = Project.objects.create(
-        client=client,
-        stage='intake',
-        package=package,
-        payment_status='fully_paid',
-        final_paid_at=timezone.now(),
-    )
-    IntakeResponse.objects.get_or_create(project=project)
+    IntakeResponse.objects.get_or_create(client=client)
     try:
         from vault.models import ClientVault
         ClientVault.objects.get_or_create(client=client)
     except Exception:
-        # Vault models import path may be unavailable in tests — never
-        # break intake over the vault row not materialising.
         logger.exception(
             'Auto-create of ClientVault failed for %s', client.pk)
-    return project
+    return client
 
 
 @client_required
@@ -425,7 +446,7 @@ def intake(request):
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
 
-    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
 
     if request.method == 'POST':
         # Final submission — fields are already auto-saved; this just
@@ -475,7 +496,7 @@ def intake_save(request):
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
 
-    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
 
     # Step 2 radios POST `photos_provided=yes|no`. Django's
     # CheckboxInput.value_from_datadict treats both as truthy (any
@@ -534,7 +555,7 @@ def intake_photo_upload(request):
         return HttpResponse(status=403)
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
-    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
 
     files = request.FILES.getlist('file')
     if not files:
@@ -585,7 +606,7 @@ def intake_photo_delete(request, photo_id):
     project = _active_project(profile)
     if project is None or not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
-    intake_obj, _ = IntakeResponse.objects.get_or_create(project=project)
+    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
 
     photo = (IntakePhoto.objects
              .filter(id=photo_id, intake=intake_obj).first())
@@ -773,7 +794,8 @@ def file_upload(request):
         if form.is_valid():
             doc = form.save(commit=False)
             doc.client = profile
-            doc.project = _active_project(profile)
+            # ClientDocument.project is a vestigial nullable FK being
+            # dropped in Phase 3 — leave it None.
             doc.direction = 'from_client'
             doc.uploaded_by = request.user
             doc.save()
@@ -823,20 +845,23 @@ def revision_new(request):
         form = RevisionForm(request.POST)
         if form.is_valid():
             revision = form.save(commit=False)
-            revision.project = project
+            # `client` is the canonical FK; `project` kept temporarily
+            # for back-compat readers (will be dropped in Phase 3).
+            revision.client = profile
             revision.source = 'aspired_portal'
             revision.counts_against_limit = revision.is_major
             revision.save()
 
             if revision.is_major:
-                project.revision_count += 1
-                project.save(update_fields=['revision_count', 'updated_at'])
+                profile.revision_count += 1
+                profile.save(update_fields=[
+                    'revision_count', 'updated_at'])
 
-            if project.revision_count > project.revision_limit:
+            if profile.revision_count > profile.revision_limit:
                 # Out of scope — bill it before work begins.
                 revision.status = 'out_of_scope'
                 revision.save(update_fields=['status', 'updated_at'])
-                _create_revision_mini_invoice(profile, project, revision)
+                _create_revision_mini_invoice(profile, revision)
                 messages.warning(
                     request,
                     'This exceeds your included revisions. An out-of-scope '
@@ -857,11 +882,12 @@ def revision_new(request):
     return redirect('clients:revisions')
 
 
-def _create_revision_mini_invoice(profile, project, revision):
+def _create_revision_mini_invoice(profile, revision):
     from billing.models import MiniInvoice
+    # MiniInvoice.project is a vestigial nullable FK being dropped in
+    # Phase 3 — only `client` matters now.
     MiniInvoice.objects.create(
         client=profile,
-        project=project,
         revision=revision,
         description=f'Out-of-scope revision: {revision.description[:120]}',
         amount=0,
@@ -903,7 +929,8 @@ def support_new(request):
         if form.is_valid():
             ticket = form.save(commit=False)
             ticket.client = profile
-            ticket.project = _active_project(profile)
+            # SupportTicket.project is a vestigial nullable FK being
+            # dropped in Phase 3 — leave it None.
             ticket.save()
             _notify_admin_ticket(profile, ticket)
             messages.success(request, 'Support ticket submitted.')
@@ -1555,13 +1582,15 @@ def contract_sign(request, contract_token):
             contract.pdf_path = render_contract_pdf(contract)
             contract.save()
 
-            # Create the Project for this build — awaiting the deposit payment.
-            Project.objects.create(
-                client=contract.client,
-                package=contract.package,
-                stage='intake',
-                payment_status='awaiting_deposit',
-            )
+            # Set the build fields on the client (post-2026-05-25 the
+            # former Project fields live directly on ClientProfile).
+            client = contract.client
+            client.package = (
+                contract.package or client.package or '')
+            client.stage = 'intake'
+            client.payment_status = 'awaiting_deposit'
+            client.save(update_fields=[
+                'package', 'stage', 'payment_status', 'updated_at'])
 
             send_contract_signed_email(contract)
             # Issue the 50% deposit invoice via Stripe (best effort —

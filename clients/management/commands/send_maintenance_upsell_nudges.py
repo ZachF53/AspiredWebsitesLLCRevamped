@@ -60,16 +60,14 @@ class Command(BaseCommand):
 
             # Candidate clients: project went live ≥N days ago AND
             # no active maintenance sub. We pull via the related
-            # Project rather than ClientProfile because launch_date
-            # lives on Project, not ClientProfile.
+            # 2026-05-25: launch_date + stage now on ClientProfile
+            # directly (was Project, dropped in this refactor).
             candidates = ClientProfile.objects.filter(
                 maintenance_active=False,
                 status='active',
-                projects__launch_date__lte=cutoff.date(),
-                projects__stage='live',
-            ).exclude(
-                user__email='',
-            ).distinct()
+                launch_date__lte=cutoff.date(),
+                stage='live',
+            ).exclude(user__email='')
 
             for client in candidates:
                 if not client.user or not client.user.email:

@@ -152,10 +152,8 @@ def build_system_prompt(credential, client, context,
     # Client block — optional; some credentials are agency-internal.
     client_block = ''
     if client:
-        live_url = ''
-        live_project = client.projects.filter(stage='live').first()
-        if live_project and live_project.live_url:
-            live_url = live_project.live_url
+        # client.website is the canonical live URL (2026-05-25 refactor).
+        live_url = client.website or ''
         client_block = (
             f"\nCLIENT INFORMATION:\n"
             f"  Firm:           {client.firm_name}\n"

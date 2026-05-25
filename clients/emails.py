@@ -166,9 +166,9 @@ _STAGE_COPY = {
 }
 
 
-def send_stage_change_email(client, project, new_stage):
+def send_stage_change_email(client, new_stage):
     """
-    Notify the client that their project has moved to a new stage.
+    Notify the client that their stage has moved.
 
     Looks up per-stage copy in `_STAGE_COPY`; if the stage isn't in
     the map (e.g. 'intake'), the email is skipped — those transitions
@@ -183,7 +183,7 @@ def send_stage_change_email(client, project, new_stage):
         return                  # nothing to say for this transition
 
     name = _first_name(client)
-    stage_label = dict(project._meta.get_field('stage').choices).get(
+    stage_label = dict(client._meta.get_field('stage').choices).get(
         new_stage, new_stage.replace('_', ' ').title())
 
     text_body = (
@@ -193,8 +193,8 @@ def send_stage_change_email(client, project, new_stage):
         f'{copy["description"]}\n\n')
 
     staging_url = ''
-    if new_stage == 'review' and getattr(project, 'staging_url', ''):
-        staging_url = project.staging_url
+    if new_stage == 'review' and getattr(client, 'staging_url', ''):
+        staging_url = client.staging_url
         text_body += f'Staging link: {staging_url}\n\n'
 
     portal_url = 'https://aspiredwebsites.com/portal/'
@@ -620,8 +620,8 @@ def send_contract_signed_email(contract):
     )
 
 
-def send_welcome_email(client, project):
-    """Sent once the deposit clears — project is active, intake unlocked."""
+def send_welcome_email(client):
+    """Sent once the deposit clears — client is active, intake unlocked."""
     name = client.contact_name or client.firm_name
     intake_url = 'https://aspiredwebsites.com/portal/intake/'
     login_url = 'https://aspiredwebsites.com/login/'
@@ -649,9 +649,8 @@ def send_welcome_email(client, project):
     )
 
 
-def send_intake_reminder_email(project, day):
+def send_intake_reminder_email(client, day):
     """Day-2 / Day-4 nudge (contract-flow) to finish the intake form."""
-    client = project.client
     name = client.contact_name or client.firm_name
     intake_url = 'https://aspiredwebsites.com/portal/intake/'
     text_body = (

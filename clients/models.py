@@ -213,6 +213,48 @@ class ClientProfile(TimestampedModel):
     # `internal_notes` by the legacy seed command.
     is_tester = models.BooleanField(default=False)
 
+    # ── Project fields merged into ClientProfile (2026-05-25) ──
+    # Previously these lived on a separate Project model with a 1:N
+    # relationship. Multi-project-per-client was never actually used
+    # in production and the cross-model URL/stage lookups were a
+    # constant source of `client.projects.first.X`-blows-up-when-None
+    # bugs. Now flattened onto ClientProfile as the single source of
+    # truth. Project model + table will be dropped in Phase 2.
+    PAYMENT_STATUS_CHOICES = [
+        ('awaiting_deposit', 'Awaiting Deposit'),
+        ('deposit_paid', 'Deposit Paid'),
+        ('fully_paid', 'Fully Paid'),
+    ]
+    stage = models.CharField(
+        max_length=20, choices=PROJECT_STAGES, default='intake',
+        help_text='Where this client is in the build lifecycle.',
+    )
+    staging_url = models.URLField(blank=True)
+    # `website` (the canonical live URL field) lives further up — it
+    # was extracted earlier in the refactor. Stays where it is.
+    launch_date = models.DateField(null=True, blank=True)
+    support_window_ends = models.DateField(
+        null=True, blank=True, help_text='Launch date + 14 days.',
+    )
+    payment_status = models.CharField(
+        max_length=20, choices=PAYMENT_STATUS_CHOICES,
+        default='awaiting_deposit',
+    )
+    deposit_paid_at = models.DateTimeField(null=True, blank=True)
+    final_paid_at = models.DateTimeField(null=True, blank=True)
+
+    # Revisions are resettable: admin clicks "Reset revisions" when
+    # starting a new effort with the client (e.g. mini-redesign,
+    # second build) and the counter goes back to zero.
+    revision_count = models.PositiveIntegerField(default=0)
+    revision_limit = models.PositiveIntegerField(default=2)
+    revisions_reset_at = models.DateTimeField(null=True, blank=True)
+
+    # Moonieful handoff timestamps (kept on ClientProfile because the
+    # synced_from_moonieful flag already lives here).
+    moonieful_handoff_at = models.DateTimeField(null=True, blank=True)
+    moonieful_stage_history = models.JSONField(default=list, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Client Profile'
@@ -220,6 +262,36 @@ class ClientProfile(TimestampedModel):
 
     def __str__(self):
         return self.firm_name
+
+    # ── Backward-compat aliases ──
+    # `live_url` was on Project; the canonical field on ClientProfile
+    # is `website`. Keep `live_url` working as a read-only alias so
+    # legacy templates / emails that reference {{ project.live_url }}
+    # (now aliased to profile) keep rendering.
+    @property
+    def live_url(self):
+        return self.website or ''
+
+    # ── Revision helpers (formerly Project methods) ──
+
+    @property
+    def revisions_remaining(self):
+        return max(self.revision_limit - self.revision_count, 0)
+
+    @property
+    def over_revision_limit(self):
+        return self.revision_count > self.revision_limit
+
+    def reset_revisions(self, *, save=True):
+        """Wipe the revision counter back to zero. Use when starting a
+        new effort with the client (e.g. mini-redesign).
+        """
+        from django.utils import timezone as _tz
+        self.revision_count = 0
+        self.revisions_reset_at = _tz.now()
+        if save:
+            self.save(update_fields=[
+                'revision_count', 'revisions_reset_at', 'updated_at'])
 
 
 class Project(TimestampedModel):
@@ -271,10 +343,21 @@ class Project(TimestampedModel):
 
 
 class ProjectStageLog(TimestampedModel):
-    """An append-only record of every project stage transition."""
+    """
+    An append-only record of every stage transition.
+
+    Will be renamed `ClientStageLog` in Phase 2 once all writers point
+    at the client FK. Both `project` and `client` exist during the
+    transition; project is nullable so future writes can omit it.
+    """
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name='stage_logs',
+        null=True, blank=True,
+    )
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='stage_logs', null=True, blank=True,
     )
     from_stage = models.CharField(max_length=20, blank=True)
     to_stage = models.CharField(max_length=20, blank=True)
@@ -292,7 +375,11 @@ class ProjectStageLog(TimestampedModel):
         verbose_name_plural = 'Project Stage Logs'
 
     def __str__(self):
-        return f'{self.project.client.firm_name}: {self.from_stage} → {self.to_stage}'
+        cname = (
+            (self.client.firm_name if self.client else None)
+            or (self.project.client.firm_name if self.project else '?')
+        )
+        return f'{cname}: {self.from_stage} → {self.to_stage}'
 
 
 class IntakeResponse(TimestampedModel):
@@ -306,8 +393,16 @@ class IntakeResponse(TimestampedModel):
         ('other', 'Other'),
     ]
 
+    # Both FKs exist during the Phase 1/2 transition. `client` is the
+    # new canonical link; `project` is the legacy. Both nullable so
+    # the schema doesn't require backfill order.
     project = models.OneToOneField(
         Project, on_delete=models.CASCADE, related_name='intake',
+        null=True, blank=True,
+    )
+    client = models.OneToOneField(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='intake', null=True, blank=True,
     )
     completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -375,7 +470,11 @@ class IntakeResponse(TimestampedModel):
         verbose_name_plural = 'Intake Responses'
 
     def __str__(self):
-        return f'Intake — {self.project.client.firm_name}'
+        cname = (
+            (self.client.firm_name if self.client else None)
+            or (self.project.client.firm_name if self.project else '?')
+        )
+        return f'Intake — {cname}'
 
 
 def intake_photo_path(instance, filename):
@@ -425,6 +524,11 @@ class RevisionRequest(TimestampedModel):
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name='revisions',
+        null=True, blank=True,
+    )
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='revisions', null=True, blank=True,
     )
     source = models.CharField(
         max_length=20, choices=SOURCE_CHOICES, default='aspired_portal',
@@ -441,7 +545,11 @@ class RevisionRequest(TimestampedModel):
         verbose_name_plural = 'Revision Requests'
 
     def __str__(self):
-        return f'{self.project.client.firm_name}: {self.description[:50]}'
+        cname = (
+            (self.client.firm_name if self.client else None)
+            or (self.project.client.firm_name if self.project else '?')
+        )
+        return f'{cname}: {self.description[:50]}'
 
 
 class ClientDocument(TimestampedModel):

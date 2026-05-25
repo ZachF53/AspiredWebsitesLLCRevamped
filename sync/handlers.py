@@ -19,7 +19,6 @@ from clients.models import (
     ClientDocument,
     ClientProfile,
     IntakeResponse,
-    Project,
     ProjectStageLog,
 )
 from sync.token_utils import generate_handoff_token
@@ -87,19 +86,13 @@ def handle_client_created(bundle):
     profile.package = 'moonieful_referred'
     profile.sync_conflict_flagged = conflict
     profile.last_synced_at = timezone.now()
+    # Project fields are now flat on ClientProfile (2026-05-25 refactor).
+    profile.stage = 'intake'
+    profile.moonieful_stage_history = bundle.get('stage_history') or []
     profile._from_sync = True
     profile.save()
 
-    project = Project(
-        client=profile,
-        stage='intake',
-        moonieful_referred=True,
-        moonieful_stage_history=bundle.get('stage_history') or [],
-    )
-    project._from_sync = True
-    project.save()
-
-    intake, _ = IntakeResponse.objects.get_or_create(project=project)
+    intake, _ = IntakeResponse.objects.get_or_create(client=profile)
     intake._from_sync = True
     intake.moonieful_intake_raw = bundle.get('intake') or {}
     intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
@@ -111,7 +104,6 @@ def handle_client_created(bundle):
             moonieful_document_id=doc.get('id'),
             defaults={
                 'client': profile,
-                'project': project,
                 'direction': 'to_client',
                 'label': doc.get('label') or 'Moonieful document',
             },
@@ -149,7 +141,7 @@ def handle_client_updated(bundle):
         profile.user.save(update_fields=['email'])
 
     if 'intake' in bundle:
-        intake = IntakeResponse.objects.filter(project__client=profile).first()
+        intake = IntakeResponse.objects.filter(client=profile).first()
         if intake is not None:
             intake._from_sync = True
             intake.moonieful_intake_raw = bundle['intake']
@@ -169,17 +161,15 @@ def handle_project_complete(bundle):
     if profile is None:
         raise ValueError('project_complete: no client for that Moonieful id')
 
-    project = profile.projects.order_by('-created_at').first()
-    if project is None:
-        project = Project(client=profile, moonieful_referred=True)
-    old_stage = project.stage
-    project.stage = 'live'
-    project.moonieful_handoff_at = timezone.now()
-    project._from_sync = True
-    project.save()
+    # Project fields are now flat on ClientProfile (2026-05-25 refactor).
+    old_stage = profile.stage
+    profile.stage = 'live'
+    profile.moonieful_handoff_at = timezone.now()
+    profile._from_sync = True
+    profile.save()
 
     ProjectStageLog.objects.create(
-        project=project,
+        client=profile,
         from_stage=old_stage,
         to_stage='live',
         note='Project handed off from Moonieful.',
@@ -204,12 +194,10 @@ def handle_document_added(bundle):
     doc = bundle.get('document') or {}
     if not doc.get('id'):
         raise ValueError('document_added: bundle is missing document id')
-    project = profile.projects.order_by('-created_at').first()
     ClientDocument.objects.get_or_create(
         moonieful_document_id=doc.get('id'),
         defaults={
             'client': profile,
-            'project': project,
             'direction': 'to_client',
             'label': doc.get('label') or 'Moonieful document',
         },

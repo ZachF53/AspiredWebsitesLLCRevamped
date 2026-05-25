@@ -51,13 +51,11 @@ def gather_client_data(client):
         'months_since_launch': None,
     }
 
-    # ── Project ────────────────────────────────────────────────
-    project = client.projects.filter(stage='live').first()
-    if project:
-        data['live_url'] = project.live_url or ''
-        if project.launch_date:
-            delta = date.today() - project.launch_date
-            data['months_since_launch'] = delta.days // 30
+    # ── Project fields (now flat on ClientProfile) ─────────────
+    data['live_url'] = client.website or ''
+    if client.launch_date:
+        delta = date.today() - client.launch_date
+        data['months_since_launch'] = delta.days // 30
 
     # ── Uptime ─────────────────────────────────────────────────
     try:
@@ -448,14 +446,12 @@ def gather_annual_data(client, year):
         'months_as_client': None,
     }
 
-    # ── Project ────────────────────────────────────────────────
-    project = client.projects.filter(stage='live').first()
-    if project:
-        data['live_url'] = project.live_url or ''
-        if project.launch_date:
-            data['launch_date'] = project.launch_date.isoformat()
-            delta = date.today() - project.launch_date
-            data['months_as_client'] = delta.days // 30
+    # ── Project fields (now flat on ClientProfile) ─────────────
+    data['live_url'] = client.website or ''
+    if client.launch_date:
+        data['launch_date'] = client.launch_date.isoformat()
+        delta = date.today() - client.launch_date
+        data['months_as_client'] = delta.days // 30
 
     # ── Uptime ─────────────────────────────────────────────────
     try:

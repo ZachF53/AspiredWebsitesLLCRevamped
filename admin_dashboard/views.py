@@ -510,8 +510,7 @@ def _pending_intake_reviews():
             needs_admin_review_at__isnull=False,
             admin_reviewed_at__isnull=True,
         )
-        .select_related('user')
-        .prefetch_related('projects', 'projects__intake')
+        .select_related('user', 'intake')
         .order_by('-needs_admin_review_at')
     )
 
@@ -945,7 +944,7 @@ def deploy_fresh(request):
     from clients.models import ClientProfile
     options = []
     for client in ClientProfile.objects.filter(do_droplet_ip__isnull=False):
-        project = client.projects.first()
+        project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
         options.append({
             'id': client.id,
             'name': client.firm_name,
@@ -973,7 +972,7 @@ def deploy_client(request, client_id):
     from django.utils.text import slugify
     from clients.models import ClientProfile
     client = get_object_or_404(ClientProfile, id=client_id)
-    project = client.projects.first()
+    project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
     return render(request, 'admin_dashboard/deploy_client.html', _admin_context(
         'deploy',
         deploy_client=client,
@@ -1305,8 +1304,10 @@ def client_detail(request, client_id):
     )
 
     client = get_object_or_404(ClientProfile, id=client_id)
-    project = (client.projects.filter(stage='live').first()
-               or client.projects.first())
+    # Post-2026-05-25 refactor: project fields live on ClientProfile.
+    # `project` alias preserved so existing reads (project.stage,
+    # project.intake, project.stage_logs, etc.) keep working.
+    project = client
 
     # Latest GBP check per field.
     gbp_checks, seen = [], set()
@@ -1427,9 +1428,8 @@ def clients_onboarding(request):
     any_missing_key = False
     any_missing_url = False
     for client in legacy:
-        live_project = (client.projects.filter(stage='live').first()
-                        or client.projects.first())
-        live_url = (live_project.live_url or '') if live_project else ''
+        # client.website is the canonical live URL (post-2026-05-25).
+        live_url = client.website or ''
         # A "real" user account is one that can log in — the seed command
         # creates inactive placeholder users with unusable passwords for
         # legacy clients we don't have an email for yet.
@@ -2116,7 +2116,7 @@ def chatbot_regenerate_prompt(request, client_id):
     client = get_object_or_404(ClientProfile, id=client_id)
     chatbot, _ = ClientChatbot.objects.get_or_create(client=client)
 
-    project = client.projects.first()
+    project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
     intake = getattr(project, 'intake', None) if project else None
     practice_areas = getattr(intake, 'practice_areas', '') or ''
     raw = (
@@ -3016,8 +3016,10 @@ def run_scan(request):
         scan_type = 'full'
 
     client = get_object_or_404(ClientProfile, id=client_id)
-    project = (client.projects.filter(stage='live').first()
-               or client.projects.first())
+    # Post-2026-05-25 refactor: project fields live on ClientProfile.
+    # `project` alias preserved so existing reads (project.stage,
+    # project.intake, project.stage_logs, etc.) keep working.
+    project = client
     # client.website is the canonical live URL (post-2026-05-25 fix).
     # Legacy project.live_url data was backfilled, so we don't need
     # the fallback any more.
@@ -3135,8 +3137,10 @@ def client_edit(request, client_id):
     from .forms import ClientProfileEditForm
 
     client = get_object_or_404(ClientProfile, id=client_id)
-    project = (client.projects.filter(stage='live').first()
-               or client.projects.first())
+    # Post-2026-05-25 refactor: project fields live on ClientProfile.
+    # `project` alias preserved so existing reads (project.stage,
+    # project.intake, project.stage_logs, etc.) keep working.
+    project = client
     # Single source of truth: client.website. Legacy project.live_url
     # data was backfilled on 2026-05-25.
     current_live_url = client.website or ''
@@ -3148,12 +3152,6 @@ def client_edit(request, client_id):
             new_url = (form.cleaned_data.get('live_url') or '').strip()
             client.website = new_url
             client.save()
-            # Mirror to Project.live_url for backward compat. Skipped
-            # silently when no project exists — website is the source
-            # of truth so no data is lost.
-            if project and new_url != (project.live_url or ''):
-                project.live_url = new_url
-                project.save(update_fields=['live_url', 'updated_at'])
             messages.success(request, 'Client updated successfully.')
             return redirect(
                 'admin_dashboard:client_detail', client_id=client.id)
@@ -3204,8 +3202,10 @@ def client_quick_edit_field(request, client_id):
         return HttpResponseBadRequest('unknown field')
     meta = CLIENT_QUICK_EDIT_FIELDS[field_name]
 
-    project = (client.projects.filter(stage='live').first()
-               or client.projects.first())
+    # Post-2026-05-25 refactor: project fields live on ClientProfile.
+    # `project` alias preserved so existing reads (project.stage,
+    # project.intake, project.stage_logs, etc.) keep working.
+    project = client
 
     def _current_value():
         if field_name == 'live_url':
@@ -3225,15 +3225,11 @@ def client_quick_edit_field(request, client_id):
         if field_name == 'live_url' and new_value:
             if not new_value.lower().startswith(('http://', 'https://')):
                 new_value = f'https://{new_value}'
-        # Live URL writes to client.website (canonical) AND mirrors to
-        # Project.live_url when a project exists (backward compat for
-        # uptime / scans / reports that still read project.live_url).
+        # Live URL writes to client.website (the single source of
+        # truth post-2026-05-25 refactor).
         if field_name == 'live_url':
             client.website = new_value
             client.save(update_fields=['website', 'updated_at'])
-            if project:
-                project.live_url = new_value
-                project.save(update_fields=['live_url', 'updated_at'])
         else:
             setattr(client, field_name, new_value)
             client.save(update_fields=[field_name, 'updated_at'])
@@ -3345,12 +3341,13 @@ def get_daily_focus():
             'action': 'Review Scan',
         })
 
-    # 3. Active non-tester clients with no live URL on their live
-    #    project — uptime monitoring + scans can't run without one.
+    # 3. Active non-tester clients in 'live' stage with no website
+    #    set — uptime monitoring + scans can't run without one.
+    # Post-2026-05-25: stage + website on ClientProfile directly.
     no_url = (ClientProfile.objects
               .filter(status='active', is_tester=False,
-                      projects__stage='live', projects__live_url='')
-              .distinct()[:3])
+                      stage='live', website='')
+              [:3])
     for client in no_url:
         items.append({
             'priority': 3,
@@ -4064,8 +4061,10 @@ def case_study_ai_draft(request):
 
     title_hint = (request.POST.get('title') or '').strip()
 
-    project = (client.projects.filter(stage='live').first()
-               or client.projects.first())
+    # Post-2026-05-25 refactor: project fields live on ClientProfile.
+    # `project` alias preserved so existing reads (project.stage,
+    # project.intake, project.stage_logs, etc.) keep working.
+    project = client
     package_label = (project.get_package_display()
                      if project and project.package else '')
     intake_summary = ''
@@ -5721,15 +5720,6 @@ def client_change_stage(request, client_id):
     )
 
     profile = get_object_or_404(ClientProfile, id=client_id)
-    project = (profile.projects
-               .order_by('-created_at').first())
-    if project is None:
-        _msg.error(
-            request,
-            'No project on file for this client yet — '
-            'they need to complete intake first.')
-        return redirect(
-            'admin_dashboard:client_detail', client_id=profile.id)
 
     valid = {key for key, _ in PROJECT_STAGES}
     new_stage = (request.POST.get('stage') or '').strip()
@@ -5738,22 +5728,22 @@ def client_change_stage(request, client_id):
         return redirect(
             'admin_dashboard:client_detail', client_id=profile.id)
 
-    if new_stage == project.stage:
+    if new_stage == profile.stage:
         _msg.info(request, 'Stage unchanged.')
         return redirect(
             'admin_dashboard:client_detail', client_id=profile.id)
 
-    from_stage = project.stage
-    project.stage = new_stage
-    project.save(update_fields=['stage', 'updated_at'])
+    from_stage = profile.stage
+    profile.stage = new_stage
+    profile.save(update_fields=['stage', 'updated_at'])
 
     note = (request.POST.get('note') or '').strip()
     setter = (request.user.get_full_name()
               or request.user.username
               or 'admin')
 
-    ProjectStageLog.objects.create(
-        project=project,
+    log = ProjectStageLog.objects.create(
+        client=profile,
         from_stage=from_stage,
         to_stage=new_stage,
         note=note,
@@ -5764,22 +5754,17 @@ def client_change_stage(request, client_id):
     # Best-effort — email failure should not block the stage save.
     notify_ok = False
     try:
-        send_stage_change_email(profile, project, new_stage)
+        send_stage_change_email(profile, new_stage)
         notify_ok = True
     except Exception:
         logger.exception(
             'stage-change email failed for %s', profile.pk)
 
     if notify_ok:
-        # Stamp the log so the audit trail records the notification.
-        latest = ProjectStageLog.objects.filter(
-            project=project).order_by('-created_at').first()
-        if latest:
-            latest.client_notified = True
-            latest.notification_sent_at = timezone.now()
-            latest.save(update_fields=[
-                'client_notified', 'notification_sent_at',
-                'updated_at'])
+        log.client_notified = True
+        log.notification_sent_at = timezone.now()
+        log.save(update_fields=[
+            'client_notified', 'notification_sent_at', 'updated_at'])
 
     label = dict(PROJECT_STAGES).get(new_stage, new_stage)
     _msg.success(

@@ -21,18 +21,26 @@ def provision_droplet_task(client_id):
 
 
 @shared_task
-def send_intake_reminder_task(project_id, day):
-    """Send a Day-2 / Day-4 intake reminder if intake is still incomplete."""
-    from clients.emails import send_intake_reminder_email
-    from clients.models import Project
+def send_intake_reminder_task(client_id, day):
+    """Send a Day-2 / Day-4 intake reminder if intake is still incomplete.
 
-    project = Project.objects.filter(id=project_id).first()
-    if project is None:
+    Backwards-compat note: the task signature changed from
+    `(project_id, day)` to `(client_id, day)` in the Project→Client
+    consolidation. Old in-flight tasks queued under the previous
+    signature would still resolve a valid UUID (the project IDs and
+    client IDs are both UUIDs, but distinct namespaces) and silently
+    no-op — the ClientProfile.objects.filter call would return None.
+    """
+    from clients.emails import send_intake_reminder_email
+    from clients.models import ClientProfile
+
+    client = ClientProfile.objects.filter(id=client_id).first()
+    if client is None:
         return
-    intake = getattr(project, 'intake', None)
+    intake = getattr(client, 'intake', None)
     if intake is not None and intake.completed:
         return  # Intake already done — no reminder needed.
-    send_intake_reminder_email(project, day)
+    send_intake_reminder_email(client, day)
 
 
 @shared_task

@@ -152,10 +152,11 @@ def take_revenue_snapshot():
         'intake', 'structure', 'design', 'content',
         'review', 'revisions', 'pre_launch',
     )
+    # Post-2026-05-25: stage on ClientProfile directly.
     active_project_clients = ClientProfile.objects.filter(
-        projects__stage__in=in_progress_stages,
+        stage__in=in_progress_stages,
         is_tester=False,
-    ).distinct().count()
+    ).count()
 
     snapshot, _ = RevenueSnapshot.objects.update_or_create(
         snapshot_month=snapshot_month,

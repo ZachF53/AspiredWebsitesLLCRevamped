@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from clients.models import ClientProfile, Project
+from clients.models import ClientProfile
 
 User = get_user_model()
 
@@ -153,10 +153,9 @@ class ClientQuickEditLiveUrlTests(TestCase):
             username='qe-admin', email='qe@example.com',
             password='x', is_staff=True, is_superuser=True)
         self.profile = ClientProfile.objects.create(
-            user=self.user, firm_name='QE Co')
-        # quick-edit live_url writes to Project.live_url — needs a project
-        self.project = Project.objects.create(
-            client=self.profile, stage='live')
+            user=self.user, firm_name='QE Co', stage='live')
+        # 2026-05-25 refactor: quick-edit live_url writes to
+        # client.website (canonical). No project row required.
         self.tc = DjangoTestClient()
         self.tc.force_login(self.user)
 
@@ -169,21 +168,21 @@ class ClientQuickEditLiveUrlTests(TestCase):
     def test_naked_domain_gets_https_prepended(self):
         resp = self._post_url('clientdomain.com')
         self.assertEqual(resp.status_code, 200)
-        self.project.refresh_from_db()
+        self.profile.refresh_from_db()
         self.assertEqual(
-            self.project.live_url, 'https://clientdomain.com')
+            self.profile.website, 'https://clientdomain.com')
 
     def test_https_value_kept_as_is(self):
         self._post_url('https://kept.com')
-        self.project.refresh_from_db()
-        self.assertEqual(self.project.live_url, 'https://kept.com')
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.website, 'https://kept.com')
 
     def test_empty_value_clears_url(self):
-        self.project.live_url = 'https://old.com'
-        self.project.save()
+        self.profile.website = 'https://old.com'
+        self.profile.save()
         self._post_url('')
-        self.project.refresh_from_db()
-        self.assertEqual(self.project.live_url, '')
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.website, '')
 
     def test_quick_edit_field_meta_uses_text_input(self):
         """Browser-side blocker: type=url rejects 'clientdomain.com'.

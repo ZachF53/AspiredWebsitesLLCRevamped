@@ -126,15 +126,15 @@ def check_case_study_prompts():
     thirty_days_ago = (timezone.now() - timedelta(days=30)).date()
     week_ago = timezone.now() - timedelta(days=7)
 
+    # Post-2026-05-25: stage + launch_date on ClientProfile directly.
     candidates = (
         ClientProfile.objects
         .filter(
-            projects__stage='live',
-            projects__launch_date__lte=thirty_days_ago,
+            stage='live',
+            launch_date__lte=thirty_days_ago,
             is_tester=False,
         )
         .exclude(case_studies__isnull=False)
-        .distinct()
     )
 
     sent = 0
@@ -443,8 +443,8 @@ def run_competitor_gap_analysis(client_id):
         )
         return f'{client.firm_name}: no competitors set.'
 
-    project = client.projects.filter(stage='live').first()
-    client_url = (project.live_url if project else '') or ''
+    # client.website is the canonical live URL (2026-05-25 refactor).
+    client_url = client.website or ''
     if not client_url:
         CompetitorGapReport.objects.create(
             client=client, report_month=report_month,
@@ -590,10 +590,9 @@ def check_annual_report_schedule():
 
     queued = 0
     for client in active:
-        project = client.projects.filter(stage='live').first()
-        if not project or not project.launch_date:
+        if client.stage != 'live' or not client.launch_date:
             continue
-        launch = project.launch_date
+        launch = client.launch_date
         if today.month != launch.month:
             continue
         if today.year <= launch.year:

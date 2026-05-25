@@ -106,9 +106,10 @@ class TrackEndpointTests(TestCase):
 class UptimeTaskTests(TestCase):
 
     def setUp(self):
-        self.cp = _client('Up Co', status='active', do_droplet_ip='10.0.0.1')
-        Project.objects.create(
-            client=self.cp, stage='live', live_url='https://upco.com')
+        # Post-2026-05-25: live URL lives on client.website.
+        self.cp = _client(
+            'Up Co', status='active', do_droplet_ip='10.0.0.1',
+            stage='live', website='https://upco.com')
 
     @patch('requests.get')
     def test_check_records_an_up_result(self, mock_get):
@@ -182,8 +183,9 @@ class UptimeHelperTests(TestCase):
 class GBPSyncTests(TestCase):
 
     def test_records_not_connected_status(self):
-        cp = _client('GBP Co', status='active')
-        Project.objects.create(client=cp, stage='live', live_url='https://g.com')
+        # Post-2026-05-25: stage + website on client directly.
+        cp = _client('GBP Co', status='active',
+                     stage='live', website='https://g.com')
         from reporting.tasks import check_gbp_sync
         check_gbp_sync()
         check = GBPSyncCheck.objects.get(client=cp)
@@ -389,9 +391,9 @@ class FreshnessTests(TestCase):
              'last_modified': timezone.now(), 'word_count': 900,
              'is_blog': True, 'has_structured_data': True},
         ]
-        cp = _client('Crawl Co', status='active')
-        Project.objects.create(client=cp, stage='live',
-                               live_url='https://x.com')
+        # Post-2026-05-25: stage + website on client directly.
+        cp = _client('Crawl Co', status='active',
+                     stage='live', website='https://x.com')
         from reporting.tasks import generate_freshness_report
         generate_freshness_report(str(cp.id))
         report = ContentFreshnessReport.objects.get(client=cp)
@@ -449,10 +451,9 @@ class TestimonialTests(TestCase):
 
     def test_request_sent_30_days_after_launch(self):
         from reporting.tasks import send_testimonial_requests
-        cp = _client('Launch Co')
-        Project.objects.create(
-            client=cp, stage='live',
-            launch_date=timezone.localdate() - timedelta(days=35))
+        # Post-2026-05-25: launch_date + stage on client directly.
+        cp = _client('Launch Co', stage='live',
+                     launch_date=timezone.localdate() - timedelta(days=35))
         send_testimonial_requests()
         cp.refresh_from_db()
         self.assertIsNotNone(cp.testimonial_requested_at)
