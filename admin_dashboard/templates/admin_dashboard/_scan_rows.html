@@ -56,8 +56,8 @@ hx-swap='innerHTML' target cleanly.
                         {% endif %}
                     </td>
                     <td>
-                        {% if r.duration_seconds %}
-                            {% if r.duration_seconds >= 60 %}{{ r.duration_seconds|floatformat:0|slice:":-2" }}m {% endif %}{{ r.duration_seconds|divisibleby:60|yesno:"0,"|default:"" }}{{ r.duration_seconds }}s
+                        {% if r.duration_label %}
+                            {{ r.duration_label }}
                         {% else %}
                             <span class="droplet-muted">—</span>
                         {% endif %}

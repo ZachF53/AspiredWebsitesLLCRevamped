@@ -2572,9 +2572,35 @@ def _build_scan_rows(scans):
         rows.append({
             'scan': s,
             'duration_seconds': duration,
+            'duration_label': _format_duration(duration),
             'border': _scan_row_border(s),
         })
     return rows
+
+
+def _format_duration(seconds):
+    """Human-readable scan duration.
+
+    < 60s     → "Ns"            (e.g. "14s")
+    < 1 hour  → "Nm Ms"         (e.g. "1m 17s", "5m 0s" if exact)
+    >= 1 hour → "Nh Mm"         (rare for scans; trims the seconds)
+    None / 0  → ""
+
+    Was previously assembled inline in the template with chained
+    |slice and |divisibleby filters that produced output like
+    "m 77s" for any 2-digit value. Doing the math in Python is the
+    boring, correct fix.
+    """
+    if not seconds:
+        return ''
+    if seconds < 60:
+        return f'{seconds}s'
+    if seconds < 3600:
+        m, s = divmod(seconds, 60)
+        return f'{m}m {s}s' if s else f'{m}m'
+    h, rem = divmod(seconds, 3600)
+    m = rem // 60
+    return f'{h}h {m}m' if m else f'{h}h'
 
 
 @admin_required
