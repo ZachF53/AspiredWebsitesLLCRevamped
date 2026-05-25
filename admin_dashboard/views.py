@@ -3134,6 +3134,12 @@ def client_quick_edit_field(request, client_id):
         if field_name == 'phone':
             from core.phone_utils import normalize_phone
             new_value = normalize_phone(new_value)
+        # Live URL: auto-prepend https:// if scheme missing so admins
+        # can type "clientdomain.com" without dealing with the
+        # protocol prefix. Empty stays empty.
+        if field_name == 'live_url' and new_value:
+            if not new_value.lower().startswith(('http://', 'https://')):
+                new_value = f'https://{new_value}'
         # Live URL writes through to Project, everything else to the
         # client profile.
         if field_name == 'live_url':

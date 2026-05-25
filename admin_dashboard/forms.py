@@ -325,21 +325,31 @@ class ClientProfileEditForm(forms.ModelForm):
     (lives on User; renaming from this form would be a footgun).
     """
 
-    live_url = forms.URLField(
-        required=False, label='Live URL',
-        widget=forms.URLInput(attrs={
+    # CharField (not URLField) so users can type `clientdomain.com`
+    # without the protocol — Django's URLField rejects that. We
+    # normalize the protocol in clean_live_url below.
+    live_url = forms.CharField(
+        required=False, label='Live URL', max_length=500,
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'https://clientdomain.com',
+            'placeholder': 'clientdomain.com',
+            'inputmode': 'url', 'autocomplete': 'url',
+            'spellcheck': 'false', 'autocapitalize': 'none',
         }),
         help_text=(
             'Used for uptime monitoring, SSL scans, and Nikto web '
-            'scans. Required for full vulnerability scans.'),
+            'scans. Required for full vulnerability scans. You can '
+            'type just the domain — we add https:// if missing.'),
     )
-    # `package` is a CharField on the model with PACKAGE_CHOICES; per
-    # the spec this section should use a plain text input here.
-    package = forms.CharField(
+    # Dropdown of the canonical package codes from ClientProfile.
+    # Blank stays a valid choice because the field is blank=True on
+    # the model (clients in early onboarding may not have a package
+    # selected yet).
+    package = forms.ChoiceField(
         required=False, label='Package',
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        choices=[('', '— No package —')] + list(
+            ClientProfile.PACKAGE_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-control'}),
     )
 
     class Meta:
@@ -386,11 +396,41 @@ class ClientProfileEditForm(forms.ModelForm):
         from core.phone_utils import normalize_phone
         return normalize_phone(self.cleaned_data.get('phone'))
 
+    def clean_live_url(self):
+        """
+        Tolerant URL normalisation:
+          - empty stays empty
+          - leading/trailing whitespace stripped
+          - no scheme → prefixed with https://
+          - http:// kept as-is (some legacy clients aren't on https)
+          - validated via URLValidator AFTER normalisation, so the
+            user can type either "site.com" or "https://site.com"
+        """
+        from django.core.validators import URLValidator
+        from django.core.exceptions import ValidationError
+
+        raw = (self.cleaned_data.get('live_url') or '').strip()
+        if not raw:
+            return ''
+        if not raw.lower().startswith(('http://', 'https://')):
+            raw = f'https://{raw}'
+        try:
+            URLValidator(schemes=['http', 'https'])(raw)
+        except ValidationError:
+            raise forms.ValidationError(
+                f'"{raw}" doesn\'t look like a valid URL. Try '
+                f'something like clientdomain.com or '
+                f'https://clientdomain.com.')
+        return raw
+
 
 # Per-field quick-edit on the client detail page. The keys here are the
 # only ones the inline endpoint will accept — everything else 400s.
 CLIENT_QUICK_EDIT_FIELDS = {
-    'live_url':     {'type': 'url',   'label': 'Live URL'},
+    # `text` (not `url`) so the browser doesn't reject naked-domain
+    # input like "clientdomain.com". Server normalises in the
+    # quick-edit view to prepend https:// before saving.
+    'live_url':     {'type': 'text',  'label': 'Live URL'},
     'do_droplet_ip': {'type': 'text', 'label': 'Droplet IP'},
     'contact_name': {'type': 'text',  'label': 'Contact name'},
     'phone':        {'type': 'text',  'label': 'Phone'},
