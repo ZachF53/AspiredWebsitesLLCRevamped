@@ -1348,10 +1348,21 @@ def client_detail(request, client_id):
     intel_sent_count = client.intelligence_suggestions.filter(
         status='sent_to_client').count()
 
+    # Resolved live URL — client.website is canonical, fall back to
+    # project.live_url for legacy data. Done here in the view so the
+    # template doesn't have to dereference project (which is None for
+    # auxiliary vault profiles, breaking |default: in template land).
+    resolved_live_url = (
+        (client.website or '')
+        or (project.live_url if project else '')
+        or ''
+    )
+
     return render(request, 'admin_dashboard/client_detail.html', _admin_context(
         'clients',
         client=client,
         project=project,
+        live_url=resolved_live_url,
         uptime_status=get_current_status(client),
         uptime_30=get_uptime_percentage(client, 30),
         avg_response=get_avg_response_time(client, 30),
