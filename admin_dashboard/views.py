@@ -7191,17 +7191,30 @@ def website_change_stage(request, website_id):
       - "Back a phase" submits the previous stage slug.
       - "Skip to <stage>" submits any stage slug from the dropdown.
 
-    Validates the slug against the model choices, writes a stage-log
-    row, and (for forward moves) fires the stage-change email so the
-    client sees the transition in their portal.
+    Side effects (match the legacy client_change_stage view so both
+    paths produce identical state during the Phase C transition):
+      - Updates Website.stage + updated_at.
+      - Mirrors to ClientProfile.stage so the client portal (which
+        still reads the legacy field) shows the change. Drops once
+        Phase D removes ClientProfile.
+      - Writes a WebsiteStageLog row (new audit trail).
+      - Writes a ProjectStageLog row against the legacy CP so the
+        portal Activity Log still shows the transition.
+      - Sends the branded stage-change email to the client unless
+        the new stage has no copy (e.g. 'intake').
     """
     from django.contrib import messages
 
     from clients.account_models import Website, WebsiteStageLog
+    from clients.emails import send_stage_change_email
+    from clients.models import ProjectStageLog
 
     website = get_object_or_404(Website, id=website_id)
     new_stage = (request.POST.get('stage') or '').strip()
     note = (request.POST.get('note') or '').strip()
+    setter = (request.user.get_full_name()
+              or request.user.username
+              or 'admin')
 
     valid = [k for k, _ in website._meta.get_field('stage').choices]
     if new_stage not in valid:
@@ -7215,20 +7228,60 @@ def website_change_stage(request, website_id):
             'admin_dashboard:website_detail', website_id=website.id)
 
     from_stage = website.stage
+
+    # 1. Write to Website (new model).
     website.stage = new_stage
     website.save(update_fields=['stage', 'updated_at'])
 
+    # 2. Mirror to legacy ClientProfile (the client portal still
+    #    reads from CP). Phase D will drop this branch.
+    legacy_cp = (website.account.legacy_client_profile
+                 if website.account else None)
+    if legacy_cp is not None and legacy_cp.stage != new_stage:
+        legacy_cp.stage = new_stage
+        legacy_cp.save(update_fields=['stage', 'updated_at'])
+
+    # 3. Audit trail — both logs so each surface (admin website page +
+    #    client portal Activity Log) shows the transition.
     WebsiteStageLog.objects.create(
         website=website,
         from_stage=from_stage,
         to_stage=new_stage,
         note=note,
-        set_by=request.user.get_full_name() or request.user.username,
+        set_by=setter,
     )
+    legacy_log = None
+    if legacy_cp is not None:
+        legacy_log = ProjectStageLog.objects.create(
+            client=legacy_cp,
+            from_stage=from_stage,
+            to_stage=new_stage,
+            note=note,
+            set_by=setter,
+            client_notified=False,
+        )
+
+    # 4. Stage-change email — best-effort. Email failure does not
+    #    roll back the stage save.
+    notify_ok = False
+    if legacy_cp is not None:
+        try:
+            send_stage_change_email(legacy_cp, new_stage)
+            notify_ok = True
+        except Exception:
+            logger.exception(
+                'stage-change email failed for %s', legacy_cp.pk)
+    if notify_ok and legacy_log is not None:
+        legacy_log.client_notified = True
+        legacy_log.notification_sent_at = timezone.now()
+        legacy_log.save(update_fields=[
+            'client_notified', 'notification_sent_at', 'updated_at'])
 
     messages.success(
         request,
-        f'Stage moved {from_stage} → {new_stage}.')
+        f'Stage moved {from_stage} → {new_stage}.'
+        + (' Client emailed.' if notify_ok
+           else ' (Client email skipped — no copy or no legacy CP.)'))
     return redirect(
         'admin_dashboard:website_detail', website_id=website.id)
 
