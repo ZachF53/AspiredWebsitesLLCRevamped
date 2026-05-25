@@ -13206,3 +13206,487 @@ button.htmx-request {
 /* When the action form needs a button BESIDE the input (like the
    HTMX check-availability widget) instead of below it. */
 .admin-action-form button { margin-top: 14px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Phase C — Account + Website admin styles.
+
+   Loaded from main.css (not inline <style>) because the site's CSP
+   is `style-src 'self'` — inline blocks are silently dropped by
+   the browser. Same reason the Phase C modal JS lives in
+   /static/js/website_detail.js, not inline.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Website detail layout ────────────────────────────────────── */
+
+.website-detail .admin-card { margin-bottom: 1.25rem; }
+
+.website-detail .form-row--inline {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
+}
+.website-detail .form-row--inline:last-child { border-bottom: 0; }
+.website-detail .form-row__label {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    padding-top: 0.5rem;
+}
+.website-detail .form-row__field-with-link {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.website-detail .form-row__field-with-link .form-control { flex: 1; }
+.website-detail .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+}
+.website-detail .form-actions { margin: 2rem 0; }
+
+/* ── Stage controls + stepper variants ────────────────────────── */
+
+.admin-stage-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+.admin-stage-skip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* Completed (green-tinted) + upcoming (muted) variants on the stepper —
+   the existing .admin-stage-bar only knew is-current. */
+.admin-stage-bar--steps .admin-stage-bar__step--completed {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.45);
+    color: var(--color-text);
+}
+.admin-stage-bar--steps .admin-stage-bar__step--completed .admin-stage-bar__dot {
+    color: #10b981;
+    font-weight: bold;
+}
+.admin-stage-bar--steps .admin-stage-bar__step--current {
+    background: rgba(232, 101, 10, 0.12);
+    border-color: rgba(232, 101, 10, 0.45);
+    color: var(--color-text);
+    font-weight: 600;
+}
+.admin-stage-bar--steps .admin-stage-bar__step--current .admin-stage-bar__dot {
+    color: var(--color-orange);
+}
+.admin-stage-bar--steps .admin-stage-bar__step--upcoming {
+    opacity: 0.6;
+}
+
+/* ── Back-a-phase button — red outline, transparent fill, hover
+   flips to red fill + white text (per user spec) ───────────────── */
+.btn-back-phase {
+    background: transparent;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.btn-back-phase:hover {
+    background: #ef4444;
+    color: #FFFFFF;
+}
+
+/* ── Danger card framing (move-account section) ──────────────── */
+
+.danger-card {
+    margin-top: 3rem;
+    border: 2px solid #ef4444 !important;
+    background: rgba(239, 68, 68, 0.06);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+.danger-card__title {
+    color: #ef4444 !important;
+}
+.danger-card__select {
+    border-color: var(--color-border) !important;
+}
+.danger-card__select:focus {
+    border-color: var(--color-orange-light, #E8650A) !important;
+    outline: none;
+}
+
+.admin-danger-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.admin-danger-form select { flex: 1; min-width: 240px; }
+.admin-danger-form label {
+    flex-basis: 100%;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Solid-red SUBMIT button — distinct class so it doesn't fight the
+   subtle .btn-danger outline already defined above. */
+.btn-danger-solid {
+    background: #ef4444;
+    border: 1px solid #ef4444;
+    color: #FFFFFF;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.btn-danger-solid:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+/* ── Confirmation modal (vanilla, no framework) ──────────────── */
+
+.danger-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.danger-modal[hidden] { display: none; }
+.danger-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+.danger-modal__card {
+    position: relative;
+    background: var(--color-bg-raised);
+    border: 2px solid #ef4444;
+    border-radius: 10px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+.danger-modal__head {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.danger-modal__head h2 {
+    margin: 0;
+    color: #ef4444;
+    font-size: 1.125rem;
+}
+.danger-modal__body {
+    padding: 1.5rem;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.danger-modal__body p { margin: 0 0 0.75rem; }
+.danger-modal__body p:last-child { margin-bottom: 0; }
+.danger-modal__foot {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* ── Account detail (single-page editor) ─────────────────────── */
+
+/* Mirrors the website-detail form-row layout but scoped to the
+   account-detail container so the global .form-row / .checkbox-row
+   used elsewhere in the project keeps its existing layout. */
+.account-detail .form-row--inline {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
+}
+.account-detail .form-row--inline:last-child { border-bottom: 0; }
+.account-detail .form-row__label {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    padding-top: 0.5rem;
+}
+.account-detail .form-row__field { min-width: 0; }
+.account-detail .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+}
+.account-detail .form-actions { margin: 2rem 0; }
+.account-detail .admin-card { margin-bottom: 1.25rem; }
+
+.account-edit-section { margin-bottom: 1rem; }
+.website-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+.website-card {
+    background: var(--color-bg-elevated, #1f1f1f);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+.website-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+}
+.website-card__url {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.5rem;
+    word-break: break-all;
+}
+.website-card__meta { font-size: 0.85rem; margin: 0 0 0.25rem; }
+.website-card__slug { font-size: 0.75rem; margin: 0; }
+
+/* ── Subscriptions — per-sub payment-method dropdown ─────────── */
+
+.sub-card__pm {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border-subtle, #2a2a2a);
+}
+.sub-card__pm-label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.sub-card__pm-select {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    min-width: 220px;
+}
+
+/* ── Portal site-bar (multi-website accounts only) ───────────── */
+
+.portal-site-bar {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    margin-bottom: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.portal-site-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.portal-site-bar__label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.portal-site-bar__name {
+    color: var(--color-text);
+    font-size: 0.95rem;
+}
+.portal-site-bar__stage {
+    background: var(--color-orange-soft, rgba(232, 101, 10, 0.15));
+    color: var(--color-orange-light, #E8650A);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+.portal-site-bar__switch {
+    color: var(--color-orange-light, #E8650A);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.portal-site-bar__switch:hover {
+    text-decoration: underline;
+}
+
+/* ── Vault group-by toggle + per-credential site tag ─────────── */
+
+.vault-viewby {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--color-bg-elevated, #1f1f1f);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.vault-viewby__label {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.vault-viewby__opt {
+    padding: 4px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.vault-viewby__opt.is-active {
+    background: var(--color-orange-soft, rgba(232, 101, 10, .15));
+    color: var(--color-orange-light, #E8650A);
+}
+.vault-site-tag {
+    display: inline-block;
+    background: rgba(255, 255, 255, .05);
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 0.5rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ── Chooser page (multi-website account login chooser) ──────── */
+
+.chooser-shell {
+    min-height: 100vh;
+    background: #1A1A1A;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px 80px;
+    color: #FFFFFF;
+}
+.chooser-header { text-align: center; margin-bottom: 40px; max-width: 640px; }
+.chooser-header img { height: 56px; width: auto; margin-bottom: 24px; }
+.chooser-header h1 { font-size: 28px; font-weight: 600; margin: 0 0 8px; }
+.chooser-header p { color: #999; margin: 0; font-size: 15px; }
+
+.chooser-section-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 11px;
+    color: #888;
+    margin: 24px 0 12px;
+    font-weight: 600;
+    width: 100%;
+    max-width: 960px;
+}
+.chooser-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    width: 100%;
+    max-width: 960px;
+}
+.chooser-card {
+    background: #262626;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .15s, transform .15s;
+}
+.chooser-card:hover { border-color: #E8650A; transform: translateY(-2px); }
+.chooser-card__name { font-size: 17px; font-weight: 600; color: #FFFFFF; margin: 0 0 4px; }
+.chooser-card__meta { font-size: 13px; color: #999; margin: 0 0 16px; min-height: 1.4em; }
+.chooser-card__stage {
+    display: inline-block;
+    background: rgba(232, 101, 10, .15);
+    color: #E8650A;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+    align-self: flex-start;
+}
+.chooser-card__url { font-size: 12px; color: #777; margin: 0 0 16px; word-break: break-all; }
+.chooser-card__button {
+    margin-top: auto;
+    display: block;
+    background: #E8650A;
+    color: #FFFFFF;
+    text-align: center;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 0;
+    cursor: pointer;
+    text-decoration: none;
+}
+.chooser-card__button:hover { background: #d05a08; }
+.chooser-account-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    width: 100%;
+    max-width: 960px;
+    margin-bottom: 32px;
+}
+.chooser-account-link {
+    background: #1F1F1F;
+    border: 1px solid #2A2A2A;
+    border-radius: 8px;
+    padding: 14px 16px;
+    color: #DDD;
+    text-decoration: none;
+    font-size: 14px;
+    transition: border-color .15s;
+}
+.chooser-account-link:hover { border-color: #555; color: #FFF; }
+.chooser-account-link__label { display: block; font-weight: 600; margin-bottom: 2px; }
+.chooser-account-link__hint { font-size: 12px; color: #888; }
+.chooser-logout { margin-top: 32px; }
+.chooser-logout button {
+    background: transparent;
+    border: 1px solid #444;
+    color: #999;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.chooser-logout button:hover { color: #FFF; border-color: #666; }
+.chooser-empty { text-align: center; color: #888; padding: 40px 0; }

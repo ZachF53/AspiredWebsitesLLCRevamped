@@ -3,7 +3,7 @@
 {% block title %}{{ account.name }} — Account{% endblock %}
 
 {% block content %}
-<div class="admin-container">
+<div class="admin-container account-detail">
     <div class="admin-page-header">
         <div>
             <span class="eyebrow"><a href="{% url 'admin_dashboard:accounts_list' %}">Accounts</a></span>
@@ -133,20 +133,4 @@
     </div>
 </div>
 
-<style>
-.account-edit-section { margin-bottom: 1rem; }
-.form-row--inline { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; padding: 0.5rem 0; align-items: flex-start; border-bottom: 1px solid var(--color-border-subtle, #2a2a2a); }
-.form-row--inline:last-child { border-bottom: 0; }
-.form-row__label { color: var(--color-text-muted); font-size: 0.875rem; padding-top: 0.5rem; }
-.form-row__field { min-width: 0; }
-.checkbox-row { display: flex; align-items: center; gap: 0.5rem; padding-top: 0.5rem; }
-.form-actions { margin: 2rem 0; }
-
-.website-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-.website-card { background: var(--color-bg-elevated, #1f1f1f); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; }
-.website-card__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
-.website-card__url { color: var(--color-text-muted); font-size: 0.85rem; margin: 0 0 0.5rem; word-break: break-all; }
-.website-card__meta { font-size: 0.85rem; margin: 0 0 0.25rem; }
-.website-card__slug { font-size: 0.75rem; margin: 0; }
-</style>
 {% endblock %}
