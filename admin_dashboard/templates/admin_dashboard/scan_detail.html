@@ -41,6 +41,16 @@
             </dl>
             <div class="scan-header-card__actions" id="scan-actions">
                 {% if scan.status == 'complete' %}
+                    {% comment %}
+                        Primary "Generate PDF Report" is a plain <a> that
+                        hits the generate-and-download endpoint — the
+                        browser downloads the file in a single click
+                        (no banner-with-tiny-link UX trap). The
+                        "Regenerate" button is HTMX so admins can
+                        refresh the on-disk file without triggering a
+                        save dialog (useful when piping into Send to
+                        Client right after).
+                    {% endcomment %}
                     {% if scan.pdf_path %}
                         <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:scan_download_pdf' scan.id %}">Download Report</a>
                         <button type="button" class="btn-secondary btn-sm"
@@ -48,10 +58,7 @@
                                 hx-target="#scan-action-result"
                                 hx-swap="innerHTML">Regenerate</button>
                     {% else %}
-                        <button type="button" class="btn-primary btn-sm"
-                                hx-post="{% url 'admin_dashboard:scan_generate_pdf' scan.id %}"
-                                hx-target="#scan-action-result"
-                                hx-swap="innerHTML">Generate PDF Report</button>
+                        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:scan_generate_pdf' scan.id %}">Generate PDF Report</a>
                     {% endif %}
 
                     {% with client_email=scan.client.user.email %}

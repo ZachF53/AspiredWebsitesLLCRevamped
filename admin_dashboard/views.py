@@ -2804,29 +2804,78 @@ def scan_detail(request, scan_id):
 
 
 @admin_required
-@require_POST
 def generate_scan_pdf_view(request, scan_id):
     """
-    (Re-)generate the PDF for a completed scan. Returns a small HTML
-    banner the scan-detail page swaps in via HTMX with a Download link.
+    Generate the scan PDF and stream it back as an attachment so the
+    button click → file save dialog is a single user action.
+
+    Accepts both GET (plain <a> click — browser downloads the PDF)
+    and POST (HTMX Regenerate button — returns a banner with a
+    Download link). Idempotent side effect (renders to the same
+    on-disk path), admin-only, so dropping @require_POST is safe.
+
+    The old version returned a tiny HTML banner with a "Download
+    report →" link inside it; the user clicked the button, the banner
+    quietly swapped in below the buttons, and they reasonably
+    concluded "Generate PDF doesn't send a PDF". Now we just serve
+    the file.
+
+    The legacy banner-via-HTMX flow stays available on the
+    "Regenerate" button (POST → JSON-style banner) for cases where
+    the admin only wants to refresh the on-disk file without
+    triggering a download — but the primary path is download.
     """
+    import os
+
+    from django.http import FileResponse
     from reporting.models import VulnerabilityScan
     from reporting.scan_runner import generate_scan_pdf
 
-    scan = get_object_or_404(VulnerabilityScan, id=scan_id)
+    scan = get_object_or_404(
+        VulnerabilityScan.objects.select_related('client'), id=scan_id)
+
+    # Always (re)generate — guarantees the served file matches the
+    # current scan data, not a stale render from a previous click.
     pdf_path = generate_scan_pdf(str(scan.id))
     if not pdf_path:
+        # POST + HTMX path returns a banner; GET path returns plain
+        # error HTML. Detect by the swap header htmx sets.
+        if request.headers.get('HX-Request') == 'true':
+            return HttpResponse(
+                '<div class="scan-banner scan-banner--error">'
+                'PDF generation failed — check server logs.'
+                '</div>', status=500)
         return HttpResponse(
-            '<div class="scan-banner scan-banner--error">'
-            'PDF generation failed — check server logs.'
-            '</div>', status=500)
-    download_url = reverse(
-        'admin_dashboard:scan_download_pdf', args=[scan.id])
-    return HttpResponse(
-        f'<div class="scan-banner scan-banner--info">'
-        f'PDF generated. '
-        f'<a href="{download_url}">Download report &rarr;</a>'
-        f'</div>')
+            'PDF generation failed — check server logs.',
+            status=500, content_type='text/plain')
+
+    scan.refresh_from_db()
+    abs_path = os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+
+    # "Regenerate" button is still an HTMX POST and expects a banner
+    # response. Honor that — it keeps the existing JS contract.
+    if request.headers.get('HX-Request') == 'true':
+        download_url = reverse(
+            'admin_dashboard:scan_download_pdf', args=[scan.id])
+        return HttpResponse(
+            f'<div class="scan-banner scan-banner--info">'
+            f'PDF re-generated. '
+            f'<a href="{download_url}" class="btn-primary btn-sm" '
+            f'style="margin-left:.5rem;">Download report &rarr;</a>'
+            f'</div>')
+
+    # Primary "Generate PDF Report" path — serve the file directly.
+    slug = scan.client.firm_name.replace(' ', '-')
+    month = (scan.completed_at or scan.created_at).strftime('%Y-%m')
+    filename = f'security-report-{slug}-{month}{ext}'
+    return FileResponse(
+        open(abs_path, 'rb'),
+        as_attachment=True,
+        filename=filename,
+        content_type=('application/pdf'
+                      if ext == '.pdf' else 'text/html'),
+    )
 
 
 @admin_required
