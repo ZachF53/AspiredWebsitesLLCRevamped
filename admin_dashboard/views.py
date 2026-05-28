@@ -494,9 +494,7 @@ def scrape(request):
 
     if request.method == 'POST' and form.is_valid():
         source = form.cleaned_data['source']
-        practice_area = form.cleaned_data['practice_area']
-        resolved_niche = form.cleaned_data['resolved_niche']
-        is_custom_niche = form.cleaned_data['is_custom_niche']
+        niche = form.cleaned_data['niche'].strip()
         city = form.cleaned_data['city']
         state = form.cleaned_data['state']
         max_results = int(form.cleaned_data['max_results'])
@@ -505,36 +503,37 @@ def scrape(request):
         try:
             if source == 'google_maps':
                 state_full = 'Texas' if state == 'TX' else 'Georgia'
-                # Legal practice area picks get the " lawyer" suffix
-                # so the query reads "Family Law lawyer in San Antonio".
-                # Custom searches go in verbatim — admin already typed
-                # exactly what they want ("dentist", "wedding
-                # photographer", etc.).
-                if is_custom_niche:
-                    niche = resolved_niche
-                else:
-                    niche = f'{resolved_niche} lawyer'
+                # Niche goes in verbatim — query becomes
+                # "{niche} in {city} {state}". No " lawyer" suffix.
                 raw, api_calls = scrape_google_maps_sync(
                     niche, city, state_full, max_results
                 )
                 import_source = 'google_maps'
             elif source == 'texas_bar':
-                # Form's clean() already blocked custom-niche + bar
-                # combinations, so practice_area here is always a real
-                # legal area.
+                # Bar scrapers use the niche as the practice_area
+                # filter — type "Family Law" / "Personal Injury" /
+                # etc. exactly as they appear in the bar directory.
                 raw = scrape_texas_bar_sync(
-                    city=city, practice_area=practice_area,
+                    city=city, practice_area=niche,
                     max_results=max_results,
                 )
                 import_source = 'state_bar'
             else:  # georgia_bar
                 raw = scrape_georgia_bar_sync(
-                    city=city, practice_area=practice_area,
+                    city=city, practice_area=niche,
                     max_results=max_results,
                 )
                 import_source = 'state_bar'
 
-            results = import_leads(raw, source=import_source)
+            # Tag every imported lead with the niche as business_type
+            # so a "dentist" search produces leads labelled 'Dentist',
+            # not the legacy 'Law Firm' default. Title-cased for
+            # display consistency.
+            results = import_leads(
+                raw,
+                source=import_source,
+                business_type_override=niche.title(),
+            )
             if api_calls is not None:
                 results['api_calls'] = api_calls
         except Exception as exc:

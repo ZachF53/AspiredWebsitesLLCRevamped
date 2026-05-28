@@ -60,24 +60,10 @@
                 {{ form.source }}
             </div>
             <div class="form-group">
-                <label for="{{ form.practice_area.id_for_label }}">{{ form.practice_area.label }}</label>
-                {{ form.practice_area }}
-                {% if form.practice_area.errors %}<div class="form-field-error">{{ form.practice_area.errors|join:" " }}</div>{% endif %}
-            </div>
-            {% comment %}
-                Custom-niche input. Hidden by default (data-niche-custom-group);
-                the scrape_form.js toggle shows it whenever the practice-area
-                dropdown is set to the "Other (custom search)" sentinel.
-                Server-side render also un-hides it when the form re-renders
-                with a value, so a failed submit keeps the user's text visible.
-            {% endcomment %}
-            <div class="form-group"
-                 data-niche-custom-group="true"
-                 {% if form.practice_area.value != '__custom__' and not form.custom_niche.errors %}hidden{% endif %}>
-                <label for="{{ form.custom_niche.id_for_label }}">{{ form.custom_niche.label }}</label>
-                {{ form.custom_niche }}
-                <div class="form-help">{{ form.custom_niche.help_text }}</div>
-                {% if form.custom_niche.errors %}<div class="form-field-error">{{ form.custom_niche.errors|join:" " }}</div>{% endif %}
+                <label for="{{ form.niche.id_for_label }}">{{ form.niche.label }}</label>
+                {{ form.niche }}
+                <div class="form-help">{{ form.niche.help_text }}</div>
+                {% if form.niche.errors %}<div class="form-field-error">{{ form.niche.errors|join:" " }}</div>{% endif %}
             </div>
             <div class="form-group">
                 <label for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
@@ -105,10 +91,4 @@
     </form>
 
 </div>
-
-{% comment %}
-    External per CSP (script-src 'self'). Hides/reveals the
-    custom-niche text input based on the practice-area dropdown.
-{% endcomment %}
-<script src="{% static 'js/scrape_form.js' %}" defer></script>
 {% endblock %}

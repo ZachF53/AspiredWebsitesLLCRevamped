@@ -17,7 +17,7 @@ from .scoring import score_lead
 logger = logging.getLogger(__name__)
 
 
-def import_leads(scraped_data, source):
+def import_leads(scraped_data, source, business_type_override=None):
     """
     Take a list of raw scraper dicts, score and dedup each, save the survivors.
 
@@ -27,6 +27,12 @@ def import_leads(scraped_data, source):
             email, phone, website, google_rating, etc.
         source: one of Lead.SOURCE_CHOICES values
                 ('google_maps', 'state_bar', 'manual', etc.)
+        business_type_override: when set, every imported lead's
+            ``business_type`` is set to this value (case-preserved as
+            given by the caller). Used by the admin scraper page so a
+            "dentist" search produces leads tagged 'Dentist' instead
+            of the model default 'Law Firm'. Per-row business_type
+            in the scraped dict still wins if present.
 
     Returns:
         dict with keys: total, imported, duplicates, suppressed, errors
@@ -70,7 +76,13 @@ def import_leads(scraped_data, source):
                 firm_name=firm_name,
                 attorney_name=(raw.get('attorney_name') or '').strip(),
                 practice_area=(raw.get('practice_area') or '').strip(),
-                business_type=(raw.get('business_type') or 'Law Firm').strip(),
+                # Resolution: per-row value (if scraper set one) →
+                # override (per-batch from the admin scrape form) →
+                # 'Law Firm' as a last-resort legacy default.
+                business_type=(
+                    (raw.get('business_type') or '').strip()
+                    or (business_type_override or '').strip()
+                    or 'Law Firm'),
                 email=email,
                 phone=(raw.get('phone') or '').strip(),
                 website=(raw.get('website') or '').strip(),

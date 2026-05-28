@@ -5,7 +5,6 @@ from django import forms
 from billing.pricing_models import ServiceTier
 from clients.models import ClientProfile, SiteChangelogEntry
 from outreach.models import Lead, LeadNote
-from outreach.scraper import PRACTICE_AREAS
 from reporting.models import ClientChatbot, TrackedKeyword
 
 from .models import DeploymentLog
@@ -13,11 +12,6 @@ from .models import DeploymentLog
 
 class ScrapeForm(forms.Form):
     """Triggers a lead-scraping run from the admin dashboard."""
-
-    # Sentinel used in the practice-area dropdown to surface the
-    # free-text niche input. Must NOT collide with any real practice
-    # area name.
-    CUSTOM_NICHE_SENTINEL = '__custom__'
 
     SOURCE_CHOICES = [
         ('google_maps', 'Google Maps'),
@@ -39,36 +33,22 @@ class ScrapeForm(forms.Form):
         choices=SOURCE_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
-    # The practice-area dropdown now has an "Other (custom search)"
-    # option at the bottom. Picking it reveals `custom_niche` in the
-    # template (small JS hook). The clean() resolves both into a
-    # single `resolved_niche` cleaned value so view code doesn't
-    # branch.
-    practice_area = forms.ChoiceField(
-        label='Practice Area / Niche',
-        choices=(
-            [(p, p) for p in PRACTICE_AREAS]
-            + [(CUSTOM_NICHE_SENTINEL, 'Other (custom search)')]
-        ),
-        widget=forms.Select(attrs={
-            'class': 'form-control',
-            'data-niche-select': 'true',
-        }),
-    )
-    custom_niche = forms.CharField(
-        label='Custom search',
+    # Free-text niche — used verbatim as the Google Maps search term.
+    # State-bar scrapers also pass it as the practice-area filter, so
+    # typing exactly "Family Law" etc. is the right call there. Examples
+    # in the placeholder span both worlds so admin sees the range.
+    niche = forms.CharField(
+        label='Search for',
         max_length=120,
-        required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'e.g. dentist, hvac company, real estate broker',
-            'data-niche-custom': 'true',
+            'placeholder': 'dentist, plumber, wedding photographer, Family Law…',
             'autocomplete': 'off',
+            'autofocus': True,
         }),
         help_text=(
-            'Free-text business type. Used verbatim in the search query '
-            'so phrase it as you would type into Google Maps '
-            '("dentist", "wedding photographer", "auto body shop").'),
+            'Free-text business type. Used verbatim in the search query — '
+            'phrase it as you would type into Google Maps.'),
     )
     city = forms.CharField(
         label='City',
@@ -90,43 +70,6 @@ class ScrapeForm(forms.Form):
         initial='20',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
-
-    def clean(self):
-        cleaned = super().clean()
-        source = cleaned.get('source')
-        practice_area = cleaned.get('practice_area') or ''
-        custom_niche = (cleaned.get('custom_niche') or '').strip()
-        is_custom = practice_area == self.CUSTOM_NICHE_SENTINEL
-
-        # Validate: Other → must have custom niche.
-        if is_custom and not custom_niche:
-            self.add_error(
-                'custom_niche',
-                'Type the business type you want to search for.')
-            return cleaned
-
-        # State-bar scrapers only know legal practice areas — the
-        # whole point is they query an attorney directory. A custom
-        # niche there is meaningless, so block it with a clear error
-        # instead of silently doing nothing.
-        if is_custom and source in ('texas_bar', 'georgia_bar'):
-            self.add_error(
-                'practice_area',
-                'State Bar sources only support legal practice areas. '
-                'Switch to Google Maps for a custom search.')
-            return cleaned
-
-        # `resolved_niche` is the single value view code consumes.
-        # - Custom path: the raw text (no transformation).
-        # - Legal-area path on Google Maps: the dropdown value (view
-        #   appends " lawyer" so the query is "{area} lawyer in {city}").
-        # - Bar sources: the practice-area string is used as a filter
-        #   parameter, not a search term — view uses cleaned[practice_area]
-        #   directly so we just echo it here for completeness.
-        cleaned['resolved_niche'] = (
-            custom_niche if is_custom else practice_area)
-        cleaned['is_custom_niche'] = is_custom
-        return cleaned
 
 
 class LeadAddForm(forms.ModelForm):
