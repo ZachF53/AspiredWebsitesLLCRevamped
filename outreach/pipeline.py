@@ -72,7 +72,7 @@ def import_leads(scraped_data, source, business_type_override=None):
             score, temperature = score_lead(raw)
 
             # 4. Create
-            Lead.objects.create(
+            lead = Lead.objects.create(
                 firm_name=firm_name,
                 attorney_name=(raw.get('attorney_name') or '').strip(),
                 practice_area=(raw.get('practice_area') or '').strip(),
@@ -97,6 +97,19 @@ def import_leads(scraped_data, source, business_type_override=None):
                 source=source,
             )
             results['imported'] += 1
+
+            # 5. Background enrichment — fires the homepage scrape +
+            # PageSpeed + Custom Search fallback off the request
+            # thread so admin sees the import summary instantly while
+            # the slow HTTP work (~30s/lead) runs in Celery. Skipped
+            # silently when Celery isn't reachable so a missing
+            # worker doesn't break imports.
+            try:
+                from outreach.tasks import enrich_lead_task
+                enrich_lead_task.delay(str(lead.pk))
+            except Exception:
+                logger.exception(
+                    'failed to enqueue enrichment for lead %s', lead.pk)
 
         except Exception:
             logger.exception(

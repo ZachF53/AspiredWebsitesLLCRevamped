@@ -371,6 +371,17 @@ GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
 # Places API — powers the Google Maps lead scraper. See CLAUDE.md →
 # External APIs & Costs.
 GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
+# Programmable / Custom Search — used by the lead enricher to find
+# social profiles + a website for leads where Google Places didn't
+# return a websiteUri. Two-part credential:
+#   * API key from https://console.cloud.google.com/apis/credentials
+#   * Search-engine ID ("cx") from https://programmablesearchengine.google.com/
+#     (create an engine that searches the entire web).
+# Both empty = enricher gracefully skips the fallback search path.
+# Cost: $5 per 1000 queries after the free 100/day. Enricher caps
+# queries per lead so a 20-lead batch stays well under $0.10.
+GOOGLE_CUSTOM_SEARCH_API_KEY = env('GOOGLE_CUSTOM_SEARCH_API_KEY', '')
+GOOGLE_CUSTOM_SEARCH_CX = env('GOOGLE_CUSTOM_SEARCH_CX', '')
 
 
 # ── Meta / Facebook ─────────────────────────────────────────────────────────

@@ -292,7 +292,13 @@ def lead_detail(request, pk):
         'has_google_business': lead.has_google_business,
         'google_review_count': lead.google_review_count,
         'website_performance_score': lead.website_performance_score,
-        'has_social_media': False,  # placeholder — scrapers don't detect yet
+        # Enricher-populated signals (outreach/enricher.py)
+        'facebook_url': lead.facebook_url,
+        'instagram_url': lead.instagram_url,
+        'linkedin_url': lead.linkedin_url,
+        'has_ssl': lead.has_ssl,
+        'has_generic_email': lead.has_generic_email,
+        'copyright_year': lead.copyright_year,
     }
     from outreach.scoring import MAX_SCORE
     breakdown = score_breakdown(scorer_dict)
@@ -318,8 +324,17 @@ def lead_detail(request, pk):
         ('PageSpeed performance', lead.website_performance_score),
         ('PageSpeed SEO', lead.website_seo_score),
         ('PageSpeed mobile', lead.website_mobile_score),
+        # Enrichment-derived
+        ('SSL / HTTPS', lead.has_ssl),
+        ('Generic email domain', lead.has_generic_email),
+        ('Copyright year', lead.copyright_year),
+        ('Facebook', lead.facebook_url),
+        ('Instagram', lead.instagram_url),
+        ('LinkedIn', lead.linkedin_url),
+        ('Other social', ', '.join(lead.other_social_urls or []) or None),
         ('Source', lead.get_source_display()),
         ('Imported at', lead.created_at),
+        ('Enriched at', lead.enrichment_completed_at),
     ]
 
     return render(request, 'admin_dashboard/lead_detail.html', _admin_context(
@@ -335,6 +350,38 @@ def lead_detail(request, pk):
         score_total_raw=raw_total,
         scraper_fields=scraper_fields,
     ))
+
+
+@admin_required
+@require_POST
+def lead_reenrich(request, pk):
+    """
+    Admin-triggered enrichment refresh — fires the same
+    outreach.tasks.enrich_lead_task that import_leads enqueues for
+    every new lead. Used to:
+      - Backfill leads that pre-date the enrichment feature.
+      - Refresh a stale lead after its website changed.
+      - Retry a lead whose initial enrichment crashed.
+
+    Always returns to the lead detail page with a flash message —
+    the actual enrichment work happens in Celery and shows up in the
+    accordion log within ~30s.
+    """
+    from django.contrib import messages
+
+    lead = get_object_or_404(Lead, pk=pk)
+    try:
+        from outreach.tasks import enrich_lead_task
+        enrich_lead_task.delay(str(lead.pk))
+        messages.success(
+            request,
+            'Re-enrichment queued — homepage scrape + PageSpeed + '
+            'Custom Search fallback will run in the background. '
+            'Refresh in ~30 seconds.')
+    except Exception as exc:  # noqa: BLE001
+        messages.error(
+            request, f'Could not enqueue enrichment: {exc}')
+    return redirect('admin_dashboard:lead_detail', pk=lead.pk)
 
 
 @admin_required

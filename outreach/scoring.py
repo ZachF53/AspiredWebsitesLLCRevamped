@@ -17,6 +17,10 @@ HOT_THRESHOLD = 7
 WARM_THRESHOLD = 4
 MAX_SCORE = 10
 
+# Number of years since a copyright date before we score it as stale.
+# 3 = "site hasn't been touched since 2023" feels stale in 2026.
+STALE_COPYRIGHT_YEARS = 3
+
 
 def score_lead(lead_data):
     """
@@ -57,8 +61,22 @@ def score_lead(lead_data):
     elif review_count < 10:
         score += 1
 
-    # Social media — placeholder until scrapers detect it
-    if not lead_data.get('has_social_media'):
+    # Social media — now actually detected by the enricher. Treats
+    # any of FB / IG / LinkedIn as a hit so a single channel counts.
+    if not _any_social(lead_data):
+        score += 1
+
+    # ── Enrichment-derived signals (set by outreach/enricher.py) ──
+    # No SSL — visible browser warning, big security pitch hook.
+    if lead_data.get('has_ssl') is False:
+        score += 1
+
+    # Generic email (info@gmail.com etc.) — signals no real IT.
+    if lead_data.get('has_generic_email') is True:
+        score += 1
+
+    # Stale copyright — site hasn't been updated in years.
+    if _copyright_is_stale(lead_data.get('copyright_year')):
         score += 1
 
     score = min(score, MAX_SCORE)
@@ -71,6 +89,25 @@ def score_lead(lead_data):
         temperature = 'cold'
 
     return score, temperature
+
+
+def _any_social(lead_data):
+    """True when the lead has at least one social channel detected."""
+    return bool(
+        lead_data.get('facebook_url')
+        or lead_data.get('instagram_url')
+        or lead_data.get('linkedin_url')
+        or lead_data.get('has_social_media')  # legacy boolean key
+    )
+
+
+def _copyright_is_stale(year):
+    """True when the parsed copyright year is at least STALE_COPYRIGHT_YEARS
+    older than the current year. None / 0 → False (no signal)."""
+    if not year:
+        return False
+    from datetime import date
+    return (date.today().year - int(year)) >= STALE_COPYRIGHT_YEARS
 
 
 def score_breakdown(lead_data):
@@ -165,14 +202,76 @@ def score_breakdown(lead_data):
         'applied': rev_points > 0,
     })
 
-    # ── Rule: social media presence (placeholder until scraper detects) ──
-    has_social = bool(lead_data.get('has_social_media'))
+    # ── Rule: social media presence (detected by the enricher) ──
+    socials_found = []
+    for key, label in (
+        ('facebook_url', 'Facebook'),
+        ('instagram_url', 'Instagram'),
+        ('linkedin_url', 'LinkedIn'),
+    ):
+        if lead_data.get(key):
+            socials_found.append(label)
+    has_social = bool(socials_found) or bool(
+        lead_data.get('has_social_media'))
+    if has_social:
+        sig = (', '.join(socials_found)
+               if socials_found else 'detected (legacy flag)')
+    else:
+        sig = 'none detected'
     rows.append({
         'label': 'Social media presence',
-        'signal': 'detected' if has_social else 'not detected (default)',
+        'signal': sig,
         'points': 0 if has_social else 1,
         'max': 1,
         'applied': not has_social,
+    })
+
+    # ── Rule: SSL (https://) ──
+    ssl_state = lead_data.get('has_ssl')
+    if ssl_state is None:
+        ssl_sig, ssl_pts = 'not checked', 0
+    elif ssl_state:
+        ssl_sig, ssl_pts = 'https OK', 0
+    else:
+        ssl_sig, ssl_pts = 'no HTTPS — browser warning', 1
+    rows.append({
+        'label': 'SSL / HTTPS',
+        'signal': ssl_sig,
+        'points': ssl_pts,
+        'max': 1,
+        'applied': ssl_pts > 0,
+    })
+
+    # ── Rule: generic email domain (gmail/yahoo/…) ──
+    generic = lead_data.get('has_generic_email')
+    if generic is None:
+        gen_sig, gen_pts = 'no email found', 0
+    elif generic:
+        gen_sig, gen_pts = 'free provider (gmail/yahoo/etc)', 1
+    else:
+        gen_sig, gen_pts = "uses firm's own domain", 0
+    rows.append({
+        'label': 'Email domain quality',
+        'signal': gen_sig,
+        'points': gen_pts,
+        'max': 1,
+        'applied': gen_pts > 0,
+    })
+
+    # ── Rule: stale copyright year ──
+    year = lead_data.get('copyright_year')
+    if not year:
+        c_sig, c_pts = 'no © year on site', 0
+    elif _copyright_is_stale(year):
+        c_sig, c_pts = f'© {year} — stale (3+ yrs)', 1
+    else:
+        c_sig, c_pts = f'© {year} — current', 0
+    rows.append({
+        'label': 'Site freshness (© year)',
+        'signal': c_sig,
+        'points': c_pts,
+        'max': 1,
+        'applied': c_pts > 0,
     })
 
     return rows

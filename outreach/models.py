@@ -63,6 +63,46 @@ class Lead(models.Model):
     website_issues = models.JSONField(default=list, blank=True)
     audit_run_at = models.DateTimeField(null=True, blank=True)
 
+    # ── Enrichment (post-scrape signals — see outreach/enricher.py) ──
+    # Populated by enrich_lead() Celery task, fired after import_leads
+    # saves the lead row. Two phases:
+    #   1. Homepage scrape — emails, social URLs, SSL, copyright year,
+    #      PageSpeed.
+    #   2. Google Custom Search fallback (only when website is blank) —
+    #      tries to find FB / IG / a real website by name + city + state.
+
+    # Social presence. Three biggest channels for SMBs; others go in
+    # other_social_urls so we don't keep adding columns.
+    facebook_url = models.URLField(blank=True)
+    instagram_url = models.URLField(blank=True)
+    linkedin_url = models.URLField(blank=True)
+    other_social_urls = models.JSONField(default=list, blank=True)
+
+    # Site-quality signals — cheap to derive from the homepage HTML,
+    # all feed the scorer.
+    has_ssl = models.BooleanField(
+        null=True, blank=True,
+        help_text=(
+            "True when site is reachable on https://, False when only "
+            "http:// works, NULL when not yet checked."))
+    copyright_year = models.IntegerField(
+        null=True, blank=True,
+        help_text=("Year parsed from the footer's © string. Stale "
+                   "(3+ years old) is a scoring signal."))
+    has_generic_email = models.BooleanField(
+        null=True, blank=True,
+        help_text=(
+            "True when the email we found lives on a free provider "
+            "(gmail.com, yahoo.com, hotmail.com, aol.com, outlook.com) "
+            "rather than the firm's own domain."))
+
+    # Enrichment lifecycle — task picks up rows where _completed_at
+    # is NULL, sets _attempted_at on entry, _completed_at on success.
+    # log is plain text appended by each enrichment step for forensics.
+    enrichment_attempted_at = models.DateTimeField(null=True, blank=True)
+    enrichment_completed_at = models.DateTimeField(null=True, blank=True)
+    enrichment_log = models.TextField(blank=True)
+
     # Lead scoring
     score = models.IntegerField(default=0)
     temperature = models.CharField(

@@ -156,6 +156,34 @@
 
     </div>
 
+    {% comment %}
+        Re-enrich action — fires the same Celery task that runs
+        automatically when a lead is first scraped. Useful to backfill
+        pre-enrichment leads, refresh a stale lead, or retry a crashed
+        one. The actual work (~30s) happens in the background; the
+        flash message tells the admin when to refresh.
+    {% endcomment %}
+    <section class="admin-section">
+        <div class="admin-section__header"><h2>Enrichment</h2></div>
+        <p class="muted">
+            Runs homepage scrape (email, social, SSL, copyright),
+            PageSpeed audit, and Google Custom Search fallback for
+            no-website leads. Auto-fires on import; this button
+            forces a refresh.
+            {% if lead.enrichment_completed_at %}
+                Last run: {{ lead.enrichment_completed_at|date:"M j, Y g:i a" }}.
+            {% elif lead.enrichment_attempted_at %}
+                Currently running…
+            {% else %}
+                Not yet run.
+            {% endif %}
+        </p>
+        <form method="post" action="{% url 'admin_dashboard:lead_reenrich' lead.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary">Re-enrich now</button>
+        </form>
+    </section>
+
     <section class="admin-section lead-danger-zone">
         <div class="admin-section__header"><h2>Danger Zone</h2></div>
         <p class="muted">Permanently removes this lead and every related note, email, reply, and referral event. This cannot be undone.</p>
@@ -232,6 +260,13 @@
                     {% endif %}
                     Bands: 7+ = hot · 4&ndash;6 = warm · 0&ndash;3 = cold.
                 </p>
+
+                {% if lead.enrichment_log %}
+                    <details class="lead-debug__nested">
+                        <summary>Enrichment run log</summary>
+                        <pre class="lead-debug__pre">{{ lead.enrichment_log }}</pre>
+                    </details>
+                {% endif %}
             </div>
         </div>
     </details>
