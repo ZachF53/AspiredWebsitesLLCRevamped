@@ -279,7 +279,49 @@ def leads_table(request):
 
 @admin_required
 def lead_detail(request, pk):
+    from outreach.scoring import score_breakdown
     lead = get_object_or_404(Lead, pk=pk)
+
+    # Reconstruct the dict the scorer would have seen at import time
+    # (the model stores the same fields the scraper produced). Feeds
+    # the "Scraper Data + Score Breakdown" accordion at the bottom of
+    # the page so the admin can see WHAT the scraper found and HOW
+    # each signal contributed to the final score.
+    scorer_dict = {
+        'website': lead.website,
+        'has_google_business': lead.has_google_business,
+        'google_review_count': lead.google_review_count,
+        'website_performance_score': lead.website_performance_score,
+        'has_social_media': False,  # placeholder — scrapers don't detect yet
+    }
+    from outreach.scoring import MAX_SCORE
+    breakdown = score_breakdown(scorer_dict)
+    raw_total = sum(r['points'] for r in breakdown)
+    score_total_capped = min(raw_total, MAX_SCORE)
+    # Raw fields the scraper actually wrote, for the "what the scraper
+    # saw" half of the accordion. Anything blank/null gets a dash
+    # in the template via |default:'—'.
+    scraper_fields = [
+        ('Firm name', lead.firm_name),
+        ('Attorney / contact name', lead.attorney_name),
+        ('Business type', lead.business_type),
+        ('Practice area', lead.practice_area),
+        ('Email', lead.email),
+        ('Phone', lead.phone),
+        ('Website', lead.website),
+        ('Address', lead.address),
+        ('City', lead.city),
+        ('State', lead.state),
+        ('Google rating', lead.google_rating),
+        ('Google review count', lead.google_review_count),
+        ('Has Google Business Profile', lead.has_google_business),
+        ('PageSpeed performance', lead.website_performance_score),
+        ('PageSpeed SEO', lead.website_seo_score),
+        ('PageSpeed mobile', lead.website_mobile_score),
+        ('Source', lead.get_source_display()),
+        ('Imported at', lead.created_at),
+    ]
+
     return render(request, 'admin_dashboard/lead_detail.html', _admin_context(
         active='leads',
         lead=lead,
@@ -288,6 +330,10 @@ def lead_detail(request, pk):
         replies=lead.replies.all(),
         note_form=LeadNoteForm(),
         status_choices=Lead.STATUS_CHOICES,
+        score_breakdown=breakdown,
+        score_total=score_total_capped,
+        score_total_raw=raw_total,
+        scraper_fields=scraper_fields,
     ))
 
 

@@ -165,5 +165,75 @@
             <button type="submit" class="btn-danger">Delete Lead</button>
         </form>
     </section>
+
+    {% comment %}
+        Scraper inspection accordion. Collapsed by default (native
+        <details> element — no JS needed, CSP-safe). Two halves:
+          1. What the scraper actually captured at import time.
+          2. How each scoring rule evaluated, with the points it
+             contributed shown as a "points/max" pill so the admin
+             can see WHY this lead landed at its final score.
+    {% endcomment %}
+    <details class="lead-debug">
+        <summary class="lead-debug__summary">
+            <span class="lead-debug__chevron" aria-hidden="true">▸</span>
+            <span class="lead-debug__label">Scraper data &amp; score breakdown</span>
+            <span class="lead-debug__hint muted">click to inspect</span>
+        </summary>
+
+        <div class="lead-debug__body">
+            <div class="lead-debug__col">
+                <h3 class="lead-debug__title">What the scraper saw</h3>
+                <dl class="lead-debug__kv">
+                    {% for label, value in scraper_fields %}
+                        <dt>{{ label }}</dt>
+                        <dd>
+                            {% if value is None or value == '' %}
+                                <span class="muted">—</span>
+                            {% elif value is True %}
+                                <span class="badge-yes">Yes</span>
+                            {% elif value is False %}
+                                <span class="badge-no">No</span>
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </dd>
+                    {% endfor %}
+                </dl>
+            </div>
+
+            <div class="lead-debug__col">
+                <h3 class="lead-debug__title">
+                    How it was graded
+                    <span class="lead-debug__total">{{ score_total }}/10</span>
+                </h3>
+                <table class="lead-debug__rules">
+                    <thead>
+                        <tr><th>Signal</th><th>What the scraper saw</th><th class="lead-debug__pts">Points</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in score_breakdown %}
+                            <tr class="lead-debug__row {% if row.applied %}lead-debug__row--hit{% else %}lead-debug__row--miss{% endif %}">
+                                <td>{{ row.label }}</td>
+                                <td><code>{{ row.signal }}</code></td>
+                                <td class="lead-debug__pts">
+                                    <span class="lead-debug__pill">+{{ row.points }} / {{ row.max }}</span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <p class="muted lead-debug__legend">
+                    Higher score = bigger pain we can solve = hotter lead.
+                    Stored: <strong>{{ lead.score }}/10</strong> →
+                    <strong>{{ lead.get_temperature_display }}</strong>.
+                    {% if score_total_raw > 10 %}
+                        (Raw signals summed to {{ score_total_raw }}; capped at 10.)
+                    {% endif %}
+                    Bands: 7+ = hot · 4&ndash;6 = warm · 0&ndash;3 = cold.
+                </p>
+            </div>
+        </div>
+    </details>
 </div>
 {% endblock %}
