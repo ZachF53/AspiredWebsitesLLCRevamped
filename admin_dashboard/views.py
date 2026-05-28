@@ -449,6 +449,8 @@ def scrape(request):
     if request.method == 'POST' and form.is_valid():
         source = form.cleaned_data['source']
         practice_area = form.cleaned_data['practice_area']
+        resolved_niche = form.cleaned_data['resolved_niche']
+        is_custom_niche = form.cleaned_data['is_custom_niche']
         city = form.cleaned_data['city']
         state = form.cleaned_data['state']
         max_results = int(form.cleaned_data['max_results'])
@@ -457,19 +459,32 @@ def scrape(request):
         try:
             if source == 'google_maps':
                 state_full = 'Texas' if state == 'TX' else 'Georgia'
-                niche = f'{practice_area} lawyer'
+                # Legal practice area picks get the " lawyer" suffix
+                # so the query reads "Family Law lawyer in San Antonio".
+                # Custom searches go in verbatim — admin already typed
+                # exactly what they want ("dentist", "wedding
+                # photographer", etc.).
+                if is_custom_niche:
+                    niche = resolved_niche
+                else:
+                    niche = f'{resolved_niche} lawyer'
                 raw, api_calls = scrape_google_maps_sync(
                     niche, city, state_full, max_results
                 )
                 import_source = 'google_maps'
             elif source == 'texas_bar':
+                # Form's clean() already blocked custom-niche + bar
+                # combinations, so practice_area here is always a real
+                # legal area.
                 raw = scrape_texas_bar_sync(
-                    city=city, practice_area=practice_area, max_results=max_results
+                    city=city, practice_area=practice_area,
+                    max_results=max_results,
                 )
                 import_source = 'state_bar'
             else:  # georgia_bar
                 raw = scrape_georgia_bar_sync(
-                    city=city, practice_area=practice_area, max_results=max_results
+                    city=city, practice_area=practice_area,
+                    max_results=max_results,
                 )
                 import_source = 'state_bar'
 
