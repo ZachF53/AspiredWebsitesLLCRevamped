@@ -2758,6 +2758,17 @@ def scan_detail(request, scan_id):
         VulnerabilityScan.objects.select_related('client'),
         id=scan_id,
     )
+
+    # Mark the scan reviewed on first open. Drives the Today's Focus
+    # widget — unreviewed scans with criticals stay on the list;
+    # once an admin opens this page the item falls off so the home
+    # dashboard stays focused on "unseen" work. Idempotent.
+    if not scan.been_reviewed:
+        scan.been_reviewed = True
+        scan.reviewed_at = timezone.now()
+        scan.save(update_fields=[
+            'been_reviewed', 'reviewed_at', 'updated_at'])
+
     findings = list(scan.findings.order_by('severity', 'tool', 'title'))
 
     by_sev = {sev: [] for sev in
@@ -3392,12 +3403,15 @@ def get_daily_focus():
             'action': 'View Client',
         })
 
-    # 2. Scans with unsent critical findings
+    # 2. Scans with unsent critical findings — and that the admin
+    #    hasn't opened yet (been_reviewed=False). The detail-page
+    #    view flips the flag on first open so repeat visits don't
+    #    nag here forever.
     from reporting.models import VulnerabilityScan
     critical_scans = (
         VulnerabilityScan.objects
         .filter(status='complete', critical_count__gt=0,
-                sent_to_client=False)
+                sent_to_client=False, been_reviewed=False)
         .select_related('client')
         .order_by('-completed_at')[:3]
     )

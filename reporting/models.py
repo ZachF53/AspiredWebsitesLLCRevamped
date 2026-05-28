@@ -430,6 +430,14 @@ class VulnerabilityScan(TimestampedModel):
     # from the admin dashboard.
     is_scheduled = models.BooleanField(default=False)
 
+    # Flipped True the first time an admin opens scan_detail. Drives
+    # the Today's Focus widget on the admin home: only scans with
+    # critical findings that have NOT been reviewed appear there, so
+    # the list stays focused on "unseen" work instead of nagging
+    # about every old scan with criticals on it.
+    been_reviewed = models.BooleanField(default=False)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
     error_message = models.TextField(blank=True)
 
     class Meta:
