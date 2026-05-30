@@ -14287,3 +14287,88 @@ button.htmx-request {
 }
 .dmarc-help summary::-webkit-details-marker { display: none; }
 .dmarc-help[open] summary { margin-bottom: 0.5rem; }
+
+
+/* ── Outreach approvals queue ──────────────────────────────────────── */
+.approval-card {
+    margin-bottom: 1rem;
+}
+.approval-card .admin-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.approval-card__meta {
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+.approval-card__reason {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.approval-card__kind {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.approval-card__kind--cold {
+    background: rgba(232, 101, 10, 0.15);
+    color: #FB923C;
+    border: 1px solid rgba(232, 101, 10, 0.3);
+}
+.approval-card__kind--reply {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.approval-card__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1rem 1rem;
+}
+.approval-card__field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.25rem;
+}
+.approval-card__subject,
+.approval-card__body {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.approval-card__body {
+    resize: vertical;
+    min-height: 200px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+}
+.approval-card__subject:focus,
+.approval-card__body:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    background: rgba(0, 0, 0, 0.3);
+}
+.approval-card__actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}

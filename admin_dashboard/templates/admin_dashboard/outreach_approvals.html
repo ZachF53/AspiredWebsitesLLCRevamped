@@ -1,0 +1,112 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Approvals — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Email Approval Queue</h1>
+            <p class="admin-page-sub">
+                Trust level {{ config.trust_level }} · {{ pending_count }} pending ·
+                {{ today_approved_pending }} approved waiting to send ·
+                {{ today_sent }} sent today
+                (cap {{ config.daily_send_cap }})
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'admin_dashboard:settings' %}" class="btn-secondary btn-sm">Trust level &amp; caps →</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for message in messages %}
+                <div class="admin-message admin-message--{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if not pending %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:2rem 0;">
+                    {% if config.trust_level >= 5 %}
+                        Fully autonomous — nothing ever lands here. (You can still review sent mail under <a href="{% url 'admin_dashboard:leads_table' %}">Leads</a>.)
+                    {% else %}
+                        Inbox zero. Nothing waiting on you. The cold sender runs daily at 09:00 — check back tomorrow morning, or scrape new leads to feed the queue.
+                    {% endif %}
+                </p>
+            </div>
+        </section>
+    {% else %}
+        {% comment %}
+            Bulk-approve form lives at the top so an operator clearing
+            a known-good batch (e.g. 10 cold emails to a niche they've
+            tuned the template for) can fire one POST.
+        {% endcomment %}
+        <section class="admin-card" style="margin-bottom: 1rem;">
+            <div class="admin-card__body" style="display:flex; align-items:center; justify-content:space-between; gap:1rem;">
+                <span class="muted">{{ pending_count }} email{{ pending_count|pluralize }} waiting for your eyes.</span>
+                <form method="post" action="{% url 'admin_dashboard:outreach_approval_bulk_approve' %}" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary btn-sm"
+                            onclick="return confirm('Approve all {{ pending_count }} pending email{{ pending_count|pluralize }}? They will send within 30 minutes.');">
+                        Approve all {{ pending_count }}
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        {% for email in pending %}
+            <article class="admin-card approval-card">
+                <div class="admin-card__header">
+                    <div>
+                        <h2 class="admin-card__title">
+                            {% if email.kind == 'reply' %}
+                                Reply to {{ email.lead.firm_name }}
+                            {% else %}
+                                {{ email.lead.firm_name }} · step {{ email.sequence_step }}
+                            {% endif %}
+                        </h2>
+                        <p class="approval-card__meta muted">
+                            <a href="{% url 'admin_dashboard:lead_detail' email.lead.pk %}">{{ email.lead.email|default:"(no email)" }}</a>
+                            · score {{ email.lead.score }}
+                            · queued {{ email.created_at|date:"M j H:i" }}
+                            {% if email._gating_reason %}
+                                <br><span class="approval-card__reason">{{ email._gating_reason }}</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <span class="approval-card__kind approval-card__kind--{{ email.kind }}">{{ email.get_kind_display }}</span>
+                </div>
+
+                <form method="post" action="{% url 'admin_dashboard:outreach_approval_approve' email.pk %}" class="approval-card__form">
+                    {% csrf_token %}
+                    <label>
+                        <span class="approval-card__field-label">Subject</span>
+                        <input type="text" name="subject" value="{{ email.subject }}" required class="approval-card__subject">
+                    </label>
+                    <label>
+                        <span class="approval-card__field-label">Body</span>
+                        <textarea name="body" rows="10" required class="approval-card__body">{{ email.body }}</textarea>
+                    </label>
+
+                    <div class="approval-card__actions">
+                        <button type="submit" class="btn-primary">Approve &amp; send</button>
+                        <button type="submit"
+                                formaction="{% url 'admin_dashboard:outreach_approval_reject' email.pk %}"
+                                class="btn-secondary"
+                                onclick="return confirm('Reject this email? The lead stays at step {{ email.sequence_step|add:-1 }} and the sender will not regenerate this step.');">
+                            Reject
+                        </button>
+                    </div>
+                </form>
+            </article>
+        {% endfor %}
+    {% endif %}
+
+</div>
+{% endblock %}

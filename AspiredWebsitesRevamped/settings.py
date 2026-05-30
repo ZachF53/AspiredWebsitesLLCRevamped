@@ -569,6 +569,36 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.ingest_dmarc_imap_task',
         'schedule': crontab(hour=6, minute=0),            # daily 6am
     },
+    # ── Cold outreach automation ────────────────────────────────────
+    # Per CLAUDE.md → Celery Scheduled Tasks. Each piece honours the
+    # OutreachSettings dial — flip the trust level in admin Settings
+    # to widen or shrink what auto-sends without restarting Celery.
+    'reset-outreach-counters': {
+        'task': 'outreach.tasks.reset_daily_counters_task',
+        'schedule': crontab(hour=0, minute=5),            # daily 12:05am
+    },
+    'scrape-leads-daily': {
+        'task': 'outreach.tasks.run_scrape_jobs_task',
+        'schedule': crontab(hour=2, minute=0),            # daily 2am
+    },
+    'generate-cold-outreach': {
+        'task': 'outreach.tasks.run_cold_sender_task',
+        'schedule': crontab(hour=9, minute=0),            # daily 9am
+    },
+    # Drain the approved queue every 30 minutes during business hours
+    # (9am-6pm CT = our send window). Off-hours: nothing dispatches
+    # even if the operator approves something at 11pm — it'll wait
+    # until 9am the next morning.
+    'dispatch-approved-emails': {
+        'task': 'outreach.tasks.send_approved_emails_task',
+        'schedule': crontab(minute='*/30', hour='9-18'),
+    },
+    # Poll the inbox for inbound replies every 15 minutes. Reply
+    # classification + auto-drafting fans out per-reply.
+    'ingest-outreach-replies': {
+        'task': 'outreach.tasks.ingest_replies_task',
+        'schedule': crontab(minute='*/15'),
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

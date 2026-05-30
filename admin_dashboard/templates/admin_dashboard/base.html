@@ -36,6 +36,12 @@
                    href="{% url 'admin_dashboard:home' %}">
                     <span class="nav-link__text">Dashboard</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/outreach/approvals/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:outreach_approvals' %}">
+                    <span class="nav-link__text">Approvals</span>
+                    <span class="nav-badge {% if not approvals_count %}nav-badge--empty{% endif %}"
+                          aria-label="{{ approvals_count }} pending">{{ approvals_count }}</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/needs-you/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:needs_you' %}">
                     <span class="nav-link__text">Needs You</span>

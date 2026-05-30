@@ -40,6 +40,20 @@ urlpatterns = [
          views.intake_review_mark_done,
          name='intake_review_mark_done'),
 
+    # Approval queue — every email the cold sender and reply auto-drafter
+    # produce that the current trust level says needs a human in the loop.
+    path('outreach/approvals/', views.outreach_approvals,
+         name='outreach_approvals'),
+    path('outreach/approvals/<int:pk>/approve/',
+         views.outreach_approval_approve,
+         name='outreach_approval_approve'),
+    path('outreach/approvals/<int:pk>/reject/',
+         views.outreach_approval_reject,
+         name='outreach_approval_reject'),
+    path('outreach/approvals/bulk-approve/',
+         views.outreach_approval_bulk_approve,
+         name='outreach_approval_bulk_approve'),
+
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
 

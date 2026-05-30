@@ -93,6 +93,15 @@ def _admin_context(active=None, **extra):
         gap_high_count = _high_priority_gaps_count()
     except Exception:
         gap_high_count = 0
+    try:
+        # Approvals queue badge — every email the cold sender and reply
+        # auto-drafter generate at the current trust level. Single
+        # indexed query; defensive against the EmailSent.status migration
+        # not having run yet on a fresh checkout.
+        approvals_count = EmailSent.objects.filter(
+            status='pending_approval').count()
+    except Exception:
+        approvals_count = 0
     ctx = {
         'active': active,
         'needs_you_count': needs_you_count,
@@ -100,6 +109,7 @@ def _admin_context(active=None, **extra):
         'active_proposals_count': active_proposals_count,
         'intel_pending_count': intel_pending_count,
         'gap_high_count': gap_high_count,
+        'approvals_count': approvals_count,
     }
     ctx.update(extra)
     return ctx
@@ -127,7 +137,11 @@ def home(request):
         ).count()
     except Exception:
         pass
-    emails_sent_today = EmailSent.objects.filter(sent_at__date=today).count()
+    # Only actually-sent rows count toward "today" — pending/approved
+    # rows have sent_at IS NULL.
+    emails_sent_today = EmailSent.objects.filter(
+        status='sent', sent_at__date=today
+    ).count()
 
     stats = [
         {'label': 'Total Leads',        'value': total_leads,        'href_name': 'admin_dashboard:leads_table'},
@@ -148,7 +162,10 @@ def home(request):
 
     # Recent activity
     recent_leads = Lead.objects.order_by('-created_at')[:10]
-    recent_emails = EmailSent.objects.select_related('lead').order_by('-sent_at')[:5]
+    recent_emails = (
+        EmailSent.objects.filter(status='sent')
+        .select_related('lead').order_by('-sent_at')[:5]
+    )
     unhandled_replies = (
         EmailReply.objects.select_related('lead')
         .filter(needs_human=True, handled=False)
@@ -7918,3 +7935,137 @@ def dmarc_upload(request):
                 f'Report already in database — uploaded by '
                 f'{report.received_at:%Y-%m-%d %H:%M}. No changes.')
     return redirect('admin_dashboard:dmarc_dashboard')
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Outreach approvals queue
+# ────────────────────────────────────────────────────────────────────────────
+# Every cold email the sender generates and every reply the auto-drafter
+# composes lands in EmailSent with status='pending_approval' OR is
+# auto-promoted to 'approved' based on outreach.gating.should_queue_for_approval.
+# This queue is the human-in-the-loop checkpoint — flip the dial in
+# Settings to shrink/grow what arrives here.
+
+@admin_required
+def outreach_approvals(request):
+    """
+    List every pending email — cold and reply — with full body preview
+    and approve/edit/reject actions. Newest first so the operator can
+    triage as the queue grows during the day.
+    """
+    from outreach.gating import explain as _explain
+    from outreach.models import OutreachSettings as _OS
+
+    qs = (
+        EmailSent.objects.filter(status='pending_approval')
+        .select_related('lead', 'in_reply_to')
+        .order_by('-created_at')
+    )
+    pending = list(qs)
+    # Annotate each row with the policy reason — the gating helper is
+    # the source of truth, not duplicated here.
+    for e in pending:
+        e._gating_reason = _explain(
+            e.kind,
+            classification=getattr(e.in_reply_to, 'classification', None),
+            needs_human=getattr(e.in_reply_to, 'needs_human', False),
+        )
+
+    config = _OS.load()
+    today_sent = EmailSent.objects.filter(
+        status='sent', sent_at__date=timezone.localdate()
+    ).count()
+    today_approved_pending = EmailSent.objects.filter(
+        status='approved'
+    ).count()
+
+    return render(
+        request, 'admin_dashboard/outreach_approvals.html',
+        _admin_context(
+            active='outreach_approvals',
+            pending=pending,
+            pending_count=len(pending),
+            config=config,
+            today_sent=today_sent,
+            today_approved_pending=today_approved_pending,
+        ),
+    )
+
+
+@admin_required
+@require_POST
+def outreach_approval_approve(request, pk):
+    """
+    Approve a pending email — flips status to 'approved' so the send
+    drainer dispatches it on its next tick. Optional body edits from
+    the form are saved first so the operator can tweak before approving.
+    """
+    email = get_object_or_404(
+        EmailSent, pk=pk, status='pending_approval'
+    )
+    subject = (request.POST.get('subject') or '').strip()
+    body = (request.POST.get('body') or '').strip()
+    fields = ['status', 'approved_at', 'approved_by']
+    if subject and subject != email.subject:
+        email.subject = subject
+        fields.append('subject')
+    if body and body != email.body:
+        email.body = body
+        fields.append('body')
+    email.status = 'approved'
+    email.approved_at = timezone.now()
+    email.approved_by = request.user if request.user.is_authenticated else None
+    email.save(update_fields=fields)
+    from django.contrib import messages as _messages
+    _messages.success(
+        request,
+        f'Approved — will send to {email.lead.firm_name} on the next '
+        f'send tick (within 30 min).')
+    return redirect('admin_dashboard:outreach_approvals')
+
+
+@admin_required
+@require_POST
+def outreach_approval_reject(request, pk):
+    """
+    Reject a pending email — flips to 'rejected' with an optional reason.
+    Rejected rows stay in the table for audit; the sender will not pick
+    the same lead/step again unless the operator manually queues a retry.
+    """
+    email = get_object_or_404(
+        EmailSent, pk=pk, status='pending_approval'
+    )
+    reason = (request.POST.get('reason') or '').strip()[:255]
+    email.status = 'rejected'
+    email.rejected_reason = reason or 'Rejected by admin.'
+    email.save(update_fields=['status', 'rejected_reason'])
+    from django.contrib import messages as _messages
+    _messages.info(
+        request,
+        f'Rejected — {email.lead.firm_name} stays at sequence step '
+        f'{email.sequence_step - 1}. The sender will not regenerate '
+        f'this step unless you manually queue a retry.')
+    return redirect('admin_dashboard:outreach_approvals')
+
+
+@admin_required
+@require_POST
+def outreach_approval_bulk_approve(request):
+    """
+    Approve every pending email in one POST — for L1 operators clearing
+    a batch they've already eyeballed. Per-row edits are not possible
+    here; for tweaking, use the per-row approve form.
+    """
+    qs = EmailSent.objects.filter(status='pending_approval')
+    n = qs.count()
+    qs.update(
+        status='approved',
+        approved_at=timezone.now(),
+        approved_by=request.user if request.user.is_authenticated else None,
+    )
+    from django.contrib import messages as _messages
+    _messages.success(
+        request,
+        f'Approved {n} email{"s" if n != 1 else ""}. '
+        f'They will dispatch on the next send tick.')
+    return redirect('admin_dashboard:outreach_approvals')
