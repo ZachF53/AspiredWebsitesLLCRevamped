@@ -35,11 +35,11 @@ Cron suggestion (Celery beat):
 import email
 import imaplib
 import logging
-import os
 import re
 import sys
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -67,10 +67,13 @@ class Command(BaseCommand):
         except Exception:
             pass
 
-        host = os.getenv('DMARC_IMAP_HOST', '')
-        user = os.getenv('DMARC_IMAP_USER', '')
-        pwd = os.getenv('DMARC_IMAP_PASS', '')
-        folder = os.getenv('DMARC_IMAP_FOLDER', 'INBOX')
+        # Read via Django settings (loaded from .env by django-environ
+        # at app boot) — NOT os.getenv, which only sees vars already
+        # exported into the process env.
+        host = getattr(settings, 'DMARC_IMAP_HOST', '') or ''
+        user = getattr(settings, 'DMARC_IMAP_USER', '') or ''
+        pwd = getattr(settings, 'DMARC_IMAP_PASS', '') or ''
+        folder = (getattr(settings, 'DMARC_IMAP_FOLDER', '') or 'INBOX')
 
         if not (host and user and pwd):
             self.stdout.write(self.style.WARNING(

@@ -392,6 +392,15 @@ BRAVE_SEARCH_API_KEY = env('BRAVE_SEARCH_API_KEY', '')
 BRAVE_SEARCH_MONTHLY_LIMIT = int(env('BRAVE_SEARCH_MONTHLY_LIMIT', '1000'))
 
 
+# ── DMARC IMAP poller (reporting/management/commands/ingest_dmarc_imap) ─────
+# All four required for the poller to do anything. Setup steps live
+# in the management command's docstring. Empty = no-op + log warning.
+DMARC_IMAP_HOST = env('DMARC_IMAP_HOST', '')
+DMARC_IMAP_USER = env('DMARC_IMAP_USER', '')
+DMARC_IMAP_PASS = env('DMARC_IMAP_PASS', '')
+DMARC_IMAP_FOLDER = env('DMARC_IMAP_FOLDER', 'INBOX')
+
+
 # ── Meta / Facebook ─────────────────────────────────────────────────────────
 META_APP_ID = env('META_APP_ID', '')
 META_APP_SECRET = env('META_APP_SECRET', '')
