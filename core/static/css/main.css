@@ -14009,6 +14009,44 @@ button.htmx-request {
 }
 .lead-debug__nested summary::-webkit-details-marker { display: none; }
 .lead-debug__nested[open] summary { margin-bottom: 0.5rem; }
+/* Brave Search API monthly-usage banner on /admin-dashboard/leads/.
+   States: default (orange brand), --warn (>=80%, amber), --over
+   (>=100%, red). Track + fill use plain divs so no JS / no CSP
+   surprises. */
+.brave-usage-bar {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    margin: 1rem 0 1.25rem;
+}
+.brave-usage-bar__label {
+    color: var(--color-text);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+.brave-usage-bar__hint {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+}
+.brave-usage-bar__track {
+    background: rgba(255, 255, 255, 0.06);
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.brave-usage-bar__fill {
+    background: var(--color-orange);
+    height: 100%;
+    transition: width .3s ease;
+    min-width: 0%;
+}
+.brave-usage-bar--warn { border-color: rgba(245, 158, 11, 0.5); }
+.brave-usage-bar--warn .brave-usage-bar__fill { background: #f59e0b; }
+.brave-usage-bar--over { border-color: rgba(239, 68, 68, 0.6); }
+.brave-usage-bar--over .brave-usage-bar__fill { background: #ef4444; }
+.brave-usage-bar--over .brave-usage-bar__label { color: #ef4444; }
+
 .lead-debug__pre {
     margin: 0;
     padding: 0.5rem;

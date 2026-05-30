@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Lead(models.Model):
@@ -295,3 +296,57 @@ class OutreachSettings(models.Model):
         """Singleton accessor — gets or creates the one row at pk=1."""
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class BraveSearchUsage(models.Model):
+    """
+    Per-month Brave Search API query counter. One row per month;
+    incremented atomically by ``outreach.enricher._brave_search``
+    after each successful API call.
+
+    Drives the usage banner on /admin-dashboard/leads/ so the admin
+    can see where they are against Brave's free 2000/mo tier before
+    queries start costing $3/1000.
+
+    Why a model + not a cache key: needs to survive Redis restarts,
+    needs a 12-month history for trend visibility later, and writes
+    are cheap (one INSERT-OR-UPDATE per Brave call ≤ 3/lead).
+    """
+
+    # First day of the month — '2026-05-01' covers all of May 2026.
+    # Unique so update_or_create(year_month=...) is a single hit.
+    year_month = models.DateField(unique=True)
+    query_count = models.IntegerField(default=0)
+    last_query_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-year_month']
+        verbose_name = 'Brave Search Usage'
+        verbose_name_plural = 'Brave Search Usage'
+
+    def __str__(self):
+        return (f'{self.year_month:%B %Y} — {self.query_count} '
+                f'queries')
+
+    @classmethod
+    def _current_month(cls):
+        today = timezone.now().date()
+        return today.replace(day=1)
+
+    @classmethod
+    def increment(cls, n=1):
+        """Atomic increment for THIS month's row. Creates the row
+        on first call of a new month. Safe to call from concurrent
+        Celery workers — uses F() expression."""
+        from django.db.models import F
+        ym = cls._current_month()
+        cls.objects.get_or_create(year_month=ym)
+        cls.objects.filter(year_month=ym).update(
+            query_count=F('query_count') + n)
+
+    @classmethod
+    def current(cls):
+        """This month's count (0 when no queries yet this month)."""
+        ym = cls._current_month()
+        row = cls.objects.filter(year_month=ym).first()
+        return row.query_count if row else 0

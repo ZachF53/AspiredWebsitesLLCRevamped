@@ -252,6 +252,21 @@ def leads_table(request):
     qs_parts = [f'{k}={request.GET.get(k)}' for k in keep if request.GET.get(k)]
     filter_qs = ('&' + '&'.join(qs_parts)) if qs_parts else ''
 
+    # Brave Search usage banner — shows this month's query count
+    # against the free-tier quota so the admin sees how close they
+    # are to paying $5/1000. Defensive — table renders even if the
+    # usage model fails to import (fresh checkout pre-migration).
+    brave_used = 0
+    brave_limit = getattr(settings, 'BRAVE_SEARCH_MONTHLY_LIMIT', 1000)
+    try:
+        from outreach.models import BraveSearchUsage
+        brave_used = BraveSearchUsage.current()
+    except Exception:
+        pass
+    brave_percent = (
+        round(brave_used / brave_limit * 100) if brave_limit else 0)
+    brave_remaining = max(0, brave_limit - brave_used)
+
     return render(request, 'admin_dashboard/leads_table.html', _admin_context(
         active='leads',
         page=page,
@@ -270,6 +285,10 @@ def leads_table(request):
         states=states,
         practice_areas=practice_areas,
         filter_qs=filter_qs,
+        brave_used=brave_used,
+        brave_limit=brave_limit,
+        brave_percent=brave_percent,
+        brave_remaining=brave_remaining,
     ))
 
 

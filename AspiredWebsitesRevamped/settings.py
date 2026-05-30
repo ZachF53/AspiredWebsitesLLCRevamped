@@ -386,6 +386,10 @@ GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
 # no-website leads enriched per month. Empty = enricher quietly
 # skips the fallback search path.
 BRAVE_SEARCH_API_KEY = env('BRAVE_SEARCH_API_KEY', '')
+# Monthly quota for the usage banner on /admin-dashboard/leads/ —
+# Brave's free tier is 1000 queries/month at 1 req/sec, then $5
+# per 1000. Override per env if you upgrade to a paid plan.
+BRAVE_SEARCH_MONTHLY_LIMIT = int(env('BRAVE_SEARCH_MONTHLY_LIMIT', '1000'))
 
 
 # ── Meta / Facebook ─────────────────────────────────────────────────────────

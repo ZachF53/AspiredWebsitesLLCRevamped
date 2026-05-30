@@ -563,6 +563,17 @@ def _brave_search(query, api_key, count=10):
         logger.warning('Brave HTTP %s for %r: %s',
                        resp.status_code, query, resp.text[:200])
         return []
+
+    # Count the query against this month's usage — drives the banner
+    # on /admin-dashboard/leads/. Only counts successful (HTTP 200)
+    # calls since failures don't draw from Brave's quota. Wrapped in
+    # try/except so a DB hiccup never breaks the actual enrichment.
+    try:
+        from outreach.models import BraveSearchUsage
+        BraveSearchUsage.increment()
+    except Exception:
+        logger.exception('Failed to increment BraveSearchUsage')
+
     try:
         data = resp.json()
     except ValueError:

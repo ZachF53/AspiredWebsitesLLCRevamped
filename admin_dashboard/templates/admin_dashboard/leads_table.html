@@ -22,6 +22,33 @@
         </div>
     </div>
 
+    {% comment %}
+        Brave Search API usage banner — tracks this month's queries
+        against the free-tier monthly quota. Fires from
+        outreach.enricher._brave_search after every successful API
+        call. Bar turns yellow >= 80%, red >= 100% so the admin
+        sees the runway before paid usage ($5/1000) kicks in.
+    {% endcomment %}
+    <div class="brave-usage-bar
+        {% if brave_percent >= 100 %}brave-usage-bar--over{% elif brave_percent >= 80 %}brave-usage-bar--warn{% endif %}">
+        <div class="brave-usage-bar__label">
+            <strong>Brave Search:</strong>
+            {{ brave_used }} / {{ brave_limit }} queries this month
+            <span class="brave-usage-bar__hint">
+                ({{ brave_percent }}% used
+                {% if brave_percent >= 100 %}
+                    — over free tier, additional queries billed at $5/1000
+                {% else %}
+                    — {{ brave_remaining }} remaining this month
+                {% endif %})
+            </span>
+        </div>
+        <div class="brave-usage-bar__track">
+            <div class="brave-usage-bar__fill"
+                 style="width: {% if brave_percent > 100 %}100{% else %}{{ brave_percent }}{% endif %}%"></div>
+        </div>
+    </div>
+
     <form class="lead-filter-bar" method="get" action="">
         <input type="search" name="q" value="{{ q }}"
                placeholder="Search firm, attorney, city, email, phone…"
