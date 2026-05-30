@@ -2323,22 +2323,36 @@ DROPLET_SIZES = [
 ]
 
 
-def _droplet_rows(droplets, clients_by_ip):
+def _droplet_rows(droplets, clients_by_ip, websites_by_ip):
     """
     Decorate raw DO droplet dicts with the dashboard display fields.
 
     `is_client_droplet` is True if EITHER the DO tag list contains
-    'client' OR the IP matches a ClientProfile.do_droplet_ip. This
-    second arm matters for legacy Droplets that pre-date the tagging
-    convention — without it the Destroy button would arm for every
-    real client server (footgun).
+    'client' OR the IP matches a ClientProfile.do_droplet_ip OR the
+    IP matches a Website.do_droplet_ip. The IP-match arms matter for
+    legacy Droplets that pre-date the tagging convention — without
+    them the Destroy button would arm for every real client server
+    (footgun).
+
+    Each row carries:
+      - ``client``  — legacy ClientProfile match (kept for the old
+                      column / Destroy gate).
+      - ``website`` — new Website match. Source of truth going
+                      forward for the "what is this droplet for"
+                      question.
+      - ``is_unlinked`` — True when no Website AND no ClientProfile
+                      points at this IP. Drives the "Link to
+                      Website" action.
     """
     rows = []
     for d in droplets:
         linked_client = clients_by_ip.get(d['ip'])
+        linked_website = websites_by_ip.get(d['ip'])
         tag_says_client = 'client' in (d.get('tags') or [])
-        is_client = bool(tag_says_client or linked_client)
+        is_client = bool(
+            tag_says_client or linked_client or linked_website)
         is_manual = (not is_client) or 'manual' in (d.get('tags') or [])
+        is_unlinked = not (linked_client or linked_website)
         if d['status'] == 'active':
             border = 'green'
         elif d['status'] in ('off', 'archive'):
@@ -2348,8 +2362,10 @@ def _droplet_rows(droplets, clients_by_ip):
         rows.append({
             **d,
             'client': linked_client,
+            'website': linked_website,
             'is_client_droplet': is_client,
             'is_manual_droplet': is_manual,
+            'is_unlinked': is_unlinked,
             'monthly_cost_str': f"${d['monthly_cost']:.0f}/mo",
             'border': border,
         })
@@ -2357,8 +2373,10 @@ def _droplet_rows(droplets, clients_by_ip):
 
 
 def _load_droplet_dashboard():
-    """Pull DO droplets + match to ClientProfile rows by IP. Pure read."""
+    """Pull DO droplets + match to Website + legacy ClientProfile rows
+    by IP. Pure read."""
     from billing.do_helpers import get_all_droplets
+    from clients.account_models import Website
     from clients.models import ClientProfile
 
     droplets = get_all_droplets()
@@ -2367,19 +2385,34 @@ def _load_droplet_dashboard():
         for c in ClientProfile.objects.filter(do_droplet_ip__isnull=False)
         if c.do_droplet_ip
     }
-    rows = _droplet_rows(droplets, clients_by_ip)
+    websites_by_ip = {
+        w.do_droplet_ip: w
+        for w in Website.objects.select_related('account').filter(
+            do_droplet_ip__isnull=False)
+        if w.do_droplet_ip
+    }
+    rows = _droplet_rows(droplets, clients_by_ip, websites_by_ip)
     return {
         'rows': rows,
         'total_count': len(rows),
         'active_count': sum(1 for r in rows if r['status'] == 'active'),
         'total_cost': sum(r['monthly_cost'] for r in rows),
+        'unlinked_count': sum(1 for r in rows if r['is_unlinked']),
     }
 
 
 @admin_required
 def droplet_list(request):
     """Full Droplet dashboard — stats + table."""
+    from clients.account_models import Website
     data = _load_droplet_dashboard()
+    # Pre-fetched options for the "Link to Website" modal — one
+    # query for the list page, not per-row. Excludes websites that
+    # already have a droplet so admin can't accidentally clobber.
+    link_targets = list(
+        Website.objects.select_related('account')
+        .filter(do_droplet_id='')
+        .order_by('account__name', 'name'))
     return render(request, 'admin_dashboard/droplets_list.html',
                   _admin_context(
                       'droplets',
@@ -2387,6 +2420,8 @@ def droplet_list(request):
                       total_count=data['total_count'],
                       active_count=data['active_count'],
                       total_cost=data['total_cost'],
+                      unlinked_count=data['unlinked_count'],
+                      link_targets=link_targets,
                       base_snapshot_id=getattr(
                           settings, 'DO_BASE_SNAPSHOT_ID', ''),
                   ))
@@ -2548,6 +2583,106 @@ def droplet_destroy(request, droplet_id):
                       is_client_droplet=is_client_droplet,
                       linked_client=linked_client,
                   ))
+
+
+@admin_required
+@require_POST
+def droplet_link_to_website(request, droplet_id):
+    """
+    Attach a DigitalOcean droplet to a specific Website. Used when a
+    droplet got orphaned (e.g. its old Website was deleted, or the
+    droplet was created out-of-band) and needs to be re-linked.
+
+    Mechanics:
+      - Reads the droplet's current state from DO (id, ip, name).
+      - Clears do_droplet_* on ANY other Website pointing at this
+        droplet (a droplet can only belong to one site at a time).
+      - Writes the droplet metadata onto the picked Website.
+      - Mirrors to that website's legacy ClientProfile so the old
+        droplet-dashboard match path keeps working too.
+
+    Refuses to attach to a Website that already has a different
+    droplet_id — admin must clear the existing link first to avoid
+    silent overwrites.
+    """
+    from django.contrib import messages
+
+    from billing.do_helpers import get_droplet
+    from clients.account_models import Website
+
+    website_id = (request.POST.get('website_id') or '').strip()
+    if not website_id:
+        messages.error(request, 'Pick a website to link the droplet to.')
+        return redirect('admin_dashboard:droplet_list')
+
+    website = Website.objects.filter(id=website_id).first()
+    if website is None:
+        messages.error(request, 'Website not found.')
+        return redirect('admin_dashboard:droplet_list')
+
+    # Refuse to clobber an existing droplet binding on the target.
+    if website.do_droplet_id and website.do_droplet_id != str(droplet_id):
+        messages.error(
+            request,
+            f'{website.name} already has droplet '
+            f'{website.do_droplet_id}. Clear that linkage on the '
+            f'Website page first.')
+        return redirect('admin_dashboard:droplet_list')
+
+    # Pull fresh droplet state from DO — guards against the dashboard
+    # showing stale info.
+    droplet = get_droplet(droplet_id)
+    if droplet is None:
+        messages.error(
+            request,
+            'Could not fetch droplet from DigitalOcean — it may have '
+            'been destroyed already, or the API is down.')
+        return redirect('admin_dashboard:droplet_list')
+
+    droplet_id_str = str(droplet['id'])
+    droplet_ip = droplet.get('ip') or ''
+    droplet_name = droplet.get('name') or ''
+
+    # If some OTHER Website already points at this droplet, unlink
+    # it there first — a droplet binds to exactly one site.
+    other_sites = Website.objects.filter(
+        do_droplet_id=droplet_id_str).exclude(id=website.id)
+    unlinked_names = []
+    for ws in other_sites:
+        unlinked_names.append(ws.name)
+        ws.do_droplet_id = ''
+        ws.do_droplet_ip = None
+        ws.do_droplet_name = ''
+        ws.save(update_fields=[
+            'do_droplet_id', 'do_droplet_ip', 'do_droplet_name',
+            'updated_at'])
+
+    # Write the linkage onto the target Website.
+    website.do_droplet_id = droplet_id_str
+    website.do_droplet_ip = droplet_ip or None
+    website.do_droplet_name = droplet_name
+    website.save(update_fields=[
+        'do_droplet_id', 'do_droplet_ip', 'do_droplet_name',
+        'updated_at'])
+
+    # Mirror onto the legacy ClientProfile so the legacy droplet
+    # dashboard match path (clients_by_ip) keeps working until
+    # Phase D drops the legacy column entirely.
+    legacy_cp = (website.account.legacy_client_profile
+                 if website.account else None)
+    if legacy_cp is not None:
+        legacy_cp.do_droplet_id = droplet_id_str
+        legacy_cp.do_droplet_ip = droplet_ip or None
+        legacy_cp.save(update_fields=[
+            'do_droplet_id', 'do_droplet_ip', 'updated_at'])
+
+    msg = (f'Droplet "{droplet_name}" ({droplet_ip}) linked to '
+           f'{website.name}.')
+    if unlinked_names:
+        msg += (f' Also cleared old linkage on: '
+                f'{", ".join(unlinked_names)}.')
+    messages.success(request, msg)
+    return redirect('admin_dashboard:droplet_list')
 
 
 @admin_required

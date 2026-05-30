@@ -60,8 +60,52 @@
         </div>
     {% endif %}
 </div>
+
+{% comment %}
+    Link-droplet-to-Website modal. Triggered by every "Link to
+    Website" button on an unlinked droplet row. Pure CSRF-protected
+    POST form — the picker is just a <select> populated from
+    link_targets (Websites with no droplet linked yet) so admin
+    can't accidentally overwrite an existing binding.
+{% endcomment %}
+<div class="danger-modal" id="link-droplet-modal" hidden role="dialog" aria-modal="true" aria-labelledby="link-droplet-modal-title">
+    <div class="danger-modal__backdrop" id="link-droplet-backdrop"></div>
+    <div class="danger-modal__card" role="document" style="border-color: var(--color-orange); max-width: 560px;">
+        <header class="danger-modal__head">
+            <h2 id="link-droplet-modal-title" style="color: var(--color-orange);">Link Droplet to Website</h2>
+        </header>
+        <div class="danger-modal__body">
+            <p>Linking droplet <strong id="link-droplet-name">—</strong>
+               (IP <code id="link-droplet-ip">—</code>) to a website.</p>
+            <p class="muted">The website's droplet ID, IP, and name will be set to this droplet's values. If another website is currently pointing at this same droplet, that linkage will be cleared first (a droplet only belongs to one site).</p>
+            <form method="post" id="link-droplet-form" action="">
+                {% csrf_token %}
+                <label for="link-droplet-website-select" class="muted" style="display:block; margin-bottom:0.5rem; font-size:0.85rem;">Pick a website (only websites without a droplet are shown):</label>
+                <select id="link-droplet-website-select" name="website_id" class="form-control" required>
+                    <option value="">— Pick a website —</option>
+                    {% for w in link_targets %}
+                        <option value="{{ w.id }}">{{ w.account.name }} → {{ w.name }}{% if w.url %} ({{ w.url }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                {% if not link_targets %}
+                    <p class="muted" style="margin-top:0.5rem; font-size:0.8rem;">No websites available — every website already has a droplet linked. Clear one from its detail page first.</p>
+                {% endif %}
+            </form>
+        </div>
+        <footer class="danger-modal__foot">
+            <button type="button" class="btn-secondary btn-sm" id="link-droplet-cancel">Cancel</button>
+            <button type="button" class="btn-primary" id="link-droplet-confirm"
+                    {% if not link_targets %}disabled{% endif %}>Link droplet</button>
+        </footer>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="{% static 'js/droplets.js' %}" defer></script>
+{% comment %}
+    External per CSP (script-src 'self'). Wires the "Link to Website"
+    buttons on unlinked rows to the modal above.
+{% endcomment %}
+<script src="{% static 'js/droplet_link.js' %}" defer></script>
 {% endblock %}

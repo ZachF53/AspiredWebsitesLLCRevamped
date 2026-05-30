@@ -9,7 +9,7 @@ render inside a hx-swap="innerHTML" target without wrapping markup.
             <th class="droplet-table__status"></th>
             <th>Name</th>
             <th>IP</th>
-            <th>Linked Client</th>
+            <th>Linked Website / Client</th>
             <th>Region</th>
             <th>Size</th>
             <th>$ / mo</th>
@@ -34,10 +34,24 @@ render inside a hx-swap="innerHTML" target without wrapping markup.
                     {% else %}—{% endif %}
                 </td>
                 <td>
-                    {% if r.client %}
+                    {% if r.website %}
+                        <a href="{% url 'admin_dashboard:website_detail' r.website.id %}">{{ r.website.name }}</a>
+                        <div class="droplet-muted" style="font-size:0.75rem;">
+                            {{ r.website.account.name }}
+                        </div>
+                    {% elif r.client %}
                         <a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a>
+                        <div class="droplet-muted" style="font-size:0.7rem;">legacy link</div>
                     {% else %}
                         <span class="droplet-muted">— unlinked —</span>
+                        <button type="button"
+                                class="btn-secondary btn-sm droplet-link-btn"
+                                data-droplet-id="{{ r.id }}"
+                                data-droplet-name="{{ r.name }}"
+                                data-droplet-ip="{{ r.ip }}"
+                                style="margin-top:4px; display:block;">
+                            Link to Website
+                        </button>
                     {% endif %}
                 </td>
                 <td>{{ r.region|upper }}</td>

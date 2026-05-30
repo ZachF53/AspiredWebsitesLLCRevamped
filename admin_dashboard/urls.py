@@ -178,6 +178,9 @@ urlpatterns = [
          views.droplet_destroy, name='droplet_destroy'),
     path('droplets/<int:droplet_id>/metrics/',
          views.droplet_metrics, name='droplet_metrics'),
+    path('droplets/<int:droplet_id>/link-to-website/',
+         views.droplet_link_to_website,
+         name='droplet_link_to_website'),
 
     # Phase 6c — vulnerability scans
     path('scans/', views.scans_list, name='scans_list'),
