@@ -21,8 +21,10 @@ Two passes:
      mobile-strategy is what real users see, so we always request
      mobile).
 
-  3. Google Custom Search fallback (paid, $5/1000 queries).
+  3. Brave Search API fallback (free 2000/mo, then $3/1000).
      Triggered only when ``lead.website`` is blank after the scrape.
+     Reads ``settings.BRAVE_SEARCH_API_KEY``; quietly skipped when
+     unset so the pipeline keeps working in pre-config environments.
      Makes up to 3 queries per lead:
        a. "{firm_name} {city} {state}" → first organic hit becomes
           the website (if it's not a directory like yelp.com /
@@ -35,6 +37,12 @@ Two passes:
      it so the lead ends up with the same data as it would have if
      Google Places had returned a website.
 
+     History: this slot has been through Google Custom Search
+     (deprecated 'search the entire web' in 2025) and a brief stop
+     at DuckDuckGo / Bing HTML scraping (both walled off behind JS
+     anti-bot in 2025-2026). Brave's API is a clean JSON endpoint
+     and they actively want this use case.
+
 Every step is best-effort and isolated — a failed PageSpeed call
 must not skip the email extraction etc. Each step appends a short
 status line to ``lead.enrichment_log`` so the admin can see why a
@@ -43,6 +51,7 @@ field is blank.
 
 import logging
 import re
+import time
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 
@@ -63,11 +72,17 @@ USER_AGENT = (
 PAGESPEED_URL = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 PAGESPEED_TIMEOUT = 60
 
-CUSTOM_SEARCH_URL = 'https://www.googleapis.com/customsearch/v1'
-CUSTOM_SEARCH_TIMEOUT = 12
-# Cap calls per lead so a 100-lead batch can't quietly cost $1.50.
-# Three queries (website / facebook / instagram) is the realistic ceiling.
-CUSTOM_SEARCH_MAX_PER_LEAD = 3
+# Brave Search API — JSON endpoint, returns up to 20 results per
+# query. Free tier is 2000 queries/month at 1 req/sec.
+BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search'
+BRAVE_TIMEOUT = 15
+# Cap queries per lead so a 100-lead batch never blows through the
+# 2000/mo free quota in one burst. Three (website / facebook /
+# instagram) is the realistic ceiling.
+WEB_SEARCH_MAX_PER_LEAD = 3
+# Brave's free tier rate-limits to 1 req/sec — sleep between
+# queries for the same lead to stay under it.
+BRAVE_INTER_QUERY_DELAY = 1.1
 
 # Domains we treat as "not a real website" when picking the org's
 # homepage from Custom Search results — they're directories or
@@ -173,11 +188,11 @@ def enrich_lead(lead):
             logger.exception('enrich_lead PageSpeed failed for %s', lead.pk)
 
     else:
-        # Pass 3: Custom Search fallback for no-website leads
+        # Pass 3: Brave Search API fallback for no-website leads.
         log_lines.append(
-            'No website on Places result → trying Google Custom Search')
+            'No website on Places result → searching Brave')
         try:
-            found_website = _custom_search_fallback(lead, log_lines)
+            found_website = _web_search_fallback(lead, log_lines)
             if found_website:
                 # Recurse: now that we have a website, do homepage scrape
                 # + PageSpeed against it. Refresh lead from DB so the
@@ -198,8 +213,8 @@ def enrich_lead(lead):
                 except Exception as exc:  # noqa: BLE001
                     log_lines.append(f'  PageSpeed: FAILED ({exc})')
         except Exception as exc:  # noqa: BLE001
-            log_lines.append(f'  Custom Search: FAILED ({exc})')
-            logger.exception('enrich_lead Custom Search failed for %s',
+            log_lines.append(f'  Brave search: FAILED ({exc})')
+            logger.exception('enrich_lead Brave search failed for %s',
                              lead.pk)
 
     lead.enrichment_completed_at = timezone.now()
@@ -426,16 +441,22 @@ def _run_pagespeed(lead):
     lead.website_issues = issues
 
 
-# ── Pass 3: Google Custom Search fallback ──────────────────────────────────
+# ── Pass 3: Brave Search API fallback ──────────────────────────────────────
 
-def _custom_search_fallback(lead, log_lines):
-    """For leads with no website on Places, query Custom Search to
-    find a website + social URLs. Returns the new website URL (or '')."""
-    api_key = getattr(settings, 'GOOGLE_CUSTOM_SEARCH_API_KEY', '')
-    cx = getattr(settings, 'GOOGLE_CUSTOM_SEARCH_CX', '')
-    if not (api_key and cx):
+def _web_search_fallback(lead, log_lines):
+    """For leads with no website on Places, query Brave Search to find
+    a website + social URLs. Returns the new website URL (or '').
+
+    Uses Brave instead of Google CSE because Google deprecated
+    'search the entire web' on the CSE side in 2025, and the per-engine
+    site-restricted alternative is useless for finding unknown
+    businesses. Brave Search API returns clean JSON, has a
+    2000-query/mo free tier, and actively supports this use case.
+    """
+    api_key = getattr(settings, 'BRAVE_SEARCH_API_KEY', '')
+    if not api_key:
         log_lines.append(
-            '  Custom Search: skipped (no API key / CX configured)')
+            '  Brave search: skipped (BRAVE_SEARCH_API_KEY not set)')
         return ''
 
     name = (lead.firm_name or '').strip()
@@ -449,12 +470,11 @@ def _custom_search_fallback(lead, log_lines):
 
     # Query 1: find the firm's website.
     q1 = f'{name} {location}'.strip()
-    if queries_made < CUSTOM_SEARCH_MAX_PER_LEAD:
-        results = _custom_search(q1, api_key, cx)
+    if queries_made < WEB_SEARCH_MAX_PER_LEAD:
+        results = _brave_search(q1, api_key)
         queries_made += 1
         log_lines.append(f'  Q1 "{q1}" → {len(results)} hits')
-        for hit in results:
-            url = hit.get('link') or ''
+        for url in results:
             domain = _domain_of(url)
             if not domain:
                 continue
@@ -474,51 +494,92 @@ def _custom_search_fallback(lead, log_lines):
 
     # Query 2: Facebook (only if we haven't found one yet).
     if (not lead.facebook_url
-            and queries_made < CUSTOM_SEARCH_MAX_PER_LEAD):
+            and queries_made < WEB_SEARCH_MAX_PER_LEAD):
+        time.sleep(BRAVE_INTER_QUERY_DELAY)
         q2 = f'{name} {location} facebook'.strip()
-        results = _custom_search(q2, api_key, cx)
+        results = _brave_search(q2, api_key)
         queries_made += 1
         log_lines.append(f'  Q2 "{q2}" → {len(results)} hits')
-        for hit in results:
-            url = hit.get('link') or ''
-            if _domain_of(url) == 'facebook.com' and '/sharer' not in url:
+        for url in results:
+            if (_domain_of(url) == 'facebook.com'
+                    and '/sharer' not in url
+                    and '/plugins' not in url):
                 lead.facebook_url = url
                 break
 
     # Query 3: Instagram (only if we haven't found one yet).
     if (not lead.instagram_url
-            and queries_made < CUSTOM_SEARCH_MAX_PER_LEAD):
+            and queries_made < WEB_SEARCH_MAX_PER_LEAD):
+        time.sleep(BRAVE_INTER_QUERY_DELAY)
         q3 = f'{name} {location} instagram'.strip()
-        results = _custom_search(q3, api_key, cx)
+        results = _brave_search(q3, api_key)
         queries_made += 1
         log_lines.append(f'  Q3 "{q3}" → {len(results)} hits')
-        for hit in results:
-            url = hit.get('link') or ''
+        for url in results:
             if _domain_of(url) == 'instagram.com':
                 lead.instagram_url = url
                 break
 
-    log_lines.append(f'  Custom Search: {queries_made} query(ies) used '
-                     f'(${queries_made * 0.005:.3f})')
+    log_lines.append(
+        f'  Brave: {queries_made} query(ies) used (free tier '
+        f'2000/mo)')
     # Persist whatever we found so far. Caller will save() again, but
     # writing now means a crash leaves correct partial data behind.
     lead.save()
     return found_website
 
 
-def _custom_search(query, api_key, cx, num=5):
-    """One Custom Search call. Returns list of items, [] on any error."""
+def _brave_search(query, api_key, count=10):
+    """One Brave Search call. Returns a list of result URLs (just URLs,
+    not dicts — keeps the downstream loop simple). Returns [] on any
+    error; caller treats empty as 'no results'."""
     try:
         resp = requests.get(
-            CUSTOM_SEARCH_URL,
-            params={'key': api_key, 'cx': cx, 'q': query, 'num': num},
-            timeout=CUSTOM_SEARCH_TIMEOUT)
-    except requests.RequestException:
+            BRAVE_SEARCH_URL,
+            params={
+                'q': query,
+                'count': count,
+                'country': 'us',
+                'safesearch': 'moderate',
+                # Asking only for web results keeps the response small
+                # — we ignore news/videos/etc. anyway.
+                'result_filter': 'web',
+            },
+            headers={
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip',
+                'X-Subscription-Token': api_key,
+            },
+            timeout=BRAVE_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        logger.warning('Brave request failed for %r: %s', query, exc)
         return []
     if resp.status_code != 200:
+        # 401 = bad key, 429 = quota / rate-limit, 422 = empty query.
+        # Log + return empty; caller handles "no results" gracefully.
+        logger.warning('Brave HTTP %s for %r: %s',
+                       resp.status_code, query, resp.text[:200])
         return []
-    data = resp.json()
-    return data.get('items') or []
+    try:
+        data = resp.json()
+    except ValueError:
+        return []
+
+    results = (data.get('web') or {}).get('results') or []
+    urls = []
+    seen = set()
+    for r in results:
+        url = (r.get('url') or '').strip()
+        if not url:
+            continue
+        if not url.startswith(('http://', 'https://')):
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
 
 
 def _domain_of(url):
