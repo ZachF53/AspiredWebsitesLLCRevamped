@@ -13995,25 +13995,25 @@ button.htmx-request {
     word-break: break-word;
 }
 
-/* Score breakdown rows — CSS Grid, not a <table>. Tables couldn't be
-   forced to respect their grid column when an inline-block <code>
-   with a long URL pushed min-content wider than the slot. The grid
-   approach uses min-width: 0 on the middle column so the URL wraps
-   inside the cell and the Points pill stays put. */
-.lead-debug__rules {
+/* Score breakdown rows — flexbox row layout. Each row is 3 flex
+   siblings: label (fixed basis) | value (1fr with min-width: 0 so
+   long URLs wrap) | pts (fixed width). Class prefix .score-row was
+   chosen specifically to avoid any cached .lead-debug__rule rules
+   in a stuck browser. */
+.score-rows {
     width: 100%;
     font-size: 0.82rem;
 }
-.lead-debug__rule {
-    display: grid;
-    grid-template-columns: minmax(0, 38%) minmax(0, 1fr) 72px;
-    column-gap: 0.6rem;
+.score-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.6rem;
     padding: 0.5rem 0.6rem;
     border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
-    align-items: start;
 }
-.lead-debug__rule:last-child { border-bottom: 0; }
-.lead-debug__rule--head {
+.score-row:last-child { border-bottom: 0; }
+.score-row--head {
     color: var(--color-text-muted);
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -14022,29 +14022,47 @@ button.htmx-request {
     border-bottom: 1px solid var(--color-border);
     font-weight: 600;
 }
-.lead-debug__rule-label {
-    color: var(--color-text);
-}
-.lead-debug__rule-value {
-    color: var(--color-text);
-    /* The actual fix — without these, a long URL inside <code>
-       inflates this cell and pushes the Points pill off-screen. */
+.score-row--miss { opacity: 0.55; }
+.score-row__label {
+    flex: 0 0 38%;
     min-width: 0;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+.score-row__value {
+    flex: 1 1 0;
+    min-width: 0;
+    color: var(--color-text);
     overflow-wrap: anywhere;
     word-break: break-all;
 }
-.lead-debug__rules code {
+.score-row__pts {
+    flex: 0 0 72px;
+    text-align: right;
+    white-space: nowrap;
+}
+.score-row__pill {
+    display: inline-block;
+    background: rgba(232, 101, 10, 0.16);
+    color: var(--color-orange-light, #FF7B1E);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+.score-row--miss .score-row__pill {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+}
+.score-rows code {
     background: rgba(255, 255, 255, 0.04);
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 0.78rem;
     overflow-wrap: anywhere;
     word-break: break-all;
-    /* Inline content; let the grid cell own the width. */
     display: inline;
 }
-.lead-debug__rule--miss { opacity: 0.55; }
-.lead-debug__pts { text-align: right; white-space: nowrap; }
 .lead-debug__pill {
     display: inline-block;
     background: rgba(232, 101, 10, 0.16);
