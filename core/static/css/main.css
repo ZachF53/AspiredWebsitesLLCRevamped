@@ -14385,14 +14385,45 @@ button.htmx-request {
     color: var(--color-text-muted);
     border-color: var(--color-border);
 }
-.scrape-job-actions {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    align-items: center;
+/* Compact button variant — for dense table action clusters. Half the
+   padding of .btn-sm, smaller font, still tap-friendly on touch. */
+.btn-xs {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 4px;
+    line-height: 1.2;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
 }
-.scrape-job-actions > * {
-    margin: 0;
+/* Scrape-jobs table action cell — keep every button on one row.
+   Forms are inline-block siblings, not flex children, so the row
+   degrades to a horizontal scroll bar rather than wrapping. */
+.scrape-jobs-table__actions {
+    white-space: nowrap;
+    text-align: right;
+}
+.scrape-jobs-table__actions > form {
+    display: inline-block;
+    margin: 0 0 0 0.25rem;
+}
+.scrape-jobs-table__actions > a {
+    margin-left: 0.25rem;
+}
+.scrape-jobs-table__actions > *:first-child {
+    margin-left: 0;
+}
+.scrape-jobs-table__actions-col { text-align: right; }
+.scrape-jobs-table__delete {
+    color: var(--color-danger);
+}
+.scrape-jobs-table__delete:hover {
+    border-color: rgba(248, 113, 113, 0.4);
+}
+.scrape-jobs-table code {
+    font-size: 0.85rem;
+    color: var(--color-text);
 }
 .scrape-job-form .form-row {
     margin-bottom: 1rem;

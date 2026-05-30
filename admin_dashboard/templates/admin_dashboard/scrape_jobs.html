@@ -39,74 +39,77 @@
             </div>
         </section>
     {% else %}
-        <section class="admin-card">
-            <div class="admin-card__body">
-                <table class="lead-table">
-                    <thead>
+        {% comment %}
+            Wrapping the table in .lead-table-wrapper gives us
+            horizontal scroll instead of overflow when the actions
+            cluster outgrows the card. The actions cell uses
+            white-space: nowrap + an XS button variant so all four
+            controls stay on one row at any column width.
+        {% endcomment %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table scrape-jobs-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Source</th>
+                        <th>Query</th>
+                        <th>Max</th>
+                        <th>Status</th>
+                        <th>Last run</th>
+                        <th class="scrape-jobs-table__actions-col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
                         <tr>
-                            <th>Name</th>
-                            <th>Source</th>
-                            <th>Query</th>
-                            <th>Max</th>
-                            <th>Status</th>
-                            <th>Last run</th>
-                            <th>Actions</th>
+                            <td><strong>{{ job.name }}</strong></td>
+                            <td>{{ job.get_source_display }}</td>
+                            <td>
+                                <code>{{ job.niche }}</code>
+                                <span class="muted">· {{ job.city }}, {{ job.state }}</span>
+                            </td>
+                            <td>{{ job.max_results }}</td>
+                            <td>
+                                {% if job.active %}
+                                    <span class="status-pill status-pill--resolved">Active</span>
+                                {% else %}
+                                    <span class="status-pill">Paused</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if job.last_run_at %}
+                                    {{ job.last_run_at|date:"M j H:i" }}
+                                    <br>
+                                    <span class="muted">
+                                        +{{ job.last_run_imported }} / −{{ job.last_run_skipped }}
+                                        {% if job.last_run_error %}<span class="text-danger">· error</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="muted">never</span>
+                                {% endif %}
+                            </td>
+                            <td class="scrape-jobs-table__actions">
+                                <form method="post" action="{% url 'admin_dashboard:scrape_job_run_now' job.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-xs"
+                                            title="Run this job now without waiting for 02:00">Run</button>
+                                </form>
+                                <a href="{% url 'admin_dashboard:scrape_job_edit' job.pk %}" class="btn-secondary btn-xs">Edit</a>
+                                <form method="post" action="{% url 'admin_dashboard:scrape_job_toggle_active' job.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-xs">{% if job.active %}Pause{% else %}On{% endif %}</button>
+                                </form>
+                                <form method="post" action="{% url 'admin_dashboard:scrape_job_delete' job.pk %}"
+                                      onsubmit="return confirm('Delete {{ job.name|escapejs }}? Leads it already imported stay.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-xs scrape-jobs-table__delete">Delete</button>
+                                </form>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% for job in jobs %}
-                            <tr>
-                                <td><strong>{{ job.name }}</strong></td>
-                                <td>{{ job.get_source_display }}</td>
-                                <td>
-                                    <code>{{ job.niche }}</code>
-                                    <span class="muted">· {{ job.city }}, {{ job.state }}</span>
-                                </td>
-                                <td>{{ job.max_results }}</td>
-                                <td>
-                                    {% if job.active %}
-                                        <span class="status-pill status-pill--success">Active</span>
-                                    {% else %}
-                                        <span class="status-pill status-pill--muted">Paused</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.last_run_at %}
-                                        {{ job.last_run_at|date:"M j H:i" }}
-                                        <br>
-                                        <span class="muted">
-                                            +{{ job.last_run_imported }} / −{{ job.last_run_skipped }}
-                                            {% if job.last_run_error %}<span class="text-danger">· error</span>{% endif %}
-                                        </span>
-                                    {% else %}
-                                        <span class="muted">never</span>
-                                    {% endif %}
-                                </td>
-                                <td class="scrape-job-actions">
-                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_run_now' job.pk %}" style="display:inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn-secondary btn-sm"
-                                                title="Run this job now without waiting for 02:00">Run now</button>
-                                    </form>
-                                    <a href="{% url 'admin_dashboard:scrape_job_edit' job.pk %}" class="btn-secondary btn-sm">Edit</a>
-                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_toggle_active' job.pk %}" style="display:inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn-secondary btn-sm">
-                                            {% if job.active %}Pause{% else %}Activate{% endif %}
-                                        </button>
-                                    </form>
-                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_delete' job.pk %}" style="display:inline;"
-                                          onsubmit="return confirm('Delete {{ job.name|escapejs }}? Leads it already imported stay.');">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn-secondary btn-sm">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% endif %}
 
 </div>
