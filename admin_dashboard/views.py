@@ -8052,6 +8052,97 @@ def outreach_approval_reject(request, pk):
     return redirect('admin_dashboard:outreach_approvals')
 
 
+def _enrichment_stats():
+    """
+    Live counters for the enrichment-status page. One pass over Lead
+    using aggregate counts rather than fetching rows — cheap enough
+    to call from the 10s HTMX poller.
+
+    Status definitions:
+      - pending:    enrichment_attempted_at IS NULL
+      - in_flight:  attempted in last 5 min, not yet completed
+      - done_1h:    completed in the last hour
+      - stuck:      attempted > 5 min ago, no completion
+                    (Celery retry budget exhausted)
+      - done_total: completed at any time
+    """
+    from django.db.models import Q
+
+    now = timezone.now()
+    inflight_cutoff = now - datetime.timedelta(minutes=5)
+    hour_ago = now - datetime.timedelta(hours=1)
+
+    base = Lead.objects.all()
+    return {
+        'total':       base.count(),
+        'pending':     base.filter(enrichment_attempted_at__isnull=True).count(),
+        'in_flight':   base.filter(
+                            enrichment_attempted_at__gte=inflight_cutoff,
+                            enrichment_completed_at__isnull=True).count(),
+        'done_1h':     base.filter(
+                            enrichment_completed_at__gte=hour_ago).count(),
+        'stuck':       base.filter(
+                            enrichment_attempted_at__lt=inflight_cutoff,
+                            enrichment_completed_at__isnull=True).count(),
+        'done_total':  base.filter(
+                            enrichment_completed_at__isnull=False).count(),
+        'as_of':       now,
+    }
+
+
+def _enrichment_recent_activity(limit=30):
+    """
+    Last N leads whose enrichment finished, most recent first.
+    Each row carries a small set of derived flags (`got_*`) so the
+    template can render outcome chips without re-querying.
+    """
+    rows = list(
+        Lead.objects
+        .filter(enrichment_completed_at__isnull=False)
+        .order_by('-enrichment_completed_at')[:limit]
+    )
+    for r in rows:
+        r.got_website = bool(r.website)
+        r.got_pagespeed = r.website_mobile_score is not None
+        r.got_social = bool(
+            r.facebook_url or r.instagram_url or r.linkedin_url)
+        r.got_ssl_check = r.has_ssl is not None
+        r.duration_s = None
+        if r.enrichment_attempted_at and r.enrichment_completed_at:
+            delta = (r.enrichment_completed_at
+                     - r.enrichment_attempted_at).total_seconds()
+            r.duration_s = int(delta) if delta >= 0 else None
+    return rows
+
+
+@admin_required
+def enrichment_status(request):
+    """
+    Full-page enrichment status — counters at the top, recent activity
+    feed below. The counters auto-refresh every 10 seconds via HTMX so
+    you can watch a fresh scrape's enrichment tick down to zero.
+    """
+    return render(request, 'admin_dashboard/enrichment_status.html',
+                  _admin_context(
+                      active='scrape',
+                      stats=_enrichment_stats(),
+                      activity=_enrichment_recent_activity(),
+                  ))
+
+
+@admin_required
+def enrichment_status_partial(request):
+    """
+    HTMX partial — just the counter strip + activity feed. Returns
+    minimal HTML so the 10s poll is cheap and the page doesn't
+    re-render its chrome every tick.
+    """
+    return render(request, 'admin_dashboard/_enrichment_status.html', {
+        'stats': _enrichment_stats(),
+        'activity': _enrichment_recent_activity(),
+    })
+
+
 @admin_required
 def scrape_jobs_list(request):
     """

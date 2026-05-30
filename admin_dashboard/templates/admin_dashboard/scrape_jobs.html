@@ -24,6 +24,11 @@
             {% for message in messages %}
                 <div class="admin-message admin-message--{{ message.tags }}">{{ message }}</div>
             {% endfor %}
+            <p class="muted" style="margin-top:0.5rem;">
+                Just scraped? Watch progress on
+                <a href="{% url 'admin_dashboard:enrichment_status' %}">Enrichment Status</a> —
+                background workers fetch homepage, PageSpeed, socials per lead (2–5 min total).
+            </p>
         </div>
     {% endif %}
 

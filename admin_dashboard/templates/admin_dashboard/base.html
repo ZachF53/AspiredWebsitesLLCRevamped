@@ -96,6 +96,10 @@
                    href="{% url 'admin_dashboard:scrape_jobs' %}">
                     <span class="nav-link__text">Scrape Jobs</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/leads/enrichment/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:enrichment_status' %}">
+                    <span class="nav-link__text">Enrichment</span>
+                </a>
 
                 {# ── OUTREACH ── #}
                 <div class="nav-group-label">Outreach</div>

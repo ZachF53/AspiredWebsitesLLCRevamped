@@ -14425,6 +14425,42 @@ button.htmx-request {
     font-size: 0.85rem;
     color: var(--color-text);
 }
+
+
+/* ── Enrichment status page ────────────────────────────────────────── */
+.enrichment-stats {
+    margin-bottom: 0.5rem;
+}
+.enrichment-stats__asof {
+    font-size: 0.8rem;
+    margin: 0 0 1.25rem;
+}
+.enrichment-chips {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+.enrichment-chip {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    line-height: 1.3;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.enrichment-chip--ok {
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.25);
+}
+.enrichment-chip--miss {
+    background: rgba(248, 113, 113, 0.10);
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.22);
+}
+.enrichment-activity td { vertical-align: top; }
 .scrape-job-form .form-row {
     margin-bottom: 1rem;
 }

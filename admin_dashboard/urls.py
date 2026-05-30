@@ -18,6 +18,12 @@ urlpatterns = [
     path('leads/add/', views.lead_add, name='lead_add'),
     path('leads/import/', views.lead_import, name='lead_import'),
     path('leads/scrape/', views.scrape, name='scrape'),
+    # Live enrichment monitor — counters + recent activity, HTMX
+    # auto-refreshes every 10s.
+    path('leads/enrichment/', views.enrichment_status,
+         name='enrichment_status'),
+    path('leads/enrichment/partial/', views.enrichment_status_partial,
+         name='enrichment_status_partial'),
     # Standing scrape recipes — run daily at 02:00 via Celery beat.
     path('leads/scrape-jobs/', views.scrape_jobs_list, name='scrape_jobs'),
     path('leads/scrape-jobs/new/', views.scrape_job_form,

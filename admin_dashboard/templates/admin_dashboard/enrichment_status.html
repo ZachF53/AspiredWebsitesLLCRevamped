@@ -1,0 +1,36 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Enrichment Status — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Enrichment Status</h1>
+            <p class="admin-page-sub">
+                Background workers fetch each new lead's homepage, PageSpeed scores,
+                social URLs, and SSL state. Page auto-refreshes every 10 seconds.
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'admin_dashboard:scrape_jobs' %}" class="btn-secondary btn-sm">← Scrape Jobs</a>
+            <a href="{% url 'admin_dashboard:leads_table' %}" class="btn-secondary btn-sm">All Leads →</a>
+        </div>
+    </div>
+
+    {% comment %}
+        Everything inside #enrichment-status auto-swaps on the 10s
+        HTMX trigger. Wrapping the chrome (header/buttons) outside it
+        keeps the page from flashing on every tick.
+    {% endcomment %}
+    <div id="enrichment-status"
+         hx-get="{% url 'admin_dashboard:enrichment_status_partial' %}"
+         hx-trigger="load, every 10s"
+         hx-swap="innerHTML">
+        {% include "admin_dashboard/_enrichment_status.html" %}
+    </div>
+
+</div>
+{% endblock %}

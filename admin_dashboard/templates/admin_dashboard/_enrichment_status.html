@@ -1,0 +1,128 @@
+{% comment %}
+    HTMX partial — counter strip + activity feed. Rendered standalone
+    on the 10s poll and inline-included on the full-page render. No
+    chrome here; the parent template owns the page header and refresh
+    container.
+{% endcomment %}
+
+<div class="admin-stat-grid enrichment-stats">
+    <div class="admin-stat">
+        <span class="admin-stat__label">Total leads</span>
+        <span class="admin-stat__value">{{ stats.total }}</span>
+    </div>
+    <div class="admin-stat">
+        <span class="admin-stat__label">Enriched (all time)</span>
+        <span class="admin-stat__value">{{ stats.done_total }}</span>
+    </div>
+    <div class="admin-stat">
+        <span class="admin-stat__label">Enriching now</span>
+        <span class="admin-stat__value
+            {% if stats.in_flight > 0 %}admin-stat--warn{% endif %}">
+            {{ stats.in_flight }}
+        </span>
+    </div>
+    <div class="admin-stat">
+        <span class="admin-stat__label">Pending</span>
+        <span class="admin-stat__value
+            {% if stats.pending > 0 %}admin-stat--warn{% endif %}">
+            {{ stats.pending }}
+        </span>
+    </div>
+    <div class="admin-stat">
+        <span class="admin-stat__label">Done last hour</span>
+        <span class="admin-stat__value">{{ stats.done_1h }}</span>
+    </div>
+    <div class="admin-stat">
+        <span class="admin-stat__label">Stuck / failed</span>
+        <span class="admin-stat__value
+            {% if stats.stuck > 0 %}admin-stat--urgent{% endif %}">
+            {{ stats.stuck }}
+        </span>
+    </div>
+</div>
+
+<p class="muted enrichment-stats__asof">
+    Updated {{ stats.as_of|date:"H:i:s" }} · auto-refresh every 10s
+    {% if stats.stuck > 0 %}
+        · <span class="text-danger">{{ stats.stuck }} stuck —
+        Celery retries exhausted, check the worker log</span>
+    {% endif %}
+</p>
+
+<section class="admin-card">
+    <div class="admin-card__header">
+        <h2 class="admin-card__title">Recent activity ({{ activity|length }})</h2>
+    </div>
+    <div class="admin-card__body">
+        {% if not activity %}
+            <p class="muted" style="text-align:center; padding:1.5rem 0;">
+                Nothing enriched yet. Scrape some leads or wait for the next
+                run — every new lead enqueues an enrichment task automatically.
+            </p>
+        {% else %}
+            <div class="lead-table-wrapper">
+                <table class="lead-table enrichment-activity">
+                    <thead>
+                        <tr>
+                            <th>Lead</th>
+                            <th>Completed</th>
+                            <th>Took</th>
+                            <th>Found</th>
+                            <th>Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in activity %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}"
+                                       class="lead-table__firm">{{ lead.firm_name }}</a>
+                                    {% if lead.city or lead.state %}
+                                        <br><span class="muted">{{ lead.city }}{% if lead.state %}, {{ lead.state }}{% endif %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ lead.enrichment_completed_at|date:"H:i:s" }}
+                                    <br><span class="muted">{{ lead.enrichment_completed_at|date:"M j" }}</span>
+                                </td>
+                                <td>
+                                    {% if lead.duration_s is not None %}
+                                        {{ lead.duration_s }}s
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="enrichment-chips">
+                                        {% if lead.got_website %}
+                                            <span class="enrichment-chip enrichment-chip--ok" title="{{ lead.website }}">site</span>
+                                        {% else %}
+                                            <span class="enrichment-chip enrichment-chip--miss">no site</span>
+                                        {% endif %}
+                                        {% if lead.got_pagespeed %}
+                                            <span class="enrichment-chip enrichment-chip--ok">PSI {{ lead.website_mobile_score }}</span>
+                                        {% endif %}
+                                        {% if lead.got_social %}
+                                            <span class="enrichment-chip enrichment-chip--ok">social</span>
+                                        {% endif %}
+                                        {% if lead.got_ssl_check %}
+                                            {% if lead.has_ssl %}
+                                                <span class="enrichment-chip enrichment-chip--ok">SSL</span>
+                                            {% else %}
+                                                <span class="enrichment-chip enrichment-chip--miss">no SSL</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if lead.has_generic_email %}
+                                            <span class="enrichment-chip enrichment-chip--miss">generic email</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td><strong>{{ lead.score }}</strong></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+</section>
