@@ -396,6 +396,16 @@ def run_intelligence_analysis(client):
         usage = body.get('usage', {}) or {}
         tokens = (int(usage.get('input_tokens', 0) or 0)
                   + int(usage.get('output_tokens', 0) or 0))
+        # Token accounting → admin dashboard AI Usage widget.
+        # Best-effort: a DB hiccup must not break the analysis.
+        try:
+            from reporting.models import ClaudeUsage
+            ClaudeUsage.record(
+                model=MODEL_CONTENT,
+                input_tokens=usage.get('input_tokens', 0),
+                output_tokens=usage.get('output_tokens', 0))
+        except Exception:
+            logger.exception('ClaudeUsage.record failed in intelligence')
         result = json.loads(_strip_json_fences(ai_text))
         return {
             'overall_assessment': result.get('overall_assessment', ''),
@@ -795,6 +805,16 @@ def generate_annual_narrative(client, data):
         usage = body.get('usage', {}) or {}
         tokens = (int(usage.get('input_tokens', 0) or 0)
                   + int(usage.get('output_tokens', 0) or 0))
+        # Token accounting → admin dashboard AI Usage widget.
+        # Best-effort: a DB hiccup must not break the analysis.
+        try:
+            from reporting.models import ClaudeUsage
+            ClaudeUsage.record(
+                model=MODEL_CONTENT,
+                input_tokens=usage.get('input_tokens', 0),
+                output_tokens=usage.get('output_tokens', 0))
+        except Exception:
+            logger.exception('ClaudeUsage.record failed in intelligence')
         result = _json.loads(_strip_json_fences(ai_text))
         # Make sure all three keys exist so the template never
         # renders an empty <p>{{ undefined }}</p>.
@@ -1044,6 +1064,16 @@ def analyze_competitor_gaps(client, client_pages, competitor_data):
         usage = body.get('usage', {}) or {}
         tokens = (int(usage.get('input_tokens', 0) or 0)
                   + int(usage.get('output_tokens', 0) or 0))
+        # Token accounting → admin dashboard AI Usage widget.
+        # Best-effort: a DB hiccup must not break the analysis.
+        try:
+            from reporting.models import ClaudeUsage
+            ClaudeUsage.record(
+                model=MODEL_CONTENT,
+                input_tokens=usage.get('input_tokens', 0),
+                output_tokens=usage.get('output_tokens', 0))
+        except Exception:
+            logger.exception('ClaudeUsage.record failed in intelligence')
         result = _json.loads(_strip_json_fences(ai_text))
         # Ensure shape.
         if not isinstance(result, dict):

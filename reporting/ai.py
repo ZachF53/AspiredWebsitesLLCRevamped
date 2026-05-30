@@ -44,6 +44,11 @@ def claude_complete(messages, system='', model=MODEL_CHAT, max_tokens=1024):
     Call Claude and return the text of the first content block.
 
     `messages` is a list of {'role': ..., 'content': ...} dicts.
+
+    Records token usage to ``reporting.models.ClaudeUsage`` after a
+    successful response so the AI Usage widget on the admin dashboard
+    has live cost data. Recording is best-effort — a DB hiccup never
+    masks the returned text.
     """
     if not settings.ANTHROPIC_API_KEY:
         raise AINotConfigured('ANTHROPIC_API_KEY is not set.')
@@ -54,6 +59,18 @@ def claude_complete(messages, system='', model=MODEL_CHAT, max_tokens=1024):
         if system:
             kwargs['system'] = system
         response = client.messages.create(**kwargs)
+        # Token accounting — usage shape is {input_tokens, output_tokens}.
+        try:
+            from reporting.models import ClaudeUsage
+            u = getattr(response, 'usage', None)
+            if u is not None:
+                ClaudeUsage.record(
+                    model=model,
+                    input_tokens=getattr(u, 'input_tokens', 0),
+                    output_tokens=getattr(u, 'output_tokens', 0),
+                )
+        except Exception:
+            logger.exception('claude_complete: ClaudeUsage.record failed')
         return response.content[0].text.strip()
     except AIError:
         raise

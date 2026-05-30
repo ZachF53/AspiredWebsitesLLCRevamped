@@ -707,3 +707,135 @@ class SessionRecording(TimestampedModel):
             if isinstance(chunk, list):
                 out.extend(chunk)
         return out
+
+
+# ── Anthropic / Claude API usage tracking ───────────────────────────────────
+
+# Per-million-token USD pricing for each model the project uses.
+# Anthropic updates these occasionally — if the numbers below stop
+# matching console.anthropic.com, just edit the dict; the cost
+# computation reads it at call time.
+CLAUDE_PRICING_USD_PER_MTOK = {
+    'claude-sonnet-4-6':            {'input': 3.00,  'output': 15.00},
+    'claude-haiku-4-5-20251001':    {'input': 0.80,  'output': 4.00},
+    'claude-opus-4-7':              {'input': 15.00, 'output': 75.00},
+}
+
+
+class ClaudeUsage(models.Model):
+    """
+    Per-month, per-model token + cost accumulator.
+
+    One row per (year_month, model). Every Claude API call across
+    the project (reporting.ai.claude_complete + the three direct
+    HTTP calls in clients/intelligence.py + the AI assistant in
+    admin_dashboard/views.py) calls ``ClaudeUsage.record()`` after
+    a successful response and increments the row's counts atomically
+    via F() expressions.
+
+    Drives the AI Usage widget on /admin-dashboard/ so the admin
+    can see this month's token + dollar burn at a glance. Per-month
+    granularity keeps the table tiny — ~3 rows per month maximum
+    (one per model in use).
+    """
+
+    # First day of the month. Combined with model = unique key.
+    year_month = models.DateField()
+    model = models.CharField(max_length=64)
+
+    input_tokens = models.BigIntegerField(default=0)
+    output_tokens = models.BigIntegerField(default=0)
+    request_count = models.IntegerField(default=0)
+    last_request_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-year_month', 'model']
+        unique_together = ['year_month', 'model']
+        verbose_name = 'Claude API Usage'
+        verbose_name_plural = 'Claude API Usage'
+
+    def __str__(self):
+        return (f'{self.year_month:%B %Y} — {self.model} — '
+                f'{self.input_tokens + self.output_tokens} tokens')
+
+    @property
+    def total_tokens(self):
+        return self.input_tokens + self.output_tokens
+
+    @property
+    def cost_usd(self):
+        """USD cost for this row based on current pricing."""
+        rates = CLAUDE_PRICING_USD_PER_MTOK.get(self.model)
+        if not rates:
+            return 0.0
+        return (
+            (self.input_tokens / 1_000_000) * rates['input']
+            + (self.output_tokens / 1_000_000) * rates['output']
+        )
+
+    @staticmethod
+    def _current_month():
+        from django.utils import timezone as _tz
+        return _tz.now().date().replace(day=1)
+
+    @classmethod
+    def record(cls, model, input_tokens, output_tokens):
+        """Atomic-increment THIS month's row for the given model.
+        Creates the row on first call of a new month. Safe under
+        concurrent writes (uses F() expressions). Quiet no-op if
+        model is empty or token counts are zero so callers don't
+        need to branch."""
+        if not model:
+            return
+        try:
+            input_tokens = int(input_tokens or 0)
+            output_tokens = int(output_tokens or 0)
+        except (TypeError, ValueError):
+            return
+        if input_tokens == 0 and output_tokens == 0:
+            return
+
+        from django.db.models import F
+        ym = cls._current_month()
+        cls.objects.get_or_create(
+            year_month=ym, model=model)
+        cls.objects.filter(year_month=ym, model=model).update(
+            input_tokens=F('input_tokens') + input_tokens,
+            output_tokens=F('output_tokens') + output_tokens,
+            request_count=F('request_count') + 1,
+        )
+
+    @classmethod
+    def current_month_summary(cls):
+        """Aggregated summary for THIS month — one entry per model
+        plus a grand-total row. Used by the dashboard widget."""
+        ym = cls._current_month()
+        rows = list(cls.objects.filter(year_month=ym))
+        per_model = []
+        total_tokens = 0
+        total_cost = 0.0
+        total_requests = 0
+        for r in rows:
+            cost = r.cost_usd
+            tokens = r.total_tokens
+            per_model.append({
+                'model': r.model,
+                'input_tokens': r.input_tokens,
+                'output_tokens': r.output_tokens,
+                'tokens': tokens,
+                'requests': r.request_count,
+                'cost_usd': cost,
+            })
+            total_tokens += tokens
+            total_cost += cost
+            total_requests += r.request_count
+        # Stable ordering: cheapest first (Haiku) → priciest (Opus).
+        # Sorts on the model name as a proxy (cmp by string) which
+        # is fine since the names are stable and there are ≤ 3.
+        per_model.sort(key=lambda x: x['model'])
+        return {
+            'per_model': per_model,
+            'total_tokens': total_tokens,
+            'total_cost_usd': total_cost,
+            'total_requests': total_requests,
+        }

@@ -158,6 +158,18 @@ def home(request):
     # Phase 7 Part 1 — Today's Focus widget. `get_daily_focus` is
     # defined further down in this same file; Python resolves the
     # name at call time so the forward reference is fine.
+
+    # AI usage widget — this-month token totals + USD cost across
+    # every model the project uses. Defensive: the table might not
+    # exist yet on pre-migration environments.
+    ai_usage = {'per_model': [], 'total_tokens': 0,
+                'total_cost_usd': 0.0, 'total_requests': 0}
+    try:
+        from reporting.models import ClaudeUsage
+        ai_usage = ClaudeUsage.current_month_summary()
+    except Exception:
+        pass
+
     return render(request, 'admin_dashboard/home.html', _admin_context(
         active='home',
         stats=stats,
@@ -166,6 +178,7 @@ def home(request):
         recent_emails=recent_emails,
         unhandled_replies=unhandled_replies,
         daily_focus=get_daily_focus(),
+        ai_usage=ai_usage,
     ))
 
 
@@ -825,12 +838,24 @@ Draft a reply that:
 
 Write the reply now."""
 
+    model = 'claude-haiku-4-5-20251001'
     client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     message = client.messages.create(
-        model='claude-haiku-4-5-20251001',
+        model=model,
         max_tokens=700,
         messages=[{'role': 'user', 'content': prompt}],
     )
+    # Token accounting → admin dashboard AI Usage widget. Best-effort.
+    try:
+        from reporting.models import ClaudeUsage
+        u = getattr(message, 'usage', None)
+        if u is not None:
+            ClaudeUsage.record(
+                model=model,
+                input_tokens=getattr(u, 'input_tokens', 0),
+                output_tokens=getattr(u, 'output_tokens', 0))
+    except Exception:
+        logger.exception('ClaudeUsage.record failed in reply-draft')
     return message.content[0].text.strip()
 
 

@@ -14094,6 +14094,76 @@ button.htmx-request {
 .brave-usage-bar--over .brave-usage-bar__fill { background: #ef4444; }
 .brave-usage-bar--over .brave-usage-bar__label { color: #ef4444; }
 
+
+/* AI Usage widget on admin home — headline cost + per-model table. */
+.ai-usage-section { margin-top: var(--space-4); }
+.ai-usage-grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 220px) 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+@media (max-width: 720px) {
+    .ai-usage-grid { grid-template-columns: 1fr; }
+}
+.ai-usage-headline {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-orange);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 4px 14px rgba(232, 101, 10, 0.12);
+}
+.ai-usage-headline__cost {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--color-orange);
+    line-height: 1;
+}
+.ai-usage-headline__hint {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    margin-top: 0.4rem;
+}
+
+.ai-usage-models {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+}
+.ai-usage-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.ai-usage-table thead th {
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+    font-weight: 600;
+}
+.ai-usage-table tbody td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
+    color: var(--color-text);
+}
+.ai-usage-table tbody tr:last-child td { border-bottom: 0; }
+.ai-usage-table code {
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+}
+.ai-usage-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 .lead-debug__pre {
     margin: 0;
     padding: 0.5rem;

@@ -28,6 +28,60 @@
         {% endfor %}
     </div>
 
+    {% comment %}
+        AI Usage widget — Claude API tokens + USD cost for the current
+        month, broken out per model. Wired by every Claude call
+        across the project (reporting.ai.claude_complete, the three
+        direct HTTP calls in clients/intelligence.py, and the AI
+        reply-draft in admin_dashboard.views).
+    {% endcomment %}
+    <section class="admin-section ai-usage-section">
+        <div class="admin-section__header">
+            <span class="eyebrow">AI Usage</span>
+            <h2>Claude tokens + cost — {% now "F Y" %}</h2>
+        </div>
+        <div class="ai-usage-grid">
+            <div class="ai-usage-headline">
+                <div class="ai-usage-headline__cost">
+                    ${{ ai_usage.total_cost_usd|floatformat:2 }}
+                </div>
+                <div class="ai-usage-headline__hint">
+                    {{ ai_usage.total_tokens }} tokens across
+                    {{ ai_usage.total_requests }} request{{ ai_usage.total_requests|pluralize }}
+                    this month
+                </div>
+            </div>
+            <div class="ai-usage-models">
+                {% if ai_usage.per_model %}
+                    <table class="ai-usage-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="ai-usage-table__num">Input</th>
+                                <th class="ai-usage-table__num">Output</th>
+                                <th class="ai-usage-table__num">Requests</th>
+                                <th class="ai-usage-table__num">Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in ai_usage.per_model %}
+                                <tr>
+                                    <td><code>{{ m.model }}</code></td>
+                                    <td class="ai-usage-table__num">{{ m.input_tokens }}</td>
+                                    <td class="ai-usage-table__num">{{ m.output_tokens }}</td>
+                                    <td class="ai-usage-table__num">{{ m.requests }}</td>
+                                    <td class="ai-usage-table__num"><strong>${{ m.cost_usd|floatformat:2 }}</strong></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="muted" style="margin:0;">No Claude API calls yet this month.</p>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
     <section class="admin-section">
         <div class="admin-section__header">
             <span class="eyebrow">Pipeline</span>
