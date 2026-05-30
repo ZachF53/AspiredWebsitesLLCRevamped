@@ -339,4 +339,8 @@ urlpatterns = [
          name='website_intake_mark_complete'),
     path('domains/<uuid:reg_id>/move-account/',
          views.domain_move_account, name='domain_move_account'),
+
+    # DMARC aggregate-report ingest + dashboard
+    path('dmarc/', views.dmarc_dashboard, name='dmarc_dashboard'),
+    path('dmarc/upload/', views.dmarc_upload, name='dmarc_upload'),
 ]

@@ -1,0 +1,236 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}DMARC Reports — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Email Auth</span>
+            <h1 class="admin-page-title">DMARC Aggregate Reports</h1>
+            <p class="admin-page-sub">
+                Last 30 days · {{ total_reports }} report{{ total_reports|pluralize }} ingested ·
+                {{ total_msgs }} messages reported by providers.
+            </p>
+        </div>
+        <div>
+            <a href="https://dmarcian.com/dmarc-xml/" target="_blank" rel="noopener" class="btn-secondary btn-sm">DMARC docs ↗</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for message in messages %}
+                <div class="admin-message admin-message--{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% comment %}
+        Headline stat strip — three numbers admin actually cares about.
+        Pass rate flips to red when < 95% (something's misconfigured)
+        and yellow 95-98%.
+    {% endcomment %}
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Pass Rate</span>
+            <span class="admin-stat__value
+                {% if pass_rate < 95 %}admin-stat--urgent{% elif pass_rate < 98 %}admin-stat--warn{% endif %}">
+                {{ pass_rate|floatformat:1 }}%
+            </span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Passing Messages</span>
+            <span class="admin-stat__value">{{ total_pass }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Failing Messages</span>
+            <span class="admin-stat__value
+                {% if total_fail > 0 %}admin-stat--warn{% endif %}">
+                {{ total_fail }}
+            </span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Reports Received</span>
+            <span class="admin-stat__value">{{ total_reports }}</span>
+        </div>
+    </div>
+
+    {% comment %}
+        31-day trend bar chart. Pure CSS — each day is a vertical
+        bar where green = pass, red = fail, height proportional to
+        total messages. Empty days render as 1px slivers so the
+        gaps are visible but don't dominate.
+    {% endcomment %}
+    <section class="admin-card dmarc-trend-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Pass/fail trend — last 31 days</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if total_reports == 0 %}
+                <p class="muted">No reports ingested yet. Upload one below, or wait ~24 hours after publishing your DMARC <code>rua=</code> address for the first reports to arrive.</p>
+            {% else %}
+                <div class="dmarc-trend">
+                    {% for day in trend %}
+                        <div class="dmarc-trend__col" title="{{ day.date|date:'Y-m-d' }}: {{ day.pass }} pass / {{ day.fail }} fail ({{ day.total }} msgs)">
+                            <div class="dmarc-trend__bar">
+                                {% if day.total > 0 %}
+                                    <div class="dmarc-trend__pass" style="height: {{ day.pass_pct }}%"></div>
+                                    <div class="dmarc-trend__fail" style="height: {{ day.fail_pct }}%"></div>
+                                {% else %}
+                                    <div class="dmarc-trend__empty"></div>
+                                {% endif %}
+                            </div>
+                            <div class="dmarc-trend__label">{{ day.date_short }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="dmarc-trend__legend">
+                    <span><span class="dmarc-swatch dmarc-swatch--pass"></span> DMARC pass</span>
+                    <span><span class="dmarc-swatch dmarc-swatch--fail"></span> DMARC fail</span>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="dmarc-two-col">
+        {# Reporters breakdown — who's sending you reports + their pass rate per source. #}
+        <section class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">By reporter</h2>
+            </div>
+            <div class="admin-card__body">
+                {% if reporters %}
+                    <table class="lead-table">
+                        <thead>
+                            <tr>
+                                <th>Reporter</th>
+                                <th class="dmarc-num">Reports</th>
+                                <th class="dmarc-num">Messages</th>
+                                <th class="dmarc-num">Pass rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in reporters %}
+                                <tr>
+                                    <td>{{ r.org_name }}</td>
+                                    <td class="dmarc-num">{{ r.reports }}</td>
+                                    <td class="dmarc-num">{{ r.msgs }}</td>
+                                    <td class="dmarc-num
+                                        {% if r.pass_rate < 95 %}dmarc-num--bad{% elif r.pass_rate < 98 %}dmarc-num--warn{% endif %}">
+                                        {{ r.pass_rate|floatformat:1 }}%
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="muted">No reporters yet.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        {# Top failing IPs — likely spoofers OR misconfigured services that send 'as' your domain (legitimately or not). #}
+        <section class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Top failing source IPs</h2>
+            </div>
+            <div class="admin-card__body">
+                {% if top_failing %}
+                    <table class="lead-table">
+                        <thead>
+                            <tr>
+                                <th>Source IP</th>
+                                <th class="dmarc-num">Msgs</th>
+                                <th class="dmarc-num">Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ip in top_failing %}
+                                <tr>
+                                    <td><code>{{ ip.source_ip }}</code></td>
+                                    <td class="dmarc-num">{{ ip.msgs }}</td>
+                                    <td class="dmarc-num">{{ ip.seen }}× reports</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="muted dmarc-small" style="margin-top:0.5rem;">
+                        These IPs sent mail claiming to be your domain that <em>failed</em> DMARC alignment. Some are spoofers; some are legit third-party services (CRM, billing) that need DKIM / SPF added. Investigate any with high volume.
+                    </p>
+                {% else %}
+                    <p class="muted">No failing source IPs in the window — clean.</p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+
+    {# Recent ingested reports — chronological. #}
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Recent reports ({{ recent_reports|length }})</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if recent_reports %}
+                <table class="lead-table">
+                    <thead>
+                        <tr>
+                            <th>Reporter</th>
+                            <th>Period</th>
+                            <th class="dmarc-num">Msgs</th>
+                            <th class="dmarc-num">Pass</th>
+                            <th class="dmarc-num">Fail</th>
+                            <th>Policy</th>
+                            <th>Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in recent_reports %}
+                            <tr>
+                                <td>{{ r.org_name }}</td>
+                                <td>{{ r.period_start|date:"M j" }} – {{ r.period_end|date:"M j" }}</td>
+                                <td class="dmarc-num">{{ r.total_messages }}</td>
+                                <td class="dmarc-num dmarc-num--good">{{ r.dmarc_pass }}</td>
+                                <td class="dmarc-num {% if r.dmarc_fail %}dmarc-num--bad{% endif %}">{{ r.dmarc_fail }}</td>
+                                <td><code>p={{ r.policy_p|default:"none" }}</code></td>
+                                <td>{{ r.received_at|date:"M j H:i" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No reports yet.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    {# Manual upload form — works before the IMAP poller is wired. #}
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Upload a report (manual)</h2>
+        </div>
+        <div class="admin-card__body">
+            <p class="muted">
+                Got a DMARC report email and want to ingest it without waiting for the auto-poller? Save the attachment (usually a <code>.zip</code> or <code>.gz</code>) and upload it here. Idempotent — duplicates are skipped silently.
+            </p>
+            <form method="post" action="{% url 'admin_dashboard:dmarc_upload' %}" enctype="multipart/form-data" class="dmarc-upload-form">
+                {% csrf_token %}
+                <input type="file" name="report" required accept=".xml,.zip,.gz,application/zip,application/gzip,text/xml">
+                <button type="submit" class="btn-primary">Upload &amp; ingest</button>
+            </form>
+            <details class="dmarc-help">
+                <summary>Want auto-ingest from Gmail?</summary>
+                <p class="muted">
+                    Set four env vars on the server and the <code>ingest_dmarc_imap</code> management command will pull reports automatically. See the docstring in
+                    <code>reporting/management/commands/ingest_dmarc_imap.py</code> for the exact setup (Gmail App Password + IMAP host + folder).
+                </p>
+                <p class="muted">
+                    Once wired, add a Celery beat entry to run daily at 06:00.
+                </p>
+            </details>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

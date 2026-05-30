@@ -839,3 +839,143 @@ class ClaudeUsage(models.Model):
             'total_cost_usd': total_cost,
             'total_requests': total_requests,
         }
+
+
+# ── DMARC aggregate report ingest ───────────────────────────────────────────
+
+class DmarcReport(models.Model):
+    """
+    One DMARC aggregate (rua) report, ingested from XML.
+
+    Reports arrive as ZIP/GZ-wrapped XML attachments daily from Gmail,
+    Microsoft, Yahoo, Apple, Mail.ru, etc. — every provider that
+    receives mail claiming to be from a domain whose DMARC record
+    includes ``rua=mailto:...``.
+
+    One ``DmarcReport`` row per file. Inside the XML there are 1..N
+    <record> blocks (each = one source IP × one count); those land in
+    ``DmarcRecord``. Aggregate totals at the report level let the
+    dashboard chart trend without N+1ing the record table.
+    """
+
+    # Report-level identity
+    org_name = models.CharField(
+        max_length=120,
+        help_text='Provider that sent the report (google.com, outlook.com, …).')
+    org_email = models.EmailField(blank=True)
+    report_id = models.CharField(max_length=200, unique=True)
+    period_start = models.DateTimeField()
+    period_end = models.DateTimeField()
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    # Policy snapshot at the time of the report (the published DMARC
+    # record values). Useful for the trend chart — if you tighten
+    # p=none → p=quarantine you'll see when in history that flipped.
+    policy_domain = models.CharField(max_length=120)
+    policy_p = models.CharField(
+        max_length=20, blank=True,
+        help_text='none / quarantine / reject')
+    policy_pct = models.IntegerField(null=True, blank=True)
+
+    # Aggregate counts — sum of <record>/<row>/<count> rolled by result.
+    # Cheap to compute at ingest; saves N+1 on the dashboard.
+    total_messages = models.IntegerField(default=0)
+    dmarc_pass = models.IntegerField(
+        default=0,
+        help_text='Messages that passed DMARC (DKIM aligned OR SPF aligned).')
+    dmarc_fail = models.IntegerField(default=0)
+    dkim_pass = models.IntegerField(default=0)
+    dkim_fail = models.IntegerField(default=0)
+    spf_pass = models.IntegerField(default=0)
+    spf_fail = models.IntegerField(default=0)
+
+    # Raw XML kept for forensics — small (a few KB), and lets us
+    # re-parse if the aggregator logic changes.
+    raw_xml = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-period_end']
+        verbose_name = 'DMARC Report'
+        verbose_name_plural = 'DMARC Reports'
+        indexes = [
+            models.Index(fields=['-period_end']),
+        ]
+
+    def __str__(self):
+        return (f'{self.org_name} — '
+                f'{self.period_start:%Y-%m-%d} to {self.period_end:%Y-%m-%d} '
+                f'({self.total_messages} msgs)')
+
+    @property
+    def pass_rate(self):
+        if not self.total_messages:
+            return 0.0
+        return 100.0 * self.dmarc_pass / self.total_messages
+
+
+class DmarcRecord(models.Model):
+    """
+    One <record> inside a DmarcReport — represents a source IP that
+    tried to send mail claiming to be the domain, grouped by result.
+
+    A typical report has 1-50 records; an aggregator under attack
+    can have hundreds. Stored individually so the dashboard can list
+    top failing IPs (likely spoofers / misconfigured forwarders).
+    """
+
+    DISPOSITION_CHOICES = [
+        ('none', 'None'),
+        ('quarantine', 'Quarantine'),
+        ('reject', 'Reject'),
+    ]
+    RESULT_CHOICES = [
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('none', 'None'),
+        ('softfail', 'Softfail'),
+        ('neutral', 'Neutral'),
+        ('temperror', 'Temp error'),
+        ('permerror', 'Perm error'),
+    ]
+
+    report = models.ForeignKey(
+        DmarcReport, on_delete=models.CASCADE, related_name='records')
+    source_ip = models.GenericIPAddressField()
+    count = models.IntegerField(default=0)
+
+    # Policy-evaluated results — what the receiving provider decided
+    # to do based on DMARC alignment.
+    disposition = models.CharField(
+        max_length=20, choices=DISPOSITION_CHOICES, default='none')
+    dkim_aligned = models.CharField(
+        max_length=20, choices=RESULT_CHOICES, default='none')
+    spf_aligned = models.CharField(
+        max_length=20, choices=RESULT_CHOICES, default='none')
+
+    # Raw auth results — the actual SPF/DKIM check outcomes
+    # (separate from alignment, which considers the From: domain).
+    header_from = models.CharField(max_length=200, blank=True)
+    dkim_domain = models.CharField(max_length=200, blank=True)
+    dkim_selector = models.CharField(max_length=200, blank=True)
+    dkim_result = models.CharField(
+        max_length=20, choices=RESULT_CHOICES, default='none')
+    spf_domain = models.CharField(max_length=200, blank=True)
+    spf_result = models.CharField(
+        max_length=20, choices=RESULT_CHOICES, default='none')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['report', 'source_ip']),
+        ]
+        verbose_name = 'DMARC Record'
+        verbose_name_plural = 'DMARC Records'
+
+    def __str__(self):
+        return (f'{self.source_ip} × {self.count} → '
+                f'dkim={self.dkim_aligned} spf={self.spf_aligned}')
+
+    @property
+    def is_dmarc_pass(self):
+        """DMARC passes if EITHER DKIM-aligned OR SPF-aligned is pass."""
+        return (self.dkim_aligned == 'pass'
+                or self.spf_aligned == 'pass')

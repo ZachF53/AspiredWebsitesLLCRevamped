@@ -138,6 +138,10 @@
                    href="{% url 'admin_dashboard:droplet_list' %}">
                     <span class="nav-link__text">Droplets</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/dmarc/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:dmarc_dashboard' %}">
+                    <span class="nav-link__text">DMARC</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/vault/' in request.path and '/ops/' not in request.path %}active{% endif %}"
                    href="{% url 'vault:home' %}">
                     <span class="nav-link__text">Vault</span>

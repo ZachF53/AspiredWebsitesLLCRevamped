@@ -7732,3 +7732,189 @@ def domain_move_account(request, reg_id):
         f'Domain {reg.domain_name} moved to {new_account.name}. '
         f'Re-point to a website on the new account when ready.')
     return redirect('admin_dashboard:admin_domain_detail', reg_id=reg.id)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# DMARC aggregate report dashboard
+# ────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def dmarc_dashboard(request):
+    """
+    DMARC aggregate report overview at /admin-dashboard/dmarc/.
+
+    Shows:
+      - 30-day pass-rate trend (one bar per day)
+      - Per-reporter breakdown (Gmail / Microsoft / Yahoo / etc.)
+      - Top failing source IPs (likely spoofers + misconfigured
+        third-party senders you forgot about)
+      - Recent reports table
+      - Manual upload form (paste a .zip / .gz / .xml from an
+        email attachment — useful before the IMAP poller is wired)
+    """
+    from datetime import date, timedelta
+
+    from django.db.models import Count, Sum
+
+    from reporting.models import DmarcRecord, DmarcReport
+
+    cutoff_date = date.today() - timedelta(days=30)
+
+    qs = DmarcReport.objects.filter(period_end__gte=cutoff_date)
+
+    # Totals across the 30-day window.
+    totals = qs.aggregate(
+        total_msgs=Sum('total_messages'),
+        total_pass=Sum('dmarc_pass'),
+        total_fail=Sum('dmarc_fail'),
+        total_reports=Count('id'),
+    )
+    total_msgs = totals['total_msgs'] or 0
+    total_pass = totals['total_pass'] or 0
+    total_fail = totals['total_fail'] or 0
+    pass_rate = (
+        100.0 * total_pass / total_msgs) if total_msgs else 0.0
+
+    # ── 30-day daily trend (bar chart) ──
+    # Bucket by period_end date so each report lands on a single
+    # day. Simple in Python — ≤ ~60 reports per month even for
+    # high-volume domains.
+    by_day = {}
+    for r in qs:
+        d = r.period_end.date()
+        bucket = by_day.setdefault(
+            d, {'date': d, 'pass': 0, 'fail': 0, 'total': 0})
+        bucket['pass'] += r.dmarc_pass
+        bucket['fail'] += r.dmarc_fail
+        bucket['total'] += r.total_messages
+
+    # Build a 30-day strip so missing-day bars render as gaps.
+    trend = []
+    for i in range(30, -1, -1):
+        d = date.today() - timedelta(days=i)
+        bucket = by_day.get(d, {'date': d, 'pass': 0, 'fail': 0, 'total': 0})
+        total = bucket['total'] or 1  # avoid /0 for empty days
+        # Portable date label — %-m/%-d works on Linux/Mac but not
+        # Windows. Build it via .month / .day so dev on Windows
+        # doesn't 500 the page.
+        date_short = (f'{bucket["date"].month}/{bucket["date"].day}'
+                      if hasattr(bucket['date'], 'month')
+                      else str(bucket['date']))
+        trend.append({
+            'date': bucket['date'],
+            'date_short': date_short,
+            'pass': bucket['pass'],
+            'fail': bucket['fail'],
+            'total': bucket['total'],
+            'pass_pct': round(100 * bucket['pass'] / total)
+                if bucket['total'] else 0,
+            'fail_pct': round(100 * bucket['fail'] / total)
+                if bucket['total'] else 0,
+        })
+
+    # ── Reporters breakdown ──
+    by_org = (qs.values('org_name')
+              .annotate(
+                  reports=Count('id'),
+                  msgs=Sum('total_messages'),
+                  pass_=Sum('dmarc_pass'),
+                  fail=Sum('dmarc_fail'))
+              .order_by('-msgs'))
+    reporters = []
+    for o in by_org:
+        msgs = o['msgs'] or 0
+        reporters.append({
+            'org_name': o['org_name'],
+            'reports': o['reports'],
+            'msgs': msgs,
+            'pass': o['pass_'] or 0,
+            'fail': o['fail'] or 0,
+            'pass_rate': (100.0 * (o['pass_'] or 0) / msgs) if msgs else 0,
+        })
+
+    # ── Top failing source IPs (in the 30-day window) ──
+    failing = (
+        DmarcRecord.objects
+        .filter(report__period_end__gte=cutoff_date)
+        .filter(dkim_aligned__in=('fail', 'none'),
+                spf_aligned__in=('fail', 'none'))
+        .values('source_ip')
+        .annotate(msgs=Sum('count'), seen=Count('id'))
+        .order_by('-msgs')[:10]
+    )
+    top_failing = list(failing)
+
+    # ── Recent reports table ──
+    recent_reports = list(qs.order_by('-received_at')[:25])
+
+    return render(request, 'admin_dashboard/dmarc.html', _admin_context(
+        active='dmarc',
+        total_msgs=total_msgs,
+        total_pass=total_pass,
+        total_fail=total_fail,
+        pass_rate=pass_rate,
+        total_reports=totals['total_reports'] or 0,
+        trend=trend,
+        reporters=reporters,
+        top_failing=top_failing,
+        recent_reports=recent_reports,
+    ))
+
+
+@admin_required
+@require_POST
+def dmarc_upload(request):
+    """
+    Manual DMARC report upload. Accepts .zip / .gz / .xml — same
+    format every provider sends. The parser sniffs magic bytes so
+    the extension just helps with debugging.
+
+    Used:
+      - For initial backfill (forward old reports from Gmail).
+      - Whenever you want to ingest a one-off report.
+      - When the IMAP poller isn't running yet (it's opt-in).
+    """
+    from django.contrib import messages
+
+    from reporting.dmarc import (
+        ingest_dmarc_xml, parse_dmarc_attachment,
+    )
+
+    uploaded = request.FILES.get('report')
+    if not uploaded:
+        messages.error(request, 'No file uploaded.')
+        return redirect('admin_dashboard:dmarc_dashboard')
+
+    raw = uploaded.read()
+    xml = parse_dmarc_attachment(raw, filename=uploaded.name)
+    if not xml:
+        messages.error(
+            request,
+            f'Could not extract XML from "{uploaded.name}" — '
+            f'expected .zip / .gz / .xml.')
+        return redirect('admin_dashboard:dmarc_dashboard')
+
+    report = ingest_dmarc_xml(xml)
+    if report is None:
+        messages.error(
+            request,
+            f'"{uploaded.name}" parsed but ingest failed (malformed XML '
+            f'or duplicate report_id). Check the server logs.')
+    else:
+        # Detect duplicate vs fresh — fresh reports have received_at
+        # within the last few seconds.
+        from django.utils import timezone as _tz
+        from datetime import timedelta as _td
+        is_fresh = (_tz.now() - report.received_at) < _td(seconds=10)
+        if is_fresh:
+            messages.success(
+                request,
+                f'Ingested report from {report.org_name} — '
+                f'{report.total_messages} messages '
+                f'({report.dmarc_pass} pass / {report.dmarc_fail} fail).')
+        else:
+            messages.info(
+                request,
+                f'Report already in database — uploaded by '
+                f'{report.received_at:%Y-%m-%d %H:%M}. No changes.')
+    return redirect('admin_dashboard:dmarc_dashboard')

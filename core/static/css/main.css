@@ -14177,3 +14177,113 @@ button.htmx-request {
     overflow-x: auto;
     max-height: 280px;
 }
+
+
+/* ── DMARC dashboard ────────────────────────────────────────────── */
+
+.dmarc-trend-card { margin: 1rem 0; }
+.dmarc-trend {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 140px;
+    padding: 0.5rem 0 0;
+}
+.dmarc-trend__col {
+    flex: 1 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 18px;
+    cursor: help;
+}
+.dmarc-trend__bar {
+    flex: 1;
+    width: 80%;
+    display: flex;
+    flex-direction: column-reverse;  /* pass on top, fail on bottom */
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+}
+.dmarc-trend__pass {
+    background: #10b981;
+    min-height: 1px;
+}
+.dmarc-trend__fail {
+    background: #ef4444;
+    min-height: 1px;
+}
+.dmarc-trend__empty {
+    width: 100%;
+    height: 2px;
+    align-self: flex-end;
+    background: rgba(255, 255, 255, 0.05);
+}
+.dmarc-trend__label {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+    white-space: nowrap;
+}
+.dmarc-trend__legend {
+    display: flex;
+    gap: 1.25rem;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-top: 0.75rem;
+}
+.dmarc-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.dmarc-swatch--pass { background: #10b981; }
+.dmarc-swatch--fail { background: #ef4444; }
+
+.dmarc-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+@media (max-width: 900px) {
+    .dmarc-two-col { grid-template-columns: 1fr; }
+}
+
+.dmarc-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.dmarc-num--good { color: #10b981; }
+.dmarc-num--warn { color: #f59e0b; }
+.dmarc-num--bad  { color: #ef4444; }
+.dmarc-small { font-size: 0.78rem; }
+
+.dmarc-upload-form {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+}
+.dmarc-upload-form input[type="file"] {
+    color: var(--color-text);
+}
+.dmarc-help {
+    margin-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.75rem;
+}
+.dmarc-help summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    list-style: none;
+    font-weight: 600;
+}
+.dmarc-help summary::-webkit-details-marker { display: none; }
+.dmarc-help[open] summary { margin-bottom: 0.5rem; }
