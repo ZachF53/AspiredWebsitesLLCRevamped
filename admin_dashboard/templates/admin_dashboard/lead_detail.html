@@ -235,22 +235,32 @@
                     How it was graded
                     <span class="lead-debug__total">{{ score_total }}/10</span>
                 </h3>
-                <table class="lead-debug__rules">
-                    <thead>
-                        <tr><th>Signal</th><th>What the scraper saw</th><th class="lead-debug__pts">Points</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for row in score_breakdown %}
-                            <tr class="lead-debug__row {% if row.applied %}lead-debug__row--hit{% else %}lead-debug__row--miss{% endif %}">
-                                <td>{{ row.label }}</td>
-                                <td><code>{{ row.signal }}</code></td>
-                                <td class="lead-debug__pts">
-                                    <span class="lead-debug__pill">+{{ row.points }} / {{ row.max }}</span>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                {% comment %}
+                    Was a <table>; tables refuse to honour their grid
+                    column's width when an inline-block <code> with a
+                    long URL forces min-content wider than the column.
+                    Even table-layout:fixed couldn't tame it. So this
+                    is a CSS-grid row layout — Signal | Value | Points
+                    with min-width: 0 on the middle column lets long
+                    URLs wrap without ever pushing the Points pill off
+                    the right edge.
+                {% endcomment %}
+                <div class="lead-debug__rules">
+                    <div class="lead-debug__rule lead-debug__rule--head">
+                        <div>Signal</div>
+                        <div>What the scraper saw</div>
+                        <div class="lead-debug__pts">Points</div>
+                    </div>
+                    {% for row in score_breakdown %}
+                        <div class="lead-debug__rule {% if row.applied %}lead-debug__rule--hit{% else %}lead-debug__rule--miss{% endif %}">
+                            <div class="lead-debug__rule-label">{{ row.label }}</div>
+                            <div class="lead-debug__rule-value"><code>{{ row.signal }}</code></div>
+                            <div class="lead-debug__pts">
+                                <span class="lead-debug__pill">+{{ row.points }} / {{ row.max }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
                 <p class="muted lead-debug__legend">
                     Higher score = bigger pain we can solve = hotter lead.
                     Stored: <strong>{{ lead.score }}/10</strong> →

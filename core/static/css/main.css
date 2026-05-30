@@ -13995,17 +13995,25 @@ button.htmx-request {
     word-break: break-word;
 }
 
+/* Score breakdown rows — CSS Grid, not a <table>. Tables couldn't be
+   forced to respect their grid column when an inline-block <code>
+   with a long URL pushed min-content wider than the slot. The grid
+   approach uses min-width: 0 on the middle column so the URL wraps
+   inside the cell and the Points pill stays put. */
 .lead-debug__rules {
     width: 100%;
-    /* Fixed layout so the column widths we set below stick. Without
-       this, a long <code> URL stretches its column and squeezes the
-       Points column off the right edge — that's the bug we're fixing. */
-    table-layout: fixed;
-    border-collapse: collapse;
     font-size: 0.82rem;
 }
-.lead-debug__rules th {
-    text-align: left;
+.lead-debug__rule {
+    display: grid;
+    grid-template-columns: minmax(0, 38%) minmax(0, 1fr) 72px;
+    column-gap: 0.6rem;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
+    align-items: start;
+}
+.lead-debug__rule:last-child { border-bottom: 0; }
+.lead-debug__rule--head {
     color: var(--color-text-muted);
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -14014,37 +14022,28 @@ button.htmx-request {
     border-bottom: 1px solid var(--color-border);
     font-weight: 600;
 }
-.lead-debug__rules td {
-    padding: 0.5rem 0.6rem;
-    border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
-    vertical-align: top;
+.lead-debug__rule-label {
     color: var(--color-text);
-    /* Same break-anywhere behaviour so URL/code values inside cells
-       wrap rather than punch out the column. */
-    overflow-wrap: anywhere;
-    word-break: break-word;
 }
-.lead-debug__rules tr:last-child td { border-bottom: 0; }
-/* Reserve fixed widths for the first (Signal) and last (Points)
-   columns; the middle "What the scraper saw" column gets whatever's
-   left and shrinks/wraps its <code> contents. */
-.lead-debug__rules th:first-child,
-.lead-debug__rules td:first-child { width: 38%; }
-.lead-debug__rules th.lead-debug__pts,
-.lead-debug__rules td.lead-debug__pts { width: 72px; }
+.lead-debug__rule-value {
+    color: var(--color-text);
+    /* The actual fix — without these, a long URL inside <code>
+       inflates this cell and pushes the Points pill off-screen. */
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+}
 .lead-debug__rules code {
     background: rgba(255, 255, 255, 0.04);
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 0.78rem;
-    /* The single most important rule on this page — long URLs must
-       break inside the column instead of forcing the table wider. */
     overflow-wrap: anywhere;
     word-break: break-all;
-    display: inline-block;
-    max-width: 100%;
+    /* Inline content; let the grid cell own the width. */
+    display: inline;
 }
-.lead-debug__row--miss td { opacity: 0.55; }
+.lead-debug__rule--miss { opacity: 0.55; }
 .lead-debug__pts { text-align: right; white-space: nowrap; }
 .lead-debug__pill {
     display: inline-block;
