@@ -8296,11 +8296,58 @@ button.htmx-request {
 .droplet-dot--green { background: #10B981; }
 .droplet-dot--orange { background: #E8650A; }
 .droplet-dot--red { background: #EF4444; }
-.droplet-table__status { width: 1.5rem; text-align: center; }
-.droplet-table__actions { white-space: nowrap; }
-.droplet-table__actions .btn-sm { margin-right: 0.25rem; }
+.droplet-table__status { width: 1.5rem; text-align: center; padding-right: 0; }
+.droplet-table__actions {
+    white-space: nowrap;
+    text-align: right;
+    /* Sticky to the right edge so actions are always visible even
+       if a wide row forces horizontal scroll. */
+    position: sticky;
+    right: 0;
+    background: var(--color-bg-raised);
+    z-index: 1;
+    box-shadow: -8px 0 12px -6px rgba(0, 0, 0, 0.5);
+}
+.droplet-table__actions .btn-sm {
+    margin-right: 0.2rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
+}
+.droplet-table__actions .btn-sm:last-child { margin-right: 0; }
+.droplet-inline-form { display: inline-block; }
 
 .droplet-name { font-weight: 600; }
+.droplet-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+/* Linked-website cell — limit width AND wrap on whole words instead
+   of per-word so 'Food Trucks of San Antonio' doesn't stack 4 lines
+   tall. Reserves enough room that the actions column stays visible. */
+.droplet-linked {
+    max-width: 220px;
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-height: 1.3;
+}
+.droplet-linked a {
+    color: var(--color-orange);
+    text-decoration: none;
+    font-weight: 600;
+}
+.droplet-linked a:hover { text-decoration: underline; }
+.droplet-linked .droplet-muted {
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+.droplet-linked .droplet-link-btn {
+    margin-top: 6px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+}
 .droplet-ip {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.83rem;

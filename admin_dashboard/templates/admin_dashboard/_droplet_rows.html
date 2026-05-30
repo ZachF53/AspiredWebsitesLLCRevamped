@@ -2,19 +2,20 @@
 Droplet table rows — included by droplets_list.html AND returned on its
 own by /droplets/table/ for the 30s HTMX poll. Standalone so it can
 render inside a hx-swap="innerHTML" target without wrapping markup.
+
+Column trim: dropped the standalone Region + Tags + Created + $/mo
+cells to keep the Actions column on-screen without horizontal scroll.
+Region/size/cost/created all collapsed into the META cell beneath
+the droplet name. Tags moved to a title="" tooltip on the dot
+(rarely useful at-a-glance — they're always "aspired-websites client").
 {% endcomment %}
 <table class="droplet-table">
     <thead>
         <tr>
             <th class="droplet-table__status"></th>
-            <th>Name</th>
+            <th>Droplet</th>
             <th>IP</th>
-            <th>Linked Website / Client</th>
-            <th>Region</th>
-            <th>Size</th>
-            <th>$ / mo</th>
-            <th>Created</th>
-            <th>Tags</th>
+            <th>Linked Website</th>
             <th class="droplet-table__actions">Actions</th>
         </tr>
     </thead>
@@ -23,9 +24,17 @@ render inside a hx-swap="innerHTML" target without wrapping markup.
             <tr class="droplet-row droplet-row--{{ r.border }}">
                 <td class="droplet-table__status">
                     <span class="droplet-dot droplet-dot--{{ r.border }}"
-                          title="{{ r.status }}"></span>
+                          title="{{ r.status }} · tags: {{ r.tags|join:', ' }}"></span>
                 </td>
-                <td class="droplet-name">{{ r.name }}</td>
+                <td>
+                    <div class="droplet-name">{{ r.name }}</div>
+                    <div class="droplet-meta">
+                        {{ r.region|upper }} ·
+                        {{ r.vcpus }}vCPU/{{ r.memory }}MB ·
+                        {{ r.monthly_cost_str }} ·
+                        <time datetime="{{ r.created_at }}">{{ r.created_at|slice:":10" }}</time>
+                    </div>
+                </td>
                 <td class="droplet-ip">
                     {% if r.ip %}
                         <code>{{ r.ip }}</code>
@@ -33,35 +42,29 @@ render inside a hx-swap="innerHTML" target without wrapping markup.
                                 data-copy="{{ r.ip }}" aria-label="Copy IP">Copy</button>
                     {% else %}—{% endif %}
                 </td>
-                <td>
+                <td class="droplet-linked">
                     {% if r.website %}
                         <a href="{% url 'admin_dashboard:website_detail' r.website.id %}">{{ r.website.name }}</a>
-                        <div class="droplet-muted" style="font-size:0.75rem;">
-                            {{ r.website.account.name }}
-                        </div>
+                        <div class="droplet-muted">{{ r.website.account.name }}</div>
                     {% elif r.client %}
+                        {% comment %}
+                            Legacy-only match — show with a small
+                            "legacy" caption so the divide is visible.
+                            Suppressed when a website match already
+                            rendered above (would be the same firm).
+                        {% endcomment %}
                         <a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a>
-                        <div class="droplet-muted" style="font-size:0.7rem;">legacy link</div>
+                        <div class="droplet-muted">legacy link</div>
                     {% else %}
                         <span class="droplet-muted">— unlinked —</span>
                         <button type="button"
                                 class="btn-secondary btn-sm droplet-link-btn"
                                 data-droplet-id="{{ r.id }}"
                                 data-droplet-name="{{ r.name }}"
-                                data-droplet-ip="{{ r.ip }}"
-                                style="margin-top:4px; display:block;">
+                                data-droplet-ip="{{ r.ip }}">
                             Link to Website
                         </button>
                     {% endif %}
-                </td>
-                <td>{{ r.region|upper }}</td>
-                <td>{{ r.vcpus }} vCPU · {{ r.memory }}MB</td>
-                <td>{{ r.monthly_cost_str }}</td>
-                <td>
-                    <time datetime="{{ r.created_at }}">{{ r.created_at|slice:":10" }}</time>
-                </td>
-                <td class="droplet-tags">
-                    {% for tag in r.tags %}<span class="droplet-tag">{{ tag }}</span>{% endfor %}
                 </td>
                 <td class="droplet-table__actions">
                     {% if r.status == 'active' %}
@@ -69,13 +72,13 @@ render inside a hx-swap="innerHTML" target without wrapping markup.
                         <form method="post" action="{% url 'admin_dashboard:droplet_power' r.id %}" class="droplet-inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="off">
-                            <button type="submit" class="btn-secondary btn-sm droplet-btn-off">Power Off</button>
+                            <button type="submit" class="btn-secondary btn-sm droplet-btn-off">Off</button>
                         </form>
                     {% else %}
                         <form method="post" action="{% url 'admin_dashboard:droplet_power' r.id %}" class="droplet-inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="on">
-                            <button type="submit" class="btn-secondary btn-sm droplet-btn-on">Power On</button>
+                            <button type="submit" class="btn-secondary btn-sm droplet-btn-on">On</button>
                         </form>
                     {% endif %}
 
