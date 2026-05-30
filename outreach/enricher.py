@@ -478,13 +478,15 @@ def _web_search_fallback(lead, log_lines):
             domain = _domain_of(url)
             if not domain:
                 continue
-            if domain in DIRECTORY_DOMAINS:
-                # Capture the social profile in passing.
-                if domain == 'facebook.com' and not lead.facebook_url:
+            if _is_directory_domain(domain):
+                # Capture the social profile in passing — match on
+                # base domain so e.g. m.facebook.com still counts.
+                base = _base_domain(domain)
+                if base == 'facebook.com' and not lead.facebook_url:
                     lead.facebook_url = url
-                elif domain == 'instagram.com' and not lead.instagram_url:
+                elif base == 'instagram.com' and not lead.instagram_url:
                     lead.instagram_url = url
-                elif domain == 'linkedin.com' and not lead.linkedin_url:
+                elif base == 'linkedin.com' and not lead.linkedin_url:
                     lead.linkedin_url = url
                 continue
             # First non-directory hit becomes the website.
@@ -501,7 +503,7 @@ def _web_search_fallback(lead, log_lines):
         queries_made += 1
         log_lines.append(f'  Q2 "{q2}" → {len(results)} hits')
         for url in results:
-            if (_domain_of(url) == 'facebook.com'
+            if (_base_domain(_domain_of(url)) == 'facebook.com'
                     and '/sharer' not in url
                     and '/plugins' not in url):
                 lead.facebook_url = url
@@ -516,7 +518,7 @@ def _web_search_fallback(lead, log_lines):
         queries_made += 1
         log_lines.append(f'  Q3 "{q3}" → {len(results)} hits')
         for url in results:
-            if _domain_of(url) == 'instagram.com':
+            if _base_domain(_domain_of(url)) == 'instagram.com':
                 lead.instagram_url = url
                 break
 
@@ -583,7 +585,10 @@ def _brave_search(query, api_key, count=10):
 
 
 def _domain_of(url):
-    """Bare domain of a URL ('www.facebook.com' → 'facebook.com')."""
+    """Bare domain of a URL ('www.facebook.com' → 'facebook.com').
+    Keeps non-www subdomains intact ('doctor.webmd.com' stays that way)
+    so callers can decide whether to collapse to the registered domain
+    via ``_base_domain``."""
     try:
         host = urlparse(url).hostname or ''
         host = host.lower()
@@ -592,3 +597,36 @@ def _domain_of(url):
         return host
     except Exception:
         return ''
+
+
+def _base_domain(domain):
+    """Strip ALL subdomains to the (rough) registered domain.
+
+    Cheap heuristic: drop everything before the last two dot-separated
+    pieces. Works for ``doctor.webmd.com → webmd.com``,
+    ``m.facebook.com → facebook.com``, ``api.search.brave.com →
+    brave.com``. Wrong for .co.uk / .com.au and similar two-piece
+    public suffixes — but we only use this for the small
+    DIRECTORY_DOMAINS allow-list which is all .com / .org, so the
+    edge case never bites in practice. ``tldextract`` would do it
+    perfectly but it's another dep for one helper.
+    """
+    if not domain:
+        return ''
+    parts = domain.split('.')
+    if len(parts) <= 2:
+        return domain
+    return '.'.join(parts[-2:])
+
+
+def _is_directory_domain(domain):
+    """True when the host is a known directory / aggregator (yelp,
+    healthgrades, webmd, avvo, …) we'd never want to pick as the
+    firm's 'website'. Matches both the exact domain AND any
+    subdomain of one — ``doctor.webmd.com`` resolves to True even
+    though only ``webmd.com`` is in DIRECTORY_DOMAINS."""
+    if not domain:
+        return False
+    if domain in DIRECTORY_DOMAINS:
+        return True
+    return _base_domain(domain) in DIRECTORY_DOMAINS
