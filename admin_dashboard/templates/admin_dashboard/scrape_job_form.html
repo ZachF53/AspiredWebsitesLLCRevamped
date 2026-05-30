@@ -1,0 +1,51 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if job %}Edit {{ job.name }}{% else %}New scrape job{% endif %} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">
+                {% if job %}Edit "{{ job.name }}"{% else %}New scrape job{% endif %}
+            </h1>
+            <p class="admin-page-sub">
+                Active jobs run daily at 02:00. Pause without deleting if you want a break.
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'admin_dashboard:scrape_jobs' %}" class="btn-secondary btn-sm">← Back</a>
+        </div>
+    </div>
+
+    <section class="admin-card">
+        <div class="admin-card__body">
+            <form method="post" class="scrape-job-form">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="form-row">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <p class="muted form-help">{{ field.help_text }}</p>
+                        {% endif %}
+                        {% if field.errors %}
+                            <p class="text-danger">{{ field.errors|join:", " }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">
+                        {% if job %}Save changes{% else %}Create job{% endif %}
+                    </button>
+                    <a href="{% url 'admin_dashboard:scrape_jobs' %}" class="btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

@@ -75,8 +75,8 @@
                             <a href="{% url 'admin_dashboard:lead_detail' email.lead.pk %}">{{ email.lead.email|default:"(no email)" }}</a>
                             · score {{ email.lead.score }}
                             · queued {{ email.created_at|date:"M j H:i" }}
-                            {% if email._gating_reason %}
-                                <br><span class="approval-card__reason">{{ email._gating_reason }}</span>
+                            {% if email.gating_reason %}
+                                <br><span class="approval-card__reason">{{ email.gating_reason }}</span>
                             {% endif %}
                         </p>
                     </div>

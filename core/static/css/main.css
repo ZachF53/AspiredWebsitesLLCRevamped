@@ -14372,3 +14372,65 @@ button.htmx-request {
     gap: 0.5rem;
     justify-content: flex-end;
 }
+
+
+/* ── Scrape jobs ────────────────────────────────────────────────────── */
+.status-pill--success {
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+.status-pill--muted {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
+}
+.scrape-job-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.scrape-job-actions > * {
+    margin: 0;
+}
+.scrape-job-form .form-row {
+    margin-bottom: 1rem;
+}
+.scrape-job-form label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.4rem;
+}
+.scrape-job-form input[type="text"],
+.scrape-job-form input[type="number"],
+.scrape-job-form select {
+    width: 100%;
+    max-width: 480px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+.scrape-job-form input:focus,
+.scrape-job-form select:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    background: rgba(0, 0, 0, 0.3);
+}
+.scrape-job-form .form-help {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+}
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}

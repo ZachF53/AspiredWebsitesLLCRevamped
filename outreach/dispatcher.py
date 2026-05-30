@@ -24,9 +24,10 @@ import uuid
 
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.db.models import F
 from django.utils import timezone
 
-from outreach.models import EmailSent, Lead, SuppressionList
+from outreach.models import EmailSent, Lead, OutreachSettings, SuppressionList
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,15 @@ def dispatch_approved_batch():
         # away — last_contacted_at is what the "stale leads" filters
         # use, sequence_step was already advanced at generation time.
         Lead.objects.filter(pk=email.lead.pk).update(last_contacted_at=now)
+
+        # Atomic counter bump so two concurrent drainer ticks can't
+        # race. The midnight reset task zeroes this; the cap math in
+        # outreach.sender reads EmailSent rows directly so the field
+        # is purely informational, but inaccurate informational fields
+        # erode trust in the dashboard — keep it honest.
+        OutreachSettings.objects.filter(pk=1).update(
+            emails_sent_today=F('emails_sent_today') + 1)
+
         counts['sent'] += 1
 
     return counts

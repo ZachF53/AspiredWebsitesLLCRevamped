@@ -300,6 +300,17 @@ class EmailReply(models.Model):
 
     ai_suggested_reply = models.TextField(blank=True)
 
+    # RFC 5322 Message-ID of the inbound mail itself — used by
+    # ``outreach.reply_ingest`` to guarantee idempotency across IMAP
+    # poll runs. ``null=True`` because some old EmailReply rows
+    # pre-date this column; ``unique=True`` is safe because NULL
+    # values don't collide in unique indexes on either SQLite or
+    # Postgres.
+    inbound_message_id = models.CharField(
+        max_length=255, null=True, blank=True,
+        unique=True, db_index=True,
+    )
+
     class Meta:
         ordering = ['-received_at']
 

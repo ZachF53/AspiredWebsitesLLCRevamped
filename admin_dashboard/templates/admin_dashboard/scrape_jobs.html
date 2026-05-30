@@ -1,0 +1,113 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Scrape Jobs — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Scrape Jobs</h1>
+            <p class="admin-page-sub">
+                {{ active_count }} active · {{ total }} total ·
+                runs daily at 02:00 server time
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'admin_dashboard:scrape_job_new' %}" class="btn-primary btn-sm">+ New scrape job</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for message in messages %}
+                <div class="admin-message admin-message--{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if not jobs %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:2rem 0;">
+                    No scrape jobs yet. Create one with the button above — every active job runs daily at 02:00 and feeds discovered leads to enrichment automatically.
+                </p>
+                <p class="muted" style="text-align:center;">
+                    Or run an ad-hoc scrape now from <a href="{% url 'admin_dashboard:scrape' %}">Scrape (one-off)</a>.
+                </p>
+            </div>
+        </section>
+    {% else %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <table class="lead-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Source</th>
+                            <th>Query</th>
+                            <th>Max</th>
+                            <th>Status</th>
+                            <th>Last run</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in jobs %}
+                            <tr>
+                                <td><strong>{{ job.name }}</strong></td>
+                                <td>{{ job.get_source_display }}</td>
+                                <td>
+                                    <code>{{ job.niche }}</code>
+                                    <span class="muted">· {{ job.city }}, {{ job.state }}</span>
+                                </td>
+                                <td>{{ job.max_results }}</td>
+                                <td>
+                                    {% if job.active %}
+                                        <span class="status-pill status-pill--success">Active</span>
+                                    {% else %}
+                                        <span class="status-pill status-pill--muted">Paused</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if job.last_run_at %}
+                                        {{ job.last_run_at|date:"M j H:i" }}
+                                        <br>
+                                        <span class="muted">
+                                            +{{ job.last_run_imported }} / −{{ job.last_run_skipped }}
+                                            {% if job.last_run_error %}<span class="text-danger">· error</span>{% endif %}
+                                        </span>
+                                    {% else %}
+                                        <span class="muted">never</span>
+                                    {% endif %}
+                                </td>
+                                <td class="scrape-job-actions">
+                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_run_now' job.pk %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-secondary btn-sm"
+                                                title="Run this job now without waiting for 02:00">Run now</button>
+                                    </form>
+                                    <a href="{% url 'admin_dashboard:scrape_job_edit' job.pk %}" class="btn-secondary btn-sm">Edit</a>
+                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_toggle_active' job.pk %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-secondary btn-sm">
+                                            {% if job.active %}Pause{% else %}Activate{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'admin_dashboard:scrape_job_delete' job.pk %}" style="display:inline;"
+                                          onsubmit="return confirm('Delete {{ job.name|escapejs }}? Leads it already imported stay.');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-secondary btn-sm">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}

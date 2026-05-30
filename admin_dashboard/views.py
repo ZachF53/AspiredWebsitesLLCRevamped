@@ -26,6 +26,7 @@ from outreach.models import (
     Lead,
     LeadNote,
     OutreachSettings,
+    ScrapeJob,
     SuppressionList,
 )
 from outreach.pipeline import import_leads
@@ -44,6 +45,7 @@ from .forms import (
     LeadAddForm,
     LeadNoteForm,
     ScrapeForm,
+    ScrapeJobForm,
     ServiceTierForm,
 )
 
@@ -7963,9 +7965,11 @@ def outreach_approvals(request):
     )
     pending = list(qs)
     # Annotate each row with the policy reason — the gating helper is
-    # the source of truth, not duplicated here.
+    # the source of truth, not duplicated here. The attribute name
+    # MUST NOT start with an underscore: Django's template engine
+    # silently refuses to render those (security guard).
     for e in pending:
-        e._gating_reason = _explain(
+        e.gating_reason = _explain(
             e.kind,
             classification=getattr(e.in_reply_to, 'classification', None),
             needs_human=getattr(e.in_reply_to, 'needs_human', False),
@@ -8046,6 +8050,131 @@ def outreach_approval_reject(request, pk):
         f'{email.sequence_step - 1}. The sender will not regenerate '
         f'this step unless you manually queue a retry.')
     return redirect('admin_dashboard:outreach_approvals')
+
+
+@admin_required
+def scrape_jobs_list(request):
+    """
+    List every standing ScrapeJob. Active jobs run daily at 02:00 via
+    ``outreach.tasks.run_scrape_jobs_task`` — toggling ``active`` here
+    pauses without deleting (history of last_run_imported is kept).
+    """
+    jobs = ScrapeJob.objects.all()
+    return render(request, 'admin_dashboard/scrape_jobs.html',
+                  _admin_context(
+                      active='scrape',
+                      jobs=jobs,
+                      total=jobs.count(),
+                      active_count=jobs.filter(active=True).count(),
+                  ))
+
+
+@admin_required
+def scrape_job_form(request, pk=None):
+    """Create or edit a ScrapeJob — same template, same view."""
+    job = get_object_or_404(ScrapeJob, pk=pk) if pk else None
+    form = ScrapeJobForm(request.POST or None, instance=job)
+    if request.method == 'POST' and form.is_valid():
+        saved = form.save()
+        from django.contrib import messages as _msg
+        _msg.success(
+            request,
+            f'{"Updated" if job else "Created"} scrape job '
+            f'"{saved.name}". Next run: tomorrow 02:00 server time.')
+        return redirect('admin_dashboard:scrape_jobs')
+    return render(request, 'admin_dashboard/scrape_job_form.html',
+                  _admin_context(
+                      active='scrape', form=form, job=job,
+                  ))
+
+
+@admin_required
+@require_POST
+def scrape_job_delete(request, pk):
+    job = get_object_or_404(ScrapeJob, pk=pk)
+    name = job.name
+    job.delete()
+    from django.contrib import messages as _msg
+    _msg.info(
+        request,
+        f'Deleted scrape job "{name}". Leads it imported in the past stay.')
+    return redirect('admin_dashboard:scrape_jobs')
+
+
+@admin_required
+@require_POST
+def scrape_job_toggle_active(request, pk):
+    """HTMX-style POST — flip the active flag without leaving the list."""
+    job = get_object_or_404(ScrapeJob, pk=pk)
+    job.active = not job.active
+    job.save(update_fields=['active', 'updated_at'])
+    return redirect('admin_dashboard:scrape_jobs')
+
+
+@admin_required
+@require_POST
+def scrape_job_run_now(request, pk):
+    """
+    Fire one ScrapeJob immediately, off the beat schedule. Uses the
+    same code path the beat task takes, but synchronously so the
+    operator gets a result on the redirect.
+    """
+    job = get_object_or_404(ScrapeJob, pk=pk)
+    from outreach.pipeline import import_leads
+    from outreach.scraper import (
+        scrape_georgia_bar_sync,
+        scrape_google_maps_sync,
+        scrape_texas_bar_sync,
+    )
+
+    err = ''
+    imported = skipped = 0
+    try:
+        if job.source == 'google_maps':
+            state_full = 'Texas' if job.state == 'TX' else 'Georgia'
+            raw, _ = scrape_google_maps_sync(
+                job.niche, job.city, state_full, job.max_results)
+            summary = import_leads(
+                raw, source='google_maps',
+                business_type_override=job.niche.title())
+        elif job.source == 'texas_bar':
+            raw = scrape_texas_bar_sync(
+                city=job.city, practice_area=job.niche,
+                max_results=job.max_results)
+            summary = import_leads(
+                raw, source='state_bar',
+                business_type_override=job.niche.title())
+        else:
+            raw = scrape_georgia_bar_sync(
+                city=job.city, practice_area=job.niche,
+                max_results=job.max_results)
+            summary = import_leads(
+                raw, source='state_bar',
+                business_type_override=job.niche.title())
+        imported = summary.get('imported', 0)
+        skipped = summary.get('duplicates', 0)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('manual scrape job %s crashed', job.pk)
+        err = str(exc)[:500]
+
+    job.last_run_at = timezone.now()
+    job.last_run_imported = imported
+    job.last_run_skipped = skipped
+    job.last_run_error = err
+    job.save(update_fields=[
+        'last_run_at', 'last_run_imported',
+        'last_run_skipped', 'last_run_error', 'updated_at'])
+
+    from django.contrib import messages as _msg
+    if err:
+        _msg.error(request, f'{job.name} failed: {err}')
+    else:
+        _msg.success(
+            request,
+            f'{job.name} — imported {imported} new lead'
+            f'{"s" if imported != 1 else ""}, skipped {skipped} duplicate'
+            f'{"s" if skipped != 1 else ""}.')
+    return redirect('admin_dashboard:scrape_jobs')
 
 
 @admin_required

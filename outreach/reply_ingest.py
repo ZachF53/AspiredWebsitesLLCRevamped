@@ -140,13 +140,14 @@ def _process_message(msg):
             'reply ingest: no match for from=%s subject=%s', sender, subject)
         return 'unmatched'
 
-    # Idempotency: don't write the same reply twice. We key on the
-    # Message-ID of the inbound mail (every replier client sets one).
-    inbound_msg_id = (msg.get('Message-ID') or '').strip()
+    # Idempotency on the inbound Message-ID. Normalise to <bare@host>
+    # form so headers folded by Gmail vs Outlook compare equal.
+    inbound_msg_id = _normalize_message_id(msg.get('Message-ID', ''))
     if inbound_msg_id and EmailReply.objects.filter(
-            body__icontains=inbound_msg_id[1:30]).exists():
-        # Cheap-and-fuzzy guard — the message_id substring rarely
-        # collides; sufficient until we add a dedicated column.
+            inbound_message_id=inbound_msg_id).exists():
+        # We already ingested this message on a previous poll. Treat as
+        # the right counter bucket so the log reflects what would have
+        # happened, then exit without writing.
         return 'matched' if email_sent else 'orphan_lead'
 
     reply = EmailReply.objects.create(
@@ -154,6 +155,7 @@ def _process_message(msg):
         email_sent=email_sent,
         subject=subject[:255],
         body=body[:50000],
+        inbound_message_id=inbound_msg_id or None,
     )
 
     # Mirror engagement onto the EmailSent + pause the lead's sequence.
@@ -214,6 +216,24 @@ def _addr(from_header):
     if m:
         return m.group(1).strip()
     return from_header.strip()
+
+
+def _normalize_message_id(raw):
+    """
+    Canonical <id@host> form, whitespace-stripped. Returns '' for
+    missing/blank headers. Some mailers wrap with spaces, some omit
+    angle brackets — normalise so equality comparisons work.
+    """
+    if not raw:
+        return ''
+    s = raw.strip()
+    if not s:
+        return ''
+    if not s.startswith('<'):
+        s = f'<{s}'
+    if not s.endswith('>'):
+        s = f'{s}>'
+    return s[:255]
 
 
 def _extract_body(msg):

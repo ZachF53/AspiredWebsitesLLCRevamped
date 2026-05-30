@@ -4,7 +4,7 @@ from django import forms
 
 from billing.pricing_models import ServiceTier
 from clients.models import ClientProfile, SiteChangelogEntry
-from outreach.models import Lead, LeadNote
+from outreach.models import Lead, LeadNote, ScrapeJob
 from reporting.models import ClientChatbot, TrackedKeyword
 
 from .models import DeploymentLog
@@ -70,6 +70,39 @@ class ScrapeForm(forms.Form):
         initial='20',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
+
+
+class ScrapeJobForm(forms.ModelForm):
+    """Create/edit a standing scrape recipe — runs daily at 02:00."""
+
+    class Meta:
+        model = ScrapeJob
+        fields = ['name', 'source', 'niche', 'city', 'state',
+                  'max_results', 'active']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'San Antonio personal injury — daily',
+                'autofocus': True,
+            }),
+            'source': forms.Select(attrs={'class': 'form-control'}),
+            'niche': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'personal injury lawyer',
+                'autocomplete': 'off',
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'San Antonio',
+            }),
+            'state': forms.Select(
+                choices=[('TX', 'Texas'), ('GA', 'Georgia')],
+                attrs={'class': 'form-control'},
+            ),
+            'max_results': forms.NumberInput(attrs={
+                'class': 'form-control', 'min': 1, 'max': 100,
+            }),
+        }
 
 
 class LeadAddForm(forms.ModelForm):
