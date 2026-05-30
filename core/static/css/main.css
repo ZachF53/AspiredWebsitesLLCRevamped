@@ -13989,11 +13989,18 @@ button.htmx-request {
 .lead-debug__kv dd {
     margin: 0;
     color: var(--color-text);
+    /* Break long URLs / unspaced tokens anywhere rather than letting
+       them overflow the column. */
+    overflow-wrap: anywhere;
     word-break: break-word;
 }
 
 .lead-debug__rules {
     width: 100%;
+    /* Fixed layout so the column widths we set below stick. Without
+       this, a long <code> URL stretches its column and squeezes the
+       Points column off the right edge — that's the bug we're fixing. */
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.82rem;
 }
@@ -14012,13 +14019,30 @@ button.htmx-request {
     border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
     vertical-align: top;
     color: var(--color-text);
+    /* Same break-anywhere behaviour so URL/code values inside cells
+       wrap rather than punch out the column. */
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 .lead-debug__rules tr:last-child td { border-bottom: 0; }
+/* Reserve fixed widths for the first (Signal) and last (Points)
+   columns; the middle "What the scraper saw" column gets whatever's
+   left and shrinks/wraps its <code> contents. */
+.lead-debug__rules th:first-child,
+.lead-debug__rules td:first-child { width: 38%; }
+.lead-debug__rules th.lead-debug__pts,
+.lead-debug__rules td.lead-debug__pts { width: 72px; }
 .lead-debug__rules code {
     background: rgba(255, 255, 255, 0.04);
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 0.78rem;
+    /* The single most important rule on this page — long URLs must
+       break inside the column instead of forcing the table wider. */
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    display: inline-block;
+    max-width: 100%;
 }
 .lead-debug__row--miss td { opacity: 0.55; }
 .lead-debug__pts { text-align: right; white-space: nowrap; }
