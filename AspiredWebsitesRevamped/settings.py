@@ -559,6 +559,16 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'billing.tasks.reconcile_domains_task',
         'schedule': crontab(hour=4, minute=30),           # daily 4:30am
     },
+    # DMARC aggregate-report ingest — pulls reports from the configured
+    # IMAP mailbox and ingests every XML attachment found. Opt-in via
+    # DMARC_IMAP_* env vars; the underlying command is a no-op when the
+    # mailbox creds aren't set, so this is safe on every environment.
+    # 06:00 catches the previous day's reports — Google/Yahoo/Microsoft
+    # ship them between 03:00 and 05:00 UTC daily.
+    'ingest-dmarc-imap': {
+        'task': 'reporting.tasks.ingest_dmarc_imap_task',
+        'schedule': crontab(hour=6, minute=0),            # daily 6am
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

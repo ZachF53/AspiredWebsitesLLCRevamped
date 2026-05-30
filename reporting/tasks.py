@@ -811,3 +811,29 @@ def recording_storage_report():
             logger.exception(
                 'storage-report email failed for %s', client.pk)
     return f'Sent {warnings} storage warning(s).'
+
+
+# ── DMARC aggregate-report ingest ──────────────────────────────────────────
+
+@shared_task
+def ingest_dmarc_imap_task():
+    """
+    Daily. Polls the configured IMAP mailbox for DMARC aggregate reports
+    and ingests every attachment found. Opt-in via DMARC_IMAP_* env vars;
+    the command no-ops cleanly when they're not set, so this task is
+    safe to schedule on every environment.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    buf = StringIO()
+    try:
+        call_command('ingest_dmarc_imap', stdout=buf, stderr=buf)
+    except Exception:  # noqa: BLE001
+        logger.exception('ingest_dmarc_imap task failed')
+        return 'failed'
+    output = buf.getvalue().strip()
+    # One-line summary line is plenty for the Celery log.
+    last = output.splitlines()[-1] if output else ''
+    return last or 'ok'
