@@ -776,12 +776,27 @@ TOP ACTIONABLE OPPORTUNITIES:
 
 Write the review now."""
 
+    model = 'claude-haiku-4-5-20251001'
     client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     message = client.messages.create(
-        model='claude-haiku-4-5-20251001',
+        model=model,
         max_tokens=900,
         messages=[{'role': 'user', 'content': prompt}],
     )
+    # Token accounting → admin dashboard AI Usage widget.
+    # Best-effort: a DB hiccup must not break the audit review.
+    try:
+        from reporting.models import ClaudeUsage
+        u = getattr(message, 'usage', None)
+        if u is not None:
+            ClaudeUsage.record(
+                model=model,
+                input_tokens=getattr(u, 'input_tokens', 0),
+                output_tokens=getattr(u, 'output_tokens', 0))
+    except Exception:
+        # No logger imported in this module; fail silent rather
+        # than crash an unrelated logger setup.
+        pass
     return message.content[0].text.strip()
 
 

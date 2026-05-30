@@ -1253,6 +1253,17 @@ def ops_chat(request, cred_id):
             (getattr(usage, 'input_tokens', 0) or 0) +
             (getattr(usage, 'output_tokens', 0) or 0)
         ) if usage else 0
+        # Token accounting → admin dashboard AI Usage widget.
+        # Best-effort: a DB hiccup must not break the ops chat.
+        if usage is not None:
+            try:
+                from reporting.models import ClaudeUsage
+                ClaudeUsage.record(
+                    model=OPS_AGENT_MODEL,
+                    input_tokens=getattr(usage, 'input_tokens', 0),
+                    output_tokens=getattr(usage, 'output_tokens', 0))
+            except Exception:
+                logger.exception('ClaudeUsage.record failed in ops chat')
     except Exception as exc:  # noqa: BLE001 — surface every API failure uniformly
         logger.exception('Ops chat — Claude API call failed')
         return JsonResponse({
