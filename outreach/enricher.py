@@ -217,12 +217,51 @@ def enrich_lead(lead):
             logger.exception('enrich_lead Brave search failed for %s',
                              lead.pk)
 
+    # Re-score now that enrichment has filled in PageSpeed, SSL,
+    # socials, generic-email + copyright-year signals. The initial
+    # score set at import-time only saw what the scraper returned
+    # (firm name + Google rating + website URL) — re-running scoring
+    # here is what makes "5 — warm" become "8 — hot" once PageSpeed
+    # shows the site is dog-slow.
+    old_score = lead.score
+    new_score, new_temp = _rescore_from_model(lead)
+    if new_score != old_score:
+        log_lines.append(
+            f'  score: {old_score} → {new_score} '
+            f'({lead.temperature} → {new_temp})')
+    lead.score = new_score
+    lead.temperature = new_temp
+
     lead.enrichment_completed_at = timezone.now()
     log_lines.append(
         f'[{timezone.now():%Y-%m-%d %H:%M:%S}] enrichment completed')
     lead.enrichment_log = '\n'.join(log_lines)
     lead.save()  # full save — every enrichment path may have touched any field
     return lead
+
+
+def _rescore_from_model(lead):
+    """
+    Recompute (score, temperature) from a Lead model instance.
+
+    ``score_lead`` was written to take the scraper dict shape, so this
+    shim copies the relevant fields off the model into a dict and
+    delegates. Keep the field list in sync with score_lead's reads.
+    """
+    from outreach.scoring import score_lead
+
+    return score_lead({
+        'website_performance_score': lead.website_performance_score,
+        'website':                   lead.website,
+        'has_google_business':       lead.has_google_business,
+        'google_review_count':       lead.google_review_count,
+        'facebook_url':              lead.facebook_url,
+        'instagram_url':             lead.instagram_url,
+        'linkedin_url':              lead.linkedin_url,
+        'has_ssl':                   lead.has_ssl,
+        'has_generic_email':         lead.has_generic_email,
+        'copyright_year':            lead.copyright_year,
+    })
 
 
 # ── Pass 1: homepage scrape ────────────────────────────────────────────────
