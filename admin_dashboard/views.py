@@ -241,6 +241,9 @@ def leads_table(request):
     source_filter = request.GET.get('source') or ''
 
     created_filter = request.GET.get('created') or ''
+    # 'no_email' triage chip — surfaces leads the sender will never
+    # touch until someone finds an address for them.
+    contact_filter = request.GET.get('contact') or ''
 
     if status_filter:
         qs = qs.filter(status=status_filter)
@@ -254,6 +257,12 @@ def leads_table(request):
         qs = qs.filter(source=source_filter)
     if created_filter == 'today':
         qs = qs.filter(created_at__date=timezone.localdate())
+    if contact_filter == 'no_email':
+        qs = qs.filter(email='')
+    elif contact_filter == 'no_email_no_phone':
+        qs = qs.filter(email='', phone='')
+    elif contact_filter == 'has_email':
+        qs = qs.exclude(email='')
 
     # Sort
     sort_key = request.GET.get('sort') or DEFAULT_SORT
@@ -280,9 +289,17 @@ def leads_table(request):
     )
 
     # Build a "current filters as querystring" string for pagination links
-    keep = ['q', 'status', 'temperature', 'state', 'practice_area', 'source', 'sort', 'created']
+    keep = ['q', 'status', 'temperature', 'state', 'practice_area',
+            'source', 'sort', 'created', 'contact']
     qs_parts = [f'{k}={request.GET.get(k)}' for k in keep if request.GET.get(k)]
     filter_qs = ('&' + '&'.join(qs_parts)) if qs_parts else ''
+
+    # Counts for the contact chips — single aggregate scan, surfaces
+    # the size of the 'needs an email' bucket above the table so the
+    # operator can triage without guessing.
+    all_leads_count = Lead.objects.count()
+    no_email_count = Lead.objects.filter(email='').count()
+    has_email_count = all_leads_count - no_email_count
 
     # Brave Search usage banner — shows this month's query count
     # against the free-tier quota so the admin sees how close they
@@ -310,6 +327,9 @@ def leads_table(request):
         practice_filter=practice_filter,
         source_filter=source_filter,
         created_filter=created_filter,
+        contact_filter=contact_filter,
+        no_email_count=no_email_count,
+        has_email_count=has_email_count,
         sort_key=sort_key,
         status_choices=Lead.STATUS_CHOICES,
         temperature_choices=Lead.TEMPERATURE_CHOICES,

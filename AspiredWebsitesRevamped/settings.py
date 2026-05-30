@@ -286,6 +286,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Per CLAUDE.md: all transactional + outreach mail goes through SendGrid.
 SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
 
+# SendGrid Event Webhook (opens/clicks/bounces) — ECDSA P-256 public
+# key from Settings → Mail Settings → Event Webhook → Signature
+# Verification. The /sendgrid/events/ endpoint rejects ALL POSTs when
+# this is empty, so the webhook stays locked down by default.
+SENDGRID_WEBHOOK_PUBLIC_KEY = env('SENDGRID_WEBHOOK_PUBLIC_KEY', '')
+
 # Stripe Price ID for the annual hosting subscription. Bootstrap with
 # `python manage.py sync_stripe_subscription_products` — it'll print
 # the ID to paste here.
@@ -437,10 +443,20 @@ REDIS_URL = env('REDIS_URL', 'redis://localhost:6379/0')
 # Redis-backed cache — shared across every Gunicorn worker, so django-ratelimit
 # enforces ONE global limit on /api/track/. A per-process LocMemCache would
 # multiply the intended limit by the worker count.
+#
+# Connection-pool cap (max_connections=20) per Gunicorn worker keeps the
+# total cache-side connection count to (#workers * 20). Without it, a
+# burst of cache reads can open dozens of new connections and push the
+# managed Redis past its tier limit. See
+# memory/feedback_always_collectstatic_on_deploy is unrelated;
+# DigitalOcean managed Redis basic tier maxes at 65 clients.
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CONNECTION_POOL_KWARGS': {'max_connections': 20},
+        },
     }
 }
 
@@ -450,6 +466,12 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+# Defensive caps so a flood of tasks can't open unbounded Redis
+# connections. Each Celery worker process honours these independently;
+# the broker pool is what the worker uses to send heartbeats + fetch
+# tasks, redis_max_connections is the result-backend pool.
+CELERY_BROKER_POOL_LIMIT = 10
+CELERY_REDIS_MAX_CONNECTIONS = 20
 
 # ── Celery beat schedule ────────────────────────────────────────────────────
 from celery.schedules import crontab  # noqa: E402

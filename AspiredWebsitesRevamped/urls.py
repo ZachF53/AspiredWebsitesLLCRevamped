@@ -9,10 +9,15 @@ from clients.views import (
     intelligence_approve, intelligence_decline, onboarding_setup,
     proposal_view_tracking, referral_click,
 )
+from outreach.sendgrid_webhook import receive as sendgrid_events
 from reporting.views import nps_response
 
 urlpatterns = [
     path('nps/<uuid:token>/<int:score>/', nps_response, name='nps_response'),
+    # SendGrid Event Webhook — opens/clicks/bounces/spam reports.
+    # Public endpoint, locked by ECDSA signature verification against
+    # SENDGRID_WEBHOOK_PUBLIC_KEY (rejects ALL POSTs when unset).
+    path('sendgrid/events/', sendgrid_events, name='sendgrid_events'),
     path('admin/', admin.site.urls),
     path('admin-dashboard/vault/', include('vault.urls')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),

@@ -122,7 +122,28 @@ def _send_one(email, message_id):
 
     We bypass ``django.core.mail.send_mail`` so we can control the
     Message-ID header — that's what inbound reply threading needs.
+
+    SendGrid event-webhook tracking: the X-SMTPAPI header carries
+    SendGrid's custom_args + filters. We pass ``email_sent_id`` so
+    inbound /sendgrid/events/ pings can match opens/clicks back to
+    the right row WITHOUT relying on Message-ID parsing — and we
+    explicitly enable open + click trackers (SendGrid lets a single
+    send override the account default either way).
     """
+    import json as _json
+
+    sg_payload = {
+        'unique_args': {
+            'email_sent_id': str(email.pk),
+            'kind': email.kind,
+            'lead_id': str(email.lead_id),
+        },
+        'filters': {
+            'opentrack':  {'settings': {'enable': 1}},
+            'clicktrack': {'settings': {'enable': 1}},
+        },
+    }
+
     msg = EmailMessage(
         subject=email.subject,
         body=email.body,
@@ -134,6 +155,7 @@ def _send_one(email, message_id):
             'Message-ID': message_id,
             'X-Outreach-Step': str(email.sequence_step),
             'X-Outreach-Kind': email.kind,
+            'X-SMTPAPI': _json.dumps(sg_payload),
         },
     )
     # If this is a reply to an inbound message, add the threading

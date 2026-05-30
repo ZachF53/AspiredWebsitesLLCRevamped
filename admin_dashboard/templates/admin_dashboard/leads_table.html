@@ -49,7 +49,27 @@
         </div>
     </div>
 
+    {% comment %}
+        Contact-triage chip row — surfaces the bucket of leads the
+        sender can't touch. Each chip is a plain link that toggles
+        ?contact=... so it composes cleanly with the other filter
+        form state already in the querystring.
+    {% endcomment %}
+    <div class="contact-chips">
+        <a href="?" class="contact-chip {% if not contact_filter %}contact-chip--active{% endif %}">
+            All leads
+        </a>
+        <a href="?contact=has_email" class="contact-chip contact-chip--ok {% if contact_filter == 'has_email' %}contact-chip--active{% endif %}">
+            Has email · {{ has_email_count }}
+        </a>
+        <a href="?contact=no_email" class="contact-chip contact-chip--warn {% if contact_filter == 'no_email' %}contact-chip--active{% endif %}">
+            Needs email · {{ no_email_count }}
+        </a>
+    </div>
+
     <form class="lead-filter-bar" method="get" action="">
+        {# Preserve the contact-triage selection across an Apply click #}
+        {% if contact_filter %}<input type="hidden" name="contact" value="{{ contact_filter }}">{% endif %}
         <input type="search" name="q" value="{{ q }}"
                placeholder="Search firm, attorney, city, email, phone…"
                class="form-control lead-filter-bar__search">
@@ -101,7 +121,7 @@
 
         <button type="submit" class="btn-primary">Apply</button>
 
-        {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter %}
+        {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter or contact_filter %}
             <a href="{% url 'admin_dashboard:leads_table' %}" class="lead-filter-bar__clear">Clear</a>
         {% endif %}
     </form>
@@ -158,6 +178,18 @@
                                 <td><span class="muted">{{ lead.get_source_display }}</span></td>
                                 <td class="lead-table__col-actions">
                                     <a href="{% url 'admin_dashboard:lead_detail' lead.pk %}" class="btn-secondary btn-sm">View</a>
+                                    {% if contact_filter == 'no_email' %}
+                                        {# Quick research links when triaging the no-email bucket. #}
+                                        {% if lead.website %}
+                                            <a href="{{ lead.website }}" target="_blank" rel="noopener"
+                                               class="btn-secondary btn-xs" title="Open their website in a new tab">Site ↗</a>
+                                        {% endif %}
+                                        <a href="https://www.google.com/search?q={{ lead.firm_name|urlencode }}+contact+email"
+                                           target="_blank" rel="noopener"
+                                           class="btn-secondary btn-xs" title="Google search for their email">Find ↗</a>
+                                        <a href="{% url 'admin_dashboard:lead_edit' lead.pk %}"
+                                           class="btn-secondary btn-xs" title="Paste the email you found">Edit</a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}
@@ -189,7 +221,7 @@
 
     {% else %}
         <div class="admin-empty">
-            {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter %}
+            {% if q or status_filter or temperature_filter or state_filter or practice_filter or source_filter or created_filter or contact_filter %}
                 <p>No leads match your filters.</p>
                 <p><a href="{% url 'admin_dashboard:leads_table' %}">Clear all filters</a></p>
             {% else %}

@@ -308,11 +308,19 @@ def _scrape_homepage(lead):
     if not html:
         return
 
-    # Extract from the homepage. Then fetch /contact, /contact-us,
-    # /about — only if homepage didn't yield an email (saves requests).
+    # Extract from the homepage. Then walk a wider set of likely
+    # contact-bearing pages, stopping the moment we land an email.
+    # Order is by hit-rate empirically: /contact* first, then /about*,
+    # then law-firm specifics, then catch-alls.
     _extract_from_html(lead, html, final_url)
     if not lead.email:
-        for path in ('/contact', '/contact-us', '/about', '/about-us'):
+        candidate_paths = (
+            '/contact', '/contact-us', '/contact.html', '/contact.php',
+            '/about', '/about-us',
+            '/team', '/our-team', '/staff', '/attorneys', '/lawyers',
+            '/get-in-touch', '/connect',
+        )
+        for path in candidate_paths:
             extra_html, _, _ = _http_get(urljoin(final_url, path))
             if extra_html:
                 _extract_from_html(lead, extra_html, final_url)
@@ -349,11 +357,18 @@ def _extract_from_html(lead, html, base_url):
     """Pull email, social URLs, copyright year out of a single page's
     HTML. Mutates lead in place; only fills fields that aren't set
     yet (so /contact extraction doesn't overwrite a homepage email)."""
-    # Email — prefer mailto: hrefs over body regex (more reliable).
+    # Email — try in order of reliability:
+    #   1. mailto: hrefs        (most reliable — never obfuscated)
+    #   2. plain regex          (catches anything in body text)
+    #   3. Cloudflare-encoded   (data-cfemail="abcdef..." or hash links)
+    #   4. obfuscated formats   (info [at] domain [dot] com etc.)
     if not lead.email:
-        candidates = re.findall(
-            r'mailto:([^"\'>\s?]+)', html, re.IGNORECASE)
+        candidates = []
+        candidates.extend(re.findall(
+            r'mailto:([^"\'>\s?]+)', html, re.IGNORECASE))
         candidates.extend(EMAIL_RE.findall(html))
+        candidates.extend(_decode_cloudflare_emails(html))
+        candidates.extend(_deobfuscate_emails(html))
         for raw in candidates:
             email = raw.strip().lower()
             if not _is_real_email(email):
@@ -413,6 +428,66 @@ def _is_real_email(email):
     if email.split('@', 1)[-1].count('.') == 0:
         return False
     return True
+
+
+# Cloudflare's email protection wraps real addresses in a hex blob,
+# either as data-cfemail="abcdef..." on a span OR as a link to
+# /cdn-cgi/l/email-protection#abcdef... The decoding scheme: first
+# byte is an XOR key; remaining bytes are key-XOR'd ASCII codepoints.
+# See https://usamaejaz.com/cloudflare-email-decoder/
+_CFEMAIL_RE = re.compile(
+    r'(?:data-cfemail="|/cdn-cgi/l/email-protection#)([a-fA-F0-9]+)')
+
+
+def _decode_cloudflare_emails(html):
+    """Yield decoded emails from every Cloudflare-protected token in html."""
+    out = []
+    for hex_blob in _CFEMAIL_RE.findall(html):
+        try:
+            key = int(hex_blob[:2], 16)
+            chars = []
+            for i in range(2, len(hex_blob), 2):
+                byte = int(hex_blob[i:i + 2], 16)
+                chars.append(chr(byte ^ key))
+            out.append(''.join(chars))
+        except (ValueError, IndexError):
+            continue
+    return out
+
+
+# Common obfuscation patterns small businesses use to hide email
+# from scrapers. Each regex captures (local, domain) groups; we
+# rebuild the address from those. Whitespace tolerant + case
+# insensitive.
+_OBFUSCATED_PATTERNS = [
+    # foo [at] bar [dot] com
+    re.compile(
+        r'([a-zA-Z0-9._%+-]+)\s*[\[(]?\s*at\s*[\])]?\s*'
+        r'([a-zA-Z0-9.-]+)\s*[\[(]?\s*dot\s*[\])]?\s*'
+        r'([a-zA-Z]{2,})',
+        re.IGNORECASE,
+    ),
+    # foo (at) bar (dot) com
+    re.compile(
+        r'([a-zA-Z0-9._%+-]+)\s*\(at\)\s*'
+        r'([a-zA-Z0-9.-]+)\s*\(dot\)\s*'
+        r'([a-zA-Z]{2,})',
+        re.IGNORECASE,
+    ),
+    # foo AT bar DOT com (all caps separators)
+    re.compile(
+        r'([a-zA-Z0-9._%+-]+)\s+AT\s+([a-zA-Z0-9.-]+)\s+DOT\s+([a-zA-Z]{2,})',
+    ),
+]
+
+
+def _deobfuscate_emails(html):
+    """Yield assembled emails from obfuscation patterns in html."""
+    out = []
+    for pat in _OBFUSCATED_PATTERNS:
+        for local, dom, tld in pat.findall(html):
+            out.append(f'{local}@{dom}.{tld}')
+    return out
 
 
 # ── Pass 2: PageSpeed Insights ─────────────────────────────────────────────

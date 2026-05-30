@@ -14502,6 +14502,49 @@ button.htmx-request {
     border-color: rgba(248, 113, 113, 0.22);
 }
 .enrichment-activity td { vertical-align: top; }
+
+
+/* ── Contact-triage chips on /admin-dashboard/leads/ ─────────────── */
+.contact-chips {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.contact-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 999px;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    transition: all 120ms ease;
+}
+.contact-chip:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text);
+}
+.contact-chip--active {
+    background: var(--color-orange);
+    color: #fff;
+    border-color: var(--color-orange);
+}
+.contact-chip--active:hover {
+    background: var(--color-orange-dark, #C45508);
+    color: #fff;
+}
+.contact-chip--warn {
+    border-color: rgba(232, 101, 10, 0.4);
+}
+.contact-chip--ok.contact-chip--active {
+    background: var(--color-success);
+    border-color: var(--color-success);
+}
 .scrape-job-form .form-row {
     margin-bottom: 1rem;
 }
