@@ -50,6 +50,58 @@
                 {% include "admin_dashboard/_status_editor.html" %}
             </section>
 
+            {% comment %}
+                Per-lead on-demand email generation. Always queues for
+                approval regardless of trust level — the operator
+                clicked Generate specifically to review before sending.
+                Branches:
+                  - pending row already exists → 'review the queue' link
+                  - eligible              → 'Generate step N' button
+                  - blocked               → reason text (no email,
+                                            unsubscribed, sequence done)
+            {% endcomment %}
+            <section class="admin-card">
+                <h3 class="admin-card__title">Outreach email</h3>
+                {% if pending_outreach %}
+                    <p class="muted">
+                        Step {{ pending_outreach.sequence_step }} is queued for
+                        your review (generated {{ pending_outreach.created_at|date:"M j H:i" }}).
+                    </p>
+                    <a href="{% url 'admin_dashboard:outreach_approvals' %}"
+                       class="btn-primary btn-sm">Review in Approvals →</a>
+                {% elif can_generate %}
+                    <p class="muted">
+                        Generate the next email in the sequence using AI.
+                        It will land in the Approvals queue for you to
+                        review, edit, or reject before sending.
+                    </p>
+                    <form method="post"
+                          action="{% url 'admin_dashboard:lead_generate_email' lead.pk %}"
+                          style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary btn-sm">
+                            Generate email (step {{ next_step }} of 4)
+                        </button>
+                    </form>
+                {% elif not lead.email %}
+                    <p class="muted">
+                        No email address — find one first (see the
+                        <a href="{% url 'admin_dashboard:leads_table' %}?contact=no_email">Needs email</a>
+                        triage chip).
+                    </p>
+                {% elif lead.unsubscribed %}
+                    <p class="muted">
+                        This lead unsubscribed on
+                        {{ lead.unsubscribed_at|date:"M j, Y" }}. No further contact.
+                    </p>
+                {% elif next_step > 4 %}
+                    <p class="muted">
+                        Sequence complete — all 4 steps already sent.
+                        Waiting on a reply.
+                    </p>
+                {% endif %}
+            </section>
+
             <section class="admin-card">
                 <h3 class="admin-card__title">Google presence</h3>
                 <dl class="kv">

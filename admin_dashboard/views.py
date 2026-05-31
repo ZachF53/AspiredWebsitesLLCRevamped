@@ -408,6 +408,19 @@ def lead_detail(request, pk):
         ('Enriched at', lead.enrichment_completed_at),
     ]
 
+    # State for the 'Generate email' card — pre-compute on the server
+    # so the template can branch cleanly without re-querying.
+    next_step = lead.sequence_step + 1
+    pending_outreach = EmailSent.objects.filter(
+        lead=lead, status='pending_approval',
+    ).order_by('-created_at').first()
+    can_generate = (
+        bool(lead.email)
+        and not lead.unsubscribed
+        and next_step <= 4
+        and pending_outreach is None
+    )
+
     return render(request, 'admin_dashboard/lead_detail.html', _admin_context(
         active='leads',
         lead=lead,
@@ -420,6 +433,9 @@ def lead_detail(request, pk):
         score_total=score_total_capped,
         score_total_raw=raw_total,
         scraper_fields=scraper_fields,
+        next_step=next_step,
+        pending_outreach=pending_outreach,
+        can_generate=can_generate,
     ))
 
 
@@ -7967,6 +7983,189 @@ def dmarc_upload(request):
 # auto-promoted to 'approved' based on outreach.gating.should_queue_for_approval.
 # This queue is the human-in-the-loop checkpoint — flip the dial in
 # Settings to shrink/grow what arrives here.
+
+@admin_required
+@require_POST
+def lead_generate_email(request, pk):
+    """
+    Generate the NEXT cold-outreach email for a single lead, on demand.
+
+    Same Claude prompt as the scheduled cold sender but force-queues
+    the result as ``pending_approval`` regardless of the current
+    trust level — the operator clicked 'Generate' specifically to
+    review/edit before sending, so we never auto-promote here.
+
+    Idempotent: refuses to generate if a pending_approval row already
+    exists for the same (lead, next_step). Pointer to the existing
+    pending row goes in the flash so the operator can jump to it.
+    """
+    lead = get_object_or_404(Lead, pk=pk)
+    from django.contrib import messages as _msg
+
+    # Guards — mirror what the bulk sender checks, but flash a friendly
+    # reason instead of silently skipping.
+    if not lead.email:
+        _msg.error(
+            request, f'{lead.firm_name} has no email address — find one first.')
+        return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+    if lead.unsubscribed:
+        _msg.error(
+            request, f'{lead.firm_name} has unsubscribed — cannot contact.')
+        return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+    next_step = lead.sequence_step + 1
+    if next_step > 4:
+        _msg.error(
+            request,
+            f'{lead.firm_name} already received the full 4-step sequence.')
+        return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+    existing = EmailSent.objects.filter(
+        lead=lead, sequence_step=next_step,
+        status='pending_approval',
+    ).first()
+    if existing:
+        _msg.info(
+            request,
+            f'Step {next_step} is already pending for {lead.firm_name} '
+            f'— review it in the Approvals queue (sidebar).',
+        )
+        return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+
+    # Generate copy.
+    try:
+        from outreach.sender import _generate_email_copy, _from_address
+        subject, body = _generate_email_copy(lead, next_step)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'lead_generate_email: AI generation failed for lead %s', lead.pk)
+        _msg.error(
+            request,
+            f'AI generation failed: {exc}. Try again or write the '
+            f'email manually.')
+        return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+
+    EmailSent.objects.create(
+        lead=lead,
+        kind='cold',
+        status='pending_approval',     # force-queue — operator wants to review
+        subject=subject,
+        body=body,
+        from_email=_from_address(),
+        sequence_step=next_step,
+    )
+
+    # Advance sequence pointer so the scheduled sender doesn't generate
+    # a duplicate at next tick. next_followup_at moves the same way the
+    # bulk sender moves it — see _STEP_CADENCE_DAYS.
+    from outreach.sender import _next_followup_at
+    lead.sequence_step = next_step
+    lead.next_followup_at = _next_followup_at(next_step, timezone.now())
+    lead.save(update_fields=[
+        'sequence_step', 'next_followup_at', 'updated_at'])
+
+    _msg.success(
+        request,
+        f'Generated step {next_step} for {lead.firm_name}. '
+        f'Review &amp; approve in the Approvals queue (sidebar).',
+    )
+    return redirect('admin_dashboard:lead_detail', pk=lead.pk)
+
+
+@admin_required
+def outreach_sent(request):
+    """
+    All sent outreach emails — searchable, sortable, with engagement
+    chips (open / click / reply). Closest thing to a 'Sent folder' for
+    the SendGrid-relayed mail that never touches Gmail.
+
+    Filters:
+      - q          : free-text search (subject, lead email, lead name)
+      - kind       : 'cold' or 'reply'
+      - engagement : 'opened' | 'clicked' | 'replied' | 'none'
+      - window     : 'today' | '7d' | '30d' | 'all'  (default 30d)
+    Sort:
+      - sent_desc (default), sent_asc, recipient, subject
+    """
+    from django.db.models import Q
+
+    qs = (
+        EmailSent.objects.filter(status='sent')
+        .select_related('lead', 'in_reply_to')
+    )
+
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(
+            Q(subject__icontains=q)
+            | Q(lead__email__icontains=q)
+            | Q(lead__firm_name__icontains=q)
+        )
+
+    kind = (request.GET.get('kind') or '').strip()
+    if kind in ('cold', 'reply'):
+        qs = qs.filter(kind=kind)
+
+    engagement = (request.GET.get('engagement') or '').strip()
+    if engagement == 'opened':
+        qs = qs.filter(opened=True)
+    elif engagement == 'clicked':
+        qs = qs.filter(clicked=True)
+    elif engagement == 'replied':
+        qs = qs.filter(replied=True)
+    elif engagement == 'none':
+        qs = qs.filter(opened=False, clicked=False, replied=False)
+
+    window = (request.GET.get('window') or '30d').strip()
+    now = timezone.now()
+    if window == 'today':
+        qs = qs.filter(sent_at__date=timezone.localdate())
+    elif window == '7d':
+        qs = qs.filter(sent_at__gte=now - datetime.timedelta(days=7))
+    elif window == '30d':
+        qs = qs.filter(sent_at__gte=now - datetime.timedelta(days=30))
+    # 'all' = no window filter
+
+    sort = (request.GET.get('sort') or 'sent_desc').strip()
+    sort_map = {
+        'sent_desc': '-sent_at',
+        'sent_asc':  'sent_at',
+        'recipient': 'lead__firm_name',
+        'subject':   'subject',
+    }
+    qs = qs.order_by(sort_map.get(sort, '-sent_at'))
+
+    # Roll-up stats above the table. Computed against the FILTERED qs
+    # so the percentages reflect what's on screen — flipping kind/window
+    # updates the rates.
+    total = qs.count()
+    opens = qs.filter(opened=True).count()
+    clicks = qs.filter(clicked=True).count()
+    replies = qs.filter(replied=True).count()
+    pct = lambda n: round(n * 100 / total) if total else 0  # noqa: E731
+
+    paginator = Paginator(qs, 50)
+    page = paginator.get_page(request.GET.get('page') or 1)
+
+    # Preserve current filters across pagination links
+    keep = ['q', 'kind', 'engagement', 'window', 'sort']
+    filter_qs = '&'.join(
+        f'{k}={request.GET.get(k)}' for k in keep if request.GET.get(k))
+    filter_qs = ('&' + filter_qs) if filter_qs else ''
+
+    return render(
+        request, 'admin_dashboard/outreach_sent.html',
+        _admin_context(
+            active='outreach_sent',
+            page=page,
+            total=total,
+            opens=opens, open_pct=pct(opens),
+            clicks=clicks, click_pct=pct(clicks),
+            replies=replies, reply_pct=pct(replies),
+            q=q, kind=kind, engagement=engagement,
+            window=window, sort=sort,
+            filter_qs=filter_qs,
+        ),
+    )
+
 
 @admin_required
 def outreach_approvals(request):

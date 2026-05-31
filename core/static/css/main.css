@@ -14545,6 +14545,38 @@ button.htmx-request {
     background: var(--color-success);
     border-color: var(--color-success);
 }
+
+
+/* ── Sent emails dashboard ────────────────────────────────────────── */
+.sent-stats { margin-bottom: 1rem; }
+.admin-stat__sub {
+    display: inline-block;
+    margin-left: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+.admin-stat--good { color: var(--color-success); }
+.sent-filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.sent-table {
+    min-width: 900px;
+}
+.sent-table__when {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    width: 90px;
+}
+.sent-table__subject {
+    max-width: 380px;
+    overflow-wrap: anywhere;
+}
+.sent-table__none { font-size: 1.1rem; }
+.sent-table td { vertical-align: top; }
 .scrape-job-form .form-row {
     margin-bottom: 1rem;
 }

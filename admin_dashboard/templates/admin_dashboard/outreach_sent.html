@@ -1,0 +1,194 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Sent emails — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Sent emails</h1>
+            <p class="admin-page-sub">
+                SendGrid relayed mail — not in your Gmail Sent folder because
+                the relay bypasses Gmail. Engagement chips populate once the
+                SendGrid Event Webhook is wired (see /admin-dashboard/settings/).
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'admin_dashboard:outreach_approvals' %}" class="btn-secondary btn-sm">← Approvals</a>
+        </div>
+    </div>
+
+    {% comment %}
+        Stats strip — reflects the FILTERED window so flipping kind /
+        engagement / window updates the rates. Useful for spot-checking
+        e.g. cold-only 7-day open rate vs all-time.
+    {% endcomment %}
+    <div class="admin-stat-grid sent-stats">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Sent</span>
+            <span class="admin-stat__value">{{ total }}</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Opened</span>
+            <span class="admin-stat__value">{{ opens }}
+                <span class="admin-stat__sub">{{ open_pct }}%</span>
+            </span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Clicked</span>
+            <span class="admin-stat__value">{{ clicks }}
+                <span class="admin-stat__sub">{{ click_pct }}%</span>
+            </span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat__label">Replied</span>
+            <span class="admin-stat__value
+                {% if reply_pct >= 5 %}admin-stat--good{% endif %}">
+                {{ replies }}
+                <span class="admin-stat__sub">{{ reply_pct }}%</span>
+            </span>
+        </div>
+    </div>
+
+    {% comment %}
+        Two chip rows — kind on top, engagement below, window on the right.
+        Each chip is a link that toggles only its own param; the others
+        survive via the keep[] preservation in the view.
+    {% endcomment %}
+    <div class="sent-filter-row">
+        <div class="contact-chips">
+            <a href="?{% if q %}q={{ q }}&{% endif %}{% if engagement %}engagement={{ engagement }}&{% endif %}{% if window %}window={{ window }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}"
+               class="contact-chip {% if not kind %}contact-chip--active{% endif %}">All</a>
+            <a href="?kind=cold{% if q %}&q={{ q }}{% endif %}{% if engagement %}&engagement={{ engagement }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if kind == 'cold' %}contact-chip--active{% endif %}">Cold</a>
+            <a href="?kind=reply{% if q %}&q={{ q }}{% endif %}{% if engagement %}&engagement={{ engagement }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if kind == 'reply' %}contact-chip--active{% endif %}">Replies</a>
+        </div>
+
+        <div class="contact-chips">
+            <a href="?{% if kind %}kind={{ kind }}&{% endif %}{% if q %}q={{ q }}&{% endif %}{% if window %}window={{ window }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}"
+               class="contact-chip {% if not engagement %}contact-chip--active{% endif %}">Any engagement</a>
+            <a href="?engagement=opened{% if kind %}&kind={{ kind }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if engagement == 'opened' %}contact-chip--active{% endif %}">Opened</a>
+            <a href="?engagement=clicked{% if kind %}&kind={{ kind }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if engagement == 'clicked' %}contact-chip--active{% endif %}">Clicked</a>
+            <a href="?engagement=replied{% if kind %}&kind={{ kind }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if engagement == 'replied' %}contact-chip--active{% endif %}">Replied</a>
+            <a href="?engagement=none{% if kind %}&kind={{ kind }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if window %}&window={{ window }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+               class="contact-chip {% if engagement == 'none' %}contact-chip--active{% endif %}">No engagement</a>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get" action="" style="margin-top: 1rem;">
+        {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+        {% if engagement %}<input type="hidden" name="engagement" value="{{ engagement }}">{% endif %}
+        <input type="search" name="q" value="{{ q }}"
+               placeholder="Search subject, recipient name or email…"
+               class="form-control lead-filter-bar__search">
+        <select name="window" class="form-control">
+            <option value="today" {% if window == 'today' %}selected{% endif %}>Today</option>
+            <option value="7d"    {% if window == '7d' %}selected{% endif %}>Last 7 days</option>
+            <option value="30d"   {% if window == '30d' or not window %}selected{% endif %}>Last 30 days</option>
+            <option value="all"   {% if window == 'all' %}selected{% endif %}>All time</option>
+        </select>
+        <select name="sort" class="form-control">
+            <option value="sent_desc" {% if sort == 'sent_desc' or not sort %}selected{% endif %}>Newest first</option>
+            <option value="sent_asc"  {% if sort == 'sent_asc' %}selected{% endif %}>Oldest first</option>
+            <option value="recipient" {% if sort == 'recipient' %}selected{% endif %}>Recipient A→Z</option>
+            <option value="subject"   {% if sort == 'subject' %}selected{% endif %}>Subject A→Z</option>
+        </select>
+        <button type="submit" class="btn-primary">Apply</button>
+        {% if q or kind or engagement or window != '30d' and window or sort and sort != 'sent_desc' %}
+            <a href="?" class="lead-filter-bar__clear">Clear</a>
+        {% endif %}
+    </form>
+
+    {% if page.object_list %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table sent-table">
+                <thead>
+                    <tr>
+                        <th>Sent</th>
+                        <th>Recipient</th>
+                        <th>Subject</th>
+                        <th>Kind</th>
+                        <th>Engagement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in page.object_list %}
+                        <tr>
+                            <td class="sent-table__when">
+                                {{ e.sent_at|date:"M j" }}
+                                <br><span class="muted">{{ e.sent_at|date:"H:i" }}</span>
+                            </td>
+                            <td>
+                                <a href="{% url 'admin_dashboard:lead_detail' e.lead.pk %}"
+                                   class="lead-table__firm">{{ e.lead.firm_name }}</a>
+                                <br><span class="muted">{{ e.lead.email }}</span>
+                            </td>
+                            <td class="sent-table__subject">
+                                {{ e.subject }}
+                                {% if e.kind == 'cold' %}
+                                    <br><span class="muted">step {{ e.sequence_step }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if e.kind == 'reply' %}
+                                    <span class="approval-card__kind approval-card__kind--reply">Reply</span>
+                                {% else %}
+                                    <span class="approval-card__kind approval-card__kind--cold">Cold</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="enrichment-chips">
+                                    {% if e.opened %}
+                                        <span class="enrichment-chip enrichment-chip--ok" title="Opened {{ e.opened_at|date:'M j H:i' }}">Opened</span>
+                                    {% endif %}
+                                    {% if e.clicked %}
+                                        <span class="enrichment-chip enrichment-chip--ok" title="Clicked {{ e.clicked_at|date:'M j H:i' }}">Clicked</span>
+                                    {% endif %}
+                                    {% if e.replied %}
+                                        <span class="enrichment-chip enrichment-chip--ok" title="Replied {{ e.replied_at|date:'M j H:i' }}">Replied</span>
+                                    {% endif %}
+                                    {% if not e.opened and not e.clicked and not e.replied %}
+                                        <span class="muted sent-table__none">—</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page.has_other_pages %}
+            <nav class="admin-pagination" aria-label="Pagination">
+                <span class="admin-pagination__info">
+                    Page {{ page.number }} of {{ page.paginator.num_pages }} ({{ total }} total)
+                </span>
+                <div class="admin-pagination__links">
+                    {% if page.has_previous %}
+                        <a class="btn-secondary btn-sm" href="?page={{ page.previous_page_number }}{{ filter_qs }}">← Prev</a>
+                    {% endif %}
+                    {% if page.has_next %}
+                        <a class="btn-secondary btn-sm" href="?page={{ page.next_page_number }}{{ filter_qs }}">Next →</a>
+                    {% endif %}
+                </div>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="admin-empty">
+            <p>No sent emails match your filters.</p>
+            {% if q or kind or engagement %}
+                <p><a href="?">Clear filters</a> to see everything.</p>
+            {% else %}
+                <p class="muted">Once the approval queue dispatches, mail shows up here.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

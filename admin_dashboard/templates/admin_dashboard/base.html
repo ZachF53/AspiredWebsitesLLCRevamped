@@ -42,6 +42,10 @@
                     <span class="nav-badge {% if not approvals_count %}nav-badge--empty{% endif %}"
                           aria-label="{{ approvals_count }} pending">{{ approvals_count }}</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/outreach/sent/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:outreach_sent' %}">
+                    <span class="nav-link__text">Sent</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/needs-you/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:needs_you' %}">
                     <span class="nav-link__text">Needs You</span>

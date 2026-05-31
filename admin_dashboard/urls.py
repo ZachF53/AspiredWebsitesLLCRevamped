@@ -41,6 +41,10 @@ urlpatterns = [
     path('leads/<int:pk>/delete/', views.lead_delete, name='lead_delete'),
     path('leads/<int:pk>/reenrich/', views.lead_reenrich,
          name='lead_reenrich'),
+    # Per-lead on-demand cold-email generation — always queues for
+    # approval, regardless of trust level.
+    path('leads/<int:pk>/generate-email/', views.lead_generate_email,
+         name='lead_generate_email'),
     path('leads/bulk-delete/', views.lead_bulk_delete,
          name='lead_bulk_delete'),
     # HTMX partials — fragment responses, not full pages
@@ -58,6 +62,9 @@ urlpatterns = [
          views.intake_review_mark_done,
          name='intake_review_mark_done'),
 
+    # Sent — every dispatched outreach email with engagement chips.
+    # Closest thing to a Gmail Sent folder for SendGrid-relayed mail.
+    path('outreach/sent/', views.outreach_sent, name='outreach_sent'),
     # Approval queue — every email the cold sender and reply auto-drafter
     # produce that the current trust level says needs a human in the loop.
     path('outreach/approvals/', views.outreach_approvals,

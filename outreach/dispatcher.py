@@ -144,11 +144,26 @@ def _send_one(email, message_id):
         },
     }
 
+    # BCC the From address so the operator has a Gmail-side audit
+    # trail. SendGrid relay bypasses Gmail entirely; without the BCC
+    # the operator's Sent folder stays permanently empty even though
+    # the dashboard knows the email went out. Toggle off via
+    # OUTREACH_BCC_FROM_ADDRESS=False in .env if the inbox volume
+    # gets annoying. We strip a BCC that would equal the recipient to
+    # avoid double-sending in the (vanishingly rare) case the operator
+    # ever ends up on their own lead list.
+    bcc = []
+    if getattr(settings, 'OUTREACH_BCC_FROM_ADDRESS', True):
+        from_addr = email.from_email.lower()
+        if email.lead.email.lower() != from_addr:
+            bcc = [email.from_email]
+
     msg = EmailMessage(
         subject=email.subject,
         body=email.body,
         from_email=email.from_email,
         to=[email.lead.email],
+        bcc=bcc,
         # Headers extension: Django passes these straight through to the
         # SMTP backend, which writes them into the outgoing envelope.
         headers={

@@ -292,6 +292,13 @@ SENDGRID_API_KEY = env('SENDGRID_API_KEY', '')
 # this is empty, so the webhook stays locked down by default.
 SENDGRID_WEBHOOK_PUBLIC_KEY = env('SENDGRID_WEBHOOK_PUBLIC_KEY', '')
 
+# When True, every outgoing outreach email BCCs the From address.
+# SendGrid SMTP relay bypasses Gmail entirely, so without this the
+# operator's Gmail Sent folder stays empty. Toggle in .env if the
+# inbox volume becomes annoying — sent history also lives at
+# /admin-dashboard/outreach/sent/.
+OUTREACH_BCC_FROM_ADDRESS = env_bool('OUTREACH_BCC_FROM_ADDRESS', True)
+
 # Stripe Price ID for the annual hosting subscription. Bootstrap with
 # `python manage.py sync_stripe_subscription_products` — it'll print
 # the ID to paste here.
