@@ -66,27 +66,37 @@ PROCESS_LABEL = _process_label()
 
 def install():
     """
-    Monkey-patch ``redis.Connection.on_connect`` so every new socket
-    issues ``CLIENT SETNAME <PROCESS_LABEL>`` right after auth.
+    Monkey-patch ``AbstractConnection.on_connect_check_health`` so every
+    new socket issues ``CLIENT SETNAME <PROCESS_LABEL>`` right after the
+    handshake completes.
+
+    Why this method and not ``on_connect``: in redis-py >= 5.x the
+    public ``on_connect`` wrapper just delegates to
+    ``on_connect_check_health``, which is what ``connect()`` actually
+    calls during the open-socket flow. Patching the outer wrapper does
+    nothing in production. Patching ``AbstractConnection`` covers every
+    subclass — Connection, SSLConnection, UnixDomainSocketConnection —
+    in one place.
 
     Safe to call multiple times — re-installs are no-ops because we
     flag the patched method.
     """
     try:
-        from redis.connection import Connection
+        from redis.connection import AbstractConnection
     except ImportError:
         logger.warning(
             'redis_naming: redis-py not importable, skipping patch')
         return
 
-    if getattr(Connection.on_connect, '_aspired_named', False):
+    target = AbstractConnection
+    if getattr(target.on_connect_check_health, '_aspired_named', False):
         return  # already installed
 
-    original_on_connect = Connection.on_connect
+    original = target.on_connect_check_health
     label = PROCESS_LABEL
 
-    def named_on_connect(self):
-        original_on_connect(self)
+    def named_on_connect_check_health(self, check_health=True):
+        original(self, check_health=check_health)
         try:
             self.send_command('CLIENT', 'SETNAME', label)
             self.read_response()
@@ -95,5 +105,5 @@ def install():
             # CLIENT command disabled) shouldn't break the connection.
             pass
 
-    named_on_connect._aspired_named = True
-    Connection.on_connect = named_on_connect
+    named_on_connect_check_health._aspired_named = True
+    target.on_connect_check_health = named_on_connect_check_health
