@@ -837,3 +837,94 @@ def ingest_dmarc_imap_task():
     # One-line summary line is plenty for the Celery log.
     last = output.splitlines()[-1] if output else ''
     return last or 'ok'
+
+
+# ── Redis connection monitor ───────────────────────────────────────────────
+
+# Categories we bucket clients into, derived from the CLIENT SETNAME
+# label set in AspiredWebsitesRevamped.redis_naming. Order matters —
+# first prefix that matches wins.
+_REDIS_NAME_BUCKETS = [
+    ('gunicorn-',     'gunicorn'),
+    ('celery-worker', 'celery_worker'),
+    ('celery-beat',   'celery_beat'),
+    ('celery-',       'celery'),
+    ('daphne-',       'daphne'),
+    ('runserver-',    'runserver'),
+    ('mgmt-',         'mgmt'),
+    ('py-',           'py'),
+]
+
+
+def _categorize_client_name(name):
+    """'gunicorn-1234' → 'gunicorn'; empty/unknown → 'unknown'."""
+    if not name:
+        return 'unknown'
+    for prefix, bucket in _REDIS_NAME_BUCKETS:
+        if name.startswith(prefix):
+            return bucket
+    return 'unknown'
+
+
+@shared_task
+def snapshot_redis_clients_task():
+    """
+    Every 5 minutes — call CLIENT LIST against the configured Redis,
+    bucket each connection by its name prefix, write a snapshot row,
+    then prune snapshots older than 30 days.
+
+    Best-effort: a Redis hiccup logs the exception but does NOT
+    propagate (we don't want the monitor itself contributing to a
+    Redis-related outage).
+    """
+    from datetime import timedelta
+
+    from django.conf import settings as _s
+    from django.utils import timezone as _tz
+
+    from reporting.models import RedisConnectionSnapshot
+
+    try:
+        import redis
+        r = redis.from_url(_s.REDIS_URL)
+        raw = r.execute_command('CLIENT', 'LIST')
+        # redis-py returns bytes for CLIENT LIST in some versions.
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode('utf-8', 'replace')
+        lines = [line for line in raw.splitlines() if line.strip()]
+    except Exception:  # noqa: BLE001
+        logger.exception('redis snapshot task: CLIENT LIST failed')
+        return 'failed'
+
+    counts = {}
+    for line in lines:
+        name = ''
+        for field in line.split(' '):
+            if field.startswith('name='):
+                name = field[len('name='):]
+                break
+        bucket = _categorize_client_name(name)
+        counts[bucket] = counts.get(bucket, 0) + 1
+
+    # Keep a short sample of the raw output for forensics — limited so
+    # we never store megabytes per snapshot if the client list explodes.
+    sample = '\n'.join(lines[:30])
+    if len(lines) > 30:
+        sample += f'\n... ({len(lines) - 30} more)'
+
+    snapshot = RedisConnectionSnapshot.objects.create(
+        total=len(lines),
+        by_category=counts,
+        sample_raw=sample[:8000],
+    )
+
+    # Prune older than 30 days. Single DELETE — no model signals fire
+    # on bulk delete, which is what we want here.
+    cutoff = _tz.now() - timedelta(days=30)
+    deleted, _ = RedisConnectionSnapshot.objects.filter(
+        captured_at__lt=cutoff).delete()
+
+    return (
+        f'total={snapshot.total} categories={counts} '
+        f'pruned={deleted}'
+    )

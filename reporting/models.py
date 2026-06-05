@@ -7,6 +7,7 @@ AI blog posts, and the AI chatbot. All feed the monthly PDF and the portal.
 import uuid
 
 from django.db import models
+from django.utils import timezone
 
 from clients.models import ClientProfile
 from core.models import TimestampedModel
@@ -979,3 +980,39 @@ class DmarcRecord(models.Model):
         """DMARC passes if EITHER DKIM-aligned OR SPF-aligned is pass."""
         return (self.dkim_aligned == 'pass'
                 or self.spf_aligned == 'pass')
+
+
+class RedisConnectionSnapshot(models.Model):
+    """
+    Periodic snapshot of how many Redis clients we have open and how
+    they break down by process kind. Written every 5 minutes by
+    ``reporting.tasks.snapshot_redis_clients_task``; surfaces on
+    ``/admin-dashboard/redis/`` for trend visibility.
+
+    Categories are derived from the CLIENT SETNAME we install at every
+    process startup (see ``AspiredWebsitesRevamped.redis_naming``).
+    A bucket name with NO matching SETNAME ("unknown") usually means
+    an external connection — admin CLI, a managed-DB health checker,
+    a forgotten ad-hoc script.
+
+    Older rows are pruned by the same task so the table stays small
+    (24h of 5-min snapshots = 288 rows; 30 days = 8640).
+    """
+
+    captured_at = models.DateTimeField(default=timezone.now, db_index=True)
+    total = models.IntegerField()
+    # Per-category counts. Keys are the canonical buckets:
+    #   gunicorn, celery_worker, celery_beat, daphne, runserver,
+    #   mgmt, py, unknown
+    by_category = models.JSONField(default=dict)
+    # The raw client list (truncated) — kept for forensics on the rare
+    # snapshot where total > 50 and the operator wants to drill in.
+    sample_raw = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-captured_at']
+        verbose_name = 'Redis connection snapshot'
+        verbose_name_plural = 'Redis connection snapshots'
+
+    def __str__(self):
+        return f'{self.captured_at:%Y-%m-%d %H:%M} — {self.total} clients'

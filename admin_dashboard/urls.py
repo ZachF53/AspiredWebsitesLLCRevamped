@@ -79,6 +79,10 @@ urlpatterns = [
          views.outreach_approval_bulk_approve,
          name='outreach_approval_bulk_approve'),
 
+    # Redis client monitor — counts by process category, last 24h
+    # trend, recent snapshots. Snapshot task at every 5 min.
+    path('redis/', views.redis_monitor, name='redis_monitor'),
+
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
 

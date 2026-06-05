@@ -7793,6 +7793,145 @@ def domain_move_account(request, reg_id):
 # DMARC aggregate report dashboard
 # ────────────────────────────────────────────────────────────────────────────
 
+def _format_seconds(s):
+    """3600 → '1h', 90061 → '1d 1h', 45 → '45s'. Used by redis_monitor."""
+    if s < 60:
+        return f'{s}s'
+    if s < 3600:
+        return f'{s // 60}m'
+    if s < 86400:
+        h = s // 3600
+        m = (s % 3600) // 60
+        return f'{h}h {m}m' if m else f'{h}h'
+    d = s // 86400
+    h = (s % 86400) // 3600
+    return f'{d}d {h}h' if h else f'{d}d'
+
+
+@admin_required
+def redis_monitor(request):
+    """
+    Operational dashboard for Redis client connections. Three views in
+    one page:
+
+      1. Right-now snapshot — pulls CLIENT LIST live and buckets by
+         process category derived from CLIENT SETNAME.
+      2. Last 24 hours — peak total per hour from the 5-min snapshot
+         feed, rendered as a CSS bar chart.
+      3. Recent snapshots — last 50 rows of the snapshot table for
+         spot-checking exact numbers.
+
+    Live snapshot is best-effort. If Redis is down or unreachable the
+    page still renders the historical chart from the DB.
+    """
+    from collections import defaultdict
+    from reporting.models import RedisConnectionSnapshot
+    from reporting.tasks import _categorize_client_name
+
+    # ── 1. Right-now snapshot ───────────────────────────────────────
+    live_total = 0
+    live_categories = {}
+    live_clients = []
+    live_error = ''
+    try:
+        import redis
+        r = redis.from_url(settings.REDIS_URL)
+        raw = r.execute_command('CLIENT', 'LIST')
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode('utf-8', 'replace')
+        lines = [line for line in raw.splitlines() if line.strip()]
+        live_total = len(lines)
+        cat_counts = defaultdict(int)
+        for line in lines:
+            name = ''
+            age = idle = 0
+            for field in line.split(' '):
+                if field.startswith('name='):
+                    name = field[5:]
+                elif field.startswith('age='):
+                    try:
+                        age = int(field[4:])
+                    except ValueError:
+                        pass
+                elif field.startswith('idle='):
+                    try:
+                        idle = int(field[5:])
+                    except ValueError:
+                        pass
+            bucket = _categorize_client_name(name)
+            cat_counts[bucket] += 1
+            live_clients.append({
+                'name': name or '(unset)',
+                'category': bucket,
+                'age': age,
+                'idle': idle,
+                'age_display': _format_seconds(age),
+                'idle_display': _format_seconds(idle),
+                # Flagged when a single connection has been around for
+                # > 1 day — the case the operator specifically asked
+                # about ("any used for days?"). UI highlights the row.
+                'long_lived': age >= 86400,
+            })
+        live_categories = dict(cat_counts)
+        # Sort: oldest first — long-lived connections at the top
+        live_clients.sort(key=lambda c: c['age'], reverse=True)
+    except Exception as exc:  # noqa: BLE001
+        live_error = str(exc)
+
+    # ── 2. Last 24 hours — hourly peaks ─────────────────────────────
+    cutoff = timezone.now() - datetime.timedelta(hours=24)
+    snapshots_24h = list(
+        RedisConnectionSnapshot.objects
+        .filter(captured_at__gte=cutoff)
+        .order_by('captured_at')
+    )
+    hourly = defaultdict(int)
+    for s in snapshots_24h:
+        # Bucket by hour-of-day (local time)
+        bucket_dt = timezone.localtime(s.captured_at).replace(
+            minute=0, second=0, microsecond=0)
+        hourly[bucket_dt] = max(hourly[bucket_dt], s.total)
+    # Build 24 contiguous buckets ending at the current hour
+    now_hour = timezone.localtime().replace(
+        minute=0, second=0, microsecond=0)
+    chart = []
+    chart_max = max(list(hourly.values()) + [1])
+    for h_offset in range(23, -1, -1):
+        slot = now_hour - datetime.timedelta(hours=h_offset)
+        peak = hourly.get(slot, 0)
+        chart.append({
+            'hour': slot,
+            'peak': peak,
+            'pct': round(peak * 100 / chart_max) if chart_max else 0,
+            'is_now': h_offset == 0,
+        })
+
+    # ── 3. Recent snapshots table ───────────────────────────────────
+    recent = list(
+        RedisConnectionSnapshot.objects
+        .order_by('-captured_at')[:50]
+    )
+
+    # Sparkline-style: last hour as 12 5-min buckets so a recent spike
+    # is visible even when 24h chart's hourly granularity smooths it
+    recent_5min = [s for s in snapshots_24h if (
+        s.captured_at >= timezone.now() - datetime.timedelta(hours=1))][-12:]
+
+    return render(request, 'admin_dashboard/redis_monitor.html',
+                  _admin_context(
+                      active='redis_monitor',
+                      live_total=live_total,
+                      live_categories=live_categories,
+                      live_clients=live_clients,
+                      live_error=live_error,
+                      chart=chart,
+                      chart_max=chart_max,
+                      recent=recent,
+                      recent_5min=recent_5min,
+                      snapshot_count=len(snapshots_24h),
+                  ))
+
+
 @admin_required
 def dmarc_dashboard(request):
     """

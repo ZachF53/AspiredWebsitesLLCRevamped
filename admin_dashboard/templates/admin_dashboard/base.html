@@ -160,6 +160,10 @@
                    href="{% url 'admin_dashboard:dmarc_dashboard' %}">
                     <span class="nav-link__text">DMARC</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/redis/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:redis_monitor' %}">
+                    <span class="nav-link__text">Redis</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/vault/' in request.path and '/ops/' not in request.path %}active{% endif %}"
                    href="{% url 'vault:home' %}">
                     <span class="nav-link__text">Vault</span>

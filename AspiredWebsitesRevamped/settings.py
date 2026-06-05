@@ -36,6 +36,15 @@ def env_list(key, default=None):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+# ── Redis connection naming (must run before anything opens a pool) ────────
+# Patches redis.Connection.on_connect to issue CLIENT SETNAME per
+# process. CLIENT LIST then shows e.g. ``gunicorn-1234`` instead of
+# a wall of indistinguishable ``redis-py`` entries — actionable
+# during the next DO connection-threshold alert.
+from AspiredWebsitesRevamped import redis_naming  # noqa: E402
+redis_naming.install()
+
+
 # ── Core Django ─────────────────────────────────────────────────────────────
 SECRET_KEY = env(
     'SECRET_KEY',
@@ -627,6 +636,15 @@ CELERY_BEAT_SCHEDULE = {
     'ingest-outreach-replies': {
         'task': 'outreach.tasks.ingest_replies_task',
         'schedule': crontab(minute='*/15'),
+    },
+    # Redis connection monitor — captures CLIENT LIST every 5 min,
+    # buckets by process name (gunicorn / celery_worker / daphne /
+    # etc), prunes older than 30 days. Surfaces at
+    # /admin-dashboard/redis/ so the next time DO alerts at 80% we
+    # can see WHICH process held the connections.
+    'snapshot-redis-clients': {
+        'task': 'reporting.tasks.snapshot_redis_clients_task',
+        'schedule': crontab(minute='*/5'),
     },
 }
 

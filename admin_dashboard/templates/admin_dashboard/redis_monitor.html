@@ -1,0 +1,167 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Redis monitor — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations</span>
+            <h1 class="admin-page-title">Redis connection monitor</h1>
+            <p class="admin-page-sub">
+                Live CLIENT LIST + 5-minute snapshot history.
+                {{ snapshot_count }} snapshots in the last 24 hours.
+            </p>
+        </div>
+    </div>
+
+    {% if live_error %}
+        <div class="admin-messages">
+            <div class="admin-message admin-message--error">
+                Live snapshot failed: <code>{{ live_error }}</code> — the
+                historical chart below still works from the DB.
+            </div>
+        </div>
+    {% endif %}
+
+    {% comment %}
+        Stat strip — live count + per-category breakdown. The
+        gunicorn/celery/daphne names come from CLIENT SETNAME set at
+        process startup; 'unknown' = no name (external connection,
+        admin CLI, managed-DB probe, or a process started before the
+        SETNAME patch landed).
+    {% endcomment %}
+    <div class="admin-stat-grid">
+        <div class="admin-stat">
+            <span class="admin-stat__label">Right now</span>
+            <span class="admin-stat__value
+                {% if live_total >= 50 %}admin-stat--urgent{% elif live_total >= 35 %}admin-stat--warn{% endif %}">
+                {{ live_total }}
+            </span>
+        </div>
+        {% for cat, n in live_categories.items %}
+            <div class="admin-stat">
+                <span class="admin-stat__label">{{ cat }}</span>
+                <span class="admin-stat__value">{{ n }}</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% comment %}
+        Last-24h chart — bars sized as % of the 24h peak. Each bar
+        title= shows hour and value for hover. "Now" bar gets accent
+        styling so we anchor visually on the current state.
+    {% endcomment %}
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Last 24 hours — hourly peak</h2>
+            <span class="muted">peak in window: {{ chart_max }}</span>
+        </div>
+        <div class="admin-card__body">
+            {% if snapshot_count == 0 %}
+                <p class="muted">No snapshots yet. The first one lands within 5 minutes of celery-beat starting.</p>
+            {% else %}
+                <div class="redis-chart">
+                    {% for col in chart %}
+                        <div class="redis-chart__col" title="{{ col.hour|date:'M j H:i' }} — peak {{ col.peak }}">
+                            <div class="redis-chart__bar
+                                {% if col.is_now %}redis-chart__bar--now{% endif %}"
+                                style="height: {{ col.pct }}%"></div>
+                            <div class="redis-chart__label">
+                                {{ col.hour|date:'H' }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="redis-two-col">
+        {% comment %}
+            Live client list — every Redis client this app is holding
+            right now, oldest first so a "stuck for days" connection
+            jumps to the top.
+        {% endcomment %}
+        <section class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Open clients (oldest first)</h2>
+            </div>
+            <div class="admin-card__body">
+                {% if live_clients %}
+                    <div class="lead-table-wrapper">
+                        <table class="lead-table">
+                            <thead>
+                                <tr>
+                                    <th>Name (process)</th>
+                                    <th>Category</th>
+                                    <th class="dmarc-num">Age</th>
+                                    <th class="dmarc-num">Idle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in live_clients %}
+                                    <tr {% if c.long_lived %}class="redis-row-long"{% endif %}>
+                                        <td><code>{{ c.name }}</code></td>
+                                        <td>{{ c.category }}</td>
+                                        <td class="dmarc-num">
+                                            {% if c.long_lived %}<strong>{{ c.age_display }}</strong>{% else %}{{ c.age_display }}{% endif %}
+                                        </td>
+                                        <td class="dmarc-num">{{ c.idle_display }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="muted">Could not fetch live client list.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        {% comment %}
+            Recent snapshots — historical table for spot-checking
+            exact numbers around an alert window.
+        {% endcomment %}
+        <section class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Recent snapshots</h2>
+            </div>
+            <div class="admin-card__body">
+                {% if recent %}
+                    <div class="lead-table-wrapper">
+                        <table class="lead-table">
+                            <thead>
+                                <tr>
+                                    <th>Captured</th>
+                                    <th class="dmarc-num">Total</th>
+                                    <th>By category</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in recent %}
+                                    <tr>
+                                        <td>{{ s.captured_at|date:"M j H:i" }}</td>
+                                        <td class="dmarc-num">{{ s.total }}</td>
+                                        <td>
+                                            <span class="muted" style="font-size:0.78rem;">
+                                                {% for cat, n in s.by_category.items %}
+                                                    {{ cat }}:{{ n }}{% if not forloop.last %} · {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="muted">No snapshots yet.</p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+
+</div>
+{% endblock %}
