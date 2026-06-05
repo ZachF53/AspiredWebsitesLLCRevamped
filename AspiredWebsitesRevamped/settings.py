@@ -451,19 +451,19 @@ REDIS_URL = env('REDIS_URL', 'redis://localhost:6379/0')
 # enforces ONE global limit on /api/track/. A per-process LocMemCache would
 # multiply the intended limit by the worker count.
 #
-# Connection-pool cap (max_connections=20) per Gunicorn worker keeps the
-# total cache-side connection count to (#workers * 20). Without it, a
-# burst of cache reads can open dozens of new connections and push the
-# managed Redis past its tier limit. See
-# memory/feedback_always_collectstatic_on_deploy is unrelated;
-# DigitalOcean managed Redis basic tier maxes at 65 clients.
+# NOTE: a previous rev capped this pool at max_connections=20 to stay
+# under DigitalOcean's managed-Redis 65-client limit. Under load the
+# pool drained and login + /contact/ + tracking pixel started 500ing
+# with ``IndexError: pop from empty list`` (default ConnectionPool
+# raises on exhaustion). Django's built-in RedisCache does NOT accept
+# the BlockingConnectionPool option that django-redis offers, so the
+# clean fix is: trust the default unbounded pool. Pools grow lazily —
+# we've never observed more than ~22 client connections in steady
+# state, well under DO's 65-client soft alert at 80%.
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CONNECTION_POOL_KWARGS': {'max_connections': 20},
-        },
     }
 }
 
@@ -473,12 +473,12 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-# Defensive caps so a flood of tasks can't open unbounded Redis
-# connections. Each Celery worker process honours these independently;
-# the broker pool is what the worker uses to send heartbeats + fetch
-# tasks, redis_max_connections is the result-backend pool.
-CELERY_BROKER_POOL_LIMIT = 10
-CELERY_REDIS_MAX_CONNECTIONS = 20
+# Per Celery worker pool caps — raised to give headroom over the
+# old too-tight values. The hard DO-managed limit is 65 total
+# clients (basic tier); even with 3 workers x 30 = 90 potential the
+# pools grow lazily and we've been seeing ~22 actual clients.
+CELERY_BROKER_POOL_LIMIT = 30
+CELERY_REDIS_MAX_CONNECTIONS = 30
 
 # ── Celery beat schedule ────────────────────────────────────────────────────
 from celery.schedules import crontab  # noqa: E402
