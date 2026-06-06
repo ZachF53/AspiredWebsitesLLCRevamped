@@ -1444,19 +1444,51 @@ def changelog_import(request):
 
 @admin_required
 def client_list(request):
-    """All clients — entry point to the per-client monitoring tools."""
+    """
+    All clients — entry point to the per-client monitoring tools.
+
+    Phase C layout: each ClientProfile row is hydrated with its
+    migrated Account and that Account's Websites so the page can show
+    multi-website accounts (each with its own droplet IP, stage, and
+    package) rather than the single-droplet/single-package legacy view.
+
+    Falls back gracefully:
+      - Client with linked Account + multiple Websites → expandable
+        row with one nested card per Website.
+      - Client with a linked Account but no Websites yet → single
+        row, modern data.
+      - Pure-legacy client (no Account) → single row using the
+        legacy ClientProfile fields (do_droplet_ip, package).
+    """
+    from clients.account_models import Website
     from clients.models import ClientProfile
     from reporting.models import VulnerabilityFinding, VulnerabilityScan
 
     # Real clients first, testers at the bottom. `is_tester` is False=0 /
     # True=1 so a plain ascending sort puts non-testers first.
-    clients = ClientProfile.objects.order_by('is_tester', 'firm_name')
+    clients = (
+        ClientProfile.objects
+        .select_related('migrated_account')
+        .order_by('is_tester', 'firm_name')
+    )
     query = (request.GET.get('q') or '').strip()
     if query:
         clients = clients.filter(firm_name__icontains=query)
     clients = list(clients)
 
+    # Pull every Website for the linked Accounts in ONE query, group by
+    # account_id so per-row lookup is O(1).
+    account_ids = [
+        c.migrated_account.id for c in clients if c.migrated_account_id
+    ]
+    websites_by_account = {}
+    if account_ids:
+        for w in Website.objects.filter(account_id__in=account_ids):
+            websites_by_account.setdefault(w.account_id, []).append(w)
+
     # Last completed scan per client — single query, indexed by client id.
+    # Scans are still keyed on ClientProfile during Phase C; in Phase D
+    # they'll move to Website.
     last_scan_by_client = {}
     for s in (VulnerabilityScan.objects
               .filter(status='complete', client__in=clients)
@@ -1489,10 +1521,68 @@ def client_list(request):
             dot = 'high'  # 🟠
         else:
             dot = 'clean'  # 🟢
+
+        # Hydrate website-level info. Pure-legacy clients (no Account)
+        # synthesise a single 'website' from the ClientProfile so the
+        # template doesn't need a separate branch.
+        account = c.migrated_account if c.migrated_account_id else None
+        websites = (
+            websites_by_account.get(account.id, []) if account else []
+        )
+        if not websites:
+            # Build a single legacy pseudo-row from the ClientProfile.
+            websites = [{
+                'name':         c.firm_name,
+                'stage':        '',
+                'stage_display': '',
+                'package_display': c.get_package_display() if c.package else '',
+                'droplet_ip':   c.do_droplet_ip or '',
+                'url':          c.website or '',
+                'is_legacy':    True,
+            }]
+            droplets_with_ip = 1 if c.do_droplet_ip else 0
+            package_summary = (
+                c.get_package_display() if c.package else '—')
+        else:
+            # Hydrate from real Website rows.
+            wsite_rows = []
+            for w in websites:
+                wsite_rows.append({
+                    'pk':              w.pk,
+                    'name':            w.name,
+                    'stage':           w.stage,
+                    'stage_display':   w.get_stage_display(),
+                    'package_display': (
+                        w.get_package_display() if w.package else ''),
+                    'droplet_ip':      w.do_droplet_ip or '',
+                    'url':             w.url or '',
+                    'is_legacy':       False,
+                })
+            websites = wsite_rows
+            droplets_with_ip = sum(1 for w in websites if w['droplet_ip'])
+            # Compact package summary — distinct packages joined; an
+            # account with three 'Maintenance — Growth' websites shows
+            # one badge labelled "Maintenance — Growth ×3".
+            from collections import Counter
+            pkg_counts = Counter(
+                w['package_display'] for w in websites if w['package_display'])
+            if pkg_counts:
+                package_summary = ' · '.join(
+                    f'{pkg}{" ×" + str(n) if n > 1 else ""}'
+                    for pkg, n in pkg_counts.items()
+                )
+            else:
+                package_summary = '—'
+
         rows.append({
-            'client': c,
-            'last_scan': scan,
-            'scan_dot': dot,
+            'client':           c,
+            'account':          account,
+            'last_scan':        scan,
+            'scan_dot':         dot,
+            'websites':         websites,
+            'website_count':    len(websites),
+            'droplets_count':   droplets_with_ip,
+            'package_summary':  package_summary,
         })
 
     return render(request, 'admin_dashboard/client_list.html', _admin_context(

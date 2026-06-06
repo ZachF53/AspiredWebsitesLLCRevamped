@@ -8,9 +8,14 @@
         <div>
             <span class="eyebrow">Clients</span>
             <h1 class="admin-page-title">{{ clients|length }} client{{ clients|length|pluralize }}</h1>
+            <p class="admin-page-sub muted">
+                Each client groups all of its websites + droplets. Click a row
+                to expand the per-website breakdown.
+            </p>
         </div>
         <div>
-            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:clients_onboarding' %}">Legacy Onboarding &rarr;</a>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:accounts_list' %}">Accounts (modern) →</a>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:clients_onboarding' %}">Legacy Onboarding →</a>
         </div>
     </div>
 
@@ -21,54 +26,136 @@
         {% if query %}<a href="{% url 'admin_dashboard:client_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
     </form>
 
-    {% if clients %}
-        <div class="lead-table-wrapper">
-            <table class="lead-table">
-                <thead>
-                    <tr><th>Client</th><th>Status</th><th>Onboarding</th><th>Package</th><th>Server IP</th><th>Last Scan</th><th class="lead-table__col-actions">Monitoring</th></tr>
-                </thead>
-                <tbody>
-                    {% for r in rows %}
-                        {% with c=r.client %}
-                            <tr {% if c.is_tester %}class="client-row--tester"{% endif %}>
-                                <td>
-                                    <a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm">{{ c.firm_name }}</a>
-                                    {% if c.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
-                                </td>
-                                <td><span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span></td>
-                                <td>
-                                    {% if c.onboarding_status == 'pending_setup' %}
-                                        <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
-                                    {% elif c.onboarding_status == 'pending_intake' %}
-                                        <span class="status-badge" style="background:#eab30822;color:#eab308;">Pending Intake</span>
-                                    {% elif c.onboarding_status == 'onboarding_complete' %}
-                                        <span class="status-badge" style="background:#10b98122;color:#10b981;">Complete</span>
-                                    {% else %}
-                                        <span class="muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ c.get_package_display|default:"—" }}</td>
-                                <td>{{ c.do_droplet_ip|default:"—" }}</td>
-                                <td class="client-list__last-scan">
-                                    <span class="scan-dot scan-dot--{{ r.scan_dot }}"
-                                          title="{% if r.scan_dot == 'critical' %}open critical findings{% elif r.scan_dot == 'high' %}open high findings{% elif r.scan_dot == 'clean' %}all findings resolved/accepted{% else %}never scanned{% endif %}"></span>
-                                    {% if r.last_scan %}
-                                        <a href="{% url 'admin_dashboard:scan_detail' r.last_scan.id %}">{{ r.last_scan.completed_at|date:"Y-m-d" }}</a>
-                                    {% else %}
-                                        <span class="droplet-muted">never</span>
-                                    {% endif %}
-                                </td>
-                                <td class="lead-table__col-actions">
-                                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' c.id %}">Open &rarr;</a>
-                                </td>
-                            </tr>
-                        {% endwith %}
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
+    {% if not clients %}
         <div class="admin-empty"><p>No clients found.</p></div>
+    {% else %}
+        {% comment %}
+            Each client renders as a <details> block — collapsed by
+            default. Summary row uses the same column shape as the old
+            <table>, so the eye is trained but rich. Expanding reveals
+            one nested card per Website with stage, package, droplet IP,
+            and live URL.
+
+            Pure-legacy clients (no Account) still show a single row;
+            their pseudo-website carries the ClientProfile's fields.
+        {% endcomment %}
+        <div class="client-list">
+            <header class="client-list__head">
+                <span class="client-list__col-name">Client</span>
+                <span class="client-list__col-status">Status</span>
+                <span class="client-list__col-onboard">Onboarding</span>
+                <span class="client-list__col-sites">Sites</span>
+                <span class="client-list__col-droplets">Droplets</span>
+                <span class="client-list__col-package">Packages</span>
+                <span class="client-list__col-scan">Last Scan</span>
+                <span class="client-list__col-actions">Open</span>
+            </header>
+            {% for r in rows %}
+                {% with c=r.client %}
+                <details class="client-list__row {% if c.is_tester %}client-list__row--tester{% endif %}">
+                    <summary class="client-list__summary">
+                        <span class="client-list__col-name">
+                            <span class="client-list__chev" aria-hidden="true">▸</span>
+                            <a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm" onclick="event.stopPropagation();">{{ c.firm_name }}</a>
+                            {% if c.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
+                        </span>
+                        <span class="client-list__col-status">
+                            <span class="status-badge status-badge--{{ c.status }}">{{ c.get_status_display }}</span>
+                        </span>
+                        <span class="client-list__col-onboard">
+                            {% if c.onboarding_status == 'pending_setup' %}
+                                <span class="status-badge" style="background:#f59e0b22;color:#f59e0b;">Pending Setup</span>
+                            {% elif c.onboarding_status == 'pending_intake' %}
+                                <span class="status-badge" style="background:#eab30822;color:#eab308;">Pending Intake</span>
+                            {% elif c.onboarding_status == 'onboarding_complete' %}
+                                <span class="status-badge" style="background:#10b98122;color:#10b981;">Complete</span>
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </span>
+                        <span class="client-list__col-sites">
+                            <span class="client-list__count">{{ r.website_count }}</span>
+                        </span>
+                        <span class="client-list__col-droplets">
+                            {% if r.droplets_count > 0 %}
+                                <span class="client-list__count">{{ r.droplets_count }}</span>
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </span>
+                        <span class="client-list__col-package">
+                            {% if r.package_summary == '—' %}
+                                <span class="muted">—</span>
+                            {% else %}
+                                <span class="muted client-list__pkg">{{ r.package_summary }}</span>
+                            {% endif %}
+                        </span>
+                        <span class="client-list__col-scan">
+                            <span class="scan-dot scan-dot--{{ r.scan_dot }}"
+                                  title="{% if r.scan_dot == 'critical' %}open critical findings{% elif r.scan_dot == 'high' %}open high findings{% elif r.scan_dot == 'clean' %}all findings resolved/accepted{% else %}never scanned{% endif %}"></span>
+                            {% if r.last_scan %}
+                                <a href="{% url 'admin_dashboard:scan_detail' r.last_scan.id %}"
+                                   onclick="event.stopPropagation();">{{ r.last_scan.completed_at|date:"Y-m-d" }}</a>
+                            {% else %}
+                                <span class="muted">never</span>
+                            {% endif %}
+                        </span>
+                        <span class="client-list__col-actions">
+                            <a class="btn-secondary btn-xs" href="{% url 'admin_dashboard:client_detail' c.id %}"
+                               onclick="event.stopPropagation();">Open →</a>
+                        </span>
+                    </summary>
+
+                    {% comment %}
+                        Expanded panel — one card per website. Each card is
+                        a stripped-down version of the row, focused on the
+                        per-build state. Pure-legacy clients have a single
+                        pseudo-website rendered with the same shape.
+                    {% endcomment %}
+                    <div class="client-list__sub">
+                        {% for w in r.websites %}
+                            <div class="client-website
+                                {% if w.is_legacy %}client-website--legacy{% endif %}">
+                                <div class="client-website__name">
+                                    {% if w.pk %}
+                                        <a href="{% url 'admin_dashboard:website_detail' w.pk %}">{{ w.name }}</a>
+                                    {% else %}
+                                        {{ w.name }}
+                                    {% endif %}
+                                    {% if w.is_legacy %}
+                                        <span class="client-website__legacy-pill">legacy single-site</span>
+                                    {% endif %}
+                                </div>
+                                <div class="client-website__meta">
+                                    {% if w.stage_display %}
+                                        <span class="status-pill status-pill--{{ w.stage }}">{{ w.stage_display }}</span>
+                                    {% endif %}
+                                    {% if w.package_display %}
+                                        <span class="muted">{{ w.package_display }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="client-website__droplet">
+                                    {% if w.droplet_ip %}
+                                        <span class="muted">Droplet</span>
+                                        <code>{{ w.droplet_ip }}</code>
+                                    {% else %}
+                                        <span class="muted">no droplet</span>
+                                    {% endif %}
+                                </div>
+                                <div class="client-website__url">
+                                    {% if w.url %}
+                                        <a href="{{ w.url }}" target="_blank" rel="noopener">{{ w.url }}</a>
+                                    {% else %}
+                                        <span class="muted">no URL yet</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endwith %}
+            {% endfor %}
+        </div>
     {% endif %}
 </div>
 {% endblock %}
