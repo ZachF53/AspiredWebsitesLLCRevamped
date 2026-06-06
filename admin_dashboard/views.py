@@ -7604,6 +7604,13 @@ def website_detail(request, website_id):
         or (legacy_cp is not None
             and legacy_cp.onboarding_status == 'pending_intake'))
 
+    # Freshness report drives the count badge on the monitoring tools
+    # card. Defensive — first() returns None when no report exists,
+    # outer getattr handles legacy_cp being None for unsynced sites.
+    freshness_report = (
+        legacy_cp.freshness_reports.first() if legacy_cp else None
+    )
+
     return render(
         request, 'admin_dashboard/website_detail.html',
         _admin_context(
@@ -7625,6 +7632,7 @@ def website_detail(request, website_id):
             intake_response=intake_response,
             intake_needs_admin_complete=intake_needs_admin_complete,
             legacy_cp=legacy_cp,
+            freshness_report=freshness_report,
         ),
     )
 

@@ -356,6 +356,44 @@
         browser native confirm() so the warning text + the
         consequences are clearly visible.
     {% endcomment %}
+    {% comment %}
+        Per-website monitoring & reporting tools. These currently
+        aggregate at the ClientProfile level — buttons resolve via
+        ``legacy_cp`` (website.account.legacy_client_profile). A
+        future Phase D migration will add Website FKs to UptimeRecord,
+        TrackedKeyword, ConversionEvent, etc. and the same buttons
+        will become genuinely per-website.
+
+        If the website isn't linked to a ClientProfile (pure-Account
+        builds with no legacy mirror), the section hides entirely
+        rather than show broken links.
+    {% endcomment %}
+    {% if legacy_cp %}
+        <div class="admin-card" style="margin-top: 2rem;">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Monitoring &amp; Reporting</h2>
+                <span class="muted" style="font-size: 0.78rem;">
+                    Tools currently aggregate at the client level —
+                    per-website split in Phase D.
+                </span>
+            </div>
+            <div class="admin-card__body">
+                <div class="mon-toollinks">
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_uptime' legacy_cp.id %}">Uptime</a>
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_keywords' legacy_cp.id %}">Keywords</a>
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_conversions' legacy_cp.id %}">Conversions</a>
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_tracker' legacy_cp.id %}">Tracker Snippet</a>
+                    {% if legacy_cp.session_recording_enabled %}
+                        <a class="mon-toollink" href="{% url 'admin_dashboard:recordings_list' legacy_cp.id %}">Session Recordings ({{ legacy_cp.session_recordings.count }})</a>
+                    {% endif %}
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_freshness' legacy_cp.id %}">Content Freshness{% if freshness_report %} ({{ freshness_report.pages_needing_update }} flagged){% endif %}</a>
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_chatbot' legacy_cp.id %}">Chatbot</a>
+                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' legacy_cp.id %}">Changelog</a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
     <div class="admin-card danger-card">
         <div class="admin-card__header">
             <h2 class="admin-card__title danger-card__title">⚠ Move to a different Account</h2>
