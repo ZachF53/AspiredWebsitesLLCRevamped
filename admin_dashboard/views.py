@@ -1460,27 +1460,33 @@ def client_list(request):
       - Pure-legacy client (no Account) → single row using the
         legacy ClientProfile fields (do_droplet_ip, package).
     """
-    from clients.account_models import Website
+    from clients.account_models import Account, Website
     from clients.models import ClientProfile
     from reporting.models import VulnerabilityFinding, VulnerabilityScan
 
     # Real clients first, testers at the bottom. `is_tester` is False=0 /
     # True=1 so a plain ascending sort puts non-testers first.
-    clients = (
-        ClientProfile.objects
-        .select_related('migrated_account')
-        .order_by('is_tester', 'firm_name')
-    )
+    clients = ClientProfile.objects.order_by('is_tester', 'firm_name')
     query = (request.GET.get('q') or '').strip()
     if query:
         clients = clients.filter(firm_name__icontains=query)
     clients = list(clients)
 
+    # Map ClientProfile.id → Account in one query keyed on the FORWARD
+    # FK (legacy_client_profile_id). Avoids the reverse 1:1 accessor
+    # gotcha: ClientProfile.migrated_account RAISES DoesNotExist when
+    # not linked, and there's no _id sibling on reverse one-to-ones.
+    profile_ids = [c.id for c in clients]
+    account_by_profile = {
+        a.legacy_client_profile_id: a
+        for a in Account.objects.filter(
+            legacy_client_profile_id__in=profile_ids
+        )
+    }
+
     # Pull every Website for the linked Accounts in ONE query, group by
     # account_id so per-row lookup is O(1).
-    account_ids = [
-        c.migrated_account.id for c in clients if c.migrated_account_id
-    ]
+    account_ids = [a.id for a in account_by_profile.values()]
     websites_by_account = {}
     if account_ids:
         for w in Website.objects.filter(account_id__in=account_ids):
@@ -1525,7 +1531,7 @@ def client_list(request):
         # Hydrate website-level info. Pure-legacy clients (no Account)
         # synthesise a single 'website' from the ClientProfile so the
         # template doesn't need a separate branch.
-        account = c.migrated_account if c.migrated_account_id else None
+        account = account_by_profile.get(c.id)
         websites = (
             websites_by_account.get(account.id, []) if account else []
         )
