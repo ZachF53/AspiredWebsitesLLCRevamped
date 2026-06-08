@@ -1,0 +1,133 @@
+{% extends "onboarding/base.html" %}
+
+{% block onboarding_title %}{{ section.title }} — Setup{% endblock %}
+
+{% block onboarding_body %}
+<div class="ob-card ob-card--step"
+     data-onboarding-save-url="{% url 'onboarding:save' onboarding.product_type onboarding.tier_slug %}"
+     data-onboarding-skip-url="{% url 'onboarding:skip' onboarding.product_type onboarding.tier_slug %}">
+
+    {# ── Section breadcrumb strip ── #}
+    <ol class="ob-breadcrumbs" aria-label="Onboarding sections">
+        {% for crumb in breadcrumbs %}
+            <li class="ob-breadcrumb ob-breadcrumb--{{ crumb.state }}">
+                {% if crumb.state == 'done' %}<span aria-hidden="true">&#10003;</span>{% elif crumb.state == 'current' %}<span aria-hidden="true">&bull;</span>{% else %}<span aria-hidden="true">&#9675;</span>{% endif %}
+                <span class="ob-breadcrumb__label">{{ crumb.key }}</span>
+            </li>
+        {% endfor %}
+    </ol>
+
+    {# ── Progress bar ── #}
+    <div class="ob-progress" role="progressbar"
+         aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="{{ progress.percent }}">
+        <div class="ob-progress__fill" id="ob-progress-fill"
+             style="width: {{ progress.percent }}%"></div>
+    </div>
+    <p class="ob-progress__caption">
+        <span id="ob-progress-text">{{ progress.percent }}%</span>
+        ({{ progress.answered }} answered, {{ progress.skipped }} skipped,
+        {{ progress.total }} total)
+    </p>
+
+    {# ── Section header ── #}
+    <h2 class="ob-section-title">
+        Section {{ section_index }} of {{ section_count }} — {{ section.title }}
+    </h2>
+    {% if section.intro %}
+        <p class="ob-section-intro">{{ section.intro }}</p>
+    {% endif %}
+
+    {# ── Questions ── #}
+    {% for q in questions %}
+        <div class="ob-question" data-question-key="{{ q.key }}">
+            <label class="ob-question__label" for="ob-q-{{ q.key }}">
+                {{ q.label }}
+                {% if not q.skip_allowed %}<span class="ob-required">*required</span>{% endif %}
+            </label>
+            {% if q.help %}<p class="ob-question__help">{{ q.help }}</p>{% endif %}
+
+            {% if q.type == 'textarea' %}
+                <textarea id="ob-q-{{ q.key }}"
+                          class="ob-question__input"
+                          data-q-input="{{ q.key }}"
+                          rows="{{ q.rows|default:3 }}"
+                          {% if q.placeholder %}placeholder="{{ q.placeholder }}"{% endif %}
+                          {% if q.skipped %}disabled{% endif %}>{{ q.value }}</textarea>
+            {% elif q.type == 'select' %}
+                <select id="ob-q-{{ q.key }}"
+                        class="ob-question__input"
+                        data-q-input="{{ q.key }}"
+                        {% if q.skipped %}disabled{% endif %}>
+                    {% for value, label in q.choices %}
+                        <option value="{{ value }}" {% if value == q.value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            {% elif q.type == 'bool' %}
+                <select id="ob-q-{{ q.key }}"
+                        class="ob-question__input"
+                        data-q-input="{{ q.key }}"
+                        {% if q.skipped %}disabled{% endif %}>
+                    <option value="" {% if q.value == '' %}selected{% endif %}>—</option>
+                    <option value="yes" {% if q.value == 'yes' %}selected{% endif %}>Yes</option>
+                    <option value="no" {% if q.value == 'no' %}selected{% endif %}>No</option>
+                </select>
+            {% elif q.type == 'cred_access' %}
+                <select id="ob-q-{{ q.key }}"
+                        class="ob-question__input"
+                        data-q-input="{{ q.key }}"
+                        data-cred-category="{{ q.cred_category }}"
+                        data-cred-type="{{ q.cred_type }}"
+                        {% if q.skipped %}disabled{% endif %}>
+                    <option value="" {% if q.value == '' %}selected{% endif %}>—</option>
+                    <option value="share" {% if q.value == 'share' %}selected{% endif %}>Yes — I'll share via vault</option>
+                    <option value="dont_have" {% if q.value == 'dont_have' %}selected{% endif %}>I don't have it</option>
+                    <option value="dont_know" {% if q.value == 'dont_know' %}selected{% endif %}>Don't know what this is</option>
+                </select>
+            {% else %}
+                <input id="ob-q-{{ q.key }}"
+                       type="text"
+                       class="ob-question__input"
+                       data-q-input="{{ q.key }}"
+                       value="{{ q.value }}"
+                       {% if q.placeholder %}placeholder="{{ q.placeholder }}"{% endif %}
+                       {% if q.skipped %}disabled{% endif %}>
+            {% endif %}
+
+            {% if q.skip_allowed %}
+                <button type="button"
+                        class="ob-question__skip"
+                        data-q-skip="{{ q.key }}"
+                        aria-pressed="{% if q.skipped %}true{% else %}false{% endif %}">
+                    {% if q.skipped %}↩ Un-skip{% else %}Skip this question{% endif %}
+                </button>
+            {% endif %}
+
+            <span class="ob-question__saved" data-q-saved="{{ q.key }}" hidden>✓ saved</span>
+        </div>
+    {% endfor %}
+
+    {# ── Footer nav ── #}
+    <div class="ob-step-footer">
+        {% if prev_section %}
+            <a class="btn-secondary"
+               href="{% url 'onboarding:step' onboarding.product_type onboarding.tier_slug prev_section %}">
+                ← Back
+            </a>
+        {% endif %}
+
+        {% if is_last_section %}
+            <a class="btn-primary"
+               href="{% url 'onboarding:complete' onboarding.product_type onboarding.tier_slug %}">
+                Finish onboarding →
+            </a>
+        {% else %}
+            <a class="btn-primary"
+               href="{% url 'onboarding:step' onboarding.product_type onboarding.tier_slug next_section %}">
+                Save & continue →
+            </a>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

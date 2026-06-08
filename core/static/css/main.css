@@ -14693,6 +14693,567 @@ textarea.brief-field__input {
 }
 
 
+/* ── Onboarding wizard ─────────────────────────────────────────────── */
+.onboarding-shell {
+    max-width: 760px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+.ob-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 2rem;
+    color: var(--color-text);
+}
+.ob-card + .ob-card { margin-top: 1.5rem; }
+.ob-title {
+    font-size: 1.75rem;
+    margin: 0 0 1rem;
+    color: var(--color-text);
+}
+.ob-intro {
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+}
+.ob-section-list {
+    color: var(--color-text-muted);
+    margin: 1rem 0 1.25rem 1.2rem;
+    line-height: 1.7;
+}
+.ob-warning {
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--color-text);
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin: 1.25rem 0;
+    line-height: 1.5;
+}
+.ob-warning strong { color: var(--color-danger); }
+.ob-start-form { margin-top: 1.5rem; }
+
+/* Breadcrumbs */
+.ob-breadcrumbs {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+.ob-breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+}
+.ob-breadcrumb--current {
+    color: var(--color-orange);
+    border-color: rgba(232, 101, 10, 0.4);
+    background: rgba(232, 101, 10, 0.08);
+}
+.ob-breadcrumb--done {
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+/* Progress */
+.ob-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    margin-bottom: 0.4rem;
+}
+.ob-progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-orange), var(--color-orange-light));
+    transition: width 0.3s ease;
+}
+.ob-progress__caption {
+    margin: 0 0 1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+/* Section header */
+.ob-section-title {
+    font-size: 1.1rem;
+    margin: 1rem 0 0.5rem;
+    color: var(--color-text);
+}
+.ob-section-intro {
+    color: var(--color-text-muted);
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+
+/* Questions */
+.ob-question {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.ob-question__label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: var(--color-text);
+}
+.ob-required {
+    color: var(--color-danger);
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-left: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ob-question__help {
+    margin: 0 0 0.5rem;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.ob-question__input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.92rem;
+}
+.ob-question__input:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.ob-question__input:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    background: rgba(0, 0, 0, 0.4);
+}
+.ob-question__skip {
+    background: none;
+    border: 0;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-top: 0.4rem;
+    padding: 0.2rem 0;
+}
+.ob-question__skip:hover { color: var(--color-orange); }
+.ob-question__skip[aria-pressed="true"] {
+    color: var(--color-warning, var(--color-orange));
+}
+.ob-question__saved {
+    display: inline-block;
+    margin-top: 0.4rem;
+    color: var(--color-success);
+    font-size: 0.75rem;
+}
+
+/* Footer nav */
+.ob-step-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+}
+
+
+/* ── Setup To-Do widget ───────────────────────────────────────────── */
+.portal-nav__todo {
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.9rem;
+}
+.portal-nav__badge {
+    margin-left: auto;
+    background: var(--color-orange);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    min-width: 1.4rem;
+    text-align: center;
+}
+
+.todo-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 6, 20, 0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 5000;
+}
+.todo-overlay__shell {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+    position: relative;
+}
+.todo-overlay__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.85rem;
+    background: none;
+    border: 0;
+    color: var(--color-text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.todo-overlay__close:hover { color: var(--color-text); }
+.todo-modal__title {
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+    color: var(--color-text);
+}
+.todo-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.todo-item {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.todo-item__main { flex: 1; min-width: 0; }
+.todo-item__title { color: var(--color-text); }
+.todo-item__desc {
+    margin: 0.25rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+.todo-item--done {
+    opacity: 0.7;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.9rem;
+}
+.todo-item__when { font-size: 0.75rem; }
+.todo-completed { margin-top: 1.25rem; }
+.todo-completed summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    list-style: none;
+}
+.todo-completed[open] summary { margin-bottom: 0.5rem; }
+.todo-completed summary::-webkit-details-marker { display: none; }
+.todo-list--done { gap: 0.25rem; margin-top: 0.5rem; }
+.todo-modal__empty {
+    text-align: center;
+    padding: 1.5rem 0;
+}
+
+
+/* ── Checkout (Stripe Elements) ───────────────────────────────────── */
+.checkout-shell {
+    max-width: 1080px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+    color: var(--color-text);
+}
+.checkout-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 2rem;
+}
+@media (max-width: 880px) {
+    .checkout-grid { grid-template-columns: 1fr; }
+}
+.checkout-summary {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    align-self: start;
+    position: sticky;
+    top: 1.5rem;
+}
+.checkout-summary__title { margin: 0 0 0.25rem; font-size: 1.2rem; }
+.checkout-summary__price { margin: 0 0 0.5rem; font-size: 1.5rem; color: var(--color-orange); }
+.checkout-summary__tagline { color: var(--color-text-muted); margin: 0 0 1rem; }
+.checkout-features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+.checkout-divider {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin: 1rem 0;
+}
+.checkout-totals { font-size: 0.9rem; }
+.checkout-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--color-text);
+    font-weight: 600;
+}
+.checkout-total-note { font-size: 0.75rem; margin: 0.4rem 0 0; }
+.checkout-upsell {
+    display: flex;
+    gap: 0.6rem;
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-top: 1rem;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.checkout-form {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.75rem;
+}
+.checkout-form__title {
+    margin: 0 0 1.25rem;
+    font-size: 1.25rem;
+}
+.checkout-form .form-group {
+    margin: 0 0 1rem;
+}
+.checkout-form label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+    color: var(--color-text);
+}
+.checkout-form input[type="email"] {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+#payment-element, #address-element {
+    background: rgba(0, 0, 0, 0.18);
+    padding: 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.checkout-submit {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+.checkout-secure {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.8rem;
+}
+.checkout-error {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: var(--color-danger);
+    padding: 0.65rem 0.85rem;
+    border-radius: 6px;
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+}
+.checkout-success {
+    text-align: center;
+    padding: 3rem 1rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.checkout-success__lead {
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin: 1rem 0;
+}
+
+
+/* ── Schedule-a-Call page (matches contact-grid layout) ──────────── */
+.schedule-slots__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    max-height: 600px;
+    overflow-y: auto;
+}
+.schedule-day {
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.85rem 0.75rem;
+}
+.schedule-day__heading {
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+    font-size: 0.92rem;
+}
+.schedule-slot {
+    display: inline-block;
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    margin: 0.2rem 0.25rem 0 0;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 120ms, background 120ms;
+}
+.schedule-slot:hover {
+    border-color: var(--color-orange);
+    color: var(--color-orange);
+}
+.schedule-slot--picked {
+    background: var(--color-orange);
+    color: #fff;
+    border-color: var(--color-orange);
+}
+.schedule-submit { width: 100%; }
+
+/* ── Addon opt-in fieldset (used on schedule + reusable elsewhere) ─ */
+.addon-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin: 0;
+}
+.addon-fieldset__legend {
+    padding: 0 0.5rem;
+    font-weight: 700;
+    color: var(--color-orange);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.addon-fieldset__hint {
+    margin: 0 0 0.85rem;
+}
+.addon-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+@media (min-width: 600px) {
+    .addon-grid { grid-template-columns: 1fr 1fr; }
+}
+.addon-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms;
+}
+.addon-option:hover {
+    border-color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.08);
+}
+.addon-option__check {
+    margin-top: 0.18rem;
+    accent-color: var(--color-orange);
+}
+.addon-option__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.addon-option__title {
+    font-weight: 700;
+    color: var(--color-text);
+    font-size: 0.92rem;
+}
+.addon-option__meta {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.addon-option__discount {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+.addon-option__tagline {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+.addon-group + .addon-group {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+.addon-group__title {
+    margin: 0 0 0.2rem;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    font-weight: 700;
+}
+.addon-group__sub {
+    margin: 0 0 0.7rem;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+/* Accessible off-screen hiding — used by the contact-form honeypot
+   (the project's strict 'style-src self' CSP blocks inline styles, so
+   an inline `position:absolute;left:-9999px` no-ops and the honeypot
+   leaks onto the page). */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+
 /* ── Contact-triage chips on /admin-dashboard/leads/ ─────────────── */
 .contact-chips {
     display: flex;

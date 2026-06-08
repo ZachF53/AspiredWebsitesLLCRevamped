@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ meta_title }}{% endblock %}
+{% block meta_description %}{{ meta_description }}{% endblock %}
+
+{% block content %}
+<section class="hero hero--compact">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Legal</span>
+            <h1>Refund <span class="accent">Policy</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">How refunds, cancellations, and credits work for every Aspired Websites service.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <article class="legal-doc">
+            <p class="legal-doc__effective">Effective Date: {{ effective_date|date:"F j, Y" }}</p>
+
+            <p>This policy applies to all purchases made on aspiredwebsites.com or invoiced by Aspired Websites LLC. By purchasing, you agree to these terms.</p>
+
+            <h2>1. Maintenance subscriptions</h2>
+
+            <h3>First-month satisfaction guarantee</h3>
+            <p>If your first month of maintenance doesn&rsquo;t deliver value you can see, email us within 30 days of your first charge and we&rsquo;ll refund that first month in full. This applies to your initial signup only, not to plan upgrades or downgrades.</p>
+
+            <h3>Cancel anytime</h3>
+            <p>Open your client portal, go to <strong>Manage Billing &rarr; Cancel Subscription</strong>, and confirm. Your subscription stays active through the end of your current billing period &mdash; you keep access to everything you paid for, but you won&rsquo;t be charged again.</p>
+
+            <h3>No partial refunds for the current period</h3>
+            <p>Outside the first-month guarantee, we don&rsquo;t refund the unused portion of the current month once it has begun. If you cancel on day 5 of a 30-day cycle, you keep service through day 30; what you paid for the month stays with us. The work for that period is already planned, scheduled, and partially executed by the time you cancel &mdash; audits, content drafts, post schedules &mdash; and those don&rsquo;t pause mid-cycle.</p>
+
+            <h2>2. Social Media subscriptions</h2>
+            <p><strong>Cancel anytime.</strong> Same flow as maintenance. Social marketing typically takes 60&ndash;90 days to show measurable results, so we don&rsquo;t offer a first-month guarantee on social plans &mdash; but you can cancel whenever, no questions asked, and your remaining time on the current month is yours to use.</p>
+
+            <h2>3. Annual Hosting</h2>
+            <p><strong>Cancel anytime to stop renewal.</strong> Same flow as subscriptions. Your hosting stays active until your annual renewal date.</p>
+            <p><strong>No partial refunds.</strong> Annual hosting is paid upfront and consumed across the year. Cancelling stops future renewals, but the current year&rsquo;s fee is not refunded.</p>
+
+            <h2>4. Website Builds</h2>
+            <p>Website builds are paid in milestones &mdash; typically a 50% deposit and 50% final payment. Refund treatment depends on which milestone you&rsquo;re at:</p>
+
+            <h3>Deposit (paid before work begins)</h3>
+            <p>Refundable in full for 7 days from payment, OR until the kickoff call happens, whichever comes first. After kickoff, the deposit is earned and non-refundable.</p>
+
+            <h3>Mid-project payments</h3>
+            <p>Refundable on a pro-rata basis for work not yet delivered. We&rsquo;ll send you a written accounting of what&rsquo;s been completed, what remains, and the refund amount. We aim to respond to refund requests within 5 business days.</p>
+
+            <h3>Final payment (paid at launch)</h3>
+            <p>Once your site has launched, we don&rsquo;t issue refunds on completed work. What we DO offer instead is our fix-it commitment: anything we built that doesn&rsquo;t work as agreed gets fixed at no charge &mdash; for the lifetime of your maintenance plan if you&rsquo;re on one, or for 90 days after launch if you&rsquo;re not. We&rsquo;ve never had a project we couldn&rsquo;t make right, and we plan to keep it that way. In the rare case that an issue can&rsquo;t be resolved despite our good-faith efforts, we&rsquo;ll work with you on a credit toward future work &mdash; refund is the last resort after we&rsquo;ve genuinely tried to fix.</p>
+
+            <h2>5. Add-ons &amp; One-time fees</h2>
+            <p><strong>Out-of-scope work.</strong> Hourly fees ($85/hr) are billed after work is completed and are non-refundable once delivered.</p>
+            <p><strong>Domain registration.</strong> Non-refundable. Registry fees are paid upfront to ICANN-accredited registrars and we don&rsquo;t recover those if you cancel.</p>
+            <p><strong>Hosting move-over fee.</strong> Non-refundable once the migration begins.</p>
+
+            <h2>6. Chargebacks</h2>
+            <p>If you dispute a charge with your bank or card issuer without first contacting us, we reserve the right to suspend service while the dispute is resolved. Reach out first &mdash; we&rsquo;re easier to talk to than your bank.</p>
+
+            <h2>7. How to request a refund</h2>
+            <p>Email <a href="mailto:zachery@aspiredwebsites.com">zachery@aspiredwebsites.com</a> with:</p>
+            <ul>
+                <li>Your account email</li>
+                <li>The charge date and amount</li>
+                <li>A short description of why you&rsquo;re requesting the refund</li>
+            </ul>
+            <p>We respond to all refund requests within 5 business days. Approved refunds process via your original payment method within 5&ndash;10 business days, depending on your card issuer.</p>
+
+            <h2>8. Disputes</h2>
+            <p>Aspired Websites LLC is registered in Atlanta, Georgia. These terms are governed by Georgia law, and any disputes that can&rsquo;t be resolved between us will be handled in the state or federal courts of Fulton County, Georgia, regardless of where you are located.</p>
+
+            <h2>9. Changes to this policy</h2>
+            <p>We may update this policy from time to time. The &ldquo;Effective Date&rdquo; above reflects the most recent change. Existing subscriptions and in-progress builds are governed by the policy that was in effect at the time of purchase.</p>
+        </article>
+    </div>
+</section>
+{% endblock %}

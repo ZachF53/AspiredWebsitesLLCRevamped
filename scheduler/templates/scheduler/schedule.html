@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Schedule a Call — Aspired Websites{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Schedule a Call</span>
+            <h1>Let&rsquo;s talk about your <span class="accent">build</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">30-minute kickoff call — pick a time that works for you.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Form + slot picker ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="contact-grid">
+
+            {# Left: pick a time #}
+            <article class="card">
+                <span class="eyebrow">Step 1</span>
+                <h2 class="card__title">Pick a time</h2>
+                <div id="slot-list" class="schedule-slots__list">
+                    Loading slots&hellip;
+                </div>
+            </article>
+
+            {# Right: tell us about the project #}
+            <article class="card">
+                <span class="eyebrow">Step 2</span>
+                <h2 class="card__title">Tell us about your project</h2>
+
+                <form id="schedule-form" class="form" novalidate>
+
+                    <div class="form-group">
+                        <label for="s-name">Your name <span class="required" aria-hidden="true">*</span></label>
+                        <input id="s-name" name="name" type="text" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-email">Email <span class="required" aria-hidden="true">*</span></label>
+                        <input id="s-email" name="email" type="email" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-phone">Phone</label>
+                        <input id="s-phone" name="phone" type="tel" class="form-control"
+                               placeholder="(210) 555-1234">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-business">Business name <span class="required" aria-hidden="true">*</span></label>
+                        <input id="s-business" name="business" type="text" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-website">Existing website (if any)</label>
+                        <input id="s-website" name="website" type="url" class="form-control"
+                               placeholder="https://&hellip;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-build">Build type</label>
+                        <select id="s-build" name="build_type" class="form-control">
+                            <option value="">&mdash; pick &mdash;</option>
+                            <option value="essential">Essential Build</option>
+                            <option value="premium">Premium Build</option>
+                            <option value="not_sure">Not sure yet</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="s-inquiry">What are you trying to build? <span class="required" aria-hidden="true">*</span></label>
+                        <textarea id="s-inquiry" name="inquiry" rows="4" class="form-control" required></textarea>
+                    </div>
+
+                    {% if addons %}
+                        {% comment %}
+                            Group the addon list by category so the
+                            visitor sees a Maintenance header above
+                            Essentials/Growth/Dominant, and a Social
+                            Media header above Basic/Standard/Full —
+                            otherwise the labels are ambiguous in
+                            isolation.
+                        {% endcomment %}
+                        {% regroup addons by category as addon_groups %}
+                        <fieldset class="addon-fieldset">
+                            <legend class="addon-fieldset__legend">Save 10% on your first month &mdash; opt in now</legend>
+                            <p class="form-help addon-fieldset__hint">
+                                Lock in 10% off the first month on any
+                                maintenance or social plan when you sign up.
+                                We&rsquo;ll apply the discount when we send your
+                                invoice after our call.
+                            </p>
+                            {% for group in addon_groups %}
+                                <div class="addon-group">
+                                    <h4 class="addon-group__title">
+                                        {% if group.grouper == 'maintenance' %}Monthly maintenance plans
+                                        {% elif group.grouper == 'social_media' %}Social media plans
+                                        {% else %}{{ group.grouper|title }}
+                                        {% endif %}
+                                    </h4>
+                                    <p class="addon-group__sub">
+                                        {% if group.grouper == 'maintenance' %}
+                                            We keep your site sharp &mdash; updates, backups, monitoring.
+                                        {% elif group.grouper == 'social_media' %}
+                                            We run your posts, content, and analytics across your channels.
+                                        {% endif %}
+                                    </p>
+                                    <div class="addon-grid">
+                                        {% for a in group.list %}
+                                            <label class="addon-option">
+                                                <input type="checkbox" name="addons" value="{{ a.slug }}" class="addon-option__check">
+                                                <span class="addon-option__body">
+                                                    <span class="addon-option__title">{{ a.name }}</span>
+                                                    {% if a.tagline %}<span class="addon-option__tagline">{{ a.tagline }}</span>{% endif %}
+                                                    <span class="addon-option__meta">
+                                                        {{ a.get_price_display }} &middot;
+                                                        <span class="addon-option__discount">10% off month 1</span>
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </fieldset>
+                    {% endif %}
+
+                    <input type="hidden" id="s-selected-slot" name="starts_at">
+                    <p id="s-chosen-time" class="form-help"></p>
+
+                    <div id="schedule-error" class="form-error" role="alert" hidden></div>
+
+                    <button type="submit" class="btn-primary btn-lg schedule-submit" disabled
+                            id="schedule-submit">
+                        Submit &mdash; pick a time first
+                    </button>
+                </form>
+            </article>
+
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/schedule_call.js' %}" defer></script>
+{% endblock %}

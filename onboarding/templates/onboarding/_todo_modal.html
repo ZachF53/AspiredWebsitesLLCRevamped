@@ -1,0 +1,51 @@
+{% comment %}
+    HTMX partial — body of the SetupTodo modal. Rendered into the
+    portal's modal shell when the user clicks the To-Do List sidebar
+    entry. Pending items first, completed items in a collapsible
+    accordion at the bottom.
+{% endcomment %}
+
+<div class="todo-modal">
+    <h2 class="todo-modal__title">Things we still need from you ({{ pending_count }})</h2>
+
+    {% if not pending %}
+        <p class="muted todo-modal__empty">
+            ✓ Inbox zero. Nothing waiting on you right now.
+        </p>
+    {% else %}
+        <ul class="todo-list">
+            {% for t in pending %}
+                <li class="todo-item">
+                    <div class="todo-item__main">
+                        <strong class="todo-item__title">{{ t.title }}</strong>
+                        {% if t.description %}
+                            <p class="todo-item__desc">{{ t.description }}</p>
+                        {% endif %}
+                    </div>
+                    {% if t.deeplink_url %}
+                        <a class="btn-primary btn-sm"
+                           href="{{ t.deeplink_url }}">
+                            Add credentials →
+                        </a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if completed %}
+        <details class="todo-completed">
+            <summary>▸ Completed ({{ completed|length }})</summary>
+            <ul class="todo-list todo-list--done">
+                {% for t in completed %}
+                    <li class="todo-item todo-item--done">
+                        <span>✓ {{ t.title }}</span>
+                        <span class="muted todo-item__when">
+                            {{ t.completed_at|date:"M j" }}
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </details>
+    {% endif %}
+</div>

@@ -52,6 +52,10 @@ def stripe_webhook(request):
             _handle_subscription_deleted(event)
         elif event_type == 'customer.subscription.updated':
             _handle_subscription_updated(event)
+        elif event_type == 'customer.subscription.created':
+            # Phase 6 — self-checkout subscriptions trigger account
+            # creation + magic-link email.
+            _handle_self_checkout_subscription_created(event)
         else:
             logger.info('Stripe webhook: unhandled event type %s', event_type)
     except Exception:
@@ -925,3 +929,75 @@ def _handle_subscription_updated(event):
         logger.info(
             'subscription.updated: client %s status=%s package=%s',
             client.pk, status, client.package)
+
+
+# ── Phase 6 — self-checkout magic-link bootstrap ─────────────────────
+
+def _handle_self_checkout_subscription_created(event):
+    """
+    Triggered by every customer.subscription.created. For subscriptions
+    that came from our custom checkout flow (metadata.tier_slug present),
+    we:
+      1. Find or create a User by email
+      2. Create an Onboarding for the (user, product_type, tier_slug)
+      3. Mint a PasswordSetupToken and email the magic link
+
+    Idempotent — re-running the same event is a no-op after the first
+    pass because Onboarding has unique_together(user, product_type,
+    tier_slug) and PasswordSetupToken creation is allowed (a fresh
+    token just supersedes the prior one until used).
+    """
+    from django.contrib.auth import get_user_model
+
+    sub = event.get('data', {}).get('object', {})
+    metadata = sub.get('metadata') or {}
+    tier_slug = metadata.get('tier_slug') or ''
+    product_type = metadata.get('product_type') or ''
+    customer_id = sub.get('customer')
+    if not (tier_slug and product_type and customer_id):
+        return  # not a self-checkout subscription
+
+    # Look up email from the Stripe customer
+    import stripe as _stripe
+    _stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        cust = _stripe.Customer.retrieve(customer_id)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'self-checkout webhook: customer retrieve failed for %s',
+            customer_id)
+        return
+    email = (cust.get('email') or '').lower()
+    if not email:
+        return
+
+    User = get_user_model()
+    user, created = User.objects.get_or_create(
+        email__iexact=email,
+        defaults={
+            'username': email,
+            'email': email,
+            'is_active': True,
+        },
+    )
+    if created:
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+
+    # Create Onboarding (idempotent on unique_together)
+    try:
+        from onboarding.models import Onboarding
+        Onboarding.objects.get_or_create(
+            user=user, product_type=product_type, tier_slug=tier_slug,
+        )
+    except Exception:
+        logger.exception('self-checkout webhook: Onboarding create failed')
+
+    # Mint a password setup token + email it (only if newly created)
+    if created:
+        try:
+            from onboarding.password_views import send_password_setup_email
+            send_password_setup_email(user)
+        except Exception:
+            logger.exception(
+                'self-checkout webhook: password email failed for %s', email)

@@ -1,0 +1,16 @@
+{% extends "onboarding/base.html" %}
+
+{% block onboarding_title %}Nothing to onboard{% endblock %}
+
+{% block onboarding_body %}
+<div class="ob-card ob-card--empty">
+    <h1 class="ob-title">No onboarding in progress</h1>
+    <p class="ob-intro">
+        You don't have any active onboardings right now. If this is a
+        surprise, please contact support.
+    </p>
+    <a class="btn-primary" href="{% url 'clients:portal_home' %}">
+        Back to your portal →
+    </a>
+</div>
+{% endblock %}

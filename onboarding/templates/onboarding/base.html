@@ -1,0 +1,18 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}{% block onboarding_title %}Onboarding{% endblock %} — Aspired Websites{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-shell">
+    {% block onboarding_body %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/onboarding_wizard.js' %}" defer></script>
+{% endblock %}

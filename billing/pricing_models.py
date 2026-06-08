@@ -53,6 +53,20 @@ class ServiceTier(TimestampedModel):
     practice_areas_included = models.IntegerField(null=True, blank=True)
     timeline_weeks = models.IntegerField(null=True, blank=True)
 
+    # Social-media specific — Phase 4 onboarding refactor. max_channels
+    # drives the per-tier channel-slot count in the wizard.
+    # reply_handling encodes what the tier promises: none, triage
+    # (we flag, you respond), full (we do everything).
+    max_channels = models.IntegerField(null=True, blank=True)
+    REPLY_CHOICES = [
+        ('none',    'You handle replies'),
+        ('triage',  'Triage — we flag, you respond'),
+        ('full',    'Full reply & DM management'),
+    ]
+    reply_handling = models.CharField(
+        max_length=10, choices=REPLY_CHOICES, blank=True,
+    )
+
     class Meta:
         ordering = ['category', 'sort_order', 'price']
 

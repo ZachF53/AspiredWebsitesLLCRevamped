@@ -1,0 +1,36 @@
+{% extends "onboarding/base.html" %}
+
+{% block onboarding_title %}Welcome to your {{ onboarding.get_product_type_display }} setup{% endblock %}
+
+{% block onboarding_body %}
+<div class="ob-card ob-card--welcome">
+
+    <h1 class="ob-title">Welcome to your {{ onboarding.get_product_type_display }} setup</h1>
+
+    <p class="ob-intro">
+        We're going to ask you about:
+    </p>
+    <ul class="ob-section-list">
+        {% for sec in sections %}
+            <li>{{ sec.title }}{% if sec.questions %} ({{ sec.questions|length }} question{{ sec.questions|length|pluralize }}){% endif %}</li>
+        {% endfor %}
+    </ul>
+
+    <p class="ob-warning">
+        <strong>Every question is required UNLESS you check
+        &ldquo;Skip this question.&rdquo;</strong> Each answer
+        auto-saves the moment you click out of the field, so you can
+        leave and come back anytime &mdash; your work won't be lost.
+    </p>
+
+    <p class="ob-intro">
+        Estimated time: about <strong>{{ estimate_minutes }} minutes</strong>.
+    </p>
+
+    <form method="post" class="ob-start-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary btn-lg">Start &rarr;</button>
+    </form>
+
+</div>
+{% endblock %}

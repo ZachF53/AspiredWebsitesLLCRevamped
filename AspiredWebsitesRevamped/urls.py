@@ -22,6 +22,12 @@ urlpatterns = [
     path('admin-dashboard/vault/', include('vault.urls')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
     path('portal/', include('clients.urls')),
+    path('onboarding/', include('onboarding.urls', namespace='onboarding')),
+    path('', include('scheduler.urls', namespace='scheduler')),
+    # Magic-link password setup — Phase 6
+    path('set-password/<uuid:token>/',
+         __import__('onboarding.password_views', fromlist=['set_password']).set_password,
+         name='set_password'),
     path('portal/domains/', include('domains.urls')),
     path('billing/', include('billing.urls')),
 

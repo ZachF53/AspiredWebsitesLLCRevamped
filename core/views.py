@@ -37,3 +37,15 @@ def terms_of_service(request):
             'services from Aspired Websites LLC.'
         ),
     })
+
+
+def refund_policy(request):
+    return render(request, 'core/refund_policy.html', {
+        'active_nav': '',
+        'effective_date': LEGAL_EFFECTIVE_DATE,
+        'meta_title': 'Refund Policy — Aspired Websites',
+        'meta_description': (
+            'Refund terms for builds, maintenance, social media, '
+            'hosting, and add-on services from Aspired Websites LLC.'
+        ),
+    })

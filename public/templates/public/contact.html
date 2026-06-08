@@ -31,9 +31,16 @@
                 <form method="post" class="form contact-form" novalidate>
                     {% csrf_token %}
 
-                    {# ── Spam traps — never visible to real users. ── #}
-                    {# Honeypot: bots that fill every field will fill this one too. #}
-                    <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+                    {% comment %}
+                        Spam traps — never visible to real users.
+                        Honeypot: bots that fill every field will fill
+                        this one too. Hidden via the .visually-hidden
+                        class because the project's CSP blocks inline
+                        styles ('style-src self' is strict) — an inline
+                        style="position:absolute;..." would be dropped
+                        and the honeypot would render visibly.
+                    {% endcomment %}
+                    <div aria-hidden="true" class="visually-hidden">
                         <label for="website_url">Website URL (leave blank)</label>
                         <input type="text" name="website_url" id="website_url"
                                autocomplete="off" tabindex="-1">

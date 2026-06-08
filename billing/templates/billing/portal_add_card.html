@@ -1,0 +1,27 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Add card — Aspired Websites{% endblock %}
+
+{% block extra_head %}
+    <script src="https://js.stripe.com/v3/" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="portal-billing">
+    <h1>Add a new card</h1>
+    <form id="add-card-form"
+          data-client-secret="{{ client_secret }}"
+          data-publishable-key="{{ stripe_publishable_key }}"
+          data-return-url="{% url 'billing:portal_home' %}">
+        <div id="payment-element"></div>
+        <div id="add-card-error" class="checkout-error" hidden></div>
+        <button type="submit" class="btn-primary">Save card</button>
+        <a class="btn-secondary" href="{% url 'billing:portal_home' %}">Cancel</a>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/add_card.js' %}" defer></script>
+{% endblock %}

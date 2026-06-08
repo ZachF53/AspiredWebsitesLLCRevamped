@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Thanks — payment received{% endblock %}
+
+{% block content %}
+<div class="checkout-shell">
+    <div class="checkout-success">
+        <h1>Thanks — you're in.</h1>
+        <p class="checkout-success__lead">
+            Your <strong>{{ tier.name }}</strong> subscription is active.
+            We just sent you an email at the address you used —
+            click the link in it to set your password and start your
+            short setup walkthrough.
+        </p>
+        <p class="muted">
+            Don't see the email? Check spam, or email
+            <a href="mailto:zachery@aspiredwebsites.com">zachery@aspiredwebsites.com</a>.
+        </p>
+        <a class="btn-primary btn-lg" href="/portal/">Go to your portal &rarr;</a>
+    </div>
+</div>
+{% endblock %}

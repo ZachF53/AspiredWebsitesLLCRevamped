@@ -1,0 +1,35 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Change plan — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="portal-billing">
+    <h1>Change plan</h1>
+    <p class="muted">
+        Currently on <strong>{{ current_tier.name|default:"(unknown)" }}</strong>.
+        Upgrades take effect immediately with a prorated charge.
+        Downgrades take effect at your next renewal.
+    </p>
+
+    {% if not compatibles %}
+        <p>No other plans available in this category.</p>
+    {% else %}
+        <form method="post">
+            {% csrf_token %}
+            <ul class="portal-billing__plan-options">
+                {% for c in compatibles %}
+                    <li>
+                        <label>
+                            <input type="radio" name="target_tier" value="{{ c.slug }}" required>
+                            <strong>{{ c.name }}</strong> — {{ c.get_price_display }}
+                            {% if c.tagline %}<br><span class="muted">{{ c.tagline }}</span>{% endif %}
+                        </label>
+                    </li>
+                {% endfor %}
+            </ul>
+            <button type="submit" class="btn-primary">Switch plan</button>
+            <a class="btn-secondary" href="{% url 'billing:portal_home' %}">Cancel</a>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

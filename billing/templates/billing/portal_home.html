@@ -1,0 +1,93 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Manage Billing — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="portal-billing">
+    <h1>Manage Billing</h1>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for message in messages %}
+                <div class="admin-message admin-message--{{ message.tags|default:'info' }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {# ── Active subscriptions ─────────────────────────────── #}
+    <section class="admin-card">
+        <h2>Active subscriptions</h2>
+        {% if not subscriptions %}
+            <p class="muted">No subscriptions yet.</p>
+        {% else %}
+            {% for sub in subscriptions %}
+                <div class="portal-billing__sub">
+                    <div>
+                        <strong>{{ sub.items.data.0.price.nickname|default:sub.id }}</strong>
+                        — status: {{ sub.status }}
+                        {% if sub.cancel_at_period_end %}
+                            <span style="color: var(--color-danger);">(cancelling at period end)</span>
+                        {% endif %}
+                    </div>
+                    <div class="portal-billing__actions">
+                        <a class="btn-secondary btn-sm"
+                           href="{% url 'billing:subscription_change' sub.id %}">Change plan</a>
+                        {% if not sub.cancel_at_period_end %}
+                            <form method="post"
+                                  action="{% url 'billing:subscription_cancel' sub.id %}"
+                                  onsubmit="return confirm('Cancel this subscription? It stays active through your current billing period.');"
+                                  style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-secondary btn-sm">Cancel</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </section>
+
+    {# ── Payment methods ──────────────────────────────────── #}
+    <section class="admin-card">
+        <h2>Payment methods</h2>
+        {% for pm in payment_methods %}
+            <div class="portal-billing__card">
+                <span>{{ pm.card.brand|title }} •••• {{ pm.card.last4 }} (exp {{ pm.card.exp_month }}/{{ pm.card.exp_year }})</span>
+                <span class="portal-billing__actions">
+                    <form method="post" action="{% url 'billing:card_set_default' pm.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Make default</button>
+                    </form>
+                    <form method="post" action="{% url 'billing:card_remove' pm.id %}"
+                          onsubmit="return confirm('Remove this card?');" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Remove</button>
+                    </form>
+                </span>
+            </div>
+        {% empty %}
+            <p class="muted">No cards on file.</p>
+        {% endfor %}
+        <a class="btn-primary btn-sm" href="{% url 'billing:add_card' %}">+ Add card</a>
+    </section>
+
+    {# ── Past invoices ────────────────────────────────────── #}
+    <section class="admin-card">
+        <h2>Recent invoices</h2>
+        {% if not invoices %}
+            <p class="muted">No invoices yet.</p>
+        {% else %}
+            <ul class="portal-billing__invoices">
+                {% for inv in invoices %}
+                    <li>
+                        ${{ inv.amount_paid|floatformat:2 }} — {{ inv.status }}
+                        {% if inv.id %}
+                            <a href="{% url 'billing:invoice_pdf' inv.id %}">Download PDF</a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

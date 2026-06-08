@@ -42,7 +42,8 @@
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                    {# Web design = Schedule a Call (NOT self-checkout) #}
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="/design/schedule/">Schedule a Call</a>
                 </article>
             {% endfor %}
         </div>
@@ -74,8 +75,10 @@
                     <div class="card__price">{{ tier.get_price_display }}</div>
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                        <li class="feature-list__hosting-opt">Optional hosting move-over — $50 off first year</li>
                     </ul>
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                    {# Self-checkout for maintenance #}
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
                 </article>
             {% endfor %}
         </div>
@@ -105,8 +108,14 @@
                     <div class="card__price">{{ tier.get_price_display }}</div>
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                        {% if tier.max_channels %}<li>{{ tier.max_channels }} channels of your choice</li>{% endif %}
+                        {% if tier.reply_handling == 'none' %}<li>You handle replies &amp; DMs</li>
+                        {% elif tier.reply_handling == 'triage' %}<li>Reply/DM triage — we flag, you respond</li>
+                        {% elif tier.reply_handling == 'full' %}<li>Full reply &amp; DM management</li>
+                        {% endif %}
                     </ul>
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'public:contact' %}">Get Started</a>
+                    {# Self-checkout for social media #}
+                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
                 </article>
             {% endfor %}
         </div>

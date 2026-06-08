@@ -17,6 +17,73 @@ from core.models import TimestampedModel
 SINGLETON_ID = uuid.UUID(int=1)
 
 
+# Phase 1 onboarding refactor — credential-type taxonomy. Each list
+# is the set of valid `credential_type` values within a category. The
+# admin form renders a cascading dropdown: category → type. 'other'
+# in any list means "not in the list — describe it in custom_label".
+# Order in each list is the display order in the dropdown.
+TYPES_BY_CATEGORY = {
+    'social': [
+        ('facebook',  'Facebook'),
+        ('instagram', 'Instagram'),
+        ('linkedin',  'LinkedIn'),
+        ('twitter',   'X (Twitter)'),
+        ('tiktok',    'TikTok'),
+        ('youtube',   'YouTube'),
+        ('pinterest', 'Pinterest'),
+        ('threads',   'Threads'),
+        ('other',     'Other social platform'),
+    ],
+    'cms': [
+        ('wordpress_admin',   'WordPress admin'),
+        ('shopify_admin',     'Shopify admin'),
+        ('squarespace_admin', 'Squarespace admin'),
+        ('wix_admin',         'Wix admin'),
+        ('webflow_admin',     'Webflow admin'),
+        ('custom_site_admin', 'Custom site admin'),
+        ('other',             'Other CMS / site builder'),
+    ],
+    'server': [
+        ('ssh',           'SSH access'),
+        ('ftp_sftp',      'FTP / SFTP'),
+        ('cpanel',        'cPanel'),
+        ('hosting_panel', 'Hosting control panel'),
+        ('other',         'Other server / hosting'),
+    ],
+    'infra': [
+        ('domain_registrar', 'Domain registrar'),
+        ('cloudflare',       'Cloudflare'),
+        ('email_workspace',  'Email workspace (Google / 365)'),
+        ('other',            'Other domain / infrastructure'),
+    ],
+    'google': [
+        ('google_analytics',       'Google Analytics'),
+        ('google_search_console',  'Google Search Console'),
+        ('google_business_profile','Google Business Profile'),
+        ('google_ads',             'Google Ads'),
+        ('other',                  'Other Google service'),
+    ],
+    'other': [
+        ('other', 'Other (describe below)'),
+    ],
+}
+
+
+def all_credential_type_choices():
+    """Flat (value, label) list across every category — used as a
+    fallback choice list when the cascading dropdown JS hasn't run
+    yet, and for admin / select-widget validation."""
+    seen = set()
+    out = []
+    for cat, items in TYPES_BY_CATEGORY.items():
+        for value, label in items:
+            if value in seen:
+                continue
+            seen.add(value)
+            out.append((value, label))
+    return out
+
+
 class VaultConfig(TimestampedModel):
     """Singleton — holds the PIN verification hash, salt, lockout state,
     and the vault-level TOTP secret (one authenticator entry per admin,
@@ -89,14 +156,18 @@ class ClientVault(TimestampedModel):
 class VaultCredential(TimestampedModel):
     """A single stored credential. Sensitive fields are AES-256-GCM encrypted."""
 
+    # Phase 1 onboarding refactor — new taxonomy. Each category groups
+    # related credential types; the cascading dropdown in the form
+    # filters TYPES_BY_CATEGORY by the chosen category. Data migration
+    # 0008 maps the old categories (server/domain/google/social/email/
+    # stripe/custom) onto these new ones losslessly.
     CATEGORY_CHOICES = [
-        ('server', 'Server / Hosting'),
-        ('domain', 'Domain Registrar'),
-        ('google', 'Google Account'),
-        ('social', 'Social Media'),
-        ('email', 'Email / DNS'),
-        ('stripe', 'Stripe / Payments'),
-        ('custom', 'Custom'),
+        ('social', 'Social profile'),
+        ('cms', 'Website / CMS'),
+        ('server', 'Server / hosting'),
+        ('infra', 'Domain & infrastructure'),
+        ('google', 'Google services'),
+        ('other', 'Other'),
     ]
 
     vault = models.ForeignKey(
@@ -112,8 +183,21 @@ class VaultCredential(TimestampedModel):
         null=True, blank=True,
     )
     category = models.CharField(
-        max_length=20, choices=CATEGORY_CHOICES, default='custom',
+        max_length=20, choices=CATEGORY_CHOICES, default='other',
     )
+    # Per-category sub-type (slug). Drives the To-Do auto-completion in
+    # the SetupTodo widget — when a credential is saved with type
+    # 'facebook', the matching open SetupTodo flips to completed. The
+    # full type list per category lives in TYPES_BY_CATEGORY below.
+    # 'other' (the default) means "no specific type" and requires
+    # `custom_label` to identify what it actually is.
+    credential_type = models.CharField(
+        max_length=40, default='other', blank=True,
+    )
+    # Required if credential_type == 'other'. Free text describing
+    # what this credential is for (e.g. "Postmark account").
+    custom_label = models.CharField(max_length=100, blank=True)
+
     label = models.CharField(max_length=200)
 
     # Sensitive — AES-256-GCM encrypted hex (nonce + ciphertext).

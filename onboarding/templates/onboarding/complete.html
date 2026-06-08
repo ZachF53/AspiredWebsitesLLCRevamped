@@ -1,0 +1,39 @@
+{% extends "onboarding/base.html" %}
+
+{% block onboarding_title %}Onboarding complete{% endblock %}
+
+{% block onboarding_body %}
+<div class="ob-card ob-card--complete">
+
+    <h1 class="ob-title">You're all set!</h1>
+
+    <p class="ob-intro">
+        Your {{ onboarding.get_product_type_display }} onboarding is
+        complete. We're getting to work right now.
+    </p>
+
+    {% if progress.skipped %}
+        <p class="ob-warning">
+            <strong>You skipped {{ progress.skipped }} question{{ progress.skipped|pluralize }}.</strong>
+            If you change your mind on any of them later, hop back to
+            <a href="{% url 'onboarding:dispatch' %}">your onboarding</a>
+            and answer them — every answer helps us do our job better.
+        </p>
+    {% endif %}
+
+    <h2 class="ob-section-title">What's next</h2>
+    <ul class="ob-section-list">
+        <li>Check your <strong>To-Do List</strong> on the portal sidebar
+            for anything we still need from you (credentials, accesses).</li>
+        <li>We'll start the kickoff work within the next business day
+            and reach out if we have questions.</li>
+        <li>Have a question right now? Reply to your welcome email
+            anytime.</li>
+    </ul>
+
+    <a class="btn-primary btn-lg" href="{% url 'clients:portal_home' %}">
+        Go to your portal &rarr;
+    </a>
+
+</div>
+{% endblock %}

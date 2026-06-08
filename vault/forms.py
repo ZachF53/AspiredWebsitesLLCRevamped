@@ -2,7 +2,7 @@
 
 from django import forms
 
-from .models import ServerCommandLibrary, VaultCredential
+from .models import ServerCommandLibrary, VaultCredential, all_credential_type_choices
 
 
 class CredentialForm(forms.Form):
@@ -21,7 +21,32 @@ class CredentialForm(forms.Form):
     )
     category = forms.ChoiceField(
         choices=VaultCredential.CATEGORY_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-control'}),
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_category',
+            'data-cred-category': '1',
+        }),
+    )
+    # Cascading sub-type within the chosen category. Validation accepts
+    # the full flat list (JS filters by category client-side); server-side
+    # we trust whatever the client posts and validate consistency in clean().
+    credential_type = forms.ChoiceField(
+        choices=all_credential_type_choices(),
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_credential_type',
+            'data-cred-type': '1',
+        }),
+    )
+    custom_label = forms.CharField(
+        required=False, max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'id': 'id_custom_label',
+            'data-cred-custom': '1',
+            'placeholder': 'e.g. "Postmark account"',
+        }),
+        help_text='Required when "Other" is selected — what is this for?',
     )
     username = forms.CharField(
         required=False,
@@ -108,6 +133,16 @@ class CredentialForm(forms.Form):
                 self.add_error('ssh_host', 'Server host is required for SSH.')
             if not (cleaned.get('ssh_username') or '').strip():
                 self.add_error('ssh_username', 'Username is required for SSH.')
+        # "Other" requires a custom label so we know what this credential
+        # is actually for — the SetupTodo auto-completion in Phase 3
+        # depends on credential_type, but "other" doesn't auto-complete
+        # anything; custom_label is the human-readable fallback.
+        if cleaned.get('credential_type') == 'other':
+            if not (cleaned.get('custom_label') or '').strip():
+                self.add_error(
+                    'custom_label',
+                    'Tell us what this credential is for '
+                    '(e.g. "Postmark account").')
         return cleaned
 
 

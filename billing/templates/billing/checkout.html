@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Checkout — {{ tier.name }} — Aspired Websites{% endblock %}
+
+{% block extra_head %}
+    <script src="https://js.stripe.com/v3/" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="checkout-shell">
+
+    <div class="checkout-grid">
+
+        {# ── LEFT: order summary ────────────────────────────────── #}
+        <aside class="checkout-summary">
+            <h2 class="checkout-summary__title">{{ tier.name }}</h2>
+            <p class="checkout-summary__price">{{ tier.get_price_display }}</p>
+            {% if tier.tagline %}
+                <p class="checkout-summary__tagline">{{ tier.tagline }}</p>
+            {% endif %}
+
+            <ul class="checkout-features">
+                {% for f in tier.features.all %}
+                    <li>✓ {{ f.label }}</li>
+                {% endfor %}
+            </ul>
+
+            {% if show_hosting_upsell %}
+                <label class="checkout-upsell">
+                    <input type="checkbox" id="hosting-upsell">
+                    <span>
+                        Add <strong>hosting move-over</strong> — $50 off first year
+                        ($100 instead of $150). Renews at $150/year after year one.
+                    </span>
+                </label>
+            {% endif %}
+
+            <hr class="checkout-divider">
+            <div class="checkout-totals">
+                <div class="checkout-total">
+                    <span>Today</span>
+                    <span id="checkout-total-today">{{ tier.get_price_display }}</span>
+                </div>
+                <p class="muted checkout-total-note">
+                    You can cancel anytime in your portal. See
+                    <a href="/refund-policy/">refund policy</a>.
+                </p>
+            </div>
+        </aside>
+
+        {# ── RIGHT: payment form ────────────────────────────────── #}
+        <section class="checkout-form">
+            <h1 class="checkout-form__title">Complete your purchase</h1>
+
+            <form id="checkout-form" novalidate>
+                <div class="form-group">
+                    <label for="email">Your email</label>
+                    <input id="email" type="email" required autocomplete="email"
+                           placeholder="you@example.com">
+                    <p class="form-help" id="email-existing-hint" hidden>
+                        Looks like you have an account already — we'll
+                        attach this purchase to it. You can sign in
+                        after checkout.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>Billing address</label>
+                    <div id="address-element"><!-- Stripe AddressElement --></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Card details</label>
+                    <div id="payment-element"><!-- Stripe PaymentElement --></div>
+                </div>
+
+                <div id="checkout-error" class="checkout-error" hidden></div>
+
+                <button type="submit" id="checkout-submit"
+                        class="btn-primary btn-lg checkout-submit"
+                        data-tier-slug="{{ tier.slug }}"
+                        data-publishable-key="{{ stripe_publishable_key }}"
+                        data-confirm-url="{% url 'billing:checkout_confirm' tier.slug %}"
+                        data-email-check-url="{% url 'billing:checkout_email_check' tier.slug %}"
+                        data-success-url="{% url 'billing:checkout_success' tier.slug %}">
+                    Pay <span id="checkout-submit-amount">{{ tier.get_price_display }}</span>
+                </button>
+
+                <p class="muted checkout-secure">
+                    🔒 Card details are handled directly by Stripe — they
+                    never touch our servers.
+                </p>
+            </form>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/checkout.js' %}" defer></script>
+{% endblock %}

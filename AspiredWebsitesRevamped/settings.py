@@ -101,6 +101,8 @@ LOCAL_APPS = [
     'vault',
     'counselsouth',
     'domains',
+    'onboarding',
+    'scheduler',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -136,6 +138,8 @@ TEMPLATES = [
                 # Exposes STATIC_VERSION (git short SHA) for cache-busting
                 # static asset URLs in base templates.
                 'core.context_processors.static_version',
+                # SetupTodo pending count for the portal sidebar badge.
+                'onboarding.context_processors.todo_count',
             ],
         },
     },
@@ -606,6 +610,12 @@ CELERY_BEAT_SCHEDULE = {
     'ingest-dmarc-imap': {
         'task': 'reporting.tasks.ingest_dmarc_imap_task',
         'schedule': crontab(hour=6, minute=0),            # daily 6am
+    },
+    # SetupTodo reminders — day 3 / 7 / 14 since item creation. Single
+    # daily task scans all three thresholds in one pass.
+    'send-setup-todo-reminders': {
+        'task': 'onboarding.tasks.send_setup_todo_reminders',
+        'schedule': crontab(hour=9, minute=30),           # daily 9:30am
     },
     # ── Cold outreach automation ────────────────────────────────────
     # Per CLAUDE.md → Celery Scheduled Tasks. Each piece honours the

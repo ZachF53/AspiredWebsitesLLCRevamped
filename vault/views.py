@@ -31,7 +31,14 @@ from .crypto import (
     verify_pin,
     wrap_key,
 )
+import json as _json
 from .forms import CommandForm, CredentialForm
+from .models import TYPES_BY_CATEGORY as _TYPES_BY_CATEGORY
+
+
+def _types_json():
+    """Serialise TYPES_BY_CATEGORY for the cascading-dropdown JS."""
+    return _json.dumps(_TYPES_BY_CATEGORY)
 from .models import (
     ClientVault,
     ServerCommandLibrary,
@@ -530,6 +537,8 @@ def add_credential(request, client_id):
                 vault=vault,
                 label=cd['label'],
                 category=cd['category'],
+                credential_type=cd.get('credential_type') or 'other',
+                custom_label=cd.get('custom_label') or '',
                 sort_order=cd['sort_order'],
                 visible_to_client=cd['visible_to_client'],
                 username_encrypted=encrypt_value(cd['username'], key),
@@ -545,7 +554,17 @@ def add_credential(request, client_id):
                  client_name=client.firm_name, credential_label=cred.label)
             return redirect('vault:client_vault', client_id=client.id)
     else:
-        form = CredentialForm()
+        # Pre-select category + type from URL params — used by SetupTodo
+        # deep-links: /vault/<client>/add/?category=social&type=facebook
+        # opens the form with both dropdowns already chosen.
+        initial = {}
+        param_cat = (request.GET.get('category') or '').strip()
+        param_type = (request.GET.get('type') or '').strip()
+        if param_cat in dict(VaultCredential.CATEGORY_CHOICES):
+            initial['category'] = param_cat
+        if param_type:
+            initial['credential_type'] = param_type
+        form = CredentialForm(initial=initial or None)
 
     templates = [
         {**t, 'label': t['label'].replace('{firm}', client.firm_name)}
@@ -557,6 +576,7 @@ def add_credential(request, client_id):
         'form': form,
         'mode': 'add',
         'templates': templates,
+        'types_json': _types_json(),
         'seconds_remaining': _seconds_remaining(request),
     })
 
@@ -578,6 +598,8 @@ def edit_credential(request, client_id, cred_id):
             cd = form.cleaned_data
             cred.label = cd['label']
             cred.category = cd['category']
+            cred.credential_type = cd.get('credential_type') or 'other'
+            cred.custom_label = cd.get('custom_label') or ''
             cred.sort_order = cd['sort_order']
             cred.visible_to_client = cd['visible_to_client']
             # Only re-encrypt a sensitive field when its "change" flag is set.
@@ -600,6 +622,8 @@ def edit_credential(request, client_id, cred_id):
         initial = {
             'label': cred.label,
             'category': cred.category,
+            'credential_type': cred.credential_type or 'other',
+            'custom_label': cred.custom_label,
             'sort_order': cred.sort_order,
             'visible_to_client': cred.visible_to_client,
             'is_ssh_credential': cred.is_ssh_credential,
@@ -625,6 +649,7 @@ def edit_credential(request, client_id, cred_id):
         'mode': 'edit',
         'credential': cred,
         'templates': [],
+        'types_json': _types_json(),
         'seconds_remaining': _seconds_remaining(request),
     })
 

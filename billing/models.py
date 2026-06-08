@@ -12,6 +12,7 @@ from billing.pricing_models import (  # noqa: E402,F401
     ServiceTier,
     TierFeature,
 )
+from billing.cancellation_models import CancellationReason  # noqa: F401
 
 
 class MiniInvoice(TimestampedModel):
