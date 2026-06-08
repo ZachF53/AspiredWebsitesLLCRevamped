@@ -40,23 +40,23 @@
         </section>
 
         <section class="brief-card">
-            <div class="brief-card__eyebrow">New client</div>
-            <h2 class="brief-card__title">Blank Builder</h2>
+            <div class="brief-card__eyebrow">New client — design system</div>
+            <h2 class="brief-card__title">Design Brief Builder</h2>
             <p class="brief-card__body">
-                Fill in a guided form on the left, watch the populated
-                brief render on the right in real time. Download when
-                you're done. The output is a complete Claude Code
-                prompt that includes the client's brand, content,
-                services, and tech stack.
+                Fill in a short form on the left — brand colors, fonts,
+                logo, page list — and watch the populated design brief
+                render on the right. Skip anything you don't have an
+                answer for; Claude Code reads the per-field default and
+                makes a judgment call from what you DID provide.
             </p>
             <ul class="brief-card__bullets">
-                <li>Form on the left, live <code>.md</code> preview on the right</li>
-                <li>Shared fields populate everywhere they're referenced</li>
-                <li>Download as a local file, ready to drop into Claude Code</li>
-                <li>Comes with the full design system + build instructions baked in</li>
+                <li>Just ~26 fields, scoped to design only — not services or copy</li>
+                <li>Blank fields fall back to "Claude Code: figure it out" hints</li>
+                <li>Live <code>.md</code> preview, client-side download</li>
+                <li>Comes with the full design system + build rules baked in</li>
             </ul>
             <a href="{% url 'admin_dashboard:briefs_blank_builder' %}"
-               class="btn-primary">Open Blank Builder →</a>
+               class="btn-primary">Open Design Brief Builder →</a>
         </section>
 
     </div>

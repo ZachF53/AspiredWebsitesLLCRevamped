@@ -53,12 +53,14 @@
                             {% if field.type == 'textarea' %}
                                 <textarea id="bf-{{ field.name }}" name="{{ field.name }}"
                                           data-field="{{ field.name }}"
+                                          data-default="{{ field.default|default:'' }}"
                                           rows="{{ field.rows|default:3 }}"
                                           class="brief-field__input"
                                           {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}></textarea>
                             {% elif field.type == 'select' %}
                                 <select id="bf-{{ field.name }}" name="{{ field.name }}"
                                         data-field="{{ field.name }}"
+                                        data-default="{{ field.default|default:'' }}"
                                         class="brief-field__input">
                                     {% for value, label in field.choices %}
                                         <option value="{{ value }}">{{ label }}</option>
@@ -68,8 +70,15 @@
                                 <input id="bf-{{ field.name }}" type="text"
                                        name="{{ field.name }}"
                                        data-field="{{ field.name }}"
+                                       data-default="{{ field.default|default:'' }}"
                                        class="brief-field__input"
                                        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+                            {% endif %}
+                            {% if field.default %}
+                                <p class="brief-field__help">
+                                    <span class="brief-field__default-label">If empty:</span>
+                                    {{ field.default }}
+                                </p>
                             {% endif %}
                             {% if field.help %}
                                 <p class="brief-field__help">{{ field.help }}</p>

@@ -14646,6 +14646,12 @@ textarea.brief-field__input {
     margin: 0.3rem 0 0;
     font-size: 0.75rem;
     color: var(--color-text-muted);
+    line-height: 1.4;
+}
+.brief-field__default-label {
+    color: var(--color-orange);
+    font-weight: 700;
+    margin-right: 0.25rem;
 }
 .brief-builder__form-footer {
     margin-top: 1rem;

@@ -61,8 +61,14 @@
         form.querySelectorAll('[data-field]').forEach(function (el) {
             var key = el.getAttribute('data-field');
             var value = (el.value || '').trim();
+            var fallback = el.getAttribute('data-default') || '';
             if (value) filled++;
-            var rendered = renderValue(key, value);
+            // Render: user value wins; else the per-field fallback
+            // (a 'Claude Code: figure it out' hint). If neither, leave
+            // the {{key}} marker so the operator can still spot it.
+            var rendered = value
+                ? renderValue(key, value)
+                : fallback;
             if (rendered) {
                 var pattern = new RegExp(
                     '\\{\\{' + escapeRegex(key) + '\\}\\}', 'g');

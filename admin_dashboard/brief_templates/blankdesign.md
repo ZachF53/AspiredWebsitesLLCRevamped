@@ -1,13 +1,13 @@
 # blankdesign.md
-# New Client — Build From Scratch
+# New Client — Design System Brief
 > **Claude Code: Read this entire file before doing anything.**
-> This is a brand new website with no existing codebase. There is nothing to scan. Your job is to collect what's in Part A, confirm it with the human, build the project from scratch, then create the memory file so every future session starts instantly.
+> This is the **design system brief** for a new project — colors, typography, brand voice, page structure, and the layout system to apply. It is NOT a content brief — service descriptions, pricing, testimonials, and copy come from a separate file later. Your job: confirm Part A, build the design system from Part B, follow Part C to apply it across every page listed in A5, then create the memory file.
 
 ---
 
 ## HOW THIS FILE WORKS
 
-**Part A** — Client intake. The human fills this in before dropping the file into Claude Code. If anything marked REQUIRED is still `[TBD]`, Claude Code stops, lists every missing item, and waits. No code is written until all REQUIRED fields are confirmed.
+**Part A** — Design intake. The human fills this in before dropping the file into Claude Code. If anything marked REQUIRED is still `[TBD]`, Claude Code stops, lists every missing item, and waits. No code is written until all REQUIRED fields are confirmed.
 
 **Part B** — Design system. The full layout, component, and animation system Claude Code applies to every page it builds.
 
@@ -15,21 +15,15 @@
 
 ---
 
-# PART A — CLIENT INTAKE
+# PART A — DESIGN INTAKE
 > Human: fill this in before handing to Claude Code.
 
 ---
 
-## A1. Business Basics [REQUIRED]
+## A1. Project basics [REQUIRED]
 
 ```
 Business name:          {{business_name}}
-Tagline / one-liner:    {{tagline}}
-Primary service:        {{primary_service}}
-Target customer:        {{target_customer}}
-Contact email:          {{contact_email}}
-Phone:                  {{contact_phone}}
-Address:                {{contact_address}}
 Domain / URL:           {{domain}}
 ```
 
@@ -79,26 +73,13 @@ If the human says to just pick something, use these safe neutral defaults:
 
 ---
 
-## A4. Assets [REQUIRED — be specific about what exists vs. what needs to be created]
+## A4. Visual Assets [REQUIRED]
 
 ### Logo
 ```
 Have a logo?               {{has_logo}}
 Logo path / upload:        {{logo_path}}
-File format:               {{logo_format}}
 Works on dark background?  {{logo_dark_compatible}}
-```
-
-### Photos / Images
-```
-Photos of owner or team?   {{photos_team}}
-Photos of work/results?    {{photos_work}}
-Image style:               {{image_style}}
-```
-
-### Decorative Assets
-```
-Accent / divider images?   {{accent_images}}
 ```
 
 ### Favicon
@@ -110,15 +91,12 @@ Have one?                  {{favicon_status}}
 
 ## A5. Pages & Navigation [REQUIRED]
 
-List every page. Nav bar will reflect this list exactly.
+List the pages that will exist. The nav bar reflects this list. Content for each page comes from a separate brief — this list is for design (nav, footer link order, page-shell structure).
 
 ```
-Page name     | URL or Anchor          | What goes on this page
---------------|------------------------|-----------------------------------------------
+Pages (one per line, format: Name | URL):
 {{pages_list}}
 ```
-
-> Note: If this is a single-page site, URL column = anchor IDs (e.g. `#services`). If multi-page, URL column = file paths (e.g. `/about/`). Claude Code builds whichever structure is specified here.
 
 Nav link order:
 ```
@@ -133,71 +111,14 @@ Links to: {{cta_button_link}}
 
 ---
 
-## A6. Services / Packages [REQUIRED — at least 1]
+## A8. Brand Voice [REQUIRED — drives visual tone]
 
 ```
-Service 1
-  Name:           {{service_1_name}}
-  Price:          {{service_1_price}}
-  Description:    {{service_1_description}}
-  Included:
-{{service_1_included}}
-  CTA label:      {{service_1_cta_label}}
-  CTA link:       {{service_1_cta_link}}
-
-Service 2
-  Name:           {{service_2_name}}
-  Price:          {{service_2_price}}
-  Description:    {{service_2_description}}
-  Included:
-{{service_2_included}}
-  CTA label:      {{service_2_cta_label}}
-  CTA link:       {{service_2_cta_link}}
-
-Service 3 (optional)
-  Name:           {{service_3_name}}
-  Price:          {{service_3_price}}
-  Description:    {{service_3_description}}
-  Included:
-{{service_3_included}}
-  CTA label:      {{service_3_cta_label}}
-  CTA link:       {{service_3_cta_link}}
-```
-
----
-
-## A7. Testimonials [OPTIONAL — include if you have them]
-
-```
-Include testimonials? {{testimonials_include}}
-
-1. Quote:   "{{testimonial_1_quote}}"
-   Name:    {{testimonial_1_name}}
-   Source:  {{testimonial_1_source}}
-
-2. Quote:   "{{testimonial_2_quote}}"
-   Name:    {{testimonial_2_name}}
-   Source:  {{testimonial_2_source}}
-
-3. Quote:   "{{testimonial_3_quote}}"
-   Name:    {{testimonial_3_name}}
-   Source:  {{testimonial_3_source}}
-```
-
----
-
-## A8. Tone & Voice [REQUIRED]
-
-```
-Brand personality:
+Brand personality (one per line — picks from: Professional / formal, Friendly / approachable, Bold / confident, Warm / nurturing, Minimal / clean, Premium / elevated, Conversational):
 {{tone_personality}}
 
-Messaging angle:
-{{messaging_angle}}
-
-What problem do you solve?       {{problem_solved}}
-What outcome does the client get? {{outcome}}
-One-sentence value statement:     {{value_statement}}
+One-sentence value statement (informs hero headline tone):
+{{value_statement}}
 ```
 
 ---
@@ -210,22 +131,7 @@ One-sentence value statement:     {{value_statement}}
 
 ---
 
-## A10. Integrations [OPTIONAL]
-
-```
-Contact form — email to:     {{integration_contact_email}}
-Booking / calendar:          {{integration_booking}}
-Payment processing:          {{integration_payment}}
-Newsletter:                  {{integration_newsletter}}
-Analytics:                   {{integration_analytics}}
-Blog:                        {{integration_blog}}
-Client portal / login:       {{integration_portal}}
-Live chat:                   {{integration_chat}}
-```
-
----
-
-## A11. Reference Sites [OPTIONAL]
+## A11. Reference Sites [OPTIONAL — visual inspiration only]
 
 ```
 Sites you like and why:
@@ -238,7 +144,7 @@ What you do NOT want:
 ---
 
 # PART B — DESIGN SYSTEM
-> Claude Code: this is the visual system you apply to every page you build. All color values come from Part A. All content comes from Part A. Nothing is invented.
+> Claude Code: this is the visual system you apply to every page you build. All color values come from Part A. Nothing is invented.
 
 ---
 
@@ -340,8 +246,8 @@ Build every page in this section order. Skip any section the client has no conte
 2.  Hero — full viewport, headline + subheadline + 1-2 CTA buttons
 3.  Problem — what the target customer struggles with
 4.  Solution — how this business fixes it
-5.  Services — card grid (content from A6)
-6.  Testimonials — grid layout (content from A7, or skip if none)
+5.  Services — card grid (content from a separate brief)
+6.  Testimonials — grid layout (content from a separate brief)
 7.  FAQ — accordion
 8.  Final CTA band — closing statement + primary button
 9.  Footer — logo, nav links, email, tagline
@@ -453,7 +359,7 @@ document.getElementById('nav-toggle').addEventListener('click', function() {
 }
 ```
 
-If a hero image/photo exists from A4, position it absolute bottom-right:
+If a hero image/photo exists, position it absolute bottom-right:
 ```css
 .hero-image {
   position: absolute;
@@ -640,13 +546,11 @@ section { padding: 96px 48px; }
 .image-frame img { display: block; width: 100%; border-radius: 10px; }
 ```
 
-Only use this component if a real image path exists from A4. If no image — use a styled stats/info block or a CSS-only decorative element instead.
+Only use this component if a real image path exists. If no image — use a styled stats/info block or a CSS-only decorative element instead.
 
 ---
 
 ## B11. Testimonials
-
-Only build this section if A7 has real quotes. Do not fabricate testimonials.
 
 ```css
 .testimonials-grid {
@@ -849,11 +753,9 @@ Claude Code runs this before writing any file. If any REQUIRED item is unchecked
 [ ] All 7 colors filled in (A2)
 [ ] Font choices confirmed or defaulted (A3)
 [ ] Logo status confirmed — exists or text-only acknowledged (A4)
-[ ] All pages listed with URLs or anchors (A5)
+[ ] All pages listed (A5)
 [ ] Nav link order confirmed (A5)
-[ ] At least 1 service with real content (A6)
 [ ] Tech stack selected (A9)
-[ ] Contact email confirmed (A1)
 ```
 
 ---
@@ -871,7 +773,6 @@ Claude Code runs this before writing any file. If any REQUIRED item is unchecked
 │   └── main.js
 └── assets/
     ├── logo.png
-    ├── [images from A4]
     └── favicon.ico
 ```
 
@@ -934,11 +835,12 @@ Follow this sequence exactly. Do not skip steps.
 3.  Add Google Fonts import from A3 (or defaults)
 4.  Build base template / shared HTML structure
 5.  Build nav partial — use A5 link order, A1 business name, A4 logo path
-6.  Build footer partial — use A1 contact info, A5 links
+6.  Build footer partial — use A5 link order, A1 business name
 7.  Build every page listed in A5 — one at a time, in nav order
     For each page:
       a. Apply correct section structure from B4
-      b. Fill with real content from Part A — no placeholders
+      b. Use the design system from Part B — content comes from
+         a separate brief
       c. Apply .rv and .d1–.d4 to animatable elements
       d. Hero and CTA band use CSS gradient background — no canvas needed
       e. Confirm mobile breakpoints are in CSS
@@ -972,10 +874,6 @@ Populate it with:
 
 ## Project Overview
 - Business name:    {{business_name}}
-- Tagline:          {{tagline}}
-- Contact email:    {{contact_email}}
-- Phone:            {{contact_phone}}
-- Address:          {{contact_address}}
 - Domain:           {{domain}}
 - Tech stack:       {{tech_stack}}
 
@@ -1010,7 +908,6 @@ Populate it with:
 ### Assets
 - Logo:    {{logo_path}}
 - Favicon: [exact path]
-- Images:  [list every image path]
 
 ### Partials / Base Templates
 [list shared templates]
@@ -1044,7 +941,7 @@ CTA button: {{cta_button_label}} — {{cta_button_link}}
 
 ## C5. Quality Rules — Non-Negotiable
 
-- No placeholder text anywhere — if content is missing, ask the human, do not invent it
+- No content invention — page copy, services, testimonials, pricing all come from a separate content brief; do not invent
 - No stock image paths or `placeholder.com` URLs — if no image exists, use CSS/gradient only
 - No raw hex values outside of `:root` definition
 - No inline styles except dynamically generated ones
