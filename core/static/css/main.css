@@ -15298,8 +15298,6 @@ textarea.brief-field__input {
     flex-direction: column;
     gap: 1rem;
     margin-top: 0.5rem;
-    max-height: 600px;
-    overflow-y: auto;
 }
 .schedule-day {
     background: rgba(0, 0, 0, 0.18);
@@ -15401,9 +15399,9 @@ textarea.brief-field__input {
     gap: 4px;
 }
 .cal__cell {
-    background: var(--color-bg, #fff);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: #E2E8F0;
+    border: 1px solid rgba(148, 163, 184, 0.18);
     border-radius: 6px;
     aspect-ratio: 1 / 1;
     font-family: inherit;
@@ -15421,16 +15419,21 @@ textarea.brief-field__input {
     border-color: transparent;
     cursor: default;
 }
+.cal__cell--open {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(148, 163, 184, 0.28);
+}
 .cal__cell--open:hover {
     border-color: var(--color-orange);
     color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.08);
 }
 .cal__cell--closed,
 .cal__cell--past {
-    color: var(--color-text-muted, #94A3B8);
-    background: rgba(0, 0, 0, 0.03);
+    color: rgba(148, 163, 184, 0.55);
+    background: transparent;
+    border-color: rgba(148, 163, 184, 0.10);
     cursor: not-allowed;
-    opacity: 0.55;
 }
 .cal__cell--today {
     border-color: var(--color-orange);
