@@ -21,8 +21,30 @@ def schedule_page(request):
               .filter(category__in=('maintenance', 'social_media'),
                       is_active=True)
               .order_by('category', 'price'))
+
+    # Build-type options — pulled from the same pricing DB so the
+    # dropdown labels stay in sync if prices change. Form values
+    # remain 'essential' / 'premium' for legacy lead-tag stability.
+    build_qs = (ServiceTier.objects
+                .filter(category='website_build', is_active=True)
+                .order_by('price'))
+    build_tiers = []
+    for t in build_qs:
+        if 'essential' in t.slug:
+            form_value = 'essential'
+        elif 'premium' in t.slug:
+            form_value = 'premium'
+        else:
+            form_value = t.slug
+        build_tiers.append({
+            'value': form_value,
+            'name': t.name,
+            'price': t.get_price_display(),
+        })
+
     return render(request, 'scheduler/schedule.html', {
         'addons': addons,
+        'build_tiers': build_tiers,
     })
 
 

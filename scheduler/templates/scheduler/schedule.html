@@ -71,8 +71,9 @@
                         <label for="s-build">Build type</label>
                         <select id="s-build" name="build_type" class="form-control">
                             <option value="">&mdash; pick &mdash;</option>
-                            <option value="essential">Essential Build</option>
-                            <option value="premium">Premium Build</option>
+                            {% for t in build_tiers %}
+                                <option value="{{ t.value }}">{{ t.name }} &mdash; {{ t.price }}</option>
+                            {% endfor %}
                             <option value="not_sure">Not sure yet</option>
                         </select>
                     </div>
