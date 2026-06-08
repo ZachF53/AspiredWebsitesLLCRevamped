@@ -1694,6 +1694,14 @@ textarea.form-control {
         gap: var(--space-4);
         align-items: start;
     }
+    /* --stack modifier overrides the side-by-side grid and keeps both
+       cards on the same column. Used by /design/schedule/ so Step 1
+       (pick a time) sits on its own row and Step 2 (project form)
+       appears below it — instead of the form being a long scroll
+       parallel to the calendar. */
+    .contact-grid--stack {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Contact section: keep both cards on raised bg so deep inputs contrast */
