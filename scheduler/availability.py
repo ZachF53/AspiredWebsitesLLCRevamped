@@ -13,7 +13,12 @@ from django.utils import timezone
 from .models import AvailabilityWindow, ScheduledCall
 
 
+# Customer-facing slot granularity — what they pick on /design/schedule/.
 SLOT_MINUTES = 30
+# How much time a single booking actually consumes on the calendar.
+# We block 2 hours so the operator gets buffer either side of the
+# call and isn't booked back-to-back.
+BLOCK_MINUTES = 120
 
 
 def _to_local_dt(d, t, tz_name):
@@ -31,18 +36,36 @@ def enumerate_slots(start_date, end_date):
     Yield (utc_start, utc_end) tuples for every 30-minute slot within
     every active AvailabilityWindow between start_date and end_date,
     excluding any slot that overlaps a non-cancelled ScheduledCall.
+
+    "Overlap" — not "exact start match" — because each ScheduledCall
+    holds a 2-hour block on the calendar (see BLOCK_MINUTES). A 30-min
+    slot starting at 4:30 PM overlaps a 4:00-6:00 PM block and must be
+    excluded.
     """
     windows = list(AvailabilityWindow.objects.filter(active=True))
     if not windows:
         return
 
-    busy = set()
+    # Pull busy intervals once. Widen the date filter by a day each
+    # side — a block that starts late in the local day can end on the
+    # next UTC day.
+    busy_intervals = []
     for sc in ScheduledCall.objects.filter(
-            starts_at__date__gte=start_date,
-            starts_at__date__lte=end_date,
+            starts_at__date__gte=start_date - _dt.timedelta(days=1),
+            starts_at__date__lte=end_date + _dt.timedelta(days=1),
         ).exclude(status='cancelled'):
-        busy.add(sc.starts_at)
+        if sc.starts_at and sc.ends_at:
+            busy_intervals.append(
+                (sc.starts_at.astimezone(_dt.timezone.utc),
+                 sc.ends_at.astimezone(_dt.timezone.utc)))
 
+    def _overlaps_busy(slot_start_utc, slot_end_utc):
+        for b_start, b_end in busy_intervals:
+            if slot_start_utc < b_end and slot_end_utc > b_start:
+                return True
+        return False
+
+    now = timezone.now()
     d = start_date
     while d <= end_date:
         dow = d.weekday()
@@ -52,11 +75,12 @@ def enumerate_slots(start_date, end_date):
             cursor = _to_local_dt(d, w.start_time, w.timezone)
             window_end = _to_local_dt(d, w.end_time, w.timezone)
             while cursor + _dt.timedelta(minutes=SLOT_MINUTES) <= window_end:
-                if cursor not in busy and cursor > timezone.now():
-                    yield (
-                        cursor.astimezone(_dt.timezone.utc),
-                        (cursor + _dt.timedelta(minutes=SLOT_MINUTES))
-                        .astimezone(_dt.timezone.utc),
-                    )
+                slot_start_utc = cursor.astimezone(_dt.timezone.utc)
+                slot_end_utc = (
+                    cursor + _dt.timedelta(minutes=SLOT_MINUTES)
+                ).astimezone(_dt.timezone.utc)
+                if cursor > now and not _overlaps_busy(
+                        slot_start_utc, slot_end_utc):
+                    yield (slot_start_utc, slot_end_utc)
                 cursor += _dt.timedelta(minutes=SLOT_MINUTES)
         d += _dt.timedelta(days=1)

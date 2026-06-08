@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .availability import enumerate_slots
+from .availability import BLOCK_MINUTES, enumerate_slots
 from .models import ScheduledCall
 
 
@@ -61,13 +61,17 @@ def hold_slot(request):
     except ValueError:
         return HttpResponse('bad starts_at', status=400)
 
-    # Reject if already held / confirmed by someone else
+    # Each booking blocks BLOCK_MINUTES (2 hours) on the calendar —
+    # so we reject any new slot whose [start, start+30min] overlaps
+    # an existing non-cancelled block, not just an exact start match.
+    new_end = starts_at + _dt.timedelta(minutes=30)
     if ScheduledCall.objects.filter(
-            starts_at=starts_at,
+            starts_at__lt=new_end,
+            ends_at__gt=starts_at,
         ).exclude(status='cancelled').exists():
         return JsonResponse({'error': 'slot already taken'}, status=409)
 
-    ends_at = starts_at + _dt.timedelta(minutes=30)
+    ends_at = starts_at + _dt.timedelta(minutes=BLOCK_MINUTES)
     expires_at = timezone.now() + _dt.timedelta(minutes=15)
     call = ScheduledCall.objects.create(
         starts_at=starts_at, ends_at=ends_at, status='held',
