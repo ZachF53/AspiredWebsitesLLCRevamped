@@ -88,5 +88,81 @@
             <a class="quick-action" href="{% url 'clients:invoices' %}">View Invoices</a>
         </div>
     </section>
+
+    {% comment %}
+        Phase D5 — per-product service cards. Each only renders when
+        the customer actually has that service. Data comes from
+        maintenance_plans / social_media_plans / droplets in the
+        dashboard view; the has_* booleans come from the
+        portal-services context processor (D4).
+    {% endcomment %}
+
+    {% if has_maintenance %}
+        <section class="portal-section">
+            <h2 class="portal-section__title">Maintenance</h2>
+            {% for plan in maintenance_plans %}
+                <div class="service-card">
+                    <div class="service-card__head">
+                        <strong>{{ plan.get_tier_slug_display }}</strong>
+                        <span class="muted">{{ plan.get_status_display }}</span>
+                    </div>
+                    <div class="service-card__meta">
+                        Site:
+                        {% if plan.website %}<code>{{ plan.website.url }}</code>
+                        {% elif plan.external_site_url %}<code>{{ plan.external_site_url }}</code>
+                        {% else %}<span class="muted">(no site on file)</span>
+                        {% endif %}
+                        {% if plan.hosting_move_over %} · Hosted by us{% endif %}
+                    </div>
+                    {% if plan.started_at %}<div class="muted service-card__since">Active since {{ plan.started_at|date:"M j, Y" }}</div>{% endif %}
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    {% if has_social_media %}
+        <section class="portal-section">
+            <h2 class="portal-section__title">Social Media</h2>
+            {% for plan in social_media_plans %}
+                <div class="service-card">
+                    <div class="service-card__head">
+                        <strong>{{ plan.get_tier_slug_display }}</strong>
+                        <span class="muted">{{ plan.get_status_display }} · {{ plan.max_channels }} channels max</span>
+                    </div>
+                    <div class="service-card__meta">
+                        Channels: {{ plan.channels.count }} / {{ plan.max_channels }}
+                    </div>
+                    {% if plan.channels.all %}
+                        <ul class="service-card__channels">
+                            {% for ch in plan.channels.all %}
+                                <li>{{ ch.get_platform_display }} — <span class="muted">{{ ch.handle }}</span></li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    {% if has_droplet %}
+        <section class="portal-section">
+            <h2 class="portal-section__title">Hosting</h2>
+            {% for d in droplets %}
+                <div class="service-card">
+                    <div class="service-card__head">
+                        <strong>Droplet {{ d.do_droplet_id|default:"(no DO id)" }}</strong>
+                        <span class="muted">{{ d.get_status_display }}</span>
+                    </div>
+                    <div class="service-card__meta">
+                        {% if d.do_droplet_ip %}IP: <code>{{ d.do_droplet_ip }}</code> · {% endif %}
+                        Region: {{ d.do_region|default:"—" }} ·
+                        Source: {{ d.get_source_display }}
+                        {% if d.website %} · Site: <code>{{ d.website.url }}</code>{% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
 </div>
 {% endblock %}

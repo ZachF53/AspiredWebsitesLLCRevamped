@@ -5,6 +5,18 @@
 {% block content %}
 <div class="admin-container">
 
+    {% if system_alerts_unresolved %}
+        <div class="system-alerts-banner">
+            <span class="system-alerts-banner__icon">⚠</span>
+            <span>
+                <strong>{{ system_alerts_unresolved }}
+                    system alert{{ system_alerts_unresolved|pluralize }}</strong>
+                in the last 7 days —
+                <a href="{% url 'admin_dashboard:system_alerts' %}">review</a>
+            </span>
+        </div>
+    {% endif %}
+
     <div class="admin-page-header">
         <div>
             <span class="eyebrow">Dashboard</span>

@@ -1,0 +1,25 @@
+Hi {{ call.customer_name }},
+
+Your kickoff call with Aspired Websites is confirmed:
+
+  When:  {{ when_str }}
+  How:   I'll send a calendar invite with a video link separately.
+
+A bit about what we'll cover:
+
+  • What you're trying to build and why
+  • Pages, content, and brand direction
+  • Timeline and budget alignment
+  • Any questions you have about working together
+
+If you opted into a maintenance or social media plan during signup,
+we'll discuss the details on the call. The 10% off first month is
+locked in — I'll honor it when I send the invoice.
+
+If you need to reschedule, just reply to this email.
+
+Talk soon,
+Zachery Long
+Aspired Websites LLC
+zachery@aspiredwebsites.com
+210-896-2536

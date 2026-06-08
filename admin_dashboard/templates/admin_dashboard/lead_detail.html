@@ -17,6 +17,16 @@
             <span id="lead-status-badge" class="status-badge status-badge--{{ lead.status }}">{{ lead.get_status_display }}</span>
             <span class="temp-badge temp-badge--{{ lead.temperature }}">{{ lead.get_temperature_display }}</span>
             <span class="score-pill score-pill--{{ lead.temperature }}">{{ lead.score }}/10</span>
+            {% if lead.opted_in_addons %}
+                <a href="{% url 'admin_dashboard:new_invoice' %}?lead={{ lead.id }}"
+                   class="btn-primary btn-sm"
+                   title="Lead opted into {{ lead.opted_in_addons|length }} add-on{{ lead.opted_in_addons|length|pluralize }} at booking. Form will pre-fill.">
+                    📧 Send Invoice (opt-ins ready)
+                </a>
+            {% else %}
+                <a href="{% url 'admin_dashboard:new_invoice' %}?lead={{ lead.id }}"
+                   class="btn-secondary btn-sm">Send Invoice</a>
+            {% endif %}
         </div>
     </div>
 

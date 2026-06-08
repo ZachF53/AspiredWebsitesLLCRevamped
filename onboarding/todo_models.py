@@ -83,6 +83,9 @@ def build_todos_from_onboarding(onboarding):
 
     Idempotent — if a matching pending SetupTodo already exists for
     this user+credential_type, we don't duplicate it.
+
+    For social_media onboardings — also writes a SocialChannel row
+    for each channel slot the customer filled in. D6.
     """
     from onboarding.registry import visible_sections
 
@@ -90,6 +93,44 @@ def build_todos_from_onboarding(onboarding):
     answers = {
         r.question_key: r for r in onboarding.responses.all()
     }
+
+    # ── D6 — social-channel materialisation ─────────────────────────
+    if onboarding.product_type == 'social_media':
+        try:
+            from clients.account_models import Account
+            from clients.service_models import (
+                SocialMediaPlan, SocialChannel)
+            account = Account.objects.filter(user=user).first()
+            plan = (SocialMediaPlan.objects
+                    .filter(account=account,
+                            tier_slug=onboarding.tier_slug)
+                    .first() if account else None)
+            if plan:
+                # Iterate channel slots — keys are channel_1_platform etc.
+                for i in range(1, plan.max_channels + 1):
+                    plat = (answers.get(f'channel_{i}_platform'))
+                    if plat is None or plat.skipped or not plat.value:
+                        continue
+                    handle = answers.get(f'channel_{i}_handle')
+                    status = answers.get(f'channel_{i}_status')
+                    followers = answers.get(f'channel_{i}_followers')
+                    access = answers.get(f'channel_{i}_access')
+                    SocialChannel.objects.update_or_create(
+                        plan=plan, platform=plat.value,
+                        handle=handle.value if handle else '',
+                        defaults={
+                            'status': status.value if status and status.value
+                                      else 'active',
+                            'follower_count':
+                                followers.value if followers else '',
+                            'access_method':
+                                access.value if access else '',
+                        },
+                    )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                'build_todos_from_onboarding: social channel write failed')
 
     for sec in visible_sections(onboarding):
         for q in sec['questions']:

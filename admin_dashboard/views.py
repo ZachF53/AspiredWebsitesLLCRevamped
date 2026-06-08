@@ -6098,6 +6098,59 @@ def new_invoice(request):
             'admin_dashboard:invoice_detail',
             invoice_id=profile.id)
 
+    # ── A3 — pre-fill from a Lead's opted_in_addons ──
+    # Admin lands here from /admin-dashboard/leads/<id>/?action=invoice
+    # When the lead was created on /design/schedule/ with addons checked,
+    # we want the invoice form to come up with those addons pre-selected
+    # and the 10%-off coupon ready to apply on the first month.
+    prefill = {}
+    addon_opt_in = False
+    addon_opt_in_at = None
+    addon_opt_in_slugs = []
+    lead_id = (request.GET.get('lead') or '').strip()
+    if lead_id:
+        try:
+            from outreach.models import Lead
+            lead = Lead.objects.filter(pk=lead_id).first()
+        except Exception:
+            lead = None
+        if lead:
+            # Best-effort name split — Lead.attorney_name is a single
+            # CharField used for the contact across all lead sources.
+            attorney = (lead.attorney_name or '').strip().split(' ', 1)
+            prefill = {
+                'first_name': attorney[0] if attorney else '',
+                'last_name': attorney[1] if len(attorney) > 1 else '',
+                'firm_name': lead.firm_name or '',
+                'email':     lead.email or '',
+                'phone':     lead.phone or '',
+                'city':      lead.city or '',
+                'state':     lead.state or '',
+            }
+            # Build_type tag → suggested package
+            if 'build_type:essential' in (lead.tags or ''):
+                prefill['package'] = 'essential-build' if any(
+                    t.slug == 'essential-build' for t in packages
+                ) else 'website-essential'
+            elif 'build_type:premium' in (lead.tags or ''):
+                prefill['package'] = 'premium-build' if any(
+                    t.slug == 'premium-build' for t in packages
+                ) else 'website-premium'
+            opted = list(getattr(lead, 'opted_in_addons', None) or [])
+            if opted:
+                addon_opt_in = True
+                addon_opt_in_at = getattr(lead, 'opted_in_addons_at', None)
+                addon_opt_in_slugs = opted
+                # Auto-select maintenance + hosting if matching addons exist
+                if any('maintenance-essential' in s for s in opted):
+                    prefill['maintenance_plan'] = 'maintenance-essentials'
+                elif any('maintenance-growth' in s for s in opted):
+                    prefill['maintenance_plan'] = 'maintenance-growth'
+                elif any('maintenance-dominant' in s for s in opted):
+                    prefill['maintenance_plan'] = 'maintenance-dominant'
+                if any('hosting' in s for s in opted):
+                    prefill['add_hosting'] = '1'
+
     return render(
         request,
         'admin_dashboard/billing_new_invoice.html',
@@ -6106,7 +6159,11 @@ def new_invoice(request):
             packages=packages,
             maintenance_plans=maintenance_plans,
             hosting_tier=hosting_tier,
-            form_data={},
+            form_data=prefill,
+            addon_opt_in=addon_opt_in,
+            addon_opt_in_at=addon_opt_in_at,
+            addon_opt_in_slugs=addon_opt_in_slugs,
+            lead_id=lead_id,
         ),
     )
 

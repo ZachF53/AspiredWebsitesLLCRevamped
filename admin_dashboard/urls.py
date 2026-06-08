@@ -393,4 +393,36 @@ urlpatterns = [
     # DMARC aggregate-report ingest + dashboard
     path('dmarc/', views.dmarc_dashboard, name='dmarc_dashboard'),
     path('dmarc/upload/', views.dmarc_upload, name='dmarc_upload'),
+
+    # Schedule-a-Call Google Calendar connection (Path A4)
+    path('schedule/connect/',
+         __import__('scheduler.google_oauth_views',
+                    fromlist=['connect_page']).connect_page,
+         name='schedule_connect'),
+    path('schedule/start-oauth/',
+         __import__('scheduler.google_oauth_views',
+                    fromlist=['start_oauth']).start_oauth,
+         name='schedule_start_oauth'),
+    path('schedule/google-callback/',
+         __import__('scheduler.google_oauth_views',
+                    fromlist=['oauth_callback']).oauth_callback,
+         name='schedule_google_callback'),
+    path('schedule/disconnect/',
+         __import__('scheduler.google_oauth_views',
+                    fromlist=['disconnect']).disconnect,
+         name='schedule_disconnect'),
+
+    # System Alerts — X3 error visibility
+    path('alerts/',
+         __import__('core.system_alerts_views',
+                    fromlist=['alerts_list']).alerts_list,
+         name='system_alerts'),
+    path('alerts/<int:alert_id>/resolve/',
+         __import__('core.system_alerts_views',
+                    fromlist=['alert_resolve']).alert_resolve,
+         name='system_alerts_resolve'),
+    path('alerts/resolve-all/',
+         __import__('core.system_alerts_views',
+                    fromlist=['alert_resolve_all']).alert_resolve_all,
+         name='system_alerts_resolve_all'),
 ]

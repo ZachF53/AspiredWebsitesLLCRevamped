@@ -20,8 +20,25 @@
         {% for m in messages %}<div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>{% endfor %}
     {% endif %}
 
+    {% if addon_opt_in %}
+        <div class="admin-flash admin-flash--info" style="border-left:4px solid var(--color-orange);">
+            <strong>🎯 This lead opted into add-ons at booking time</strong>
+            {% if addon_opt_in_at %}<span class="muted"> on {{ addon_opt_in_at|date:"M j, Y" }}</span>{% endif %}
+            <ul style="margin:0.5rem 0 0 1.2rem;">
+                {% for slug in addon_opt_in_slugs %}<li>{{ slug }}</li>{% endfor %}
+            </ul>
+            <p style="margin:0.5rem 0 0;">
+                Maintenance plan + hosting are pre-selected below.
+                Customer was promised <strong>10% off first month</strong> on
+                any add-ons — apply the discount in Stripe after the invoice
+                is created, or adjust the line items manually.
+            </p>
+        </div>
+    {% endif %}
+
     <form method="post" class="admin-form">
         {% csrf_token %}
+        {% if lead_id %}<input type="hidden" name="lead_id" value="{{ lead_id }}">{% endif %}
 
         <div class="admin-card">
             <h2 class="admin-card__title">Prospect Info</h2>

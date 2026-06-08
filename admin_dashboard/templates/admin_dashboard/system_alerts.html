@@ -1,0 +1,87 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}System Alerts — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations</span>
+            <h1 class="admin-page-title">System Alerts</h1>
+            <p class="admin-page-sub">
+                Errors silently caught in background code paths
+                (email sends, webhook handlers, Google Calendar push)
+                surface here so they don't require an SSH session
+                to discover.
+            </p>
+        </div>
+        {% if unresolved_count %}
+            <form method="post" action="{% url 'admin_dashboard:system_alerts_resolve_all' %}"
+                  onsubmit="return confirm('Resolve all {{ unresolved_count }} open alerts?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Resolve all</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if not unresolved %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:1.5rem 0;">
+                    ✓ No open alerts. The site is humming.
+                </p>
+            </div>
+        </section>
+    {% else %}
+        {% for a in unresolved %}
+            <section class="admin-card alert-card alert-card--{{ a.severity }}">
+                <div class="admin-card__header">
+                    <div>
+                        <span class="alert-severity alert-severity--{{ a.severity }}">{{ a.get_severity_display }}</span>
+                        <strong>{{ a.source }}</strong>
+                        <span class="muted">{{ a.created_at|date:"M j H:i" }}</span>
+                    </div>
+                    <form method="post" action="{% url 'admin_dashboard:system_alerts_resolve' a.pk %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Resolve</button>
+                    </form>
+                </div>
+                <div class="admin-card__body">
+                    <p><strong>{{ a.message }}</strong></p>
+                    {% if a.detail %}
+                        <details>
+                            <summary class="muted">Detail</summary>
+                            <pre class="alert-detail">{{ a.detail }}</pre>
+                        </details>
+                    {% endif %}
+                </div>
+            </section>
+        {% endfor %}
+    {% endif %}
+
+    {% if resolved %}
+        <details class="admin-card" style="margin-top:2rem;">
+            <summary class="admin-card__title" style="cursor:pointer; padding:1rem;">
+                Recently resolved ({{ resolved|length }})
+            </summary>
+            <div class="admin-card__body">
+                <ul style="margin:0; padding-left:1.5rem; color: var(--color-text-muted); font-size: 0.85rem;">
+                    {% for a in resolved %}
+                        <li>{{ a.resolved_at|date:"M j H:i" }} — {{ a.source }}: {{ a.message }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </details>
+    {% endif %}
+
+</div>
+{% endblock %}

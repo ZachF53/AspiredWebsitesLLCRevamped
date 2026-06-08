@@ -1,0 +1,17 @@
+New kickoff call booked.
+
+  Customer: {{ call.customer_name }}
+  Business: {% if call.lead %}{{ call.lead.firm_name }}{% else %}(none){% endif %}
+  Email:    {{ call.customer_email }}
+  Phone:    {% if call.lead %}{{ call.lead.phone }}{% else %}(none provided){% endif %}
+  Website:  {% if call.lead %}{{ call.lead.website|default:"(none provided)" }}{% else %}(none){% endif %}
+  When:     {{ when_str }}
+
+What they want to build:
+{{ call.notes }}
+
+{% if lead_url %}Lead in admin: {{ lead_url }}{% endif %}
+
+{% if call.lead and call.lead.opted_in_addons %}Opted-in add-ons (10% off first month):
+{% for slug in call.lead.opted_in_addons %}  • {{ slug }}
+{% endfor %}{% endif %}

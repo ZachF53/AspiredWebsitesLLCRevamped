@@ -138,8 +138,12 @@ TEMPLATES = [
                 # Exposes STATIC_VERSION (git short SHA) for cache-busting
                 # static asset URLs in base templates.
                 'core.context_processors.static_version',
+                # Operator-facing system alerts banner on /admin-dashboard/
+                'core.context_processors.system_alerts',
                 # SetupTodo pending count for the portal sidebar badge.
                 'onboarding.context_processors.todo_count',
+                # Phase D4 — per-service portal sidebar nav.
+                'clients.context_processors.portal_services',
             ],
         },
     },

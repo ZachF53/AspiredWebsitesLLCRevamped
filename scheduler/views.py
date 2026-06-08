@@ -145,4 +145,14 @@ def confirm_slot(request):
     except Exception:
         pass
 
+    # Fire confirmation emails — customer + admin. Each has its own
+    # try/except inside the sender, so a SendGrid failure on one
+    # doesn't block the other (or the response).
+    from .emails import (
+        send_schedule_confirmation_to_customer,
+        send_schedule_notification_to_admin,
+    )
+    send_schedule_confirmation_to_customer(call)
+    send_schedule_notification_to_admin(call)
+
     return JsonResponse({'ok': True})

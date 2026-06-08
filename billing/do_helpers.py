@@ -226,6 +226,29 @@ def _mirror_droplet_to_website(client, droplet_id, droplet_name, ip):
             'do_droplet_created_at', 'updated_at',
         ])
 
+    # ── D3 mirror — write/refresh a Droplet row so Phase D readers
+    # (per-product dashboards, future hosting move-over flow) can see
+    # the same data without consulting Website.do_droplet_* directly. #}
+    try:
+        from clients.service_models import Droplet
+        Droplet.objects.update_or_create(
+            account=account,
+            do_droplet_id=str(droplet_id),
+            defaults={
+                'website': ws,
+                'source': 'build',
+                'status': 'active',
+                'do_droplet_ip': ip or None,
+                'provisioned_at': ws.do_droplet_created_at or timezone.now(),
+            },
+        )
+    except Exception:
+        # Defensive — keep legacy Website writes working even if the
+        # Droplet sync fails.
+        import logging
+        logging.getLogger(__name__).exception(
+            'D3 droplet mirror write failed for website %s', ws.pk)
+
 
 def _auto_point_domains_to_droplet(client, droplet_ip):
     """

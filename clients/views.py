@@ -290,6 +290,29 @@ def dashboard(request):
     from reporting.uptime_helpers import (
         get_avg_response_time, get_uptime_percentage,
     )
+
+    # ── D5 — gather per-service rows for the dashboard cards ──
+    # The base template (clients/dashboard.html) renders these via
+    # the portal-services context processor (has_website etc.) — here
+    # we just pull the actual rows so each card has data.
+    maintenance_plans = []
+    social_media_plans = []
+    droplets = []
+    try:
+        account = getattr(request.user, 'account', None)
+        if account is not None:
+            maintenance_plans = list(
+                account.maintenance_plans.select_related('website')
+                .order_by('-started_at')[:3])
+            social_media_plans = list(
+                account.social_media_plans.prefetch_related('channels')
+                .order_by('-started_at')[:2])
+            droplets = list(
+                account.droplets.select_related('website')
+                .order_by('-provisioned_at')[:5])
+    except Exception:
+        pass
+
     ctx = _portal_context(
         request, 'dashboard',
         stage_steps=stage_steps,
@@ -297,6 +320,9 @@ def dashboard(request):
         next_invoice=next_invoice,
         uptime_30=get_uptime_percentage(profile, 30),
         uptime_avg_response=get_avg_response_time(profile, 30),
+        maintenance_plans=maintenance_plans,
+        social_media_plans=social_media_plans,
+        droplets=droplets,
     )
     return render(request, 'clients/dashboard.html', ctx)
 

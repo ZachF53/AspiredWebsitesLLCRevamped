@@ -984,6 +984,69 @@ def _handle_self_checkout_subscription_created(event):
         user.set_unusable_password()
         user.save(update_fields=['password'])
 
+    # ── BC1 — auto-create ClientProfile + Account ────────────────
+    # Without these the portal sidebar + many views 500 because
+    # they expect ``request.user.client_profile`` and
+    # ``request.user.account`` to exist. This is a stop-gap until
+    # Phase D lands a proper service-model split.
+    try:
+        from clients.models import ClientProfile
+        from clients.account_models import Account
+
+        # Derive a firm_name + display name. Stripe Customer often has
+        # a `name` set during checkout; fall back to the email local part.
+        derived_name = (cust.get('name') or '').strip()
+        if not derived_name:
+            local = email.split('@', 1)[0]
+            derived_name = local.replace('.', ' ').replace('-', ' ').title()
+        # ClientProfile is the legacy "everything" model; we only
+        # populate the fields that genuinely identify the person.
+        cp, cp_created = ClientProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                'firm_name': derived_name,
+                'contact_name': derived_name,
+                'status': 'active',
+                'stripe_customer_id': customer_id,
+                # No `package` set — Phase D's MaintenancePlan /
+                # SocialMediaPlan rows will encode what they bought.
+                # The legacy package field stays blank for self-
+                # checkout customers so we don't lie about their
+                # status with the old single-product enum.
+            },
+        )
+        # Backfill stripe_customer_id even if the profile already
+        # existed (e.g. they re-purchased a different product).
+        if not cp_created and not cp.stripe_customer_id:
+            cp.stripe_customer_id = customer_id
+            cp.save(update_fields=['stripe_customer_id'])
+
+        Account.objects.get_or_create(
+            user=user,
+            defaults={
+                'name': derived_name,
+                'status': 'active',
+                'stripe_customer_id': customer_id,
+                # legacy_client_profile mirror so existing admin
+                # tools that resolve via ClientProfile still work.
+                'legacy_client_profile': cp,
+            },
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'self-checkout webhook: ClientProfile/Account create failed '
+            'for user %s', user.pk)
+        try:
+            from core.system_alerts import record_alert
+            record_alert(
+                severity='error',
+                source='billing.webhook.profile_create',
+                message=f'ClientProfile/Account auto-create failed for {email}',
+                detail='Customer paid but portal will 500 — investigate.',
+            )
+        except Exception:
+            pass
+
     # Create Onboarding (idempotent on unique_together)
     try:
         from onboarding.models import Onboarding
@@ -993,11 +1056,72 @@ def _handle_self_checkout_subscription_created(event):
     except Exception:
         logger.exception('self-checkout webhook: Onboarding create failed')
 
-    # Mint a password setup token + email it (only if newly created)
+    # ── D6 — write the per-service plan row ─────────────────────────
+    # Phase D's MaintenancePlan / SocialMediaPlan replaces the legacy
+    # ClientProfile.package field. We write both for now (D7 strips
+    # the legacy field).
+    try:
+        from clients.account_models import Account
+        from clients.service_models import (
+            MaintenancePlan, SocialMediaPlan)
+        from billing.pricing_models import ServiceTier
+        from django.utils import timezone
+
+        account = Account.objects.filter(user=user).first()
+        if account is not None:
+            sub_id = sub.get('id') or ''
+            if product_type == 'maintenance':
+                MaintenancePlan.objects.update_or_create(
+                    account=account,
+                    stripe_subscription_id=sub_id,
+                    defaults={
+                        'tier_slug': tier_slug,
+                        'status': 'active',
+                        'started_at': timezone.now(),
+                        'hosting_move_over': metadata.get(
+                            'hosting_upsell') == '1',
+                        'hosting_move_over_at': timezone.now() if
+                            metadata.get('hosting_upsell') == '1' else None,
+                    },
+                )
+            elif product_type == 'social_media':
+                tier = ServiceTier.objects.filter(slug=tier_slug).first()
+                max_ch = (tier.max_channels if tier and tier.max_channels
+                          else 2)
+                SocialMediaPlan.objects.update_or_create(
+                    account=account,
+                    stripe_subscription_id=sub_id,
+                    defaults={
+                        'tier_slug': tier_slug,
+                        'status': 'active',
+                        'started_at': timezone.now(),
+                        'max_channels': max_ch,
+                    },
+                )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'self-checkout webhook: service-model write failed '
+            'for user %s', user.pk)
+
+    # Mint a password setup token + email it (only if newly created).
+    # Failure is recorded but NOT swallowed silently — exception
+    # propagates to the outer handler, which logs it AND records a
+    # SystemAlert so the operator sees it on the dashboard banner.
     if created:
+        from onboarding.password_views import send_password_setup_email
         try:
-            from onboarding.password_views import send_password_setup_email
             send_password_setup_email(user)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             logger.exception(
                 'self-checkout webhook: password email failed for %s', email)
+            try:
+                from core.system_alerts import record_alert
+                record_alert(
+                    severity='error',
+                    source='billing.webhook.password_email',
+                    message=f'Password-setup email failed for {email}',
+                    detail=str(exc)[:2000],
+                )
+            except Exception:
+                pass
+            raise

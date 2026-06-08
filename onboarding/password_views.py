@@ -75,12 +75,30 @@ def send_password_setup_email(user, token=None):
         f'onboarding so we can get to work right away.\n\n'
         f'— Zachery'
     )
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=getattr(
-            settings, 'DEFAULT_FROM_EMAIL',
-            'zachery@aspiredwebsites.com'),
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=getattr(
+                settings, 'DEFAULT_FROM_EMAIL',
+                'zachery@aspiredwebsites.com'),
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(
+            'password setup email sent to %s for user %s',
+            user.email, user.pk)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'password setup email FAILED for %s', user.email)
+        try:
+            from core.system_alerts import record_alert
+            record_alert(
+                severity='error',
+                source='onboarding.password_setup_email',
+                message=f'Password setup email failed for {user.email}',
+                detail=str(exc)[:2000],
+            )
+        except Exception:
+            pass
+        raise

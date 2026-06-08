@@ -23,6 +23,15 @@ from clients.account_models import (  # noqa: E402,F401
     WebsiteStageLog,
     SubscriptionPaymentMethod,
 )
+# Phase D service models — discovered via this re-export so Django's
+# app loader picks them up without a duplicate `from clients.service_models`
+# in every caller. See clients/service_models.py for the why.
+from clients.service_models import (  # noqa: E402,F401
+    MaintenancePlan,
+    SocialMediaPlan,
+    SocialChannel,
+    Droplet,
+)
 
 
 # ── Shared choice sets ───────────────────────────────────────────────────────
@@ -99,6 +108,10 @@ class ClientProfile(TimestampedModel):
         help_text='Blank for Moonieful-synced clients — never the Law Firm default.',
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    # Phase D7 — DEPRECATED. Maintained for legacy reads only. New
+    # code should look at MaintenancePlan / SocialMediaPlan rows on
+    # the Account to determine what services the client has. Will be
+    # removed in a future migration once every reader is gone.
     package = models.CharField(max_length=30, choices=PACKAGE_CHOICES, blank=True)
 
     # ── Moonieful sync ──
@@ -132,6 +145,9 @@ class ClientProfile(TimestampedModel):
     # by either customer or invoice ID — and lets the billing dashboard
     # link back to Stripe directly.
     stripe_invoice_id = models.CharField(max_length=255, blank=True)
+    # Phase D7 — DEPRECATED. Replaced by MaintenancePlan rows on the
+    # Account. Use ``account.maintenance_plans.filter(status='active').exists()``
+    # instead of ``client_profile.maintenance_active`` in new code.
     maintenance_active = models.BooleanField(default=False)
     maintenance_started_at = models.DateTimeField(null=True, blank=True)
 

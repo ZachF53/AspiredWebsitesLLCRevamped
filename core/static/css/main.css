@@ -15237,6 +15237,97 @@ textarea.brief-field__input {
     line-height: 1.4;
 }
 
+
+/* ── System alerts ───────────────────────────────────────────────── */
+.system-alerts-banner {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-left: 4px solid var(--color-danger);
+    color: var(--color-text);
+    padding: 0.85rem 1.1rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.system-alerts-banner__icon {
+    font-size: 1.3rem;
+    color: var(--color-danger);
+}
+.system-alerts-banner a {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+.alert-card { margin-bottom: 1rem; }
+.alert-card--error,
+.alert-card--critical { border-left: 4px solid var(--color-danger); }
+.alert-card--warning  { border-left: 4px solid var(--color-orange); }
+.alert-severity {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    margin-right: 0.5rem;
+}
+.alert-severity--info     { background: rgba(96, 165, 250, 0.15); color: #60A5FA; }
+.alert-severity--warning  { background: rgba(232, 101, 10, 0.15); color: var(--color-orange-light); }
+.alert-severity--error    { background: rgba(248, 113, 113, 0.15); color: var(--color-danger); }
+.alert-severity--critical { background: rgba(248, 113, 113, 0.25); color: var(--color-danger); font-weight: 800; }
+/* ── Phase D5 — per-service portal cards ────────────────────────── */
+.portal-section { margin-top: 2rem; }
+.portal-section__title {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem;
+    color: var(--color-text);
+}
+.service-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 0.75rem;
+}
+.service-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+.service-card__meta {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+.service-card__since {
+    font-size: 0.78rem;
+    margin-top: 0.25rem;
+}
+.service-card__channels {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.alert-detail {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin: 0.5rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
 /* Accessible off-screen hiding — used by the contact-form honeypot
    (the project's strict 'style-src self' CSP blocks inline styles, so
    an inline `position:absolute;left:-9999px` no-ops and the honeypot
