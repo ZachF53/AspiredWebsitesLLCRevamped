@@ -1,0 +1,104 @@
+{% extends "emails/base.html" %}
+
+{% block title %}New kickoff call booked — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 8px;font-size:22px;line-height:1.25;color:#F8FAFC;font-weight:700;">
+    New kickoff call booked.
+</h1>
+<p style="margin:0 0 22px;color:#94A3B8;font-size:14px;line-height:1.55;">
+    {{ customer_name|default:'A visitor' }} just confirmed a slot from
+    <code style="background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px;font-size:12px;color:#F8FAFC;">/design/schedule/</code>.
+</p>
+
+{# When + who card #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#1E293B;border:1px solid #334155;border-radius:10px;margin:0 0 18px;">
+    <tr>
+        <td style="padding:16px 20px;">
+            <div style="color:#94A3B8;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;">
+                When
+            </div>
+            <div style="color:#F8FAFC;font-size:17px;font-weight:600;line-height:1.4;">{{ when_str }}</div>
+        </td>
+    </tr>
+</table>
+
+{# Contact + business detail rows #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="margin:0 0 18px;">
+    {% if customer_name %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;width:130px;">Name</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;font-weight:500;">{{ customer_name }}</td>
+    </tr>
+    {% endif %}
+    {% if customer_email %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;">Email</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">
+            <a href="mailto:{{ customer_email }}" style="color:#E8650A;text-decoration:none;">{{ customer_email }}</a>
+        </td>
+    </tr>
+    {% endif %}
+    {% if phone %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;">Phone</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">{{ phone }}</td>
+    </tr>
+    {% endif %}
+    {% if business %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;">Business</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">{{ business }}</td>
+    </tr>
+    {% endif %}
+    {% if website %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;">Current site</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">
+            <a href="{{ website }}" style="color:#E8650A;text-decoration:none;">{{ website }}</a>
+        </td>
+    </tr>
+    {% endif %}
+    {% if build_type %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;">Build type</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">{{ build_type_display|default:build_type }}</td>
+    </tr>
+    {% endif %}
+    {% if addons %}
+    <tr>
+        <td style="padding:6px 0;color:#94A3B8;font-size:13px;vertical-align:top;">Opted-in add-ons</td>
+        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">
+            {% for a in addons %}<span style="display:inline-block;background:rgba(232,101,10,0.15);color:#E8650A;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;margin:0 4px 4px 0;">{{ a }}</span>{% endfor %}
+        </td>
+    </tr>
+    {% endif %}
+</table>
+
+{% if inquiry %}
+<div style="margin:6px 0 22px;padding:14px 18px;background:rgba(232,101,10,0.08);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#E8650A;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">
+        What they want to build
+    </div>
+    <div style="color:#F8FAFC;font-size:14px;line-height:1.55;">
+        {{ inquiry|linebreaksbr }}
+    </div>
+</div>
+{% endif %}
+
+{% if lead_url %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td style="background:#E8650A;border-radius:6px;">
+            <a href="{{ lead_url }}" style="display:inline-block;padding:10px 22px;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;">
+                Open lead in admin →
+            </a>
+        </td>
+    </tr>
+</table>
+{% endif %}
+
+{% endblock %}

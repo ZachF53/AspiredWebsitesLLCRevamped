@@ -1,0 +1,63 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Your call is confirmed — Aspired Websites{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 8px;font-size:24px;line-height:1.25;color:#F8FAFC;font-weight:700;">
+    You&rsquo;re booked, {{ first_name }}.
+</h1>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:15px;line-height:1.55;">
+    Looking forward to talking through what you want to build.
+</p>
+
+{# Call-detail card #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#1E293B;border:1px solid #334155;border-radius:10px;margin:0 0 24px;">
+    <tr>
+        <td style="padding:18px 22px;">
+            <div style="color:#94A3B8;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">
+                When
+            </div>
+            <div style="color:#F8FAFC;font-size:18px;font-weight:600;line-height:1.4;">
+                {{ when_str }}
+            </div>
+            <div style="color:#94A3B8;font-size:14px;margin-top:4px;">
+                30-minute kickoff call · phone
+            </div>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 14px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    I&rsquo;ll call <strong style="color:#F8FAFC;">{{ phone|default:'the number on file' }}</strong> at that time.
+    If anything changes on your end, just reply to this email and we&rsquo;ll
+    re-pick.
+</p>
+
+{% if inquiry %}
+<div style="margin:18px 0 22px;padding:14px 18px;background:rgba(232,101,10,0.08);border-left:3px solid #E8650A;border-radius:6px;">
+    <div style="color:#E8650A;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">
+        What you sent over
+    </div>
+    <div style="color:#F8FAFC;font-size:14px;line-height:1.55;">
+        {{ inquiry|linebreaksbr }}
+    </div>
+</div>
+{% endif %}
+
+<p style="margin:24px 0 6px;color:#F8FAFC;font-size:15px;line-height:1.55;">
+    Before we talk, a few things help me prep:
+</p>
+<ul style="margin:0 0 22px;padding-left:22px;color:#F8FAFC;font-size:14px;line-height:1.65;">
+    <li>Two or three sites you like the look of (rivals or not)</li>
+    <li>Anything you definitely <em>don&rsquo;t</em> want</li>
+    <li>Your current domain, if you have one</li>
+</ul>
+
+<p style="margin:0;color:#94A3B8;font-size:13px;line-height:1.55;">
+    Talk soon,<br>
+    <span style="color:#F8FAFC;font-weight:600;">Zachery</span>
+</p>
+
+{% endblock %}
