@@ -10815,6 +10815,31 @@ button.htmx-request {
     text-overflow: ellipsis;
 }
 
+/* Sub-nav links shown beneath a top-level admin sidebar item when its
+   section is active (e.g. Schedule → Google Calendar / Availability /
+   Booked calls). Mirrors .nav-link sizing but smaller + indented. */
+#admin-sidebar .nav-sublink {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 16px 5px 36px;
+    margin: 0 8px;
+    border-radius: 6px;
+    color: #64748B;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+#admin-sidebar .nav-sublink:hover {
+    color: #FFFFFF;
+    background: #1E293B;
+}
+#admin-sidebar .nav-sublink.active {
+    color: var(--color-orange);
+}
+
 .nav-badge {
     background: var(--color-orange);
     color: #FFFFFF;

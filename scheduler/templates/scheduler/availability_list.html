@@ -1,0 +1,178 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Schedule — Availability — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · Schedule</span>
+            <h1 class="admin-page-title">Availability windows</h1>
+            <p class="admin-page-sub">
+                When customers can pick a 30-minute slot on
+                <code>/design/schedule/</code>. Times shown in each
+                row's timezone — slots get converted to the visitor's
+                local time on the booking page.
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary"
+               href="{% url 'admin_dashboard:schedule_connect' %}">
+                ← Connect page
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if total_windows == 0 %}
+        <section class="admin-card" style="border-left:4px solid var(--color-accent);">
+            <div class="admin-card__body">
+                <h2 style="margin-top:0;">No availability windows yet</h2>
+                <p class="muted">
+                    Until at least one window exists, the booking page
+                    will show "nothing available." Either seed the
+                    defaults below, or add a custom window.
+                </p>
+                <form method="post"
+                      action="{% url 'admin_dashboard:schedule_availability_seed' %}"
+                      style="margin-top:1rem;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary">
+                        Seed defaults (Mon–Fri 4–8pm ET, Sat 9am–8pm ET)
+                    </button>
+                </form>
+            </div>
+        </section>
+    {% endif %}
+
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Weekly schedule</h2>
+            <span class="muted">{{ total_windows }} window{{ total_windows|pluralize }}</span>
+        </div>
+        <div class="admin-card__body">
+
+            <table class="admin-table" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th style="width:120px;">Day</th>
+                        <th>Windows</th>
+                        <th style="width:80px;">&nbsp;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in by_day %}
+                        <tr>
+                            <td><strong>{{ d.day_label }}</strong></td>
+                            <td>
+                                {% if d.windows %}
+                                    {% for w in d.windows %}
+                                        <div class="window-row" style="display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem;flex-wrap:wrap;">
+                                            <form method="post"
+                                                  action="{% url 'admin_dashboard:schedule_availability_edit' w.id %}"
+                                                  style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+                                                {% csrf_token %}
+                                                <input type="time" name="start_time"
+                                                       value="{{ w.start_time|time:'H:i' }}"
+                                                       class="form-control" style="width:7rem;" required>
+                                                <span class="muted">–</span>
+                                                <input type="time" name="end_time"
+                                                       value="{{ w.end_time|time:'H:i' }}"
+                                                       class="form-control" style="width:7rem;" required>
+                                                <input type="text" name="timezone"
+                                                       value="{{ w.timezone }}"
+                                                       class="form-control" style="width:10rem;"
+                                                       placeholder="America/New_York" required>
+                                                <button type="submit" class="btn-secondary btn-sm">Save</button>
+                                            </form>
+
+                                            <form method="post"
+                                                  action="{% url 'admin_dashboard:schedule_availability_toggle' w.id %}"
+                                                  style="display:inline;">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="btn-{% if w.active %}secondary{% else %}primary{% endif %} btn-sm">
+                                                    {% if w.active %}Disable{% else %}Enable{% endif %}
+                                                </button>
+                                            </form>
+
+                                            <form method="post"
+                                                  action="{% url 'admin_dashboard:schedule_availability_delete' w.id %}"
+                                                  style="display:inline;"
+                                                  onsubmit="return confirm('Delete this window?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn-danger btn-sm">Delete</button>
+                                            </form>
+
+                                            {% if not w.active %}
+                                                <span class="muted">(disabled)</span>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="muted">No windows — closed.</span>
+                                {% endif %}
+                            </td>
+                            <td></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Add a window</h2>
+            <span class="muted">Open hours for one weekday</span>
+        </div>
+        <div class="admin-card__body">
+            <form method="post"
+                  action="{% url 'admin_dashboard:schedule_availability_add' %}"
+                  style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap;">
+                {% csrf_token %}
+
+                <div style="display:flex;flex-direction:column;gap:.2rem;">
+                    <label class="muted" style="font-size:.85rem;">Day</label>
+                    <select name="day_of_week" class="form-control" required>
+                        {% for value, label in day_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:.2rem;">
+                    <label class="muted" style="font-size:.85rem;">Start</label>
+                    <input type="time" name="start_time" class="form-control" required>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:.2rem;">
+                    <label class="muted" style="font-size:.85rem;">End</label>
+                    <input type="time" name="end_time" class="form-control" required>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:.2rem;">
+                    <label class="muted" style="font-size:.85rem;">Timezone</label>
+                    <input type="text" name="timezone" class="form-control"
+                           value="America/New_York" required>
+                </div>
+
+                <button type="submit" class="btn-primary">Add window</button>
+            </form>
+            <p class="muted" style="margin-top:.75rem;font-size:.85rem;">
+                Multiple windows per day are fine — e.g. 9–12 and 2–5.
+            </p>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

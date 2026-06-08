@@ -7,13 +7,19 @@
 
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow">Operations</span>
+            <span class="eyebrow">Operations · Schedule</span>
             <h1 class="admin-page-title">Google Calendar connection</h1>
             <p class="admin-page-sub">
                 Confirmed bookings on
                 <code>/design/schedule/</code> push as events to your
                 connected calendar with the customer added as an attendee.
             </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary"
+               href="{% url 'admin_dashboard:schedule_availability' %}">Availability</a>
+            <a class="btn-secondary"
+               href="{% url 'admin_dashboard:schedule_calls' %}">Booked calls</a>
         </div>
     </div>
 
@@ -30,14 +36,25 @@
             {% if connected %}
                 <p>
                     <strong style="color:var(--color-success);">✓ Connected.</strong>
-                    Calendar: <code>{{ token.calendar_id }}</code> ·
-                    Access token expires: {{ token.expires_at|date:"M j H:i" }}
+                    Calendar: <code>{{ token.calendar_id }}</code>
                 </p>
                 <p class="muted">
-                    Auto-refresh runs on every event push using the stored
-                    refresh token. You only need to re-connect if you
-                    revoke this app's access in your Google account.
+                    Stays connected indefinitely. Google's short-lived
+                    access tokens expire every hour by design — we auto-renew
+                    them in the background using the refresh token saved
+                    on connect. You only need to come back here if you
+                    revoke this app's access in your Google account
+                    (myaccount.google.com → Security → Third-party apps).
                 </p>
+                <details style="margin-top:.5rem;">
+                    <summary class="muted" style="cursor:pointer;">Technical details</summary>
+                    <p class="muted" style="margin-top:.5rem;font-size:.85rem;">
+                        Current access token rotates at
+                        {{ token.expires_at|date:"M j, Y H:i" }} (next push refreshes it).
+                        Refresh token stored: yes.
+                        Last reconnect: {{ token.updated_at|date:"M j, Y H:i" }}.
+                    </p>
+                </details>
                 <form method="post" action="{% url 'admin_dashboard:schedule_disconnect' %}" style="margin-top:1rem;"
                       onsubmit="return confirm('Disconnect Google Calendar? New bookings will save to the database but won&apos;t appear on your calendar.');">
                     {% csrf_token %}
@@ -67,11 +84,16 @@
             <span class="muted">When customers can book</span>
         </div>
         <div class="admin-card__body">
-            <p class="muted">
-                Defaults seeded: Mon–Fri 4–8pm ET, Sat 9am–8pm ET.
-                Edit per row in the
-                <a href="/admin/scheduler/availabilitywindow/">Django admin</a>
-                for now — a dedicated UI ships in Phase D5.
+            <p>
+                Customers booking on <code>/design/schedule/</code> only see
+                slots that fall inside an active availability window.
+                Manage them in the dedicated UI →
+                <a href="{% url 'admin_dashboard:schedule_availability' %}">Edit availability</a>
+            </p>
+            <p class="muted" style="margin-top:.5rem;">
+                If nothing is configured yet, the booking page shows
+                "nothing available" — start by seeding the spec defaults
+                (Mon–Fri 4–8pm ET, Sat 9am–8pm ET) on that page.
             </p>
         </div>
     </section>

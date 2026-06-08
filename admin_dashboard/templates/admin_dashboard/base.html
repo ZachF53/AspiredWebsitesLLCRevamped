@@ -167,6 +167,20 @@
                    href="{% url 'admin_dashboard:schedule_connect' %}">
                     <span class="nav-link__text">Schedule</span>
                 </a>
+                {% if '/admin-dashboard/schedule/' in request.path %}
+                    <a class="nav-sublink {% if '/schedule/connect/' in request.path %}active{% endif %}"
+                       href="{% url 'admin_dashboard:schedule_connect' %}">
+                        <span class="nav-link__text">Google Calendar</span>
+                    </a>
+                    <a class="nav-sublink {% if '/schedule/availability/' in request.path %}active{% endif %}"
+                       href="{% url 'admin_dashboard:schedule_availability' %}">
+                        <span class="nav-link__text">Availability</span>
+                    </a>
+                    <a class="nav-sublink {% if '/schedule/calls/' in request.path %}active{% endif %}"
+                       href="{% url 'admin_dashboard:schedule_calls' %}">
+                        <span class="nav-link__text">Booked calls</span>
+                    </a>
+                {% endif %}
                 <a class="nav-link {% if '/admin-dashboard/alerts/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:system_alerts' %}">
                     <span class="nav-link__text">Alerts</span>

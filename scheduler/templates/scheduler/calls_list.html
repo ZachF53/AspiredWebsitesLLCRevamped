@@ -1,0 +1,162 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Schedule — Calls — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · Schedule</span>
+            <h1 class="admin-page-title">Scheduled calls</h1>
+            <p class="admin-page-sub">
+                Every booking from <code>/design/schedule/</code>.
+                "Held" rows are still in the 15-minute checkout window;
+                "Confirmed" rows have been pushed to your Google
+                Calendar (if connected).
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary"
+               href="{% url 'admin_dashboard:schedule_connect' %}">Connect</a>
+            <a class="btn-secondary"
+               href="{% url 'admin_dashboard:schedule_availability' %}">Availability</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Filter</h2>
+        </div>
+        <div class="admin-card__body">
+            <form method="get" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+                <label class="muted">Status:</label>
+                <select name="status" class="form-control" style="max-width:14rem;"
+                        onchange="this.form.submit()">
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Upcoming</h2>
+            <span class="muted">{{ upcoming|length }} call{{ upcoming|length|pluralize }}</span>
+        </div>
+        <div class="admin-card__body">
+            {% if upcoming %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Customer</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>GCal event</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in upcoming %}
+                            <tr>
+                                <td>{{ c.starts_at|date:"D M j · g:i A" }} <span class="muted">→ {{ c.ends_at|date:"g:i A" }}</span></td>
+                                <td>{{ c.customer_name|default:"—" }}</td>
+                                <td>{{ c.customer_email|default:"—" }}</td>
+                                <td>
+                                    <span class="status-pill status-pill--{{ c.status }}">{{ c.get_status_display }}</span>
+                                </td>
+                                <td>
+                                    {% if c.google_event_id %}
+                                        <span class="muted" title="{{ c.google_event_id }}">linked</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td style="white-space:nowrap;">
+                                    {% if c.status != 'cancelled' and c.status != 'completed' %}
+                                        <form method="post"
+                                              action="{% url 'admin_dashboard:schedule_call_cancel' c.id %}"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('Cancel this call? Removes from Google Calendar.');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-danger btn-sm">Cancel</button>
+                                        </form>
+                                        <form method="post"
+                                              action="{% url 'admin_dashboard:schedule_call_complete' c.id %}"
+                                              style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-secondary btn-sm">Completed</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No upcoming calls.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Past</h2>
+            <span class="muted">{{ past|length }} call{{ past|length|pluralize }}</span>
+        </div>
+        <div class="admin-card__body">
+            {% if past %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Customer</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in past %}
+                            <tr>
+                                <td>{{ c.starts_at|date:"M j, Y · g:i A" }}</td>
+                                <td>{{ c.customer_name|default:"—" }}</td>
+                                <td>{{ c.customer_email|default:"—" }}</td>
+                                <td>
+                                    <span class="status-pill status-pill--{{ c.status }}">{{ c.get_status_display }}</span>
+                                </td>
+                                <td>
+                                    {% if c.status not in 'cancelled,completed' %}
+                                        <form method="post"
+                                              action="{% url 'admin_dashboard:schedule_call_complete' c.id %}"
+                                              style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-secondary btn-sm">Mark completed</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No past calls yet.</p>
+            {% endif %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}
