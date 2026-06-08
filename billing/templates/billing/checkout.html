@@ -22,8 +22,23 @@
 
             <ul class="checkout-features">
                 {% for f in tier.features.all %}
-                    <li>✓ {{ f.label }}</li>
+                    <li>✓ {{ f.text }}</li>
                 {% endfor %}
+                {# Social-tier extras — mirror the pricing-page card so
+                   the checkout page reflects exactly what was purchased. #}
+                {% if tier.max_channels %}
+                    <li>✓ {{ tier.max_channels }} channels of your choice</li>
+                {% endif %}
+                {% if tier.reply_handling == 'none' %}
+                    <li>✓ You handle replies &amp; DMs</li>
+                {% elif tier.reply_handling == 'triage' %}
+                    <li>✓ Reply/DM triage &mdash; we flag, you respond</li>
+                {% elif tier.reply_handling == 'full' %}
+                    <li>✓ Full reply &amp; DM management</li>
+                {% endif %}
+                {% if tier.category == 'maintenance' %}
+                    <li>✓ Month-to-month &mdash; cancel anytime</li>
+                {% endif %}
             </ul>
 
             {% if show_hosting_upsell %}
