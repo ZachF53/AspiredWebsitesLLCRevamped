@@ -24,8 +24,11 @@
                 {% for f in tier.features.all %}
                     <li>✓ {{ f.text }}</li>
                 {% endfor %}
-                {# Social-tier extras — mirror the pricing-page card so
-                   the checkout page reflects exactly what was purchased. #}
+                {% comment %}
+                    Social-tier extras — mirror the pricing-page card
+                    so the checkout page reflects exactly what was
+                    purchased.
+                {% endcomment %}
                 {% if tier.max_channels %}
                     <li>✓ {{ tier.max_channels }} channels of your choice</li>
                 {% endif %}
