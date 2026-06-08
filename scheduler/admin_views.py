@@ -20,6 +20,12 @@ from .models import AvailabilityWindow, DAY_CHOICES, ScheduledCall
 logger = logging.getLogger(__name__)
 
 
+# All availability windows run on Eastern. The UI no longer exposes the
+# timezone field; the constant is used everywhere a tz is needed so a
+# single edit here would re-home the whole schedule if that ever changed.
+SCHEDULE_TZ = 'America/New_York'
+
+
 # Default windows used by the "Seed defaults" button. Matches the spec:
 # Mon–Fri 4–8pm ET, Sat 9am–8pm ET, Sun closed.
 DEFAULT_WINDOWS = [
@@ -48,6 +54,12 @@ def _parse_time(value):
 @admin_required
 def availability_list(request):
     """One page — list + add form. Edit/delete are inline POSTs."""
+    # Force every existing row onto SCHEDULE_TZ. Cheap to do here so
+    # legacy rows that were created with a non-ET tz get normalised
+    # on the next page view without a one-off data migration.
+    AvailabilityWindow.objects.exclude(timezone=SCHEDULE_TZ).update(
+        timezone=SCHEDULE_TZ)
+
     windows = list(AvailabilityWindow.objects.order_by(
         'day_of_week', 'start_time'))
 
@@ -75,7 +87,6 @@ def availability_add(request):
     dow_raw = request.POST.get('day_of_week', '')
     start_raw = request.POST.get('start_time', '')
     end_raw = request.POST.get('end_time', '')
-    tz_raw = (request.POST.get('timezone') or 'America/New_York').strip()
 
     try:
         dow = int(dow_raw)
@@ -99,13 +110,13 @@ def availability_add(request):
         day_of_week=dow,
         start_time=start_t,
         end_time=end_t,
-        timezone=tz_raw,
+        timezone=SCHEDULE_TZ,
         active=True,
     )
     messages.success(
         request,
         f'Added: {dict(DAY_CHOICES)[dow]} '
-        f'{start_t:%H:%M}–{end_t:%H:%M} {tz_raw}.')
+        f'{start_t:%H:%M}–{end_t:%H:%M} ET.')
     return redirect('admin_dashboard:schedule_availability')
 
 
@@ -116,7 +127,6 @@ def availability_edit(request, window_id):
 
     start_t = _parse_time(request.POST.get('start_time', ''))
     end_t = _parse_time(request.POST.get('end_time', ''))
-    tz_raw = (request.POST.get('timezone') or w.timezone).strip()
 
     if not start_t or not end_t or start_t >= end_t:
         messages.error(
@@ -126,7 +136,7 @@ def availability_edit(request, window_id):
 
     w.start_time = start_t
     w.end_time = end_t
-    w.timezone = tz_raw
+    w.timezone = SCHEDULE_TZ
     w.save(update_fields=['start_time', 'end_time', 'timezone'])
     messages.success(request, f'Updated {w}.')
     return redirect('admin_dashboard:schedule_availability')
@@ -166,7 +176,7 @@ def availability_seed_defaults(request):
             day_of_week=dow,
             start_time=start_t,
             end_time=end_t,
-            timezone='America/New_York',
+            timezone=SCHEDULE_TZ,
             defaults={'active': True},
         )
         if was_created:

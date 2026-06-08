@@ -76,11 +76,6 @@
                                         <input type="time" name="end_time"
                                                value="{{ w.end_time|time:'H:i' }}"
                                                class="form-control avail-input avail-input--time" required>
-                                        <input type="text" name="timezone"
-                                               value="{{ w.timezone }}"
-                                               class="form-control avail-input avail-input--tz"
-                                               title="IANA timezone, e.g. America/New_York"
-                                               required>
                                         <button type="submit" class="btn-primary btn-sm">Save</button>
                                     </form>
                                     <div class="avail-window__actions">
@@ -147,19 +142,14 @@
                            class="form-control avail-input--time" required>
                 </label>
 
-                <label class="avail-add__field">
-                    <span class="avail-add__label">Timezone</span>
-                    <input type="text" name="timezone"
-                           class="form-control avail-input--tz"
-                           value="America/New_York" required>
-                </label>
-
                 <div class="avail-add__submit">
                     <button type="submit" class="btn-primary">Add window</button>
                 </div>
             </form>
             <p class="muted avail-add__hint">
-                Multiple windows per day are fine — e.g. 9 AM–12 PM and 2 PM–5 PM.
+                All windows run on <strong>America/New_York (Eastern)</strong>.
+                Multiple per day are fine — e.g. 9 AM–12 PM and 2 PM–5 PM.
+                Visitors see slots converted to their own local time.
             </p>
         </div>
     </section>

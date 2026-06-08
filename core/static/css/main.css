@@ -10878,20 +10878,26 @@ button.htmx-request {
     min-width: 0;
 }
 .avail-input--time {
-    width: 8rem;
-    padding-top: .4rem;
-    padding-bottom: .4rem;
-}
-.avail-input--tz {
-    width: 11rem;
-    padding-top: .4rem;
-    padding-bottom: .4rem;
-    font-family: inherit;
+    width: 13rem;
+    padding-top: .55rem;
+    padding-bottom: .55rem;
+    font-size: 15px;
 }
 .avail-arrow {
-    color: #64748B;
+    color: #94A3B8;
     font-weight: 600;
-    padding: 0 .15rem;
+    padding: 0 .35rem;
+    font-size: 1.05rem;
+}
+/* Native time-picker clock indicator. Chromium/Edge default is dark
+   grey on dark backgrounds — invert it to white so it reads cleanly. */
+.avail-input--time::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+    cursor: pointer;
+    opacity: 0.95;
+}
+.avail-input--time::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
 }
 
 .avail-closed {
@@ -10967,7 +10973,7 @@ button.htmx-request {
     }
     .avail-day__name { padding-top: 0; }
     .avail-window { padding-left: .25rem; }
-    .avail-input--tz { width: 100%; }
+    .avail-input--time { width: 100%; }
 }
 
 /* Sub-nav links shown beneath a top-level admin sidebar item when its
