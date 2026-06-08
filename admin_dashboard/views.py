@@ -8514,6 +8514,327 @@ def outreach_approval_reject(request, pk):
     return redirect('admin_dashboard:outreach_approvals')
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# Brief generator — Claude Code prompt-template builder
+# ────────────────────────────────────────────────────────────────────────────
+# Two templates live in admin_dashboard/brief_templates/:
+#   - masterdesign.md  static; redesign an existing site by scanning it
+#   - blankdesign.md   parametrized with {{placeholders}}; new-client intake
+#
+# The blank-builder page is a split view: form on the left, the rendered
+# template with the operator's values stitched in on the right, updating
+# live as they type. Download = client-side Blob, no server roundtrip.
+#
+# Field schema lives in BLANK_BUILDER_FIELDS — order, label, type, and
+# section determine BOTH the form layout AND which placeholder gets
+# replaced in the preview.
+
+import pathlib as _pathlib
+
+_BRIEF_TEMPLATES_DIR = _pathlib.Path(__file__).resolve().parent / 'brief_templates'
+
+
+def _load_brief_template(name):
+    """Read a brief template file from disk. Raises if missing."""
+    return (_BRIEF_TEMPLATES_DIR / name).read_text(encoding='utf-8')
+
+
+# Field schema for the blank-design builder. Each entry maps a {{key}}
+# in blankdesign.md to a form input. Section headings drive the
+# left-column grouping; order in this list is order on the page.
+#
+# type: text | textarea | select | bool_checkbox | hidden
+# rows: textarea row count
+# choices: select options [(value, label), ...]
+# placeholder: input placeholder text
+# help: 1-line hint below the input
+BLANK_BUILDER_FIELDS = [
+    # ── A1. Business basics ────────────────────────────────────────
+    {'section': 'A1. Business basics', 'name': 'business_name',
+     'label': 'Business name', 'type': 'text',
+     'placeholder': 'Aspired Websites LLC'},
+    {'section': 'A1. Business basics', 'name': 'tagline',
+     'label': 'Tagline / one-liner', 'type': 'text',
+     'placeholder': 'Custom websites for law firms in Texas and Georgia'},
+    {'section': 'A1. Business basics', 'name': 'primary_service',
+     'label': 'Primary service', 'type': 'text'},
+    {'section': 'A1. Business basics', 'name': 'target_customer',
+     'label': 'Target customer', 'type': 'text'},
+    {'section': 'A1. Business basics', 'name': 'contact_email',
+     'label': 'Contact email', 'type': 'text'},
+    {'section': 'A1. Business basics', 'name': 'contact_phone',
+     'label': 'Phone', 'type': 'text'},
+    {'section': 'A1. Business basics', 'name': 'contact_address',
+     'label': 'Address', 'type': 'text'},
+    {'section': 'A1. Business basics', 'name': 'domain',
+     'label': 'Domain / URL', 'type': 'text',
+     'placeholder': 'https://example.com'},
+
+    # ── A2. Brand colors ───────────────────────────────────────────
+    {'section': 'A2. Brand colors', 'name': 'color_primary_bg',
+     'label': 'Primary background (darkest)', 'type': 'text',
+     'placeholder': '#070614'},
+    {'section': 'A2. Brand colors', 'name': 'color_secondary_bg',
+     'label': 'Secondary background', 'type': 'text',
+     'placeholder': '#0F172A'},
+    {'section': 'A2. Brand colors', 'name': 'color_card',
+     'label': 'Card / surface color', 'type': 'text'},
+    {'section': 'A2. Brand colors', 'name': 'color_accent',
+     'label': 'Brand accent (buttons, links)', 'type': 'text',
+     'placeholder': '#E8650A'},
+    {'section': 'A2. Brand colors', 'name': 'color_accent_light',
+     'label': 'Light tint of accent', 'type': 'text'},
+    {'section': 'A2. Brand colors', 'name': 'color_warm_secondary',
+     'label': 'Warm secondary (gold / amber)', 'type': 'text'},
+    {'section': 'A2. Brand colors', 'name': 'color_light_surface',
+     'label': 'Light surface (cream / warm white)', 'type': 'text'},
+    {'section': 'A2. Brand colors', 'name': 'brand_personality',
+     'label': 'Brand personality / vibe', 'type': 'textarea', 'rows': 3,
+     'placeholder': 'dark and authoritative like a law firm'},
+
+    # ── A3. Typography ─────────────────────────────────────────────
+    {'section': 'A3. Typography', 'name': 'font_heading',
+     'label': 'Heading font', 'type': 'text',
+     'placeholder': 'Merriweather'},
+    {'section': 'A3. Typography', 'name': 'font_body',
+     'label': 'Body font', 'type': 'text',
+     'placeholder': 'Inter'},
+    {'section': 'A3. Typography', 'name': 'font_accent',
+     'label': 'Accent / label font', 'type': 'text',
+     'placeholder': 'none — use body at lighter weight'},
+
+    # ── A4. Assets ─────────────────────────────────────────────────
+    {'section': 'A4. Assets', 'name': 'has_logo', 'label': 'Have a logo?',
+     'type': 'select', 'choices': [
+         ('', '— pick —'),
+         ('Yes', 'Yes — file path below'),
+         ('No — Claude Code will use a styled text logo for now', 'No — use text logo'),
+     ]},
+    {'section': 'A4. Assets', 'name': 'logo_path',
+     'label': 'Logo file path / URL', 'type': 'text'},
+    {'section': 'A4. Assets', 'name': 'logo_format',
+     'label': 'Logo format', 'type': 'select', 'choices': [
+         ('', '—'), ('PNG', 'PNG'), ('SVG', 'SVG'), ('JPG', 'JPG'),
+         ('WebP', 'WebP'), ('Other', 'Other'),
+     ]},
+    {'section': 'A4. Assets', 'name': 'logo_dark_compatible',
+     'label': 'Logo works on dark background?', 'type': 'select', 'choices': [
+         ('', '—'), ('Yes', 'Yes'), ('No — need light/white version', 'No — needs light version'),
+     ]},
+    {'section': 'A4. Assets', 'name': 'photos_team',
+     'label': 'Photos of owner / team?', 'type': 'textarea', 'rows': 2,
+     'placeholder': 'Yes — 3 headshots in assets/team/'},
+    {'section': 'A4. Assets', 'name': 'photos_work',
+     'label': 'Photos of work / results?', 'type': 'textarea', 'rows': 2},
+    {'section': 'A4. Assets', 'name': 'image_style',
+     'label': 'Image style', 'type': 'select', 'choices': [
+         ('', '—'), ('Photography', 'Photography'),
+         ('Illustration', 'Illustration'), ('Both', 'Both'),
+         ('None — use CSS/gradients', 'None — CSS only'),
+     ]},
+    {'section': 'A4. Assets', 'name': 'accent_images',
+     'label': 'Accent / divider images?', 'type': 'textarea', 'rows': 2,
+     'placeholder': 'No — Claude Code generates with CSS'},
+    {'section': 'A4. Assets', 'name': 'favicon_status',
+     'label': 'Favicon', 'type': 'text',
+     'placeholder': 'Have one at assets/favicon.ico, OR: derive from logo'},
+
+    # ── A5. Pages & navigation ─────────────────────────────────────
+    {'section': 'A5. Pages & navigation', 'name': 'pages_list',
+     'label': 'Pages (one per line, format: Name | URL | Sections)',
+     'type': 'textarea', 'rows': 6,
+     'placeholder': 'Home          | /              | Hero, Services, Testimonials\nAbout         | /about/        | Story, Team, Values\nContact       | /contact/      | Form, Map, Hours'},
+    {'section': 'A5. Pages & navigation', 'name': 'nav_link_order',
+     'label': 'Nav link order (one per line)', 'type': 'textarea',
+     'rows': 4,
+     'placeholder': '1. Home\n2. Services\n3. About\n4. Contact'},
+    {'section': 'A5. Pages & navigation', 'name': 'cta_button_label',
+     'label': 'Primary CTA button label', 'type': 'text',
+     'placeholder': 'Get a Free Quote'},
+    {'section': 'A5. Pages & navigation', 'name': 'cta_button_link',
+     'label': 'Primary CTA button link', 'type': 'text',
+     'placeholder': '/contact/ or #contact'},
+
+    # ── A6. Services (3 slots) ─────────────────────────────────────
+    {'section': 'A6. Services', 'name': 'service_1_name',
+     'label': 'Service 1 — Name', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_1_price',
+     'label': 'Service 1 — Price', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_1_description',
+     'label': 'Service 1 — Description', 'type': 'textarea', 'rows': 2},
+    {'section': 'A6. Services', 'name': 'service_1_included',
+     'label': 'Service 1 — Included (one per line, will be indented)',
+     'type': 'textarea', 'rows': 4,
+     'placeholder': '- Discovery call\n- 3 design revisions\n- Launch + 2 weeks support'},
+    {'section': 'A6. Services', 'name': 'service_1_cta_label',
+     'label': 'Service 1 — CTA label', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_1_cta_link',
+     'label': 'Service 1 — CTA link', 'type': 'text'},
+
+    {'section': 'A6. Services', 'name': 'service_2_name',
+     'label': 'Service 2 — Name', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_2_price',
+     'label': 'Service 2 — Price', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_2_description',
+     'label': 'Service 2 — Description', 'type': 'textarea', 'rows': 2},
+    {'section': 'A6. Services', 'name': 'service_2_included',
+     'label': 'Service 2 — Included', 'type': 'textarea', 'rows': 4},
+    {'section': 'A6. Services', 'name': 'service_2_cta_label',
+     'label': 'Service 2 — CTA label', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_2_cta_link',
+     'label': 'Service 2 — CTA link', 'type': 'text'},
+
+    {'section': 'A6. Services', 'name': 'service_3_name',
+     'label': 'Service 3 — Name (optional)', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_3_price',
+     'label': 'Service 3 — Price', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_3_description',
+     'label': 'Service 3 — Description', 'type': 'textarea', 'rows': 2},
+    {'section': 'A6. Services', 'name': 'service_3_included',
+     'label': 'Service 3 — Included', 'type': 'textarea', 'rows': 4},
+    {'section': 'A6. Services', 'name': 'service_3_cta_label',
+     'label': 'Service 3 — CTA label', 'type': 'text'},
+    {'section': 'A6. Services', 'name': 'service_3_cta_link',
+     'label': 'Service 3 — CTA link', 'type': 'text'},
+
+    # ── A7. Testimonials (3 slots, optional) ───────────────────────
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonials_include',
+     'label': 'Include testimonials?', 'type': 'select', 'choices': [
+         ('', '—'),
+         ('Skip this section — no reviews yet', 'Skip — none yet'),
+         ('Yes — see quotes below', 'Yes — see below'),
+     ]},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_1_quote',
+     'label': 'Testimonial 1 — Quote', 'type': 'textarea', 'rows': 2},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_1_name',
+     'label': 'Testimonial 1 — Name', 'type': 'text'},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_1_source',
+     'label': 'Testimonial 1 — Source', 'type': 'text',
+     'placeholder': 'Google Review'},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_2_quote',
+     'label': 'Testimonial 2 — Quote', 'type': 'textarea', 'rows': 2},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_2_name',
+     'label': 'Testimonial 2 — Name', 'type': 'text'},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_2_source',
+     'label': 'Testimonial 2 — Source', 'type': 'text'},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_3_quote',
+     'label': 'Testimonial 3 — Quote', 'type': 'textarea', 'rows': 2},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_3_name',
+     'label': 'Testimonial 3 — Name', 'type': 'text'},
+    {'section': 'A7. Testimonials (optional)', 'name': 'testimonial_3_source',
+     'label': 'Testimonial 3 — Source', 'type': 'text'},
+
+    # ── A8. Tone & voice ───────────────────────────────────────────
+    {'section': 'A8. Tone & voice', 'name': 'tone_personality',
+     'label': 'Brand personality (one per line, e.g. "Bold / confident")',
+     'type': 'textarea', 'rows': 3},
+    {'section': 'A8. Tone & voice', 'name': 'messaging_angle',
+     'label': 'Messaging angle', 'type': 'select', 'choices': [
+         ('', '—'),
+         ('Client is the hero — we serve them', 'Client is the hero'),
+         ('We are the authority — trust our expertise', 'We are the authority'),
+         ('Both', 'Both'),
+     ]},
+    {'section': 'A8. Tone & voice', 'name': 'problem_solved',
+     'label': 'What problem do you solve?', 'type': 'textarea', 'rows': 2},
+    {'section': 'A8. Tone & voice', 'name': 'outcome',
+     'label': 'What outcome does the client get?', 'type': 'textarea',
+     'rows': 2},
+    {'section': 'A8. Tone & voice', 'name': 'value_statement',
+     'label': 'One-sentence value statement', 'type': 'textarea',
+     'rows': 2},
+
+    # ── A9. Tech stack ─────────────────────────────────────────────
+    {'section': 'A9. Tech stack', 'name': 'tech_stack',
+     'label': 'Tech stack', 'type': 'select', 'choices': [
+         ('', '—'),
+         ('Plain HTML / CSS / JS — static files, no backend', 'Plain HTML / CSS / JS'),
+         ('Django — Python backend, template system', 'Django'),
+         ('WordPress — PHP, theme-based', 'WordPress'),
+         ('Other (specify)', 'Other'),
+     ]},
+
+    # ── A10. Integrations ──────────────────────────────────────────
+    {'section': 'A10. Integrations (optional)',
+     'name': 'integration_contact_email', 'label': 'Contact form — email to',
+     'type': 'text', 'placeholder': 'leads@example.com or "none"'},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_booking',
+     'label': 'Booking / calendar', 'type': 'text',
+     'placeholder': 'Calendly URL or "none"'},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_payment',
+     'label': 'Payment processing', 'type': 'text',
+     'placeholder': 'Stripe / Square / none'},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_newsletter',
+     'label': 'Newsletter', 'type': 'text'},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_analytics',
+     'label': 'Analytics — Google Analytics ID', 'type': 'text'},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_blog',
+     'label': 'Blog?', 'type': 'select', 'choices': [
+         ('', '—'), ('Yes', 'Yes'), ('No', 'No')]},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_portal',
+     'label': 'Client portal / login?', 'type': 'select', 'choices': [
+         ('', '—'), ('Yes', 'Yes'), ('No', 'No')]},
+    {'section': 'A10. Integrations (optional)', 'name': 'integration_chat',
+     'label': 'Live chat?', 'type': 'select', 'choices': [
+         ('', '—'), ('Yes', 'Yes'), ('No', 'No')]},
+
+    # ── A11. Reference sites ───────────────────────────────────────
+    {'section': 'A11. Reference sites (optional)', 'name': 'reference_sites',
+     'label': 'Sites you like and why (one per line)',
+     'type': 'textarea', 'rows': 4,
+     'placeholder': 'https://stripe.com — clean type + lots of whitespace\nhttps://linear.app — pixel-perfect dark theme'},
+    {'section': 'A11. Reference sites (optional)', 'name': 'avoid_design',
+     'label': 'What you do NOT want', 'type': 'textarea', 'rows': 3},
+]
+
+
+@admin_required
+def briefs_home(request):
+    """Landing page — pick Master (existing site) or Blank (new build)."""
+    return render(request, 'admin_dashboard/briefs_home.html',
+                  _admin_context(active='briefs'))
+
+
+@admin_required
+def briefs_master_download(request):
+    """Stream masterdesign.md back as a download — no rendering."""
+    body = _load_brief_template('masterdesign.md')
+    resp = HttpResponse(body, content_type='text/markdown; charset=utf-8')
+    resp['Content-Disposition'] = (
+        'attachment; filename="masterdesign.md"')
+    return resp
+
+
+@admin_required
+def briefs_blank_builder(request):
+    """
+    Split-view builder — form left, live preview right. Template is
+    embedded as a JSON string in a data attribute on the page so the
+    JS can do the find-replace client-side without a server roundtrip
+    on every keystroke. Download is also client-side (Blob).
+    """
+    template_text = _load_brief_template('blankdesign.md')
+
+    # Group fields by section for the form layout
+    sections = []
+    current = None
+    for f in BLANK_BUILDER_FIELDS:
+        if current is None or current['title'] != f['section']:
+            current = {'title': f['section'], 'fields': []}
+            sections.append(current)
+        current['fields'].append(f)
+
+    return render(
+        request, 'admin_dashboard/briefs_blank_builder.html',
+        _admin_context(
+            active='briefs',
+            template_text=template_text,
+            sections=sections,
+            total_fields=len(BLANK_BUILDER_FIELDS),
+        ),
+    )
+
+
 def _enrichment_stats():
     """
     Live counters for the enrichment-status page. One pass over Lead

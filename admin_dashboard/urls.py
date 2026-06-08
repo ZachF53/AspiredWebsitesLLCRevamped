@@ -83,6 +83,13 @@ urlpatterns = [
     # trend, recent snapshots. Snapshot task at every 5 min.
     path('redis/', views.redis_monitor, name='redis_monitor'),
 
+    # Brief generator — Claude Code .md template builder
+    path('briefs/', views.briefs_home, name='briefs_home'),
+    path('briefs/master.md', views.briefs_master_download,
+         name='briefs_master_download'),
+    path('briefs/blank/', views.briefs_blank_builder,
+         name='briefs_blank_builder'),
+
     # Outreach automation config
     path('settings/', views.settings_view, name='settings'),
 

@@ -1,0 +1,99 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Blank Brief Builder — Admin{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/briefs_builder.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+{% comment %}
+    The raw blankdesign.md text is embedded in a hidden textarea so
+    the JS can read it once on load — keeps the data attribute out
+    of the DOM diff and avoids escaping headaches for a 500-line file
+    full of quotes and backticks.
+
+    Every input carries data-field="<placeholder_key>" so the JS
+    can do a single find-replace pass over the template text on
+    every keystroke. Empty inputs leave the {{placeholder}} marker
+    intact in the preview so the operator sees what's still missing.
+{% endcomment %}
+<div class="brief-builder">
+
+    <div class="brief-builder__header">
+        <div>
+            <span class="eyebrow">Briefs</span>
+            <h1 class="admin-page-title">Blank Brief Builder</h1>
+            <p class="admin-page-sub">
+                Fill in the form on the left — the brief on the right updates as you type.
+                <span class="muted" id="brief-progress">0 / {{ total_fields }} fields filled</span>
+            </p>
+        </div>
+        <div class="brief-builder__header-actions">
+            <a href="{% url 'admin_dashboard:briefs_home' %}" class="btn-secondary btn-sm">← Briefs home</a>
+            <button type="button" id="brief-download" class="btn-primary">Download .md</button>
+        </div>
+    </div>
+
+    <textarea id="brief-template-source" hidden>{{ template_text }}</textarea>
+
+    <div class="brief-builder__split">
+
+        <form id="brief-form" class="brief-builder__form" autocomplete="off"
+              onsubmit="return false;">
+            {% for sec in sections %}
+                <fieldset class="brief-section">
+                    <legend class="brief-section__title">{{ sec.title }}</legend>
+                    {% for field in sec.fields %}
+                        <div class="brief-field">
+                            <label class="brief-field__label" for="bf-{{ field.name }}">
+                                {{ field.label }}
+                            </label>
+                            {% if field.type == 'textarea' %}
+                                <textarea id="bf-{{ field.name }}" name="{{ field.name }}"
+                                          data-field="{{ field.name }}"
+                                          rows="{{ field.rows|default:3 }}"
+                                          class="brief-field__input"
+                                          {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}></textarea>
+                            {% elif field.type == 'select' %}
+                                <select id="bf-{{ field.name }}" name="{{ field.name }}"
+                                        data-field="{{ field.name }}"
+                                        class="brief-field__input">
+                                    {% for value, label in field.choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input id="bf-{{ field.name }}" type="text"
+                                       name="{{ field.name }}"
+                                       data-field="{{ field.name }}"
+                                       class="brief-field__input"
+                                       {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+                            {% endif %}
+                            {% if field.help %}
+                                <p class="brief-field__help">{{ field.help }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </fieldset>
+            {% endfor %}
+
+            <div class="brief-builder__form-footer">
+                <button type="button" id="brief-download-bottom" class="btn-primary">
+                    Download .md
+                </button>
+            </div>
+        </form>
+
+        <aside class="brief-builder__preview" aria-label="Live preview">
+            <div class="brief-builder__preview-bar">
+                <strong>Live preview</strong>
+                <span class="muted">Updates as you type</span>
+            </div>
+            <pre id="brief-preview" class="brief-builder__preview-body"></pre>
+        </aside>
+
+    </div>
+</div>
+{% endblock %}
