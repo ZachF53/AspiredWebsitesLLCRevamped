@@ -19,6 +19,10 @@ SLOT_MINUTES = 30
 # We block 2 hours so the operator gets buffer either side of the
 # call and isn't booked back-to-back.
 BLOCK_MINUTES = 120
+# Minimum lead time between "now" and the earliest slot we offer.
+# Keeps last-minute bookings out — if someone hits the page at 3:00 PM
+# and the lead time is 2 hours, the earliest visible slot is 5:00 PM.
+MIN_LEAD_MINUTES = 120
 
 
 def _to_local_dt(d, t, tz_name):
@@ -65,7 +69,7 @@ def enumerate_slots(start_date, end_date):
                 return True
         return False
 
-    now = timezone.now()
+    earliest = timezone.now() + _dt.timedelta(minutes=MIN_LEAD_MINUTES)
     d = start_date
     while d <= end_date:
         dow = d.weekday()
@@ -79,7 +83,7 @@ def enumerate_slots(start_date, end_date):
                 slot_end_utc = (
                     cursor + _dt.timedelta(minutes=SLOT_MINUTES)
                 ).astimezone(_dt.timezone.utc)
-                if cursor > now and not _overlaps_busy(
+                if slot_start_utc >= earliest and not _overlaps_busy(
                         slot_start_utc, slot_end_utc):
                     yield (slot_start_utc, slot_end_utc)
                 cursor += _dt.timedelta(minutes=SLOT_MINUTES)

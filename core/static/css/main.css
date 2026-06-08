@@ -15337,6 +15337,164 @@ textarea.brief-field__input {
 }
 .schedule-submit { width: 100%; }
 
+/* ── Calendar booking widget (/design/schedule/) ──────────────────
+   Month grid + per-day slot strip. Light theme, lives inside the
+   .card on the schedule page. */
+.cal {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.85rem 0.95rem 1rem;
+}
+.cal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.cal__month-label {
+    font-weight: 700;
+    font-size: 1.02rem;
+    color: var(--color-text);
+}
+.cal__nav {
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: border-color 120ms, color 120ms;
+    font-family: inherit;
+    line-height: 1;
+}
+.cal__nav:hover:not(:disabled) {
+    border-color: var(--color-orange);
+    color: var(--color-orange);
+}
+.cal__nav:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.cal__weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.cal__weekday {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #94A3B8);
+    padding: 4px 0;
+}
+.cal__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.cal__cell {
+    background: var(--color-bg, #fff);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    aspect-ratio: 1 / 1;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms, color 120ms;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cal__cell--pad {
+    background: transparent;
+    border-color: transparent;
+    cursor: default;
+}
+.cal__cell--open:hover {
+    border-color: var(--color-orange);
+    color: var(--color-orange);
+}
+.cal__cell--closed,
+.cal__cell--past {
+    color: var(--color-text-muted, #94A3B8);
+    background: rgba(0, 0, 0, 0.03);
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.cal__cell--today {
+    border-color: var(--color-orange);
+    font-weight: 700;
+}
+.cal__cell--selected,
+.cal__cell--selected.cal__cell--today {
+    background: var(--color-orange);
+    color: #fff;
+    border-color: var(--color-orange);
+}
+
+.cal-slots {
+    margin-top: 1rem;
+}
+.cal-slots__empty {
+    margin: 0;
+    color: var(--color-text-muted, #94A3B8);
+    font-size: 0.9rem;
+}
+.cal-slots__heading {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--color-text);
+    font-size: 0.95rem;
+}
+.cal-slots__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 6px;
+}
+.cal-slot {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.55rem 0.5rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms, color 120ms;
+    text-align: center;
+}
+.cal-slot:hover {
+    border-color: var(--color-orange);
+    color: var(--color-orange);
+}
+.cal-slot--picked {
+    background: var(--color-orange);
+    color: #fff;
+    border-color: var(--color-orange);
+}
+.cal-error {
+    color: #B91C1C;
+    margin: 0;
+}
+
+@media (max-width: 520px) {
+    .cal__cell { font-size: 0.85rem; }
+    .cal-slots__grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    }
+}
+
 /* ── Addon opt-in fieldset (used on schedule + reusable elsewhere) ─ */
 .addon-fieldset {
     border: 1px solid var(--color-border);

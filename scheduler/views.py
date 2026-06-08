@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .availability import BLOCK_MINUTES, enumerate_slots
+from .availability import BLOCK_MINUTES, MIN_LEAD_MINUTES, enumerate_slots
 from .models import ScheduledCall
 
 
@@ -27,9 +27,13 @@ def schedule_page(request):
 
 
 def slots_api(request):
-    """JSON list of available slots over the next N days (default 21)."""
-    days = int(request.GET.get('days') or 21)
-    days = max(1, min(days, 60))
+    """JSON list of available slots over the next N days (default 60).
+
+    60 days is enough for the calendar widget to render two months
+    forward (current + next) without paging back to the server.
+    """
+    days = int(request.GET.get('days') or 60)
+    days = max(1, min(days, 90))
     today = timezone.localdate()
     end_date = today + _dt.timedelta(days=days)
     slots = list(enumerate_slots(today, end_date))
@@ -60,6 +64,16 @@ def hold_slot(request):
         starts_at = _dt.datetime.fromisoformat(starts_iso.replace('Z', '+00:00'))
     except ValueError:
         return HttpResponse('bad starts_at', status=400)
+
+    # Lead-time floor — same MIN_LEAD_MINUTES we use in the enumerator,
+    # re-checked here so a stale tab from before lead time elapsed
+    # can't sneak a booking in. Use a 60s grace to avoid clock drift
+    # blocking the very moment a slot becomes legal.
+    earliest = timezone.now() + _dt.timedelta(
+        minutes=MIN_LEAD_MINUTES, seconds=-60)
+    if starts_at < earliest:
+        return JsonResponse(
+            {'error': 'too close to start time'}, status=409)
 
     # Each booking blocks BLOCK_MINUTES (2 hours) on the calendar —
     # so we reject any new slot whose [start, start+30min] overlaps
