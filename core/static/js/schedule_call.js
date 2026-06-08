@@ -25,36 +25,63 @@
             });
     }
 
+    // Build the visitor-local labels from the ISO timestamp. The
+    // server-side `label` field is rendered in UTC and is therefore
+    // wrong for everyone outside UTC. We ignore it.
+    function localDateKey(iso) {
+        var d = new Date(iso);
+        // Use a stable YYYY-MM-DD key based on the visitor's local
+        // calendar so all slots on the same local day group together,
+        // even if some of them cross the UTC midnight boundary.
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+    function formatDateHeading(iso) {
+        return new Date(iso).toLocaleDateString(undefined, {
+            weekday: 'long', month: 'short', day: 'numeric'
+        });
+    }
+    function formatTimeLabel(iso) {
+        return new Date(iso).toLocaleTimeString(undefined, {
+            hour: 'numeric', minute: '2-digit'
+        });
+    }
+    // Display label used wherever we previously used `s.label`.
+    function fullLabel(iso) {
+        return formatDateHeading(iso) + ' at ' + formatTimeLabel(iso);
+    }
+
     function renderSlots(data) {
         slotList.innerHTML = '';
         if (!data.slots || !data.slots.length) {
             slotList.textContent = 'No slots available in the next 3 weeks — please email us.';
             return;
         }
-        // Group by date
+        // Group by visitor-local date — NOT UTC date, otherwise late
+        // evening slots can end up under tomorrow's heading.
         var byDate = {};
+        var order = [];
         data.slots.forEach(function (s) {
-            var d = s.start.slice(0, 10);
-            if (!byDate[d]) byDate[d] = [];
-            byDate[d].push(s);
+            var key = localDateKey(s.start);
+            if (!byDate[key]) { byDate[key] = []; order.push(key); }
+            byDate[key].push(s);
         });
-        Object.keys(byDate).forEach(function (d) {
+        order.forEach(function (d) {
             var group = document.createElement('div');
             group.className = 'schedule-day';
             var heading = document.createElement('div');
             heading.className = 'schedule-day__heading';
-            heading.textContent = new Date(byDate[d][0].start)
-                .toLocaleDateString(undefined, {
-                    weekday: 'long', month: 'short', day: 'numeric'
-                });
+            heading.textContent = formatDateHeading(byDate[d][0].start);
             group.appendChild(heading);
             byDate[d].forEach(function (s) {
                 var btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'schedule-slot';
-                btn.textContent = s.label.split(' ').slice(3).join(' ');
-                btn.addEventListener('click', function () {
-                    pickSlot(s);
+                btn.textContent = formatTimeLabel(s.start);
+                btn.addEventListener('click', function (ev) {
+                    pickSlot(s, ev.currentTarget);
                 });
                 group.appendChild(btn);
             });
@@ -62,7 +89,7 @@
         });
     }
 
-    function pickSlot(s) {
+    function pickSlot(s, btnEl) {
         // Try to hold the slot
         fetch('/schedule/hold/', {
             method: 'POST',
@@ -83,13 +110,13 @@
             if (!data || !data.ok) return;
             heldCallId = data.call_id;
             selectedSlotInput.value = s.start;
-            chosenLine.textContent = '✓ Holding ' + s.label + ' for 15 minutes';
+            chosenLine.textContent = '✓ Holding ' + fullLabel(s.start) + ' for 15 minutes';
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirm + submit';
             // Highlight the picked button
             document.querySelectorAll('.schedule-slot--picked').forEach(
                 function (el) { el.classList.remove('schedule-slot--picked'); });
-            event.target.classList.add('schedule-slot--picked');
+            if (btnEl) btnEl.classList.add('schedule-slot--picked');
         });
     }
 

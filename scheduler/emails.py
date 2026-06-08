@@ -18,6 +18,30 @@ from django.urls import reverse
 logger = logging.getLogger(__name__)
 
 
+def _format_when(dt, tz_name='America/New_York'):
+    """ISO datetimes are UTC server-side; render as 'Mon, Jun 9 at 4:00 PM ET'
+    in the AvailabilityWindow timezone so the body matches what the
+    operator configured."""
+    if not dt:
+        return ''
+    try:
+        from zoneinfo import ZoneInfo
+        local = dt.astimezone(ZoneInfo(tz_name))
+    except Exception:
+        local = dt
+    tz_abbr = local.strftime('%Z') or 'ET'
+    # Cross-platform: avoid %-d / %-I (Windows strftime doesn't grok them).
+    return '{}, {} {} at {}:{:02d} {} {}'.format(
+        local.strftime('%A'),
+        local.strftime('%B'),
+        local.day,
+        local.hour % 12 or 12,
+        local.minute,
+        'AM' if local.hour < 12 else 'PM',
+        tz_abbr,
+    )
+
+
 def _alert(severity, source, message, detail=''):
     """Best-effort SystemAlert write so failures appear on the dashboard."""
     try:
@@ -32,8 +56,7 @@ def send_schedule_confirmation_to_customer(call):
     """One-email to the customer the moment they confirm a slot."""
     if not call.customer_email:
         return
-    when_str = call.starts_at.strftime('%A, %B %-d at %-I:%M %p %Z') \
-        if call.starts_at else ''
+    when_str = _format_when(call.starts_at)
     body = render_to_string(
         'scheduler/emails/customer_confirmation.txt', {
             'call': call,
@@ -70,8 +93,7 @@ def send_schedule_notification_to_admin(call):
         settings, 'LEAD_NOTIFICATION_EMAIL',
         getattr(settings, 'DEFAULT_FROM_EMAIL',
                 'zachery@aspiredwebsites.com'))
-    when_str = call.starts_at.strftime('%A, %B %-d at %-I:%M %p %Z') \
-        if call.starts_at else ''
+    when_str = _format_when(call.starts_at)
     lead_url = ''
     if call.lead_id:
         base = getattr(

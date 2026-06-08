@@ -33,13 +33,13 @@ def slots_api(request):
     today = timezone.localdate()
     end_date = today + _dt.timedelta(days=days)
     slots = list(enumerate_slots(today, end_date))
+    # `start` / `end` are ISO 8601 with offset. The frontend formats
+    # them in the visitor's local timezone — server-side strftime
+    # would lock everyone into UTC, which previously caused 4 PM ET
+    # windows to render as 8 PM on the booking page.
     return JsonResponse({
         'slots': [
-            {
-                'start': s.isoformat(),
-                'end': e.isoformat(),
-                'label': s.strftime('%a %b %-d %I:%M %p'),
-            }
+            {'start': s.isoformat(), 'end': e.isoformat()}
             for s, e in slots
         ],
     })
