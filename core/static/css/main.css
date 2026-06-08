@@ -10815,6 +10815,161 @@ button.htmx-request {
     text-overflow: ellipsis;
 }
 
+/* ── Availability windows page ─────────────────────────────────────
+   Clean per-day rows for /admin-dashboard/schedule/availability/.
+   Each window is one horizontal line: time → time, timezone, save,
+   then the disable/delete cluster. Wraps to two lines only when the
+   viewport is narrow. */
+.admin-card--accent {
+    border-left: 4px solid var(--color-orange, #E8650A);
+}
+.avail-empty__title { margin-top: 0; }
+.avail-empty__desc { margin-bottom: 1rem; }
+.avail-empty__cta { margin-top: .5rem; }
+
+.avail-week {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+.avail-day {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    align-items: start;
+    gap: 1rem;
+    padding: .85rem 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+.avail-day:last-child { border-bottom: none; }
+.avail-day__name {
+    font-weight: 600;
+    color: #E2E8F0;
+    padding-top: .5rem;
+}
+.avail-day--closed .avail-day__name { color: #64748B; font-weight: 500; }
+.avail-day__windows {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.avail-window {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+.avail-window--off { opacity: 0.55; }
+.avail-window__edit {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+.avail-window__actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.avail-input {
+    min-width: 0;
+}
+.avail-input--time {
+    width: 8rem;
+    padding-top: .4rem;
+    padding-bottom: .4rem;
+}
+.avail-input--tz {
+    width: 11rem;
+    padding-top: .4rem;
+    padding-bottom: .4rem;
+    font-family: inherit;
+}
+.avail-arrow {
+    color: #64748B;
+    font-weight: 600;
+    padding: 0 .15rem;
+}
+
+.avail-closed {
+    color: #64748B;
+    font-style: italic;
+    padding-top: .55rem;
+    display: inline-block;
+}
+.avail-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.avail-pill--off {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94A3B8;
+}
+
+/* "Delete" deserves to be subordinate to Save / Disable.
+   Treat as a destructive link, not a chunky button. */
+.btn-link {
+    background: transparent;
+    border: none;
+    color: #F87171;
+    padding: 4px 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.btn-link:hover {
+    color: #FCA5A5;
+    background: rgba(248, 113, 113, 0.08);
+}
+.avail-delete { /* no extra rules — keeps a single class to target later */ }
+
+/* Add-window form — one row of labeled fields, all inline. */
+.avail-add {
+    display: flex;
+    align-items: flex-end;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+.avail-add__field {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    min-width: 0;
+}
+.avail-add__label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94A3B8;
+    font-weight: 600;
+}
+.avail-add__submit {
+    padding-bottom: 1px;
+}
+.avail-add__hint {
+    margin-top: .9rem;
+    font-size: .85rem;
+}
+
+@media (max-width: 720px) {
+    .avail-day {
+        grid-template-columns: 1fr;
+        gap: .35rem;
+    }
+    .avail-day__name { padding-top: 0; }
+    .avail-window { padding-left: .25rem; }
+    .avail-input--tz { width: 100%; }
+}
+
 /* Sub-nav links shown beneath a top-level admin sidebar item when its
    section is active (e.g. Schedule → Google Calendar / Availability /
    Booked calls). Mirrors .nav-link sizing but smaller + indented. */
