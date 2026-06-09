@@ -739,6 +739,14 @@ class Contract(TimestampedModel):
     signed_at = models.DateTimeField(null=True, blank=True)
     signed_ip = models.GenericIPAddressField(null=True, blank=True)
     signed_name = models.CharField(max_length=200, blank=True)
+    # Phase 2.3 — audit-trail hardening for ESIGN/UETA enforceability.
+    # signed_user_agent captures the browser at signing time so we can
+    # show "what the signer was looking at." signed_content_hash is the
+    # SHA-256 of contract_text at the exact moment of signing — re-
+    # hashing the stored contract_text must reproduce this value, proving
+    # the document hasn't been tampered with after the fact.
+    signed_user_agent = models.CharField(max_length=400, blank=True)
+    signed_content_hash = models.CharField(max_length=64, blank=True)
     contract_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     pdf_path = models.CharField(max_length=500, blank=True)
 

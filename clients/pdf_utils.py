@@ -39,12 +39,23 @@ def render_contract_pdf(contract):
     abs_dir.mkdir(parents=True, exist_ok=True)
 
     signed_at = contract.signed_at.strftime('%Y-%m-%d %H:%M:%S %Z') if contract.signed_at else ''
+    # Phase 2.3 — full audit trail printed on the PDF. The content
+    # hash + user-agent are stored on the Contract row at signing
+    # time; reproducing the hash from the stored contract_text proves
+    # nothing was altered after signature.
+    ua = (contract.signed_user_agent or 'unknown')
+    # Long UA strings can overflow the table cell — clip with ellipsis.
+    if len(ua) > 200:
+        ua = ua[:200] + '…'
+    content_hash = contract.signed_content_hash or 'not recorded'
     sig_record = (
         '<div class="contract-sig-record">'
         f'<strong>Signature record</strong><br>'
         f'Signed by: {contract.signed_name}<br>'
         f'Date: {signed_at}<br>'
-        f'IP address: {contract.signed_ip or "unknown"}'
+        f'IP address: {contract.signed_ip or "unknown"}<br>'
+        f'Browser (user-agent): {ua}<br>'
+        f'Document SHA-256: <code>{content_hash}</code>'
         '</div>'
     )
     html = (

@@ -1648,10 +1648,20 @@ def contract_sign(request, contract_token):
         elif not agreed:
             error = 'You must check the box agreeing to the terms before signing.'
         else:
+            import hashlib as _hashlib
             contract.signed = True
             contract.signed_at = timezone.now()
             contract.signed_ip = request.META.get('REMOTE_ADDR')
             contract.signed_name = signed_name
+            # Phase 2.3 — audit-trail hardening for ESIGN/UETA defence.
+            # We capture both the browser user-agent AND a SHA-256 of
+            # the contract text at signing time. Re-hashing the stored
+            # contract_text must reproduce signed_content_hash, proving
+            # nothing changed in the document after the signature.
+            contract.signed_user_agent = (
+                request.META.get('HTTP_USER_AGENT') or '')[:400]
+            contract.signed_content_hash = _hashlib.sha256(
+                (contract.contract_text or '').encode('utf-8')).hexdigest()
             contract.pdf_path = render_contract_pdf(contract)
             contract.save()
 

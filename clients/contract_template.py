@@ -114,9 +114,36 @@ def generate_contract_text(client, package_slug):
   <p>This Agreement is governed by and construed in accordance with the laws of the
   <strong>State of Georgia</strong>.</p>
 
-  <h2>13. Signatures</h2>
+  <h2>13. Electronic Signature Consent (ESIGN / UETA)</h2>
+  <p>By typing your name and submitting the signature form on the prior page, you (the
+  Client) acknowledge and agree that:</p>
+  <ul>
+    <li>The name you type is your <strong>legal signature</strong> on this Agreement,
+    with the same legal force and effect as a handwritten signature.</li>
+    <li>You <strong>intend to be bound</strong> by the terms of this Agreement when you
+    submit the signature form.</li>
+    <li>You consent to transact business <strong>electronically</strong> and to receive
+    contracts, invoices, notices, and other records related to this Agreement in
+    <strong>electronic form</strong> (typically by email and through the client portal).</li>
+    <li>You acknowledge that we will record and retain, alongside your typed name, the
+    <strong>IP address, browser user-agent string, and timestamp</strong> at which you
+    submit the signature form, plus a <strong>cryptographic hash</strong> of the
+    Agreement text as displayed to you, to serve as evidence of what was agreed to and
+    when.</li>
+    <li>You can request a paper copy of this Agreement at any time by emailing
+    <strong>zacherylong@aspiredwebsites.com</strong>. There is no fee for paper copies.</li>
+    <li>You can withdraw your consent to transact electronically by emailing the address
+    above; doing so does not invalidate this Agreement once it has been signed, but
+    governs how we communicate with you going forward.</li>
+  </ul>
+  <p>This Agreement is intended to satisfy the requirements of the federal
+  <strong>Electronic Signatures in Global and National Commerce Act (ESIGN)</strong> and
+  the <strong>Uniform Electronic Transactions Act (UETA)</strong> as adopted in
+  Texas and Georgia.</p>
+
+  <h2>14. Signatures</h2>
   <p>By signing below, the Client acknowledges they have read, understood, and agreed to
-  all terms of this Agreement.</p>
+  all terms of this Agreement, including the Electronic Signature Consent in Section 13.</p>
   <div class="contract-doc__sigblock">
     <p><strong>Aspired Websites LLC</strong><br>Zachery Long, Owner</p>
     <p><strong>Client:</strong> {firm}<br>Signed electronically &mdash; see signature record below.</p>
