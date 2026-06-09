@@ -278,6 +278,22 @@ def _handle_invoice_paid(event):
                        invoice.get('id'), invoice.get('customer'))
         return
 
+    # Phase 1.6 — reinstatement gate. If this client is currently in
+    # the payment-failure window (escalation chain scheduled), this
+    # payment ends it. We run this BEFORE the subscription / kind
+    # branches below so a paid maintenance renewal triggers
+    # reinstatement (not just clears the failure email queue).
+    #
+    # Policy (CLAUDE.md): first offense free; 2nd+ offense incurs a
+    # $75 fee charged off-session BEFORE restoration. If the fee
+    # charge fails, we DO NOT restore — the admin gets a SystemAlert
+    # and chases the client for a new card.
+    if client.payment_failure_started_at is not None:
+        _handle_reinstatement(client)
+        # Don't return — fall through to the normal subscription /
+        # onboarding branches so the underlying invoice still gets
+        # the right local-state updates (maintenance_active=True etc).
+
     # An invoice tied to a subscription is a recurring charge. Two
     # subscription types live on the client right now (hosting +
     # maintenance) — disambiguate via the subscription ID before
@@ -1215,3 +1231,88 @@ def _handle_self_checkout_subscription_created(event):
             except Exception:
                 pass
             raise
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 1.6 — Reinstatement helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _handle_reinstatement(client):
+    """Called from _handle_invoice_paid when the paying client has a
+    non-null payment_failure_started_at. Steps:
+
+      1. Increment payment_failure_offenses (lifetime counter).
+      2. If offenses >= 2: charge $75 fee off-session.
+            - Fee charge SUCCESS → continue to restore.
+            - Fee charge FAILURE → SystemAlert (critical), DO NOT
+              restore. Admin must chase the client for a new card.
+      3. restore_client_site(client) — power on / rebuild from
+         snapshot / clear maintenance vhost.
+      4. Null payment_failure_started_at — this is what makes every
+         already-scheduled escalation task no-op when they fire.
+
+    Idempotent on re-delivery: if started_at is already None we
+    bail early at the caller, so this helper isn't entered twice
+    for the same reinstatement.
+    """
+    from billing.do_helpers import restore_client_site
+    from billing.stripe_helpers import (
+        StripeNotConfigured,
+        charge_reinstatement_fee,
+    )
+
+    client.payment_failure_offenses = (
+        (client.payment_failure_offenses or 0) + 1)
+
+    if client.payment_failure_offenses >= 2:
+        try:
+            pi = charge_reinstatement_fee(client)
+        except StripeNotConfigured:
+            pi = None
+        if pi is None:
+            logger.error(
+                '_handle_reinstatement: reinstatement-fee charge failed '
+                'for client %s (offense %s) — NOT restoring',
+                client.pk, client.payment_failure_offenses)
+            try:
+                from core.system_alerts import record_alert
+                record_alert(
+                    severity='critical',
+                    source='billing.webhook.reinstatement_fee',
+                    message=(f'Reinstatement fee charge failed for '
+                             f'client {client.pk} — manual recovery '
+                             f'needed'),
+                    detail=(f'offense={client.payment_failure_offenses}; '
+                            f'check Stripe dashboard for the failed '
+                            f'PaymentIntent'),
+                )
+            except Exception:
+                pass
+            # Save the offense increment even if restoration is
+            # blocked — we don't want a free 2nd offense if the
+            # admin manually fixes things later.
+            client.save(update_fields=[
+                'payment_failure_offenses', 'updated_at'])
+            return
+
+    # Restore the site state. restore_client_site logs + alerts on
+    # its own failures.
+    try:
+        restore_client_site(client)
+    except Exception:
+        logger.exception(
+            '_handle_reinstatement: restore_client_site raised for %s',
+            client.pk)
+
+    # Cancel the in-flight escalation chain by nulling the guard.
+    # The 14/21/30/60-day tasks check this field on fire and no-op
+    # when it's None.
+    client.payment_failure_started_at = None
+    client.save(update_fields=[
+        'payment_failure_started_at',
+        'payment_failure_offenses',
+        'updated_at',
+    ])
+    logger.info(
+        '_handle_reinstatement: client %s reinstated (offense %s)',
+        client.pk, client.payment_failure_offenses)
