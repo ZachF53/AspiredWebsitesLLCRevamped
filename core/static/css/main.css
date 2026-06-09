@@ -531,13 +531,20 @@ p {
 .nav-link--toggle[aria-expanded="true"] .nav-caret {
     transform: rotate(180deg);
 }
-.nav-submenu {
+/* Specificity bump — `.nav-menu ul { display: flex }` further up
+   the file would otherwise force this open. `.nav-menu .nav-submenu`
+   is (0,2,0) which beats `.nav-menu ul` (0,1,1) — wait, the same.
+   We override by SOURCE ORDER (this rule comes later) AND specificity
+   parity. Belt-and-suspenders: also reset flex-direction so the items
+   stack vertically when shown, not in a wrapping row. */
+.nav-menu .nav-submenu {
     list-style: none;
     padding: 0 0 0 var(--space-2);
     margin: 0;
     display: none;
+    flex-direction: column;
 }
-.nav-submenu.is-open,
+.nav-menu .nav-submenu.is-open,
 .nav-link--toggle[aria-expanded="true"] + .nav-submenu {
     display: block;
 }
@@ -560,7 +567,7 @@ p {
 }
 
 @media (min-width: 1024px) {
-    .nav-submenu {
+    .nav-menu .nav-submenu {
         position: absolute;
         top: 100%;
         left: 0;
@@ -574,8 +581,10 @@ p {
         margin-top: 4px;
     }
     /* Open on hover OR explicit toggle (keyboard / click) */
-    .nav-item--has-children:hover .nav-submenu,
-    .nav-item--has-children:focus-within .nav-submenu {
+    .nav-item--has-children:hover .nav-menu .nav-submenu,
+    .nav-item--has-children:focus-within .nav-menu .nav-submenu,
+    .nav-menu .nav-item--has-children:hover .nav-submenu,
+    .nav-menu .nav-item--has-children:focus-within .nav-submenu {
         display: block;
     }
     .nav-sublink {
@@ -780,6 +789,17 @@ p {
 .value-tiles {
     display: grid;
     gap: var(--space-3);
+}
+
+/* Force exactly 3 columns on desktop (the default responsive grid
+   auto-fills, which on 6 tiles ends up 4 + 2). Used by the Web
+   Design service page's "What's Included" section so 6 tiles read
+   as a clean 3 × 2 instead of a lopsided 4 + 2. Falls back to 1
+   column on phones, 2 on tablets via the existing breakpoints. */
+@media (min-width: 900px) {
+    .value-tiles--3col {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 .value-tile {
