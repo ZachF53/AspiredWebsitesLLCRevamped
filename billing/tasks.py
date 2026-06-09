@@ -55,6 +55,82 @@ def send_payment_failed_email_task(client_id, day):
     send_payment_failed_email(client, day)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 1 — payment-failure dunning escalation tasks
+# ─────────────────────────────────────────────────────────────────────────────
+# Each task re-checks ClientProfile.payment_failure_started_at before
+# acting. When that field is None, payment was received in the
+# meantime (reinstatement) — the task no-ops. This is how the chain
+# self-cancels without us having to track and revoke individual
+# Celery task IDs.
+#
+# Order:
+#   Day 14 → set_site_maintenance_mode_task    (503 page, droplet up)
+#   Day 21 → set_site_offline_task             (droplet powered down)
+#   Day 30 → destroy_client_droplet_task       (snapshot, then destroy)
+#   Day 60 → delete_client_snapshot_task       (no recovery after this)
+
+@shared_task
+def set_site_maintenance_mode_task(client_id):
+    """Day 14 — flip site to maintenance (503) if still in failure window."""
+    from clients.models import ClientProfile
+    from billing.do_helpers import set_site_maintenance_mode
+    c = ClientProfile.objects.filter(id=client_id).first()
+    if c is None or c.payment_failure_started_at is None:
+        # Paid up / reinstated / vanished — cancel chain by no-op.
+        return
+    try:
+        set_site_maintenance_mode(c)
+    except Exception:
+        logger.exception(
+            'set_site_maintenance_mode_task failed for client %s', client_id)
+
+
+@shared_task
+def set_site_offline_task(client_id):
+    """Day 21 — power the Droplet off if still in failure window."""
+    from clients.models import ClientProfile
+    from billing.do_helpers import set_site_offline
+    c = ClientProfile.objects.filter(id=client_id).first()
+    if c is None or c.payment_failure_started_at is None:
+        return
+    try:
+        set_site_offline(c)
+    except Exception:
+        logger.exception(
+            'set_site_offline_task failed for client %s', client_id)
+
+
+@shared_task
+def destroy_client_droplet_task(client_id):
+    """Day 30 — snapshot for 60-day retention, then destroy the Droplet."""
+    from clients.models import ClientProfile
+    from billing.do_helpers import destroy_client_droplet
+    c = ClientProfile.objects.filter(id=client_id).first()
+    if c is None or c.payment_failure_started_at is None:
+        return
+    try:
+        destroy_client_droplet(c)
+    except Exception:
+        logger.exception(
+            'destroy_client_droplet_task failed for client %s', client_id)
+
+
+@shared_task
+def delete_client_snapshot_task(client_id):
+    """Day 60 — delete the retention snapshot. Last call."""
+    from clients.models import ClientProfile
+    from billing.do_helpers import delete_client_snapshot
+    c = ClientProfile.objects.filter(id=client_id).first()
+    if c is None or c.payment_failure_started_at is None:
+        return
+    try:
+        delete_client_snapshot(c)
+    except Exception:
+        logger.exception(
+            'delete_client_snapshot_task failed for client %s', client_id)
+
+
 @shared_task
 def provision_manual_droplet_task(name, region, size, snapshot_id,
                                   client_id=None, tags=None):

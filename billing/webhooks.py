@@ -459,6 +459,16 @@ def _handle_invoice_payment_failed(event):
     if client is None:
         return
 
+    # Stamp the failure window on first failure (idempotent — only on
+    # the first miss; subsequent failures within the same window leave
+    # the timestamp alone). This is the GUARD field every scheduled
+    # escalation task checks before acting; setting it to None
+    # (reinstatement) is what self-cancels the chain.
+    if client.payment_failure_started_at is None:
+        client.payment_failure_started_at = timezone.now()
+        client.save(update_fields=[
+            'payment_failure_started_at', 'updated_at'])
+
     # Day 3 email now, then schedule Day 7 + Day 14 follow-ups.
     send_payment_failed_email(client, day=3)
     try:
@@ -468,6 +478,30 @@ def _handle_invoice_payment_failed(event):
     except Exception:
         logger.exception('Could not schedule payment-failure follow-ups for %s',
                          client.pk)
+
+    # Phase 1.1 — schedule the full 14/21/30/60 escalation chain.
+    # Each task self-checks payment_failure_started_at; if reinstatement
+    # nulls it, all remaining tasks no-op without us tracking IDs.
+    try:
+        from billing.tasks import (
+            set_site_maintenance_mode_task,
+            set_site_offline_task,
+            destroy_client_droplet_task,
+            delete_client_snapshot_task,
+        )
+        cid = str(client.id)
+        set_site_maintenance_mode_task.apply_async(
+            (cid,), countdown=14 * DAY)
+        set_site_offline_task.apply_async(
+            (cid,), countdown=21 * DAY)
+        destroy_client_droplet_task.apply_async(
+            (cid,), countdown=30 * DAY)
+        delete_client_snapshot_task.apply_async(
+            (cid,), countdown=60 * DAY)
+    except Exception:
+        logger.exception(
+            'Could not schedule dunning escalation chain for %s',
+            client.pk)
 
 
 # ── customer.subscription.deleted ───────────────────────────────────────────

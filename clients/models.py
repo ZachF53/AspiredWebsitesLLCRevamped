@@ -193,6 +193,34 @@ class ClientProfile(TimestampedModel):
     do_droplet_ip = models.GenericIPAddressField(null=True, blank=True)
     do_droplet_created_at = models.DateTimeField(null=True, blank=True)
 
+    # ── Site lifecycle state (payment-failure dunning chain — Phase 1) ──
+    # Driven by billing/tasks.py escalation tasks. State machine:
+    #   live → maintenance(503) → offline(power-off) → destroyed
+    # `do_snapshot_id` is set during destroy as a 60-day retention
+    # snapshot for reinstatement; deleted on Day 60 if no payment.
+    # `payment_failure_started_at` is the GUARD field — when it's
+    # None, the escalation tasks no-op (means: paid up or reinstated).
+    SITE_STATUS_CHOICES = [
+        ('live', 'Live'),
+        ('maintenance', 'Maintenance (503)'),
+        ('offline', 'Offline (powered down)'),
+        ('destroyed', 'Droplet destroyed'),
+    ]
+    site_status = models.CharField(
+        max_length=20, choices=SITE_STATUS_CHOICES, default='live',
+    )
+    do_snapshot_id = models.CharField(max_length=50, blank=True)
+    payment_failure_started_at = models.DateTimeField(null=True, blank=True)
+    # Reinstatement policy: 1st offense free, 2nd+ offense charges
+    # $75 via Stripe before site restoration (CLAUDE.md rule #).
+    payment_failure_offenses = models.PositiveIntegerField(default=0)
+
+    def has_unpaid_out_of_scope(self):
+        """True if any MiniInvoice on this client is not paid or
+        cancelled. Used to gate revision work in the portal — Phase 1.4."""
+        return self.mini_invoices.exclude(
+            status__in=['paid', 'cancelled']).exists()
+
     # ── Client-editable preferences (portal settings page) ──
     preferred_contact_method = models.CharField(
         max_length=10, choices=CONTACT_METHOD_CHOICES, default='email',
