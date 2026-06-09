@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Page Not Found — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">404</span>
+            <h1>That page <span class="accent">isn&rsquo;t here</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Either it moved, never existed, or the link you followed is out of date.
+                Try one of the below.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Contact Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

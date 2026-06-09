@@ -13,12 +13,16 @@ from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django_ratelimit.decorators import ratelimit
 
 from .password_models import PasswordSetupToken
 
 logger = logging.getLogger(__name__)
 
 
+# Token is already UUID-strong, but rate-limit anyway as defense in
+# depth against credential-stuffing attacks that spray random tokens.
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def set_password(request, token):
     """Magic-link landing page. GET shows the form; POST sets the password."""
     pst = get_object_or_404(PasswordSetupToken, token=token)

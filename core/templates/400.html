@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Bad Request — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">400</span>
+            <h1>That request <span class="accent">didn&rsquo;t work</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Something in the request was malformed. Try again, or head back to
+                the homepage.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Contact Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

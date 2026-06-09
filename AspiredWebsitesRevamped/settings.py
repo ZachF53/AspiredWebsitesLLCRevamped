@@ -698,6 +698,10 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 
+# Branded CSRF-failure page (replaces Django's default 403 forbidden
+# page). View renders core/templates/403_csrf.html with status 403.
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
+
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Session Expired — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">403 &middot; CSRF</span>
+            <h1>Your session <span class="accent">timed out</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                For your security we couldn&rsquo;t verify the form you submitted.
+                Most often this happens because the page sat open too long.
+                Go back, refresh, and submit again.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="javascript:history.back()">Go Back</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

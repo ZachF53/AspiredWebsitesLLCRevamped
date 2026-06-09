@@ -99,6 +99,35 @@ def _handle_payment_intent_succeeded(event):
         # Already processed — idempotent re-delivery from Stripe.
         return
 
+    # 0.4b — security check: refuse to mark paid unless the amount
+    # actually charged matches the invoice total. Defends against a
+    # tampered PaymentIntent where the metadata.invoice_id was kept
+    # but the amount was reduced client-side.
+    from billing.stripe_helpers import _cents
+    try:
+        expected_cents = _cents(invoice.total_amount)
+    except Exception:
+        expected_cents = 0
+    charged_cents = pi.get('amount_received') or pi.get('amount') or 0
+    if expected_cents and int(charged_cents) != int(expected_cents):
+        logger.error(
+            'payment_intent.succeeded amount mismatch — REFUSING to '
+            'mark paid. pi=%s invoice=%s expected_cents=%s '
+            'charged_cents=%s',
+            pi.get('id'), invoice.pk, expected_cents, charged_cents)
+        try:
+            from core.system_alerts import record_alert
+            record_alert(
+                severity='critical',
+                source='billing.webhooks.amount_mismatch',
+                message=(f'PI amount mismatch on invoice {invoice.pk} — '
+                         f'expected {expected_cents}c, got {charged_cents}c'),
+                detail=f'pi={pi.get("id")} customer={pi.get("customer")}',
+            )
+        except Exception:
+            pass
+        return
+
     invoice.status = 'paid'
     invoice.paid_at = timezone.now()
     if not invoice.stripe_payment_intent_id:

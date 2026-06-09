@@ -8,6 +8,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django_ratelimit.decorators import ratelimit
 
 from .availability import BLOCK_MINUTES, MIN_LEAD_MINUTES, enumerate_slots
 from .models import ScheduledCall
@@ -129,6 +130,7 @@ def slots_api(request):
 
 @csrf_exempt
 @require_POST
+@ratelimit(key='ip', rate='15/h', method='POST', block=True)
 def hold_slot(request):
     """POST a slot to hold it for 15 minutes (form-completion window)."""
     try:
@@ -174,6 +176,7 @@ def hold_slot(request):
 
 @csrf_exempt
 @require_POST
+@ratelimit(key='ip', rate='15/h', method='POST', block=True)
 def confirm_slot(request):
     """Confirm a previously-held slot with the customer's contact form."""
     try:

@@ -49,3 +49,11 @@ def refund_policy(request):
             'hosting, and add-on services from Aspired Websites LLC.'
         ),
     })
+
+
+def csrf_failure(request, reason=''):
+    """Branded CSRF-failure page. Wired via settings.CSRF_FAILURE_VIEW
+    so a stale-token POST renders the same look as the rest of the
+    site instead of the default Django page."""
+    from django.shortcuts import render as _render
+    return _render(request, '403_csrf.html', status=403)

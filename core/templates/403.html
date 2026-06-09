@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Forbidden — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">403</span>
+            <h1>You don&rsquo;t have <span class="accent">access</span> to that.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                If you think this is a mistake &mdash; check that you&rsquo;re signed
+                in to the right account, or contact us so we can help.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:home' %}">Back to Home</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:login' %}">Sign In</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
