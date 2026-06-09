@@ -1,6 +1,6 @@
 """Admin registrations for billing models."""
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
 
 from .models import AddonPricing, MiniInvoice, ServiceTier, TierFeature
@@ -14,6 +14,45 @@ class MiniInvoiceAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('client__firm_name', 'description', 'stripe_invoice_id')
     readonly_fields = ('created_at', 'updated_at')
+    actions = ['send_via_stripe']
+
+    @admin.action(description='Send selected pending MiniInvoices via Stripe')
+    def send_via_stripe(self, request, queryset):
+        """Phase 1.3 — bulk-send pending MiniInvoices through Stripe.
+        Skips any with amount <= 0 or already 'sent'/'paid'."""
+        from billing.stripe_helpers import StripeNotConfigured, send_mini_invoice
+
+        sent = 0
+        skipped = 0
+        errors = []
+        for mini in queryset:
+            if mini.status not in ('pending',):
+                skipped += 1
+                continue
+            if not mini.amount or mini.amount <= 0:
+                errors.append(
+                    f'{mini}: amount is {mini.amount}; set it first')
+                continue
+            try:
+                send_mini_invoice(mini)
+                sent += 1
+            except StripeNotConfigured:
+                errors.append(f'{mini}: STRIPE_SECRET_KEY not configured')
+                break
+            except Exception as exc:
+                errors.append(f'{mini}: {exc}')
+
+        if sent:
+            self.message_user(
+                request, f'Sent {sent} MiniInvoice(s) via Stripe.',
+                messages.SUCCESS)
+        if skipped:
+            self.message_user(
+                request,
+                f'Skipped {skipped} (not in "pending" status).',
+                messages.WARNING)
+        for err in errors:
+            self.message_user(request, err, messages.ERROR)
 
 
 class TierFeatureInline(admin.TabularInline):

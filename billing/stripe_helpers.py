@@ -856,3 +856,104 @@ def issue_deposit_invoice(contract):
             'Failed to issue deposit invoice for contract %s', contract.pk,
         )
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 1.3 — MiniInvoice (out-of-scope work) → Stripe
+# ─────────────────────────────────────────────────────────────────────────────
+
+def send_mini_invoice(mini):
+    """Create + send a Stripe invoice for an out-of-scope MiniInvoice.
+
+    Refuses to send if amount <= 0 (un-priced); the admin must set
+    the dollar amount before pressing Send. Stripe handles the email,
+    we just store the invoice id and flip status to 'sent'.
+
+    On `invoice.paid` webhook, billing/webhooks.py picks up the
+    `kind=mini_invoice` metadata and flips the row to 'paid'.
+
+    Raises StripeNotConfigured if STRIPE_SECRET_KEY missing.
+    Raises ValueError if amount is not a payable number.
+    """
+    if not mini.amount or Decimal(mini.amount) <= 0:
+        raise ValueError(
+            f'MiniInvoice {mini.pk} has amount={mini.amount}; '
+            f'set the dollar amount before sending')
+
+    _init()
+    customer = create_or_get_customer(mini.client)
+    stripe.InvoiceItem.create(
+        customer=customer.id,
+        amount=_cents(mini.amount),
+        currency='usd',
+        description=mini.description,
+    )
+    inv = stripe.Invoice.create(
+        customer=customer.id,
+        collection_method='send_invoice',
+        days_until_due=7,
+        auto_advance=True,
+        metadata={
+            'kind': 'mini_invoice',
+            'mini_invoice_id': str(mini.id),
+            'client_profile_id': str(mini.client_id),
+        },
+    )
+    inv = stripe.Invoice.finalize_invoice(inv.id)
+    stripe.Invoice.send_invoice(inv.id)
+    mini.stripe_invoice_id = inv.id
+    mini.status = 'sent'
+    mini.save(update_fields=['stripe_invoice_id', 'status', 'updated_at'])
+    logger.info(
+        'send_mini_invoice: sent invoice %s for MiniInvoice %s (client %s)',
+        inv.id, mini.pk, mini.client_id)
+    return inv
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 1.6 — Reinstatement fee ($75 on 2nd+ payment-failure offense)
+# ─────────────────────────────────────────────────────────────────────────────
+
+REINSTATEMENT_FEE = Decimal('75.00')  # CLAUDE.md policy constant
+
+
+def charge_reinstatement_fee(client, amount=REINSTATEMENT_FEE):
+    """Charge the client's default payment method off-session for the
+    reinstatement fee. Returns the PaymentIntent on success, None on
+    failure (caller must NOT restore the site if this returns None).
+
+    Used by the 2nd+ offense path — 1st offense is free. The off-
+    session charge avoids a checkout flow; the saved card from the
+    initial onboarding is used."""
+    _init()
+    customer = create_or_get_customer(client)
+    try:
+        pi = stripe.PaymentIntent.create(
+            customer=customer.id,
+            amount=_cents(amount),
+            currency='usd',
+            off_session=True,
+            confirm=True,
+            description=f'Reinstatement fee — {client.firm_name}',
+            metadata={
+                'kind': 'reinstatement_fee',
+                'client_profile_id': str(client.id),
+                'offense_number': str(client.payment_failure_offenses),
+            },
+        )
+    except stripe.error.CardError as exc:
+        # Card declined off-session; admin needs to chase the client
+        # for a new payment method before reinstatement can proceed.
+        logger.error(
+            'charge_reinstatement_fee: card declined for client %s — %s',
+            client.pk, exc.user_message)
+        return None
+    except Exception:
+        logger.exception(
+            'charge_reinstatement_fee: PI create failed for client %s',
+            client.pk)
+        return None
+    logger.info(
+        'charge_reinstatement_fee: charged %s%s to client %s',
+        '$', amount, client.pk)
+    return pi

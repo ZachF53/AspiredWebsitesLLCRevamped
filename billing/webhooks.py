@@ -329,6 +329,33 @@ def _handle_invoice_paid(event):
 
     kind = (invoice.get('metadata') or {}).get('kind')
 
+    # ── Out-of-scope MiniInvoice flow (Phase 1.3) ──
+    # Triggered when a previously-sent MiniInvoice is paid by the client.
+    # We flip its status to 'paid' so portal work-blocking (Phase 1.4)
+    # clears for them.
+    if kind == 'mini_invoice':
+        from billing.models import MiniInvoice
+        mini_id = (invoice.get('metadata') or {}).get('mini_invoice_id')
+        mini = None
+        if mini_id:
+            mini = MiniInvoice.objects.filter(id=mini_id).first()
+        if mini is None and invoice.get('id'):
+            mini = MiniInvoice.objects.filter(
+                stripe_invoice_id=invoice.get('id')).first()
+        if mini is None:
+            logger.warning(
+                'invoice.paid (mini_invoice): no MiniInvoice for '
+                'invoice=%s metadata.mini_invoice_id=%s',
+                invoice.get('id'), mini_id)
+            return
+        if mini.status == 'paid':
+            return  # idempotent re-delivery
+        mini.status = 'paid'
+        mini.save(update_fields=['status', 'updated_at'])
+        logger.info(
+            'invoice.paid (mini_invoice): MiniInvoice %s paid', mini.pk)
+        return
+
     # ── Admin onboarding-invoice flow ──
     # Triggered by the admin invoice-creation form. Activates the user,
     # bootstraps the IntakeResponse + ClientVault, and emails the setup

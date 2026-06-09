@@ -889,6 +889,8 @@ def revisions(request):
         revision_list=revision_list,
         form=RevisionForm(),
         hourly_rate=_hourly_rate(),
+        # Phase 1.4 — surface the work-blocking banner when applicable.
+        work_blocked=profile.has_unpaid_out_of_scope(),
     )
     return render(request, 'clients/revisions.html', ctx)
 
@@ -899,6 +901,17 @@ def revision_new(request):
     project = _active_project(request)
     if project is None:
         messages.error(request, 'You need an active project to request a revision.')
+        return redirect('clients:revisions')
+
+    # Phase 1.4 — work-blocking. CLAUDE.md rule: scope creep generates a
+    # MiniInvoice and work is blocked until status == 'paid'. Hard-stop
+    # any new major-revision request while any MiniInvoice for this
+    # client is pending or sent.
+    if profile.has_unpaid_out_of_scope():
+        messages.error(
+            request,
+            'You have an unpaid out-of-scope invoice. Please pay it '
+            'before submitting another revision request.')
         return redirect('clients:revisions')
 
     if request.method == 'POST':

@@ -9,6 +9,20 @@
 </header>
 
 {% if project %}
+    {% if work_blocked %}
+        {% comment %}
+            Phase 1.4 — work-blocking banner. Renders when the client
+            has any MiniInvoice in pending/sent status. The form is
+            still rendered but the submit button is disabled and the
+            server-side view will refuse the POST regardless.
+        {% endcomment %}
+        <div class="revision-warning revision-warning--over">
+            <strong>Out-of-scope invoice unpaid.</strong>
+            New revisions are paused until the invoice we sent is paid.
+            Check your email for the Stripe payment link &mdash; or visit
+            <a href="{% url 'clients:invoices' %}">your invoices</a>.
+        </div>
+    {% endif %}
     {% if project.revision_count >= project.revision_limit %}
         <p class="revision-warning {% if project.over_revision_limit %}revision-warning--over{% endif %}">
             {{ project.revision_count }} of {{ project.revision_limit }} included revisions used.
@@ -30,7 +44,7 @@
                 {% if form.description.errors %}<div class="form-field-error">{{ form.description.errors|join:" " }}</div>{% endif %}
             </div>
             <label class="checkbox-row">{{ form.is_major }}<span>{{ form.is_major.label }}</span></label>
-            <button type="submit" class="btn-primary">Submit Revision</button>
+            <button type="submit" class="btn-primary" {% if work_blocked %}disabled aria-disabled="true" title="Unpaid out-of-scope invoice — please settle that first."{% endif %}>Submit Revision</button>
         </form>
     </section>
 
