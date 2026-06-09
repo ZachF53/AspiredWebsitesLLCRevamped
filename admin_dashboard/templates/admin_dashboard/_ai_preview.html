@@ -1,0 +1,107 @@
+{% comment %}
+    Phase 4.4 preview partial. Returned by /admin-dashboard/ai-assistant/parse/.
+    Branches on the context shape:
+      preview     — full proposed-action card with current-state + warnings
+      ambiguous   — disambiguation list (≥2 fuzzy matches)
+      clarify     — Claude returned a text reply (couldn't map to a tool)
+      error       — generic error to display
+{% endcomment %}
+
+{% if preview %}
+    <section class="admin-card" style="border-left:4px solid var(--color-orange,#E8650A);">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Proposed action</h2>
+            <span class="muted"><code>{{ preview.intent }}</code></span>
+        </div>
+        <div class="admin-card__body">
+            <p style="font-size:1.05rem;margin-top:0;">
+                <strong>{{ preview.summary }}</strong>
+            </p>
+
+            {% if preview.warnings %}
+                <div style="margin:1rem 0;">
+                    {% for w in preview.warnings %}
+                        <div style="padding:.6rem .85rem;margin-bottom:.4rem;border-radius:6px;background:{% if w.blocked %}rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);{% else %}rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.4);{% endif %}">
+                            <strong>{% if w.blocked %}Blocked{% else %}Warning{% endif %}:</strong>
+                            {{ w.text }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <h3 style="font-size:.9rem;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-muted,#94a3b8);margin-bottom:.4rem;">
+                Current state — {{ preview.firm_name }}
+            </h3>
+            <table class="admin-table" style="width:100%;font-size:.9rem;">
+                <tbody>
+                    <tr><td class="muted">Stage</td><td>{{ preview.state.stage }}</td></tr>
+                    <tr><td class="muted">Payment</td><td>{{ preview.state.payment_status }}</td></tr>
+                    <tr><td class="muted">Revisions used</td><td>{{ preview.state.revision_count }} / {{ preview.state.revision_limit }}</td></tr>
+                    <tr><td class="muted">Site status</td><td>{{ preview.state.site_status }}</td></tr>
+                    <tr><td class="muted">Maintenance active</td><td>{{ preview.state.maintenance_active|yesno:"yes,no" }}</td></tr>
+                    <tr><td class="muted">Open tickets</td><td>{{ preview.state.open_tickets }}</td></tr>
+                    {% if preview.state.has_unpaid_out_of_scope %}
+                        <tr><td class="muted">Unpaid out-of-scope</td><td><strong style="color:var(--color-danger,#ef4444);">YES</strong></td></tr>
+                    {% endif %}
+                    {% if preview.state.payment_failure_active %}
+                        <tr><td class="muted">Payment failure window</td><td><strong style="color:var(--color-danger,#ef4444);">ACTIVE</strong></td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <div style="margin-top:1.25rem;display:flex;gap:.6rem;">
+                <form hx-post="{% url 'admin_dashboard:ai_assistant_execute' %}"
+                      hx-target="#ai-preview"
+                      hx-swap="innerHTML"
+                      style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="intent" value="{{ preview.intent }}">
+                    <input type="hidden" name="args" value="{{ preview.args|safe }}">
+                    <input type="hidden" name="client_id" value="{{ preview.client_id }}">
+                    <input type="hidden" name="raw_command" value="{{ preview.raw_command }}">
+                    <button type="submit"
+                            class="btn-primary"
+                            {% if preview.blocked %}disabled{% endif %}>
+                        Confirm and run
+                    </button>
+                </form>
+                <button type="button" class="btn-secondary"
+                        onclick="document.getElementById('ai-preview').innerHTML='';">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{% if ambiguous %}
+    <section class="admin-card">
+        <div class="admin-card__body">
+            <h2 style="margin-top:0;">Which client did you mean?</h2>
+            <p class="muted">Your command "{{ raw_command }}" matched more than one client. Pick one:</p>
+            <ul>
+                {% for c in ambiguous %}
+                    <li><strong>{{ c.firm_name }}</strong> — <code>{{ c.id }}</code></li>
+                {% endfor %}
+            </ul>
+            <p class="muted" style="font-size:.85rem;">Re-type the command with a longer, more specific name.</p>
+        </div>
+    </section>
+{% endif %}
+
+{% if clarify %}
+    <section class="admin-card">
+        <div class="admin-card__body">
+            <h2 style="margin-top:0;">Need more detail</h2>
+            <p>{{ clarify }}</p>
+        </div>
+    </section>
+{% endif %}
+
+{% if error %}
+    <section class="admin-card" style="border-left:4px solid var(--color-danger,#ef4444);">
+        <div class="admin-card__body">
+            <strong>Error:</strong> {{ error }}
+        </div>
+    </section>
+{% endif %}

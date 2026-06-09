@@ -49,3 +49,43 @@ class DeploymentLog(TimestampedModel):
 
     def __str__(self):
         return f'{self.deploy_type} — {self.domain} — {self.created_at.date()}'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4.5 — AI assistant audit log
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AIAssistantLog(TimestampedModel):
+    """One row per executed AI-assistant command. Append-only audit
+    trail so we can review what the assistant did + when, alongside
+    the existing ProjectStageLog / changelog systems.
+
+    Parse-only commands (when the operator types something but cancels
+    before confirm) are NOT logged — only executed mutations land here.
+    """
+
+    operator = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ai_assistant_logs',
+    )
+    client = models.ForeignKey(
+        'clients.ClientProfile',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ai_assistant_logs',
+    )
+    raw_command = models.TextField(blank=True)
+    intent = models.CharField(max_length=80, blank=True)
+    args = models.JSONField(default=dict, blank=True)
+    success = models.BooleanField(default=False)
+    result_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'AI Assistant Log'
+        verbose_name_plural = 'AI Assistant Logs'
+
+    def __str__(self):
+        return f'{self.intent} ({"ok" if self.success else "FAIL"}) — {self.created_at}'

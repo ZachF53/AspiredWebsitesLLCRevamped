@@ -1,0 +1,31 @@
+{% comment %}
+    Phase 4.4 result partial. Returned by /admin-dashboard/ai-assistant/execute/.
+    Shows whether the mutation succeeded + any extra data from the
+    service layer.
+{% endcomment %}
+
+<section class="admin-card" style="border-left:4px solid {% if result.ok %}var(--color-success,#16a34a){% else %}var(--color-danger,#ef4444){% endif %};">
+    <div class="admin-card__body">
+        <h2 style="margin-top:0;">
+            {% if result.ok %}✓ Action completed{% else %}✗ Action blocked{% endif %}
+        </h2>
+        {% if firm_name %}
+            <p class="muted" style="margin-top:0;">Client: <strong>{{ firm_name }}</strong></p>
+        {% endif %}
+        <p>{{ result.message }}</p>
+
+        {% if result.extra %}
+            <details style="margin-top:.75rem;">
+                <summary class="muted" style="cursor:pointer;">Details</summary>
+                <pre style="padding:.75rem;background:rgba(255,255,255,0.04);border-radius:6px;font-size:.85rem;overflow-x:auto;">{{ result.extra|safe }}</pre>
+            </details>
+        {% endif %}
+
+        <div style="margin-top:1rem;">
+            <button type="button" class="btn-secondary"
+                    onclick="document.getElementById('ai-preview').innerHTML='';document.getElementById('ai-command').value='';document.getElementById('ai-command').focus();">
+                Run another
+            </button>
+        </div>
+    </div>
+</section>

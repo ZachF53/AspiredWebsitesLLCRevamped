@@ -452,6 +452,13 @@ urlpatterns = [
                     fromlist=['call_mark_completed']).call_mark_completed,
          name='schedule_call_complete'),
 
+    # Phase 4 — AI Assistant (natural-language admin command box)
+    path('ai-assistant/', views.ai_assistant_page, name='ai_assistant'),
+    path('ai-assistant/parse/', views.ai_assistant_parse,
+         name='ai_assistant_parse'),
+    path('ai-assistant/execute/', views.ai_assistant_execute,
+         name='ai_assistant_execute'),
+
     # System Alerts — X3 error visibility
     path('alerts/',
          __import__('core.system_alerts_views',

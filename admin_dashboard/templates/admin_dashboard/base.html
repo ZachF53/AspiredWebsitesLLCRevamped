@@ -231,6 +231,10 @@
                    href="{% url 'admin_dashboard:briefs_home' %}">
                     <span class="nav-link__text">Briefs</span>
                 </a>
+                <a class="nav-link {% if '/admin-dashboard/ai-assistant/' in request.path %}active{% endif %}"
+                   href="{% url 'admin_dashboard:ai_assistant' %}">
+                    <span class="nav-link__text">AI Assistant</span>
+                </a>
                 <a class="nav-link {% if '/admin-dashboard/settings/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:settings' %}">
                     <span class="nav-link__text">Settings</span>

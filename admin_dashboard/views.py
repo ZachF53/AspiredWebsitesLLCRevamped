@@ -8997,3 +8997,128 @@ def outreach_approval_bulk_approve(request):
         f'Approved {n} email{"s" if n != 1 else ""}. '
         f'They will dispatch on the next send tick.')
     return redirect('admin_dashboard:outreach_approvals')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4 — AI Assistant
+# ─────────────────────────────────────────────────────────────────────────────
+
+@admin_required
+def ai_assistant_page(request):
+    """Full-page assistant. Shows the command box + recent log entries.
+    The actual parse/preview/execute interactions are HTMX-driven.
+    """
+    from admin_dashboard.models import AIAssistantLog
+    recent = list(AIAssistantLog.objects.all().order_by('-created_at')[:20])
+    return render(request, 'admin_dashboard/ai_assistant.html', {
+        'active_nav': 'ai_assistant',
+        'recent_logs': recent,
+    })
+
+
+@admin_required
+@require_POST
+def ai_assistant_parse(request):
+    """HTMX endpoint — parse the typed command and return the preview
+    card (or a clarify message). NO mutation here."""
+    from admin_dashboard import ai_assistant
+    from reporting.ai import AIError, AINotConfigured
+
+    text = (request.POST.get('command') or '').strip()
+    try:
+        parsed = ai_assistant.parse_command(text)
+    except AINotConfigured:
+        return render(request, 'admin_dashboard/_ai_preview.html', {
+            'error': ('Claude API key not configured on the server. '
+                      'Add ANTHROPIC_API_KEY to .env and restart.'),
+        })
+    except AIError as exc:
+        return render(request, 'admin_dashboard/_ai_preview.html', {
+            'error': f'AI error: {exc}',
+        })
+
+    if 'clarify' in parsed:
+        return render(request, 'admin_dashboard/_ai_preview.html', {
+            'clarify': parsed['clarify'],
+            'raw_command': text,
+        })
+
+    intent = parsed['intent']
+    args = parsed['args'] or {}
+    name_query = args.get('client') or ''
+    try:
+        profile = ai_assistant.resolve_client(name_query)
+    except ai_assistant.ClientAmbiguous as exc:
+        return render(request, 'admin_dashboard/_ai_preview.html', {
+            'ambiguous': exc.matches,
+            'raw_command': text,
+            'intent': intent,
+            'args': args,
+        })
+    except ai_assistant.ClientNotFound as exc:
+        return render(request, 'admin_dashboard/_ai_preview.html', {
+            'error': str(exc),
+            'raw_command': text,
+        })
+
+    preview = ai_assistant.build_preview(intent, args, profile)
+    preview['raw_command'] = text
+    return render(request, 'admin_dashboard/_ai_preview.html', {
+        'preview': preview,
+    })
+
+
+@admin_required
+@require_POST
+def ai_assistant_execute(request):
+    """HTMX endpoint — operator confirmed. Run the service function
+    via ai_assistant.execute and write an AIAssistantLog row."""
+    from admin_dashboard import ai_assistant
+    from admin_dashboard.models import AIAssistantLog
+    from clients.models import ClientProfile
+    import json as _json
+
+    intent = (request.POST.get('intent') or '').strip()
+    args_raw = request.POST.get('args') or '{}'
+    raw_command = (request.POST.get('raw_command') or '').strip()
+    client_id = (request.POST.get('client_id') or '').strip()
+    try:
+        args = _json.loads(args_raw)
+    except ValueError:
+        args = {}
+
+    profile = None
+    try:
+        profile = ClientProfile.objects.filter(id=client_id).first()
+    except Exception:
+        profile = None
+    if profile is None:
+        return render(request, 'admin_dashboard/_ai_result.html', {
+            'result': {'ok': False, 'message': 'Client no longer found.'},
+        })
+
+    set_by = (request.user.get_full_name()
+              or request.user.username
+              or 'admin')
+
+    result = ai_assistant.execute(
+        intent, args, profile, set_by=f'AI assistant ({set_by})')
+
+    # Audit log — every executed command, success or failure.
+    try:
+        AIAssistantLog.objects.create(
+            operator=request.user,
+            client=profile,
+            raw_command=raw_command,
+            intent=intent,
+            args=args,
+            success=bool(result.get('ok')),
+            result_message=result.get('message') or '',
+        )
+    except Exception:
+        logger.exception('AIAssistantLog write failed')
+
+    return render(request, 'admin_dashboard/_ai_result.html', {
+        'result': result,
+        'firm_name': profile.firm_name,
+    })

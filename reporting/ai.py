@@ -77,3 +77,74 @@ def claude_complete(messages, system='', model=MODEL_CHAT, max_tokens=1024):
     except Exception as exc:  # noqa: BLE001 — surface every API failure uniformly
         logger.exception('Claude API call failed')
         raise AIError(str(exc)) from exc
+
+
+def claude_tools(messages, tools, system='', model=MODEL_CHAT,
+                 max_tokens=1024):
+    """Phase 4.1 — tool-calling variant of claude_complete.
+
+    Args:
+      messages: list of {'role','content'} dicts.
+      tools:    list of Anthropic tool definitions
+                (see https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
+                — each {'name', 'description', 'input_schema'}.
+      system:   system prompt (optional).
+
+    Returns:
+      A dict with one of these shapes:
+        {'kind': 'tool_use', 'name': str, 'input': dict}
+        {'kind': 'text',     'text': str}
+
+    Raises AINotConfigured if ANTHROPIC_API_KEY is missing,
+    AIError on any other API failure — same contract as
+    claude_complete.
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        raise AINotConfigured('ANTHROPIC_API_KEY is not set.')
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        kwargs = {
+            'model': model,
+            'max_tokens': max_tokens,
+            'messages': messages,
+            'tools': tools,
+        }
+        if system:
+            kwargs['system'] = system
+        response = client.messages.create(**kwargs)
+        # Token accounting — same path as claude_complete.
+        try:
+            from reporting.models import ClaudeUsage
+            u = getattr(response, 'usage', None)
+            if u is not None:
+                ClaudeUsage.record(
+                    model=model,
+                    input_tokens=getattr(u, 'input_tokens', 0),
+                    output_tokens=getattr(u, 'output_tokens', 0),
+                )
+        except Exception:
+            logger.exception('claude_tools: ClaudeUsage.record failed')
+
+        # Walk the content blocks looking for a tool_use. If we find one,
+        # return its name + input. Otherwise return the first text block
+        # so the caller can render a clarifying question.
+        for block in response.content:
+            btype = getattr(block, 'type', '')
+            if btype == 'tool_use':
+                return {
+                    'kind': 'tool_use',
+                    'name': getattr(block, 'name', ''),
+                    'input': getattr(block, 'input', {}) or {},
+                }
+        text_parts = []
+        for block in response.content:
+            if getattr(block, 'type', '') == 'text':
+                text_parts.append(
+                    getattr(block, 'text', '').strip())
+        return {'kind': 'text', 'text': ' '.join(text_parts).strip()}
+    except AIError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Claude tool-use API call failed')
+        raise AIError(str(exc)) from exc
