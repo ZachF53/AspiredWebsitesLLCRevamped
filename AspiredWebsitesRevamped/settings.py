@@ -490,12 +490,27 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-# Per Celery worker pool caps — raised to give headroom over the
-# old too-tight values. The hard DO-managed limit is 65 total
-# clients (basic tier); even with 3 workers x 30 = 90 potential the
-# pools grow lazily and we've been seeing ~22 actual clients.
-CELERY_BROKER_POOL_LIMIT = 30
-CELERY_REDIS_MAX_CONNECTIONS = 30
+# Celery → managed Redis connection caps.
+#
+# DO's smallest Managed Redis plan caps at 18 simultaneous clients.
+# When connections cross 80% (= 14) DO sends a flapping "above /
+# below threshold" email pair every time Celery picks up a burst of
+# work. With these limits at 30 each, Celery alone could open 60+
+# connections and force the alert to fire constantly.
+#
+# These numbers cap the upper bound — the pool still grows lazily,
+# so steady-state stays small. broker_pool_limit covers task
+# publishing; redis_max_connections covers the result backend and
+# worker prefetch channels.
+#
+# DO NOT cap CACHES['default']['OPTIONS'] — the stdlib
+# django.core.cache.backends.redis.RedisCache does NOT honour
+# POOL_CLASS / BlockingConnectionPool / CONNECTION_POOL_KWARGS, and
+# tighter limits there crashed login under load last time
+# (IndexError: pop from empty list). Switch to django-redis if
+# you ever need cache-side pool caps too.
+CELERY_BROKER_POOL_LIMIT = 4
+CELERY_REDIS_MAX_CONNECTIONS = 4
 
 # ── Celery beat schedule ────────────────────────────────────────────────────
 from celery.schedules import crontab  # noqa: E402
