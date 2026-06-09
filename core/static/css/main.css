@@ -802,6 +802,19 @@ p {
     }
 }
 
+/* Centered button row under a pricing / tile grid. Adds the
+   breathing room between the cards above and the CTAs below that
+   the un-styled version was missing. Used at the bottom of the
+   pricing-teaser sections on every service page. */
+.section-cta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
 .value-tile {
     text-align: left;
     padding: var(--space-3);
