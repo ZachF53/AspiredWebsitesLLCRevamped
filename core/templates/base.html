@@ -47,7 +47,22 @@
                 <div class="nav-menu" id="primary-nav">
                     <ul>
                         <li><a class="nav-link {% if active_nav == 'home' %}is-active{% endif %}" href="{% url 'public:home' %}">Home</a></li>
-                        <li><a class="nav-link {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                        <li class="nav-item nav-item--has-children">
+                            <button type="button"
+                                    class="nav-link nav-link--toggle {% if active_nav == 'services' %}is-active{% endif %}"
+                                    aria-expanded="false"
+                                    aria-controls="services-submenu"
+                                    aria-haspopup="true">
+                                Services
+                                <span class="nav-caret" aria-hidden="true">&#9662;</span>
+                            </button>
+                            <ul class="nav-submenu" id="services-submenu" role="menu">
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'digital_marketing' %}is-active{% endif %}" href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'seo' %}is-active{% endif %}" href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                            </ul>
+                        </li>
                         <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
                         <li><a class="nav-link {% if active_nav == 'pricing' %}is-active{% endif %}" href="{% url 'public:pricing' %}">Pricing</a></li>
                         <li><a class="nav-link {% if active_nav == 'contact' %}is-active{% endif %}" href="{% url 'public:contact' %}">Contact</a></li>
@@ -80,10 +95,11 @@
                 <div class="footer-col">
                     <h4>Services</h4>
                     <ul>
-                        <li><a href="{% url 'public:home' %}#services">Custom Web Design</a></li>
-                        <li><a href="{% url 'public:home' %}#services">Digital Marketing &amp; Social Media</a></li>
-                        <li><a href="{% url 'public:home' %}#services">Search Engine Optimization</a></li>
+                        <li><a href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
+                        <li><a href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social Media</a></li>
+                        <li><a href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
                         <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                        <li><a href="{% url 'public:audit' %}">Free SEO Audit</a></li>
                     </ul>
                 </div>
 

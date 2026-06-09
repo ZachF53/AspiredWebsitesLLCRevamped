@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Local SEO Services for Small Business & Law Firms | Aspired Websites{% endblock %}
+
+{% block meta_description %}Local SEO for law firms and small businesses in Texas & Georgia. We get you ranking for the searches that actually bring you customers — not vanity keywords. Free audit included.{% endblock %}
+
+{% block extra_head %}
+<meta property="og:title" content="Local SEO Services — Aspired Websites">
+<meta property="og:description" content="Show up first when prospects search for what you sell. Local-first SEO for law firms and small businesses in TX & GA — built by a CISSP-certified engineer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aspiredwebsites.com/services/seo/">
+<link rel="canonical" href="https://aspiredwebsites.com/services/seo/">
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Search Engine Optimization",
+    "provider": {
+        "@type": "Organization",
+        "name": "Aspired Websites LLC",
+        "url": "https://aspiredwebsites.com/",
+        "telephone": "+1-210-896-2536",
+        "email": "zacherylong@aspiredwebsites.com",
+        "areaServed": ["Texas", "Georgia"]
+    },
+    "areaServed": ["Texas", "Georgia"],
+    "description": "Local search engine optimization for law firms and small businesses. Technical SEO, on-page optimization, local citations, and content strategy. Free audit included."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Search Engine Optimization</span>
+            <h1>Be The Answer Google <span class="accent">Actually Recommends</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                We get you ranking for the searches that bring you customers
+                &mdash; not vanity keywords that look good on a report. Local-first.
+                Technical foundation. Built by an engineer who understands the
+                difference between SEO theater and SEO that pays for itself.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get A Free SEO Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Talk To Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Reality check ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Reality Check</span>
+            <h2>If You're Not On Page One, You're Invisible.</h2>
+            <p>The numbers haven't changed in years. They probably won't.</p>
+        </div>
+
+        <div class="cards cards--3col">
+            <article class="card card--accent-left">
+                <h3>75% Never Scroll</h3>
+                <p>Three-quarters of people never click past the first page of Google results. If you're on page two, the search may as well not exist.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>46% Are Local</h3>
+                <p>Nearly half of all Google searches have local intent. "Lawyer near me." "Plumber Austin." If you're not in the local pack, you're not in the game.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Top 3 Get 65%</h3>
+                <p>The top three results take roughly two-thirds of all clicks. Position #4 is a different planet from position #2.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What we do ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What We Actually Do</span>
+            <h2>The Four Layers Of SEO That Matter.</h2>
+            <p>SEO isn't a single thing &mdash; it's four things working at the same time. We do all of them. Most agencies do one or two and pretend that's enough.</p>
+        </div>
+
+        <div class="value-tiles">
+            <div class="value-tile">
+                <h3>1. Technical SEO</h3>
+                <p>Site speed, mobile usability, crawl budget, schema, sitemap, hreflang, canonical tags, Core Web Vitals. The foundation Google evaluates before it even looks at your content.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>2. On-Page SEO</h3>
+                <p>Titles, headings, meta descriptions, internal linking, content depth, keyword targeting that doesn't read like a robot wrote it. The work that turns one ranking page into ten.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>3. Local SEO</h3>
+                <p>Google Business Profile optimization, citation building, review acquisition, local landing pages by city. The work that makes you visible to a 5-mile radius of buyers.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>4. Content &amp; Authority</h3>
+                <p>Strategic content that answers the questions your customers are actually asking. Internal linking that distributes ranking power. The slow-and-steady work that compounds over months.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Process ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>From Audit To Rankings In 90 Days (Then Compounding).</h2>
+            <p>SEO is not instant. It is, however, predictable. Here's exactly what the first quarter with us looks like.</p>
+        </div>
+
+        <div class="cards">
+            <article class="card">
+                <span class="eyebrow">Week 1</span>
+                <h3>1. Free Audit</h3>
+                <p>We run a full technical + content audit. You get a written report that says exactly what's blocking you from ranking and what to fix first.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 2&ndash;3</span>
+                <h3>2. Technical Cleanup</h3>
+                <p>Site speed, schema markup, internal linking, crawl errors, mobile usability. The unglamorous foundation work that has to happen before content can rank.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 4&ndash;6</span>
+                <h3>3. Local Setup</h3>
+                <p>Google Business Profile claimed and optimized. Citations built. Review acquisition system installed. Local landing pages drafted for the cities you serve.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 7&ndash;12</span>
+                <h3>4. Content &amp; Iteration</h3>
+                <p>We start publishing the content that maps to actual customer searches. We measure what ranks, what doesn't, and double down on the patterns that work.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Month 4+</span>
+                <h3>5. Compounding</h3>
+                <p>Rankings stack. Each new piece of content benefits from everything that came before. Traffic grows month over month with the same monthly investment.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Always</span>
+                <h3>6. Monthly Reporting</h3>
+                <p>Rankings, traffic, conversions, and what we're testing next. You always know exactly where you stand and what's coming.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Honest expectations ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Honest Expectations</span>
+            <h2>What SEO Can And Can't Do.</h2>
+            <p>Most SEO disappointments come from misaligned expectations. Here's the straight version.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>What It Can Do</h3>
+                <p>
+                    Get you in the local pack within 3&ndash;6 months for the
+                    high-intent searches in your area. Build a moat of organic
+                    traffic that doesn't disappear the day you pause ads.
+                    Compound &mdash; every month builds on every month before.
+                </p>
+            </article>
+
+            <article class="card">
+                <h3>What It Can't Do</h3>
+                <p>
+                    Rank you on page one for "lawyer" against firms with
+                    $500K/year SEO budgets. Deliver leads next week. Make a bad
+                    business look good (Google reviews are too honest for that).
+                    Survive being neglected for six months.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Cross-sell ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">SEO Works Best With A Solid Site</span>
+            <h2>The Site You Rank Matters More Than The Rankings.</h2>
+            <p>You can rank #1 for the perfect search and still lose every visitor if your site loads slowly, looks dated, or doesn't have a clear path to contact you.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Custom Web Design</h3>
+                <p>Hand-coded, speed-tuned, conversion-focused. The kind of site that turns organic traffic into actual customers.</p>
+                <a class="card__link" href="{% url 'public:service_web_design' %}">Web design services </a>
+            </article>
+
+            <article class="card">
+                <h3>Digital Marketing &amp; Social</h3>
+                <p>SEO is the long game. Paid marketing is the short game. Run both at the same time and you don't have to choose which is more important &mdash; you just win sooner.</p>
+                <a class="card__link" href="{% url 'public:service_digital_marketing' %}">Marketing services </a>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Final CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Start With The Free Audit.</h2>
+            <p>Sixty seconds. We'll show you exactly where you stand, what's broken, and what fixing it would mean for your traffic.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Run My Free Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Schedule A Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

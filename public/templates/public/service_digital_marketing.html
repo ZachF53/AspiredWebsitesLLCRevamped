@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Digital Marketing & Social Media Management for Small Business | Aspired Websites{% endblock %}
+
+{% block meta_description %}Social media management, paid ads, and content marketing for law firms and small businesses in Texas & Georgia. Real strategy, real posts, real ROI — managed monthly. No long-term contracts.{% endblock %}
+
+{% block extra_head %}
+<meta property="og:title" content="Digital Marketing & Social Media Services — Aspired Websites">
+<meta property="og:description" content="Get found, get followers, get clients. Managed monthly content + paid ad strategy for law firms and small businesses in TX & GA.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aspiredwebsites.com/services/digital-marketing/">
+<link rel="canonical" href="https://aspiredwebsites.com/services/digital-marketing/">
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Digital Marketing and Social Media Management",
+    "provider": {
+        "@type": "Organization",
+        "name": "Aspired Websites LLC",
+        "url": "https://aspiredwebsites.com/",
+        "telephone": "+1-210-896-2536",
+        "email": "zacherylong@aspiredwebsites.com",
+        "areaServed": ["Texas", "Georgia"]
+    },
+    "areaServed": ["Texas", "Georgia"],
+    "description": "Managed digital marketing and social media services for law firms and small businesses. Content strategy, scheduled posts, paid ads, and monthly performance reporting.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$399 - $999 / month"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Digital Marketing &amp; Social Media</span>
+            <h1>Get Found. Get Followers. <span class="accent">Get Clients</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Most small businesses don't have a marketing problem. They have a
+                <em>showing up</em> problem. We post where your customers actually
+                are, write content that sounds like a human wrote it, and run ads
+                that pay for themselves. Managed monthly. No annual lock-in.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:pricing' %}">See Monthly Plans</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Talk To Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Pain points ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Sound Familiar?</span>
+            <h2>Posting Without A Plan Is Worse Than Not Posting.</h2>
+            <p>If your social presence looks like any of these, it's actively hurting you.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>You Post When You Remember</h3>
+                <p>Three posts in March. Nothing in April. A flurry in May. The algorithm punishes inconsistency &mdash; and so do prospects who land on a page that looks abandoned.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>You Boost Posts And Hope</h3>
+                <p>You hit "Boost Post" because Facebook nagged you, then watched $50 evaporate with no leads. That's not advertising. That's donations to Meta.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Your Content Sounds Like Everyone Else</h3>
+                <p>Stock photos, generic captions, "Happy Monday!" graphics. Nobody saves, shares, or remembers any of it &mdash; including you.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>You Have No Idea What's Working</h3>
+                <p>If you can't tell which channel sent you your last 10 customers, you're flying blind. We fix the measurement first &mdash; before we spend a dollar on ads.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What's included ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What You Get</span>
+            <h2>Strategy, Content, And Distribution. Done Monthly.</h2>
+            <p>The exact deliverables scale with the plan you choose. Every plan starts with the same foundation: a strategy that ties content to actual business outcomes.</p>
+        </div>
+
+        <div class="value-tiles">
+            <div class="value-tile">
+                <h3>Content Strategy</h3>
+                <p>What to post, where to post it, why anyone should care. Tailored to your offers and the people you're trying to attract &mdash; not a generic content calendar.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Scheduled Posts</h3>
+                <p>Written, designed, scheduled, and published across the platforms where your audience lives. You approve the queue. We handle the upload.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Brand Voice</h3>
+                <p>Captions and graphics that sound like your business, not like a marketing agency. We write the way your best customer would talk about you.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Paid Ad Strategy</h3>
+                <p>Meta, Google, and LinkedIn campaigns built around a single goal: leads at a cost that makes sense for your average customer value. We measure both halves.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Lead Capture</h3>
+                <p>Every campaign points back to your site &mdash; with the tracking, forms, and follow-up sequences wired in. If your site doesn't have those yet, we add them.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Monthly Reporting</h3>
+                <p>Reach, engagement, leads, cost-per-lead, and what we're going to try next month. Plain English. No vanity-metric dashboards designed to obscure what's actually happening.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Channels ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Where We Post</span>
+            <h2>Pick The Platforms Where Your Customers Already Are.</h2>
+            <p>Posting to all five channels is almost never the right move. We pick the two or three that actually move the needle for your business.</p>
+        </div>
+
+        <div class="cards cards--3col">
+            <article class="card">
+                <h3>Meta (Facebook + Instagram)</h3>
+                <p>Local awareness, community, and the platform most small businesses still get the bulk of their inbound from.</p>
+            </article>
+
+            <article class="card">
+                <h3>Google Business Profile</h3>
+                <p>The free profile that decides whether you show up when someone in your area searches for what you do. Most businesses ignore it. We weaponize it.</p>
+            </article>
+
+            <article class="card">
+                <h3>LinkedIn</h3>
+                <p>B2B and professional services &mdash; the place referrals get sourced. Underrated for law firms, financial advisors, and consultants.</p>
+            </article>
+
+            <article class="card">
+                <h3>TikTok &amp; Reels</h3>
+                <p>Short-form video for businesses with the time and personality to lean into it. Highest organic reach of any channel right now &mdash; if you can keep up with it.</p>
+            </article>
+
+            <article class="card">
+                <h3>YouTube</h3>
+                <p>For service businesses where prospects research before they buy. Long-tail SEO baked in &mdash; videos surface in search for years.</p>
+            </article>
+
+            <article class="card">
+                <h3>Email &amp; SMS</h3>
+                <p>The only channel you actually own. We run nurture sequences and re-engagement campaigns that pull leads off other platforms onto your list.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Plans teaser ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Investment</span>
+            <h2>Three Plans. Pick The Right Pace For You.</h2>
+            <p>Month to month. Cancel any time. No annual contracts, no setup fees, no surprises.</p>
+        </div>
+
+        <div class="cards cards--3col">
+            <article class="card">
+                <span class="eyebrow">Basic</span>
+                <h3>$399/mo</h3>
+                <p>One channel, scheduled content, monthly reporting. Best for businesses just getting consistent.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Standard</span>
+                <h3>$699/mo</h3>
+                <p>Two channels, scheduled content, light paid ad management, monthly reporting. Most popular tier.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Full Management</span>
+                <h3>$999/mo</h3>
+                <p>Three+ channels, full paid ad strategy + management, lead capture wired in, weekly check-ins.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
+            </article>
+        </div>
+
+        <div class="section-cta">
+            <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Get Started</a>
+            <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Schedule A Call</a>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Cross-sell ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Marketing Works Better With A Good Site</span>
+            <h2>Paid Traffic To A Bad Site Is Burning Money.</h2>
+            <p>Marketing is only as good as the destination you send traffic to. If your site doesn't convert, the most beautiful Instagram feed in the world won't save you.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Custom Web Design</h3>
+                <p>Conversion-focused, mobile-perfect, speed-tuned. The site we send your marketing traffic to should be the strongest part of your funnel &mdash; not the weakest.</p>
+                <a class="card__link" href="{% url 'public:service_web_design' %}">Web design services </a>
+            </article>
+
+            <article class="card">
+                <h3>Search Engine Optimization</h3>
+                <p>SEO is the long-term sibling of paid marketing. We grow the free traffic at the same time we run the paid &mdash; so when ad costs spike, you're not exposed.</p>
+                <a class="card__link" href="{% url 'public:service_seo' %}">SEO services </a>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Final CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Ready To Stop Posting Into The Void?</h2>
+            <p>30-minute kickoff call. We'll look at what you're posting now, where your audience actually is, and what the next 90 days should look like.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Schedule A Free Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Plans &amp; Pricing</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -29,6 +29,46 @@
         });
     }
 
+    function initNavDropdowns() {
+        // Submenu toggle buttons (Services, etc.). On desktop the
+        // submenu opens on hover via pure CSS; this handler covers
+        // mobile + keyboard. Click toggles aria-expanded which the
+        // CSS uses to show/hide the panel.
+        var toggles = document.querySelectorAll('.nav-link--toggle');
+        toggles.forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                var open = btn.getAttribute('aria-expanded') === 'true';
+                // Close any other open submenu first (single-open policy)
+                toggles.forEach(function (other) {
+                    if (other !== btn) {
+                        other.setAttribute('aria-expanded', 'false');
+                    }
+                });
+                btn.setAttribute('aria-expanded', String(!open));
+            });
+        });
+
+        // Click outside closes all open submenus
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('.nav-item--has-children')) return;
+            toggles.forEach(function (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        // Escape closes
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            toggles.forEach(function (btn) {
+                if (btn.getAttribute('aria-expanded') === 'true') {
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.focus();
+                }
+            });
+        });
+    }
+
     function initAuditFormLoading() {
         // Show "Analyzing..." state on the audit form so the user knows
         // the ~30s wait isn't a hung browser.
@@ -116,6 +156,7 @@
     }
 
     ready(initNavToggle);
+    ready(initNavDropdowns);
     ready(initAuditFormLoading);
     ready(initScrapeFormLoading);
     ready(initConfirmActions);

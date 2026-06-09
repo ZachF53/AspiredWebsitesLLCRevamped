@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Custom Web Design Services — Hand-Coded Websites That Convert | Aspired Websites{% endblock %}
+
+{% block meta_description %}Custom web design for law firms and small businesses in Texas & Georgia. Hand-coded, security-hardened, mobile-perfect websites that convert visitors into clients. No templates, no page builders, no monthly lock-in.{% endblock %}
+
+{% block extra_head %}
+<meta property="og:title" content="Custom Web Design Services — Aspired Websites">
+<meta property="og:description" content="Hand-coded, security-hardened websites that turn visitors into clients. Built by a CISSP-certified engineer for law firms and small businesses in TX & GA.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aspiredwebsites.com/services/web-design/">
+<link rel="canonical" href="https://aspiredwebsites.com/services/web-design/">
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Custom Web Design",
+    "provider": {
+        "@type": "Organization",
+        "name": "Aspired Websites LLC",
+        "url": "https://aspiredwebsites.com/",
+        "telephone": "+1-210-896-2536",
+        "email": "zacherylong@aspiredwebsites.com",
+        "areaServed": ["Texas", "Georgia"]
+    },
+    "areaServed": ["Texas", "Georgia"],
+    "description": "Custom, hand-coded, security-hardened websites for law firms and small businesses. No templates, no page builders, no monthly lock-in.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Custom Web Design</span>
+            <h1>Websites That Earn Their <span class="accent">Place On The Internet</span>.</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Every website we build is hand-coded from scratch around your business
+                &mdash; your clients, your offers, your conversion path. No templates.
+                No drag-and-drop bloat. No monthly lock-in. You own every file.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See Our Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Pain points ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Sound Familiar?</span>
+            <h2>Your Current Website Is Costing You Business.</h2>
+            <p>If any of these are true, you're leaking revenue every single day.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Loads Too Slowly</h3>
+                <p>If your homepage takes more than 3 seconds to load on a phone, more than half your visitors are gone before they ever see it. Speed isn't a nice-to-have. It's the entire game.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Built On Someone Else's Platform</h3>
+                <p>FindLaw, GoDaddy site builders, Wix, Squarespace &mdash; you don't own that site. They do. The day you leave, the site disappears with them.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>No Clear Call To Action</h3>
+                <p>Visitors land, scroll, and leave. There's no obvious next step, no compelling reason to call, no clear path from "I'm interested" to "I'm a client." That's pure waste.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Looks Like Everyone Else's</h3>
+                <p>A recycled template means a recycled first impression. Your prospects can tell the difference between a real site and a $39 theme &mdash; even if they can't articulate why.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What you get ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What's Included</span>
+            <h2>Everything You Need. Nothing You Don't.</h2>
+            <p>Each project ships with the same foundation. The premium build adds the parts that turn a site into a sales engine.</p>
+        </div>
+
+        <div class="value-tiles">
+            <div class="value-tile">
+                <h3>Hand-Coded</h3>
+                <p>Every line of HTML, CSS, and JavaScript written by a real engineer. No WordPress. No page builders. No third-party theme to break the next time it auto-updates.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Mobile-First</h3>
+                <p>Designed for the phone in your prospect's hand first &mdash; because that's where most of your traffic lives. Then scaled up to look perfect on tablet and desktop.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Speed-Tuned</h3>
+                <p>Optimized images, lean code, no bloated frameworks. Sub-2-second loads on real connections, not just on the developer's wifi.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Security-Hardened</h3>
+                <p>Built by a CISSP-certified cybersecurity engineer. SSL, security headers, OWASP Top 10 protections, hardened hosting. The same standards a Fortune 500 would demand.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>SEO Foundation</h3>
+                <p>Clean semantic HTML, schema markup, sitemap, meta tags, and a structure Google can understand and rank. Want it pushed further? See our <a href="{% url 'public:service_seo' %}">SEO services</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>You Own It</h3>
+                <p>Source code, hosting, domain, content &mdash; all yours. No "you can't take this with you." If we ever part ways, you walk out with every file.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── How it works ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>Six Weeks. One Site. Zero Surprises.</h2>
+            <p>Same proven process every time. You always know what stage we're in and what's next.</p>
+        </div>
+
+        <div class="cards">
+            <article class="card">
+                <span class="eyebrow">Week 1</span>
+                <h3>1. Discovery</h3>
+                <p>Kickoff call. We map out your goals, your ideal client, your offers, and exactly what the site needs to do for your business.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Week 2</span>
+                <h3>2. Structure</h3>
+                <p>Sitemap and page outlines. We decide which pages exist, what each one says, and how a visitor moves from arrival to action.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 3&ndash;4</span>
+                <h3>3. Design &amp; Build</h3>
+                <p>Custom design. Hand-coded build. Your photos, your copy, your brand &mdash; rendered in code that's actually fast.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Week 5</span>
+                <h3>4. Review</h3>
+                <p>You see the staging site. We make refinements. Two rounds of revisions included so the launch is the version you actually want.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Week 6</span>
+                <h3>5. Launch</h3>
+                <p>DNS pointed, SSL live, analytics installed, search console verified. Site goes live. We monitor it for the first two weeks &mdash; free.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Ongoing</span>
+                <h3>6. Maintenance (optional)</h3>
+                <p>Monthly plans for updates, monitoring, content tweaks, and the SEO work that keeps you climbing. <a href="{% url 'public:pricing' %}">See plans</a>.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Pricing teaser ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Investment</span>
+            <h2>Two Build Tiers. Flat Pricing. No Games.</h2>
+            <p>No hourly billing. No "let's get on a call to discuss budget." You see the number before you ever pick up the phone.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <span class="eyebrow">Essential</span>
+                <h3>$2,500</h3>
+                <p>5&ndash;7 page custom site, mobile-perfect, speed-tuned, SEO-ready. Hand-coded, you own it, launches in ~4 weeks.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Premium</span>
+                <h3>$4,500</h3>
+                <p>Everything in Essential plus advanced lead capture, custom integrations, deeper SEO foundation, and extended conversion-focused copywriting.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
+            </article>
+        </div>
+
+        <div class="section-cta">
+            <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Start Your Project</a>
+            <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Audit My Current Site First</a>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Cross-sell ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Already Have A Site?</span>
+            <h2>You Probably Don't Need A New Build.</h2>
+            <p>If your site loads fast and ranks well, you don't need us to rebuild it. You need us to drive traffic to it. Two ways to do that:</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Search Engine Optimization</h3>
+                <p>We make Google show your site to the people searching for what you sell. Local-first, technical-foundation, content-driven.</p>
+                <a class="card__link" href="{% url 'public:service_seo' %}">SEO services </a>
+            </article>
+
+            <article class="card">
+                <h3>Digital Marketing &amp; Social</h3>
+                <p>We get you found on the platforms your audience already uses. Monthly content, brand voice, real engagement.</p>
+                <a class="card__link" href="{% url 'public:service_digital_marketing' %}">Marketing services </a>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Final CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Ready For A Site That Earns Its Place?</h2>
+            <p>The free audit takes 60 seconds. We'll tell you exactly what's working, what's broken, and whether you need a rebuild &mdash; or just a polish.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get My Free Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Schedule A Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -144,6 +144,27 @@ def portfolio(request):
     })
 
 
+def service_web_design(request):
+    return render(request, 'public/service_web_design.html', {
+        'active_nav': 'services',
+        'active_service': 'web_design',
+    })
+
+
+def service_digital_marketing(request):
+    return render(request, 'public/service_digital_marketing.html', {
+        'active_nav': 'services',
+        'active_service': 'digital_marketing',
+    })
+
+
+def service_seo(request):
+    return render(request, 'public/service_seo.html', {
+        'active_nav': 'services',
+        'active_service': 'seo',
+    })
+
+
 def pricing(request):
     from billing.pricing_models import AddonPricing, ServiceTier
     return render(request, 'public/pricing.html', {

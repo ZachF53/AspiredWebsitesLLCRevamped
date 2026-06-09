@@ -494,6 +494,98 @@ p {
     box-shadow: 0 0 40px rgba(232, 101, 10, 0.5);
 }
 
+/* ── Nav dropdown — Services submenu ─────────────────────────
+   Mobile (default, stacked nav): submenu is shown inline, always
+   expanded. The Services button still acts as a toggle in case the
+   user wants to collapse it. On desktop (≥1024px) the submenu
+   becomes an absolutely-positioned floating panel that opens on
+   hover or keyboard focus. */
+.nav-item--has-children {
+    position: relative;
+}
+.nav-link--toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    padding: var(--space-2);
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border-radius: var(--radius-sm);
+}
+.nav-link--toggle:hover,
+.nav-link--toggle.is-active {
+    color: var(--color-orange);
+}
+.nav-caret {
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+    opacity: 0.7;
+}
+.nav-link--toggle[aria-expanded="true"] .nav-caret {
+    transform: rotate(180deg);
+}
+.nav-submenu {
+    list-style: none;
+    padding: 0 0 0 var(--space-2);
+    margin: 0;
+    display: none;
+}
+.nav-submenu.is-open,
+.nav-link--toggle[aria-expanded="true"] + .nav-submenu {
+    display: block;
+}
+.nav-sublink {
+    display: block;
+    padding: 8px var(--space-2);
+    color: var(--color-text-muted, #94A3B8);
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+}
+.nav-sublink:hover {
+    color: var(--color-orange);
+    background-color: rgba(255, 255, 255, 0.04);
+}
+.nav-sublink.is-active {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+    .nav-submenu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 260px;
+        background: var(--color-bg-deep, #0F172A);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 8px;
+        padding: 8px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        z-index: 50;
+        margin-top: 4px;
+    }
+    /* Open on hover OR explicit toggle (keyboard / click) */
+    .nav-item--has-children:hover .nav-submenu,
+    .nav-item--has-children:focus-within .nav-submenu {
+        display: block;
+    }
+    .nav-sublink {
+        padding: 10px 14px;
+    }
+    .nav-sublink:hover {
+        background-color: rgba(232, 101, 10, 0.08);
+    }
+}
+
 /* ── 7. Hero — cinematic, serif headline ────────────────────── */
 .hero {
     background-color: var(--color-bg-deep);
