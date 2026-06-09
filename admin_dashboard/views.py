@@ -6288,72 +6288,50 @@ def client_change_stage(request, client_id):
     Move a client's active project to a new stage. Triggered from the
     Project Progress section on the admin client detail page.
 
-    Side effects:
-      - Updates Project.stage + updated_at
+    Side effects (delegated to clients.services.change_client_stage):
+      - Updates ClientProfile.stage + updated_at
       - Logs to ProjectStageLog (immutable audit trail)
-      - Sends the branded stage-change email to the client (unless the
-        new stage has no copy in _STAGE_COPY — e.g. 'intake' which is
-        the default starting state and doesn't need a notification)
+      - Sends the branded stage-change email to the client
+      - Stamps log.client_notified=True if the email succeeded
+
+    Phase 4.0 — business logic moved into clients.services so the AI
+    assistant and this view share one implementation.
     """
     from django.contrib import messages as _msg
 
-    from clients.emails import send_stage_change_email
-    from clients.models import (
-        ClientProfile, PROJECT_STAGES, ProjectStageLog,
-    )
+    from clients.models import ClientProfile, PROJECT_STAGES
+    from clients.services import GuardError, change_client_stage
 
     profile = get_object_or_404(ClientProfile, id=client_id)
-
-    valid = {key for key, _ in PROJECT_STAGES}
     new_stage = (request.POST.get('stage') or '').strip()
-    if new_stage not in valid:
-        _msg.error(request, f'Unknown stage: {new_stage}')
-        return redirect(
-            'admin_dashboard:client_detail', client_id=profile.id)
-
-    if new_stage == profile.stage:
-        _msg.info(request, 'Stage unchanged.')
-        return redirect(
-            'admin_dashboard:client_detail', client_id=profile.id)
-
-    from_stage = profile.stage
-    profile.stage = new_stage
-    profile.save(update_fields=['stage', 'updated_at'])
-
     note = (request.POST.get('note') or '').strip()
     setter = (request.user.get_full_name()
               or request.user.username
               or 'admin')
 
-    log = ProjectStageLog.objects.create(
-        client=profile,
-        from_stage=from_stage,
-        to_stage=new_stage,
-        note=note,
-        set_by=setter,
-        client_notified=False,
-    )
-
-    # Best-effort — email failure should not block the stage save.
-    notify_ok = False
     try:
-        send_stage_change_email(profile, new_stage)
-        notify_ok = True
-    except Exception:
-        logger.exception(
-            'stage-change email failed for %s', profile.pk)
+        log, notified = change_client_stage(
+            profile, new_stage, set_by=setter, note=note)
+    except ValueError as exc:
+        _msg.error(request, str(exc))
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
+    except GuardError as exc:
+        _msg.error(request, str(exc))
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
 
-    if notify_ok:
-        log.client_notified = True
-        log.notification_sent_at = timezone.now()
-        log.save(update_fields=[
-            'client_notified', 'notification_sent_at', 'updated_at'])
+    if log is None:
+        # Idempotent no-op: same stage as before.
+        _msg.info(request, 'Stage unchanged.')
+        return redirect(
+            'admin_dashboard:client_detail', client_id=profile.id)
 
     label = dict(PROJECT_STAGES).get(new_stage, new_stage)
     _msg.success(
         request,
         f'Project moved to "{label}".'
-        + (' Client emailed.' if notify_ok else
+        + (' Client emailed.' if notified else
            ' (Client email skipped or failed.)'))
     return redirect(
         'admin_dashboard:client_detail', client_id=profile.id)
