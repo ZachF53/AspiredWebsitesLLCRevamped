@@ -77,6 +77,7 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
     # Phase 7 — intcomma / naturalday filters in the BI dashboard.
     'django.contrib.humanize',
+    'django.contrib.sitemaps',
 ]
 
 THIRD_PARTY_APPS = [

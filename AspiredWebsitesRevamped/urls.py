@@ -2,6 +2,8 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap as sitemap_view
+from django.http import HttpResponse
 from django.urls import include, path
 
 from billing.views import pay_invoice, pay_success
@@ -10,9 +12,34 @@ from clients.views import (
     proposal_view_tracking, referral_click,
 )
 from outreach.sendgrid_webhook import receive as sendgrid_events
+from public.sitemaps import SITEMAPS
 from reporting.views import nps_response
 
+
+def robots_txt(request):
+    """Bare-bones robots.txt — allow crawl + point at sitemap."""
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin/\n"
+        "Disallow: /admin-dashboard/\n"
+        "Disallow: /portal/\n"
+        "Disallow: /onboarding/\n"
+        "Disallow: /pay/\n"
+        "Disallow: /set-password/\n"
+        "Disallow: /maintenance/\n"
+        "Disallow: /api/\n"
+        "Disallow: /sendgrid/\n"
+        "\n"
+        "Sitemap: https://aspiredwebsites.com/sitemap.xml\n"
+    )
+    return HttpResponse(body, content_type='text/plain')
+
+
 urlpatterns = [
+    path('sitemap.xml', sitemap_view, {'sitemaps': SITEMAPS},
+         name='django.contrib.sitemaps.views.sitemap'),
+    path('robots.txt', robots_txt, name='robots_txt'),
     path('nps/<uuid:token>/<int:score>/', nps_response, name='nps_response'),
     # SendGrid Event Webhook — opens/clicks/bounces/spam reports.
     # Public endpoint, locked by ECDSA signature verification against
