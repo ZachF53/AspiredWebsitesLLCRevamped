@@ -792,12 +792,15 @@ p {
 }
 
 /* Force exactly 3 columns on desktop (the default responsive grid
-   auto-fills, which on 6 tiles ends up 4 + 2). Used by the Web
-   Design service page's "What's Included" section so 6 tiles read
-   as a clean 3 × 2 instead of a lopsided 4 + 2. Falls back to 1
-   column on phones, 2 on tablets via the existing breakpoints. */
-@media (min-width: 900px) {
-    .value-tiles--3col {
+   later in this file forces 2 cols at tablet and 4 cols at desktop,
+   which on 6 tiles produces a lopsided 4 + 2). Used by the service
+   pages so 6 tiles read as a clean 3 × 2 at every breakpoint above
+   tablet. Selector specificity is .value-tiles.value-tiles--3col
+   (0,2,0) so it beats the later `.value-tiles` (0,1,0) breakpoints
+   regardless of source order. !important is a sledgehammer here —
+   we don't need it. */
+@media (min-width: 768px) {
+    .value-tiles.value-tiles--3col {
         grid-template-columns: repeat(3, 1fr);
     }
 }
