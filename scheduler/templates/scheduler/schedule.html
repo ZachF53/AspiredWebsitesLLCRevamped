@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Schedule a Call — Aspired Websites{% endblock %}
+{% block title %}{{ service_config.meta_title|default:"Schedule a Call" }} — Aspired Websites{% endblock %}
 
 {% block content %}
 
@@ -9,10 +9,10 @@
 <section class="hero">
     <div class="container">
         <div class="hero__inner">
-            <span class="eyebrow">Schedule a Call</span>
-            <h1>Let&rsquo;s talk about your <span class="accent">build</span>.</h1>
+            <span class="eyebrow">{{ service_config.eyebrow|default:"Schedule a Call" }}</span>
+            <h1>{{ service_config.h1_pre|default:"Let’s talk about your " }}<span class="accent">{{ service_config.h1_accent|default:"build" }}</span>{{ service_config.h1_post|default:"." }}</h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">30-minute kickoff call — pick a time that works for you.</p>
+            <p class="hero__lead">{{ service_config.lead|default:"30-minute call — pick a time that works for you." }}</p>
         </div>
     </div>
 </section>
@@ -62,11 +62,12 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="s-website">Existing website (if any)</label>
+                        <label for="s-website">{{ service_config.website_label|default:"Existing website (if any)" }}</label>
                         <input id="s-website" name="website" type="url" class="form-control"
                                placeholder="https://&hellip;">
                     </div>
 
+                    {% if service_config.show_build_type %}
                     <div class="form-group">
                         <label for="s-build">Build type</label>
                         <select id="s-build" name="build_type" class="form-control">
@@ -77,11 +78,16 @@
                             <option value="not_sure">Not sure yet</option>
                         </select>
                     </div>
+                    {% endif %}
 
                     <div class="form-group">
-                        <label for="s-inquiry">What are you trying to build? <span class="required" aria-hidden="true">*</span></label>
+                        <label for="s-inquiry">{{ service_config.inquiry_label|default:"What are you trying to build?" }} <span class="required" aria-hidden="true">*</span></label>
                         <textarea id="s-inquiry" name="inquiry" rows="4" class="form-control" required></textarea>
                     </div>
+
+                    {# Hidden service identifier — read by schedule_call.js, posted to /schedule/confirm/ #}
+                    <input type="hidden" name="service" value="{{ service }}">
+
 
                     {% if addons %}
                         {% comment %}

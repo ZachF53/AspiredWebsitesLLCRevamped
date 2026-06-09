@@ -13,36 +13,92 @@ from .availability import BLOCK_MINUTES, MIN_LEAD_MINUTES, enumerate_slots
 from .models import ScheduledCall
 
 
-def schedule_page(request):
-    """The /design/schedule/ page — calendar widget + contact form."""
+# Per-service copy + form configuration. Each service uses the SAME
+# calendar widget + Google Calendar push pipeline, just a different
+# H1, inquiry prompt, and per-service custom field. Add a new service
+# here + a URL route in scheduler/urls.py and it just works.
+SERVICE_CONFIG = {
+    'web_design': {
+        'eyebrow': 'Schedule a Call',
+        'h1_pre': 'Let’s talk about your ',
+        'h1_accent': 'build',
+        'h1_post': '.',
+        'lead': '30-minute kickoff call — pick a time that works for you.',
+        'show_build_type': True,
+        'show_addons': True,
+        'inquiry_label': 'What are you trying to build?',
+        'website_label': 'Existing website (if any)',
+        'meta_title': 'Schedule a Call — Web Design',
+    },
+    'social_media': {
+        'eyebrow': 'Schedule a Strategy Call',
+        'h1_pre': 'Let’s talk about your ',
+        'h1_accent': 'social presence',
+        'h1_post': '.',
+        'lead': '30-minute strategy call — pick a time that works for you.',
+        'show_build_type': False,
+        'show_addons': True,
+        'inquiry_label': 'Tell us about your current presence and what you want it to do for the business.',
+        'website_label': 'Website (if any)',
+        'meta_title': 'Schedule a Call — Social Media Strategy',
+    },
+    'seo': {
+        'eyebrow': 'Schedule an SEO Call',
+        'h1_pre': 'Let’s talk about your ',
+        'h1_accent': 'rankings',
+        'h1_post': '.',
+        'lead': '30-minute SEO call — pick a time that works for you.',
+        'show_build_type': False,
+        'show_addons': True,
+        'inquiry_label': 'What are you trying to rank for, and in which cities?',
+        'website_label': 'Current website',
+        'meta_title': 'Schedule a Call — SEO Strategy',
+    },
+}
+
+
+def schedule_page(request, service='web_design'):
+    """Universal schedule page — same calendar widget, service-specific
+    copy + form fields. Three URLs map here:
+        /design/schedule/  → service='web_design'  (default, legacy)
+        /social/schedule/  → service='social_media'
+        /seo/schedule/     → service='seo'
+    """
     from billing.pricing_models import ServiceTier
 
+    config = SERVICE_CONFIG.get(service) or SERVICE_CONFIG['web_design']
+
+    # Addons — every plan (maintenance + social) gets surfaced as a
+    # cross-sell on every service page (even social/seo) since the
+    # 10%-off-first-month promise still applies.
     addons = (ServiceTier.objects
               .filter(category__in=('maintenance', 'social_media'),
                       is_active=True)
-              .order_by('category', 'price'))
+              .order_by('category', 'price')) if config['show_addons'] else []
 
-    # Build-type options — pulled from the same pricing DB so the
-    # dropdown labels stay in sync if prices change. Form values
-    # remain 'essential' / 'premium' for legacy lead-tag stability.
-    build_qs = (ServiceTier.objects
-                .filter(category='website_build', is_active=True)
-                .order_by('price'))
+    # Build-type options — only relevant for the web-design schedule
+    # page. Pulled from the pricing DB so the dropdown labels stay in
+    # sync if prices ever change.
     build_tiers = []
-    for t in build_qs:
-        if 'essential' in t.slug:
-            form_value = 'essential'
-        elif 'premium' in t.slug:
-            form_value = 'premium'
-        else:
-            form_value = t.slug
-        build_tiers.append({
-            'value': form_value,
-            'name': t.name,
-            'price': t.get_price_display(),
-        })
+    if config['show_build_type']:
+        for t in (ServiceTier.objects
+                  .filter(category='website_build', is_active=True)
+                  .order_by('price')):
+            if 'essential' in t.slug:
+                form_value = 'essential'
+            elif 'premium' in t.slug:
+                form_value = 'premium'
+            else:
+                form_value = t.slug
+            build_tiers.append({
+                'value': form_value,
+                'name': t.name,
+                'price': t.get_price_display(),
+            })
 
     return render(request, 'scheduler/schedule.html', {
+        'service': service,
+        'service_config': config,
         'addons': addons,
         'build_tiers': build_tiers,
     })
@@ -143,9 +199,18 @@ def confirm_slot(request):
     build_type = (payload.get('build_type') or '').strip()
     inquiry = (payload.get('inquiry') or '').strip()
     addons = payload.get('addons') or []
+    service = (payload.get('service') or 'web_design').strip()
     if not (name and email and business):
         return JsonResponse({
             'error': 'name, email, business required'}, status=400)
+
+    # Build tag string — service prefix lets the operator triage the
+    # admin pipeline by what the lead is interested in. Build-type
+    # only appended for web-design leads where it's meaningful.
+    tag_parts = [f'service:{service}']
+    if build_type:
+        tag_parts.append(f'build_type:{build_type}')
+    tags_str = ','.join(tag_parts)
 
     # Create a Lead with the opt-in flags
     try:
@@ -159,7 +224,7 @@ def confirm_slot(request):
             source='schedule_call' if 'schedule_call' in dict(
                 getattr(Lead, 'SOURCE_CHOICES', [])) else 'contact_form',
             inquiry_text=inquiry,
-            tags=f'build_type:{build_type}',
+            tags=tags_str,
             status='new',
         )
         # Save opt-ins if the Lead model has the field

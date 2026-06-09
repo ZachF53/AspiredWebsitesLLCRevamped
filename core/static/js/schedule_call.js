@@ -298,7 +298,13 @@
             phone: form.elements['phone'].value.trim(),
             business: form.elements['business'].value.trim(),
             website: form.elements['website'].value.trim(),
-            build_type: form.elements['build_type'].value,
+            // build_type is service-specific — only on web-design form.
+            build_type: form.elements['build_type']
+                ? form.elements['build_type'].value : '',
+            // service: 'web_design' | 'social_media' | 'seo' — hidden input
+            // set per-page by the scheduler view; falls back to web_design.
+            service: form.elements['service']
+                ? form.elements['service'].value : 'web_design',
             inquiry: form.elements['inquiry'].value.trim(),
             addons: addons,
         };
