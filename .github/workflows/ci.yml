@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Django check + per-app tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 10s
+
+    env:
+      # Minimal env for `manage.py check` + targeted tests. The
+      # touched apps run with mocked external I/O (Stripe / DO /
+      # Anthropic / SendGrid), so no real secrets needed.
+      DJANGO_SETTINGS_MODULE: AspiredWebsitesRevamped.settings
+      SECRET_KEY: test-secret-key-not-used-in-prod-just-a-stable-value
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_URL: sqlite:///ci.sqlite3
+      REDIS_URL: redis://localhost:6379/0
+      # Bogus values — the test suite mocks every external call.
+      STRIPE_SECRET_KEY: ""
+      STRIPE_PUBLISHABLE_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      SENDGRID_API_KEY: ""
+      DO_API_TOKEN: ""
+      ANTHROPIC_API_KEY: ""
+      MOONIEFUL_SYNC_SECRET: test-sync-secret
+      VAULT_SERVER_SECRET: test-vault-server-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install OS deps for WeasyPrint
+        # Required by clients/pdf_utils.render_contract_pdf — these
+        # libs are also baked into the Droplet base snapshot per
+        # CLAUDE.md Phase 0.3.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev \
+              shared-mime-info libxml2 libxslt1.1 fonts-dejavu
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Django system check
+        run: python AspiredWebsitesRevamped/manage.py check
+
+      - name: Run per-app tests (the touched-app coverage)
+        # Phase 3 — these apps host the revenue + integration paths.
+        # Reporting + vault have their own pre-existing coverage and
+        # are included so regressions don't slip through.
+        run: |
+          python AspiredWebsitesRevamped/manage.py test \
+              billing clients public sync scheduler reporting vault

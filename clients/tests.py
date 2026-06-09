@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -445,3 +445,174 @@ class LogDeploymentCommandTests(TestCase):
         from django.core.management.base import CommandError
         with self.assertRaises(CommandError):
             call_command('log_deployment', 'not-a-real-id')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3.4 — Contract signing flow (Phase 2.3 audit-trail coverage)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContractSignFlowTests(TestCase):
+    """Token-gated signing + Phase 2.3 audit-trail hardening."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from clients.models import Contract
+        from decimal import Decimal
+        # Note: don't shadow `User` (loaded at top of file).
+        u = User.objects.create_user(
+            username='contractsigner1', password='x',
+            email='cs1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Contract LLC',
+            contact_name='Carla Counsel')
+        cls.contract = Contract.objects.create(
+            client=cls.profile,
+            package='website-essential',
+            build_price=Decimal('2500'),
+            deposit_amount=Decimal('1250'),
+            timeline_weeks=4,
+            contract_text='<h1>Test Contract</h1><p>Body text here.</p>',
+        )
+        cls.sign_url = reverse('clients:contract_sign',
+                               args=[cls.contract.contract_token])
+
+    def test_get_renders_unsigned_contract(self):
+        r = self.client.get(self.sign_url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Test Contract')
+
+    def test_post_without_name_shows_error(self):
+        r = self.client.post(self.sign_url, data={
+            'signed_name': '',
+            'agree': 'on',
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Please type your full legal name')
+        self.contract.refresh_from_db()
+        self.assertFalse(self.contract.signed)
+
+    def test_post_without_checkbox_shows_error(self):
+        r = self.client.post(self.sign_url, data={
+            'signed_name': 'Carla Counsel',
+            # no `agree`
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'check the box')
+        self.contract.refresh_from_db()
+        self.assertFalse(self.contract.signed)
+
+    def test_post_valid_captures_all_audit_fields(self):
+        """Phase 2.3 — happy path captures IP, user-agent, name, content
+        hash, and triggers issue_deposit_invoice."""
+        from unittest.mock import patch
+        from datetime import datetime
+        UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+              'AppleWebKit/537.36 Chrome/149 Safari/537.36')
+        with patch('billing.stripe_helpers.issue_deposit_invoice') as mock_dep, \
+             patch('clients.views.render_contract_pdf') as mock_pdf, \
+             patch('clients.views.send_contract_signed_email') as mock_email:
+            mock_pdf.return_value = 'contracts/test.pdf'
+            r = self.client.post(self.sign_url, data={
+                'signed_name': 'Carla Counsel',
+                'agree': 'on',
+            }, HTTP_USER_AGENT=UA)
+        self.assertEqual(r.status_code, 302)  # redirects to signed page
+
+        self.contract.refresh_from_db()
+        self.assertTrue(self.contract.signed)
+        self.assertEqual(self.contract.signed_name, 'Carla Counsel')
+        self.assertIsNotNone(self.contract.signed_at)
+        # Audit fields populated:
+        self.assertEqual(self.contract.signed_user_agent[:50], UA[:50])
+        self.assertTrue(self.contract.signed_content_hash)
+        self.assertEqual(len(self.contract.signed_content_hash), 64)
+        # Side effects fired:
+        mock_dep.assert_called_once()
+        mock_email.assert_called_once()
+        # Client state advanced:
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.stage, 'intake')
+        self.assertEqual(self.profile.payment_status, 'awaiting_deposit')
+
+    def test_signed_content_hash_reproduces_sha256(self):
+        """Phase 2.3 — the stored hash must be sha256(contract_text)."""
+        from unittest.mock import patch
+        import hashlib
+        with patch('billing.stripe_helpers.issue_deposit_invoice'), \
+             patch('clients.views.render_contract_pdf', return_value=''), \
+             patch('clients.views.send_contract_signed_email'):
+            self.client.post(self.sign_url, data={
+                'signed_name': 'Carla',
+                'agree': 'on',
+            })
+        self.contract.refresh_from_db()
+        expected = hashlib.sha256(
+            self.contract.contract_text.encode('utf-8')).hexdigest()
+        self.assertEqual(self.contract.signed_content_hash, expected)
+
+    def test_already_signed_renders_locked_page(self):
+        from unittest.mock import patch
+        with patch('billing.stripe_helpers.issue_deposit_invoice'), \
+             patch('clients.views.render_contract_pdf', return_value=''), \
+             patch('clients.views.send_contract_signed_email'):
+            self.client.post(self.sign_url, data={
+                'signed_name': 'First Signer', 'agree': 'on',
+            })
+        # A second GET should render the "already signed" view, not the form.
+        r = self.client.get(self.sign_url)
+        self.assertEqual(r.status_code, 200)
+        # Page should NOT show the sign form again — we look for the
+        # absence of an input named 'signed_name' which only the form has.
+        self.assertNotContains(r, 'name="signed_name"')
+
+
+class RenderContractPdfFallbackTests(TestCase):
+    """WeasyPrint failure (e.g. on Windows) falls back to .html so the
+    signed record is still persisted on disk."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from clients.models import Contract
+        from decimal import Decimal
+        u = User.objects.create_user(
+            username='pdfclient1', password='x',
+            email='pdfclient1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='PDF LLC')
+        cls.contract = Contract.objects.create(
+            client=cls.profile,
+            package='website-essential',
+            build_price=Decimal('2500'),
+            deposit_amount=Decimal('1250'),
+            timeline_weeks=4,
+            contract_text='<p>tiny</p>',
+            signed=True, signed_name='Test',
+            signed_ip='127.0.0.1',
+            signed_at=timezone.now(),
+        )
+
+    def test_fallback_to_html_when_weasyprint_fails(self):
+        """Phase 3.4 AC — WeasyPrint import failure (e.g. Windows dev
+        without libpango/libcairo) must fall back to writing an .html
+        file so the signed contract is still persisted."""
+        import tempfile
+        from clients.pdf_utils import render_contract_pdf
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(MEDIA_ROOT=tmp):
+                # Force weasyprint to be unimportable at the function-
+                # local `from weasyprint import ...` line.
+                import builtins
+                real_import = builtins.__import__
+
+                def fake_import(name, *args, **kwargs):
+                    if name == 'weasyprint':
+                        raise ImportError('libpango missing')
+                    return real_import(name, *args, **kwargs)
+                with patch('builtins.__import__', side_effect=fake_import):
+                    path = render_contract_pdf(self.contract)
+        # Fallback returns a path string ending in .html (relative).
+        self.assertIsInstance(path, str)
+        self.assertTrue(path.endswith('.html'),
+                        f'expected .html fallback, got {path!r}')
