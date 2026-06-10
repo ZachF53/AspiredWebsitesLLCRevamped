@@ -676,6 +676,22 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.snapshot_redis_clients_task',
         'schedule': crontab(minute='*/5'),
     },
+
+    # Phase 5a — Social media auto-publisher. Picks up any
+    # ScheduledPost(status='scheduled', scheduled_for__lte=now()) and
+    # publishes via the per-platform publisher. Race-safe at the row
+    # level (atomic UPDATE flips status to 'publishing' first).
+    'publish-due-social-posts': {
+        'task': 'social.tasks.publish_due_posts',
+        'schedule': crontab(minute='*/5'),
+    },
+    # Phase 5a — Pro-actively refresh OAuth tokens before they expire,
+    # so publish-path latency stays stable. Runs hourly at :17 to
+    # offset the heavier 5-min cron and the on-the-hour reporting jobs.
+    'refresh-expiring-social-tokens': {
+        'task': 'social.tasks.refresh_expiring_tokens',
+        'schedule': crontab(minute=17),
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

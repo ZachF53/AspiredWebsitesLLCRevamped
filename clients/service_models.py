@@ -138,6 +138,10 @@ class SocialChannel(TimestampedModel):
         ('facebook',  'Facebook'),
         ('instagram', 'Instagram'),
         ('linkedin',  'LinkedIn'),
+        # Phase 5a — Google Business Profile. Same OAuth token (with
+        # scopes business.manage + webmasters.readonly) ALSO unblocks
+        # Phase 6 NAP sync + Search Console keyword tracking.
+        ('gbp',       'Google Business Profile'),
         ('twitter',   'X (Twitter)'),
         ('tiktok',    'TikTok'),
         ('youtube',   'YouTube'),

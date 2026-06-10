@@ -1,0 +1,78 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Posts — {{ channel }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · Social · GBP</span>
+            <h1 class="admin-page-title">Posts: {{ channel.get_platform_display }}</h1>
+            <p class="admin-page-sub">
+                Channel: <code>{{ channel.handle|default:"(not bound to a location)" }}</code>
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary" href="{% url 'social:channels_list' %}">← All channels</a>
+            <a class="btn-primary" href="{% url 'social:post_composer' channel_id=channel.id %}">+ Compose</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="admin-card">
+        <div class="admin-card__body">
+            {% if posts %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>Scheduled for</th>
+                            <th>Status</th>
+                            <th>Body preview</th>
+                            <th>Published at</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in posts %}
+                            <tr>
+                                <td>{{ p.scheduled_for|date:"M j, Y H:i"|default:"—" }}</td>
+                                <td><span class="status-pill status-pill--{{ p.status }}">{{ p.get_status_display }}</span></td>
+                                <td>{{ p.body|truncatechars:90 }}</td>
+                                <td>{{ p.published_at|date:"M j, Y H:i"|default:"—" }}</td>
+                                <td>
+                                    {% with last_result=p.results.first %}
+                                        {% if last_result %}
+                                            {% if last_result.success %}
+                                                {% if last_result.permalink %}
+                                                    <a href="{{ last_result.permalink }}" target="_blank" rel="noopener">View on Google →</a>
+                                                {% else %}
+                                                    <span style="color:var(--color-success,#16a34a);">✓ Published</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span style="color:var(--color-danger,#ef4444);" title="{{ last_result.error_detail }}">✗ {{ last_result.error_detail|truncatechars:50 }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="muted">—</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No posts yet for this channel. <a href="{% url 'social:post_composer' channel_id=channel.id %}">Compose one →</a></p>
+            {% endif %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}
