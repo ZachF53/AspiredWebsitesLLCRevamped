@@ -70,9 +70,45 @@
         </div>
     </form>
 
+    {# Comp tier override — operator-only, used to grant a paid tier
+       without billing (dogfood, free trial, comp a friend, internal QA). #}
+    {% if account.legacy_client_profile %}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Comp tier</h2>
+            <span class="muted" style="font-size:.85rem;">Grant a paid tier without billing</span>
+        </div>
+        <div class="admin-card__body">
+            <p class="muted" style="margin-top:0;font-size:.85rem;">
+                Paid tier (from Stripe): <strong>{{ account.legacy_client_profile.get_package_display|default:"None" }}</strong>{% if account.legacy_client_profile.comp_package %} · Currently comped as: <strong>{{ account.legacy_client_profile.get_comp_package_display }}</strong>{% endif %}
+            </p>
+            <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}"
+                  style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap;">
+                {% csrf_token %}
+                <label style="display:flex;flex-direction:column;gap:.2rem;">
+                    <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Comp as</span>
+                    <select name="comp_package" class="form-control" style="min-width:18rem;">
+                        <option value="">— No comp —</option>
+                        {% for value, label in account.legacy_client_profile.PACKAGE_CHOICES %}
+                            <option value="{{ value }}" {% if account.legacy_client_profile.comp_package == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:.2rem;flex:1;min-width:18rem;">
+                    <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Note (why)</span>
+                    <input type="text" name="comp_notes" class="form-control"
+                           value="{{ account.legacy_client_profile.comp_notes }}"
+                           placeholder="e.g. dogfood, free trial through 2026-12-31, friend">
+                </label>
+                <button type="submit" class="btn-primary">Save comp</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
-    {# Phase 5a-pivot — Google Business Profile management card.
-       Shown only for clients on Maintenance Growth or Dominant tiers. #}
+    {# GBP card — only shown for clients on Growth/Dominant tier
+       (paid) OR comped via ClientProfile.comp_package. #}
     <div class="admin-card" style="margin-top: 2rem;border-left:4px solid var(--color-orange,#E8650A);">
         <div class="admin-card__header">
             <h2 class="admin-card__title">Google Business Profile</h2>

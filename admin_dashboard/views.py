@@ -7398,6 +7398,58 @@ def account_send_password_reset(request, account_id):
 
 @admin_required
 @require_POST
+def account_set_comp_tier(request, account_id):
+    """Set the linked ClientProfile.comp_package + comp_notes — used
+    to grant a paid tier without billing (dogfood / free trial / comp
+    for a friend / agency-internal use).
+
+    POST: comp_package (CharField choice; empty string to clear),
+          comp_notes (free text — why).
+    """
+    from django.contrib import messages as _messages
+
+    from clients.account_models import Account
+    from clients.models import ClientProfile
+
+    account = get_object_or_404(Account, id=account_id)
+    profile = account.legacy_client_profile
+    if profile is None:
+        _messages.error(
+            request,
+            'This account has no linked ClientProfile — cannot comp '
+            'a tier.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    comp = (request.POST.get('comp_package') or '').strip()
+    notes = (request.POST.get('comp_notes') or '').strip()
+
+    valid_choices = {k for k, _ in ClientProfile.PACKAGE_CHOICES}
+    if comp and comp not in valid_choices:
+        _messages.error(request, f'Invalid comp tier: {comp!r}')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    profile.comp_package = comp
+    profile.comp_notes = notes
+    profile.save(update_fields=[
+        'comp_package', 'comp_notes', 'updated_at'])
+
+    if comp:
+        label = dict(ClientProfile.PACKAGE_CHOICES).get(comp, comp)
+        _messages.success(
+            request,
+            f'Comped {account.name} as {label}. '
+            f'Gating helpers will treat them as having that tier.')
+    else:
+        _messages.success(
+            request, f'Cleared the comp tier on {account.name}.')
+    return redirect(
+        'admin_dashboard:account_detail', account_id=account.id)
+
+
+@admin_required
+@require_POST
 def account_delete(request, account_id):
     """
     Hard-delete an Account and everything that cascades from it —

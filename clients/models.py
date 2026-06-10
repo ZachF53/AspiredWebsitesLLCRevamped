@@ -219,8 +219,27 @@ class ClientProfile(TimestampedModel):
     # Resource name like 'accounts/<acc>/locations/<loc>' — bound from
     # the GBP locations picker once the operator's Google account has
     # been invited as a Manager on the client's GMB. Gated by
-    # has_gbp_features() (maintenance tier ≥ Growth).
+    # has_gbp_features() (maintenance tier ≥ Growth, OR comp_package).
     gbp_location_name = models.CharField(max_length=200, blank=True)
+
+    # ── Comp tier (Phase 5a-pivot) ──
+    # Operator-granted access to a paid tier without billing. Use
+    # cases: agency dogfooding their own account, a free trial month
+    # for a hot prospect, comping a friend, internal QA.
+    # When set, the gating helpers treat the client as if they were on
+    # this tier (in addition to whatever `package` says). When cleared,
+    # paid tier still rules. Same choices as `package`.
+    #
+    # NOTE: `package` keeps the BILLED tier (Stripe webhook updates it
+    # on real subscriptions). `comp_package` is independently managed
+    # by the operator on the Account edit page.
+    comp_package = models.CharField(
+        max_length=30, choices=PACKAGE_CHOICES, blank=True,
+    )
+    comp_notes = models.TextField(
+        blank=True,
+        help_text='Why this client is comped — internal note.',
+    )
 
     # ── Tier-gating helpers (Phase 5a-pivot) ──
     # GBP features live in growth + dominant maintenance tiers per
@@ -229,15 +248,25 @@ class ClientProfile(TimestampedModel):
     _GBP_TIERS = {'maintenance_growth', 'maintenance_dominant'}
     _GBP_PREMIUM_TIERS = {'maintenance_dominant'}
 
+    def _active_tiers(self):
+        """Set of tier slugs this client has access to — both their
+        billed `package` AND any operator-granted `comp_package`."""
+        out = set()
+        if self.package:
+            out.add(self.package)
+        if self.comp_package:
+            out.add(self.comp_package)
+        return out
+
     def has_gbp_features(self):
-        """True if this client's package qualifies for GBP management
-        (NAP sync, review monitoring, performance metrics)."""
-        return (self.package or '') in self._GBP_TIERS
+        """True if this client's tier (paid OR comped) qualifies for
+        GBP management (NAP sync, review monitoring, performance metrics)."""
+        return bool(self._active_tiers() & self._GBP_TIERS)
 
     def has_gbp_premium_features(self):
-        """True if this client qualifies for GBP reply workflow + Q&A
-        + listing audit — Dominant-tier-only features."""
-        return (self.package or '') in self._GBP_PREMIUM_TIERS
+        """True if this client (paid OR comped) qualifies for GBP reply
+        workflow + Q&A + listing audit — Dominant-tier-only features."""
+        return bool(self._active_tiers() & self._GBP_PREMIUM_TIERS)
 
     def has_unpaid_out_of_scope(self):
         """True if any MiniInvoice on this client is not paid or

@@ -372,6 +372,8 @@ urlpatterns = [
     path('accounts/', views.accounts_list, name='accounts_list'),
     path('accounts/<uuid:account_id>/', views.account_detail,
          name='account_detail'),
+    path('accounts/<uuid:account_id>/comp/', views.account_set_comp_tier,
+         name='account_set_comp_tier'),
     path('accounts/<uuid:account_id>/delete/', views.account_delete,
          name='account_delete'),
     path('accounts/<uuid:account_id>/send-password-reset/',

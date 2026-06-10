@@ -91,8 +91,10 @@ def dashboard(request):
 
 
 def _gbp_gate(view):
-    """Decorator — render an "upgrade required" page when the client's
-    maintenance tier doesn't include GBP features."""
+    """Decorator — hard gating. GBP features are paid (or comped) per
+    client; admins don't see the pages for clients who aren't on the
+    feature. Use ClientProfile.comp_package to grant tier access
+    without billing (dogfood + free trials + agency-internal use)."""
     from functools import wraps
 
     @wraps(view)

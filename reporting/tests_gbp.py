@@ -81,6 +81,23 @@ class TierGatingTests(TestCase):
         c = _client(package='')
         self.assertFalse(c.has_gbp_features())
 
+    def test_comp_growth_unlocks_features(self):
+        """Operator can comp a tier without billing — has_gbp_features
+        returns True via comp_package even when `package` doesn't qualify."""
+        c = _client(package='premium_build', comp_package='maintenance_growth')
+        self.assertTrue(c.has_gbp_features())
+        self.assertFalse(c.has_gbp_premium_features())
+
+    def test_comp_dominant_unlocks_premium(self):
+        c = _client(package='', comp_package='maintenance_dominant')
+        self.assertTrue(c.has_gbp_features())
+        self.assertTrue(c.has_gbp_premium_features())
+
+    def test_comp_essentials_does_not_unlock_gbp(self):
+        """Comping Essentials still excludes GBP — only Growth/Dominant qualify."""
+        c = _client(package='', comp_package='maintenance_essentials')
+        self.assertFalse(c.has_gbp_features())
+
 
 @override_settings(**TEST_SETTINGS)
 class CryptoRoundTripTests(TestCase):
