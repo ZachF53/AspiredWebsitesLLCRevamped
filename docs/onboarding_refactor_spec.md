@@ -26,7 +26,7 @@
 - Stripe webhook handlers for `checkout.session.completed`, `invoice.paid`, etc.
 - Existing IntakeResponse for web design intake
 - Vault encryption (PIN-derived AES-256-GCM, per-process server key fallback)
-- DigitalOcean droplet provisioning for web design clients (uses `aspired-base-v1` snapshot)
+- DigitalOcean droplet provisioning for web design clients (uses `aspired-base-v2` snapshot)
 - Existing onboarding for clients we built sites for
 
 ### What's marked TODO and explicitly deferred
