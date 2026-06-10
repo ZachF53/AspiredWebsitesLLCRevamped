@@ -47,10 +47,10 @@ urlpatterns = [
     path('sendgrid/events/', sendgrid_events, name='sendgrid_events'),
     path('admin/', admin.site.urls),
     path('admin-dashboard/vault/', include('vault.urls')),
-    # Phase 5a — Social Media Manager (mounted under /admin-dashboard/social/
-    # so the URL prefix stays consistent with admin dashboard routes).
-    path('admin-dashboard/social/',
-         include('social.urls', namespace='social')),
+    # Phase 5a-pivot — Google Business Profile lives in reporting/ as
+    # a maintenance-plan feature (tier ≥ Growth).
+    path('admin-dashboard/gbp/',
+         include('reporting.urls_gbp', namespace='gbp')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
     path('portal/', include('clients.urls')),
     path('onboarding/', include('onboarding.urls', namespace='onboarding')),

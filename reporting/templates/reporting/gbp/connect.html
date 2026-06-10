@@ -1,0 +1,88 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Connect GBP — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · GBP</span>
+            <h1 class="admin-page-title">Connect Google Business Profile</h1>
+            <p class="admin-page-sub">
+                Connect your own agency Google account. Clients add you as
+                a Manager on their GBP — one connection here grants access
+                to every client's listing.
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary" href="{% url 'gbp:dashboard' %}">← Dashboard</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="admin-card">
+        <div class="admin-card__body">
+            {% if connected %}
+                <p>
+                    <strong style="color:var(--color-success);">✓ Connected.</strong>
+                    Google account: <code>{{ token.provider_account_email|default:"(unknown)" }}</code>
+                </p>
+                <p class="muted">
+                    The access token rotates every hour and is auto-refreshed
+                    in the background. You only need to come back here if
+                    you revoke this app in your Google account.
+                </p>
+                <details style="margin-top:.5rem;">
+                    <summary class="muted" style="cursor:pointer;">Technical details</summary>
+                    <dl class="muted" style="margin-top:.5rem;font-size:.85rem;">
+                        <dt>Scopes granted</dt>
+                        <dd><code>{{ token.scopes }}</code></dd>
+                        <dt>Access token rotates at</dt>
+                        <dd>{{ token.expires_at|date:"M j, Y H:i" }}</dd>
+                        <dt>Last refresh</dt>
+                        <dd>{{ token.last_refresh_at|date:"M j, Y H:i"|default:"—" }}</dd>
+                        {% if token.last_refresh_error %}
+                            <dt>Last refresh error</dt>
+                            <dd style="color:var(--color-danger,#ef4444);">{{ token.last_refresh_error }}</dd>
+                        {% endif %}
+                    </dl>
+                </details>
+
+                <form method="post" action="{% url 'gbp:disconnect' %}"
+                      onsubmit="return confirm('Disconnect Google? All GBP syncs will pause until reconnected.');"
+                      style="display:inline;margin-top:1.25rem;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary">Disconnect</button>
+                </form>
+            {% else %}
+                <h2 style="margin-top:0;">How this works</h2>
+                <ol class="muted">
+                    <li>Click <strong>Connect Google Business Profile</strong> below.</li>
+                    <li>You'll be redirected to Google's consent screen. Three scopes are requested:
+                        <ul>
+                            <li><code>business.manage</code> — reviews + NAP + performance</li>
+                            <li><code>webmasters.readonly</code> — Phase 6 Search Console</li>
+                            <li><code>userinfo.email</code> — display which account is connected</li>
+                        </ul>
+                    </li>
+                    <li>If your OAuth app is in <strong>Testing mode</strong> (recommended), Google
+                        shows a yellow "unverified app" warning — click <em>Advanced → Go to Aspired Websites (unsafe)</em>.
+                        That bypass works forever as long as you're a test user.</li>
+                </ol>
+                <a class="btn-primary btn-lg" href="{% url 'gbp:connect_start' %}">
+                    Connect Google Business Profile →
+                </a>
+            {% endif %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}

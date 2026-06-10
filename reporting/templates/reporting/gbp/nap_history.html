@@ -1,0 +1,54 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}NAP history — {{ profile.firm_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · GBP · {{ profile.firm_name }}</span>
+            <h1 class="admin-page-title">NAP sync history</h1>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary" href="{% url 'gbp:client_gbp' client_id=profile.id %}">← Back</a>
+        </div>
+    </div>
+
+    <section class="admin-card">
+        <div class="admin-card__body">
+            {% if checks %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>Checked</th>
+                            <th>Field</th>
+                            <th>Website</th>
+                            <th>GBP</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in checks %}
+                            <tr>
+                                <td>{{ c.checked_at|date:"M j, Y H:i" }}</td>
+                                <td>{{ c.get_field_name_display }}</td>
+                                <td><code>{{ c.website_value|default:"—" }}</code></td>
+                                <td><code>{{ c.gbp_value|default:"—" }}</code></td>
+                                <td>
+                                    {% if c.is_mismatch %}<span style="color:var(--color-danger);">drift</span>
+                                    {% else %}<span style="color:var(--color-success);">ok</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No checks recorded yet.</p>
+            {% endif %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}

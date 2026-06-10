@@ -138,10 +138,11 @@ class SocialChannel(TimestampedModel):
         ('facebook',  'Facebook'),
         ('instagram', 'Instagram'),
         ('linkedin',  'LinkedIn'),
-        # Phase 5a — Google Business Profile. Same OAuth token (with
-        # scopes business.manage + webmasters.readonly) ALSO unblocks
-        # Phase 6 NAP sync + Search Console keyword tracking.
-        ('gbp',       'Google Business Profile'),
+        # NOTE: Google Business Profile is intentionally NOT a social
+        # channel. GBP posting via API was deprecated by Google in
+        # late 2023; GBP management (reviews / NAP sync / performance)
+        # lives in the reporting/ app as a maintenance-plan feature
+        # (tier ≥ Growth). See reporting/google_gbp.py.
         ('twitter',   'X (Twitter)'),
         ('tiktok',    'TikTok'),
         ('youtube',   'YouTube'),

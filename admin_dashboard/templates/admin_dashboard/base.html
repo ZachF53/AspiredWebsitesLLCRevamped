@@ -235,9 +235,9 @@
                    href="{% url 'admin_dashboard:ai_assistant' %}">
                     <span class="nav-link__text">AI Assistant</span>
                 </a>
-                <a class="nav-link {% if '/admin-dashboard/social/' in request.path %}active{% endif %}"
-                   href="{% url 'social:channels_list' %}">
-                    <span class="nav-link__text">Social</span>
+                <a class="nav-link {% if '/admin-dashboard/gbp/' in request.path %}active{% endif %}"
+                   href="{% url 'gbp:dashboard' %}">
+                    <span class="nav-link__text">GBP</span>
                 </a>
                 <a class="nav-link {% if '/admin-dashboard/settings/' in request.path %}active{% endif %}"
                    href="{% url 'admin_dashboard:settings' %}">

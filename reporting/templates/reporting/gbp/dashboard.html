@@ -1,0 +1,156 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Google Business Profile — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · GBP</span>
+            <h1 class="admin-page-title">Google Business Profile</h1>
+            <p class="admin-page-sub">
+                Manage every client's GBP from one place. Clients on
+                <strong>Maintenance — Growth</strong> or
+                <strong>Maintenance — Dominant</strong> get this feature.
+                Posting is unavailable (Google deprecated it in 2023) — we
+                handle reviews, NAP sync, and performance reporting via the
+                API instead.
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            {% if connected %}
+                <a class="btn-secondary" href="{% url 'gbp:connect_page' %}">Connection details</a>
+            {% else %}
+                <a class="btn-primary" href="{% url 'gbp:connect_page' %}">Connect Google →</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if not connected %}
+        <section class="admin-card" style="border-left:4px solid var(--color-orange,#E8650A);">
+            <div class="admin-card__body">
+                <h2 style="margin-top:0;">Not connected yet</h2>
+                <p>
+                    To manage clients' GBP listings, you need to:
+                </p>
+                <ol>
+                    <li>Connect your own Google account here →
+                        <a href="{% url 'gbp:connect_page' %}">Connect</a></li>
+                    <li>Have each client add your Google account as a
+                        <strong>Manager</strong> on their Business Profile
+                        (no consent needed on their end — just an invite).</li>
+                    <li>Come back here, click on the client, and bind their
+                        GBP location to their record.</li>
+                </ol>
+            </div>
+        </section>
+    {% endif %}
+
+    {# Reviews needing attention #}
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Reviews needing attention</h2>
+            <span class="muted">{{ attention|length }}</span>
+        </div>
+        <div class="admin-card__body">
+            {% if attention %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Reviewer</th>
+                            <th>★</th>
+                            <th>Reason</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in attention %}
+                            <tr>
+                                <td>{{ r.review_created_at|date:"M j" }}</td>
+                                <td><a href="{% url 'gbp:client_gbp' client_id=r.client.id %}">{{ r.client.firm_name }}</a></td>
+                                <td>{{ r.reviewer_name|default:"—" }}</td>
+                                <td><strong>{{ r.star_rating }}</strong></td>
+                                <td><span class="muted">{{ r.get_needs_attention_reason_display }}</span></td>
+                                <td><a href="{% url 'gbp:reviews_list' client_id=r.client.id %}">Open →</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">Nothing in the triage queue right now.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    {# NAP drift #}
+    <section class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">NAP drift</h2>
+            <span class="muted">{{ nap_mismatches|length }} unresolved</span>
+        </div>
+        <div class="admin-card__body">
+            {% if nap_mismatches %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Field</th>
+                            <th>Website</th>
+                            <th>GBP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in nap_mismatches %}
+                            <tr>
+                                <td>{{ c.checked_at|date:"M j" }}</td>
+                                <td><a href="{% url 'gbp:client_gbp' client_id=c.client.id %}">{{ c.client.firm_name }}</a></td>
+                                <td>{{ c.get_field_name_display }}</td>
+                                <td><code>{{ c.website_value|truncatechars:35 }}</code></td>
+                                <td><code>{{ c.gbp_value|truncatechars:35 }}</code></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">All synced.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    {# Eligible but unbound #}
+    {% if unbound_total %}
+        <section class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Eligible clients not yet bound</h2>
+                <span class="muted">{{ unbound_total }} of {{ eligible_total }} eligible</span>
+            </div>
+            <div class="admin-card__body">
+                <p class="muted">
+                    These clients have Maintenance Growth or Dominant but
+                    haven't been bound to a GBP location yet. Open each
+                    one and click "Bind GBP location" once they've added
+                    you as a Manager.
+                </p>
+                <ul>
+                    {% for p in unbound %}
+                        <li><a href="{% url 'gbp:client_gbp' client_id=p.id %}">{{ p.firm_name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -215,6 +215,30 @@ class ClientProfile(TimestampedModel):
     # $75 via Stripe before site restoration (CLAUDE.md rule #).
     payment_failure_offenses = models.PositiveIntegerField(default=0)
 
+    # ── Google Business Profile (Phase 5a-pivot) ──
+    # Resource name like 'accounts/<acc>/locations/<loc>' — bound from
+    # the GBP locations picker once the operator's Google account has
+    # been invited as a Manager on the client's GMB. Gated by
+    # has_gbp_features() (maintenance tier ≥ Growth).
+    gbp_location_name = models.CharField(max_length=200, blank=True)
+
+    # ── Tier-gating helpers (Phase 5a-pivot) ──
+    # GBP features live in growth + dominant maintenance tiers per
+    # the user's call. Reply UI / Q&A / listing audit gate to dominant.
+
+    _GBP_TIERS = {'maintenance_growth', 'maintenance_dominant'}
+    _GBP_PREMIUM_TIERS = {'maintenance_dominant'}
+
+    def has_gbp_features(self):
+        """True if this client's package qualifies for GBP management
+        (NAP sync, review monitoring, performance metrics)."""
+        return (self.package or '') in self._GBP_TIERS
+
+    def has_gbp_premium_features(self):
+        """True if this client qualifies for GBP reply workflow + Q&A
+        + listing audit — Dominant-tier-only features."""
+        return (self.package or '') in self._GBP_PREMIUM_TIERS
+
     def has_unpaid_out_of_scope(self):
         """True if any MiniInvoice on this client is not paid or
         cancelled. Used to gate revision work in the portal — Phase 1.4."""

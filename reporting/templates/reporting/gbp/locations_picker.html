@@ -1,21 +1,21 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}Pick GBP location — Admin{% endblock %}
+{% block title %}Bind GBP location — {{ profile.firm_name }} — Admin{% endblock %}
 
 {% block content %}
 <div class="admin-container">
 
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow">Operations · Social · GBP</span>
-            <h1 class="admin-page-title">Pick a Google Business Profile location</h1>
+            <span class="eyebrow">Operations · GBP · {{ profile.firm_name }}</span>
+            <h1 class="admin-page-title">Pick a GBP location</h1>
             <p class="admin-page-sub">
-                The connected Google account can manage multiple locations.
-                Pick the one this SocialChannel posts to.
+                Every Business Profile your Google account can manage shows
+                up here. Pick the one that belongs to {{ profile.firm_name }}.
             </p>
         </div>
         <div class="admin-page-header__actions">
-            <a class="btn-secondary" href="{% url 'social:connect_page' channel_id=channel.id %}">← Back</a>
+            <a class="btn-secondary" href="{% url 'gbp:client_gbp' client_id=profile.id %}">← Back</a>
         </div>
     </div>
 
@@ -37,7 +37,8 @@
                             <tr>
                                 <th style="width:32px;">&nbsp;</th>
                                 <th>Title</th>
-                                <th>Resource name</th>
+                                <th>Address</th>
+                                <th>Phone</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -46,24 +47,29 @@
                                     <td>
                                         <input type="radio" name="location_name"
                                                value="{{ loc.name }}"
-                                               {% if channel.handle == loc.name %}checked{% endif %}
+                                               {% if profile.gbp_location_name == loc.name %}checked{% endif %}
                                                required>
                                     </td>
-                                    <td>{{ loc.title }}</td>
-                                    <td><code style="font-size:.8rem;">{{ loc.name }}</code></td>
+                                    <td><strong>{{ loc.title }}</strong></td>
+                                    <td>
+                                        {% for line in loc.address_lines %}{{ line }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                        {% if loc.locality %}, {{ loc.locality }}{% endif %}
+                                        {% if loc.region %} {{ loc.region }}{% endif %}
+                                    </td>
+                                    <td>{{ loc.phone|default:"—" }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                     <div style="margin-top:1rem;">
-                        <button type="submit" class="btn-primary">Bind to channel</button>
+                        <button type="submit" class="btn-primary">Bind to {{ profile.firm_name }}</button>
                     </div>
                 </form>
             {% else %}
                 <p class="muted">
-                    No locations returned by the GBP API. The connected
-                    Google account may not own any business locations yet,
-                    or the API call failed (see error message above).
+                    No locations returned. Either your Google account doesn't
+                    manage any Business Profiles yet, or the client hasn't
+                    invited you yet, or the API call failed (see error above).
                 </p>
             {% endif %}
         </div>

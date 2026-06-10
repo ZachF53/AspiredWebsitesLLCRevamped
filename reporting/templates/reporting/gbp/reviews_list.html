@@ -1,0 +1,68 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Reviews — {{ profile.firm_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations · GBP · {{ profile.firm_name }}</span>
+            <h1 class="admin-page-title">Reviews</h1>
+            <p class="admin-page-sub">
+                {{ reviews|length }} review{{ reviews|length|pluralize }} on file.
+                {% if is_premium %}<em>Reply UI ships in a follow-up (Dominant tier).</em>{% endif %}
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a class="btn-secondary" href="{% url 'gbp:client_gbp' client_id=profile.id %}">← Back</a>
+        </div>
+    </div>
+
+    <section class="admin-card">
+        <div class="admin-card__body">
+            {% if reviews %}
+                <table class="admin-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>★</th>
+                            <th>Reviewer</th>
+                            <th>Comment</th>
+                            <th>Reply</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in reviews %}
+                            <tr>
+                                <td>{{ r.review_created_at|date:"M j, Y" }}</td>
+                                <td><strong>{{ r.star_rating }}</strong></td>
+                                <td>{{ r.reviewer_name|default:"—" }}</td>
+                                <td>{{ r.comment|truncatechars:120 }}</td>
+                                <td>
+                                    {% if r.operator_reply_text %}
+                                        <span style="color:var(--color-success);">✓ replied {{ r.operator_reply_at|date:"M j" }}</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if r.needs_attention %}
+                                        <span style="color:var(--color-danger);">{{ r.get_needs_attention_reason_display }}</span>
+                                    {% else %}
+                                        <span class="muted">ok</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted">No reviews synced yet.</p>
+            {% endif %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}

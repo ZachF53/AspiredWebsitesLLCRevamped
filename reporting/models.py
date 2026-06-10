@@ -1016,3 +1016,144 @@ class RedisConnectionSnapshot(models.Model):
 
     def __str__(self):
         return f'{self.captured_at:%Y-%m-%d %H:%M} — {self.total} clients'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 5a-pivot — Google Business Profile as a maintenance feature
+# ─────────────────────────────────────────────────────────────────────────────
+# Google deprecated post creation via API in late 2023, so the
+# "auto-post to GBP" idea from the original brief is dead. But the
+# remaining API surface (reviews, NAP, performance metrics) is
+# valuable as an ongoing-care deliverable for maintenance clients.
+# Gated to tier ≥ Growth via ClientProfile.has_gbp_features().
+#
+# Manager-invite architecture: ONE GbpOperatorToken per agency
+# operator account. Each client GMB invites the operator as Manager;
+# the operator's single token then lists/reads/updates ALL clients'
+# locations. No per-client OAuth dance.
+
+from django.conf import settings as _settings  # noqa: E402
+
+
+class GbpOperatorToken(TimestampedModel):
+    """OAuth token for an AGENCY operator's Google account.
+
+    One token covers every client whose GBP has invited this operator
+    as a Manager. The token holder is the User who clicked Connect;
+    in normal ops that's the agency owner + maybe a backup admin.
+
+    Server-key encrypted via vault.crypto.derive_server_key() so
+    Celery tasks (review sync, NAP check, etc.) can decrypt without
+    an admin PIN session. Matches social/crypto.py's encrypt_token /
+    decrypt_token wrappers in spirit but with a stable model location.
+    """
+
+    user = models.OneToOneField(
+        _settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='gbp_operator_token',
+    )
+    access_token_encrypted = models.TextField(blank=True)
+    refresh_token_encrypted = models.TextField(blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    scopes = models.CharField(max_length=500, blank=True)
+    # Google account email of the operator — surfaced on connect page
+    # so they can confirm which account they're using.
+    provider_account_email = models.CharField(max_length=255, blank=True)
+    last_refresh_at = models.DateTimeField(null=True, blank=True)
+    last_refresh_error = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['expires_at'])]
+        verbose_name = 'GBP Operator Token'
+        verbose_name_plural = 'GBP Operator Tokens'
+
+    def __str__(self):
+        return f'GbpOperatorToken({self.user_id}, {self.provider_account_email})'
+
+
+class GbpReview(TimestampedModel):
+    """One review fetched from a client's Google Business Profile.
+
+    Synced every 4h by reporting.tasks_gbp.sync_gbp_reviews_task. The
+    `needs_attention` flag is set when star_rating <= 3 OR the review
+    is unreplied — surfaces in the operator's daily triage view.
+    """
+
+    NEEDS_ATTENTION_REASONS = [
+        ('',          'OK'),
+        ('low_star',  '≤3 stars'),
+        ('unreplied', 'No reply'),
+        ('flagged',   'Operator flagged'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='gbp_reviews',
+    )
+    # Google's review id — composite resource name like
+    # 'accounts/.../locations/.../reviews/<id>'. Unique per client.
+    provider_review_id = models.CharField(max_length=255)
+    reviewer_name = models.CharField(max_length=255, blank=True)
+    reviewer_profile_photo_url = models.URLField(blank=True)
+    star_rating = models.IntegerField(default=0)   # 1-5
+    comment = models.TextField(blank=True)
+    review_created_at = models.DateTimeField(null=True, blank=True)
+
+    # Reply state — Phase 5a-pivot ships read-only review tracking;
+    # Dominant-tier reply workflow is a fast follow-up.
+    operator_reply_text = models.TextField(blank=True)
+    operator_reply_at = models.DateTimeField(null=True, blank=True)
+
+    needs_attention = models.BooleanField(default=False)
+    needs_attention_reason = models.CharField(
+        max_length=20, choices=NEEDS_ATTENTION_REASONS, blank=True,
+    )
+
+    class Meta:
+        unique_together = ('client', 'provider_review_id')
+        ordering = ['-review_created_at', '-created_at']
+        indexes = [
+            models.Index(fields=['client', 'needs_attention']),
+        ]
+        verbose_name = 'GBP Review'
+
+    def __str__(self):
+        return (f'GbpReview({self.client.firm_name}, '
+                f'{self.star_rating}★)')
+
+
+class GbpPerformanceSnapshot(TimestampedModel):
+    """Monthly aggregate metrics for one client's GBP location.
+
+    Pulled by reporting.tasks_gbp.snapshot_gbp_performance_task on the
+    1st of each month. Surfaces in the monthly client report for
+    tier ≥ Growth. Sourced from the Business Profile Performance API
+    (DAILY_METRIC types — we aggregate to monthly server-side).
+    """
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='gbp_performance_snapshots',
+    )
+    # First-day-of-month sentinel for the period these metrics cover.
+    snapshot_month = models.DateField()
+
+    # Headline metrics — names match Google's DAILY_METRIC enum values
+    # so future drift in the upstream API is easy to spot.
+    profile_views_search = models.IntegerField(default=0)
+    profile_views_maps = models.IntegerField(default=0)
+    call_clicks = models.IntegerField(default=0)
+    direction_requests = models.IntegerField(default=0)
+    website_clicks = models.IntegerField(default=0)
+
+    # Raw API payload for forensics / future report expansion.
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ('client', 'snapshot_month')
+        ordering = ['-snapshot_month']
+        verbose_name = 'GBP Performance Snapshot'
+
+    def __str__(self):
+        return (f'GBP perf {self.client.firm_name} '
+                f'{self.snapshot_month:%Y-%m}')

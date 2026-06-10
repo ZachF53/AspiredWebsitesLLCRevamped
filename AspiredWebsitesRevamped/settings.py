@@ -677,20 +677,25 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='*/5'),
     },
 
-    # Phase 5a — Social media auto-publisher. Picks up any
-    # ScheduledPost(status='scheduled', scheduled_for__lte=now()) and
-    # publishes via the per-platform publisher. Race-safe at the row
-    # level (atomic UPDATE flips status to 'publishing' first).
-    'publish-due-social-posts': {
-        'task': 'social.tasks.publish_due_posts',
-        'schedule': crontab(minute='*/5'),
+    # Phase 5a-pivot — Google Business Profile maintenance feature.
+    # GBP posting was deprecated by Google in late 2023, so we use the
+    # remaining API surface (reviews, NAP, performance) as a
+    # maintenance-plan deliverable (tier ≥ Growth).
+    'gbp-sync-reviews': {
+        'task': 'reporting.tasks_gbp.sync_gbp_reviews_task',
+        'schedule': crontab(hour='*/4', minute=23),  # every 4h
     },
-    # Phase 5a — Pro-actively refresh OAuth tokens before they expire,
-    # so publish-path latency stays stable. Runs hourly at :17 to
-    # offset the heavier 5-min cron and the on-the-hour reporting jobs.
-    'refresh-expiring-social-tokens': {
-        'task': 'social.tasks.refresh_expiring_tokens',
-        'schedule': crontab(minute=17),
+    'gbp-check-nap': {
+        'task': 'reporting.tasks_gbp.check_gbp_nap_task',
+        'schedule': crontab(hour=4, minute=11),  # daily ~4am
+    },
+    'gbp-snapshot-performance': {
+        'task': 'reporting.tasks_gbp.snapshot_gbp_performance_task',
+        'schedule': crontab(day_of_month=1, hour=5, minute=33),  # monthly
+    },
+    'gbp-refresh-operator-tokens': {
+        'task': 'reporting.tasks_gbp.refresh_operator_tokens_task',
+        'schedule': crontab(minute=17),  # hourly proactive refresh
     },
 }
 

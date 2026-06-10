@@ -181,7 +181,18 @@
     </section>
 
     <section class="admin-card">
-        <h3 class="admin-card__title">Google Business Profile Sync</h3>
+        <h3 class="admin-card__title">
+            Google Business Profile Sync
+            {% if client.has_gbp_features %}
+                <a class="btn-secondary btn-sm" style="float:right;" href="{% url 'gbp:client_gbp' client_id=client.id %}">Manage GBP →</a>
+            {% endif %}
+        </h3>
+        {% if not client.has_gbp_features %}
+            <p class="muted" style="font-size:.85rem;margin-top:0;">
+                Full GBP management (review monitoring, performance reporting,
+                location binding) is available on Maintenance Growth + Dominant.
+            </p>
+        {% endif %}
         {% if gbp_checks %}
             <table class="lead-table">
                 <thead><tr><th>Field</th><th>Website</th><th>GBP</th><th>Status</th><th class="lead-table__col-actions">Action</th></tr></thead>
