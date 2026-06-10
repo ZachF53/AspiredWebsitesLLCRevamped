@@ -165,10 +165,54 @@ class FileUploadForm(forms.ModelForm):
             }),
         }
 
+    # Phase 7.5 — explicit allow-list of file types accepted by the
+    # portal. Anything outside this set is rejected at form-clean. We
+    # deliberately exclude executables, archives, and code (PHP/etc.)
+    # to limit attack surface from a compromised client account.
+    ALLOWED_EXTS = {
+        # docs
+        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
+        'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx',
+        # images
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'heic',
+        # media (briefs / training)
+        'mp4', 'mov', 'webm', 'mp3', 'wav', 'm4a',
+        # design assets clients send
+        'psd', 'ai', 'sketch', 'fig',
+    }
+    ALLOWED_MIME_PREFIXES = (
+        'application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument',
+        'application/vnd.oasis.opendocument',
+        'application/rtf', 'application/vnd.ms-excel',
+        'application/vnd.ms-powerpoint',
+        'text/plain', 'text/csv', 'text/markdown',
+        'image/', 'video/', 'audio/',
+    )
+
     def clean_file(self):
+        import os
         uploaded = self.cleaned_data.get('file')
-        if uploaded and uploaded.size > 50 * 1024 * 1024:
+        if not uploaded:
+            return uploaded
+        # Size: 50MB max
+        if uploaded.size > 50 * 1024 * 1024:
             raise forms.ValidationError('Files must be 50MB or smaller.')
+        # Extension: server-side allow-list. Client-side accept is hint
+        # only — a crafted POST could bypass it.
+        ext = os.path.splitext(uploaded.name)[1].lower().lstrip('.')
+        if ext not in self.ALLOWED_EXTS:
+            raise forms.ValidationError(
+                f'File type ".{ext}" is not allowed. Send your file in '
+                f'a standard document, image, or media format.')
+        # Content-type sanity check — defense in depth against renamed
+        # executables. Browsers populate content_type from the file's
+        # MIME; allowed prefixes cover the formats above.
+        ct = (uploaded.content_type or '').lower()
+        if ct and not any(ct.startswith(p)
+                          for p in self.ALLOWED_MIME_PREFIXES):
+            raise forms.ValidationError(
+                f'File content type "{ct}" is not allowed.')
         return uploaded
 
 

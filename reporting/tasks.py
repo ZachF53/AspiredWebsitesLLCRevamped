@@ -133,29 +133,46 @@ GBP_NOT_CONNECTED = 'GBP not connected'
 
 
 def _gbp_is_connected(client):
-    """
-    True when this client has a usable Google Business Profile connection.
+    """True when an agency operator's Google account is connected.
 
-    Phase 4 social OAuth is not built yet, so this is always False today —
-    check_gbp_sync records an informational row rather than a real compare.
+    Phase 6 — manager-invite model: ONE operator token covers every
+    client. So this check is effectively "did anyone connect Google
+    yet?" rather than per-client. Operator must also have bound the
+    client to a GBP location resource via
+    ClientProfile.gbp_location_name.
     """
-    return False
+    from social.services import google_access_token
+    if not google_access_token(client):
+        return False
+    return bool(getattr(client, 'gbp_location_name', '') or '')
+
+
+def _normalise(s):
+    """Cheap normalisation for NAP comparisons."""
+    if not s:
+        return ''
+    return ' '.join(s.lower().split())
 
 
 @shared_task
 def check_gbp_sync():
-    """
-    Check NAP (name/phone/address/website) consistency between each client's
-    site and their Google Business Profile. Scheduled weekly (Mon 9am).
+    """Weekly NAP comparison between each client's site and GBP listing.
 
-    GBP OAuth is a Phase 4 dependency — until it lands this records a single
-    informational GBPSyncCheck per client instead of a real comparison.
+    Phase 6 — uses social.services.google_access_token + the bound
+    ClientProfile.gbp_location_name. Per-client try/except so one
+    failing API call doesn't abort the whole run. On any is_mismatch,
+    email LEAD_NOTIFICATION_EMAIL (best-effort).
     """
+    from django.conf import settings as _settings
+    from django.core.mail import send_mail
+
     from clients.models import ClientProfile
+
     from .models import GBPSyncCheck
 
     clients = ClientProfile.objects.filter(status='active')
     recorded = 0
+    mismatch_count = 0
     for client in clients:
         if client.stage != 'live':
             continue
@@ -165,39 +182,210 @@ def check_gbp_sync():
                 client=client,
                 field_name='website',
                 website_value=GBP_NOT_CONNECTED,
-                gbp_value='Connect GBP in Phase 4 setup',
+                gbp_value='Connect GBP via /admin-dashboard/gbp/connect/',
                 is_mismatch=False,
             )
             recorded += 1
             continue
 
-        # When GBP OAuth lands: scrape NAP fields from project.live_url,
-        # fetch the same fields from the GBP API, and record a GBPSyncCheck
-        # per field — flagging is_mismatch and notifying the admin on a diff.
+        # Connected client — make a real GBP fetch.
+        try:
+            from reporting.google_gbp import fetch_location
+            from reporting.models import GbpOperatorToken
+            token = (GbpOperatorToken.objects
+                     .order_by('created_at').first())
+            data = fetch_location(token, client.gbp_location_name)
+        except Exception:
+            logger.exception(
+                'check_gbp_sync: fetch_location failed for %s', client.pk)
+            GBPSyncCheck.objects.create(
+                client=client,
+                field_name='website',
+                website_value='(error)',
+                gbp_value='GBP API error — see logs',
+                is_mismatch=False,
+            )
+            continue
 
-    return f'Recorded GBP sync status for {recorded} client(s).'
+        if not data:
+            continue
+
+        # Pull GBP-side values.
+        gbp_name = (data.get('title') or '').strip()
+        phones = data.get('phoneNumbers') or {}
+        gbp_phone = (phones.get('primaryPhone') or '').strip()
+        sa = data.get('storefrontAddress') or {}
+        gbp_address = ' '.join(sa.get('addressLines') or []).strip()
+        gbp_website = (data.get('websiteUri') or '').strip()
+
+        comparisons = [
+            ('business_name', (client.firm_name or '').strip(), gbp_name),
+            ('phone', (client.phone or '').strip(), gbp_phone),
+            ('address', (client.address or '').strip(), gbp_address),
+            ('website', (client.website or '').strip(), gbp_website),
+        ]
+        client_mismatch = False
+        for field_name, web_val, gbp_val in comparisons:
+            mismatch = bool(web_val) and bool(gbp_val) and (
+                _normalise(web_val) != _normalise(gbp_val))
+            GBPSyncCheck.objects.create(
+                client=client,
+                field_name=field_name,
+                website_value=web_val,
+                gbp_value=gbp_val,
+                is_mismatch=mismatch,
+            )
+            recorded += 1
+            if mismatch:
+                client_mismatch = True
+                mismatch_count += 1
+
+        # Per-client alert email — only one per run per client even if
+        # multiple fields mismatched.
+        if client_mismatch:
+            try:
+                send_mail(
+                    subject=(
+                        f'[GBP drift] {client.firm_name} — NAP fields '
+                        f'differ from Google Business Profile'),
+                    message=(
+                        f'NAP drift detected for {client.firm_name}.\n\n'
+                        f'See /admin-dashboard/gbp/clients/{client.id}/nap/'
+                        f' for the field-by-field comparison.'),
+                    from_email=getattr(
+                        _settings, 'DEFAULT_FROM_EMAIL',
+                        'zachery@aspiredwebsites.com'),
+                    recipient_list=[getattr(
+                        _settings, 'LEAD_NOTIFICATION_EMAIL',
+                        'zachery@aspiredwebsites.com')],
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception(
+                    'check_gbp_sync: drift alert email failed for %s',
+                    client.pk)
+
+    return (f'Recorded {recorded} GBP sync row(s); '
+            f'{mismatch_count} mismatch(es).')
 
 
 # ── Part 3: Keyword rank tracking ───────────────────────────────────────────
 
+def _gsc_query_position(token, kw):
+    """Query Google Search Console for the avg position + impressions +
+    clicks of one keyword over the past 7 days.
+
+    Returns a dict with keys 'position' (rounded int or None),
+    'impressions' (int), 'clicks' (int), or None if no rows or the
+    request failed.
+    """
+    import datetime as _dt
+
+    import requests
+
+    # Resolve the GSC property from the client's website. Try both
+    # https://example.com/ and sc-domain:example.com (domain property).
+    site = (kw.client.website or '').strip()
+    if not site:
+        logger.warning(
+            '_gsc_query_position: keyword %s has no client website set',
+            kw.pk)
+        return None
+
+    if not site.startswith('http'):
+        site = 'https://' + site
+    site = site.rstrip('/') + '/'
+    domain_property = 'sc-domain:' + (
+        site.split('//', 1)[1].split('/', 1)[0])
+
+    end = _dt.date.today()
+    start = end - _dt.timedelta(days=7)
+    body = {
+        'startDate': start.isoformat(),
+        'endDate':   end.isoformat(),
+        'dimensions': ['query'],
+        'dimensionFilterGroups': [{
+            'filters': [{
+                'dimension': 'query',
+                'operator':  'equals',
+                'expression': kw.keyword,
+            }],
+        }],
+        'rowLimit': 1,
+    }
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type':  'application/json',
+    }
+    for property_url in (site, domain_property):
+        try:
+            r = requests.post(
+                ('https://searchconsole.googleapis.com/webmasters/v3'
+                 f'/sites/{requests.utils.quote(property_url, safe="")}'
+                 '/searchAnalytics/query'),
+                json=body, headers=headers, timeout=20)
+        except requests.RequestException:
+            logger.exception(
+                '_gsc_query_position: network error for %s', property_url)
+            continue
+        if r.status_code != 200:
+            # Try the next property shape.
+            continue
+        rows = (r.json() or {}).get('rows') or []
+        if not rows:
+            return None
+        row = rows[0]
+        pos = row.get('position')
+        return {
+            'position':    int(round(pos)) if pos else None,
+            'impressions': int(row.get('impressions') or 0),
+            'clicks':      int(row.get('clicks') or 0),
+        }
+    return None
+
+
 @shared_task
 def check_keyword_ranks():
-    """
-    Refresh ranking positions for every active tracked keyword. Scheduled
-    weekly (Mon 7am).
+    """Weekly GSC rank pull for every active TrackedKeyword.
 
-    Live positions come from the Google Search Console API, which requires
-    per-client OAuth (Phase 4). Until that is connected this is a safe
-    no-op — staff can enter KeywordRankRecord rows manually via the admin.
+    Phase 6 — connected clients (operator has linked Google account)
+    get a real KeywordRankRecord. Disconnected clients are skipped so
+    the manual-entry admin path keeps working.
     """
-    from .models import TrackedKeyword
+    from social.services import google_access_token
 
-    active = TrackedKeyword.objects.filter(is_active=True).count()
-    logger.info(
-        'check_keyword_ranks: %s active keyword(s); GSC API not connected — '
-        'no automatic ranks fetched.', active,
-    )
-    return f'{active} active keyword(s); GSC not connected.'
+    from .models import KeywordRankRecord, TrackedKeyword
+
+    created = 0
+    skipped_no_token = 0
+    errors = 0
+    for kw in (TrackedKeyword.objects
+               .filter(is_active=True)
+               .select_related('client')):
+        token = google_access_token(kw.client)
+        if not token:
+            skipped_no_token += 1
+            continue
+        try:
+            row = _gsc_query_position(token, kw)
+        except Exception:
+            logger.exception(
+                'check_keyword_ranks: _gsc_query_position raised for %s',
+                kw.pk)
+            errors += 1
+            continue
+        if row is None:
+            continue
+        KeywordRankRecord.objects.create(
+            keyword=kw,
+            position=row.get('position'),
+            impressions=row.get('impressions', 0),
+            clicks=row.get('clicks', 0),
+        )
+        created += 1
+    return (f'Keyword ranks: {created} created, '
+            f'{skipped_no_token} skipped (no token), '
+            f'{errors} errored.')
 
 
 # ── Part 4: Conversion-drop alerts ──────────────────────────────────────────

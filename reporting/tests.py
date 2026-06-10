@@ -581,3 +581,150 @@ class AdminReportingPageTests(TestCase):
                 self.client.get(reverse(
                     f'admin_dashboard:{name}', args=[self.cp.id])).status_code,
                 200, name)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 6 — GBP NAP sync + GSC keyword ranks
+# ─────────────────────────────────────────────────────────────────────────────
+
+from unittest.mock import patch as _patch6
+
+from django.core import mail as _mail
+from django.test import override_settings as _override6
+
+
+@_override6(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class GbpIsConnectedTests(TestCase):
+    @_patch6('social.services.google_access_token')
+    def test_no_token_means_disconnected(self, mock_tok):
+        from reporting.tasks import _gbp_is_connected
+        mock_tok.return_value = None
+        c = _client('NoConn LLC', status='active', stage='live',
+                    gbp_location_name='accounts/1/locations/2')
+        self.assertFalse(_gbp_is_connected(c))
+
+    @_patch6('social.services.google_access_token')
+    def test_token_no_location_disconnected(self, mock_tok):
+        from reporting.tasks import _gbp_is_connected
+        mock_tok.return_value = 'ya29.test'
+        c = _client('NoLoc LLC', status='active', stage='live')
+        self.assertFalse(_gbp_is_connected(c))
+
+    @_patch6('social.services.google_access_token')
+    def test_token_and_location_connected(self, mock_tok):
+        from reporting.tasks import _gbp_is_connected
+        mock_tok.return_value = 'ya29.test'
+        c = _client('OK LLC', status='active', stage='live',
+                    gbp_location_name='accounts/1/locations/2')
+        self.assertTrue(_gbp_is_connected(c))
+
+
+@_override6(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class CheckGbpSyncTests(TestCase):
+    @_patch6('social.services.google_access_token')
+    def test_disconnected_records_informational_row(self, mock_tok):
+        from reporting.models import GBPSyncCheck
+        from reporting.tasks import check_gbp_sync
+        mock_tok.return_value = None
+        _client('A LLC', status='active', stage='live')
+        _mail.outbox = []
+        check_gbp_sync()
+        rows = GBPSyncCheck.objects.all()
+        self.assertEqual(rows.count(), 1)
+        self.assertFalse(rows.first().is_mismatch)
+        self.assertEqual(len(_mail.outbox), 0)
+
+    @_patch6('social.services.google_access_token')
+    @_patch6('reporting.google_gbp.fetch_location')
+    def test_mismatch_records_rows_and_emails(self, mock_fetch, mock_tok):
+        from reporting.google_gbp import encrypt_token
+        from reporting.models import GBPSyncCheck, GbpOperatorToken
+        from reporting.tasks import check_gbp_sync
+
+        mock_tok.return_value = 'ya29.test'
+        mock_fetch.return_value = {
+            'title':            'Wrong Name LLC',
+            'phoneNumbers':     {'primaryPhone': '210-555-9999'},
+            'storefrontAddress': {'addressLines': ['123 Main St']},
+            'websiteUri':       'https://example.com',
+        }
+        # Need a real GbpOperatorToken so the inner fetch lookup works.
+        c = _client('Drift LLC', status='active', stage='live',
+                    gbp_location_name='accounts/1/locations/2',
+                    phone='210-555-0000', address='123 Main St',
+                    website='https://example.com')
+        u = c.user
+        with _override6(VAULT_SERVER_SECRET='test-vault-secret'):
+            GbpOperatorToken.objects.create(
+                user=u,
+                access_token_encrypted=encrypt_token('ya29.test'),
+                refresh_token_encrypted=encrypt_token('refresh.test'),
+                expires_at=timezone.now() + timedelta(hours=1),
+            )
+            _mail.outbox = []
+            check_gbp_sync()
+
+        # 4 fields recorded
+        self.assertEqual(GBPSyncCheck.objects.filter(client=c).count(), 4)
+        name_row = GBPSyncCheck.objects.get(
+            client=c, field_name='business_name')
+        self.assertTrue(name_row.is_mismatch)
+        phone_row = GBPSyncCheck.objects.get(client=c, field_name='phone')
+        self.assertTrue(phone_row.is_mismatch)
+        # At least one alert email
+        self.assertGreaterEqual(len(_mail.outbox), 1)
+
+
+class CheckKeywordRanksTests(TestCase):
+    @_patch6('social.services.google_access_token')
+    def test_skips_when_no_token(self, mock_tok):
+        from reporting.models import KeywordRankRecord, TrackedKeyword
+        from reporting.tasks import check_keyword_ranks
+        mock_tok.return_value = None
+        c = _client('NoToken LLC', status='active', stage='live',
+                    website='https://example.com')
+        TrackedKeyword.objects.create(
+            client=c, keyword='estate planning', is_active=True)
+        check_keyword_ranks()
+        self.assertEqual(KeywordRankRecord.objects.count(), 0)
+
+    @_patch6('social.services.google_access_token')
+    @_patch6('reporting.tasks._gsc_query_position')
+    def test_creates_record_when_gsc_returns_data(self, mock_gsc, mock_tok):
+        from reporting.models import KeywordRankRecord, TrackedKeyword
+        from reporting.tasks import check_keyword_ranks
+        mock_tok.return_value = 'ya29.test'
+        mock_gsc.return_value = {
+            'position': 7, 'impressions': 250, 'clicks': 15,
+        }
+        c = _client('HasToken LLC', status='active', stage='live',
+                    website='https://example.com')
+        TrackedKeyword.objects.create(
+            client=c, keyword='estate planning', is_active=True)
+        check_keyword_ranks()
+        rec = KeywordRankRecord.objects.get()
+        self.assertEqual(rec.position, 7)
+        self.assertEqual(rec.impressions, 250)
+        self.assertEqual(rec.clicks, 15)
+
+    @_patch6('social.services.google_access_token')
+    @_patch6('reporting.tasks._gsc_query_position')
+    def test_gsc_error_does_not_abort_loop(self, mock_gsc, mock_tok):
+        from reporting.models import KeywordRankRecord, TrackedKeyword
+        from reporting.tasks import check_keyword_ranks
+        mock_tok.return_value = 'ya29.test'
+        # First call raises, second returns data
+        mock_gsc.side_effect = [RuntimeError('boom'), {
+            'position': 5, 'impressions': 100, 'clicks': 8,
+        }]
+        c1 = _client('Err LLC', status='active', stage='live',
+                     website='https://example.com')
+        c2 = _client('OK LLC', status='active', stage='live',
+                     website='https://example.com')
+        TrackedKeyword.objects.create(
+            client=c1, keyword='one', is_active=True)
+        TrackedKeyword.objects.create(
+            client=c2, keyword='two', is_active=True)
+        check_keyword_ranks()
+        # Second keyword still got a record despite first one raising
+        self.assertEqual(KeywordRankRecord.objects.count(), 1)

@@ -1,0 +1,30 @@
+{% comment %}
+    Shown at the top of every GBP page until Google approves the
+    operator's quota request for the Business Profile APIs. The
+    OAuth flow still works (we can connect tokens); every API call
+    that needs quota will 429 until approval lands.
+{% endcomment %}
+<section class="admin-card" style="border-left:4px solid var(--color-orange,#E8650A);margin-bottom:1.5rem;">
+    <div class="admin-card__body">
+        <h2 style="margin-top:0;">⏳ Awaiting Google API approval</h2>
+        <p>
+            Google requires manual approval for any project to call the
+            Business Profile APIs above 0 requests per minute. Until
+            that's granted, the dashboards on this page will be empty
+            and the bind/sync flows will return <code>429 Too Many Requests</code>.
+        </p>
+        <p class="muted" style="font-size:.9rem;">
+            <strong>What to do:</strong> Apply for higher quota in your
+            Cloud Console
+            (<a href="https://console.cloud.google.com/iam-admin/quotas" target="_blank" rel="noopener">APIs &amp; Services → Quotas</a>),
+            search the My Business APIs, and request 60 RPM or higher.
+            Google typically reviews in 1–4 weeks. Once approved, no code
+            changes needed — the existing dashboards start populating.
+        </p>
+        <p class="muted" style="font-size:.85rem;margin-bottom:0;">
+            Meanwhile the OAuth connect flow still works (you can pre-bind
+            tokens) and the comp tier mechanism lets you offer GBP in your
+            Growth/Dominant tiers as soon as access lands.
+        </p>
+    </div>
+</section>

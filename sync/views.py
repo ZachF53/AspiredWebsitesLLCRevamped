@@ -124,6 +124,25 @@ def sync_file(request, document_id):
     if upload is None:
         return JsonResponse({'error': 'no file provided'}, status=400)
 
+    # Phase 7.5 — even with HMAC gating, validate type + size so a
+    # compromised Moonieful server can't push arbitrary executables.
+    import os
+    SYNC_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
+    SYNC_ALLOWED_EXTS = {
+        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
+        'xls', 'xlsx', 'csv', 'ppt', 'pptx',
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+        'mp4', 'mov', 'webm', 'mp3', 'wav', 'm4a',
+        'psd', 'ai', 'sketch', 'fig',
+    }
+    if upload.size > SYNC_MAX_SIZE:
+        return JsonResponse(
+            {'error': 'file too large (50 MB max)'}, status=400)
+    ext = os.path.splitext(upload.name)[1].lower().lstrip('.')
+    if ext not in SYNC_ALLOWED_EXTS:
+        return JsonResponse(
+            {'error': f'file type ".{ext}" not allowed'}, status=400)
+
     document.file.save(upload.name, upload, save=True)
     return JsonResponse({'status': 'ok'}, status=200)
 
