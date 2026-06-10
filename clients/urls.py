@@ -16,6 +16,7 @@ urlpatterns = [
          name='chooser_pick'),
 
     path('', views.dashboard, name='dashboard'),
+    path('social/', views.social_channels, name='social_channels'),
     path('project/', views.project_detail, name='project'),
     path('intake/', views.intake, name='intake'),
     path('intake/save/', views.intake_save, name='intake_save'),

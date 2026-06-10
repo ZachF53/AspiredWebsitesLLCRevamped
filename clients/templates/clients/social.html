@@ -1,0 +1,114 @@
+{% extends "clients/base.html" %}
+
+{% block title %}Social Channels{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Social Channels</h1>
+    <p class="portal-page-head__sub">
+        Your active social media plan, connected accounts, and recent posts.
+    </p>
+</header>
+
+{% if plans %}
+    {% for plan in plans %}
+        <section class="portal-section">
+            <h2 class="portal-section__title">
+                {{ plan.get_tier_slug_display }}
+                <span class="muted" style="font-weight:400;font-size:.9rem;">
+                    &middot; {{ plan.get_status_display }}
+                </span>
+            </h2>
+            <div class="service-card">
+                <div class="service-card__head">
+                    <strong>Channels: {{ plan.channels.count }} of {{ plan.max_channels }}</strong>
+                    {% if plan.started_at %}
+                        <span class="muted">Active since {{ plan.started_at|date:"M j, Y" }}</span>
+                    {% endif %}
+                </div>
+
+                {% if plan.channels.all %}
+                    <table class="portal-table" style="margin-top:1rem;">
+                        <thead>
+                            <tr>
+                                <th>Platform</th>
+                                <th>Handle</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ch in plan.channels.all %}
+                                <tr>
+                                    <td>{{ ch.get_platform_display }}</td>
+                                    <td><code>{{ ch.handle }}</code></td>
+                                    <td>{{ ch.get_status_display }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="muted" style="margin-top:1rem;">
+                        No channels connected yet. We&rsquo;ll set them up shortly &mdash; you don&rsquo;t need to do anything on your end.
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+    {% endfor %}
+{% else %}
+    <section class="portal-section">
+        <div class="service-card">
+            <p class="muted">
+                No active social media plan on your account. If you&rsquo;d like
+                us to manage your social channels,
+                <a href="{% url 'clients:support' %}">get in touch</a>.
+            </p>
+        </div>
+    </section>
+{% endif %}
+
+{% if recent_posts %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Recent posts</h2>
+        <div class="service-card">
+            <table class="portal-table">
+                <thead>
+                    <tr>
+                        <th>Posted / Scheduled</th>
+                        <th>Channel</th>
+                        <th>Preview</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for post in recent_posts %}
+                        <tr>
+                            <td>{{ post.scheduled_for|date:"M j, Y g:i A"|default:"—" }}</td>
+                            <td>{{ post.channel.get_platform_display }}</td>
+                            <td>
+                                <span class="muted">{{ post.body|truncatechars:90 }}</span>
+                                {% with result=post.results.first %}
+                                    {% if result.permalink %}
+                                        &nbsp;<a href="{{ result.permalink }}" target="_blank" rel="noopener">View &rarr;</a>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>{{ post.get_status_display }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endif %}
+
+<section class="portal-section">
+    <div class="service-card">
+        <p class="muted">
+            <strong>Want a post scheduled or a channel added?</strong>
+            Reply on any of our threads or open a
+            <a href="{% url 'clients:support' %}">support ticket</a> &mdash;
+            we&rsquo;ll take it from there.
+        </p>
+    </div>
+</section>
+{% endblock %}

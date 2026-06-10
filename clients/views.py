@@ -327,6 +327,45 @@ def dashboard(request):
     return render(request, 'clients/dashboard.html', ctx)
 
 
+# ── Page: Social Channels (portal-side read-only view) ─────────────────────
+
+@client_required
+def social_channels(request):
+    """Client-portal social page — read-only view of their active
+    SocialMediaPlan(s), connected channels, and recent posts.
+
+    Channel management (OAuth, composing, scheduling) lives on the
+    admin side at /admin-dashboard/social/. This page just shows the
+    client what's connected and what's been published recently.
+    """
+    profile = request.client_profile
+    account = getattr(request.user, 'account', None)
+
+    plans = []
+    recent_posts = []
+    if account is not None:
+        plans = list(
+            account.social_media_plans
+            .prefetch_related('channels')
+            .order_by('-started_at')
+        )
+        # Pull the last 10 posts across every channel on this account.
+        from social.models import ScheduledPost
+        recent_posts = list(
+            ScheduledPost.objects
+            .filter(client=profile)
+            .select_related('channel')
+            .order_by('-scheduled_for', '-created_at')[:10]
+        )
+
+    ctx = _portal_context(
+        request, 'social',
+        plans=plans,
+        recent_posts=recent_posts,
+    )
+    return render(request, 'clients/social.html', ctx)
+
+
 # ── Page 2: My Project ──────────────────────────────────────────────────────
 
 @client_required
