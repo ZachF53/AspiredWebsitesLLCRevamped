@@ -1,0 +1,101 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ channel.get_platform_display }} — Connect — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'social:channels_list' %}" class="admin-back-link">&larr; All channels</a>
+            </span>
+            <h1 class="admin-page-title">{{ channel.get_platform_display }} — {{ channel.handle }}</h1>
+            {% if client %}
+                <p class="muted">{{ client.firm_name }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="form-info" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="admin-card">
+        {% if not wired %}
+            <h2 class="admin-card-title">Not wired yet</h2>
+            <p class="muted">
+                We don&rsquo;t have a publisher for
+                {{ channel.get_platform_display }} yet. Facebook,
+                Instagram, and LinkedIn are live; other platforms are
+                tracked here but you&rsquo;ll have to post to them manually
+                for now.
+            </p>
+        {% elif connected %}
+            <h2 class="admin-card-title">Connected</h2>
+            <dl class="admin-meta">
+                <dt>Provider account id</dt>
+                <dd><code>{{ token.provider_account_id }}</code></dd>
+                <dt>Connected by</dt>
+                <dd>{{ token.connected_by.username }}</dd>
+                <dt>Last refreshed</dt>
+                <dd>{{ token.last_refresh_at|default:"—" }}</dd>
+                <dt>Token expires</dt>
+                <dd>{{ token.expires_at|default:"—" }}</dd>
+                {% if token.last_refresh_error %}
+                    <dt>Last refresh error</dt>
+                    <dd class="form-error">{{ token.last_refresh_error }}</dd>
+                {% endif %}
+            </dl>
+
+            <div style="margin-top:1.5rem; display:flex; gap:0.75rem;">
+                <a href="{% url 'social:compose' channel_id=channel.id %}"
+                   class="btn btn-primary">Compose a post &rarr;</a>
+                <a href="{% url 'social:posts_list' channel_id=channel.id %}"
+                   class="btn btn-secondary">Post history</a>
+
+                {% if channel.platform == 'facebook' or channel.platform == 'instagram' %}
+                    <form method="post" action="{% url 'social:meta_disconnect' channel_id=channel.id %}"
+                          style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"
+                                onclick="return confirm('Disconnect? Scheduled posts will fail.')">
+                            Disconnect
+                        </button>
+                    </form>
+                {% elif channel.platform == 'linkedin' %}
+                    <form method="post" action="{% url 'social:linkedin_disconnect' channel_id=channel.id %}"
+                          style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"
+                                onclick="return confirm('Disconnect? Scheduled posts will fail.')">
+                            Disconnect
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        {% else %}
+            <h2 class="admin-card-title">Not connected</h2>
+            <p>
+                Click below to connect the client&rsquo;s
+                {{ channel.get_platform_display }} account.
+                You&rsquo;ll log in with your own Meta / LinkedIn account
+                and select which Page or Organization to post to.
+            </p>
+
+            <div style="margin-top:1.5rem;">
+                {% if channel.platform == 'facebook' or channel.platform == 'instagram' %}
+                    <a href="{% url 'social:meta_connect_start' channel_id=channel.id %}"
+                       class="btn btn-primary">Connect with Meta &rarr;</a>
+                {% elif channel.platform == 'linkedin' %}
+                    <a href="{% url 'social:linkedin_connect_start' channel_id=channel.id %}"
+                       class="btn btn-primary">Connect with LinkedIn &rarr;</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Social Media — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Social Media Manager</span>
+            <h1 class="admin-page-title">Channels</h1>
+            <p class="muted">All connected social channels across every client with an active Social Media plan.</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="form-info" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="admin-card">
+        {% if rows %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Platform</th>
+                        <th>Handle</th>
+                        <th>Status</th>
+                        <th>Pending</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>{{ row.plan.account.name }}</td>
+                            <td>{{ row.channel.get_platform_display }}</td>
+                            <td><code>{{ row.channel.handle }}</code></td>
+                            <td>
+                                {% if not row.wired %}
+                                    <span class="badge badge-muted">Not wired yet</span>
+                                {% elif row.connected %}
+                                    <span class="badge badge-success">Connected</span>
+                                {% else %}
+                                    <span class="badge badge-warning">Not connected</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.pending }}</td>
+                            <td style="text-align:right;">
+                                <a href="{% url 'social:connect_page' channel_id=row.channel.id %}"
+                                   class="btn btn-secondary btn-sm">Manage</a>
+                                {% if row.connected %}
+                                    <a href="{% url 'social:compose' channel_id=row.channel.id %}"
+                                       class="btn btn-primary btn-sm">Compose</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No social channels yet. Add a Social Media plan to a client to get started.</p>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

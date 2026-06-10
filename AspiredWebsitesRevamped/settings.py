@@ -699,6 +699,16 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks_gbp.refresh_operator_tokens_task',
         'schedule': crontab(minute=17),  # hourly proactive refresh
     },
+
+    # Phase 5b/5c — Social media manager (Meta + LinkedIn).
+    'publish-due-social-posts': {
+        'task': 'social.tasks.publish_due_posts',
+        'schedule': crontab(minute='*/5'),  # every 5 min
+    },
+    'refresh-expiring-social-tokens': {
+        'task': 'social.tasks.refresh_expiring_tokens',
+        'schedule': crontab(minute=23),  # hourly, offset from gbp refresh
+    },
 }
 
 # ── Channels (WebSocket / ASGI) ─────────────────────────────────────────────

@@ -1,0 +1,53 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Pick a Page — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Meta OAuth</span>
+            <h1 class="admin-page-title">Pick a Page</h1>
+            <p class="muted">
+                Choose which Page (or linked Instagram account) to bind
+                to this channel. {{ channel.handle }}.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="form-info" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="admin-card">
+        <form method="post" action="{% url 'social:meta_page_picker' channel_id=channel.id %}">
+            {% csrf_token %}
+
+            {% for page in pages %}
+                <div class="form-group">
+                    <label style="display:flex; gap:0.75rem; align-items:center;">
+                        <input type="radio" name="page_id" value="{{ page.id }}" required>
+                        <span>
+                            <strong>{{ page.name }}</strong>
+                            <span class="muted">id {{ page.id }}</span>
+                            {% if page.ig_business_id %}
+                                <span class="badge badge-info">Instagram linked</span>
+                            {% endif %}
+                        </span>
+                    </label>
+                </div>
+            {% endfor %}
+
+            <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                <button type="submit" class="btn btn-primary">Bind this Page</button>
+                <a href="{% url 'social:connect_page' channel_id=channel.id %}"
+                   class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </section>
+
+</div>
+{% endblock %}

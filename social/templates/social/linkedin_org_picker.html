@@ -1,0 +1,50 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Pick an Organization — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">LinkedIn OAuth</span>
+            <h1 class="admin-page-title">Pick an Organization</h1>
+            <p class="muted">
+                Choose which LinkedIn Organization Page to bind to
+                {{ channel.handle }}.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="form-info" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="admin-card">
+        <form method="post" action="{% url 'social:linkedin_org_picker' channel_id=channel.id %}">
+            {% csrf_token %}
+
+            {% for org in orgs %}
+                <div class="form-group">
+                    <label style="display:flex; gap:0.75rem; align-items:center;">
+                        <input type="radio" name="org_urn" value="{{ org.urn }}" required>
+                        <span>
+                            <strong>{{ org.name }}</strong>
+                            <span class="muted">{{ org.urn }}</span>
+                        </span>
+                    </label>
+                </div>
+            {% endfor %}
+
+            <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                <button type="submit" class="btn btn-primary">Bind this Organization</button>
+                <a href="{% url 'social:connect_page' channel_id=channel.id %}"
+                   class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </section>
+
+</div>
+{% endblock %}

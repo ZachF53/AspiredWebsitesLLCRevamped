@@ -1,0 +1,102 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Posts — {{ channel.get_platform_display }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'social:connect_page' channel_id=channel.id %}"
+                   class="admin-back-link">&larr; {{ channel.get_platform_display }}</a>
+            </span>
+            <h1 class="admin-page-title">Posts</h1>
+            <p class="muted">{{ channel.handle }}</p>
+        </div>
+        <div>
+            <a href="{% url 'social:compose' channel_id=channel.id %}"
+               class="btn btn-primary">New post</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="form-info" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="admin-card">
+        {% if posts %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Scheduled for</th>
+                        <th>Status</th>
+                        <th>Preview</th>
+                        <th>Result</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for post in posts %}
+                        <tr>
+                            <td>{{ post.scheduled_for|default:"—" }}</td>
+                            <td>
+                                {% if post.status == 'published' %}
+                                    <span class="badge badge-success">Published</span>
+                                {% elif post.status == 'scheduled' %}
+                                    <span class="badge badge-info">Scheduled</span>
+                                {% elif post.status == 'publishing' %}
+                                    <span class="badge badge-warning">Publishing&hellip;</span>
+                                {% elif post.status == 'failed' %}
+                                    <span class="badge badge-danger">Failed</span>
+                                {% else %}
+                                    <span class="badge badge-muted">{{ post.get_status_display }}</span>
+                                {% endif %}
+                                {% if post.ai_generated %}
+                                    <span class="badge badge-muted">AI</span>
+                                {% endif %}
+                            </td>
+                            <td style="max-width:420px;">
+                                <span class="muted">{{ post.body|truncatechars:140 }}</span>
+                            </td>
+                            <td>
+                                {% with result=post.results.first %}
+                                    {% if result %}
+                                        {% if result.permalink %}
+                                            <a href="{{ result.permalink }}" target="_blank" rel="noopener">View</a>
+                                        {% elif result.error_detail %}
+                                            <span class="form-error">{{ result.error_detail|truncatechars:80 }}</span>
+                                        {% else %}
+                                            &mdash;
+                                        {% endif %}
+                                    {% else %}
+                                        &mdash;
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td style="text-align:right;">
+                                {% if post.status == 'scheduled' or post.status == 'draft' %}
+                                    <form method="post"
+                                          action="{% url 'social:post_delete' channel_id=channel.id post_id=post.id %}"
+                                          style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger btn-sm"
+                                                onclick="return confirm('Cancel this scheduled post?')">
+                                            Cancel
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">No posts yet. <a href="{% url 'social:compose' channel_id=channel.id %}">Compose the first one &rarr;</a></p>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

@@ -51,6 +51,9 @@ urlpatterns = [
     # a maintenance-plan feature (tier ≥ Growth).
     path('admin-dashboard/gbp/',
          include('reporting.urls_gbp', namespace='gbp')),
+    # Phase 5b/5c — Meta + LinkedIn social media manager.
+    path('admin-dashboard/social/',
+         include('social.urls', namespace='social')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
     path('portal/', include('clients.urls')),
     path('onboarding/', include('onboarding.urls', namespace='onboarding')),
