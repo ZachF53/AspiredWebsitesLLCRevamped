@@ -78,11 +78,13 @@
             </div>
         </section>
 
-        {# Recent reviews #}
+        {# Recent reviews — API access requires applying for legacy GMB API #}
         <section class="admin-card">
             <div class="admin-card__header">
                 <h2 class="admin-card__title">Recent reviews</h2>
-                <a class="btn-secondary btn-sm" href="{% url 'gbp:reviews_list' client_id=profile.id %}">All reviews →</a>
+                {% if recent_reviews %}
+                    <a class="btn-secondary btn-sm" href="{% url 'gbp:reviews_list' client_id=profile.id %}">All reviews →</a>
+                {% endif %}
             </div>
             <div class="admin-card__body">
                 {% if recent_reviews %}
@@ -106,7 +108,17 @@
                         </tbody>
                     </table>
                 {% else %}
-                    <p class="muted">No reviews synced yet.</p>
+                    <p class="muted" style="margin-bottom:.5rem;">
+                        <strong>Reviews API access not enabled.</strong>
+                    </p>
+                    <p class="muted" style="font-size:.9rem;">
+                        Google moved review reads behind a separate access
+                        application for the legacy Google My Business API.
+                        Until that's granted (or we wire up a 3rd-party
+                        aggregator like Birdeye / GatherUp), open the
+                        client's GBP listing directly in the Google Business
+                        Profile web or mobile app to see + reply to reviews.
+                    </p>
                 {% endif %}
             </div>
         </section>

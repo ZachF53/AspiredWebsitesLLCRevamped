@@ -15,6 +15,9 @@
             </p>
         </div>
         <div>
+            {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
+                <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' client_id=account.legacy_client_profile_id %}">Manage GBP &rarr;</a>
+            {% endif %}
             <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' account.legacy_client_profile_id %}">Legacy Client view &rarr;</a>
         </div>
     </div>
@@ -66,6 +69,30 @@
             <button type="submit" class="btn-primary">Save Account</button>
         </div>
     </form>
+
+    {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
+    {# Phase 5a-pivot — Google Business Profile management card.
+       Shown only for clients on Maintenance Growth or Dominant tiers. #}
+    <div class="admin-card" style="margin-top: 2rem;border-left:4px solid var(--color-orange,#E8650A);">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Google Business Profile</h2>
+            <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' client_id=account.legacy_client_profile_id %}">Manage →</a>
+        </div>
+        <div class="admin-card__body">
+            <p class="muted" style="margin-top:0;font-size:.9rem;">
+                NAP sync, performance reporting, and review management
+                {% if account.legacy_client_profile.has_gbp_premium_features %}<em>(with reply workflow on Dominant tier)</em>{% endif %}.
+                {% if account.legacy_client_profile.gbp_location_name %}
+                    Bound to: <code style="font-size:.75rem;">{{ account.legacy_client_profile.gbp_location_name }}</code>
+                {% else %}
+                    <strong>No GBP location bound yet.</strong>
+                    Once {{ account.name }} has added you as a Manager on their
+                    Business Profile, click <em>Manage →</em> to bind the right location.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endif %}
 
     {# Websites under this account — cards with deep-links. #}
     <div class="admin-card" style="margin-top: 2rem;">

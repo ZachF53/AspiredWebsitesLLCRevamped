@@ -679,12 +679,14 @@ CELERY_BEAT_SCHEDULE = {
 
     # Phase 5a-pivot — Google Business Profile maintenance feature.
     # GBP posting was deprecated by Google in late 2023, so we use the
-    # remaining API surface (reviews, NAP, performance) as a
-    # maintenance-plan deliverable (tier ≥ Growth).
-    'gbp-sync-reviews': {
-        'task': 'reporting.tasks_gbp.sync_gbp_reviews_task',
-        'schedule': crontab(hour='*/4', minute=23),  # every 4h
-    },
+    # remaining API surface as a maintenance-plan deliverable
+    # (tier ≥ Growth).
+    #
+    # Review sync deliberately NOT scheduled — it requires the legacy
+    # Google My Business API which is gated for new Cloud projects
+    # behind a manual application. The task still exists and will work
+    # if the project ever gets approved; until then it silently no-ops.
+    # Operator can still see reviews by opening the GBP web/mobile app.
     'gbp-check-nap': {
         'task': 'reporting.tasks_gbp.check_gbp_nap_task',
         'schedule': crontab(hour=4, minute=11),  # daily ~4am

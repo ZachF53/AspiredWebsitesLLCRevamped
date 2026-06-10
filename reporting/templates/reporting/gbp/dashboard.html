@@ -55,13 +55,23 @@
         </section>
     {% endif %}
 
-    {# Reviews needing attention #}
+    {# Reviews needing attention — empty until GMB API access is granted #}
     <section class="admin-card">
         <div class="admin-card__header">
             <h2 class="admin-card__title">Reviews needing attention</h2>
             <span class="muted">{{ attention|length }}</span>
         </div>
         <div class="admin-card__body">
+            {% if not attention %}
+                <p class="muted" style="font-size:.9rem;margin-bottom:0;">
+                    <strong>Review sync is paused</strong> — pulling reviews via
+                    the legacy Google My Business API requires manual approval
+                    from Google. NAP sync and performance reporting work
+                    independently. Review the GBP web/mobile app directly
+                    for now, or we can wire up a 3rd-party aggregator
+                    (Birdeye / GatherUp / Podium).
+                </p>
+            {% endif %}
             {% if attention %}
                 <table class="admin-table" style="width:100%;">
                     <thead>
