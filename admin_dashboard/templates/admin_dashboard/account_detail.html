@@ -71,45 +71,121 @@
     </form>
 
     {% comment %}
-        Comp tier override — operator-only, used to grant a paid
-        tier without billing (dogfood, free trial, comp a friend,
-        internal QA).
+        Comp tier overrides — three independent buckets (Build,
+        Maintenance, Social). Each card is its own POST so they save
+        independently. Used to grant a paid product without billing:
+        dogfood, free trial, comp a friend, internal QA.
     {% endcomment %}
     {% if account.legacy_client_profile %}
+    {% with profile=account.legacy_client_profile %}
     <div class="admin-card" style="margin-top: 2rem;">
         <div class="admin-card__header">
-            <h2 class="admin-card__title">Comp tier</h2>
-            <span class="muted" style="font-size:.85rem;">Grant a paid tier without billing</span>
+            <h2 class="admin-card__title">Comp products</h2>
+            <span class="muted" style="font-size:.85rem;">Grant any product free of charge</span>
         </div>
         <div class="admin-card__body">
-            <p class="muted" style="margin-top:0;font-size:.85rem;">
-                Paid tier (from Stripe): <strong>{{ account.legacy_client_profile.get_package_display|default:"None" }}</strong>{% if account.legacy_client_profile.comp_package %} · Currently comped as: <strong>{{ account.legacy_client_profile.get_comp_package_display }}</strong>{% endif %}
-            </p>
-            <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}">
-                {% csrf_token %}
-                <div style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap;">
-                    <label style="display:flex;flex-direction:column;gap:.2rem;">
-                        <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Comp as</span>
-                        <select name="comp_package" class="form-control" style="min-width:18rem;">
+            <div class="comp-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:1rem;">
+
+                {% comment %} ── Website Build comp ── {% endcomment %}
+                <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                    <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Website Build</h3>
+                    <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                        Currently:
+                        {% if profile.comp_build_package %}
+                            <strong>{{ profile.get_comp_build_package_display }}</strong> (comped)
+                        {% elif profile.package == 'essential_build' or profile.package == 'premium_build' %}
+                            <strong>{{ profile.get_package_display }}</strong> (paid)
+                        {% else %}
+                            <strong>None</strong>
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:.5rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="bucket" value="build">
+                        <select name="comp_build_package" class="form-control">
                             <option value="">— No comp —</option>
-                            {% for value, label in account.legacy_client_profile.PACKAGE_CHOICES %}
-                                <option value="{{ value }}" {% if account.legacy_client_profile.comp_package == value %}selected{% endif %}>{{ label }}</option>
+                            {% for value, label in profile.BUILD_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if profile.comp_build_package == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
-                    </label>
-                    <label style="display:flex;flex-direction:column;gap:.2rem;flex:1;min-width:18rem;">
-                        <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Note (why)</span>
-                        <input type="text" name="comp_notes" class="form-control"
-                               value="{{ account.legacy_client_profile.comp_notes }}"
-                               placeholder="e.g. dogfood, free trial through 2026-12-31, friend">
-                    </label>
+                        <div style="margin-top:.75rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </form>
                 </div>
-                <div style="margin-top:1.25rem;">
-                    <button type="submit" class="btn-primary">Save comp</button>
+
+                {% comment %} ── Maintenance comp ── {% endcomment %}
+                <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                    <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Maintenance Plan</h3>
+                    <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                        Currently:
+                        {% if profile.comp_maintenance_package %}
+                            <strong>{{ profile.get_comp_maintenance_package_display }}</strong> (comped)
+                        {% elif profile.package == 'maintenance_essentials' or profile.package == 'maintenance_growth' or profile.package == 'maintenance_dominant' or profile.package == 'moonieful_referred' %}
+                            <strong>{{ profile.get_package_display }}</strong> (paid)
+                        {% else %}
+                            <strong>None</strong>
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:.5rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="bucket" value="maintenance">
+                        <select name="comp_maintenance_package" class="form-control">
+                            <option value="">— No comp —</option>
+                            {% for value, label in profile.MAINTENANCE_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if profile.comp_maintenance_package == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top:.75rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </form>
+                </div>
+
+                {% comment %} ── Social comp ── {% endcomment %}
+                <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                    <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Social Media</h3>
+                    <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                        Currently:
+                        {% if profile.comp_social_tier %}
+                            <strong>{{ profile.get_comp_social_tier_display }}</strong> (comped)
+                        {% else %}
+                            <strong>None</strong>
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:.5rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="bucket" value="social">
+                        <select name="comp_social_tier" class="form-control">
+                            <option value="">— No comp —</option>
+                            {% for value, label in profile.SOCIAL_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if profile.comp_social_tier == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top:.75rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% comment %} Shared note — applies to all three buckets. {% endcomment %}
+            <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:1.25rem;">
+                {% csrf_token %}
+                <input type="hidden" name="bucket" value="notes">
+                <label style="display:flex;flex-direction:column;gap:.2rem;">
+                    <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Note (why) — shared across all comps</span>
+                    <input type="text" name="comp_notes" class="form-control"
+                           value="{{ profile.comp_notes }}"
+                           placeholder="e.g. dogfood, free trial through 2026-12-31, friend">
+                </label>
+                <div style="margin-top:.75rem;">
+                    <button type="submit" class="btn-secondary btn-sm">Save note</button>
                 </div>
             </form>
         </div>
     </div>
+    {% endwith %}
     {% endif %}
 
     {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}

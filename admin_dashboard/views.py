@@ -7399,12 +7399,20 @@ def account_send_password_reset(request, account_id):
 @admin_required
 @require_POST
 def account_set_comp_tier(request, account_id):
-    """Set the linked ClientProfile.comp_package + comp_notes — used
-    to grant a paid tier without billing (dogfood / free trial / comp
-    for a friend / agency-internal use).
+    """Set ONE of three independent comp buckets on the linked
+    ClientProfile:
 
-    POST: comp_package (CharField choice; empty string to clear),
-          comp_notes (free text — why).
+      bucket=build       -> comp_build_package       (essential/premium)
+      bucket=maintenance -> comp_maintenance_package (essentials/growth/dominant/moonieful)
+      bucket=social      -> comp_social_tier (social-basic/standard/full)
+                            ALSO ensures an active SocialMediaPlan on
+                            the Account so the Social manager picks it
+                            up. Clearing the social tier deactivates
+                            the auto-created plan.
+      bucket=notes       -> comp_notes (shared across all buckets)
+
+    Each card on the Account detail page posts its own form so the
+    other two buckets are not touched.
     """
     from django.contrib import messages as _messages
 
@@ -7421,29 +7429,108 @@ def account_set_comp_tier(request, account_id):
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
 
-    comp = (request.POST.get('comp_package') or '').strip()
-    notes = (request.POST.get('comp_notes') or '').strip()
+    bucket = (request.POST.get('bucket') or '').strip()
 
-    valid_choices = {k for k, _ in ClientProfile.PACKAGE_CHOICES}
-    if comp and comp not in valid_choices:
-        _messages.error(request, f'Invalid comp tier: {comp!r}')
-        return redirect(
-            'admin_dashboard:account_detail', account_id=account.id)
+    if bucket == 'build':
+        value = (request.POST.get('comp_build_package') or '').strip()
+        valid = {k for k, _ in ClientProfile.BUILD_COMP_CHOICES}
+        if value and value not in valid:
+            _messages.error(request, f'Invalid build comp: {value!r}')
+            return redirect(
+                'admin_dashboard:account_detail',
+                account_id=account.id)
+        profile.comp_build_package = value
+        profile.save(update_fields=[
+            'comp_build_package', 'updated_at'])
+        if value:
+            label = dict(ClientProfile.BUILD_COMP_CHOICES).get(
+                value, value)
+            _messages.success(
+                request,
+                f'Comped {account.name} on the {label} build.')
+        else:
+            _messages.success(
+                request,
+                f'Cleared the build comp on {account.name}.')
 
-    profile.comp_package = comp
-    profile.comp_notes = notes
-    profile.save(update_fields=[
-        'comp_package', 'comp_notes', 'updated_at'])
+    elif bucket == 'maintenance':
+        value = (request.POST.get(
+            'comp_maintenance_package') or '').strip()
+        valid = {k for k, _ in ClientProfile.MAINTENANCE_COMP_CHOICES}
+        if value and value not in valid:
+            _messages.error(
+                request, f'Invalid maintenance comp: {value!r}')
+            return redirect(
+                'admin_dashboard:account_detail',
+                account_id=account.id)
+        profile.comp_maintenance_package = value
+        profile.save(update_fields=[
+            'comp_maintenance_package', 'updated_at'])
+        if value:
+            label = dict(
+                ClientProfile.MAINTENANCE_COMP_CHOICES
+            ).get(value, value)
+            _messages.success(
+                request,
+                f'Comped {account.name} on the {label} plan.')
+        else:
+            _messages.success(
+                request,
+                f'Cleared the maintenance comp on {account.name}.')
 
-    if comp:
-        label = dict(ClientProfile.PACKAGE_CHOICES).get(comp, comp)
-        _messages.success(
-            request,
-            f'Comped {account.name} as {label}. '
-            f'Gating helpers will treat them as having that tier.')
+    elif bucket == 'social':
+        value = (request.POST.get('comp_social_tier') or '').strip()
+        valid = {k for k, _ in ClientProfile.SOCIAL_COMP_CHOICES}
+        if value and value not in valid:
+            _messages.error(request, f'Invalid social comp: {value!r}')
+            return redirect(
+                'admin_dashboard:account_detail',
+                account_id=account.id)
+        profile.comp_social_tier = value
+        profile.save(update_fields=[
+            'comp_social_tier', 'updated_at'])
+
+        # Side-effect: ensure a SocialMediaPlan exists on the Account so
+        # the Social Media manager (filters status='active') picks the
+        # client up. Clearing the comp pauses the auto-created plan
+        # without deleting any per-channel data.
+        from clients.service_models import SocialMediaPlan
+        plan = SocialMediaPlan.objects.filter(account=account).first()
+        if value:
+            if plan is None:
+                SocialMediaPlan.objects.create(
+                    account=account,
+                    tier_slug=value,
+                    status='active',
+                )
+            else:
+                plan.tier_slug = value
+                plan.status = 'active'
+                plan.save(update_fields=[
+                    'tier_slug', 'status', 'updated_at'])
+            label = dict(ClientProfile.SOCIAL_COMP_CHOICES).get(
+                value, value)
+            _messages.success(
+                request,
+                f'Comped {account.name} on {label}. '
+                f'Social Media manager will treat them as active.')
+        else:
+            if plan is not None and plan.status == 'active':
+                plan.status = 'paused'
+                plan.save(update_fields=['status', 'updated_at'])
+            _messages.success(
+                request,
+                f'Cleared the social comp on {account.name}.')
+
+    elif bucket == 'notes':
+        profile.comp_notes = (
+            request.POST.get('comp_notes') or '').strip()
+        profile.save(update_fields=['comp_notes', 'updated_at'])
+        _messages.success(request, 'Comp note saved.')
+
     else:
-        _messages.success(
-            request, f'Cleared the comp tier on {account.name}.')
+        _messages.error(request, 'Missing or unknown comp bucket.')
+
     return redirect(
         'admin_dashboard:account_detail', account_id=account.id)
 

@@ -222,19 +222,56 @@ class ClientProfile(TimestampedModel):
     # has_gbp_features() (maintenance tier ≥ Growth, OR comp_package).
     gbp_location_name = models.CharField(max_length=200, blank=True)
 
-    # ── Comp tier (Phase 5a-pivot) ──
-    # Operator-granted access to a paid tier without billing. Use
-    # cases: agency dogfooding their own account, a free trial month
-    # for a hot prospect, comping a friend, internal QA.
-    # When set, the gating helpers treat the client as if they were on
-    # this tier (in addition to whatever `package` says). When cleared,
-    # paid tier still rules. Same choices as `package`.
+    # ── Comp tier (Phase 5a-pivot, expanded in 5d) ──
+    # Operator-granted access to a paid product/tier without billing.
+    # Use cases: dogfooding our own account, a free trial month for a
+    # hot prospect, comping a friend, internal QA.
     #
-    # NOTE: `package` keeps the BILLED tier (Stripe webhook updates it
-    # on real subscriptions). `comp_package` is independently managed
-    # by the operator on the Account edit page.
+    # Three INDEPENDENT comp buckets so a client can be comped on one,
+    # two, or all three products simultaneously:
+    #   comp_build_package       essential_build / premium_build
+    #   comp_maintenance_package maintenance_essentials/growth/dominant
+    #                            or moonieful_referred
+    #   comp_social_tier         social-basic / social-standard / social-full
+    #                            (when set, an active SocialMediaPlan is
+    #                            ensured on the linked Account so the
+    #                            Social Media manager picks it up).
+    #
+    # `package` keeps the BILLED maintenance/build tier (Stripe webhook
+    # updates it on real subscriptions). The comp fields are managed
+    # independently by the operator from the Account detail page.
+    #
+    # `comp_package` is RETAINED as a deprecated alias — the data
+    # migration on add backfills the right new field from whatever is
+    # already stored. Don't add new readers — use the bucket fields.
+    BUILD_COMP_CHOICES = [
+        ('essential_build', 'Essential Website Build'),
+        ('premium_build',   'Premium Website Build'),
+    ]
+    MAINTENANCE_COMP_CHOICES = [
+        ('maintenance_essentials', 'Maintenance — Essentials'),
+        ('maintenance_growth',     'Maintenance — Growth'),
+        ('maintenance_dominant',   'Maintenance — Dominant'),
+        ('moonieful_referred',     'Moonieful Referred'),
+    ]
+    SOCIAL_COMP_CHOICES = [
+        ('social-basic',    'Social — Basic'),
+        ('social-standard', 'Social — Standard'),
+        ('social-full',     'Social — Full Management'),
+    ]
+
     comp_package = models.CharField(
         max_length=30, choices=PACKAGE_CHOICES, blank=True,
+        help_text='DEPRECATED — use comp_build_package / comp_maintenance_package.',
+    )
+    comp_build_package = models.CharField(
+        max_length=30, choices=BUILD_COMP_CHOICES, blank=True,
+    )
+    comp_maintenance_package = models.CharField(
+        max_length=30, choices=MAINTENANCE_COMP_CHOICES, blank=True,
+    )
+    comp_social_tier = models.CharField(
+        max_length=30, choices=SOCIAL_COMP_CHOICES, blank=True,
     )
     comp_notes = models.TextField(
         blank=True,
@@ -249,13 +286,20 @@ class ClientProfile(TimestampedModel):
     _GBP_PREMIUM_TIERS = {'maintenance_dominant'}
 
     def _active_tiers(self):
-        """Set of tier slugs this client has access to — both their
-        billed `package` AND any operator-granted `comp_package`."""
+        """Set of tier slugs this client has access to — billed
+        `package` PLUS every operator-granted comp field. The legacy
+        `comp_package` is included so historical rows that haven't
+        been migrated yet still gate correctly."""
         out = set()
-        if self.package:
-            out.add(self.package)
-        if self.comp_package:
-            out.add(self.comp_package)
+        for slug in (
+            self.package,
+            self.comp_package,
+            self.comp_build_package,
+            self.comp_maintenance_package,
+            self.comp_social_tier,
+        ):
+            if slug:
+                out.add(slug)
         return out
 
     def has_gbp_features(self):
