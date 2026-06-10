@@ -2036,15 +2036,26 @@ def portal_subscriptions(request):
 
     subscriptions = []
     if profile.stripe_customer_id:
-        # Fetch each known subscription by ID so we get current Stripe
-        # state (vs trusting the local boolean flags).
-        for sub_id in [
+        # Stripe sub ids from the legacy "primary pointer" fields on CP
+        # — plus every per-Website SocialMediaPlan.stripe_subscription_id
+        # so multi-business accounts see all their social subs at once.
+        sub_ids = [
             profile.stripe_hosting_subscription_id,
             profile.stripe_subscription_id,
             profile.stripe_social_subscription_id,
-        ]:
-            if not sub_id:
+        ]
+        account = getattr(request, 'account', None)
+        if account is not None:
+            for plan in account.social_media_plans.filter(
+                    status__in=('active', 'cancelled'),
+                    ).exclude(stripe_subscription_id=''):
+                if plan.stripe_subscription_id not in sub_ids:
+                    sub_ids.append(plan.stripe_subscription_id)
+        seen = set()
+        for sub_id in sub_ids:
+            if not sub_id or sub_id in seen:
                 continue
+            seen.add(sub_id)
             try:
                 sub = _stripe.Subscription.retrieve(sub_id)
                 if getattr(sub, 'status', '') in (
@@ -2553,24 +2564,27 @@ def _social_tiers():
     )
 
 
-def _active_social_plan(profile):
-    """Return the SocialMediaPlan row this client is currently on
-    (paid or comped) — or None. Looks via Account, since Social plans
-    live on Account not ClientProfile."""
+def _active_social_plan(profile, website=None):
+    """Return the active SocialMediaPlan for (profile.account, website)
+    — or None. Per-Website scope: one Account can hold N plans, one per
+    business. When `website` is None we fall back to the legacy
+    account-wide row (website IS NULL)."""
     account = getattr(getattr(profile, 'user', None), 'account', None)
     if account is None:
         return None
     return (
         account.social_media_plans
-        .filter(status='active')
+        .filter(status='active', website=website)
         .order_by('-started_at')
         .first()
     )
 
 
-def _social_upsell_state(profile):
-    """Dict describing the upsell state for social plans, parallel to
-    _maintenance_upsell_state.
+def _social_upsell_state(profile, website=None):
+    """Dict describing the upsell state for social plans on `website`.
+    Parallel to _maintenance_upsell_state — every key is scoped to the
+    single Website passed in, so an Account with three businesses gets
+    three independent upsell states.
 
     Keys:
       show_upsell        — bool, render the pitch card
@@ -2578,18 +2592,21 @@ def _social_upsell_state(profile):
       is_comped          — bool, active via comp not Stripe
       current_tier_slug  — '' or the active tier slug
     """
-    active_plan = _active_social_plan(profile)
+    active_plan = _active_social_plan(profile, website=website)
     is_subscribed = active_plan is not None
-    is_comped = bool(getattr(profile, 'comp_social_tier', '')) and bool(
-        not profile.stripe_social_subscription_id)
+    # Comp on ClientProfile is account-wide — applies to every Website
+    # on the Account. Paid sub on stripe_social_subscription_id wins
+    # over the comp for the "is_comped" flag.
+    has_comp = bool(getattr(profile, 'comp_social_tier', ''))
+    is_comped = has_comp and not profile.stripe_social_subscription_id
     current_tier_slug = ''
     if active_plan is not None:
         current_tier_slug = active_plan.tier_slug
-    elif getattr(profile, 'comp_social_tier', ''):
+    elif has_comp:
         current_tier_slug = profile.comp_social_tier
     return {
-        'show_upsell': not is_subscribed,
-        'is_subscribed': is_subscribed,
+        'show_upsell': not (is_subscribed or has_comp),
+        'is_subscribed': is_subscribed or has_comp,
         'is_comped': is_comped,
         'current_tier_slug': current_tier_slug,
     }
@@ -2597,16 +2614,48 @@ def _social_upsell_state(profile):
 
 @client_required
 def portal_social_plans(request):
-    """Tier comparison + signup landing page for social media plans —
-    same pattern as portal_maintenance."""
+    """Tier comparison + signup landing page for social media plans.
+
+    Per-Website: an Account with multiple businesses sees one block
+    per Website. The chooser-picked Website (request.website) renders
+    first; the others come below it. If the Account has zero Websites
+    (rare — pre-build / migrated-in client), we render a single
+    legacy account-wide block (website=None).
+    """
     profile = request.client_profile
     tiers = list(_social_tiers())
-    state = _social_upsell_state(profile)
+
+    account = getattr(request, 'account', None)
+    websites = []
+    if account is not None:
+        websites = list(account.websites.all())
+
+    # Build per-Website blocks. Each block carries its own upsell state
+    # so the template can render Subscribe / Current / Switch correctly
+    # per business.
+    blocks = []
+    if websites:
+        # Put the chooser-picked Website first so it's the focus.
+        picked = getattr(request, 'website', None)
+        ordered = (
+            [picked] + [w for w in websites if w.id != picked.id]
+        ) if picked is not None else websites
+        for w in ordered:
+            blocks.append({
+                'website': w,
+                'upsell_state': _social_upsell_state(profile, website=w),
+            })
+    else:
+        blocks.append({
+            'website': None,
+            'upsell_state': _social_upsell_state(profile, website=None),
+        })
 
     ctx = _portal_context(
         request, 'social_plans',
         tiers=tiers,
-        upsell_state=state,
+        blocks=blocks,
+        multi_business=len(blocks) > 1,
     )
     return render(request, 'clients/portal_social_plans.html', ctx)
 
@@ -2614,7 +2663,12 @@ def portal_social_plans(request):
 @client_required
 def portal_social_plans_start(request, slug):
     """GET — confirmation screen. POST — create / change the Stripe sub
-    using the customer's default payment method on file."""
+    using the customer's default payment method on file.
+
+    Scoped to whichever Website the user clicked Subscribe on:
+    request.website is set by the @client_required decorator from
+    either ?website=<slug> (set by the per-business Subscribe button),
+    the chooser session, or the account's sole website."""
     from billing.stripe_helpers import (
         StripeNotConfigured,
         change_social_subscription_tier,
@@ -2629,6 +2683,19 @@ def portal_social_plans_start(request, slug):
         return redirect('clients:portal_social_plans')
 
     profile = request.client_profile
+    website = getattr(request, 'website', None)
+    # ?w=<slug> takes precedence over the chooser pick. The per-business
+    # Subscribe buttons on /portal/social/plans/ pass it so a multi-
+    # business account can target the right Website without first
+    # switching the chooser.
+    w_slug = (request.GET.get('w')
+              or request.POST.get('w') or '').strip()
+    if w_slug:
+        account = getattr(request, 'account', None)
+        if account is not None:
+            override = account.websites.filter(slug=w_slug).first()
+            if override is not None:
+                website = override
 
     try:
         tier = get_social_tier(slug)
@@ -2636,10 +2703,12 @@ def portal_social_plans_start(request, slug):
         messages.error(request, str(exc))
         return redirect('clients:portal_social_plans')
 
-    state = _social_upsell_state(profile)
+    state = _social_upsell_state(profile, website=website)
     # is_change must NOT be true for a purely-comped client — they have
     # no Stripe sub to mutate, just an upsell to a paid plan.
-    is_change = bool(profile.stripe_social_subscription_id)
+    existing_plan = _active_social_plan(profile, website=website)
+    is_change = bool(
+        existing_plan and existing_plan.stripe_subscription_id)
     is_same_tier = is_change and state['current_tier_slug'] == slug
 
     default_card = None
@@ -2680,13 +2749,15 @@ def portal_social_plans_start(request, slug):
 
         try:
             if is_change:
-                change_social_subscription_tier(profile, slug)
+                change_social_subscription_tier(
+                    profile, slug, website=website)
                 messages.success(
                     request,
                     f'Switched to the {tier.name} social media plan. '
                     f'Stripe will prorate the change on your next invoice.')
             else:
-                create_social_subscription(profile, slug)
+                create_social_subscription(
+                    profile, slug, website=website)
                 messages.success(
                     request,
                     f'You\'re subscribed to {tier.name}. Welcome aboard.')
@@ -2716,6 +2787,7 @@ def portal_social_plans_start(request, slug):
         is_change=is_change,
         is_same_tier=is_same_tier,
         current_tier_slug=state['current_tier_slug'],
+        target_website=website,
     )
     return render(
         request, 'clients/portal_social_plans_confirm.html', ctx)
@@ -2724,14 +2796,16 @@ def portal_social_plans_start(request, slug):
 @client_required
 @require_POST
 def portal_social_cancel(request):
-    """Cancel social sub at period end."""
+    """Cancel social sub at period end — scoped to request.website."""
     from billing.stripe_helpers import (
         StripeNotConfigured, cancel_social_subscription,
     )
     profile = request.client_profile
+    website = getattr(request, 'website', None)
     try:
         cancel_social_subscription(
-            profile, reason=request.POST.get('reason', ''))
+            profile, reason=request.POST.get('reason', ''),
+            website=website)
         messages.success(
             request,
             'Social media subscription will cancel at the end of your '
@@ -2750,13 +2824,14 @@ def portal_social_cancel(request):
 @client_required
 @require_POST
 def portal_social_resume(request):
-    """Undo a pending cancel-at-period-end on the social sub."""
+    """Undo a pending cancel-at-period-end — scoped to request.website."""
     from billing.stripe_helpers import (
         StripeNotConfigured, resume_social_subscription,
     )
     profile = request.client_profile
+    website = getattr(request, 'website', None)
     try:
-        resume_social_subscription(profile)
+        resume_social_subscription(profile, website=website)
         messages.success(
             request,
             'Social media subscription resumed.')

@@ -7490,37 +7490,57 @@ def account_set_comp_tier(request, account_id):
         profile.save(update_fields=[
             'comp_social_tier', 'updated_at'])
 
-        # Side-effect: ensure a SocialMediaPlan exists on the Account so
-        # the Social Media manager (filters status='active') picks the
-        # client up. Clearing the comp pauses the auto-created plan
-        # without deleting any per-channel data.
+        # Side-effect: comping the social tier provisions an active
+        # SocialMediaPlan PER WEBSITE on the Account (since plans are
+        # per-business now). If the Account has no Websites yet, we
+        # create a single legacy account-wide row (website=NULL) so
+        # the Social Media manager has something to surface.
+        # Clearing the comp pauses every auto-created row without
+        # destroying any per-channel data.
         from clients.service_models import SocialMediaPlan
-        plan = SocialMediaPlan.objects.filter(account=account).first()
+        websites = list(account.websites.all())
+        targets = websites if websites else [None]
         if value:
-            if plan is None:
-                SocialMediaPlan.objects.create(
-                    account=account,
-                    tier_slug=value,
-                    status='active',
-                )
-            else:
-                plan.tier_slug = value
-                plan.status = 'active'
-                plan.save(update_fields=[
-                    'tier_slug', 'status', 'updated_at'])
+            for w in targets:
+                plan = SocialMediaPlan.objects.filter(
+                    account=account, website=w,
+                ).first()
+                if plan is None:
+                    SocialMediaPlan.objects.create(
+                        account=account,
+                        website=w,
+                        tier_slug=value,
+                        status='active',
+                    )
+                else:
+                    plan.tier_slug = value
+                    plan.status = 'active'
+                    plan.save(update_fields=[
+                        'tier_slug', 'status', 'updated_at'])
             label = dict(ClientProfile.SOCIAL_COMP_CHOICES).get(
                 value, value)
+            count = len(targets)
             _messages.success(
                 request,
-                f'Comped {account.name} on {label}. '
+                f'Comped {account.name} on {label} across '
+                f'{count} business{"es" if count != 1 else ""}. '
                 f'Social Media manager will treat them as active.')
         else:
-            if plan is not None and plan.status == 'active':
-                plan.status = 'paused'
-                plan.save(update_fields=['status', 'updated_at'])
-            _messages.success(
-                request,
-                f'Cleared the social comp on {account.name}.')
+            # Pause only auto-created (no-Stripe-sub) rows. Paid plans
+            # keep their Stripe-driven status untouched.
+            paused = SocialMediaPlan.objects.filter(
+                account=account, status='active',
+                stripe_subscription_id='',
+            ).update(status='paused')
+            if paused:
+                _messages.success(
+                    request,
+                    f'Cleared the social comp on {account.name} '
+                    f'({paused} plan{"s" if paused != 1 else ""} paused).')
+            else:
+                _messages.success(
+                    request,
+                    f'Cleared the social comp on {account.name}.')
 
     elif bucket == 'notes':
         profile.comp_notes = (

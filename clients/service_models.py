@@ -108,6 +108,18 @@ class SocialMediaPlan(TimestampedModel):
         'clients.Account', on_delete=models.CASCADE,
         related_name='social_media_plans',
     )
+    # Phase 5e — Social plans are per-Website now, mirroring
+    # MaintenancePlan. An Account that owns three businesses can hold
+    # three independent SocialMediaPlans (one per Website), each with
+    # its own tier + Stripe sub + channels. Nullable because a customer
+    # who brought us a site we did NOT build and isn't hosting with us
+    # still has a Social plan but no Website row — the URL of record
+    # lives on `external_site_url` in that case.
+    website = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='social_media_plans',
+    )
+    external_site_url = models.URLField(blank=True)
     tier_slug = models.CharField(
         max_length=50, choices=TIER_CHOICES, default='social-basic',
     )

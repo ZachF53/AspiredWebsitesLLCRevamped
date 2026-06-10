@@ -65,6 +65,9 @@
 
         <form method="post" action="{% url 'clients:portal_social_plans_start' tier.slug %}" class="maint-confirm__form">
             {% csrf_token %}
+            {% if target_website %}
+                <input type="hidden" name="w" value="{{ target_website.slug }}">
+            {% endif %}
             <button type="submit" class="btn-primary btn-block btn-lg" {% if not default_card %}disabled aria-disabled="true"{% endif %}>
                 {% if is_change %}Switch to {{ tier.name }}{% else %}Subscribe to {{ tier.name }}{% endif %}
             </button>

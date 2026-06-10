@@ -7,32 +7,105 @@
 <header class="portal-page-head">
     <h1>Social Media Plans</h1>
     <p class="portal-page-head__sub">
-        We post for you, reply to comments, and keep your channels alive so you stay top-of-mind with the people who matter.
+        {% if multi_business %}
+            One plan per business. We post for you, reply to comments, and keep each of your channels alive so you stay top-of-mind with the people who matter.
+        {% else %}
+            We post for you, reply to comments, and keep your channels alive so you stay top-of-mind with the people who matter.
+        {% endif %}
     </p>
 </header>
 
-{# ── Current plan banner (only if subscribed or comped) ── #}
-{% if upsell_state.is_subscribed %}
-    <section class="maint-current">
-        <div class="maint-current__inner">
-            <div>
-                <div class="maint-current__label">
-                    {% if upsell_state.is_comped %}Comped — currently active{% else %}Currently subscribed{% endif %}
-                </div>
-                <div class="maint-current__plan">
-                    {% if upsell_state.current_tier_slug == 'social-basic' %}Basic
-                    {% elif upsell_state.current_tier_slug == 'social-standard' %}Standard
-                    {% elif upsell_state.current_tier_slug == 'social-full' %}Full Management
-                    {% else %}Active{% endif %}
-                </div>
-            </div>
-            <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
-        </div>
-    </section>
-{% endif %}
+{% for block in blocks %}
+    {% with website=block.website upsell_state=block.upsell_state %}
+    <article class="portal-section" {% if multi_business %}style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--color-border);"{% endif %}>
 
-{# ── Why social media (the pitch) ── #}
-{% if not upsell_state.is_subscribed %}
+        {% if multi_business %}
+            <header style="margin-bottom:1rem;">
+                <span class="eyebrow" style="font-size:.7rem;letter-spacing:.05em;color:var(--color-orange,#E8650A);text-transform:uppercase;font-weight:700;">Business</span>
+                <h2 class="portal-section__title" style="margin-top:.25rem;">
+                    {% if website %}{{ website.name }}{% else %}Your account{% endif %}
+                </h2>
+                {% if website and website.url %}<p class="muted" style="margin:.25rem 0 0;font-size:.9rem;">{{ website.url }}</p>{% endif %}
+            </header>
+        {% endif %}
+
+        {% comment %} ── Current plan banner (only if subscribed or comped) ── {% endcomment %}
+        {% if upsell_state.is_subscribed %}
+            <section class="maint-current">
+                <div class="maint-current__inner">
+                    <div>
+                        <div class="maint-current__label">
+                            {% if upsell_state.is_comped %}Comped — currently active{% else %}Currently subscribed{% endif %}
+                        </div>
+                        <div class="maint-current__plan">
+                            {% if upsell_state.current_tier_slug == 'social-basic' %}Basic
+                            {% elif upsell_state.current_tier_slug == 'social-standard' %}Standard
+                            {% elif upsell_state.current_tier_slug == 'social-full' %}Full Management
+                            {% else %}Active{% endif %}
+                        </div>
+                    </div>
+                    <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
+                </div>
+            </section>
+        {% endif %}
+
+        {% comment %} ── Tier comparison ── {% endcomment %}
+        <section class="maint-tiers">
+            {% for tier in tiers %}
+                <article class="maint-tier {% if tier.is_featured %}maint-tier--featured{% endif %} {% if upsell_state.current_tier_slug == tier.slug %}maint-tier--current{% endif %}">
+                    {% if tier.is_featured %}
+                        <div class="maint-tier__ribbon">Most popular</div>
+                    {% endif %}
+                    {% if upsell_state.current_tier_slug == tier.slug %}
+                        <div class="maint-tier__ribbon maint-tier__ribbon--current">Your plan</div>
+                    {% endif %}
+
+                    <header class="maint-tier__head">
+                        <h3 class="maint-tier__name">{{ tier.name }}</h3>
+                        <div class="maint-tier__price">
+                            <span class="maint-tier__amount">${{ tier.price|floatformat:0 }}</span>
+                            <span class="maint-tier__interval">/ month</span>
+                        </div>
+                        {% if tier.tagline %}
+                            <p class="maint-tier__tagline">{{ tier.tagline }}</p>
+                        {% endif %}
+                    </header>
+
+                    <ul class="maint-tier__features">
+                        {% for f in tier.features.all %}
+                            <li>
+                                <svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>{{ f.text }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+
+                    <footer class="maint-tier__foot">
+                        {% if upsell_state.current_tier_slug == tier.slug %}
+                            <button type="button" class="btn-secondary btn-block" disabled>Current plan</button>
+                        {% else %}
+                            {% with start_url='clients:portal_social_plans_start' %}
+                                {% if website %}
+                                    <a href="{% url start_url tier.slug %}?w={{ website.slug }}" class="btn-primary btn-block">
+                                {% else %}
+                                    <a href="{% url start_url tier.slug %}" class="btn-primary btn-block">
+                                {% endif %}
+                                    {% if upsell_state.is_subscribed and not upsell_state.is_comped %}Switch to {{ tier.name }}{% else %}Subscribe to {{ tier.name }}{% endif %}
+                                </a>
+                            {% endwith %}
+                        {% endif %}
+                    </footer>
+                </article>
+            {% endfor %}
+        </section>
+    </article>
+    {% endwith %}
+{% endfor %}
+
+{% comment %} ── Why social media (the pitch — only when nothing is subscribed) ── {% endcomment %}
+{% if blocks|length == 1 and not blocks.0.upsell_state.is_subscribed %}
     <section class="maint-pitch">
         <h2 class="maint-pitch__title">Why social media management matters</h2>
         <div class="maint-pitch__grid">
@@ -60,53 +133,7 @@
     </section>
 {% endif %}
 
-{# ── Tier comparison ── #}
-<section class="maint-tiers">
-    {% for tier in tiers %}
-        <article class="maint-tier {% if tier.is_featured %}maint-tier--featured{% endif %} {% if upsell_state.current_tier_slug == tier.slug %}maint-tier--current{% endif %}">
-            {% if tier.is_featured %}
-                <div class="maint-tier__ribbon">Most popular</div>
-            {% endif %}
-            {% if upsell_state.current_tier_slug == tier.slug %}
-                <div class="maint-tier__ribbon maint-tier__ribbon--current">Your plan</div>
-            {% endif %}
-
-            <header class="maint-tier__head">
-                <h3 class="maint-tier__name">{{ tier.name }}</h3>
-                <div class="maint-tier__price">
-                    <span class="maint-tier__amount">${{ tier.price|floatformat:0 }}</span>
-                    <span class="maint-tier__interval">/ month</span>
-                </div>
-                {% if tier.tagline %}
-                    <p class="maint-tier__tagline">{{ tier.tagline }}</p>
-                {% endif %}
-            </header>
-
-            <ul class="maint-tier__features">
-                {% for f in tier.features.all %}
-                    <li>
-                        <svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span>{{ f.text }}</span>
-                    </li>
-                {% endfor %}
-            </ul>
-
-            <footer class="maint-tier__foot">
-                {% if upsell_state.current_tier_slug == tier.slug %}
-                    <button type="button" class="btn-secondary btn-block" disabled>Current plan</button>
-                {% elif upsell_state.is_subscribed and not upsell_state.is_comped %}
-                    <a href="{% url 'clients:portal_social_plans_start' tier.slug %}" class="btn-primary btn-block">Switch to {{ tier.name }}</a>
-                {% else %}
-                    <a href="{% url 'clients:portal_social_plans_start' tier.slug %}" class="btn-primary btn-block">Subscribe to {{ tier.name }}</a>
-                {% endif %}
-            </footer>
-        </article>
-    {% endfor %}
-</section>
-
-{# ── Bottom-of-page reassurance ── #}
+{% comment %} ── Bottom-of-page reassurance ── {% endcomment %}
 <section class="maint-reassure">
     <div class="maint-reassure__grid">
         <div>

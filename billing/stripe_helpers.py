@@ -353,19 +353,26 @@ def get_social_tier(plan_slug):
     return tier
 
 
-def _ensure_social_plan(client, tier):
-    """Idempotently upsert a SocialMediaPlan on the client's Account so
-    the Social Media manager (filters status='active') picks the client
-    up after a paid signup. Same side-effect the comp mechanism does."""
+def _ensure_social_plan(client, tier, website=None):
+    """Idempotently upsert a SocialMediaPlan keyed on (account, website)
+    so the Social Media manager (filters status='active') picks up the
+    client after signup. Per-Website: one plan per business.
+
+    `website` should be a Website instance scoped to the same Account.
+    Pass None for legacy account-wide signups (matches the row created
+    when there are no Websites yet)."""
     account = getattr(getattr(client, 'user', None), 'account', None)
     if account is None:
         return None
     from clients.service_models import SocialMediaPlan
-    plan = SocialMediaPlan.objects.filter(account=account).first()
+    plan = SocialMediaPlan.objects.filter(
+        account=account, website=website,
+    ).first()
     max_channels = tier.max_channels or 2
     if plan is None:
         plan = SocialMediaPlan.objects.create(
             account=account,
+            website=website,
             tier_slug=tier.slug,
             status='active',
             stripe_subscription_id=client.stripe_social_subscription_id or '',
@@ -384,29 +391,47 @@ def _ensure_social_plan(client, tier):
     return plan
 
 
-def create_social_subscription(client, plan_slug):
-    """Create-or-return a recurring social media subscription. Same
-    semantics as create_maintenance_subscription — idempotent against
-    an existing live sub on stripe_social_subscription_id; raises if
-    no default payment method is on file."""
+def _social_plan_for(client, website):
+    """Return the existing SocialMediaPlan row for (account, website),
+    or None. Caller-friendly null-safe."""
+    account = getattr(getattr(client, 'user', None), 'account', None)
+    if account is None:
+        return None
+    from clients.service_models import SocialMediaPlan
+    return SocialMediaPlan.objects.filter(
+        account=account, website=website,
+    ).first()
+
+
+def create_social_subscription(client, plan_slug, website=None):
+    """Create-or-return a recurring social subscription for ONE Website
+    on this client's Account. Stripe sub id is stored per-Website on
+    SocialMediaPlan.stripe_subscription_id. ClientProfile.stripe_social
+    _subscription_id mirrors the first sub created (so the legacy
+    "primary" pointer keeps working for /portal/subscriptions)."""
     _init()
     tier = get_social_tier(plan_slug)
     customer = create_or_get_customer(client)
 
-    if client.stripe_social_subscription_id:
+    # Idempotency: if a SocialMediaPlan already exists for this Website
+    # with a live Stripe sub, return that sub instead of double-billing.
+    existing_plan = _social_plan_for(client, website)
+    if existing_plan and existing_plan.stripe_subscription_id:
         try:
             existing = stripe.Subscription.retrieve(
-                client.stripe_social_subscription_id)
+                existing_plan.stripe_subscription_id)
             if getattr(existing, 'status', '') not in (
                     'canceled', 'incomplete_expired'):
                 logger.info(
-                    'create_social_subscription: client %s already '
-                    'has subscription %s — skipping create',
-                    client.pk, existing.id)
-                _ensure_social_plan(client, tier)
+                    'create_social_subscription: client %s website %s '
+                    'already has sub %s — skipping create',
+                    client.pk, getattr(website, 'pk', None), existing.id)
+                _ensure_social_plan(client, tier, website=website)
                 return existing
         except Exception:
-            client.stripe_social_subscription_id = ''
+            existing_plan.stripe_subscription_id = ''
+            existing_plan.save(update_fields=[
+                'stripe_subscription_id', 'updated_at'])
 
     default_pm = get_customer_default_payment_method(customer.id)
     if not default_pm:
@@ -420,41 +445,57 @@ def create_social_subscription(client, plan_slug):
         metadata={
             'kind': 'social_media',
             'client_profile_id': str(client.id),
+            'website_id': str(getattr(website, 'id', '') or ''),
             'plan': tier.slug,
         },
         payment_behavior='error_if_incomplete',
     )
-    client.stripe_social_subscription_id = subscription.id
-    client.save(update_fields=[
-        'stripe_social_subscription_id', 'updated_at',
-    ])
-    _ensure_social_plan(client, tier)
+
+    # Mirror the new sub id onto CP only when it's the first one — so
+    # the legacy "primary" pointer doesn't get overwritten by every
+    # subsequent per-Website signup.
+    if not client.stripe_social_subscription_id:
+        client.stripe_social_subscription_id = subscription.id
+        client.save(update_fields=[
+            'stripe_social_subscription_id', 'updated_at',
+        ])
+
+    plan = _ensure_social_plan(client, tier, website=website)
+    if plan is not None:
+        plan.stripe_subscription_id = subscription.id
+        plan.save(update_fields=[
+            'stripe_subscription_id', 'updated_at'])
+
     logger.info(
-        'create_social_subscription: client %s subscribed to %s '
-        '(sub %s)', client.pk, tier.slug, subscription.id)
+        'create_social_subscription: client %s website %s subscribed '
+        'to %s (sub %s)',
+        client.pk, getattr(website, 'pk', None), tier.slug,
+        subscription.id)
     return subscription
 
 
-def change_social_subscription_tier(client, new_plan_slug):
-    """Swap an existing social subscription to a different tier. Stripe
-    prorates automatically. Subscription id stays the same."""
+def change_social_subscription_tier(client, new_plan_slug, website=None):
+    """Swap an existing per-Website social sub to a different tier.
+    Stripe prorates. Sub id stays the same."""
     _init()
-    if not client.stripe_social_subscription_id:
+    plan = _social_plan_for(client, website)
+    sub_id = (plan.stripe_subscription_id if plan else '') \
+        or client.stripe_social_subscription_id
+    if not sub_id:
         raise ValueError(
             'No active social media subscription to change. '
             'Subscribe first.')
 
     tier = get_social_tier(new_plan_slug)
-    sub = stripe.Subscription.retrieve(client.stripe_social_subscription_id)
+    sub = stripe.Subscription.retrieve(sub_id)
     items_obj = getattr(sub, 'items', None)
     items_data = list(getattr(items_obj, 'data', [])) if items_obj else []
     if not items_data:
-        raise ValueError(
-            f'Subscription {client.stripe_social_subscription_id} has no items.')
+        raise ValueError(f'Subscription {sub_id} has no items.')
     item_id = items_data[0].id
 
     updated = stripe.Subscription.modify(
-        client.stripe_social_subscription_id,
+        sub_id,
         cancel_at_period_end=False,
         items=[{'id': item_id, 'price': tier.stripe_price_id}],
         proration_behavior='create_prorations',
@@ -464,44 +505,58 @@ def change_social_subscription_tier(client, new_plan_slug):
             'plan': tier.slug,
         },
     )
-    _ensure_social_plan(client, tier)
+    plan = _ensure_social_plan(client, tier, website=website)
+    if plan is not None and not plan.stripe_subscription_id:
+        plan.stripe_subscription_id = sub_id
+        plan.save(update_fields=[
+            'stripe_subscription_id', 'updated_at'])
     logger.info(
-        'change_social_subscription_tier: client %s swapped to %s',
-        client.pk, tier.slug)
+        'change_social_subscription_tier: client %s website %s '
+        'swapped to %s',
+        client.pk, getattr(website, 'pk', None), tier.slug)
     return updated
 
 
-def cancel_social_subscription(client, reason=''):
-    """Cancel social sub at period end."""
+def cancel_social_subscription(client, reason='', website=None):
+    """Cancel a per-Website social sub at period end."""
     _init()
-    if not client.stripe_social_subscription_id:
+    plan = _social_plan_for(client, website)
+    sub_id = (plan.stripe_subscription_id if plan else '') \
+        or client.stripe_social_subscription_id
+    if not sub_id:
         return None
     try:
-        sub = stripe.Subscription.retrieve(
-            client.stripe_social_subscription_id)
+        sub = stripe.Subscription.retrieve(sub_id)
     except Exception:
-        client.stripe_social_subscription_id = ''
-        client.save(update_fields=[
-            'stripe_social_subscription_id', 'updated_at'])
+        if plan and plan.stripe_subscription_id == sub_id:
+            plan.stripe_subscription_id = ''
+            plan.save(update_fields=[
+                'stripe_subscription_id', 'updated_at'])
+        if client.stripe_social_subscription_id == sub_id:
+            client.stripe_social_subscription_id = ''
+            client.save(update_fields=[
+                'stripe_social_subscription_id', 'updated_at'])
         return None
     if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
     return stripe.Subscription.modify(
-        client.stripe_social_subscription_id,
+        sub_id,
         cancel_at_period_end=True,
         metadata={**(getattr(sub, 'metadata', {}) or {}),
                   'cancel_reason': reason[:200] if reason else ''},
     )
 
 
-def resume_social_subscription(client):
-    """Undo a pending cancel-at-period-end on the social sub."""
+def resume_social_subscription(client, website=None):
+    """Undo a pending cancel-at-period-end on a per-Website social sub."""
     _init()
-    if not client.stripe_social_subscription_id:
+    plan = _social_plan_for(client, website)
+    sub_id = (plan.stripe_subscription_id if plan else '') \
+        or client.stripe_social_subscription_id
+    if not sub_id:
         return None
     return stripe.Subscription.modify(
-        client.stripe_social_subscription_id,
-        cancel_at_period_end=False,
+        sub_id, cancel_at_period_end=False,
     )
 
 
