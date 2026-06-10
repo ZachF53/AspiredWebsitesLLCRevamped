@@ -94,6 +94,8 @@ def billing_home(request):
         'subscriptions': subscriptions,
         'payment_methods': payment_methods,
         'invoices': invoices,
+        # Highlight the "Manage Billing" item in clients/base.html sidebar.
+        'active_portal_nav': 'billing',
     })
 
 
@@ -209,6 +211,7 @@ def subscription_change(request, sub_id):
         'sub': sub,
         'current_tier': current_tier,
         'compatibles': compatibles,
+        'active_portal_nav': 'billing',
     })
 
 
@@ -229,6 +232,7 @@ def add_card(request):
         'client_secret': setup_intent.client_secret,
         'stripe_publishable_key': getattr(
             settings, 'STRIPE_PUBLISHABLE_KEY', ''),
+        'active_portal_nav': 'billing',
     })
 
 

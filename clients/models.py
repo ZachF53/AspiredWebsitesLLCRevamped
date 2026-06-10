@@ -140,6 +140,13 @@ class ClientProfile(TimestampedModel):
     # renewal time, the subscription cancels before charging.
     stripe_hosting_subscription_id = models.CharField(
         max_length=255, blank=True)
+    # Phase 5d — social media subscription (Basic / Standard / Full).
+    # Mirrors `stripe_subscription_id` (maintenance) — Stripe sub id for
+    # the social plan the client signed up for via /portal/social/plans/.
+    # Webhook in billing/webhooks.py promotes this to "active" on the
+    # SocialMediaPlan row, same pattern as maintenance.
+    stripe_social_subscription_id = models.CharField(
+        max_length=255, blank=True)
     # Stripe invoice ID for the one-time admin-created onboarding invoice
     # (Part 2 of the onboarding flow). Lets the webhook find this profile
     # by either customer or invoice ID — and lets the billing dashboard

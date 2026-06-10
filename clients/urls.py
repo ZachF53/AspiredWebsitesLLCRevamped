@@ -61,6 +61,17 @@ urlpatterns = [
          name='portal_maintenance_cancel'),
     path('maintenance/resume/', views.portal_maintenance_resume,
          name='portal_maintenance_resume'),
+
+    # Social-media plan upsell + signup (mirrors maintenance flow)
+    path('social/plans/', views.portal_social_plans,
+         name='portal_social_plans'),
+    path('social/plans/start/<slug:slug>/',
+         views.portal_social_plans_start,
+         name='portal_social_plans_start'),
+    path('social/cancel/', views.portal_social_cancel,
+         name='portal_social_cancel'),
+    path('social/resume/', views.portal_social_resume,
+         name='portal_social_resume'),
     path('credentials/', views.portal_credentials, name='credentials'),
     path('credentials/reauth/', views.portal_credentials_reauth,
          name='credentials_reauth'),

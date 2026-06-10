@@ -1,0 +1,126 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Social Media Plans{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Social Media Plans</h1>
+    <p class="portal-page-head__sub">
+        We post for you, reply to comments, and keep your channels alive so you stay top-of-mind with the people who matter.
+    </p>
+</header>
+
+{# ── Current plan banner (only if subscribed or comped) ── #}
+{% if upsell_state.is_subscribed %}
+    <section class="maint-current">
+        <div class="maint-current__inner">
+            <div>
+                <div class="maint-current__label">
+                    {% if upsell_state.is_comped %}Comped — currently active{% else %}Currently subscribed{% endif %}
+                </div>
+                <div class="maint-current__plan">
+                    {% if upsell_state.current_tier_slug == 'social-basic' %}Basic
+                    {% elif upsell_state.current_tier_slug == 'social-standard' %}Standard
+                    {% elif upsell_state.current_tier_slug == 'social-full' %}Full Management
+                    {% else %}Active{% endif %}
+                </div>
+            </div>
+            <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
+        </div>
+    </section>
+{% endif %}
+
+{# ── Why social media (the pitch) ── #}
+{% if not upsell_state.is_subscribed %}
+    <section class="maint-pitch">
+        <h2 class="maint-pitch__title">Why social media management matters</h2>
+        <div class="maint-pitch__grid">
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">📣</div>
+                <h3>Top-of-mind</h3>
+                <p>Most clients don't hire on the first encounter — they hire who they remember. Consistent posting keeps you in their feed when the need comes up.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">🤝</div>
+                <h3>Trust + authority</h3>
+                <p>Useful, on-brand content positions you as the expert, not just another option. Especially valuable for high-trust services like law firms.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">⏱️</div>
+                <h3>Time back</h3>
+                <p>Posting consistently is the #1 reason small businesses give up on social. We handle the schedule so you don't have to.</p>
+            </div>
+            <div class="maint-pitch__item">
+                <div class="maint-pitch__icon">📊</div>
+                <h3>Real results, measured</h3>
+                <p>Monthly reports show what's resonating + what's not, so we double down on what works. No vanity metrics.</p>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{# ── Tier comparison ── #}
+<section class="maint-tiers">
+    {% for tier in tiers %}
+        <article class="maint-tier {% if tier.is_featured %}maint-tier--featured{% endif %} {% if upsell_state.current_tier_slug == tier.slug %}maint-tier--current{% endif %}">
+            {% if tier.is_featured %}
+                <div class="maint-tier__ribbon">Most popular</div>
+            {% endif %}
+            {% if upsell_state.current_tier_slug == tier.slug %}
+                <div class="maint-tier__ribbon maint-tier__ribbon--current">Your plan</div>
+            {% endif %}
+
+            <header class="maint-tier__head">
+                <h3 class="maint-tier__name">{{ tier.name }}</h3>
+                <div class="maint-tier__price">
+                    <span class="maint-tier__amount">${{ tier.price|floatformat:0 }}</span>
+                    <span class="maint-tier__interval">/ month</span>
+                </div>
+                {% if tier.tagline %}
+                    <p class="maint-tier__tagline">{{ tier.tagline }}</p>
+                {% endif %}
+            </header>
+
+            <ul class="maint-tier__features">
+                {% for f in tier.features.all %}
+                    <li>
+                        <svg class="maint-tier__check" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>{{ f.text }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <footer class="maint-tier__foot">
+                {% if upsell_state.current_tier_slug == tier.slug %}
+                    <button type="button" class="btn-secondary btn-block" disabled>Current plan</button>
+                {% elif upsell_state.is_subscribed and not upsell_state.is_comped %}
+                    <a href="{% url 'clients:portal_social_plans_start' tier.slug %}" class="btn-primary btn-block">Switch to {{ tier.name }}</a>
+                {% else %}
+                    <a href="{% url 'clients:portal_social_plans_start' tier.slug %}" class="btn-primary btn-block">Subscribe to {{ tier.name }}</a>
+                {% endif %}
+            </footer>
+        </article>
+    {% endfor %}
+</section>
+
+{# ── Bottom-of-page reassurance ── #}
+<section class="maint-reassure">
+    <div class="maint-reassure__grid">
+        <div>
+            <h4>Cancel any time</h4>
+            <p>Month-to-month — no annual contract. Cancel from your portal with one click. You keep service through the end of the cycle you've paid for.</p>
+        </div>
+        <div>
+            <h4>You own everything</h4>
+            <p>Every channel stays under your name. We post on your behalf — when you cancel, everything stays put for you.</p>
+        </div>
+        <div>
+            <h4>Real humans writing</h4>
+            <p>Your posts get reviewed by a person, not a content mill. Voice, tone, and details we already know about your firm.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

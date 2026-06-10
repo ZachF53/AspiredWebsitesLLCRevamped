@@ -2041,6 +2041,7 @@ def portal_subscriptions(request):
         for sub_id in [
             profile.stripe_hosting_subscription_id,
             profile.stripe_subscription_id,
+            profile.stripe_social_subscription_id,
         ]:
             if not sub_id:
                 continue
@@ -2052,6 +2053,52 @@ def portal_subscriptions(request):
             except Exception:
                 logger.exception(
                     'Subscription fetch failed for %s', sub_id)
+
+    # Phase 5d — surface operator-granted comp tiers as pseudo-cards
+    # alongside Stripe subscriptions. The template renders these with a
+    # "Comped" badge instead of pricing + Stripe controls.
+    comp_subscriptions = []
+    if profile.comp_build_package:
+        label = dict(profile.BUILD_COMP_CHOICES).get(
+            profile.comp_build_package, profile.comp_build_package)
+        comp_subscriptions.append({
+            'id': f'comp-build-{profile.id}',
+            'product_name': label,
+            'status': 'comped',
+            'amount': 0,
+            'interval': '',
+            'kind': 'build',
+            'is_comped': True,
+            'comp_notes': profile.comp_notes,
+        })
+    if profile.comp_maintenance_package:
+        label = dict(profile.MAINTENANCE_COMP_CHOICES).get(
+            profile.comp_maintenance_package,
+            profile.comp_maintenance_package)
+        comp_subscriptions.append({
+            'id': f'comp-maint-{profile.id}',
+            'product_name': label,
+            'status': 'comped',
+            'amount': 0,
+            'interval': 'month',
+            'kind': 'maintenance',
+            'is_comped': True,
+            'comp_notes': profile.comp_notes,
+        })
+    if (profile.comp_social_tier
+            and not profile.stripe_social_subscription_id):
+        label = dict(profile.SOCIAL_COMP_CHOICES).get(
+            profile.comp_social_tier, profile.comp_social_tier)
+        comp_subscriptions.append({
+            'id': f'comp-social-{profile.id}',
+            'product_name': label,
+            'status': 'comped',
+            'amount': 0,
+            'interval': 'month',
+            'kind': 'social_media',
+            'is_comped': True,
+            'comp_notes': profile.comp_notes,
+        })
 
     payment_methods = []
     default_pm_id = ''
@@ -2087,6 +2134,7 @@ def portal_subscriptions(request):
     ctx = _portal_context(
         request, 'subscriptions',
         subscriptions=subscriptions,
+        comp_subscriptions=comp_subscriptions,
         payment_methods=payment_methods,
         default_pm_id=default_pm_id,
         stripe_publishable_key=getattr(
@@ -2459,6 +2507,249 @@ def portal_maintenance_resume(request):
             'again in a few minutes.')
     except Exception as exc:  # noqa: BLE001
         logger.exception('Maintenance resume failed')
+        messages.error(request, f'Could not resume: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
+# ── Social media plans — comparison + signup (mirrors maintenance) ─────────
+
+_SOCIAL_TIER_SLUGS = (
+    'social-basic',
+    'social-standard',
+    'social-full',
+)
+_SOCIAL_PACKAGE_TO_TIER = {
+    'social-basic':    'social-basic',
+    'social-standard': 'social-standard',
+    'social-full':     'social-full',
+}
+
+
+def _social_tiers():
+    """Active social_media tiers, sorted for display."""
+    from billing.pricing_models import ServiceTier
+    return (
+        ServiceTier.objects
+        .filter(category='social_media', is_active=True)
+        .order_by('sort_order', 'price')
+        .prefetch_related('features')
+    )
+
+
+def _active_social_plan(profile):
+    """Return the SocialMediaPlan row this client is currently on
+    (paid or comped) — or None. Looks via Account, since Social plans
+    live on Account not ClientProfile."""
+    account = getattr(getattr(profile, 'user', None), 'account', None)
+    if account is None:
+        return None
+    return (
+        account.social_media_plans
+        .filter(status='active')
+        .order_by('-started_at')
+        .first()
+    )
+
+
+def _social_upsell_state(profile):
+    """Dict describing the upsell state for social plans, parallel to
+    _maintenance_upsell_state.
+
+    Keys:
+      show_upsell        — bool, render the pitch card
+      is_subscribed      — bool, has an active SocialMediaPlan (paid OR comped)
+      is_comped          — bool, active via comp not Stripe
+      current_tier_slug  — '' or the active tier slug
+    """
+    active_plan = _active_social_plan(profile)
+    is_subscribed = active_plan is not None
+    is_comped = bool(getattr(profile, 'comp_social_tier', '')) and bool(
+        not profile.stripe_social_subscription_id)
+    current_tier_slug = ''
+    if active_plan is not None:
+        current_tier_slug = active_plan.tier_slug
+    elif getattr(profile, 'comp_social_tier', ''):
+        current_tier_slug = profile.comp_social_tier
+    return {
+        'show_upsell': not is_subscribed,
+        'is_subscribed': is_subscribed,
+        'is_comped': is_comped,
+        'current_tier_slug': current_tier_slug,
+    }
+
+
+@client_required
+def portal_social_plans(request):
+    """Tier comparison + signup landing page for social media plans —
+    same pattern as portal_maintenance."""
+    profile = request.client_profile
+    tiers = list(_social_tiers())
+    state = _social_upsell_state(profile)
+
+    ctx = _portal_context(
+        request, 'social_plans',
+        tiers=tiers,
+        upsell_state=state,
+    )
+    return render(request, 'clients/portal_social_plans.html', ctx)
+
+
+@client_required
+def portal_social_plans_start(request, slug):
+    """GET — confirmation screen. POST — create / change the Stripe sub
+    using the customer's default payment method on file."""
+    from billing.stripe_helpers import (
+        StripeNotConfigured,
+        change_social_subscription_tier,
+        create_social_subscription,
+        get_customer_default_payment_method,
+        get_social_tier,
+        list_customer_payment_methods,
+    )
+
+    if slug not in _SOCIAL_TIER_SLUGS:
+        messages.error(request, 'Unknown social media plan.')
+        return redirect('clients:portal_social_plans')
+
+    profile = request.client_profile
+
+    try:
+        tier = get_social_tier(slug)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('clients:portal_social_plans')
+
+    state = _social_upsell_state(profile)
+    # is_change must NOT be true for a purely-comped client — they have
+    # no Stripe sub to mutate, just an upsell to a paid plan.
+    is_change = bool(profile.stripe_social_subscription_id)
+    is_same_tier = is_change and state['current_tier_slug'] == slug
+
+    default_card = None
+    if profile.stripe_customer_id:
+        try:
+            pm_id = get_customer_default_payment_method(
+                profile.stripe_customer_id)
+            if pm_id:
+                methods = list_customer_payment_methods(
+                    profile.stripe_customer_id)
+                for m in methods:
+                    if getattr(m, 'id', '') == pm_id:
+                        default_card = {
+                            'brand': getattr(
+                                m.card, 'brand', '').upper(),
+                            'last4': getattr(m.card, 'last4', ''),
+                            'exp_month': getattr(m.card, 'exp_month', ''),
+                            'exp_year': getattr(m.card, 'exp_year', ''),
+                        }
+                        break
+        except Exception:
+            logger.exception(
+                'Default-card lookup failed for client %s', profile.pk)
+
+    if request.method == 'POST':
+        if is_same_tier:
+            messages.info(
+                request,
+                f'You\'re already subscribed to the {tier.name} plan.')
+            return redirect('clients:portal_social_plans')
+
+        if not default_card:
+            messages.error(
+                request,
+                'Add a payment method first — your social media '
+                'subscription needs a card on file to renew.')
+            return redirect('clients:portal_subscriptions')
+
+        try:
+            if is_change:
+                change_social_subscription_tier(profile, slug)
+                messages.success(
+                    request,
+                    f'Switched to the {tier.name} social media plan. '
+                    f'Stripe will prorate the change on your next invoice.')
+            else:
+                create_social_subscription(profile, slug)
+                messages.success(
+                    request,
+                    f'You\'re subscribed to {tier.name}. Welcome aboard.')
+        except StripeNotConfigured:
+            logger.exception('Stripe not configured for social signup')
+            messages.error(
+                request,
+                'Our payment processor is temporarily unavailable. '
+                'Try again in a few minutes or email us.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect('clients:portal_social_plans')
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Social subscription failed')
+            messages.error(
+                request,
+                f'We couldn\'t complete that subscription: {exc}')
+            return redirect('clients:portal_social_plans')
+
+        return redirect('clients:portal_social_plans')
+
+    ctx = _portal_context(
+        request, 'social_plans',
+        tier=tier,
+        tier_features=list(tier.features.all().order_by('sort_order')),
+        default_card=default_card,
+        is_change=is_change,
+        is_same_tier=is_same_tier,
+        current_tier_slug=state['current_tier_slug'],
+    )
+    return render(
+        request, 'clients/portal_social_plans_confirm.html', ctx)
+
+
+@client_required
+@require_POST
+def portal_social_cancel(request):
+    """Cancel social sub at period end."""
+    from billing.stripe_helpers import (
+        StripeNotConfigured, cancel_social_subscription,
+    )
+    profile = request.client_profile
+    try:
+        cancel_social_subscription(
+            profile, reason=request.POST.get('reason', ''))
+        messages.success(
+            request,
+            'Social media subscription will cancel at the end of your '
+            'current billing period.')
+    except StripeNotConfigured:
+        messages.error(
+            request,
+            'Our payment processor is temporarily unavailable. Try '
+            'again in a few minutes.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Social cancel failed')
+        messages.error(request, f'Could not cancel: {exc}')
+    return redirect('clients:portal_subscriptions')
+
+
+@client_required
+@require_POST
+def portal_social_resume(request):
+    """Undo a pending cancel-at-period-end on the social sub."""
+    from billing.stripe_helpers import (
+        StripeNotConfigured, resume_social_subscription,
+    )
+    profile = request.client_profile
+    try:
+        resume_social_subscription(profile)
+        messages.success(
+            request,
+            'Social media subscription resumed.')
+    except StripeNotConfigured:
+        messages.error(
+            request,
+            'Our payment processor is temporarily unavailable. Try '
+            'again in a few minutes.')
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Social resume failed')
         messages.error(request, f'Could not resume: {exc}')
     return redirect('clients:portal_subscriptions')
 

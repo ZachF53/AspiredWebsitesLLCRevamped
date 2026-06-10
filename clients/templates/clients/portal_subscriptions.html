@@ -13,6 +13,32 @@
 
 {# Flash messages are rendered by clients/base.html — no need to repeat them here. #}
 
+{# ── Comped products (operator-granted, no Stripe sub) ── #}
+{% if comp_subscriptions %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Comped products</h2>
+        <ul class="sub-list">
+            {% for sub in comp_subscriptions %}
+                <li class="sub-card">
+                    <div class="sub-card__head">
+                        <h3 class="sub-card__title">{{ sub.product_name }}</h3>
+                        <span class="sub-card__badge sub-card__badge--ok">Comped</span>
+                    </div>
+                    <div class="sub-card__meta">
+                        <strong>$0.00</strong>{% if sub.interval %} / {{ sub.interval }}{% endif %}
+                        — granted by Aspired Websites at no charge.
+                    </div>
+                    {% if sub.kind == 'social_media' %}
+                        <div class="sub-card__actions">
+                            <a href="{% url 'clients:social_channels' %}" class="btn-link sub-card__link">View channels</a>
+                        </div>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </section>
+{% endif %}
+
 {# ── Subscriptions ── #}
 <section class="portal-section">
     <h2 class="portal-section__title">Recurring services</h2>
