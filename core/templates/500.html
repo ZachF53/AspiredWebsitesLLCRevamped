@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-{# 500.html — standalone, NO {% extends %}. Context processors can fail
-   during a 500 (the very thing that triggered the error may have
-   poisoned the DB connection), so we avoid loading base.html or any
-   template tag that runs a query. Inline minimal styling, no
-   {% static %}, no static-file dependency. #}
+{% comment %}
+    500.html — standalone, no extends. Context processors can fail
+    during a 500 (the very thing that triggered the error may have
+    poisoned the DB connection), so we avoid loading base.html or any
+    template tag that runs a query. Inline minimal styling, no static
+    tag, no static-file dependency.
+{% endcomment %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">

@@ -2216,11 +2216,14 @@ def _maintenance_upsell_state(profile):
       days_since_live — int or None
       current_tier_slug — '' or the active tier slug
     """
-    project = _active_project(request)
-    project_live = bool(project and project.stage == 'live')
+    # Stage / launch_date live on ClientProfile (mirror of the build's
+    # Project / Website). Don't need _active_project here — the upsell
+    # is account-wide, not per-Website.
+    project_live = bool(getattr(profile, 'stage', '') == 'live')
     days_since_live = None
-    if project and getattr(project, 'launch_date', None):
-        delta = timezone.now().date() - project.launch_date
+    launch_date = getattr(profile, 'launch_date', None)
+    if launch_date:
+        delta = timezone.now().date() - launch_date
         days_since_live = max(delta.days, 0)
 
     current_tier_slug = ''

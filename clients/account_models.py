@@ -379,6 +379,20 @@ class Website(TimestampedModel):
     def live_url(self):
         return self.url or ''
 
+    # Parity with ClientProfile / Project reverse-name surface that
+    # clients/views._active_project() promises. Portal views call
+    # project.revisions / project.stage_logs without knowing whether
+    # they got a Website or a ClientProfile back — the legacy reverse
+    # names exist on ClientProfile/Project but Website used distinct
+    # `_new` names. These properties bridge that.
+    @property
+    def revisions(self):
+        return self.revisions_new
+
+    @property
+    def stage_logs(self):
+        return self.stage_logs_new
+
     # Convenience — slug autogeneration on save.
     def save(self, *args, **kwargs):
         if not self.slug:
