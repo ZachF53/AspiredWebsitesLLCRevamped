@@ -100,9 +100,11 @@
                     </a>
                     {% endif %}
 
-                    {# Social Media section — always shown so non-customers
-                       can browse + subscribe to a plan. Channels link only
-                       renders once they actually have one. #}
+                    {% comment %}
+                        Social Media section — always shown so non-customers
+                        can browse + subscribe to a plan. Channels link only
+                        renders once they actually have one.
+                    {% endcomment %}
                     <div class="portal-nav-group-label">Social Media</div>
                     {% if has_social_media %}
                         <a class="portal-nav__link {% if active_portal_nav == 'social' %}is-active{% endif %}" href="{% url 'clients:social_channels' %}">

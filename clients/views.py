@@ -2274,14 +2274,31 @@ def _maintenance_upsell_state(profile):
         delta = timezone.now().date() - launch_date
         days_since_live = max(delta.days, 0)
 
-    current_tier_slug = ''
-    if profile.maintenance_active and profile.package:
-        # Convert local package -> ServiceTier slug
-        current_tier_slug = profile.package.replace('_', '-')
+    # A maintenance "tier" can be earned three ways:
+    #   1. Paid Stripe subscription -> profile.maintenance_active=True
+    #   2. comp_maintenance_package set by an operator
+    #   3. legacy comp_package set to a maintenance value
+    # Any of those should suppress the upsell and show "Your plan" on
+    # the matching tier card.
+    paid_slug = (profile.package.replace('_', '-')
+                 if (profile.maintenance_active and profile.package
+                     and profile.package.startswith('maintenance_'))
+                 else '')
+    comp_slug = (profile.comp_maintenance_package.replace('_', '-')
+                 if profile.comp_maintenance_package else '')
+    legacy_comp_slug = ''
+    if (profile.comp_package
+            and profile.comp_package.startswith('maintenance_')):
+        legacy_comp_slug = profile.comp_package.replace('_', '-')
+
+    current_tier_slug = paid_slug or comp_slug or legacy_comp_slug
+    is_subscribed = bool(current_tier_slug)
+    is_comped = bool(not paid_slug and (comp_slug or legacy_comp_slug))
 
     return {
-        'show_upsell': not profile.maintenance_active,
-        'is_subscribed': profile.maintenance_active,
+        'show_upsell': not is_subscribed,
+        'is_subscribed': is_subscribed,
+        'is_comped': is_comped,
         'project_live': project_live,
         'days_since_live': days_since_live,
         'current_tier_slug': current_tier_slug,

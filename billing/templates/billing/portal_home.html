@@ -3,34 +3,38 @@
 {% block title %}Manage Billing — Aspired Websites{% endblock %}
 
 {% block portal_content %}
-<div class="portal-billing" style="display:flex;flex-direction:column;gap:1.25rem;">
-    <h1 style="margin:0;">Manage Billing</h1>
+<header class="portal-page-head">
+    <h1>Manage Billing</h1>
+    <p class="portal-page-head__sub">
+        Your active subscriptions, cards on file, and recent invoices — all in one place.
+    </p>
+</header>
 
-    {% if messages %}
-        <div class="admin-messages">
-            {% for message in messages %}
-                <div class="admin-message admin-message--{{ message.tags|default:'info' }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-    {% endif %}
+{% if messages %}
+    {% for message in messages %}
+        <div class="form-info" role="alert">{{ message }}</div>
+    {% endfor %}
+{% endif %}
 
-    {# ── Active subscriptions ─────────────────────────────── #}
-    <section class="admin-card">
-        <h2>Active subscriptions</h2>
-        {% if not subscriptions %}
-            <p class="muted">No subscriptions yet.</p>
-        {% else %}
+{% comment %} ── Active subscriptions ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Active subscriptions</h2>
+    {% if not subscriptions %}
+        <p class="portal-empty">No subscriptions yet.</p>
+    {% else %}
+        <ul class="sub-list">
             {% for sub in subscriptions %}
-                <div class="portal-billing__sub">
-                    <div>
-                        <strong>{{ sub.items.data.0.price.nickname|default:sub.id }}</strong>
-                        — status: {{ sub.status }}
+                <li class="sub-card">
+                    <div class="sub-card__head">
+                        <h3 class="sub-card__title">{{ sub.items.data.0.price.nickname|default:sub.id }}</h3>
                         {% if sub.cancel_at_period_end %}
-                            <span style="color: var(--color-danger);">(cancelling at period end)</span>
+                            <span class="sub-card__badge sub-card__badge--warn">Cancels at period end</span>
+                        {% else %}
+                            <span class="sub-card__badge sub-card__badge--ok">{{ sub.status|capfirst }}</span>
                         {% endif %}
                     </div>
-                    <div class="portal-billing__actions">
-                        <a class="btn-secondary btn-sm"
+                    <div class="sub-card__actions">
+                        <a class="btn-link sub-card__link"
                            href="{% url 'billing:subscription_change' sub.id %}">Change plan</a>
                         {% if not sub.cancel_at_period_end %}
                             <form method="post"
@@ -38,56 +42,70 @@
                                   onsubmit="return confirm('Cancel this subscription? It stays active through your current billing period.');"
                                   style="display:inline;">
                                 {% csrf_token %}
-                                <button type="submit" class="btn-secondary btn-sm">Cancel</button>
+                                <button type="submit" class="btn-link sub-card__link sub-card__link--danger">Cancel</button>
                             </form>
                         {% endif %}
                     </div>
-                </div>
+                </li>
             {% endfor %}
-        {% endif %}
-    </section>
+        </ul>
+    {% endif %}
+</section>
 
-    {# ── Payment methods ──────────────────────────────────── #}
-    <section class="admin-card">
-        <h2>Payment methods</h2>
-        {% for pm in payment_methods %}
-            <div class="portal-billing__card">
-                <span>{{ pm.card.brand|title }} •••• {{ pm.card.last4 }} (exp {{ pm.card.exp_month }}/{{ pm.card.exp_year }})</span>
-                <span class="portal-billing__actions">
-                    <form method="post" action="{% url 'billing:card_set_default' pm.id %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary btn-sm">Make default</button>
-                    </form>
-                    <form method="post" action="{% url 'billing:card_remove' pm.id %}"
-                          onsubmit="return confirm('Remove this card?');" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary btn-sm">Remove</button>
-                    </form>
-                </span>
-            </div>
-        {% empty %}
-            <p class="muted">No cards on file.</p>
-        {% endfor %}
+{% comment %} ── Payment methods ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Payment methods</h2>
+    {% if payment_methods %}
+        <ul class="sub-list">
+            {% for pm in payment_methods %}
+                <li class="sub-card">
+                    <div class="sub-card__head">
+                        <h3 class="sub-card__title">{{ pm.card.brand|title }} •••• {{ pm.card.last4 }}</h3>
+                        <span class="sub-card__badge sub-card__badge--info">Exp {{ pm.card.exp_month }}/{{ pm.card.exp_year }}</span>
+                    </div>
+                    <div class="sub-card__actions">
+                        <form method="post" action="{% url 'billing:card_set_default' pm.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-link sub-card__link">Make default</button>
+                        </form>
+                        <form method="post" action="{% url 'billing:card_remove' pm.id %}"
+                              onsubmit="return confirm('Remove this card?');" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-link sub-card__link sub-card__link--danger">Remove</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="portal-empty">No cards on file.</p>
+    {% endif %}
+    <div style="margin-top:1rem;">
         <a class="btn-primary btn-sm" href="{% url 'billing:add_card' %}">+ Add card</a>
-    </section>
+    </div>
+</section>
 
-    {# ── Past invoices ────────────────────────────────────── #}
-    <section class="admin-card">
-        <h2>Recent invoices</h2>
-        {% if not invoices %}
-            <p class="muted">No invoices yet.</p>
-        {% else %}
-            <ul class="portal-billing__invoices">
-                {% for inv in invoices %}
-                    <li>
-                        ${{ inv.amount_paid|floatformat:2 }} — {{ inv.status }}
-                        {% if inv.id %}
-                            <a href="{% url 'billing:invoice_pdf' inv.id %}">Download PDF</a>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-    </section>
-</div>
+{% comment %} ── Past invoices ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Recent invoices</h2>
+    {% if not invoices %}
+        <p class="portal-empty">No invoices yet.</p>
+    {% else %}
+        <ul class="sub-list">
+            {% for inv in invoices %}
+                <li class="sub-card">
+                    <div class="sub-card__head">
+                        <h3 class="sub-card__title">${{ inv.amount_paid|floatformat:2 }}</h3>
+                        <span class="sub-card__badge sub-card__badge--{% if inv.status == 'paid' %}ok{% else %}info{% endif %}">{{ inv.status|capfirst }}</span>
+                    </div>
+                    {% if inv.id %}
+                        <div class="sub-card__actions">
+                            <a class="btn-link sub-card__link" href="{% url 'billing:invoice_pdf' inv.id %}">Download PDF</a>
+                        </div>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</section>
 {% endblock %}
