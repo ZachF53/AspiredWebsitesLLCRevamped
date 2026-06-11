@@ -35,24 +35,43 @@ def set_password(request, token):
     if request.method == 'POST':
         password = (request.POST.get('password') or '')
         confirm = (request.POST.get('confirm_password') or '')
+        # The 4-digit vault PIN is required for EVERY client — it gates
+        # their portal credentials vault, so no account skips it.
+        pin = (request.POST.get('pin') or '').strip()
+        pin_confirm = (request.POST.get('pin_confirm') or '').strip()
+
         if not password:
             error = 'Please choose a password.'
         elif password != confirm:
             error = 'Passwords do not match.'
+        elif not (pin.isdigit() and len(pin) == 4):
+            error = 'Your PIN must be exactly 4 digits.'
+        elif pin != pin_confirm:
+            error = 'Your PINs do not match.'
         else:
             try:
                 validate_password(password, pst.user)
             except ValidationError as e:
                 error = ' · '.join(e.messages)
+
         if not error:
             pst.user.set_password(password)
-            pst.user.save(update_fields=['password'])
+            pst.user.is_active = True
+            pst.user.save(update_fields=['password', 'is_active'])
+
+            # Set the client portal/vault PIN (same crypto path as the
+            # build-client setup flow — vault.crypto.hash_client_pin).
+            _set_client_pin(pst.user, pin)
+
             pst.consumed_at = timezone.now()
             pst.save(update_fields=['consumed_at'])
-            login(request, pst.user)
-            # Redirect to onboarding dispatch — they have one in progress
+            login(request, pst.user,
+                  backend='django.contrib.auth.backends.ModelBackend')
+            # Drop them straight into their dashboard — no walkthrough
+            # gate, no login screen. The onboarding checklist surfaces
+            # inside the portal.
             from django.shortcuts import redirect
-            return redirect(reverse('onboarding:dispatch'))
+            return redirect('clients:dashboard')
 
     return render(request, 'onboarding/set_password.html', {
         'token': pst.token,
@@ -60,6 +79,29 @@ def set_password(request, token):
         'error': error,
         'password_help': password_validators_help_texts(),
     })
+
+
+def _set_client_pin(user, pin):
+    """Persist the 4-digit portal PIN on the user's ClientProfile."""
+    from vault.crypto import generate_salt, hash_client_pin
+    from clients.models import ClientProfile
+
+    cp = ClientProfile.objects.filter(user=user).first()
+    if cp is None:
+        logger.warning(
+            'set_password: no ClientProfile for %s — PIN not stored', user.pk)
+        return
+    salt = generate_salt()
+    cp.client_pin_salt = salt
+    cp.client_pin_hash = hash_client_pin(pin, salt)
+    cp.client_pin_set = True
+    cp.client_pin_failed_attempts = 0
+    cp.client_pin_lockout_until = None
+    cp.save(update_fields=[
+        'client_pin_salt', 'client_pin_hash', 'client_pin_set',
+        'client_pin_failed_attempts', 'client_pin_lockout_until',
+        'updated_at',
+    ])
 
 
 def send_password_setup_email(user, token=None):

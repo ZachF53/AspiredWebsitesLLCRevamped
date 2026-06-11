@@ -32,6 +32,10 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from billing.account_provisioning import (
+    issue_password_setup_link,
+    provision_self_checkout_account,
+)
 from billing.pricing_models import ServiceTier
 
 logger = logging.getLogger(__name__)
@@ -243,6 +247,33 @@ def checkout_confirm(request, tier_slug):
         logger.exception('checkout: subscription create failed')
         return JsonResponse({'error': str(exc)}, status=400)
 
+    # 4b) Provision the Django account NOW, synchronously. The webhook is
+    #     async and was not reliably firing, leaving buyers paid-but-
+    #     account-less. Create the account the moment the subscription
+    #     exists so we can drop the buyer straight onto the set-password
+    #     screen → dashboard. Idempotent with the webhook backstop.
+    #     `redirect` defaults to the success page; a brand-new buyer is
+    #     instead sent to /set-password/<token>/ (no login screen).
+    setup_redirect = reverse('billing:checkout_success',
+                             kwargs={'tier_slug': tier_slug})
+    try:
+        buyer = provision_self_checkout_account(
+            email=email,
+            customer_id=customer.id,
+            tier_slug=tier.slug,
+            product_type=tier.category,
+            subscription_id=subscription.id,
+            hosting_upsell=hosting_upsell,
+            customer_name=getattr(customer, 'name', '') or '',
+        )
+        if buyer is not None and not buyer.has_usable_password():
+            setup_redirect = issue_password_setup_link(
+                buyer, send_email=True)
+    except Exception:  # noqa: BLE001
+        # Never fail the purchase over account setup — the webhook
+        # backstop + checkout_success email still cover the buyer.
+        logger.exception('checkout: account provisioning failed')
+
     # 5) Pull the PaymentIntent client secret off the first invoice.
     #    NB: stripe 15's StripeObject has no .get()/.keys() — use `in`
     #    + subscripting, never dict methods, on Stripe objects.
@@ -274,23 +305,22 @@ def checkout_confirm(request, tier_slug):
                 {'error': _stripe_error_message(exc)}, status=400)
 
     if status == 'requires_action':
+        # The browser finishes SCA, then navigates to `redirect` — the
+        # set-password screen, same as the no-SCA path.
         return JsonResponse({
             'requires_action': True,
             'client_secret': client_secret,
             'subscription_id': subscription.id,
+            'redirect': setup_redirect,
         })
 
-    # succeeded / requires_capture / processing / indeterminate — the
-    # webhook finalises the subscription record either way; send the
-    # buyer to the success page.
+    # succeeded / requires_capture / processing / indeterminate — send the
+    # buyer straight to set their password (then their dashboard).
     return JsonResponse({
         'ok': True,
         'subscription_id': subscription.id,
         'status': status,
-        'redirect': reverse(
-            'billing:checkout_success',
-            kwargs={'tier_slug': tier_slug},
-        ),
+        'redirect': setup_redirect,
     })
 
 
