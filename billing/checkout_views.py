@@ -248,11 +248,20 @@ def checkout_confirm(request, tier_slug):
             )
             status = intent['status'] if 'status' in intent else None
         except Exception as exc:  # noqa: BLE001
-            # CardError (declines) carries a user-friendly message;
-            # surface it, fall back to str() for anything else.
+            # Surface a clean, buyer-facing message for declines etc.
+            # Prefer Stripe's user_message, then the parsed error body
+            # message, and only fall back to str() (which prepends an
+            # ugly "Request req_xxx:") as a last resort.
             logger.exception('checkout: payment intent confirm failed')
-            msg = getattr(exc, 'user_message', None) or str(exc)
-            return JsonResponse({'error': msg}, status=400)
+            msg = getattr(exc, 'user_message', None)
+            if not msg:
+                body = getattr(exc, 'json_body', None) or {}
+                err = body.get('error') if isinstance(body, dict) else None
+                if isinstance(err, dict):
+                    msg = err.get('message')
+            return JsonResponse({'error': msg or 'Your payment could '
+                                 'not be processed. Please try again.'},
+                                status=400)
 
     if status == 'requires_action':
         return JsonResponse({
