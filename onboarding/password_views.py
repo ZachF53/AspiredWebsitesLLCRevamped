@@ -1,6 +1,7 @@
 """Magic-link password-setup views."""
 
 import logging
+import re
 
 from django.conf import settings
 from django.contrib.auth import login
@@ -18,6 +19,24 @@ from django_ratelimit.decorators import ratelimit
 from .password_models import PasswordSetupToken
 
 logger = logging.getLogger(__name__)
+
+
+def _password_rule_error(pw):
+    """Return the first unmet password-strength rule, or '' if all pass.
+    Kept in lock-step with the live checks in static/js/set_password.js:
+    8+ chars, one lowercase, one uppercase, one number, one special.
+    """
+    if len(pw) < 8:
+        return 'Password must be at least 8 characters.'
+    if not re.search(r'[a-z]', pw):
+        return 'Password must contain a lowercase letter.'
+    if not re.search(r'[A-Z]', pw):
+        return 'Password must contain an uppercase letter.'
+    if not re.search(r'[0-9]', pw):
+        return 'Password must contain a number.'
+    if not re.search(r'[^A-Za-z0-9]', pw):
+        return 'Password must contain a special character.'
+    return ''
 
 
 # Token is already UUID-strong, but rate-limit anyway as defense in
@@ -40,8 +59,10 @@ def set_password(request, token):
         pin = (request.POST.get('pin') or '').strip()
         pin_confirm = (request.POST.get('pin_confirm') or '').strip()
 
-        if not password:
-            error = 'Please choose a password.'
+        rule_err = (_password_rule_error(password) if password
+                    else 'Please choose a password.')
+        if rule_err:
+            error = rule_err
         elif password != confirm:
             error = 'Passwords do not match.'
         elif not (pin.isdigit() and len(pin) == 4):
@@ -49,6 +70,8 @@ def set_password(request, token):
         elif pin != pin_confirm:
             error = 'Your PINs do not match.'
         else:
+            # Django's extra protections (too common, too similar to the
+            # email, entirely numeric) on top of the character rules.
             try:
                 validate_password(password, pst.user)
             except ValidationError as e:

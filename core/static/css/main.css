@@ -15400,6 +15400,65 @@ textarea.brief-field__input {
     width: 100%;
     margin-top: 0.5rem;
 }
+/* Button processing state — inline spinner so a click gives instant
+   feedback while we talk to Stripe. */
+.btn-spinner {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.5em;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    vertical-align: -0.15em;
+    animation: btn-spin 0.6s linear infinite;
+}
+button.is-loading { cursor: progress; opacity: 0.85; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Live form-validation indicators (set-password screen). Green check
+   when a rule/match is satisfied, red ✕ until then. Driven by JS adding
+   the .valid / .ok class — no inline styles (CSP_PUBLIC is strict). */
+.pw-rules {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.85rem;
+}
+.pw-rules li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    line-height: 1.85;
+    color: var(--color-text-muted, #94A3B8);
+}
+.pw-rules li::before {
+    content: '\2715'; /* ✕ */
+    display: inline-block;
+    width: 1.1em;
+    text-align: center;
+    font-weight: 700;
+    color: #F87171;
+}
+.pw-rules li.valid { color: var(--color-text, #fff); }
+.pw-rules li.valid::before { content: '\2713'; color: #34D399; } /* ✓ */
+
+.match-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    margin: 0.35rem 0 0;
+    color: #F87171;
+}
+.match-hint::before {
+    content: '\2715';
+    font-weight: 700;
+    color: #F87171;
+}
+.match-hint.ok { color: #34D399; }
+.match-hint.ok::before { content: '\2713'; color: #34D399; }
+.ob-pin-note { font-size: 0.8rem; }
 .checkout-secure {
     text-align: center;
     margin-top: 1rem;

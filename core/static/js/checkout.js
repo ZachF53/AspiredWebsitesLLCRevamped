@@ -139,16 +139,37 @@
         return m ? m[1] : '';
     }
 
+    // Button loading state — a spinner + "Processing…" so the buyer
+    // knows the click registered while we talk to Stripe (this can take
+    // a couple of seconds). Restored on any error; on success we
+    // navigate away so it just stays spinning.
+    var loadingRestoreHtml = null;
+    function startLoading() {
+        loadingRestoreHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        btn.innerHTML =
+            '<span class="btn-spinner" aria-hidden="true"></span>Processing…';
+    }
+    function stopLoading() {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        if (loadingRestoreHtml !== null) {
+            btn.innerHTML = loadingRestoreHtml;
+            loadingRestoreHtml = null;
+        }
+    }
+
     function showError(msg) {
         errorEl.textContent = msg || 'Something went wrong. Please try again.';
         errorEl.hidden = false;
-        btn.disabled = false;
+        stopLoading();
     }
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
         errorEl.hidden = true;
-        btn.disabled = true;
+        startLoading();
 
         var email = emailEl.value.trim();
         if (!email) {
