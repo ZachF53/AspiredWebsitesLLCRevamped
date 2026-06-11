@@ -82,17 +82,34 @@
     var errorEl = document.getElementById('checkout-error');
     var form = document.getElementById('checkout-form');
 
-    // Hosting upsell — visually update the total. Actual line items
-    // are added server-side in checkout_confirm.
-    var baseTotalText = totalEl ? totalEl.textContent : '';
-    if (hostingEl) {
+    // Format a number as USD, dropping ".00" on whole-dollar amounts so
+    // it matches the server's get_price_display ("$1,199").
+    function formatMoney(n) {
+        var rounded = Math.round(n * 100) / 100;
+        var whole = Math.round(rounded * 100) % 100 === 0;
+        return '$' + rounded.toLocaleString('en-US', {
+            minimumFractionDigits: whole ? 0 : 2,
+            maximumFractionDigits: 2,
+        });
+    }
+
+    // Hosting upsell — show a REAL combined total (plan + first-year
+    // hosting) charged today, instead of the confusing "+ $100". The
+    // matching line items are added server-side in checkout_confirm, so
+    // this display stays in lock-step with what Stripe actually charges.
+    var baseAmount = parseFloat(btn.getAttribute('data-base-amount')) || 0;
+    var baseTotalText = totalEl ? totalEl.textContent : '';   // "$1,199/month"
+    var baseButtonText = submitAmount ? submitAmount.textContent : '';
+    if (hostingEl && totalEl && submitAmount) {
+        var hostingAmount = parseFloat(hostingEl.getAttribute('data-amount')) || 0;
         hostingEl.addEventListener('change', function () {
             if (hostingEl.checked) {
-                totalEl.textContent = baseTotalText + ' + $100 (hosting)';
-                submitAmount.textContent = baseTotalText + ' + $100';
+                var total = formatMoney(baseAmount + hostingAmount);
+                totalEl.textContent = total;
+                submitAmount.textContent = total + ' today';
             } else {
                 totalEl.textContent = baseTotalText;
-                submitAmount.textContent = baseTotalText;
+                submitAmount.textContent = baseButtonText;
             }
         });
     }

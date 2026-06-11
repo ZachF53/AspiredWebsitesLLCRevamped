@@ -46,7 +46,8 @@
 
             {% if show_hosting_upsell %}
                 <label class="checkout-upsell">
-                    <input type="checkbox" id="hosting-upsell">
+                    <input type="checkbox" id="hosting-upsell"
+                           data-amount="{{ hosting_first_year_price|stringformat:'.2f' }}">
                     <span>
                         Add <strong>hosting move-over</strong> — $50 off first year
                         ($100 instead of $150). Renews at $150/year after year one.
@@ -98,6 +99,7 @@
                 <button type="submit" id="checkout-submit"
                         class="btn-primary btn-lg checkout-submit"
                         data-tier-slug="{{ tier.slug }}"
+                        data-base-amount="{{ tier.price|stringformat:'.2f' }}"
                         data-publishable-key="{{ stripe_publishable_key }}"
                         data-confirm-url="{% url 'billing:checkout_confirm' tier.slug %}"
                         data-email-check-url="{% url 'billing:checkout_email_check' tier.slug %}"

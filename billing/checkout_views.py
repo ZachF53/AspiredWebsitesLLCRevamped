@@ -22,6 +22,7 @@ SCA / 3DS confirmation right inside the page.
 
 import json
 import logging
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -73,10 +74,21 @@ def checkout_page(request, tier_slug):
         tier.category == 'maintenance' and hosting_tier is not None
     )
 
+    # First-year hosting price after the $50 move-over discount — this
+    # is the exact amount that rides onto the first invoice, so the JS
+    # can show a real combined total (plan + hosting) on the Pay button.
+    hosting_first_year_price = None
+    if show_hosting_upsell:
+        hosting_first_year_price = (
+            hosting_tier.price
+            - Decimal(HOSTING_FIRST_YEAR_DISCOUNT_CENTS) / Decimal(100)
+        )
+
     return render(request, 'billing/checkout.html', {
         'tier': tier,
         'hosting_tier': hosting_tier,
         'show_hosting_upsell': show_hosting_upsell,
+        'hosting_first_year_price': hosting_first_year_price,
         'stripe_publishable_key': getattr(
             settings, 'STRIPE_PUBLISHABLE_KEY', ''),
     })
