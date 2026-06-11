@@ -90,9 +90,13 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
     # Skip Website creation for vault-only placeholders — same rule
     # the backfill command uses. These profiles exist only to hold
     # credentials in the admin vault.
+    # Subscription-only buyers (maintenance / social self-checkout) set
+    # _skip_website_autocreate so they don't get a build Website — they'd
+    # otherwise surface build-only nav (My Project / Intake / Revisions).
     has_intent = bool(
         instance.firm_name or instance.website or instance.package)
-    if not has_intent:
+    if not has_intent or getattr(
+            instance, '_skip_website_autocreate', False):
         return
 
     try:

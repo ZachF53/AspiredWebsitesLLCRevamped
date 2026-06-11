@@ -8,7 +8,25 @@
     <p class="portal-page-head__sub">{{ profile.firm_name }}</p>
 </header>
 
+{% comment %}
+    Finish-setup prompt — only shows when a service the client actually
+    has still needs its intake completed. Each link points at that
+    service's own intake (website / maintenance / social).
+{% endcomment %}
+{% if has_website and intake_incomplete or maintenance_onboarding and not maintenance_onboarding.complete or social_onboarding and not social_onboarding.complete %}
+<div class="portal-callout">
+    <strong>Finish setting up</strong> — we need a few details before we can get to work.
+    <span class="portal-callout__links">
+        {% if has_website and intake_incomplete %}<a href="{% url 'clients:intake' %}">Website intake →</a>{% endif %}
+        {% if maintenance_onboarding and not maintenance_onboarding.complete %}<a href="{% url 'onboarding:welcome' maintenance_onboarding.product_type maintenance_onboarding.tier_slug %}">Maintenance intake →</a>{% endif %}
+        {% if social_onboarding and not social_onboarding.complete %}<a href="{% url 'onboarding:welcome' social_onboarding.product_type social_onboarding.tier_slug %}">Social intake →</a>{% endif %}
+    </span>
+</div>
+{% endif %}
+
 <div class="stat-grid">
+    {% comment %} Build-only stats — hidden for subscription-only clients. {% endcomment %}
+    {% if has_website %}
     <article class="stat-card">
         <span class="stat-card__label">Project Stage</span>
         <span class="stat-card__value">
@@ -21,6 +39,22 @@
             {% if project %}{{ project.revision_count }} of {{ project.revision_limit }}{% else %}&mdash;{% endif %}
         </span>
     </article>
+    {% endif %}
+
+    {% if has_maintenance %}
+    <article class="stat-card">
+        <span class="stat-card__label">Maintenance Plan</span>
+        <span class="stat-card__value">{% if maintenance_plans %}{{ maintenance_plans.0.get_tier_slug_display }}{% else %}Active{% endif %}</span>
+    </article>
+    {% endif %}
+
+    {% if has_social_media %}
+    <article class="stat-card">
+        <span class="stat-card__label">Social Plan</span>
+        <span class="stat-card__value">{% if social_media_plans %}{{ social_media_plans.0.get_tier_slug_display }}{% else %}Active{% endif %}</span>
+    </article>
+    {% endif %}
+
     <article class="stat-card">
         <span class="stat-card__label">Open Tickets</span>
         <span class="stat-card__value">{{ open_tickets }}</span>
@@ -32,6 +66,9 @@
         </span>
         {% if next_invoice %}<span class="stat-card__meta">{{ next_invoice.label }}</span>{% endif %}
     </article>
+
+    {% comment %} Uptime is relevant to anyone with a site we host or maintain. {% endcomment %}
+    {% if has_website or has_maintenance %}
     <article class="stat-card">
         <span class="stat-card__label">30-Day Uptime</span>
         {% if uptime_30 is None %}
@@ -41,9 +78,11 @@
             {% if uptime_avg_response %}<span class="stat-card__meta">Avg response: {{ uptime_avg_response }}ms</span>{% endif %}
         {% endif %}
     </article>
+    {% endif %}
 </div>
 
-{% if project %}
+{% comment %} Project progress stepper — website builds only. {% endcomment %}
+{% if has_website and project %}
 <section class="portal-section">
     <h2 class="portal-section__title">Project Progress</h2>
     <ol class="stepper">
@@ -75,14 +114,16 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="portal-empty">No activity yet. Updates will appear here as your project moves forward.</p>
+            <p class="portal-empty">No activity yet. Updates will appear here as we work on your account.</p>
         {% endif %}
     </section>
 
     <section class="portal-section">
         <h2 class="portal-section__title">Quick Actions</h2>
         <div class="quick-actions">
-            <a class="quick-action" href="{% url 'clients:revisions' %}">Submit a Revision</a>
+            {% if has_website %}<a class="quick-action" href="{% url 'clients:revisions' %}">Submit a Revision</a>{% endif %}
+            {% if has_maintenance %}<a class="quick-action" href="{% url 'clients:portal_maintenance' %}">My Maintenance</a>{% endif %}
+            {% if has_social_media %}<a class="quick-action" href="{% url 'clients:social_channels' %}">Social Channels</a>{% endif %}
             <a class="quick-action" href="{% url 'clients:files' %}">Upload a File</a>
             <a class="quick-action" href="{% url 'clients:support' %}">Get Support</a>
             <a class="quick-action" href="{% url 'clients:invoices' %}">View Invoices</a>

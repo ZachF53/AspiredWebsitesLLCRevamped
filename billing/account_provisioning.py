@@ -60,16 +60,21 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
         from clients.models import ClientProfile
         from clients.account_models import Account
 
-        cp, cp_created = ClientProfile.objects.get_or_create(
-            user=user,
-            defaults={
-                'firm_name': derived_name,
-                'contact_name': derived_name,
-                'status': 'active',
-                'stripe_customer_id': customer_id,
-            },
-        )
-        if not cp_created and not cp.stripe_customer_id:
+        cp = ClientProfile.objects.filter(user=user).first()
+        if cp is None:
+            cp = ClientProfile(
+                user=user,
+                firm_name=derived_name,
+                contact_name=derived_name,
+                status='active',
+                stripe_customer_id=customer_id,
+            )
+            # Self-checkout subscription buyers are NOT website-build
+            # clients — the post_save signal would otherwise auto-spawn a
+            # Website and surface build-only nav. Suppress that.
+            cp._skip_website_autocreate = True
+            cp.save()
+        elif not cp.stripe_customer_id:
             cp.stripe_customer_id = customer_id
             cp.save(update_fields=['stripe_customer_id'])
 

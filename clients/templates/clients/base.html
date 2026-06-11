@@ -81,7 +81,7 @@
                     </a>
                     <a class="portal-nav__link {% if active_portal_nav == 'intake' %}is-active{% endif %}" href="{% url 'clients:intake' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 6h4m-4 4h4"/></svg>
-                        <span>Intake Form</span>
+                        <span>Website Intake</span>
                         {% if intake_incomplete %}<span class="portal-badge">!</span>{% endif %}
                     </a>
                     <a class="portal-nav__link {% if active_portal_nav == 'revisions' %}is-active{% endif %}" href="{% url 'clients:revisions' %}">
@@ -92,13 +92,22 @@
                     {% endif %}
 
                     {% if has_maintenance %}
-                    {# Maintenance-plan customers — plan details + management,
-                       parallel to the Social Plans link below. #}
+                    {% comment %}
+                        Maintenance-plan customers — plan details +
+                        management, parallel to the Social Plans link below.
+                    {% endcomment %}
                     <div class="portal-nav-group-label">Maintenance</div>
                     <a class="portal-nav__link {% if active_portal_nav == 'maintenance' %}is-active{% endif %}" href="{% url 'clients:portal_maintenance' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18l3 3 6.1-6.1a4 4 0 0 0 5.6-5.6l-2.8 2.8-2.4-2.4z"/></svg>
                         <span>Maintenance</span>
                     </a>
+                    {% if maintenance_onboarding %}
+                    <a class="portal-nav__link portal-nav__link--sub" href="{% url 'onboarding:welcome' maintenance_onboarding.product_type maintenance_onboarding.tier_slug %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 6h4m-4 4h4"/></svg>
+                        <span>Maintenance Intake</span>
+                        {% if not maintenance_onboarding.complete %}<span class="portal-badge">!</span>{% endif %}
+                    </a>
+                    {% endif %}
                     {% endif %}
 
                     {% comment %}
@@ -117,6 +126,13 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
                         <span>Social Plans</span>
                     </a>
+                    {% if social_onboarding %}
+                    <a class="portal-nav__link portal-nav__link--sub" href="{% url 'onboarding:welcome' social_onboarding.product_type social_onboarding.tier_slug %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 6h4m-4 4h4"/></svg>
+                        <span>Social Intake</span>
+                        {% if not social_onboarding.complete %}<span class="portal-badge">!</span>{% endif %}
+                    </a>
+                    {% endif %}
 
                     {# ── SUPPORT ── #}
                     <div class="portal-nav-group-label">Support</div>
