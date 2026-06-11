@@ -92,9 +92,10 @@
                     {% endif %}
 
                     {% if has_maintenance %}
-                    {# Maintenance-plan customers — current-site URL + ticket-style updates #}
+                    {# Maintenance-plan customers — plan details + management,
+                       parallel to the Social Plans link below. #}
                     <div class="portal-nav-group-label">Maintenance</div>
-                    <a class="portal-nav__link {% if active_portal_nav == 'maintenance' %}is-active{% endif %}" href="{% url 'clients:dashboard' %}?service=maintenance">
+                    <a class="portal-nav__link {% if active_portal_nav == 'maintenance' %}is-active{% endif %}" href="{% url 'clients:portal_maintenance' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18l3 3 6.1-6.1a4 4 0 0 0 5.6-5.6l-2.8 2.8-2.4-2.4z"/></svg>
                         <span>Maintenance</span>
                     </a>

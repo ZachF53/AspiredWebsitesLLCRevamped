@@ -2329,7 +2329,7 @@ def portal_maintenance(request):
     state = _maintenance_upsell_state(profile)
 
     ctx = _portal_context(
-        request, 'subscriptions',
+        request, 'maintenance',
         tiers=tiers,
         upsell_state=state,
     )

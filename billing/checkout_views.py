@@ -310,6 +310,7 @@ def checkout_confirm(request, tier_slug):
     #     instead sent to /set-password/<token>/ (no login screen).
     setup_redirect = reverse('billing:checkout_success',
                              kwargs={'tier_slug': tier_slug})
+    buyer = None
     try:
         buyer = provision_self_checkout_account(
             email=email,
@@ -359,11 +360,24 @@ def checkout_confirm(request, tier_slug):
                 {'error': _stripe_error_message(exc)}, status=400)
 
     # 6b) Once the primary charge has gone through, add the hosting
-    #     move-over as its own annual subscription on the same card.
+    #     move-over as its own annual subscription on the same card, and
+    #     record its id on the profile so the portal subscriptions page
+    #     lists it.
     if hosting_upsell and status in (
             'succeeded', 'processing', 'requires_capture'):
-        _create_hosting_subscription(
+        hosting_sub = _create_hosting_subscription(
             stripe, customer.id, payment_method_id, tier.slug)
+        if hosting_sub is not None and buyer is not None and (
+                'id' in hosting_sub):
+            try:
+                from clients.models import ClientProfile
+                cp = ClientProfile.objects.filter(user=buyer).first()
+                if cp is not None:
+                    cp.stripe_hosting_subscription_id = hosting_sub['id']
+                    cp.save(update_fields=[
+                        'stripe_hosting_subscription_id', 'updated_at'])
+            except Exception:  # noqa: BLE001
+                logger.exception('checkout: store hosting sub id failed')
 
     if status == 'requires_action':
         # The browser finishes SCA, then navigates to `redirect` — the

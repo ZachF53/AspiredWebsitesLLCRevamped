@@ -109,10 +109,12 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
     # Phase-D service-plan row — the canonical record of what they bought.
     try:
         from clients.account_models import Account
+        from clients.models import ClientProfile
         from clients.service_models import MaintenancePlan, SocialMediaPlan
         from billing.pricing_models import ServiceTier
 
         account = Account.objects.filter(user=user).first()
+        cp = ClientProfile.objects.filter(user=user).first()
         if account is not None and subscription_id:
             if product_type == 'maintenance':
                 MaintenancePlan.objects.update_or_create(
@@ -127,6 +129,22 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                             timezone.now() if hosting_upsell else None),
                     },
                 )
+                # Mirror onto the legacy ClientProfile fields the portal
+                # still reads everywhere (subscriptions list, upsell
+                # state, dashboard maintenance card, cancel/resume). The
+                # new MaintenancePlan row above is the Phase-D source of
+                # truth; these keep the not-yet-migrated views working.
+                # This is an UPDATE (cp already exists) so it does NOT
+                # re-fire the Website-autocreate signal (created=False).
+                if cp is not None:
+                    cp.stripe_subscription_id = subscription_id
+                    cp.maintenance_active = True
+                    if not cp.maintenance_started_at:
+                        cp.maintenance_started_at = timezone.now()
+                    cp.package = tier_slug.replace('-', '_')
+                    cp.save(update_fields=[
+                        'stripe_subscription_id', 'maintenance_active',
+                        'maintenance_started_at', 'package', 'updated_at'])
             elif product_type == 'social_media':
                 tier = ServiceTier.objects.filter(slug=tier_slug).first()
                 max_ch = (tier.max_channels if tier and tier.max_channels
@@ -141,6 +159,14 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                         'max_channels': max_ch,
                     },
                 )
+                # Legacy mirror so the subscriptions list shows the social
+                # sub for not-yet-migrated views (package enum has no
+                # social value, so only the pointer field is set).
+                if cp is not None and (
+                        cp.stripe_social_subscription_id != subscription_id):
+                    cp.stripe_social_subscription_id = subscription_id
+                    cp.save(update_fields=[
+                        'stripe_social_subscription_id', 'updated_at'])
     except Exception:  # noqa: BLE001
         logger.exception(
             'provision: service-model write failed for %s', user.pk)
