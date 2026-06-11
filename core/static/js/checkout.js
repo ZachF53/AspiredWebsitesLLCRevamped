@@ -4,15 +4,16 @@
 //
 // CSP requirements: js.stripe.com must be allowed in script-src;
 // hooks.stripe.com in frame-src.
-(function () {
+(function init() {
     'use strict';
 
     var btn = document.getElementById('checkout-submit');
     if (!btn || typeof window.Stripe !== 'function') {
         // Stripe.js still loading — retry shortly. Cheap polling
-        // avoids racing with the deferred script tag.
+        // avoids racing with the deferred script tag. (Use the named
+        // `init` ref — `arguments.callee` throws under 'use strict'.)
         if (btn && typeof window.Stripe !== 'function') {
-            setTimeout(arguments.callee, 100);
+            setTimeout(init, 100);
         }
         return;
     }

@@ -143,14 +143,18 @@ class SecurityHeadersMiddleware:
         elif (path.startswith('/admin-dashboard/vault/')
               and path.endswith('/terminal/')):
             response['Content-Security-Policy'] = CSP_TERMINAL
-        elif path.startswith('/pay/'):
-            # Public payment page + success page. Allows Stripe.js,
-            # the Stripe Element iframe, and api.stripe.com calls.
-            response['Content-Security-Policy'] = CSP_PAYMENT
-        elif path.startswith('/portal/subscriptions/'):
-            # Portal subscriptions page — Stripe Elements for adding
-            # new cards via SetupIntent. Same Stripe permissions as
-            # the public pay page.
+        elif path.startswith((
+            '/pay/',                        # public invoice payment page + success
+            '/portal/subscriptions/',       # portal: add card via SetupIntent
+            '/billing/checkout/',           # custom Stripe Elements checkout
+            '/billing/portal/cards/add/',   # portal: add a new card
+        )):
+            # Every page that loads Stripe.js and renders the Stripe
+            # Element iframe needs the Stripe-permissive policy. Without it
+            # CSP_PUBLIC's `script-src 'self'` blocks js.stripe.com and the
+            # card/address iframes never mount (and checkout.js bails before
+            # wiring up the page). Keep this list in sync with any new page
+            # that embeds Stripe Elements.
             response['Content-Security-Policy'] = CSP_PAYMENT
         elif '/recordings/' in path and path.endswith('/replay/'):
             # Matches both admin (/admin-dashboard/clients/<id>/recordings/
