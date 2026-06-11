@@ -15,7 +15,12 @@
     var skipUrl = card.getAttribute('data-onboarding-skip-url');
 
     function csrfToken() {
-        // Django CSRF cookie
+        // CSRF_COOKIE_HTTPONLY is True on this project, so the cookie is
+        // invisible to JS — read the token rendered by {% csrf_token %}
+        // first, then fall back to the cookie if it's ever readable.
+        var input = document.querySelector(
+            'input[name=csrfmiddlewaretoken]');
+        if (input && input.value) return input.value;
         var match = document.cookie.match(/csrftoken=([^;]+)/);
         return match ? match[1] : '';
     }

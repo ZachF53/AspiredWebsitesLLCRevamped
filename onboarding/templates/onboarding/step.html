@@ -7,12 +7,23 @@
      data-onboarding-save-url="{% url 'onboarding:save' onboarding.product_type onboarding.tier_slug %}"
      data-onboarding-skip-url="{% url 'onboarding:skip' onboarding.product_type onboarding.tier_slug %}">
 
-    {# ── Section breadcrumb strip ── #}
+    {% comment %}
+        CSRF token for the AJAX save/skip. CSRF_COOKIE_HTTPONLY is True,
+        so the JS can't read the cookie — it reads this rendered token
+        instead and sends it in the X-CSRFToken header.
+    {% endcomment %}
+    {% csrf_token %}
+
+    {# ── Section breadcrumb strip — clickable to jump between sections ── #}
     <ol class="ob-breadcrumbs" aria-label="Onboarding sections">
         {% for crumb in breadcrumbs %}
             <li class="ob-breadcrumb ob-breadcrumb--{{ crumb.state }}">
-                {% if crumb.state == 'done' %}<span aria-hidden="true">&#10003;</span>{% elif crumb.state == 'current' %}<span aria-hidden="true">&bull;</span>{% else %}<span aria-hidden="true">&#9675;</span>{% endif %}
-                <span class="ob-breadcrumb__label">{{ crumb.key }}</span>
+                <a class="ob-breadcrumb__link"
+                   href="{% url 'onboarding:step' onboarding.product_type onboarding.tier_slug crumb.key %}"
+                   title="{{ crumb.title }}">
+                    {% if crumb.state == 'done' %}<span aria-hidden="true">&#10003;</span>{% elif crumb.state == 'current' %}<span aria-hidden="true">&bull;</span>{% else %}<span aria-hidden="true">&#9675;</span>{% endif %}
+                    <span class="ob-breadcrumb__label">{{ crumb.key }}</span>
+                </a>
             </li>
         {% endfor %}
     </ol>

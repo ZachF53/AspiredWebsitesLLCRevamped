@@ -15162,6 +15162,40 @@ textarea.brief-field__input {
     border-color: var(--color-orange);
     background: rgba(0, 0, 0, 0.4);
 }
+/* Native <select> dark-mode. The closed control is themed above, but
+   the popup option list and the control's own background fall back to
+   the OS light palette (the gray dropdown). Force a solid dark
+   background + custom chevron so the open dropdown matches the theme. */
+select.ob-question__input {
+    background-color: var(--color-bg-raised);
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    padding-right: 2.1rem;
+}
+select.ob-question__input:focus {
+    background-color: var(--color-bg-raised);
+}
+.ob-question__input option {
+    background-color: var(--color-bg-raised);
+    color: var(--color-text);
+}
+/* Clickable section breadcrumbs (jump between onboarding sections). */
+.ob-breadcrumb__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.ob-breadcrumb__link:hover .ob-breadcrumb__label {
+    text-decoration: underline;
+}
 .ob-question__skip {
     background: none;
     border: 0;

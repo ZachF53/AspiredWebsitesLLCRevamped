@@ -727,18 +727,40 @@ def list_customer_payment_methods(customer_id):
 
 
 def get_customer_default_payment_method(customer_id):
-    """Return the customer's default invoice payment method ID, or ''."""
+    """Return the customer's default invoice payment method ID, or ''.
+
+    Self-heals a stale default: repeated checkouts / manual add+remove
+    can leave invoice_settings.default_payment_method pointing at a card
+    that's no longer attached, which made "card on file" checks (e.g.
+    the social / maintenance subscribe pages) report no card even though
+    one was attached. If the stored default isn't among the currently
+    attached cards, fall back to the first attached card and persist it
+    as the new default so renewals don't fail either.
+    """
     _init()
     if not customer_id:
         return ''
     cust = stripe.Customer.retrieve(customer_id)
-    # Stripe v8 removed dict-like .get() on StripeObject — use attr
-    # access only. invoice_settings may be None on customers that have
-    # never had one set, so guard both levels.
+    # Stripe v8+ removed dict-like .get() on StripeObject — attr access
+    # only. invoice_settings may be None if never set.
     inv = getattr(cust, 'invoice_settings', None)
-    if inv is None:
-        return ''
-    return getattr(inv, 'default_payment_method', '') or ''
+    stored = getattr(inv, 'default_payment_method', '') if inv else ''
+
+    cards = list_customer_payment_methods(customer_id)
+    card_ids = [getattr(m, 'id', '') for m in cards]
+    if stored and stored in card_ids:
+        return stored
+    if card_ids:
+        first = card_ids[0]
+        # Heal the pointer so the rest of the system (renewals, badges)
+        # agrees there's a usable default.
+        try:
+            set_customer_default_payment_method(customer_id, first)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                'could not heal default PM for %s', customer_id)
+        return first
+    return ''
 
 
 def set_customer_default_payment_method(customer_id, payment_method_id):
