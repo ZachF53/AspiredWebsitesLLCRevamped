@@ -24,10 +24,48 @@
     if (!publishableKey) return;
 
     var stripe = Stripe(publishableKey);
+
+    // Dark theme for the Stripe-hosted iframes (PaymentElement +
+    // AddressElement). Their internals are cross-origin, so site CSS
+    // can't reach them — Stripe's Appearance API is the only lever.
+    // Values mirror the checkout page tokens in main.css: panel
+    // --color-bg-raised #0F172A, field bg ~#0B101D (black 0.3 over the
+    // panel, matching the email input), brand --color-orange #E8650A,
+    // text #FFFFFF, muted #94A3B8, font Arial.
+    var appearance = {
+        theme: 'night',
+        variables: {
+            colorPrimary: '#E8650A',
+            colorBackground: '#0B101D',
+            colorText: '#FFFFFF',
+            colorTextSecondary: '#94A3B8',
+            colorTextPlaceholder: '#64748B',
+            colorDanger: '#F87171',
+            fontFamily: 'Arial, Helvetica, sans-serif',
+            borderRadius: '6px',
+            spacingUnit: '4px',
+        },
+        rules: {
+            '.Input': { border: '1px solid rgba(255, 255, 255, 0.12)' },
+            '.Input:focus': {
+                border: '1px solid #E8650A',
+                boxShadow: '0 0 0 1px #E8650A',
+            },
+            '.Tab': { border: '1px solid rgba(255, 255, 255, 0.12)' },
+            '.Tab:hover': { borderColor: 'rgba(232, 101, 10, 0.5)' },
+            '.Tab--selected': {
+                borderColor: '#E8650A',
+                boxShadow: '0 0 0 1px #E8650A',
+            },
+            '.Label': { color: '#94A3B8' },
+        },
+    };
+
     var elements = stripe.elements({
         mode: 'setup',
         currency: 'usd',
         paymentMethodCreation: 'manual',
+        appearance: appearance,
     });
 
     var paymentElement = elements.create('payment');
