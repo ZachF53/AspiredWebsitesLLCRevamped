@@ -14,5 +14,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/onboarding_wizard.js' %}" defer></script>
+    <script src="{% static 'js/onboarding_wizard.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

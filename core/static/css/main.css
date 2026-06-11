@@ -15300,6 +15300,10 @@ select.ob-question__input:focus {
     color: var(--color-success);
     font-size: 0.75rem;
 }
+/* Respect the [hidden] attribute — a class display rule otherwise beats
+   the UA [hidden]{display:none}, so "✓ saved" would show on page load
+   instead of only flashing after an actual save. */
+.ob-question__saved[hidden] { display: none; }
 
 /* Footer nav */
 .ob-step-footer {

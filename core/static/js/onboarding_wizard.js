@@ -79,8 +79,11 @@
                 // again or hit save & continue to retry.
             });
         }
-        // 'change' fires for select/textarea, 'blur' for text inputs
-        input.addEventListener('blur', save);
+        // Save on 'change' only — for text/textarea it fires when the
+        // field loses focus AND the value actually changed; for selects
+        // it fires on pick. That's exactly "save once they click out,
+        // and only if they edited it" (no save / no "✓ saved" on an
+        // untouched field).
         input.addEventListener('change', save);
     }
 
