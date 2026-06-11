@@ -151,17 +151,11 @@ def build_todos_from_onboarding(onboarding):
                 continue
             if existing and existing.status == 'completed':
                 continue  # already done
-            # Need a client_id for the deeplink — find the user's first
-            # ClientProfile or fall back to nothing.
-            deeplink = ''
-            try:
-                from clients.models import ClientProfile
-                cp = ClientProfile.objects.filter(user=user).first()
-                if cp:
-                    deeplink = (f'/admin-dashboard/vault/{cp.id}/add/?'
-                                f'category={cat}&type={typ}')
-            except Exception:
-                pass
+            # These to-dos live on the CLIENT's portal — link to the
+            # client's own (PIN-gated) credentials page, NOT the admin
+            # vault (which a client can't reach → redirect loop). The
+            # page is scoped to the logged-in client, so no id is needed.
+            deeplink = f'/portal/credentials/?category={cat}&type={typ}'
             SetupTodo.objects.create(
                 user=user,
                 task_type='vault_credential',
