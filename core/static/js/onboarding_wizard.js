@@ -14,6 +14,15 @@
     var saveUrl = card.getAttribute('data-onboarding-save-url');
     var skipUrl = card.getAttribute('data-onboarding-skip-url');
 
+    // Set the initial progress-bar width from data-percent. (A server-
+    // rendered inline style="width:%" is blocked by the strict CSP, so
+    // we apply it here via CSSOM, which is allowed.)
+    var initFill = document.getElementById('ob-progress-fill');
+    if (initFill) {
+        var initPct = initFill.getAttribute('data-percent');
+        if (initPct !== null) initFill.style.width = initPct + '%';
+    }
+
     function csrfToken() {
         // CSRF_COOKIE_HTTPONLY is True on this project, so the cookie is
         // invisible to JS — read the token rendered by {% csrf_token %}
@@ -57,10 +66,10 @@
     }
 
     function flashSaved(key) {
+        // Show "✓ saved" and leave it there — it marks that this field's
+        // answer is stored (don't auto-hide).
         var el = card.querySelector('[data-q-saved="' + key + '"]');
-        if (!el) return;
-        el.hidden = false;
-        setTimeout(function () { el.hidden = true; }, 1200);
+        if (el) el.hidden = false;
     }
 
     function bindInput(input) {

@@ -15095,6 +15095,10 @@ textarea.brief-field__input {
 }
 .ob-progress__fill {
     height: 100%;
+    /* Default 0 — the real width is set by JS from data-percent (an
+       inline style="width:%" is blocked by the page's strict CSP, which
+       would otherwise leave this block div at full container width). */
+    width: 0;
     background: linear-gradient(90deg, var(--color-orange), var(--color-orange-light));
     transition: width 0.3s ease;
 }
