@@ -124,7 +124,11 @@
                     <ul>
                         <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
                         <li><a href="tel:+12108962536">(210) 896-2536</a></li>
-                        <li><a href="{% url 'public:login' %}">Client Login</a></li>
+                        {% if request.user.is_authenticated %}
+                            <li><a href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
+                        {% else %}
+                            <li><a href="{% url 'public:login' %}">Client Login</a></li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>
