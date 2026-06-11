@@ -69,7 +69,11 @@
                         {% if request.user.is_authenticated and request.user.is_staff %}
                             <li><a class="nav-link nav-link--admin" href="/admin-dashboard/">Admin</a></li>
                         {% endif %}
-                        <li><a class="nav-link nav-link--cta" href="{% url 'public:login' %}">Client Login</a></li>
+                        {% if request.user.is_authenticated %}
+                            <li><a class="nav-link nav-link--cta" href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
+                        {% else %}
+                            <li><a class="nav-link nav-link--cta" href="{% url 'public:login' %}">Client Login</a></li>
+                        {% endif %}
                     </ul>
                 </div>
             </nav>

@@ -77,8 +77,16 @@
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                         <li class="feature-list__hosting-opt">Optional hosting move-over — $50 off first year</li>
                     </ul>
-                    {# Self-checkout for maintenance #}
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
+                    {% comment %}
+                        Logged-in clients subscribe from inside the portal
+                        (card already on file); anonymous visitors go to the
+                        public Stripe checkout.
+                    {% endcomment %}
+                    {% if request.user.is_authenticated %}
+                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'clients:portal_maintenance' %}">Buy Now</a>
+                    {% else %}
+                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
+                    {% endif %}
                 </article>
             {% endfor %}
         </div>
@@ -114,8 +122,15 @@
                         {% elif tier.reply_handling == 'full' %}<li>Full reply &amp; DM management</li>
                         {% endif %}
                     </ul>
-                    {# Self-checkout for social media #}
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
+                    {% comment %}
+                        Logged-in clients subscribe from the portal's social
+                        plans page; anonymous visitors go to public checkout.
+                    {% endcomment %}
+                    {% if request.user.is_authenticated %}
+                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'clients:portal_social_plans' %}">Buy Now</a>
+                    {% else %}
+                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
+                    {% endif %}
                 </article>
             {% endfor %}
         </div>
