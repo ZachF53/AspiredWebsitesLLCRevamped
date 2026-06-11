@@ -51,6 +51,24 @@ def _stripe():
     return stripe
 
 
+def _stripe_error_message(exc, fallback='Your payment could not be '
+                          'processed. Please try again.'):
+    """Pull a clean, buyer-facing message out of a Stripe exception.
+
+    Card declines surface as CardError; we want "Your card was declined."
+    not str(exc), which prepends an ugly "Request req_xxx:". Prefer
+    user_message, then the parsed error-body message, then a friendly
+    generic fallback.
+    """
+    msg = getattr(exc, 'user_message', None)
+    if not msg:
+        body = getattr(exc, 'json_body', None) or {}
+        err = body.get('error') if isinstance(body, dict) else None
+        if isinstance(err, dict):
+            msg = err.get('message')
+    return msg or fallback
+
+
 def _tier_allows_selfcheckout(tier):
     """Web design tiers DO NOT allow self-checkout — they go through
     the Schedule a Call page."""
@@ -170,8 +188,10 @@ def checkout_confirm(request, tier_slug):
             invoice_settings={'default_payment_method': payment_method_id},
         )
     except Exception as exc:  # noqa: BLE001
+        # A declined card raises CardError right here, on attach.
         logger.exception('checkout: payment method attach failed')
-        return JsonResponse({'error': str(exc)}, status=400)
+        return JsonResponse(
+            {'error': _stripe_error_message(exc)}, status=400)
 
     # 3) (Optional) hosting move-over — pre-add pending invoice items so
     #    they ride onto the subscription's first invoice. We pass an
@@ -249,19 +269,9 @@ def checkout_confirm(request, tier_slug):
             status = intent['status'] if 'status' in intent else None
         except Exception as exc:  # noqa: BLE001
             # Surface a clean, buyer-facing message for declines etc.
-            # Prefer Stripe's user_message, then the parsed error body
-            # message, and only fall back to str() (which prepends an
-            # ugly "Request req_xxx:") as a last resort.
             logger.exception('checkout: payment intent confirm failed')
-            msg = getattr(exc, 'user_message', None)
-            if not msg:
-                body = getattr(exc, 'json_body', None) or {}
-                err = body.get('error') if isinstance(body, dict) else None
-                if isinstance(err, dict):
-                    msg = err.get('message')
-            return JsonResponse({'error': msg or 'Your payment could '
-                                 'not be processed. Please try again.'},
-                                status=400)
+            return JsonResponse(
+                {'error': _stripe_error_message(exc)}, status=400)
 
     if status == 'requires_action':
         return JsonResponse({
