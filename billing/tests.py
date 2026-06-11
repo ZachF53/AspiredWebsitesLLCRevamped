@@ -383,13 +383,21 @@ class WebhookVerifyTests(TestCase):
 
     @patch('billing.webhooks.stripe.Webhook.construct_event')
     def test_verified_when_secret_set_and_construct_succeeds(self, m):
-        """When the secret IS set, _verify_event hands the call off to
-        Stripe's construct_event and returns whatever it produces."""
-        m.return_value = {'type': 'ping', 'data': {'object': {}}}
+        """When the secret IS set, _verify_event verifies the signature via
+        construct_event, then returns the ORIGINAL raw payload parsed as a
+        plain dict (NOT the StripeObject construct_event returns — stripe 15's
+        Event isn't a dict and 500'd every handler via `.get()`)."""
+        # construct_event returning without raising == signature verified.
+        # Its return value is intentionally ignored by _verify_event.
+        m.return_value = {'type': 'ignored', 'data': {'object': {}}}
         from billing import webhooks
+        payload = b'{"type":"ping","data":{"object":{"id":"cus_1"}}}'
         with override_settings(STRIPE_WEBHOOK_SECRET='whsec_test'):
-            event = webhooks._verify_event(b'{}', 'sig123')
+            event = webhooks._verify_event(payload, 'sig123')
         self.assertEqual(event['type'], 'ping')
+        # Regression guard: must be a plain dict so downstream .get() works.
+        self.assertIsInstance(event, dict)
+        self.assertEqual(event['data']['object']['id'], 'cus_1')
 
     @patch('billing.webhooks.stripe.Webhook.construct_event')
     def test_rejects_when_construct_raises(self, m):
