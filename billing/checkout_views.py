@@ -173,16 +173,20 @@ def checkout_confirm(request, tier_slug):
         logger.exception('checkout: payment method attach failed')
         return JsonResponse({'error': str(exc)}, status=400)
 
-    # 3) (Optional) hosting move-over — pre-add an InvoiceItem so it
-    #    rides on the first invoice with a $50 off line item.
+    # 3) (Optional) hosting move-over — pre-add pending invoice items so
+    #    they ride onto the subscription's first invoice. We pass an
+    #    explicit `amount` rather than `price=` because Stripe's 2025+
+    #    API removed the `price` param on InvoiceItem.create (it now
+    #    400s "unknown parameter: price"). Net = list price - $50.
     if hosting_upsell:
         hosting_tier = ServiceTier.objects.filter(
             category='hosting', is_active=True).first()
-        if hosting_tier and hosting_tier.stripe_price_id:
+        if hosting_tier and hosting_tier.price:
             try:
                 stripe.InvoiceItem.create(
                     customer=customer.id,
-                    price=hosting_tier.stripe_price_id,
+                    amount=int(round(hosting_tier.price * 100)),
+                    currency='usd',
                     description=f'{hosting_tier.name} (first year)',
                 )
                 stripe.InvoiceItem.create(
@@ -196,7 +200,11 @@ def checkout_confirm(request, tier_slug):
                     'checkout: hosting upsell line items failed')
                 # Continue with subscription anyway; admin can adjust.
 
-    # 4) Create the subscription
+    # 4) Create the subscription. payment_behavior=default_incomplete
+    #    creates the first invoice + its PaymentIntent but does NOT
+    #    charge yet. Stripe's 2025+ API dropped invoice.payment_intent;
+    #    the PaymentIntent client secret now lives on the invoice's
+    #    `confirmation_secret`, so that's what we expand.
     try:
         subscription = stripe.Subscription.create(
             customer=customer.id,
@@ -204,7 +212,7 @@ def checkout_confirm(request, tier_slug):
             payment_behavior='default_incomplete',
             payment_settings={
                 'save_default_payment_method': 'on_subscription'},
-            expand=['latest_invoice.payment_intent'],
+            expand=['latest_invoice.confirmation_secret'],
             metadata={
                 'tier_slug': tier.slug,
                 'product_type': tier.category,
@@ -215,9 +223,36 @@ def checkout_confirm(request, tier_slug):
         logger.exception('checkout: subscription create failed')
         return JsonResponse({'error': str(exc)}, status=400)
 
-    intent = (subscription.get('latest_invoice') or {}).get('payment_intent') or {}
-    status = intent.get('status') if intent else None
-    client_secret = intent.get('client_secret') if intent else None
+    # 5) Pull the PaymentIntent client secret off the first invoice.
+    #    NB: stripe 15's StripeObject has no .get()/.keys() — use `in`
+    #    + subscripting, never dict methods, on Stripe objects.
+    invoice = (subscription['latest_invoice']
+               if 'latest_invoice' in subscription else None)
+    client_secret = None
+    if invoice is not None and 'confirmation_secret' in invoice:
+        cs = invoice['confirmation_secret']
+        if cs and 'client_secret' in cs:
+            client_secret = cs['client_secret']
+
+    # 6) Confirm the PaymentIntent server-side with the card we just
+    #    attached, so the charge actually goes through. If the card
+    #    needs SCA/3DS, Stripe returns requires_action and the browser
+    #    finishes it via stripe.confirmCardPayment(client_secret).
+    status = None
+    if client_secret:
+        payment_intent_id = client_secret.split('_secret', 1)[0]
+        try:
+            intent = stripe.PaymentIntent.confirm(
+                payment_intent_id,
+                payment_method=payment_method_id,
+            )
+            status = intent['status'] if 'status' in intent else None
+        except Exception as exc:  # noqa: BLE001
+            # CardError (declines) carries a user-friendly message;
+            # surface it, fall back to str() for anything else.
+            logger.exception('checkout: payment intent confirm failed')
+            msg = getattr(exc, 'user_message', None) or str(exc)
+            return JsonResponse({'error': msg}, status=400)
 
     if status == 'requires_action':
         return JsonResponse({
@@ -225,16 +260,10 @@ def checkout_confirm(request, tier_slug):
             'client_secret': client_secret,
             'subscription_id': subscription.id,
         })
-    if status in ('succeeded', 'requires_capture'):
-        return JsonResponse({
-            'ok': True,
-            'subscription_id': subscription.id,
-            'redirect': reverse(
-                'billing:checkout_success',
-                kwargs={'tier_slug': tier_slug},
-            ),
-        })
-    # Indeterminate state — let Stripe webhook finalise; just redirect.
+
+    # succeeded / requires_capture / processing / indeterminate — the
+    # webhook finalises the subscription record either way; send the
+    # buyer to the success page.
     return JsonResponse({
         'ok': True,
         'subscription_id': subscription.id,
