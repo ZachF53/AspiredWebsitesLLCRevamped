@@ -46,6 +46,83 @@ User = get_user_model()
 # annual hosting tier already has a price; we add a fixed $50 discount
 # coupon at checkout to land at $100 first year.
 HOSTING_FIRST_YEAR_DISCOUNT_CENTS = 5000   # $50 off year one
+# Stable, reusable Stripe coupon id for the first-year hosting discount.
+HOSTING_COUPON_ID = 'hosting_moveover_first_year_50'
+
+
+def _ensure_hosting_coupon(stripe):
+    """Get-or-create the one-time $50-off coupon used for the first year
+    of the hosting move-over. Returns the coupon id, or None on failure."""
+    try:
+        stripe.Coupon.retrieve(HOSTING_COUPON_ID)
+        return HOSTING_COUPON_ID
+    except Exception:  # noqa: BLE001 — not found (or transient) → try create
+        try:
+            stripe.Coupon.create(
+                id=HOSTING_COUPON_ID,
+                amount_off=HOSTING_FIRST_YEAR_DISCOUNT_CENTS,
+                currency='usd',
+                duration='once',
+                name='Hosting move-over — first year $50 off',
+            )
+            return HOSTING_COUPON_ID
+        except Exception:  # noqa: BLE001
+            logger.exception('checkout: hosting coupon ensure failed')
+            return None
+
+
+def _create_hosting_subscription(stripe, customer_id, payment_method_id,
+                                 parent_tier_slug):
+    """Create the hosting move-over as its OWN annual subscription
+    ($150/yr, $50 off the first year via a one-time coupon), charged
+    immediately on the card we just saved. Returns the subscription or
+    None. Never raises — a hosting failure must not undo the primary sale.
+    """
+    hosting_tier = ServiceTier.objects.filter(
+        category='hosting', is_active=True).first()
+    if not (hosting_tier and hosting_tier.stripe_price_id):
+        logger.warning('checkout: no hosting tier/price configured')
+        return None
+    coupon = _ensure_hosting_coupon(stripe)
+    try:
+        kwargs = {
+            'customer': customer_id,
+            'items': [{'price': hosting_tier.stripe_price_id}],
+            'default_payment_method': payment_method_id,
+            # product_type='hosting' with NO tier_slug → the
+            # subscription.created webhook early-returns (no second
+            # account-provision pass for the hosting sub).
+            'metadata': {'product_type': 'hosting',
+                         'parent_tier_slug': parent_tier_slug},
+        }
+        if coupon:
+            kwargs['discounts'] = [{'coupon': coupon}]
+        hosting_sub = stripe.Subscription.create(**kwargs)
+        st = hosting_sub['status'] if 'status' in hosting_sub else None
+        if st not in ('active', 'trialing'):
+            # e.g. the follow-on $100 charge needed SCA and is now
+            # incomplete. The primary sale already went through; flag it.
+            logger.warning(
+                'checkout: hosting subscription status=%s (not active) '
+                'for customer %s', st, customer_id)
+            try:
+                from core.system_alerts import record_alert
+                record_alert(
+                    severity='warning',
+                    source='billing.checkout.hosting_sub',
+                    message=f'Hosting move-over subscription not active '
+                            f'(status={st}) for {customer_id}',
+                    detail='Primary plan charged OK; hosting follow-on '
+                           'charge did not complete — chase the card.',
+                )
+            except Exception:
+                pass
+        return hosting_sub
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'checkout: hosting subscription create failed for %s',
+            customer_id)
+        return None
 
 
 def _stripe():
@@ -197,32 +274,9 @@ def checkout_confirm(request, tier_slug):
         return JsonResponse(
             {'error': _stripe_error_message(exc)}, status=400)
 
-    # 3) (Optional) hosting move-over — pre-add pending invoice items so
-    #    they ride onto the subscription's first invoice. We pass an
-    #    explicit `amount` rather than `price=` because Stripe's 2025+
-    #    API removed the `price` param on InvoiceItem.create (it now
-    #    400s "unknown parameter: price"). Net = list price - $50.
-    if hosting_upsell:
-        hosting_tier = ServiceTier.objects.filter(
-            category='hosting', is_active=True).first()
-        if hosting_tier and hosting_tier.price:
-            try:
-                stripe.InvoiceItem.create(
-                    customer=customer.id,
-                    amount=int(round(hosting_tier.price * 100)),
-                    currency='usd',
-                    description=f'{hosting_tier.name} (first year)',
-                )
-                stripe.InvoiceItem.create(
-                    customer=customer.id,
-                    amount=-HOSTING_FIRST_YEAR_DISCOUNT_CENTS,
-                    currency='usd',
-                    description='Hosting move-over — first-year $50 off',
-                )
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    'checkout: hosting upsell line items failed')
-                # Continue with subscription anyway; admin can adjust.
+    # 3) Hosting move-over is handled AFTER the primary charge as its own
+    #    annual subscription (see step 6b) — not as a one-time line on
+    #    this invoice — so it actually renews at $150/year.
 
     # 4) Create the subscription. payment_behavior=default_incomplete
     #    creates the first invoice + its PaymentIntent but does NOT
@@ -303,6 +357,13 @@ def checkout_confirm(request, tier_slug):
             logger.exception('checkout: payment intent confirm failed')
             return JsonResponse(
                 {'error': _stripe_error_message(exc)}, status=400)
+
+    # 6b) Once the primary charge has gone through, add the hosting
+    #     move-over as its own annual subscription on the same card.
+    if hosting_upsell and status in (
+            'succeeded', 'processing', 'requires_capture'):
+        _create_hosting_subscription(
+            stripe, customer.id, payment_method_id, tier.slug)
 
     if status == 'requires_action':
         # The browser finishes SCA, then navigates to `redirect` — the
