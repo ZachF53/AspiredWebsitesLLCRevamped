@@ -15309,6 +15309,56 @@ select.ob-question__input:focus {
    instead of only flashing after an actual save. */
 .ob-question__saved[hidden] { display: none; }
 
+/* ── Client credentials: sections + add form ── */
+.pcred-section { margin: 0 0 2.5rem; }
+.pcred-section__sub { font-size: 0.85rem; margin: 0 0 1rem; }
+.pcred-add {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    margin: 0 0 1.25rem;
+    overflow: hidden;
+}
+.pcred-add > summary {
+    cursor: pointer;
+    padding: 0.75rem 1.1rem;
+    font-weight: 600;
+    color: var(--color-orange);
+    list-style: none;
+    user-select: none;
+}
+.pcred-add > summary::-webkit-details-marker { display: none; }
+.pcred-add__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 0 1.1rem 1.1rem;
+    max-width: 520px;
+}
+.pcred-add__form > label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.pcred-add__form > label small { font-weight: 400; color: var(--color-text-muted); }
+.pcred-add__form input,
+.pcred-add__form select,
+.pcred-add__form textarea {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.92rem;
+}
+.pcred-add__form option { background-color: var(--color-bg-raised); color: var(--color-text); }
+.pcred-add__row2 { display: flex; gap: 0.85rem; }
+.pcred-add__row2 label { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; font-weight: 600; font-size: 0.85rem; }
+.vault-cat-badge--client { background: rgba(52, 211, 153, 0.18); color: #34D399; }
+
 /* Footer nav */
 .ob-step-footer {
     display: flex;

@@ -73,6 +73,8 @@ urlpatterns = [
     path('social/resume/', views.portal_social_resume,
          name='portal_social_resume'),
     path('credentials/', views.portal_credentials, name='credentials'),
+    path('credentials/add/', views.portal_credentials_add,
+         name='credentials_add'),
     path('credentials/reauth/', views.portal_credentials_reauth,
          name='credentials_reauth'),
     path('changelog/', views.portal_changelog, name='portal_changelog'),

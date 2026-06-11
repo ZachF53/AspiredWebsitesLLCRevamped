@@ -1,0 +1,41 @@
+{% comment %}
+    One client-portal credential card. Used for both the staff-shared and
+    the client-added lists. Expects `cred` in context.
+{% endcomment %}
+<article class="pcred">
+    <div class="pcred__head">
+        <strong class="pcred__label">{{ cred.label }}</strong>
+        <span class="vault-cat-badge">{{ cred.get_category_display }}</span>
+    </div>
+
+    {% if cred.client_username_plain %}
+        <div class="pcred__row">
+            <span class="pcred__fieldlabel">Username</span>
+            <span class="pcred__value pcred__plain">{{ cred.client_username_plain }}</span>
+            <button type="button" class="pcred__btn pcred__copy">Copy</button>
+        </div>
+    {% endif %}
+
+    {% if cred.client_password_plain %}
+        <div class="pcred__row pcred__row--pw">
+            <span class="pcred__fieldlabel">Password</span>
+            <span class="pcred__value pcred__secret">
+                <span class="pcred__dots" aria-hidden="true">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span>
+                <span class="pcred__plain" hidden>{{ cred.client_password_plain }}</span>
+            </span>
+            <button type="button" class="pcred__btn pcred__reveal" aria-pressed="false">Show</button>
+            <button type="button" class="pcred__btn pcred__copy">Copy</button>
+        </div>
+    {% endif %}
+
+    {% if cred.client_url_plain %}
+        <div class="pcred__row">
+            <span class="pcred__fieldlabel">Login URL</span>
+            <a class="pcred__value pcred__link" href="{{ cred.client_url_plain }}" target="_blank" rel="noopener">{{ cred.client_url_plain }}</a>
+        </div>
+    {% endif %}
+
+    {% if cred.client_notes_plain %}
+        <p class="pcred__notes">{{ cred.client_notes_plain|linebreaksbr }}</p>
+    {% endif %}
+</article>

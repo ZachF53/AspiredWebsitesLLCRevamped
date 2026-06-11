@@ -423,6 +423,7 @@ def client_vault(request, client_id):
                 'notes': decrypt_value(cred.notes_encrypted, key),
                 'has_password': bool(cred.password_encrypted),
                 'visible_to_client': cred.visible_to_client,
+                'created_by_client': cred.created_by_client,
                 'is_ssh_credential': cred.is_ssh_credential,
                 # Phase C5 — per-credential website tag. Renders next
                 # to the label so admins can see which build each cred
@@ -462,6 +463,7 @@ def client_vault(request, client_id):
                 'notes': decrypt_value(cred.notes_encrypted, key),
                 'has_password': bool(cred.password_encrypted),
                 'visible_to_client': cred.visible_to_client,
+                'created_by_client': cred.created_by_client,
                 'is_ssh_credential': cred.is_ssh_credential,
             })
     # Stable ordering: account-wide first, then site name A-Z.

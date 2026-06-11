@@ -1219,9 +1219,17 @@ def portal_credentials(request):
 
     # ── Unlocked — show the credentials ──
     if is_client_vault_unlocked(request):
+        import json as _json
+        from vault.models import TYPES_BY_CATEGORY, VaultCredential
+        all_creds = _client_visible_credentials(profile)
         ctx = _portal_context(
             request, 'credentials',
-            credentials=_client_visible_credentials(profile),
+            credentials=all_creds,  # kept for any existing template refs
+            shared_credentials=[c for c in all_creds
+                                if not c.created_by_client],
+            own_credentials=[c for c in all_creds if c.created_by_client],
+            cred_categories=VaultCredential.CATEGORY_CHOICES,
+            cred_types_json=_json.dumps(TYPES_BY_CATEGORY),
             remaining_seconds=get_client_vault_remaining_seconds(request),
         )
         return render(request, 'clients/vault_credentials.html', ctx)
@@ -1281,6 +1289,80 @@ def portal_credentials_reauth(request):
         'pin_error': (f'Incorrect PIN — {remaining} attempt'
                       f'{"" if remaining == 1 else "s"} left.'),
     })
+
+
+@client_required
+@require_POST
+def portal_credentials_add(request):
+    """
+    Client adds their OWN credential from the portal — same idea as the
+    admin vault add, mirrored for the client.
+
+    Sensitive fields are encrypted with the server key (VAULT_SERVER_SECRET),
+    so the admin's re-encrypt-on-unlock pulls them into the admin vault
+    automatically — staff ALWAYS see client-added creds. `created_by_client`
+    keeps them separate from staff-shared creds in both views. Plain copies
+    are stored for the PIN-gated portal display, mirroring shared creds.
+
+    The post_save signal on VaultCredential auto-completes a matching
+    onboarding SetupTodo when the credential_type lines up.
+    """
+    from vault.models import (
+        ClientVault, VaultCredential, TYPES_BY_CATEGORY)
+    from vault.crypto import derive_server_key, encrypt_value, make_hint
+
+    profile = request.client_profile
+    # Adding requires the vault to be unlocked (PIN), same as viewing.
+    if not is_client_vault_unlocked(request):
+        return redirect('clients:credentials')
+
+    category = (request.POST.get('category') or 'other').strip()
+    cred_type = (request.POST.get('credential_type') or 'other').strip()
+    label = (request.POST.get('label') or '').strip()
+    custom_label = (request.POST.get('custom_label') or '').strip()
+    username = (request.POST.get('username') or '').strip()
+    password = (request.POST.get('password') or '')
+    url = (request.POST.get('url') or '').strip()
+    notes = (request.POST.get('notes') or '').strip()
+
+    if category not in dict(VaultCredential.CATEGORY_CHOICES):
+        category = 'other'
+    valid_types = {t for t, _ in TYPES_BY_CATEGORY.get(category, [])}
+    if cred_type not in valid_types:
+        cred_type = 'other'
+    if not label:
+        label = custom_label or dict(
+            TYPES_BY_CATEGORY.get(category, [])).get(cred_type, 'Credential')
+    if not (username or password or url):
+        messages.error(
+            request, 'Add at least a username, password, or URL.')
+        return redirect('clients:credentials')
+
+    vault, _ = ClientVault.objects.get_or_create(client=profile)
+    key = derive_server_key()
+    cred = VaultCredential(
+        vault=vault,
+        label=label,
+        category=category,
+        credential_type=cred_type,
+        custom_label=custom_label,
+        visible_to_client=True,
+        created_by_client=True,
+        encrypted_with_server_key=True,
+        username_encrypted=encrypt_value(username, key),
+        password_encrypted=encrypt_value(password, key),
+        url_encrypted=encrypt_value(url, key),
+        notes_encrypted=encrypt_value(notes, key),
+        username_hint=make_hint(username),
+        client_username_plain=username,
+        client_password_plain=password,
+        client_url_plain=url,
+        client_notes_plain=notes,
+    )
+    cred.save()  # post_save signal auto-completes a matching SetupTodo
+    messages.success(
+        request, 'Credential added — we can see it on our end too.')
+    return redirect('clients:credentials')
 
 
 # ── Page 10: Activity Log (client site changelog) ───────────────────────────

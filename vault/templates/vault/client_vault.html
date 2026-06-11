@@ -64,6 +64,7 @@
                                 <div class="vault-cred__head">
                                     <span class="vault-cred__label">{{ item.label }}</span>
                                     <span class="vault-cat-badge">{{ item.category_label }}</span>
+                                    {% if item.created_by_client %}<span class="vault-cat-badge vault-cat-badge--client">Client-added</span>{% endif %}
                                 </div>
                                 <div class="vault-cred__grid">
                                     <div class="vault-cred__field">
@@ -128,6 +129,7 @@
                                     <span class="vault-site-tag" title="Belongs to website">{{ item.website_name }}</span>
                                 </span>
                                 <span class="vault-cat-badge">{{ group.label }}</span>
+                                {% if item.created_by_client %}<span class="vault-cat-badge vault-cat-badge--client">Client-added</span>{% endif %}
                             </div>
 
                             <div class="vault-cred__grid">

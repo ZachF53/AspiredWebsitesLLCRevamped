@@ -220,6 +220,13 @@ class VaultCredential(TimestampedModel):
     client_url_plain = models.URLField(blank=True)
     client_notes_plain = models.TextField(blank=True)
 
+    # True when the CLIENT added this credential from their portal (vs
+    # staff sharing one down). Keeps the two groups separate in both the
+    # portal and the admin vault. Client-added creds are encrypted with
+    # the server key on save, so the admin's re-encrypt-on-unlock pulls
+    # them into the admin vault automatically — staff always see them.
+    created_by_client = models.BooleanField(default=False)
+
     # ── SSH credential — all sensitive fields AES-256-GCM encrypted at rest ──
     SSH_AUTH_CHOICES = [
         ('password', 'Password'),
