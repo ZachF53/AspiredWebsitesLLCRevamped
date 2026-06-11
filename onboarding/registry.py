@@ -455,15 +455,95 @@ ONBOARDING_QUESTIONS = {
 _get_sections_orig = None  # set below to avoid forward-ref issues
 
 
-def get_sections(product_type, tier_slug=None):
-    """
-    Return the section list for a product_type. For social_media we
-    rebuild S1 with the right channel count for the user's tier.
-    """
+def _legacy_get_sections(product_type, tier_slug=None):
+    """Python-defined fallback (used only if the DB tables are empty)."""
     if product_type == 'social_media':
         count = SOCIAL_TIER_CHANNELS.get(tier_slug, 3)
         return _social_sections(count)
     return ONBOARDING_QUESTIONS.get(product_type, [])
+
+
+def _q_to_dict(q, channel_index=None):
+    """Turn an OnboardingQuestionDef into the dict shape the wizard
+    consumes. For channel-template sections, prefix the key + label with
+    the channel index so answers persist as channel_<n>_<key>."""
+    key, label = q.key, q.label
+    if channel_index is not None:
+        key = f'channel_{channel_index}_{q.key}'
+        label = f'Channel {channel_index} — {q.label}'
+    d = {
+        'key': key, 'label': label, 'type': q.qtype,
+        'required': q.required, 'skip_allowed': q.skip_allowed,
+    }
+    if q.help:
+        d['help'] = q.help
+    if q.placeholder:
+        d['placeholder'] = q.placeholder
+    if q.rows:
+        d['rows'] = q.rows
+    if q.choices:
+        d['choices'] = [tuple(c) for c in q.choices]
+    if q.cred_category:
+        d['cred_category'] = q.cred_category
+    if q.cred_type:
+        d['cred_type'] = q.cred_type
+    return d
+
+
+def _db_sections(product_type, tier_slug):
+    """Build the section list from the DB-backed registry, or None if the
+    tables are empty / unavailable (→ caller falls back to the Python
+    definitions)."""
+    try:
+        from onboarding.question_models import OnboardingSectionDef
+        secs = list(
+            OnboardingSectionDef.objects
+            .filter(product_type=product_type, is_active=True)
+            .order_by('sort_order', 'key')
+            .prefetch_related('questions'))
+    except Exception:
+        return None
+    if not secs:
+        return None
+
+    channel_count = SOCIAL_TIER_CHANNELS.get(tier_slug, 3)
+    out = []
+    for sec in secs:
+        active_qs = sorted(
+            (q for q in sec.questions.all() if q.is_active),
+            key=lambda q: (q.sort_order, q.id))
+        if sec.is_channel_template:
+            qlist = []
+            for i in range(1, channel_count + 1):
+                qlist.extend(_q_to_dict(q, channel_index=i)
+                             for q in active_qs)
+        else:
+            qlist = [_q_to_dict(q) for q in active_qs]
+        out.append({
+            'key': sec.key,
+            'title': sec.title,
+            'intro': sec.intro,
+            'questions': qlist,
+            '_flags': {
+                'tier_visibility': sec.tier_visibility or [],
+                'requires_hosting_moveover': sec.requires_hosting_moveover,
+                'skip_if_completed_intake': sec.skip_if_completed_intake,
+            },
+        })
+    return out
+
+
+def get_sections(product_type, tier_slug=None):
+    """
+    Return the section list for a product_type. Reads the DB-backed
+    registry first; falls back to the Python definitions only if the DB
+    is empty. For social_media, S1 is expanded to the tier's channel
+    count.
+    """
+    db = _db_sections(product_type, tier_slug)
+    if db is not None:
+        return db
+    return _legacy_get_sections(product_type, tier_slug)
 
 
 # Conditional show/skip rules keyed by section.
@@ -505,11 +585,25 @@ def visible_sections(onboarding):
 
     out = []
     for sec in sections:
-        key = sec['key']
-        if key in show_if and not show_if[key](onboarding):
-            continue
-        if key in skip_if and skip_if[key](onboarding):
-            continue
+        flags = sec.get('_flags')
+        if flags is not None:
+            # DB-backed conditional visibility.
+            tiers = flags.get('tier_visibility') or []
+            if tiers and onboarding.tier_slug not in tiers:
+                continue
+            if (flags.get('requires_hosting_moveover')
+                    and not _has_hosting_moveover(onboarding.user)):
+                continue
+            if (flags.get('skip_if_completed_intake')
+                    and _has_completed_intake(onboarding.user)):
+                continue
+        else:
+            # Legacy Python rules (fallback path).
+            key = sec['key']
+            if key in show_if and not show_if[key](onboarding):
+                continue
+            if key in skip_if and skip_if[key](onboarding):
+                continue
         out.append(sec)
     return out
 

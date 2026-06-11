@@ -1,0 +1,94 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Onboarding Questions — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-ob">
+    <div class="admin-pricing__head">
+        <h1>Onboarding Questions</h1>
+        <p>Build the intake each product's customers fill out. Add, edit,
+        reorder, or remove sections &amp; questions — changes go live
+        immediately. Customers already marked complete are never asked
+        again, even if you add new questions.</p>
+    </div>
+
+    {% if saved %}<div class="pricing-saved-banner" role="status">Saved &ldquo;{{ saved }}&rdquo;.</div>{% endif %}
+    {% if mc_result %}<div class="pricing-saved-banner" role="status">{{ mc_result }}</div>{% endif %}
+
+    {% comment %}
+        Manual completion tool — for legacy clients who never went through
+        the wizard. Deliberately manual; nothing marks people complete
+        automatically.
+    {% endcomment %}
+    <section class="admin-ob__markcomplete">
+        <h2>Mark a client's onboarding complete</h2>
+        <form method="post" action="{% url 'admin_dashboard:onboarding_mark_complete' %}" class="admin-ob__mc-form">
+            {% csrf_token %}
+            <input type="email" name="email" placeholder="client@example.com" required>
+            <select name="product_type" required>
+                {% for key, label in products %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn-secondary">Mark complete</button>
+        </form>
+    </section>
+
+    {% for group in groups %}
+        <section class="admin-ob__product">
+            <div class="admin-ob__product-head">
+                <h2>{{ group.label }}</h2>
+                <a class="btn-secondary" href="{% url 'admin_dashboard:onboarding_section_new' %}?product_type={{ group.key }}">+ Add section</a>
+            </div>
+
+            {% for sec in group.sections %}
+                <div class="admin-ob__section{% if not sec.is_active %} is-inactive{% endif %}">
+                    <div class="admin-ob__section-head">
+                        <div>
+                            <strong>{{ sec.key }} — {{ sec.title }}</strong>
+                            {% if not sec.is_active %}<span class="ob-badge ob-badge--off">hidden</span>{% endif %}
+                            {% if sec.is_channel_template %}<span class="ob-badge">per-channel</span>{% endif %}
+                            {% if sec.requires_hosting_moveover %}<span class="ob-badge">hosting move-over only</span>{% endif %}
+                            {% if sec.skip_if_completed_intake %}<span class="ob-badge">skip if intake done</span>{% endif %}
+                            {% if sec.tier_visibility %}<span class="ob-badge">tiers: {{ sec.tier_visibility|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="admin-ob__section-actions">
+                            <a class="btn-link" href="{% url 'admin_dashboard:onboarding_question_new' %}?section={{ sec.id }}">+ Question</a>
+                            <a class="btn-link" href="{% url 'admin_dashboard:onboarding_section_edit' sec.id %}">Edit</a>
+                            <form method="post" action="{% url 'admin_dashboard:onboarding_section_delete' sec.id %}" data-confirm="Delete section {{ sec.key }} and all its questions?">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-link btn-link--danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% if sec.intro %}<p class="admin-ob__intro">{{ sec.intro }}</p>{% endif %}
+
+                    <table class="admin-ob__qtable">
+                        <thead><tr><th>#</th><th>Key</th><th>Question</th><th>Type</th><th>Req.</th><th></th></tr></thead>
+                        <tbody>
+                            {% for q in sec.questions.all %}
+                                <tr{% if not q.is_active %} class="is-inactive"{% endif %}>
+                                    <td>{{ q.sort_order }}</td>
+                                    <td><code>{{ q.key }}</code></td>
+                                    <td>{{ q.label }}</td>
+                                    <td>{{ q.get_qtype_display }}</td>
+                                    <td>{% if q.required %}✓{% else %}—{% endif %}</td>
+                                    <td class="admin-ob__qactions">
+                                        <a class="btn-link" href="{% url 'admin_dashboard:onboarding_question_edit' q.id %}">Edit</a>
+                                        <form method="post" action="{% url 'admin_dashboard:onboarding_question_delete' q.id %}" data-confirm="Delete question {{ q.key }}?">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-link btn-link--danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="6" class="admin-ob__empty">No questions yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% empty %}
+                <p class="admin-ob__empty">No sections yet for this product.</p>
+            {% endfor %}
+        </section>
+    {% endfor %}
+</div>
+{% endblock %}

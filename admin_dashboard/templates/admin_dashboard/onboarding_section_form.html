@@ -1,0 +1,51 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if section %}Edit{% else %}New{% endif %} Section — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-ob admin-ob--form">
+    <div class="admin-pricing__head">
+        <h1>{% if section %}Edit section {{ section.key }}{% else %}New section{% endif %}</h1>
+        <p><a class="btn-link" href="{% url 'admin_dashboard:onboarding_questions' %}">← Back to all questions</a></p>
+    </div>
+
+    <form method="post" class="admin-ob__form">
+        {% csrf_token %}
+        <label>Product
+            <select name="product_type">
+                {% for key, label in products %}
+                    <option value="{{ key }}" {% if section and section.product_type == key or not section and default_product == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Section key <small>(stable code, e.g. M1, S2)</small>
+            <input type="text" name="key" value="{{ section.key|default:'' }}" required>
+        </label>
+        <label>Title
+            <input type="text" name="title" value="{{ section.title|default:'' }}" required>
+        </label>
+        <label>Intro <small>(optional blurb under the title)</small>
+            <textarea name="intro" rows="2">{{ section.intro|default:'' }}</textarea>
+        </label>
+        <label>Sort order
+            <input type="number" name="sort_order" value="{{ section.sort_order|default:0 }}">
+        </label>
+        <label>Tier visibility <small>(comma-separated tier slugs; blank = all tiers)</small>
+            <input type="text" name="tier_visibility" value="{{ section.tier_visibility|join:', ' }}" placeholder="social-standard, social-full">
+        </label>
+
+        <fieldset class="admin-ob__flags">
+            <legend>Conditional rules</legend>
+            <label class="admin-ob__check"><input type="checkbox" name="is_active" {% if not section or section.is_active %}checked{% endif %}> Active (visible to customers)</label>
+            <label class="admin-ob__check"><input type="checkbox" name="is_channel_template" {% if section.is_channel_template %}checked{% endif %}> Per-channel template (social — repeat per channel)</label>
+            <label class="admin-ob__check"><input type="checkbox" name="requires_hosting_moveover" {% if section.requires_hosting_moveover %}checked{% endif %}> Only if hosting move-over purchased</label>
+            <label class="admin-ob__check"><input type="checkbox" name="skip_if_completed_intake" {% if section.skip_if_completed_intake %}checked{% endif %}> Skip if website intake already done</label>
+        </fieldset>
+
+        <div class="admin-ob__form-actions">
+            <button type="submit" class="btn-primary">Save section</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:onboarding_questions' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

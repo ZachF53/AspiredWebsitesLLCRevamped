@@ -4,6 +4,9 @@ from onboarding.todo_models import (  # noqa: F401
     SetupTodo, build_todos_from_onboarding, TASK_TYPE_CHOICES,
 )
 from onboarding.password_models import PasswordSetupToken  # noqa: F401
+from onboarding.question_models import (  # noqa: F401
+    OnboardingSectionDef, OnboardingQuestionDef,
+)
 
 
 """

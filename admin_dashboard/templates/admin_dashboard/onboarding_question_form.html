@@ -1,0 +1,68 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if question %}Edit{% else %}New{% endif %} Question — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-ob admin-ob--form">
+    <div class="admin-pricing__head">
+        <h1>{% if question %}Edit question{% else %}New question{% endif %}</h1>
+        <p>
+            Section: <strong>{{ section.key }} — {{ section.title }}</strong> ·
+            <a class="btn-link" href="{% url 'admin_dashboard:onboarding_questions' %}">← Back to all questions</a>
+        </p>
+    </div>
+
+    <form method="post" class="admin-ob__form">
+        {% csrf_token %}
+        <input type="hidden" name="section" value="{{ section.id }}">
+        <label>Question key <small>(stable code that stores the answer)</small>
+            <input type="text" name="key" value="{{ question.key|default:'' }}" required>
+        </label>
+        <label>Label <small>(the question text the customer sees)</small>
+            <input type="text" name="label" value="{{ question.label|default:'' }}" required>
+        </label>
+        <label>Type
+            <select name="qtype">
+                {% for value, label in qtypes %}
+                    <option value="{{ value }}" {% if question and question.qtype == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Help text <small>(optional, under the input)</small>
+            <input type="text" name="help" value="{{ question.help|default:'' }}">
+        </label>
+        <label>Placeholder <small>(optional)</small>
+            <input type="text" name="placeholder" value="{{ question.placeholder|default:'' }}">
+        </label>
+        <label>Dropdown choices <small>(one per line, as <code>value|Label</code>; only for Dropdown type)</small>
+            <textarea name="choices" rows="6" placeholder="wordpress|WordPress&#10;wix|Wix">{{ choices_text }}</textarea>
+        </label>
+        <label>Long-text rows <small>(only for Long text type)</small>
+            <input type="number" name="rows" value="{{ question.rows|default:'' }}">
+        </label>
+        <div class="admin-ob__row2">
+            <label>Credential category <small>(cred-access only)</small>
+                <input type="text" name="cred_category" value="{{ question.cred_category|default:'' }}">
+            </label>
+            <label>Credential type <small>(cred-access only)</small>
+                <input type="text" name="cred_type" value="{{ question.cred_type|default:'' }}">
+            </label>
+        </div>
+        <label>Sort order
+            <input type="number" name="sort_order" value="{{ question.sort_order|default:0 }}">
+        </label>
+
+        <fieldset class="admin-ob__flags">
+            <legend>Options</legend>
+            <label class="admin-ob__check"><input type="checkbox" name="required" {% if not question or question.required %}checked{% endif %}> Required</label>
+            <label class="admin-ob__check"><input type="checkbox" name="skip_allowed" {% if not question or question.skip_allowed %}checked{% endif %}> Skip allowed</label>
+            <label class="admin-ob__check"><input type="checkbox" name="is_active" {% if not question or question.is_active %}checked{% endif %}> Active</label>
+        </fieldset>
+
+        <div class="admin-ob__form-actions">
+            <button type="submit" class="btn-primary">Save question</button>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:onboarding_questions' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

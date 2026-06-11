@@ -145,6 +145,25 @@ urlpatterns = [
     path('pricing/<uuid:tier_id>/feature/add/', views.pricing_feature_add, name='pricing_feature_add'),
     path('pricing/<uuid:tier_id>/feature/<uuid:fid>/delete/', views.pricing_feature_delete, name='pricing_feature_delete'),
 
+    # Onboarding question manager (DB-backed intake builder)
+    path('onboarding-questions/', views.onboarding_questions,
+         name='onboarding_questions'),
+    path('onboarding-questions/section/new/',
+         views.onboarding_section_form, name='onboarding_section_new'),
+    path('onboarding-questions/section/<int:section_id>/edit/',
+         views.onboarding_section_form, name='onboarding_section_edit'),
+    path('onboarding-questions/section/<int:section_id>/delete/',
+         views.onboarding_section_delete, name='onboarding_section_delete'),
+    path('onboarding-questions/question/new/',
+         views.onboarding_question_form, name='onboarding_question_new'),
+    path('onboarding-questions/question/<int:question_id>/edit/',
+         views.onboarding_question_form, name='onboarding_question_edit'),
+    path('onboarding-questions/question/<int:question_id>/delete/',
+         views.onboarding_question_delete,
+         name='onboarding_question_delete'),
+    path('onboarding-questions/mark-complete/',
+         views.onboarding_mark_complete, name='onboarding_mark_complete'),
+
     # Deployment dashboard
     path('deploy/', views.deploy_home, name='deploy_home'),
     path('deploy/fresh/', views.deploy_fresh, name='deploy_fresh'),
