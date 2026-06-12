@@ -868,3 +868,34 @@ class SendMiniInvoiceTests(TestCase):
         mini.refresh_from_db()
         self.assertEqual(mini.status, 'sent')
         self.assertEqual(mini.stripe_invoice_id, 'in_sent_mini')
+
+
+class BuildInvoiceItemAttachTests(TestCase):
+    """Regression (found via the staging e2e pass): _create_build_invoice must
+    attach its line item directly to the invoice, not leave it pending — or
+    Stripe sweeps the charge into the next subscription's first invoice."""
+
+    def test_line_item_attached_and_pending_excluded(self):
+        from decimal import Decimal
+
+        from clients.models import Contract
+        u = User.objects.create_user(
+            username='biat1', password='x', email='biat1@example.com')
+        cp = ClientProfile.objects.create(user=u, firm_name='BIAT LLC')
+        contract = Contract.objects.create(
+            client=cp, package='essential_build',
+            build_price=Decimal('2500'), deposit_amount=Decimal('1250'),
+            contract_text='x')
+        with patch('billing.stripe_helpers.stripe') as ms, \
+             patch('billing.stripe_helpers.create_or_get_customer') as mcust, \
+             patch('billing.stripe_helpers._init'):
+            mcust.return_value = MagicMock(id='cus_1')
+            inv = MagicMock(); inv.id = 'in_1'
+            ms.Invoice.create.return_value = inv
+            ms.Invoice.finalize_invoice.return_value = inv
+            from billing.stripe_helpers import _create_build_invoice
+            _create_build_invoice(cp, contract, 'final', 'Final Payment')
+        _a, kw = ms.Invoice.create.call_args
+        self.assertEqual(kw.get('pending_invoice_items_behavior'), 'exclude')
+        _a2, kw2 = ms.InvoiceItem.create.call_args
+        self.assertEqual(kw2.get('invoice'), 'in_1')
