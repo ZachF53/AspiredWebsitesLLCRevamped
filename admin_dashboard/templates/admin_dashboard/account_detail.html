@@ -246,57 +246,33 @@
                 <p class="muted" style="margin-top:0;">No contracts sent for this account yet.</p>
             {% endif %}
 
-            {% comment %} ── New combined contract ── {% endcomment %}
+            {% comment %}
+                New build contract. Only website development is a signed
+                contract — maintenance and social are sold self-serve with a
+                terms-acceptance checkbox at checkout, so they're not offered
+                here.
+            {% endcomment %}
             <form method="post" action="{% url 'admin_dashboard:account_send_contract' account_id=account.id %}">
                 {% csrf_token %}
-                <p class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.5rem;">New contract — select services</p>
+                <input type="hidden" name="svc_build" value="on">
+                <p class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.5rem;">New website build contract</p>
 
-                <div class="contract-svc-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:1rem;">
-
-                    {% comment %} ── Website Development ── {% endcomment %}
-                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
-                        <label class="checkbox-row" style="font-weight:600;">
-                            <input type="checkbox" name="svc_build"><span>Website Development</span>
-                        </label>
-                        <select name="tier_build" class="form-control" style="margin-top:.5rem;">
-                            <option value="">— Select tier —</option>
-                            {% for t in contract_tiers.build %}
-                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    {% comment %} ── Website Maintenance ── {% endcomment %}
-                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
-                        <label class="checkbox-row" style="font-weight:600;">
-                            <input type="checkbox" name="svc_maintenance"><span>Website Maintenance</span>
-                        </label>
-                        <select name="tier_maintenance" class="form-control" style="margin-top:.5rem;">
-                            <option value="">— Select tier —</option>
-                            {% for t in contract_tiers.maintenance %}
-                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    {% comment %} ── Social Media Marketing ── {% endcomment %}
-                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
-                        <label class="checkbox-row" style="font-weight:600;">
-                            <input type="checkbox" name="svc_social"><span>Social Media Marketing</span>
-                        </label>
-                        <select name="tier_social" class="form-control" style="margin-top:.5rem;">
-                            <option value="">— Select tier —</option>
-                            {% for t in contract_tiers.social %}
-                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                <div style="max-width:28rem;">
+                    <label class="form-row__label" for="tier_build" style="display:block;margin-bottom:.35rem;">Build tier</label>
+                    <select name="tier_build" id="tier_build" class="form-control">
+                        <option value="">— Select tier —</option>
+                        {% for t in contract_tiers.build %}
+                            <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
 
                 <p class="muted" style="font-size:.78rem;margin-top:.75rem;">
-                    Check one or more services and pick a tier for each. A single
-                    combined contract is created and the signing link is emailed to
-                    the client (and shown above to copy).
+                    Creates the build agreement and gives you the signing link
+                    (shown above to copy). After signing, the client pays the
+                    deposit and sets up their account. Maintenance &amp; social
+                    plans are purchased on the site with a terms checkbox — no
+                    signed contract needed.
                 </p>
                 <div style="margin-top:.75rem;">
                     <button type="submit" class="btn-primary btn-sm">Generate &amp; send contract</button>
