@@ -188,6 +188,123 @@
     {% endwith %}
     {% endif %}
 
+    {% comment %}
+        Contracts — create + send a combined services agreement covering
+        any mix of website development, maintenance, and social media.
+        Each service you check reveals its tier in the dropdown beside it;
+        one Contract is created with a ContractService line per service.
+        The status list below shows every contract on this account and the
+        signing link while one is still unsigned (staging emails go to the
+        console, so copy the link from here to test the signing flow).
+    {% endcomment %}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Contracts</h2>
+            <span class="muted" style="font-size:.85rem;">Send a services agreement to sign</span>
+        </div>
+        <div class="admin-card__body">
+
+            {% comment %} ── Existing contracts + status ── {% endcomment %}
+            {% if contracts %}
+                <table class="lead-table" style="margin-bottom:1.5rem;">
+                    <thead>
+                        <tr>
+                            <th>Services</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Signing link</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in contracts %}
+                            <tr>
+                                <td>{{ c.service_summary }}</td>
+                                <td>
+                                    {% if c.signed %}
+                                        <span class="status-badge" style="color:#10b981;">Signed</span>
+                                        <span class="muted" style="font-size:.75rem;">{{ c.signed_at|date:"M j, Y" }}{% if c.signed_name %} · {{ c.signed_name }}{% endif %}</span>
+                                    {% else %}
+                                        <span class="status-badge">Awaiting signature</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ c.created_at|date:"M j, Y" }}</td>
+                                <td>
+                                    {% if c.signed %}
+                                        <span class="muted">—</span>
+                                    {% else %}
+                                        <input type="text" class="form-control" readonly
+                                               onclick="this.select()"
+                                               style="font-size:.75rem;"
+                                               value="{{ contract_sign_base }}{{ c.contract_token }}/">
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted" style="margin-top:0;">No contracts sent for this account yet.</p>
+            {% endif %}
+
+            {% comment %} ── New combined contract ── {% endcomment %}
+            <form method="post" action="{% url 'admin_dashboard:account_send_contract' account_id=account.id %}">
+                {% csrf_token %}
+                <p class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.5rem;">New contract — select services</p>
+
+                <div class="contract-svc-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:1rem;">
+
+                    {% comment %} ── Website Development ── {% endcomment %}
+                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                        <label class="checkbox-row" style="font-weight:600;">
+                            <input type="checkbox" name="svc_build"><span>Website Development</span>
+                        </label>
+                        <select name="tier_build" class="form-control" style="margin-top:.5rem;">
+                            <option value="">— Select tier —</option>
+                            {% for t in contract_tiers.build %}
+                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% comment %} ── Website Maintenance ── {% endcomment %}
+                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                        <label class="checkbox-row" style="font-weight:600;">
+                            <input type="checkbox" name="svc_maintenance"><span>Website Maintenance</span>
+                        </label>
+                        <select name="tier_maintenance" class="form-control" style="margin-top:.5rem;">
+                            <option value="">— Select tier —</option>
+                            {% for t in contract_tiers.maintenance %}
+                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% comment %} ── Social Media Marketing ── {% endcomment %}
+                    <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                        <label class="checkbox-row" style="font-weight:600;">
+                            <input type="checkbox" name="svc_social"><span>Social Media Marketing</span>
+                        </label>
+                        <select name="tier_social" class="form-control" style="margin-top:.5rem;">
+                            <option value="">— Select tier —</option>
+                            {% for t in contract_tiers.social %}
+                                <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <p class="muted" style="font-size:.78rem;margin-top:.75rem;">
+                    Check one or more services and pick a tier for each. A single
+                    combined contract is created and the signing link is emailed to
+                    the client (and shown above to copy).
+                </p>
+                <div style="margin-top:.75rem;">
+                    <button type="submit" class="btn-primary btn-sm">Generate &amp; send contract</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
     {% comment %}
         GBP card — only shown for clients on Growth/Dominant tier

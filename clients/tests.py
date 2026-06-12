@@ -616,3 +616,203 @@ class RenderContractPdfFallbackTests(TestCase):
         self.assertIsInstance(path, str)
         self.assertTrue(path.endswith('.html'),
                         f'expected .html fallback, got {path!r}')
+
+
+def _seed_contract_tiers():
+    """Create the three ServiceTiers the combined-contract picker needs."""
+    from decimal import Decimal
+
+    from billing.pricing_models import ServiceTier
+    ServiceTier.objects.get_or_create(
+        slug='website-essential', defaults=dict(
+            category='website_build', name='Essential Build',
+            price=Decimal('2500'), is_recurring=False, billing_interval='',
+            timeline_weeks=3, pages_included=8, practice_areas_included=5))
+    ServiceTier.objects.get_or_create(
+        slug='maintenance-growth', defaults=dict(
+            category='maintenance', name='Growth', price=Decimal('599'),
+            is_recurring=True, billing_interval='month'))
+    ServiceTier.objects.get_or_create(
+        slug='social-standard', defaults=dict(
+            category='social_media', name='Standard', price=Decimal('699'),
+            is_recurring=True, billing_interval='month'))
+
+
+class CombinedContractGeneratorTests(TestCase):
+    """clients.contract_template.generate_combined_contract_text."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed_contract_tiers()
+        u = User.objects.create_user(
+            username='cg1', password='x', email='cg1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Combo LLC', contact_name='Cody Combo')
+
+    def _tier(self, slug):
+        from billing.pricing_models import ServiceTier
+        return ServiceTier.objects.get(slug=slug)
+
+    def test_single_build_text(self):
+        from clients.contract_template import generate_combined_contract_text
+        text = generate_combined_contract_text(
+            self.profile,
+            [{'service_type': 'build', 'tier': self._tier('website-essential')}])
+        self.assertIn('Website Development', text)
+        self.assertIn('Combo LLC', text)
+        self.assertIn('$2,500', text)
+        self.assertIn('$1,250', text)  # 50% deposit
+        # No recurring section for a build-only contract.
+        self.assertNotIn('Recurring Services', text)
+
+    def test_all_three_services_text(self):
+        from clients.contract_template import generate_combined_contract_text
+        text = generate_combined_contract_text(self.profile, [
+            {'service_type': 'build', 'tier': self._tier('website-essential')},
+            {'service_type': 'maintenance', 'tier': self._tier('maintenance-growth')},
+            {'service_type': 'social', 'tier': self._tier('social-standard')},
+        ])
+        self.assertIn('Website Development', text)
+        self.assertIn('Website Maintenance', text)
+        self.assertIn('Social Media Marketing', text)
+        self.assertIn('$599 per month', text)
+        self.assertIn('$699 per month', text)
+        self.assertIn('Recurring Services', text)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class AccountSendContractTests(TestCase):
+    """The Account-dashboard 'Generate & send contract' endpoint."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed_contract_tiers()
+        from clients.account_models import Account
+        # Staff operator who drives the dashboard.
+        cls.staff = User.objects.create_user(
+            username='op1', password='x', email='op1@example.com',
+            is_staff=True)
+        # The client account — created the production way: a ClientProfile is
+        # made, and clients.signals auto-creates the linked Account.
+        cls.client_user = User.objects.create_user(
+            username='acct1', password='x', email='acct1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=cls.client_user, firm_name='Sendme LLC')
+        cls.account = Account.objects.get(legacy_client_profile=cls.profile)
+        cls.url = reverse('admin_dashboard:account_send_contract',
+                          args=[cls.account.id])
+
+    def setUp(self):
+        self.client.force_login(self.staff)
+
+    def test_detail_page_renders_contract_card(self):
+        # GET the account page so a template error in the new Contracts
+        # card surfaces (the other tests only POST to the endpoint).
+        detail_url = reverse('admin_dashboard:account_detail',
+                             args=[self.account.id])
+        r = self.client.get(detail_url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Contracts')
+        self.assertContains(r, 'Generate &amp; send contract')
+
+    def test_requires_staff(self):
+        self.client.logout()
+        r = self.client.post(self.url, data={'svc_build': 'on',
+                                             'tier_build': 'website-essential'})
+        self.assertIn(r.status_code, (302, 403))  # redirected to login
+
+    def test_no_services_selected_errors(self):
+        from clients.models import Contract
+        r = self.client.post(self.url, data={}, follow=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Contract.objects.filter(account=self.account).count(), 0)
+
+    def test_service_without_tier_errors(self):
+        from clients.models import Contract
+        # Checked build but left tier blank.
+        self.client.post(self.url, data={'svc_build': 'on', 'tier_build': ''})
+        self.assertEqual(Contract.objects.filter(account=self.account).count(), 0)
+
+    def test_single_build_creates_contract(self):
+        from clients.models import Contract
+        from decimal import Decimal
+        self.client.post(self.url, data={
+            'svc_build': 'on', 'tier_build': 'website-essential'})
+        c = Contract.objects.get(account=self.account)
+        self.assertEqual(c.package, 'essential_build')
+        self.assertEqual(c.build_price, Decimal('2500'))
+        self.assertEqual(c.deposit_amount, Decimal('1250.00'))
+        self.assertEqual(c.services.count(), 1)
+        self.assertTrue(c.includes_build)
+        # Auto-linked a ClientProfile to the account.
+        self.account.refresh_from_db()
+        self.assertIsNotNone(self.account.legacy_client_profile_id)
+
+    def test_all_three_creates_three_service_rows(self):
+        from clients.models import Contract
+        self.client.post(self.url, data={
+            'svc_build': 'on', 'tier_build': 'website-essential',
+            'svc_maintenance': 'on', 'tier_maintenance': 'maintenance-growth',
+            'svc_social': 'on', 'tier_social': 'social-standard',
+        })
+        c = Contract.objects.get(account=self.account)
+        self.assertEqual(c.services.count(), 3)
+        types = set(c.services.values_list('service_type', flat=True))
+        self.assertEqual(types, {'build', 'maintenance', 'social'})
+        self.assertTrue(c.includes_build)
+
+    def test_maintenance_only_contract(self):
+        from clients.models import Contract
+        self.client.post(self.url, data={
+            'svc_maintenance': 'on', 'tier_maintenance': 'maintenance-growth'})
+        c = Contract.objects.get(account=self.account)
+        self.assertEqual(c.package, '')
+        self.assertIsNone(c.build_price)
+        self.assertFalse(c.includes_build)
+        self.assertEqual(c.services.count(), 1)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class MaintenanceOnlySigningTests(TestCase):
+    """Signing a non-build contract records the agreement but does NOT
+    fire the build-only deposit-invoice / awaiting-deposit side effects."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from clients.models import Contract, ContractService
+        from decimal import Decimal
+        u = User.objects.create_user(
+            username='mo1', password='x', email='mo1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Maint Only LLC')
+        cls.contract = Contract.objects.create(
+            client=cls.profile, package='', build_price=None,
+            deposit_amount=None, timeline_weeks=0,
+            contract_text='<h1>Maintenance Agreement</h1>')
+        ContractService.objects.create(
+            contract=cls.contract, service_type='maintenance',
+            tier_slug='maintenance-growth', tier_name='Growth',
+            price=Decimal('599'), is_recurring=True, billing_interval='month')
+        cls.sign_url = reverse('clients:contract_sign',
+                               args=[cls.contract.contract_token])
+
+    def test_sign_does_not_issue_deposit_invoice(self):
+        from unittest.mock import patch
+        # Set distinctive state first; the build block (if it wrongly ran)
+        # would overwrite these to stage='intake'/payment='awaiting_deposit'.
+        self.profile.stage = 'live'
+        self.profile.payment_status = 'fully_paid'
+        self.profile.save(update_fields=['stage', 'payment_status'])
+        with patch('billing.stripe_helpers.issue_deposit_invoice') as mock_dep, \
+             patch('clients.views.render_contract_pdf', return_value=''), \
+             patch('clients.views.send_contract_signed_email'):
+            r = self.client.post(self.sign_url, data={
+                'signed_name': 'Mo Owner', 'agree': 'on'})
+        self.assertEqual(r.status_code, 302)
+        self.contract.refresh_from_db()
+        self.assertTrue(self.contract.signed)
+        mock_dep.assert_not_called()
+        # Client was NOT pushed into the build onboarding pipeline.
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.stage, 'live')
+        self.assertEqual(self.profile.payment_status, 'fully_paid')

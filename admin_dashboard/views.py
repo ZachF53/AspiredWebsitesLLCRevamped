@@ -7566,6 +7566,24 @@ def account_detail(request, account_id):
                 or w.stripe_maintenance_subscription_id):
             delete_impact['active_subscriptions'] += 1
 
+    # ── Contracts card data ──
+    # Tier options per service category (for the "send contract" picker)
+    # and the account's existing contracts (for the status list). Tiers
+    # are read live from the DB so the picker never drifts from pricing.
+    from billing.pricing_models import ServiceTier
+    contract_tiers = {
+        'build': list(ServiceTier.objects.filter(
+            category='website_build', is_active=True).order_by('sort_order')),
+        'maintenance': list(ServiceTier.objects.filter(
+            category='maintenance', is_active=True).order_by('sort_order')),
+        'social': list(ServiceTier.objects.filter(
+            category='social_media', is_active=True).order_by('sort_order')),
+    }
+    contracts = list(
+        account.contracts.all().prefetch_related('services')
+        .order_by('-created_at')[:10])
+    contract_sign_base = request.build_absolute_uri('/portal/contract/')
+
     return render(
         request, 'admin_dashboard/account_detail.html',
         _admin_context(
@@ -7576,6 +7594,9 @@ def account_detail(request, account_id):
             websites=websites,
             domains=domains,
             delete_impact=delete_impact,
+            contract_tiers=contract_tiers,
+            contracts=contracts,
+            contract_sign_base=contract_sign_base,
         ),
     )
 
@@ -7791,6 +7812,146 @@ def account_set_comp_tier(request, account_id):
     else:
         _messages.error(request, 'Missing or unknown comp bucket.')
 
+    return redirect(
+        'admin_dashboard:account_detail', account_id=account.id)
+
+
+def _ensure_client_profile(account):
+    """Return the Account's linked ClientProfile, linking the user's existing
+    one if the FK isn't set. Contracts hang off ClientProfile; in practice
+    every Account is born from a ClientProfile (see clients.signals), so the
+    FK is almost always present. We do NOT create a new ClientProfile here —
+    that would re-fire the auto-Account signal and collide on the user's
+    existing Account. Returns None only for a genuinely orphaned Account
+    (no profile, no user), which the caller surfaces as an error.
+    """
+    from clients.models import ClientProfile
+
+    if account.legacy_client_profile_id:
+        return account.legacy_client_profile
+    user = account.user
+    if user is None:
+        return None
+    profile = ClientProfile.objects.filter(user=user).first()
+    if profile is None:
+        return None
+    account.legacy_client_profile = profile
+    account.save(update_fields=['legacy_client_profile'])
+    return profile
+
+
+# Map a website-build ServiceTier slug to the Contract.package code so the
+# legacy build-invoice + PDF code paths keep working on combined contracts.
+_BUILD_SLUG_TO_PACKAGE = {
+    'website-essential': 'essential_build',
+    'website-premium': 'premium_build',
+}
+
+
+@admin_required
+@require_POST
+def account_send_contract(request, account_id):
+    """Create + email a combined services contract from the Account page.
+
+    The operator multiselects any of three services (website development,
+    maintenance, social media) and picks a tier for each. We build ONE
+    Contract with one ContractService row per selected service, render the
+    combined agreement text, and email the client the signing link. Signing
+    is handled by the existing token-gated ``clients:contract_sign`` view.
+    """
+    from decimal import Decimal
+
+    from django.contrib import messages as _messages
+
+    from billing.pricing_models import ServiceTier
+    from clients.account_models import Account
+    from clients.contract_template import generate_combined_contract_text
+    from clients.emails import send_contract_ready_email
+    from clients.models import Contract, ContractService
+
+    account = get_object_or_404(Account, id=account_id)
+
+    profile = _ensure_client_profile(account)
+    if profile is None:
+        _messages.error(
+            request,
+            'This account has no user on file — cannot create a contract.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    # (service_type, checkbox field, tier-select field, ServiceTier category)
+    service_form = [
+        ('build', 'svc_build', 'tier_build', 'website_build'),
+        ('maintenance', 'svc_maintenance', 'tier_maintenance', 'maintenance'),
+        ('social', 'svc_social', 'tier_social', 'social_media'),
+    ]
+    selected = []
+    for service_type, check_field, tier_field, category in service_form:
+        if request.POST.get(check_field) != 'on':
+            continue
+        slug = (request.POST.get(tier_field) or '').strip()
+        if not slug:
+            _messages.error(
+                request,
+                f'Select a tier for the {service_type} service before sending.')
+            return redirect(
+                'admin_dashboard:account_detail', account_id=account.id)
+        tier = ServiceTier.objects.filter(
+            slug=slug, category=category, is_active=True).first()
+        if tier is None:
+            _messages.error(
+                request, f'Unknown {service_type} tier: {slug!r}.')
+            return redirect(
+                'admin_dashboard:account_detail', account_id=account.id)
+        selected.append((service_type, tier))
+
+    if not selected:
+        _messages.error(
+            request, 'Select at least one service for the contract.')
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+
+    build_tier = next((t for st, t in selected if st == 'build'), None)
+
+    contract = Contract.objects.create(
+        client=profile,
+        account=account,
+        package=(_BUILD_SLUG_TO_PACKAGE.get(build_tier.slug, '')
+                 if build_tier else ''),
+        build_price=Decimal(build_tier.price) if build_tier else None,
+        deposit_amount=((Decimal(build_tier.price) / 2).quantize(Decimal('0.01'))
+                        if build_tier else None),
+        timeline_weeks=(build_tier.timeline_weeks or 4) if build_tier else 0,
+        contract_text=generate_combined_contract_text(
+            profile, [{'service_type': st, 'tier': t} for st, t in selected]),
+    )
+    for service_type, tier in selected:
+        deposit = (
+            (Decimal(tier.price) / 2).quantize(Decimal('0.01'))
+            if service_type == 'build' else None)
+        ContractService.objects.create(
+            contract=contract,
+            service_type=service_type,
+            tier_slug=tier.slug,
+            tier_name=tier.name,
+            price=Decimal(tier.price),
+            deposit_amount=deposit,
+            is_recurring=bool(tier.is_recurring),
+            billing_interval=tier.billing_interval or '',
+        )
+
+    sign_url = request.build_absolute_uri(
+        reverse('clients:contract_sign', args=[contract.contract_token]))
+    try:
+        send_contract_ready_email(contract, sign_url)
+    except Exception:
+        logger.exception(
+            'Contract-ready email failed for contract %s', contract.pk)
+
+    _messages.success(
+        request,
+        f'Contract created for {account.name} covering '
+        f'{contract.service_summary}. Signing link: {sign_url}')
     return redirect(
         'admin_dashboard:account_detail', account_id=account.id)
 

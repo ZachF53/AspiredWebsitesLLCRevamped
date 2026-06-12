@@ -1786,21 +1786,29 @@ def contract_sign(request, contract_token):
             contract.pdf_path = render_contract_pdf(contract)
             contract.save()
 
-            # Set the build fields on the client (post-2026-05-25 the
-            # former Project fields live directly on ClientProfile).
-            client = contract.client
-            client.package = (
-                contract.package or client.package or '')
-            client.stage = 'intake'
-            client.payment_status = 'awaiting_deposit'
-            client.save(update_fields=[
-                'package', 'stage', 'payment_status', 'updated_at'])
+            # Build-specific onboarding side effects only fire when the
+            # contract actually covers a website build. A maintenance- or
+            # social-only contract just records the signed agreement —
+            # billing for those recurring plans is handled separately
+            # (self-serve checkout or operator setup).
+            if contract.includes_build:
+                # Set the build fields on the client (post-2026-05-25 the
+                # former Project fields live directly on ClientProfile).
+                client = contract.client
+                client.package = (
+                    contract.package or client.package or '')
+                client.stage = 'intake'
+                client.payment_status = 'awaiting_deposit'
+                client.save(update_fields=[
+                    'package', 'stage', 'payment_status', 'updated_at'])
 
             send_contract_signed_email(contract)
-            # Issue the 50% deposit invoice via Stripe (best effort —
-            # logs and skips if Stripe is not configured).
-            from billing.stripe_helpers import issue_deposit_invoice
-            issue_deposit_invoice(contract)
+
+            if contract.includes_build:
+                # Issue the 50% deposit invoice via Stripe (best effort —
+                # logs and skips if Stripe is not configured).
+                from billing.stripe_helpers import issue_deposit_invoice
+                issue_deposit_invoice(contract)
 
             return redirect('clients:contract_signed')
 

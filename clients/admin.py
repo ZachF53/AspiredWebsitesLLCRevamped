@@ -12,6 +12,7 @@ from .models import (
     ClientDocument,
     ClientProfile,
     Contract,
+    ContractService,
     IntakeResponse,
     Project,
     ProjectStageLog,
@@ -118,18 +119,25 @@ class ProjectAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 
+class ContractServiceInline(admin.TabularInline):
+    model = ContractService
+    extra = 0
+    readonly_fields = ('created_at', 'updated_at')
+
+
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
     list_display = (
-        'client', 'package', 'build_price', 'deposit_amount',
+        'client', 'service_summary', 'package', 'build_price',
         'signed', 'signed_at', 'created_at',
     )
     list_filter = ('signed', 'package')
     search_fields = ('client__firm_name', 'signed_name')
     readonly_fields = (
         'created_at', 'updated_at', 'contract_token', 'signed_at',
-        'signed_ip', 'pdf_path',
+        'signed_ip', 'signed_user_agent', 'signed_content_hash', 'pdf_path',
     )
+    inlines = [ContractServiceInline]
 
 
 @admin.register(ProjectStageLog)

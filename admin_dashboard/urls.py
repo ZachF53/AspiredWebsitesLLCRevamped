@@ -393,6 +393,8 @@ urlpatterns = [
          name='account_detail'),
     path('accounts/<uuid:account_id>/comp/', views.account_set_comp_tier,
          name='account_set_comp_tier'),
+    path('accounts/<uuid:account_id>/send-contract/',
+         views.account_send_contract, name='account_send_contract'),
     path('accounts/<uuid:account_id>/delete/', views.account_delete,
          name='account_delete'),
     path('accounts/<uuid:account_id>/send-password-reset/',
