@@ -2,6 +2,7 @@
 
 import datetime as _dt
 import json
+import logging
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -12,6 +13,93 @@ from django_ratelimit.decorators import ratelimit
 
 from .availability import BLOCK_MINUTES, MIN_LEAD_MINUTES, enumerate_slots
 from .models import ScheduledCall
+
+logger = logging.getLogger(__name__)
+
+# Schedule-page build-type form value → ClientProfile/Website package code.
+_BUILD_TYPE_TO_PACKAGE = {
+    'essential': 'essential_build',
+    'premium': 'premium_build',
+}
+
+
+def _provision_webdev_inquiry(*, email, business, contact_name, phone,
+                              website, build_package, addons):
+    """For a Website Development booking, create (or reuse) an inactive
+    User + Account + Website so the contract, invoice, and account setup all
+    tie to a real account from the moment they book. Returns the Website or
+    None. Never raises — a provisioning hiccup must not fail the booking.
+
+    The maintenance/social opt-ins are recorded on the Website to drive the
+    "go Live → start billing (10% off first month)" flow later.
+    """
+    try:
+        from django.contrib.auth import get_user_model
+
+        from billing.pricing_models import ServiceTier
+        from clients.account_models import Account, Website, _slugify_unique
+        from clients.models import ClientProfile
+
+        User = get_user_model()
+        if not email:
+            return None
+
+        # Split opt-ins into the maintenance + social picks.
+        maint_tier = social_tier = ''
+        if addons:
+            cats = dict(
+                ServiceTier.objects.filter(slug__in=addons)
+                .values_list('slug', 'category'))
+            for slug in addons:
+                cat = cats.get(slug)
+                if cat == 'maintenance' and not maint_tier:
+                    maint_tier = slug
+                elif cat == 'social_media' and not social_tier:
+                    social_tier = slug
+
+        user, _created = User.objects.get_or_create(
+            username=email, defaults={'email': email, 'is_active': False})
+        if not user.email:
+            user.email = email
+            user.save(update_fields=['email'])
+
+        profile = ClientProfile.objects.filter(user=user).first()
+        if profile is None:
+            # Creating the profile fires the signal that materialises the
+            # Account + first Website (using firm_name + package).
+            profile = ClientProfile.objects.create(
+                user=user, firm_name=business or email,
+                contact_name=contact_name or '', phone=phone or '',
+                website=website or '', package=build_package or '')
+
+        account = (
+            Account.objects.filter(legacy_client_profile=profile).first()
+            or getattr(user, 'account', None))
+        if account is None:
+            return None
+
+        web = account.websites.order_by('created_at').first()
+        if web is None:
+            web = Website.objects.create(
+                account=account, name=business or 'Website',
+                slug=_slugify_unique(business or 'website', Website))
+
+        web.lifecycle_status = 'inquiry'
+        web.opted_in_maintenance_tier = maint_tier
+        web.opted_in_social_tier = social_tier
+        if build_package:
+            web.package = build_package
+        if business:
+            web.name = business
+        if website and not web.url:
+            web.url = website
+        web.save(update_fields=[
+            'lifecycle_status', 'opted_in_maintenance_tier',
+            'opted_in_social_tier', 'package', 'name', 'url', 'updated_at'])
+        return web
+    except Exception:
+        logger.exception('scheduler: web-dev inquiry provisioning failed')
+        return None
 
 
 # Per-service copy + form configuration. Each service uses the SAME
@@ -245,6 +333,20 @@ def confirm_slot(request):
     call.status = 'confirmed'
     call.save(update_fields=[
         'lead', 'customer_name', 'customer_email', 'notes', 'status'])
+
+    # Website Development bookings (a build tier was chosen) provision an
+    # inactive account + website up front, so the contract / invoice / setup
+    # all tie to that user by email. Other services stay leads only.
+    if service == 'web_design' and build_type:
+        _provision_webdev_inquiry(
+            email=email,
+            business=business,
+            contact_name=name,
+            phone=phone,
+            website=website,
+            build_package=_BUILD_TYPE_TO_PACKAGE.get(build_type, ''),
+            addons=addons,
+        )
 
     # Try to push to Google Calendar — fall back silently if not connected
     try:

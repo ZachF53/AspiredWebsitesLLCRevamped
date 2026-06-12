@@ -12,6 +12,7 @@
             <p class="admin-page-sub">
                 {{ account.user.email|default:"—" }}
                 {% if account.is_tester %}&nbsp;·&nbsp;<span class="tester-badge">TESTER</span>{% endif %}
+                {% if unsigned_website_count %}&nbsp;·&nbsp;<span class="status-badge" style="background:var(--color-orange,#E8650A);color:#fff;">{{ unsigned_website_count }} new / unsigned</span>{% endif %}
             </p>
         </div>
         <div>
@@ -438,6 +439,9 @@
                                 <a href="{% url 'admin_dashboard:website_detail' w.id %}"><strong>{{ w.name }}</strong></a>
                                 <span class="status-badge status-badge--{{ w.stage }}">{{ w.get_stage_display }}</span>
                             </div>
+                            {% if w.lifecycle_status %}
+                                <p class="website-card__meta">{{ w.get_lifecycle_status_display }}</p>
+                            {% endif %}
                             <p class="website-card__url">{{ w.url|default:"— no URL —" }}</p>
                             <p class="website-card__meta">
                                 {% if w.package %}{{ w.get_package_display }}{% else %}<span class="muted">No package</span>{% endif %}

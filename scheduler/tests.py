@@ -154,3 +154,116 @@ class ConfirmSlotTests(TestCase):
             'name': 'X', 'email': 'x@y.com', 'business': 'X',
         })
         self.assertEqual(r.status_code, 404)
+
+
+def _seed_addon_tiers():
+    from decimal import Decimal
+
+    from billing.pricing_models import ServiceTier
+    ServiceTier.objects.get_or_create(
+        slug='maintenance-growth', defaults=dict(
+            category='maintenance', name='Growth', price=Decimal('599'),
+            is_recurring=True, billing_interval='month'))
+    ServiceTier.objects.get_or_create(
+        slug='social-standard', defaults=dict(
+            category='social_media', name='Standard', price=Decimal('699'),
+            is_recurring=True, billing_interval='month'))
+
+
+class WebDevInquiryProvisioningTests(TestCase):
+    """Phase 1 — a Website Development booking provisions an inactive
+    User + Account + Website with the build tier + opt-ins recorded."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed_addon_tiers()
+
+    def test_helper_provisions_account_website(self):
+        from django.contrib.auth import get_user_model
+
+        from scheduler.views import _provision_webdev_inquiry
+        web = _provision_webdev_inquiry(
+            email='biz@example.com', business='Biz LLC', contact_name='Bo',
+            phone='210-000-0000', website='', build_package='essential_build',
+            addons=['maintenance-growth', 'social-standard'])
+        self.assertIsNotNone(web)
+        self.assertEqual(web.package, 'essential_build')
+        self.assertEqual(web.lifecycle_status, 'inquiry')
+        self.assertEqual(web.opted_in_maintenance_tier, 'maintenance-growth')
+        self.assertEqual(web.opted_in_social_tier, 'social-standard')
+        # Inactive user — no login until they set a password post-payment.
+        u = get_user_model().objects.get(username='biz@example.com')
+        self.assertFalse(u.is_active)
+        # Account + Website tied to that user.
+        self.assertEqual(web.account.user_id, u.id)
+
+    def test_helper_idempotent_for_returning_email(self):
+        from django.contrib.auth import get_user_model
+
+        from scheduler.views import _provision_webdev_inquiry
+        w1 = _provision_webdev_inquiry(
+            email='same@example.com', business='Same LLC', contact_name='',
+            phone='', website='', build_package='essential_build', addons=[])
+        w2 = _provision_webdev_inquiry(
+            email='same@example.com', business='Same LLC', contact_name='',
+            phone='', website='', build_package='premium_build', addons=[])
+        self.assertEqual(
+            get_user_model().objects.filter(
+                username='same@example.com').count(), 1)
+        self.assertEqual(w1.account_id, w2.account_id)
+
+    def test_confirm_web_design_creates_website(self):
+        from unittest.mock import patch
+
+        from clients.account_models import Website
+        cache.clear()
+        _make_window()
+        starts_at = _future_slot(hours_ahead=4)
+        hold = self.client.post(
+            reverse('scheduler:hold_slot'),
+            data=json.dumps({'starts_at': starts_at.isoformat()}),
+            content_type='application/json')
+        call_id = hold.json()['call_id']
+        with patch('scheduler.emails.send_schedule_confirmation_to_customer'), \
+             patch('scheduler.emails.send_schedule_notification_to_admin'):
+            r = self.client.post(
+                reverse('scheduler:confirm_slot'),
+                data=json.dumps({
+                    'call_id': call_id, 'name': 'Web Dev',
+                    'email': 'webdev@example.com', 'business': 'WebDev LLC',
+                    'service': 'web_design', 'build_type': 'premium',
+                    'addons': ['maintenance-growth'],
+                }),
+                content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        web = Website.objects.filter(
+            account__user__email='webdev@example.com').first()
+        self.assertIsNotNone(web)
+        self.assertEqual(web.package, 'premium_build')
+        self.assertEqual(web.lifecycle_status, 'inquiry')
+        self.assertEqual(web.opted_in_maintenance_tier, 'maintenance-growth')
+
+    def test_confirm_social_does_not_create_website(self):
+        from unittest.mock import patch
+
+        from clients.account_models import Website
+        cache.clear()
+        _make_window()
+        starts_at = _future_slot(hours_ahead=4)
+        hold = self.client.post(
+            reverse('scheduler:hold_slot'),
+            data=json.dumps({'starts_at': starts_at.isoformat()}),
+            content_type='application/json')
+        call_id = hold.json()['call_id']
+        with patch('scheduler.emails.send_schedule_confirmation_to_customer'), \
+             patch('scheduler.emails.send_schedule_notification_to_admin'):
+            self.client.post(
+                reverse('scheduler:confirm_slot'),
+                data=json.dumps({
+                    'call_id': call_id, 'name': 'Soc', 'email': 'soc@example.com',
+                    'business': 'Soc LLC', 'service': 'social_media',
+                }),
+                content_type='application/json')
+        self.assertFalse(
+            Website.objects.filter(
+                account__user__email='soc@example.com').exists())

@@ -270,6 +270,29 @@ class Website(TimestampedModel):
         default='pending_intake',
     )
 
+    # ── Sales lifecycle (web-dev funnel) ──
+    # Tracks where this build is in the contract → pay → build → live
+    # funnel, independent of the production `stage`. Drives the Accounts
+    # "New / unsigned" badge + the Websites list filter.
+    LIFECYCLE_STATUS_CHOICES = [
+        ('inquiry', 'New inquiry — no contract'),
+        ('contract_sent', 'Contract sent — unsigned'),
+        ('contract_signed', 'Signed — awaiting deposit'),
+        ('deposit_paid', 'Deposit paid'),
+        ('in_build', 'In build'),
+        ('live', 'Live'),
+    ]
+    lifecycle_status = models.CharField(
+        max_length=20, choices=LIFECYCLE_STATUS_CHOICES, blank=True,
+        help_text='Web-dev sales funnel state (set at booking + each step).',
+    )
+
+    # Maintenance / social plans the buyer opted into when booking a call
+    # (ServiceTier slugs). Read when the site goes Live to start billing,
+    # with the "10% off first month" promise honoured. Blank = none.
+    opted_in_maintenance_tier = models.CharField(max_length=50, blank=True)
+    opted_in_social_tier = models.CharField(max_length=50, blank=True)
+
     # ── DigitalOcean Droplet (one per Website) ──
     do_droplet_id = models.CharField(max_length=50, blank=True)
     do_droplet_ip = models.GenericIPAddressField(null=True, blank=True)

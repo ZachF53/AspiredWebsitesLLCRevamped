@@ -7524,6 +7524,10 @@ def account_detail(request, account_id):
 
     websites = list(account.websites.all().order_by('name'))
     domains = list(account.domains.all().order_by('domain_name'))
+    # "New / unsigned" badge — builds booked but not yet under signed contract.
+    unsigned_website_count = sum(
+        1 for w in websites
+        if w.lifecycle_status in ('inquiry', 'contract_sent'))
 
     # Delete-impact summary for the danger card modal — shows the
     # admin exactly what will be wiped before they type the name to
@@ -7646,6 +7650,7 @@ def account_detail(request, account_id):
             contract_tiers=contract_tiers,
             contracts=contracts,
             contract_sign_base=contract_sign_base,
+            unsigned_website_count=unsigned_website_count,
             scheduled_calls=scheduled_calls,
             addon_optins=addon_optins,
             onboarding_invoice=onboarding_invoice,
@@ -8124,6 +8129,7 @@ def websites_list(request):
 
     query = (request.GET.get('q') or '').strip()
     stage = (request.GET.get('stage') or '').strip()
+    lifecycle = (request.GET.get('lifecycle') or '').strip()
 
     websites = Website.objects.select_related('account').order_by('name')
     if query:
@@ -8133,13 +8139,21 @@ def websites_list(request):
             | Q(slug__icontains=query))
     if stage:
         websites = websites.filter(stage=stage)
+    if lifecycle == 'unsigned':
+        # "New / unsigned" convenience bucket — booked but not yet signed.
+        websites = websites.filter(
+            lifecycle_status__in=['inquiry', 'contract_sent'])
+    elif lifecycle:
+        websites = websites.filter(lifecycle_status=lifecycle)
 
     return render(request, 'admin_dashboard/websites_list.html', _admin_context(
         'accounts',
         websites=list(websites),
         query=query,
         active_stage=stage,
+        active_lifecycle=lifecycle,
         stages=Website._meta.get_field('stage').choices,
+        lifecycle_choices=Website._meta.get_field('lifecycle_status').choices,
     ))
 
 
