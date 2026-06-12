@@ -233,7 +233,7 @@ def checkout_confirm(request, tier_slug):
     if not tier.stripe_price_id:
         return JsonResponse({
             'error': 'this tier is not configured with a Stripe price; '
-                     'contact zachery@aspiredwebsites.com'}, status=400)
+                     'contact zacherylong@aspiredwebsites.com'}, status=400)
 
     try:
         payload = json.loads(request.body.decode('utf-8'))

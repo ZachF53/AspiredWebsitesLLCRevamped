@@ -8,7 +8,7 @@ mailbox creds aren't set up.
 
 Required env vars:
     DMARC_IMAP_HOST       = imap.gmail.com
-    DMARC_IMAP_USER       = zachery@aspiredwebsites.com
+    DMARC_IMAP_USER       = zacherylong@aspiredwebsites.com
     DMARC_IMAP_PASS       = (Gmail App Password — NOT the account password)
     DMARC_IMAP_FOLDER     = INBOX (or a label you filtered DMARC reports into)
 

@@ -83,7 +83,7 @@ def _send_reminder_email(user, items, day_bucket):
         message='\n'.join(lines),
         from_email=getattr(
             settings, 'DEFAULT_FROM_EMAIL',
-            'zachery@aspiredwebsites.com'),
+            'zacherylong@aspiredwebsites.com'),
         recipient_list=[user.email],
         fail_silently=False,
     )

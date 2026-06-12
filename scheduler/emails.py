@@ -133,7 +133,7 @@ def send_schedule_confirmation_to_customer(call):
             text_body=text_body,
             from_email=getattr(
                 settings, 'DEFAULT_FROM_EMAIL',
-                'zachery@aspiredwebsites.com'),
+                'zacherylong@aspiredwebsites.com'),
             fail_silently=False,
         )
         logger.info(
@@ -157,7 +157,7 @@ def send_schedule_notification_to_admin(call):
     admin_email = getattr(
         settings, 'LEAD_NOTIFICATION_EMAIL',
         getattr(settings, 'DEFAULT_FROM_EMAIL',
-                'zachery@aspiredwebsites.com'))
+                'zacherylong@aspiredwebsites.com'))
     when_str = _format_when(call.starts_at)
     lead_attrs = _lead_attrs(call)
 
@@ -213,7 +213,7 @@ def send_schedule_notification_to_admin(call):
             text_body=text_body,
             from_email=getattr(
                 settings, 'DEFAULT_FROM_EMAIL',
-                'zachery@aspiredwebsites.com'),
+                'zacherylong@aspiredwebsites.com'),
             fail_silently=False,
         )
         logger.info(

@@ -254,10 +254,10 @@ def check_gbp_sync():
                         f' for the field-by-field comparison.'),
                     from_email=getattr(
                         _settings, 'DEFAULT_FROM_EMAIL',
-                        'zachery@aspiredwebsites.com'),
+                        'zacherylong@aspiredwebsites.com'),
                     recipient_list=[getattr(
                         _settings, 'LEAD_NOTIFICATION_EMAIL',
-                        'zachery@aspiredwebsites.com')],
+                        'zacherylong@aspiredwebsites.com')],
                     fail_silently=True,
                 )
             except Exception:

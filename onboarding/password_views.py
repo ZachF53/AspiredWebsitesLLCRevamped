@@ -150,7 +150,7 @@ def send_password_setup_email(user, token=None):
             message=body,
             from_email=getattr(
                 settings, 'DEFAULT_FROM_EMAIL',
-                'zachery@aspiredwebsites.com'),
+                'zacherylong@aspiredwebsites.com'),
             recipient_list=[user.email],
             fail_silently=False,
         )

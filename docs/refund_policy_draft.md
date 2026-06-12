@@ -90,7 +90,7 @@ is resolved. Reach out first — we're easier to talk to than your bank.
 
 ### How to request a refund
 
-Email **zachery@aspiredwebsites.com** with:
+Email **zacherylong@aspiredwebsites.com** with:
 - Your account email
 - The charge date and amount
 - A short description of why you're requesting the refund

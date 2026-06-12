@@ -1024,7 +1024,7 @@ class SettingsFormFieldsTests(TestCase):
         self.assertEqual(ASPIRED_REGISTRANT['phone'], '+1.2108962536')
         self.assertEqual(
             ASPIRED_REGISTRANT['email_address'],
-            'zachery@aspiredwebsites.com')
+            'zacherylong@aspiredwebsites.com')
 
     def test_aspired_registrant_returns_fresh_dict(self):
         """Caller mutation shouldn't poison the constant."""
@@ -1186,7 +1186,7 @@ class ResumeDomainTests(TestCase):
             args, kwargs = mock_nc.return_value.set_contacts.call_args
             sent = args[1]
             self.assertEqual(
-                sent['email_address'], 'zachery@aspiredwebsites.com')
+                sent['email_address'], 'zacherylong@aspiredwebsites.com')
             # Stripe resume called
             mock_resume.assert_called_once_with(self.reg)
         self.reg.refresh_from_db()

@@ -50,7 +50,7 @@ ASPIRED_REGISTRANT = {
     'postal_code': '30350',
     'country': 'US',
     'phone': '+1.2108962536',
-    'email_address': 'zachery@aspiredwebsites.com',
+    'email_address': 'zacherylong@aspiredwebsites.com',
 }
 
 
