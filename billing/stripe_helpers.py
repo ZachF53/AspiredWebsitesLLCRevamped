@@ -1141,20 +1141,25 @@ def start_contract_payment(contract, amount, *, is_deposit):
         return invoice
 
     line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
+    website = contract.website_new
+    account = contract.account
     if invoice is None:
         invoice = OnboardingInvoice.objects.create(
             client=client, contract=contract, is_deposit=is_deposit,
+            account_new=account, website_new=website,
             line_items=line_items, total_amount=amount, status='draft',
         )
     else:
         invoice.contract = contract
         invoice.is_deposit = is_deposit
+        invoice.account_new = account
+        invoice.website_new = website
         invoice.line_items = line_items
         invoice.total_amount = amount
         invoice.status = 'draft'
         invoice.save(update_fields=[
-            'contract', 'is_deposit', 'line_items', 'total_amount',
-            'status', 'updated_at'])
+            'contract', 'is_deposit', 'account_new', 'website_new',
+            'line_items', 'total_amount', 'status', 'updated_at'])
 
     try:
         customer, payment_intent = create_onboarding_payment_intent(

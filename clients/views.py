@@ -1801,6 +1801,13 @@ def contract_sign(request, contract_token):
                 client.payment_status = 'awaiting_deposit'
                 client.save(update_fields=[
                     'package', 'stage', 'payment_status', 'updated_at'])
+                # Drive the per-website sales lifecycle (source of truth).
+                web = contract.website_new
+                if web is not None:
+                    web.lifecycle_status = 'contract_signed'
+                    web.payment_status = 'awaiting_deposit'
+                    web.save(update_fields=[
+                        'lifecycle_status', 'payment_status', 'updated_at'])
                 # → choose deposit / pay-in-full, then the Stripe page.
                 return redirect(
                     'clients:contract_pay',

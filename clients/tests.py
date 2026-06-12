@@ -709,7 +709,8 @@ class AccountSendContractTests(TestCase):
         r = self.client.get(detail_url)
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Contracts')
-        self.assertContains(r, 'Generate &amp; send contract')
+        # Contracts moved to the website page — account shows a pointer.
+        self.assertContains(r, 'per website')
 
     def test_requires_staff(self):
         self.client.logout()
@@ -986,3 +987,167 @@ class AccountDetailExtraCardsTests(TestCase):
         self.assertContains(r, 'Growth')
         # The scheduled call shows.
         self.assertContains(r, 'Cary Cards')
+
+
+class WebsiteContractAndPlanTests(TestCase):
+    """Phases 2–4: per-website contract + stage-driven plan billing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from billing.pricing_models import ServiceTier
+        from clients.account_models import Account
+        ServiceTier.objects.get_or_create(
+            slug='website-essential', defaults=dict(
+                category='website_build', name='Essential Build',
+                price=Decimal('2500'), timeline_weeks=3, pages_included=8))
+        ServiceTier.objects.get_or_create(
+            slug='maintenance-growth', defaults=dict(
+                category='maintenance', name='Growth', price=Decimal('599'),
+                is_recurring=True, billing_interval='month',
+                stripe_price_id='price_maint_growth'))
+        ServiceTier.objects.get_or_create(
+            slug='social-standard', defaults=dict(
+                category='social_media', name='Standard', price=Decimal('699'),
+                is_recurring=True, billing_interval='month',
+                stripe_price_id='price_soc_std'))
+        cls.staff = User.objects.create_user(
+            username='wcp_staff', password='x', email='wcpstaff@example.com',
+            is_staff=True)
+        cls.client_user = User.objects.create_user(
+            username='wcp1', password='x', email='wcp1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=cls.client_user, firm_name='WCP LLC', package='essential_build')
+        cls.account = Account.objects.get(legacy_client_profile=cls.profile)
+        cls.website = cls.account.websites.first()
+        cls.website.package = 'essential_build'
+        cls.website.save(update_fields=['package'])
+
+    def setUp(self):
+        self.client.force_login(self.staff)
+
+    # ── Phase 2: contract on the website ──
+    def test_send_contract_creates_website_contract(self):
+        from unittest.mock import patch
+
+        from clients.models import Contract
+        url = reverse('admin_dashboard:website_send_contract',
+                      args=[self.website.id])
+        with patch('clients.emails.send_contract_ready_email'):
+            r = self.client.post(url)
+        self.assertEqual(r.status_code, 302)
+        c = Contract.objects.get(website_new=self.website)
+        self.assertEqual(c.package, 'essential_build')
+        self.assertEqual(c.services.filter(service_type='build').count(), 1)
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.lifecycle_status, 'contract_sent')
+
+    def test_website_detail_renders_contract_and_plan_cards(self):
+        r = self.client.get(
+            reverse('admin_dashboard:website_detail', args=[self.website.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Send contract')
+        self.assertContains(r, 'Add plan')
+
+    # ── Phase 3: plan-start engine ──
+    def test_start_plan_with_card_is_active(self):
+        from unittest.mock import MagicMock, patch
+
+        from billing.plan_billing import start_website_plan
+        with patch('billing.plan_billing._has_card_on_file', return_value=True), \
+             patch('billing.plan_billing._stripe') as ms:
+            s = ms.return_value
+            sub = MagicMock(); sub.id = 'sub_card'
+            s.Subscription.create.return_value = sub
+            cust = MagicMock(); cust.id = 'cus_1'
+            s.Customer.create.return_value = cust
+            plan = start_website_plan(
+                self.website, 'maintenance', 'maintenance-growth')
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.status, 'active')
+        self.assertEqual(plan.stripe_subscription_id, 'sub_card')
+
+    def test_start_plan_without_card_is_awaiting_payment(self):
+        from unittest.mock import MagicMock, patch
+
+        from billing.plan_billing import start_website_plan
+        with patch('billing.plan_billing._has_card_on_file', return_value=False), \
+             patch('billing.plan_billing._stripe') as ms:
+            s = ms.return_value
+            inv = MagicMock(); inv.id = 'in_1'
+            sub = MagicMock(); sub.id = 'sub_noc'; sub.latest_invoice = inv
+            s.Subscription.create.return_value = sub
+            cust = MagicMock(); cust.id = 'cus_1'
+            s.Customer.create.return_value = cust
+            plan = start_website_plan(
+                self.website, 'social', 'social-standard',
+                discount_percent=15, discount_duration='forever')
+        self.assertEqual(plan.status, 'awaiting_payment')
+        self.assertEqual(plan.awaiting_invoice_id, 'in_1')
+        self.assertEqual(plan.discount_percent, 15)
+        self.assertEqual(plan.discount_duration, 'forever')
+
+    def test_change_stage_live_starts_optin_plans(self):
+        from unittest.mock import patch
+
+        self.website.opted_in_maintenance_tier = 'maintenance-growth'
+        self.website.opted_in_social_tier = 'social-standard'
+        self.website.stage = 'pre_launch'
+        self.website.save(update_fields=[
+            'opted_in_maintenance_tier', 'opted_in_social_tier', 'stage'])
+        url = reverse('admin_dashboard:website_change_stage',
+                      args=[self.website.id])
+        with patch('billing.plan_billing.start_website_plan') as mock_start, \
+             patch('clients.emails.send_stage_change_email'):
+            self.client.post(url, data={'stage': 'live'})
+        self.assertEqual(mock_start.call_count, 2)
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.lifecycle_status, 'live')
+
+    def test_change_stage_prelaunch_sends_final_invoice(self):
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from clients.models import Contract
+        Contract.objects.create(
+            client=self.profile, account=self.account, website_new=self.website,
+            package='essential_build', build_price=Decimal('2500'),
+            deposit_amount=Decimal('1250'), contract_text='x', signed=True)
+        url = reverse('admin_dashboard:website_change_stage',
+                      args=[self.website.id])
+        with patch('billing.stripe_helpers.create_final_invoice') as mock_final, \
+             patch('clients.emails.send_stage_change_email'):
+            self.client.post(url, data={'stage': 'pre_launch'})
+        mock_final.assert_called_once()
+
+    def test_webhook_clears_awaiting_payment(self):
+        from billing.webhooks import _activate_website_plan_sub
+        from clients.service_models import MaintenancePlan
+        plan = MaintenancePlan.objects.create(
+            account=self.account, website=self.website,
+            tier_slug='maintenance-growth', status='awaiting_payment',
+            stripe_subscription_id='sub_await')
+        self.assertTrue(_activate_website_plan_sub('sub_await'))
+        plan.refresh_from_db()
+        self.assertEqual(plan.status, 'active')
+        self.website.refresh_from_db()
+        self.assertTrue(self.website.maintenance_active)
+
+    # ── Phase 4: add-plan endpoint ──
+    def test_add_plan_endpoint_passes_discount(self):
+        from unittest.mock import MagicMock, patch
+
+        url = reverse('admin_dashboard:website_add_plan',
+                      args=[self.website.id])
+        with patch('billing.plan_billing.start_website_plan') as mock_start:
+            mp = MagicMock(); mp.status = 'active'
+            mock_start.return_value = mp
+            r = self.client.post(url, data={
+                'service_type': 'maintenance', 'tier_slug': 'maintenance-growth',
+                'discount_percent': '15', 'discount_duration': 'forever'})
+        self.assertEqual(r.status_code, 302)
+        mock_start.assert_called_once()
+        _a, kw = mock_start.call_args
+        self.assertEqual(kw.get('discount_percent'), 15)
+        self.assertEqual(kw.get('discount_duration'), 'forever')

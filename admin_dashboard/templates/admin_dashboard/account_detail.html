@@ -247,38 +247,13 @@
                 <p class="muted" style="margin-top:0;">No contracts sent for this account yet.</p>
             {% endif %}
 
-            {% comment %}
-                New build contract. Only website development is a signed
-                contract — maintenance and social are sold self-serve with a
-                terms-acceptance checkbox at checkout, so they're not offered
-                here.
-            {% endcomment %}
-            <form method="post" action="{% url 'admin_dashboard:account_send_contract' account_id=account.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="svc_build" value="on">
-                <p class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.5rem;">New website build contract</p>
-
-                <div style="max-width:28rem;">
-                    <label class="form-row__label" for="tier_build" style="display:block;margin-bottom:.35rem;">Build tier</label>
-                    <select name="tier_build" id="tier_build" class="form-control">
-                        <option value="">— Select tier —</option>
-                        {% for t in contract_tiers.build %}
-                            <option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <p class="muted" style="font-size:.78rem;margin-top:.75rem;">
-                    Creates the build agreement and gives you the signing link
-                    (shown above to copy). After signing, the client pays the
-                    deposit and sets up their account. Maintenance &amp; social
-                    plans are purchased on the site with a terms checkbox — no
-                    signed contract needed.
-                </p>
-                <div style="margin-top:.75rem;">
-                    <button type="submit" class="btn-primary btn-sm">Generate &amp; send contract</button>
-                </div>
-            </form>
+            <p class="muted" style="font-size:.78rem;margin-top:.5rem;">
+                Contracts are <strong>per website</strong> now. Open a website
+                below and use its <em>Send contract</em> button — the build tier
+                captured at booking is used automatically. Maintenance &amp;
+                social plans are purchased on the site with a terms checkbox
+                (no signed contract needed).
+            </p>
         </div>
     </div>
 

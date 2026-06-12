@@ -85,6 +85,105 @@
         </div>
     </div>
 
+    {% comment %}
+        Contract (per-website). One button — uses the build tier captured on
+        the website at booking. Signing flows into deposit → setup → intake.
+    {% endcomment %}
+    <div class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Contract</h2>
+            <span class="muted">Lifecycle: <strong style="color:var(--color-text);">{{ website.get_lifecycle_status_display|default:"—" }}</strong></span>
+        </div>
+        <div class="admin-card__body">
+            {% if website_contracts %}
+                <table class="lead-table" style="margin-bottom:1rem;">
+                    <thead><tr><th>Status</th><th>Created</th><th>Signing link</th></tr></thead>
+                    <tbody>
+                        {% for c in website_contracts %}
+                            <tr>
+                                <td>
+                                    {% if c.signed %}
+                                        <span class="status-badge" style="color:#10b981;">Signed</span>
+                                        <span class="muted" style="font-size:.75rem;">{{ c.signed_at|date:"M j, Y" }}{% if c.signed_name %} · {{ c.signed_name }}{% endif %}</span>
+                                    {% else %}
+                                        <span class="status-badge">Awaiting signature</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ c.created_at|date:"M j, Y" }}</td>
+                                <td>
+                                    {% if c.signed %}<span class="muted">—</span>
+                                    {% else %}
+                                        <input type="text" class="form-control" readonly onclick="this.select()"
+                                               style="font-size:.75rem;" value="{{ contract_sign_base }}{{ c.contract_token }}/">
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted" style="margin-top:0;">No contract sent for this website yet.</p>
+            {% endif %}
+
+            {% if can_send_contract %}
+                <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary btn-sm">Send contract ({{ website.get_package_display }})</button>
+                </form>
+            {% else %}
+                <p class="muted" style="margin:0;">Set the package to an Essential or Premium build (Status &amp; Stage card) to enable Send contract.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% comment %}
+        Add a maintenance / social plan to this website. Auto-charges the
+        card on file, or emails a payment link (plan tagged Awaiting payment).
+        Optional custom discount, first-month-only or forever.
+    {% endcomment %}
+    <div class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Plans</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if website_plans %}
+                <ul class="danger-impact-list">
+                    {% for p in website_plans %}
+                        <li><strong>{{ p.tier_slug }}</strong>
+                            <span class="status-badge">{{ p.get_status_display }}</span>
+                            {% if p.discount_percent %}<span class="muted" style="font-size:.75rem;">{{ p.discount_percent }}% off {{ p.get_discount_duration_display|lower }}</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted" style="margin-top:0;">No maintenance/social plans on this website.</p>
+            {% endif %}
+
+            <form method="post" action="{% url 'admin_dashboard:website_add_plan' website.id %}" class="admin-stage-skip" style="flex-wrap:wrap;gap:.5rem;margin-top:.5rem;">
+                {% csrf_token %}
+                <select name="service_type" class="form-control" style="max-width:160px;">
+                    <option value="maintenance">Maintenance</option>
+                    <option value="social">Social</option>
+                </select>
+                <select name="tier_slug" class="form-control" style="max-width:220px;">
+                    <optgroup label="Maintenance">
+                        {% for t in maintenance_tiers %}<option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="Social">
+                        {% for t in social_tiers %}<option value="{{ t.slug }}">{{ t.name }} — {{ t.price_display|default:t.price }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+                <input type="number" name="discount_percent" class="form-control" min="0" max="100" placeholder="% off" style="max-width:90px;">
+                <select name="discount_duration" class="form-control" style="max-width:160px;">
+                    <option value="once">First month only</option>
+                    <option value="forever">Forever</option>
+                </select>
+                <button type="submit" class="btn-secondary btn-sm">Add plan</button>
+            </form>
+            <p class="muted" style="font-size:.75rem;margin-top:.5rem;">Charges the card on file, or emails a payment link if there's no card.</p>
+        </div>
+    </div>
+
     {# Single big edit form covering every editable Website field. #}
     <form method="post">
         {% csrf_token %}

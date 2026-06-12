@@ -7906,6 +7906,162 @@ _BUILD_SLUG_TO_PACKAGE = {
     'website-essential': 'essential_build',
     'website-premium': 'premium_build',
 }
+# Reverse: Website.package code → build ServiceTier slug.
+_PACKAGE_TO_BUILD_SLUG = {v: k for k, v in _BUILD_SLUG_TO_PACKAGE.items()}
+
+
+@admin_required
+@require_POST
+def website_send_contract(request, website_id):
+    """Create + email the build contract for a single Website (one click —
+    uses the build tier captured on the Website at booking). The Contract is
+    tied to `website_new`; signing flows into deposit → setup → intake.
+    """
+    from decimal import Decimal
+
+    from django.contrib import messages as _messages
+
+    from billing.pricing_models import ServiceTier
+    from clients.account_models import Website
+    from clients.contract_template import generate_combined_contract_text
+    from clients.emails import send_contract_ready_email
+    from clients.models import Contract, ContractService
+
+    website = get_object_or_404(Website, id=website_id)
+    account = website.account
+    profile = _ensure_client_profile(account) if account else None
+    if profile is None:
+        _messages.error(
+            request, 'This website has no account/user — cannot send a contract.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+    slug = _PACKAGE_TO_BUILD_SLUG.get(website.package or '')
+    tier = (ServiceTier.objects.filter(slug=slug, category='website_build',
+                                       is_active=True).first()
+            if slug else None)
+    if tier is None:
+        _messages.error(
+            request,
+            'Set this website’s package to Essential or Premium build '
+            '(and run seed_pricing) before sending a contract.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+    price = Decimal(tier.price)
+    contract = Contract.objects.create(
+        client=profile, account=account, website_new=website,
+        package=website.package,
+        build_price=price,
+        deposit_amount=(price / 2).quantize(Decimal('0.01')),
+        timeline_weeks=tier.timeline_weeks or 4,
+        contract_text=generate_combined_contract_text(
+            profile, [{'service_type': 'build', 'tier': tier}]),
+    )
+    ContractService.objects.create(
+        contract=contract, service_type='build', tier_slug=tier.slug,
+        tier_name=tier.name, price=price,
+        deposit_amount=(price / 2).quantize(Decimal('0.01')),
+        is_recurring=False, billing_interval='')
+
+    website.lifecycle_status = 'contract_sent'
+    website.save(update_fields=['lifecycle_status', 'updated_at'])
+
+    sign_url = request.build_absolute_uri(
+        reverse('clients:contract_sign', args=[contract.contract_token]))
+    try:
+        send_contract_ready_email(contract, sign_url)
+    except Exception:
+        logger.exception('contract-ready email failed for %s', contract.pk)
+
+    _messages.success(
+        request,
+        f'Contract sent for {website.name} ({tier.name}). '
+        f'Signing link: {sign_url}')
+    return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+
+@admin_required
+@require_POST
+def website_add_plan(request, website_id):
+    """Operator: attach a maintenance/social plan to a Website with an
+    optional custom discount (first-month-only or forever). Auto-charges the
+    card on file, or emails a payment link (plan tagged Awaiting payment).
+    """
+    from django.contrib import messages as _messages
+
+    from billing.plan_billing import start_website_plan
+    from clients.account_models import Website
+
+    website = get_object_or_404(Website, id=website_id)
+    service_type = (request.POST.get('service_type') or '').strip()
+    tier_slug = (request.POST.get('tier_slug') or '').strip()
+    duration = (request.POST.get('discount_duration') or 'once').strip()
+    pct_raw = (request.POST.get('discount_percent') or '').strip()
+
+    if service_type not in ('maintenance', 'social') or not tier_slug:
+        _messages.error(request, 'Choose a plan type and a tier.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+    discount = None
+    if pct_raw:
+        try:
+            discount = max(0, min(100, int(pct_raw)))
+        except ValueError:
+            discount = None
+
+    plan = start_website_plan(
+        website, service_type, tier_slug,
+        discount_percent=discount, discount_duration=duration)
+
+    if plan is None:
+        _messages.error(
+            request,
+            'Could not start the plan — confirm the tier has a Stripe price '
+            '(run sync_stripe_products).')
+    elif plan.status == 'awaiting_payment':
+        _messages.success(
+            request,
+            'Plan created — no card on file, so a payment link was emailed. '
+            'It activates once they pay.')
+    else:
+        _messages.success(request, 'Plan started and charged to the card on file.')
+    return redirect('admin_dashboard:website_detail', website_id=website.id)
+
+
+def _issue_website_final_invoice(website):
+    """On → Pre-Launch: send the remaining build balance invoice for this
+    website (skip if already fully paid). Best-effort."""
+    from billing.stripe_helpers import create_final_invoice
+    from clients.models import Contract
+
+    if website.payment_status == 'fully_paid':
+        return
+    cp = website.account.legacy_client_profile if website.account else None
+    contract = (Contract.objects.filter(website_new=website, signed=True)
+                .order_by('-created_at').first())
+    if cp is None or contract is None:
+        return
+    try:
+        create_final_invoice(cp, contract)
+    except Exception:
+        logger.exception(
+            'final invoice failed for website %s', website.pk)
+
+
+def _start_website_live_plans(website):
+    """On → Live: start the maintenance/social plans the client opted into
+    (10% off first month honoured). No opt-in → nothing created."""
+    from billing.plan_billing import start_website_plan
+
+    website.lifecycle_status = 'live'
+    website.save(update_fields=['lifecycle_status', 'updated_at'])
+    if website.opted_in_maintenance_tier:
+        start_website_plan(
+            website, 'maintenance', website.opted_in_maintenance_tier,
+            honor_optin_10=True)
+    if website.opted_in_social_tier:
+        start_website_plan(
+            website, 'social', website.opted_in_social_tier,
+            honor_optin_10=True)
 
 
 @admin_required
@@ -8275,6 +8431,22 @@ def website_detail(request, website_id):
         legacy_cp.freshness_reports.first() if legacy_cp else None
     )
 
+    # ── Contract (per-website) + plan management ──
+    from billing.pricing_models import ServiceTier
+    from clients.models import Contract
+    website_contracts = list(
+        Contract.objects.filter(website_new=website)
+        .order_by('-created_at')[:5])
+    contract_sign_base = request.build_absolute_uri('/portal/contract/')
+    can_send_contract = (website.package in _PACKAGE_TO_BUILD_SLUG)
+    maintenance_tiers = list(ServiceTier.objects.filter(
+        category='maintenance', is_active=True).order_by('sort_order'))
+    social_tiers = list(ServiceTier.objects.filter(
+        category='social_media', is_active=True).order_by('sort_order'))
+    website_plans = (
+        list(website.maintenance_plans.all())
+        + list(website.social_media_plans.all()))
+
     return render(
         request, 'admin_dashboard/website_detail.html',
         _admin_context(
@@ -8282,6 +8454,12 @@ def website_detail(request, website_id):
             website=website,
             account=website.account,
             domains=domains,
+            website_contracts=website_contracts,
+            contract_sign_base=contract_sign_base,
+            can_send_contract=can_send_contract,
+            maintenance_tiers=maintenance_tiers,
+            social_tiers=social_tiers,
+            website_plans=website_plans,
             stages=stage_choices,
             packages=website._meta.get_field('package').choices,
             payment_statuses=website._meta.get_field('payment_status').choices,
@@ -8430,6 +8608,19 @@ def website_change_stage(request, website_id):
     # 1. Write to Website (new model).
     website.stage = new_stage
     website.save(update_fields=['stage', 'updated_at'])
+
+    # 1b. Stage-driven billing + sales-lifecycle.
+    #   → pre_launch: send the remaining build-balance invoice (if owed).
+    #   → live: start the maintenance/social plans they opted into.
+    #   else: builds in progress show as 'in_build' once past intake.
+    if new_stage == 'pre_launch':
+        _issue_website_final_invoice(website)
+    elif new_stage == 'live':
+        _start_website_live_plans(website)
+    elif new_stage != 'intake' and website.lifecycle_status in (
+            'deposit_paid', 'contract_signed', 'in_build'):
+        website.lifecycle_status = 'in_build'
+        website.save(update_fields=['lifecycle_status', 'updated_at'])
 
     # 2. Mirror to legacy ClientProfile (the client portal still
     #    reads from CP). Phase D will drop this branch.

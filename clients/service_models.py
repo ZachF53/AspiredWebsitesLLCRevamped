@@ -41,9 +41,14 @@ class MaintenancePlan(TimestampedModel):
     ]
     STATUS_CHOICES = [
         ('active',    'Active'),
+        ('awaiting_payment', 'Awaiting payment'),
         ('paused',    'Paused — paid but suspended'),
         ('cancelled', 'Cancelled — at period end'),
         ('ended',     'Ended — fully cancelled'),
+    ]
+    DISCOUNT_DURATION_CHOICES = [
+        ('once', 'First month only'),
+        ('forever', 'Forever'),
     ]
 
     account = models.ForeignKey(
@@ -78,6 +83,13 @@ class MaintenancePlan(TimestampedModel):
     hosting_move_over = models.BooleanField(default=False)
     hosting_move_over_at = models.DateTimeField(null=True, blank=True)
 
+    # Discount applied at start (10% opt-in or operator custom).
+    discount_percent = models.PositiveIntegerField(null=True, blank=True)
+    discount_duration = models.CharField(
+        max_length=10, choices=DISCOUNT_DURATION_CHOICES, blank=True)
+    # Stripe invoice whose payment clears an `awaiting_payment` hold.
+    awaiting_invoice_id = models.CharField(max_length=80, blank=True)
+
     class Meta:
         ordering = ['-started_at', '-created_at']
 
@@ -99,9 +111,14 @@ class SocialMediaPlan(TimestampedModel):
     ]
     STATUS_CHOICES = [
         ('active',    'Active'),
+        ('awaiting_payment', 'Awaiting payment'),
         ('paused',    'Paused'),
         ('cancelled', 'Cancelled — at period end'),
         ('ended',     'Ended'),
+    ]
+    DISCOUNT_DURATION_CHOICES = [
+        ('once', 'First month only'),
+        ('forever', 'Forever'),
     ]
 
     account = models.ForeignKey(
@@ -135,6 +152,12 @@ class SocialMediaPlan(TimestampedModel):
     # Max channel count for the tier — cached at signup so we don't
     # have to re-query ServiceTier every time.
     max_channels = models.IntegerField(default=2)
+
+    # Discount applied at start (10% opt-in or operator custom).
+    discount_percent = models.PositiveIntegerField(null=True, blank=True)
+    discount_duration = models.CharField(
+        max_length=10, choices=DISCOUNT_DURATION_CHOICES, blank=True)
+    awaiting_invoice_id = models.CharField(max_length=80, blank=True)
 
     class Meta:
         ordering = ['-started_at', '-created_at']

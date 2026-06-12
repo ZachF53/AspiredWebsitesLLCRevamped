@@ -302,6 +302,11 @@ def _handle_invoice_paid(event):
     # flipping any local flags. Hosting invoices must NOT touch the
     # maintenance fields, and vice versa.
     sub_id = invoice.get('subscription') or ''
+    # Per-website maintenance/social plans (new model) own their own
+    # subscription ids. Recognise + clear any awaiting_payment hold first so
+    # they don't fall through to the legacy ClientProfile branches below.
+    if sub_id and _activate_website_plan_sub(sub_id):
+        return
     if sub_id:
         if sub_id == client.stripe_hosting_subscription_id:
             # Hosting renewal cleared — nothing extra to record locally
@@ -397,6 +402,38 @@ def _handle_invoice_paid(event):
         _on_deposit_paid(client)
 
 
+def _activate_website_plan_sub(sub_id):
+    """If `sub_id` belongs to a per-website maintenance/social plan, ensure
+    it's active — clearing any ``awaiting_payment`` hold and marking the
+    website's maintenance live. Returns True if the sub was recognised."""
+    from clients.service_models import MaintenancePlan, SocialMediaPlan
+
+    handled = False
+    for Model in (MaintenancePlan, SocialMediaPlan):
+        plan = Model.objects.filter(stripe_subscription_id=sub_id).first()
+        if plan is None:
+            continue
+        handled = True
+        if plan.status == 'awaiting_payment':
+            plan.status = 'active'
+            if not plan.started_at:
+                plan.started_at = timezone.now()
+            plan.save(update_fields=['status', 'started_at', 'updated_at'])
+            if Model is MaintenancePlan and plan.website_id:
+                w = plan.website
+                w.maintenance_active = True
+                if not w.maintenance_started_at:
+                    w.maintenance_started_at = timezone.now()
+                w.stripe_maintenance_subscription_id = sub_id
+                w.save(update_fields=[
+                    'maintenance_active', 'maintenance_started_at',
+                    'stripe_maintenance_subscription_id', 'updated_at'])
+            logger.info(
+                'invoice.paid: website plan %s activated (sub %s)',
+                plan.pk, sub_id)
+    return handled
+
+
 def _on_onboarding_invoice_paid(client, invoice=None):
     """
     First-touch handler for the inline onboarding-invoice payment.
@@ -450,6 +487,24 @@ def _on_onboarding_invoice_paid(client, invoice=None):
         fields_to_save.append('stage')
 
     client.save(update_fields=fields_to_save)
+
+    # Mirror the payment state onto the per-website record (source of truth
+    # for the build lifecycle). The OnboardingInvoice links to the website.
+    website = getattr(invoice, 'website_new', None) if invoice else None
+    if website is None and invoice is not None and invoice.contract_id:
+        website = getattr(invoice.contract, 'website_new', None)
+    if website is not None:
+        if is_deposit:
+            website.payment_status = 'deposit_paid'
+            website.deposit_paid_at = timezone.now()
+            website.lifecycle_status = 'deposit_paid'
+        else:
+            website.payment_status = 'fully_paid'
+            website.final_paid_at = timezone.now()
+            website.lifecycle_status = 'deposit_paid'
+        website.save(update_fields=[
+            'payment_status', 'deposit_paid_at', 'final_paid_at',
+            'lifecycle_status', 'updated_at'])
 
     IntakeResponse.objects.get_or_create(client=client)
     ClientVault.objects.get_or_create(client=client)
