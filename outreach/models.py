@@ -144,6 +144,13 @@ class Lead(models.Model):
     # when a Lead is created from the contact form (Phase 7 Part 2).
     referral_code = models.CharField(max_length=20, blank=True)
 
+    # Add-ons the lead opted into when booking a call (ServiceTier slugs,
+    # e.g. ['maintenance-growth']). Carries the "10% off first month"
+    # promise — auto-applied as a Stripe coupon when they check out for an
+    # add-on of the same category. Set by scheduler.confirm_slot.
+    opted_in_addons = models.JSONField(default=list, blank=True)
+    opted_in_addons_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

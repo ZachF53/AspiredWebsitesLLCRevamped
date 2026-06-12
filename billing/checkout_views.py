@@ -71,6 +71,57 @@ def _ensure_hosting_coupon(stripe):
             return None
 
 
+# "10% off first month" promise from the schedule-a-call add-on opt-in.
+ADDON_FIRST_MONTH_COUPON_ID = 'addon_firstmonth_10pct'
+
+
+def _ensure_addon_firstmonth_coupon(stripe):
+    """Get-or-create the reusable 10%-off-first-month coupon. Returns the
+    coupon id, or None on failure."""
+    try:
+        stripe.Coupon.retrieve(ADDON_FIRST_MONTH_COUPON_ID)
+        return ADDON_FIRST_MONTH_COUPON_ID
+    except Exception:  # noqa: BLE001 — not found (or transient) → try create
+        try:
+            stripe.Coupon.create(
+                id=ADDON_FIRST_MONTH_COUPON_ID,
+                percent_off=10,
+                duration='once',
+                name='Add-on — 10% off first month',
+            )
+            return ADDON_FIRST_MONTH_COUPON_ID
+        except Exception:  # noqa: BLE001
+            logger.exception('checkout: addon coupon ensure failed')
+            return None
+
+
+def _addon_optin_lead(email, category):
+    """Return the most recent Lead at this email who opted into an add-on of
+    the given ServiceTier category when booking a call, or None. This is the
+    "10% off first month" promise made on the schedule page.
+    """
+    if not email:
+        return None
+    try:
+        from billing.pricing_models import ServiceTier
+        from outreach.models import Lead
+        # Slugs in the same category the buyer is purchasing.
+        category_slugs = set(
+            ServiceTier.objects.filter(category=category)
+            .values_list('slug', flat=True))
+        leads = (Lead.objects
+                 .filter(email__iexact=email)
+                 .exclude(opted_in_addons=[])
+                 .order_by('-opted_in_addons_at', '-created_at'))
+        for lead in leads:
+            opted = set(lead.opted_in_addons or [])
+            if opted & category_slugs:
+                return lead
+    except Exception:  # noqa: BLE001 — discount is best-effort, never block sale
+        logger.exception('checkout: addon opt-in lookup failed for %s', email)
+    return None
+
+
 def _create_hosting_subscription(stripe, customer_id, payment_method_id,
                                  parent_tier_slug):
     """Create the hosting move-over as its OWN annual subscription
@@ -283,20 +334,33 @@ def checkout_confirm(request, tier_slug):
     #    charge yet. Stripe's 2025+ API dropped invoice.payment_intent;
     #    the PaymentIntent client secret now lives on the invoice's
     #    `confirmation_secret`, so that's what we expand.
+    # 10%-off-first-month: if this buyer opted into an add-on of this
+    # category when they booked a call, honour that promise with a
+    # one-time coupon on the first invoice. Best-effort — never blocks.
+    sub_kwargs = {
+        'customer': customer.id,
+        'items': [{'price': tier.stripe_price_id}],
+        'payment_behavior': 'default_incomplete',
+        'payment_settings': {
+            'save_default_payment_method': 'on_subscription'},
+        'expand': ['latest_invoice.confirmation_secret'],
+        'metadata': {
+            'tier_slug': tier.slug,
+            'product_type': tier.category,
+            'hosting_upsell': '1' if hosting_upsell else '0',
+        },
+    }
+    optin_lead = _addon_optin_lead(email, tier.category)
+    if optin_lead is not None:
+        coupon = _ensure_addon_firstmonth_coupon(stripe)
+        if coupon:
+            sub_kwargs['discounts'] = [{'coupon': coupon}]
+            sub_kwargs['metadata']['addon_firstmonth_discount'] = '1'
+            logger.info(
+                'checkout: applied 10%% first-month coupon for %s (lead %s)',
+                email, optin_lead.pk)
     try:
-        subscription = stripe.Subscription.create(
-            customer=customer.id,
-            items=[{'price': tier.stripe_price_id}],
-            payment_behavior='default_incomplete',
-            payment_settings={
-                'save_default_payment_method': 'on_subscription'},
-            expand=['latest_invoice.confirmation_secret'],
-            metadata={
-                'tier_slug': tier.slug,
-                'product_type': tier.category,
-                'hosting_upsell': '1' if hosting_upsell else '0',
-            },
-        )
+        subscription = stripe.Subscription.create(**sub_kwargs)
     except Exception as exc:  # noqa: BLE001
         logger.exception('checkout: subscription create failed')
         return JsonResponse({'error': str(exc)}, status=400)

@@ -7584,6 +7584,55 @@ def account_detail(request, account_id):
         .order_by('-created_at')[:10])
     contract_sign_base = request.build_absolute_uri('/portal/contract/')
 
+    # ── Scheduling, add-on opt-ins, and payments ──
+    # Leads/calls are keyed by email (no FK between Lead and Account).
+    acct_email = (user.email if user else '') or ''
+    scheduled_calls = []
+    addon_optins = []
+    if acct_email:
+        try:
+            from scheduler.models import ScheduledCall
+            scheduled_calls = list(
+                ScheduledCall.objects
+                .filter(customer_email__iexact=acct_email)
+                .order_by('-starts_at')[:10])
+        except Exception:
+            scheduled_calls = []
+        try:
+            from billing.pricing_models import ServiceTier
+            from outreach.models import Lead
+            slug_to_name = dict(
+                ServiceTier.objects.values_list('slug', 'name'))
+            for lead in (Lead.objects
+                         .filter(email__iexact=acct_email)
+                         .exclude(opted_in_addons=[])
+                         .order_by('-opted_in_addons_at')):
+                for slug in (lead.opted_in_addons or []):
+                    addon_optins.append({
+                        'slug': slug,
+                        'name': slug_to_name.get(slug, slug),
+                        'at': lead.opted_in_addons_at,
+                    })
+        except Exception:
+            addon_optins = []
+
+    # Payments: onboarding invoice + out-of-scope mini invoices + the
+    # recurring service subscriptions (maintenance/social).
+    onboarding_invoice = None
+    mini_invoices = []
+    if legacy_cp is not None:
+        onboarding_invoice = getattr(legacy_cp, 'onboarding_invoice', None)
+        try:
+            mini_invoices = list(
+                legacy_cp.mini_invoices.all().order_by('-created_at')[:10])
+        except Exception:
+            mini_invoices = []
+    try:
+        maintenance_plans = list(account.maintenance_plans.all())
+        social_plans = list(account.social_media_plans.all())
+    except Exception:
+        maintenance_plans, social_plans = [], []
+
     return render(
         request, 'admin_dashboard/account_detail.html',
         _admin_context(
@@ -7597,6 +7646,12 @@ def account_detail(request, account_id):
             contract_tiers=contract_tiers,
             contracts=contracts,
             contract_sign_base=contract_sign_base,
+            scheduled_calls=scheduled_calls,
+            addon_optins=addon_optins,
+            onboarding_invoice=onboarding_invoice,
+            mini_invoices=mini_invoices,
+            maintenance_plans=maintenance_plans,
+            social_plans=social_plans,
         ),
     )
 

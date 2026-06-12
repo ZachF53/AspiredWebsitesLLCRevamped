@@ -910,3 +910,79 @@ class OnboardingInvoicePaidStatusTests(TestCase):
         _on_onboarding_invoice_paid(self.profile, inv)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.payment_status, 'fully_paid')
+
+
+class AddonOptinDiscountTests(TestCase):
+    """_addon_optin_lead — the 10%-off-first-month match used at checkout."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.utils import timezone
+
+        from outreach.models import Lead
+        _seed_contract_tiers()
+        cls.lead = Lead.objects.create(
+            email='disc@example.com', firm_name='Disc LLC',
+            opted_in_addons=['maintenance-growth'],
+            opted_in_addons_at=timezone.now())
+
+    def test_matches_same_category(self):
+        from billing.checkout_views import _addon_optin_lead
+        self.assertIsNotNone(
+            _addon_optin_lead('disc@example.com', 'maintenance'))
+        # Case-insensitive email match.
+        self.assertIsNotNone(
+            _addon_optin_lead('DISC@example.com', 'maintenance'))
+
+    def test_no_match_other_category(self):
+        from billing.checkout_views import _addon_optin_lead
+        self.assertIsNone(
+            _addon_optin_lead('disc@example.com', 'social_media'))
+
+    def test_no_optin_no_match(self):
+        from billing.checkout_views import _addon_optin_lead
+        self.assertIsNone(
+            _addon_optin_lead('nobody@example.com', 'maintenance'))
+
+
+class AccountDetailExtraCardsTests(TestCase):
+    """The Scheduling/add-ons + Payments cards render on the account page."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.utils import timezone
+
+        from clients.account_models import Account
+        from outreach.models import Lead
+        from scheduler.models import ScheduledCall
+        _seed_contract_tiers()
+        cls.staff = User.objects.create_user(
+            username='opx', password='x', email='opx@example.com',
+            is_staff=True)
+        cls.client_user = User.objects.create_user(
+            username='acctx', password='x', email='acctx@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=cls.client_user, firm_name='Cards LLC')
+        cls.account = Account.objects.get(legacy_client_profile=cls.profile)
+        # A booked call + an add-on opt-in at this email.
+        Lead.objects.create(
+            email='acctx@example.com', firm_name='Cards LLC',
+            opted_in_addons=['maintenance-growth'],
+            opted_in_addons_at=timezone.now())
+        ScheduledCall.objects.create(
+            customer_email='acctx@example.com', customer_name='Cary Cards',
+            starts_at=timezone.now(), ends_at=timezone.now(),
+            status='confirmed')
+        cls.url = reverse('admin_dashboard:account_detail',
+                          args=[cls.account.id])
+
+    def test_cards_render(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Scheduling &amp; add-ons')
+        self.assertContains(r, 'Payments &amp; invoices')
+        # The opted-in add-on shows with its tier name.
+        self.assertContains(r, 'Growth')
+        # The scheduled call shows.
+        self.assertContains(r, 'Cary Cards')

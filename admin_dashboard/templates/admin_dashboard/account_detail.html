@@ -281,6 +281,123 @@
         </div>
     </div>
 
+    {% comment %}
+        Scheduling & add-on opt-ins. Calls and opt-ins are matched to this
+        account by email (leads aren't FK-linked to accounts). The opted-in
+        add-ons carry the "10% off first month" promise, which is now
+        auto-applied as a Stripe coupon when they check out for that add-on.
+    {% endcomment %}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Scheduling &amp; add-ons</h2>
+        </div>
+        <div class="admin-card__body">
+            <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Scheduled calls</h3>
+            {% if scheduled_calls %}
+                <table class="lead-table" style="margin-bottom:1.5rem;">
+                    <thead><tr><th>When</th><th>Status</th><th>Name</th></tr></thead>
+                    <tbody>
+                        {% for c in scheduled_calls %}
+                            <tr>
+                                <td>{{ c.starts_at|date:"M j, Y g:i a" }}</td>
+                                <td><span class="status-badge">{{ c.get_status_display }}</span></td>
+                                <td>{{ c.customer_name|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted" style="margin-top:0;">No scheduled calls for this email.</p>
+            {% endif %}
+
+            <h3 class="admin-card__title" style="font-size:1rem;">Opted-in add-ons (10% off first month)</h3>
+            {% if addon_optins %}
+                <ul class="danger-impact-list">
+                    {% for a in addon_optins %}
+                        <li><strong>{{ a.name }}</strong> &mdash; 10% off first month
+                            {% if a.at %}<span class="muted" style="font-size:.8rem;">(opted in {{ a.at|date:"M j, Y" }})</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+                <p class="muted" style="font-size:.78rem;">
+                    Applied automatically as a one-time Stripe coupon when they
+                    check out for an add-on of the same type.
+                </p>
+            {% else %}
+                <p class="muted" style="margin:0;">No add-on opt-ins on file.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% comment %}
+        Payments & invoices — the onboarding/deposit invoice, any
+        out-of-scope mini invoices, and the recurring service subscriptions.
+    {% endcomment %}
+    <div class="admin-card" style="margin-top: 2rem;">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Payments &amp; invoices</h2>
+        </div>
+        <div class="admin-card__body">
+            <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Onboarding / deposit invoice</h3>
+            {% if onboarding_invoice %}
+                <p style="margin-top:0;">
+                    <strong>${{ onboarding_invoice.total_amount|floatformat:2 }}</strong>
+                    {% if onboarding_invoice.is_deposit %}<span class="muted">(50% deposit)</span>{% endif %}
+                    &mdash;
+                    {% if onboarding_invoice.status == 'paid' %}
+                        <span class="status-badge" style="color:#10b981;">Paid</span>
+                        <span class="muted" style="font-size:.8rem;">{{ onboarding_invoice.paid_at|date:"M j, Y" }}</span>
+                    {% else %}
+                        <span class="status-badge">{{ onboarding_invoice.get_status_display }}</span>
+                        <input type="text" class="form-control" readonly onclick="this.select()"
+                               style="font-size:.75rem;margin-top:.4rem;"
+                               value="{{ onboarding_invoice.get_pay_url }}">
+                    {% endif %}
+                </p>
+            {% else %}
+                <p class="muted" style="margin-top:0;">No onboarding invoice yet.</p>
+            {% endif %}
+
+            <h3 class="admin-card__title" style="font-size:1rem;">Out-of-scope invoices</h3>
+            {% if mini_invoices %}
+                <table class="lead-table" style="margin-bottom:1.5rem;">
+                    <thead><tr><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for m in mini_invoices %}
+                            <tr>
+                                <td>{{ m.description|default:"—" }}</td>
+                                <td>${{ m.amount|floatformat:2 }}</td>
+                                <td><span class="status-badge">{{ m.get_status_display }}</span></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted" style="margin:0 0 1rem;">None.</p>
+            {% endif %}
+
+            <h3 class="admin-card__title" style="font-size:1rem;">Recurring subscriptions</h3>
+            {% if maintenance_plans or social_plans %}
+                <ul class="danger-impact-list">
+                    {% for p in maintenance_plans %}
+                        <li>Maintenance &mdash; <strong>{{ p.tier_slug }}</strong>
+                            <span class="status-badge">{{ p.get_status_display }}</span>
+                            {% if p.stripe_subscription_id %}<span class="muted" style="font-size:.75rem;">billing active</span>{% else %}<span class="muted" style="font-size:.75rem;">no Stripe sub</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                    {% for p in social_plans %}
+                        <li>Social &mdash; <strong>{{ p.tier_slug }}</strong>
+                            <span class="status-badge">{{ p.get_status_display }}</span>
+                            {% if p.stripe_subscription_id %}<span class="muted" style="font-size:.75rem;">billing active</span>{% else %}<span class="muted" style="font-size:.75rem;">no Stripe sub</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted" style="margin:0;">No active subscriptions.</p>
+            {% endif %}
+        </div>
+    </div>
+
     {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
     {% comment %}
         GBP card — only shown for clients on Growth/Dominant tier
