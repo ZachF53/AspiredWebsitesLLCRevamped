@@ -94,25 +94,36 @@ def create_or_get_customer(client):
 
 
 def _create_build_invoice(client, contract, kind, description):
-    """Shared deposit/final invoice builder. Stripe auto-emails the invoice."""
+    """Shared deposit/final invoice builder. Stripe auto-emails the invoice.
+
+    The invoice is created FIRST and the line item attached to it directly
+    (``invoice=...``) with ``pending_invoice_items_behavior='exclude'``, so
+    (a) the item reliably lands on this invoice instead of staying pending,
+    and (b) no unrelated pending item gets swept in. The old order (item
+    then bare ``Invoice.create``) produced an empty $0 invoice on current
+    Stripe API versions and left the charge pending — which then got swept
+    into the next subscription's first invoice.
+    """
     _init()
     customer = create_or_get_customer(client)
     amount = contract.deposit_amount if kind == 'deposit' else contract.final_amount
-    stripe.InvoiceItem.create(
-        customer=customer.id,
-        amount=_cents(amount),
-        currency='usd',
-        description=description,
-    )
     invoice = stripe.Invoice.create(
         customer=customer.id,
         collection_method='send_invoice',
         days_until_due=7,
+        pending_invoice_items_behavior='exclude',
         metadata={
             'kind': kind,
             'client_profile_id': str(client.id),
             'contract_id': str(contract.id),
         },
+    )
+    stripe.InvoiceItem.create(
+        customer=customer.id,
+        invoice=invoice.id,
+        amount=_cents(amount),
+        currency='usd',
+        description=description,
     )
     invoice = stripe.Invoice.finalize_invoice(invoice.id)
     stripe.Invoice.send_invoice(invoice.id)
