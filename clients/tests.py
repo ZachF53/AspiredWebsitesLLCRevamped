@@ -503,20 +503,19 @@ class ContractSignFlowTests(TestCase):
 
     def test_post_valid_captures_all_audit_fields(self):
         """Phase 2.3 — happy path captures IP, user-agent, name, content
-        hash, and triggers issue_deposit_invoice."""
+        hash. A build contract now redirects into the inline pay page."""
         from unittest.mock import patch
-        from datetime import datetime
         UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
               'AppleWebKit/537.36 Chrome/149 Safari/537.36')
-        with patch('billing.stripe_helpers.issue_deposit_invoice') as mock_dep, \
-             patch('clients.views.render_contract_pdf') as mock_pdf, \
-             patch('clients.views.send_contract_signed_email') as mock_email:
+        with patch('clients.views.render_contract_pdf') as mock_pdf:
             mock_pdf.return_value = 'contracts/test.pdf'
             r = self.client.post(self.sign_url, data={
                 'signed_name': 'Carla Counsel',
                 'agree': 'on',
             }, HTTP_USER_AGENT=UA)
-        self.assertEqual(r.status_code, 302)  # redirects to signed page
+        # Build contract → redirect to the deposit/pay-in-full choice page.
+        self.assertEqual(r.status_code, 302)
+        self.assertIn('/pay/', r.url)
 
         self.contract.refresh_from_db()
         self.assertTrue(self.contract.signed)
@@ -526,9 +525,6 @@ class ContractSignFlowTests(TestCase):
         self.assertEqual(self.contract.signed_user_agent[:50], UA[:50])
         self.assertTrue(self.contract.signed_content_hash)
         self.assertEqual(len(self.contract.signed_content_hash), 64)
-        # Side effects fired:
-        mock_dep.assert_called_once()
-        mock_email.assert_called_once()
         # Client state advanced:
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.stage, 'intake')
@@ -815,4 +811,102 @@ class MaintenanceOnlySigningTests(TestCase):
         # Client was NOT pushed into the build onboarding pipeline.
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.stage, 'live')
+        self.assertEqual(self.profile.payment_status, 'fully_paid')
+
+
+class ContractPayChoiceTests(TestCase):
+    """The sign → pay (deposit / full) step for build contracts."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from clients.models import Contract
+        u = User.objects.create_user(
+            username='cppay1', password='x', email='cppay1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='PayChoice LLC', contact_name='Pat Pay')
+        cls.contract = Contract.objects.create(
+            client=cls.profile, package='essential_build',
+            build_price=Decimal('2500'), deposit_amount=Decimal('1250'),
+            timeline_weeks=4, contract_text='<h1>C</h1>', signed=True)
+        cls.pay_url = reverse('clients:contract_pay',
+                              args=[cls.contract.contract_token])
+
+    def test_get_shows_both_amounts(self):
+        r = self.client.get(self.pay_url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '1250')   # deposit
+        self.assertContains(r, '2500')   # pay in full
+
+    def test_unsigned_contract_redirects_to_sign(self):
+        self.contract.signed = False
+        self.contract.save(update_fields=['signed'])
+        r = self.client.get(self.pay_url)
+        self.assertEqual(r.status_code, 302)
+        self.contract.signed = True
+        self.contract.save(update_fields=['signed'])
+
+    def test_post_deposit_starts_payment_and_redirects(self):
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from clients.models import OnboardingInvoice
+        inv = OnboardingInvoice.objects.create(
+            client=self.profile, total_amount=Decimal('1250'), line_items=[])
+        with patch('billing.stripe_helpers.start_contract_payment',
+                   return_value=inv) as m:
+            r = self.client.post(self.pay_url, data={'amount_choice': 'deposit'})
+        m.assert_called_once()
+        _args, kwargs = m.call_args
+        self.assertTrue(kwargs.get('is_deposit'))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn(str(inv.payment_token), r.url)
+
+    def test_post_full_passes_is_deposit_false(self):
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from clients.models import OnboardingInvoice
+        inv = OnboardingInvoice.objects.create(
+            client=self.profile, total_amount=Decimal('2500'), line_items=[])
+        with patch('billing.stripe_helpers.start_contract_payment',
+                   return_value=inv) as m:
+            self.client.post(self.pay_url, data={'amount_choice': 'full'})
+        _args, kwargs = m.call_args
+        self.assertFalse(kwargs.get('is_deposit'))
+
+
+class OnboardingInvoicePaidStatusTests(TestCase):
+    """_on_onboarding_invoice_paid sets deposit_paid vs fully_paid."""
+
+    @classmethod
+    def setUpTestData(cls):
+        u = User.objects.create_user(
+            username='oip1', password='x', email='oip1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Paid LLC')
+
+    def test_deposit_invoice_marks_deposit_paid(self):
+        from decimal import Decimal
+
+        from billing.webhooks import _on_onboarding_invoice_paid
+        from clients.models import OnboardingInvoice
+        inv = OnboardingInvoice.objects.create(
+            client=self.profile, total_amount=Decimal('1250'),
+            line_items=[], is_deposit=True)
+        _on_onboarding_invoice_paid(self.profile, inv)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.payment_status, 'deposit_paid')
+
+    def test_full_invoice_marks_fully_paid(self):
+        from decimal import Decimal
+
+        from billing.webhooks import _on_onboarding_invoice_paid
+        from clients.models import OnboardingInvoice
+        inv = OnboardingInvoice.objects.create(
+            client=self.profile, total_amount=Decimal('2500'),
+            line_items=[], is_deposit=False)
+        _on_onboarding_invoice_paid(self.profile, inv)
+        self.profile.refresh_from_db()
         self.assertEqual(self.profile.payment_status, 'fully_paid')

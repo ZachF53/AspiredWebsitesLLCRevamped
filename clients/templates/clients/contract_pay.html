@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Complete your payment — Aspired Websites{% endblock %}
+
+{% block content %}
+<section class="section login-page">
+    <div class="container">
+        <article class="card card--featured login-card">
+            <div class="contract-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" aria-label="Signed">
+                    <path d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h1 class="login-card__title">Contract signed — let's get started</h1>
+            <p class="login-card__subtitle">
+                Thanks, {{ contract.client.contact_name|default:contract.client.firm_name }}.
+                Choose how you'd like to pay. Your project begins the moment your
+                payment clears, and you'll set up your account right after.
+            </p>
+
+            {% comment %}
+                Two payment options. The 50% deposit is the minimum per the
+                signed agreement; paying in full now means no second invoice
+                on delivery. Each radio is its own labelled option; the single
+                Continue button posts the chosen amount.
+            {% endcomment %}
+            <form method="post" class="contract-pay-form" style="text-align:left;margin-top:1.5rem;">
+                {% csrf_token %}
+
+                <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:.75rem;cursor:pointer;">
+                    <input type="radio" name="amount_choice" value="deposit" checked>
+                    <strong>Pay 50% deposit now</strong>
+                    <span style="float:right;font-weight:700;">${{ deposit|floatformat:2 }}</span>
+                    <br>
+                    <span class="muted" style="font-size:.85rem;">
+                        The remaining ${{ full|floatformat:2 }} balance is invoiced on
+                        delivery, before your site goes live.
+                    </span>
+                </label>
+
+                <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:1rem;cursor:pointer;">
+                    <input type="radio" name="amount_choice" value="full">
+                    <strong>Pay in full now</strong>
+                    <span style="float:right;font-weight:700;">${{ full|floatformat:2 }}</span>
+                    <br>
+                    <span class="muted" style="font-size:.85rem;">
+                        Settle the whole build up front — no second invoice later.
+                    </span>
+                </label>
+
+                <button type="submit" class="btn-primary btn-block">Continue to payment &rarr;</button>
+            </form>
+        </article>
+    </div>
+</section>
+{% endblock %}

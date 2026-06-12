@@ -108,5 +108,6 @@ urlpatterns = [
 
     # Contract signing — token-gated, no login required.
     path('contract/signed/', views.contract_signed, name='contract_signed'),
+    path('contract/<uuid:contract_token>/pay/', views.contract_pay, name='contract_pay'),
     path('contract/<uuid:contract_token>/', views.contract_sign, name='contract_sign'),
 ]

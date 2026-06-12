@@ -1857,6 +1857,18 @@ class OnboardingInvoice(TimestampedModel):
     line_items = models.JSONField(default=list)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
 
+    # ── Contract deposit flow (Phase C) ──
+    # When this invoice is the deposit/full payment for a signed build
+    # Contract (client lands here straight after signing), link it back so
+    # the webhook can set payment_status correctly. `is_deposit` is True for
+    # the 50% deposit (→ payment_status='deposit_paid', final invoiced later)
+    # and False when the client chose to pay in full (→ 'fully_paid').
+    contract = models.ForeignKey(
+        'clients.Contract', on_delete=models.SET_NULL,
+        related_name='onboarding_invoices', null=True, blank=True,
+    )
+    is_deposit = models.BooleanField(default=False)
+
     # ── Stripe references ──
     stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
     stripe_client_secret = models.CharField(max_length=255, blank=True)

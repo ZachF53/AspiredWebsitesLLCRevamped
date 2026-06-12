@@ -1109,6 +1109,88 @@ def issue_deposit_invoice(contract):
     return None
 
 
+def start_contract_payment(contract, amount, *, is_deposit):
+    """
+    Set up the inline payment for a just-signed build contract and return the
+    OnboardingInvoice the client should be redirected to (``/pay/<token>/``).
+
+    Mirrors the admin onboarding-invoice flow so the build deposit (or
+    pay-in-full) is collected on our own Stripe Elements page and chains
+    straight into account setup — no separate Stripe-hosted invoice email.
+
+    Creates (or reuses an unpaid) OnboardingInvoice + a card PaymentIntent,
+    ensures the account-setup token exists, and flips the client to
+    ``pending_setup`` so the post-payment setup link works.
+
+    Returns the OnboardingInvoice, or None if Stripe isn't configured.
+    """
+    from decimal import Decimal
+
+    from django.utils import timezone
+
+    from clients.models import OnboardingInvoice, OnboardingToken
+
+    client = contract.client
+    amount = Decimal(amount)
+    label = contract.get_package_display() or 'Website Build'
+    desc = f'{label} — {"Deposit (50%)" if is_deposit else "Paid in full"}'
+
+    invoice = OnboardingInvoice.objects.filter(client=client).first()
+    if invoice is not None and invoice.status == 'paid':
+        # Already paid — don't re-charge; just hand it back.
+        return invoice
+
+    line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
+    if invoice is None:
+        invoice = OnboardingInvoice.objects.create(
+            client=client, contract=contract, is_deposit=is_deposit,
+            line_items=line_items, total_amount=amount, status='draft',
+        )
+    else:
+        invoice.contract = contract
+        invoice.is_deposit = is_deposit
+        invoice.line_items = line_items
+        invoice.total_amount = amount
+        invoice.status = 'draft'
+        invoice.save(update_fields=[
+            'contract', 'is_deposit', 'line_items', 'total_amount',
+            'status', 'updated_at'])
+
+    try:
+        customer, payment_intent = create_onboarding_payment_intent(
+            email=(client.user.email if client.user_id else ''),
+            name=client.firm_name,
+            line_items=[{'description': desc, 'amount': amount}],
+            client_profile_id=client.id,
+            invoice_id=invoice.id,
+        )
+    except StripeNotConfigured:
+        logger.warning(
+            'Stripe not configured — contract %s payment not started.',
+            contract.pk)
+        return None
+
+    client.stripe_customer_id = customer.id
+    client.save(update_fields=['stripe_customer_id', 'updated_at'])
+
+    invoice.stripe_payment_intent_id = payment_intent.id
+    invoice.stripe_client_secret = payment_intent.client_secret
+    invoice.status = 'sent'
+    invoice.sent_at = timezone.now()
+    invoice.save(update_fields=[
+        'stripe_payment_intent_id', 'stripe_client_secret',
+        'status', 'sent_at', 'updated_at'])
+
+    # Account-setup token for the post-payment /onboarding/setup/ step.
+    OnboardingToken.objects.get_or_create(client=client)
+    if client.onboarding_status not in (
+            'pending_intake', 'onboarding_complete'):
+        client.onboarding_status = 'pending_setup'
+        client.save(update_fields=['onboarding_status', 'updated_at'])
+
+    return invoice
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 1.3 — MiniInvoice (out-of-scope work) → Stripe
 # ─────────────────────────────────────────────────────────────────────────────

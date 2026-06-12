@@ -1786,11 +1786,11 @@ def contract_sign(request, contract_token):
             contract.pdf_path = render_contract_pdf(contract)
             contract.save()
 
-            # Build-specific onboarding side effects only fire when the
-            # contract actually covers a website build. A maintenance- or
-            # social-only contract just records the signed agreement —
-            # billing for those recurring plans is handled separately
-            # (self-serve checkout or operator setup).
+            # Build contracts flow straight into the inline payment page
+            # (sign → pay → account setup → intake). Maintenance/social-only
+            # contracts just record the signed agreement — billing for those
+            # recurring plans is handled separately (self-serve checkout or
+            # operator setup).
             if contract.includes_build:
                 # Set the build fields on the client (post-2026-05-25 the
                 # former Project fields live directly on ClientProfile).
@@ -1801,15 +1801,12 @@ def contract_sign(request, contract_token):
                 client.payment_status = 'awaiting_deposit'
                 client.save(update_fields=[
                     'package', 'stage', 'payment_status', 'updated_at'])
+                # → choose deposit / pay-in-full, then the Stripe page.
+                return redirect(
+                    'clients:contract_pay',
+                    contract_token=contract.contract_token)
 
             send_contract_signed_email(contract)
-
-            if contract.includes_build:
-                # Issue the 50% deposit invoice via Stripe (best effort —
-                # logs and skips if Stripe is not configured).
-                from billing.stripe_helpers import issue_deposit_invoice
-                issue_deposit_invoice(contract)
-
             return redirect('clients:contract_signed')
 
     return render(request, 'clients/contract_sign.html', {
@@ -1819,8 +1816,60 @@ def contract_sign(request, contract_token):
 
 
 def contract_signed(request):
-    """Post-signing thank-you page."""
+    """Post-signing thank-you page (non-build contracts)."""
     return render(request, 'clients/contract_signed.html', {})
+
+
+def contract_pay(request, contract_token):
+    """
+    Deposit / pay-in-full choice for a signed build contract, then hand the
+    client off to the inline Stripe Elements page.
+
+    GET  → show the two amounts (50% deposit or pay in full).
+    POST → create the OnboardingInvoice + PaymentIntent for the chosen
+           amount and redirect to /pay/<token>/. After payment the client
+           flows into account setup and then the intake form.
+    """
+    from decimal import Decimal
+
+    from django.contrib import messages
+
+    contract = get_object_or_404(Contract, contract_token=contract_token)
+
+    # Guard: only signed build contracts reach the payment step.
+    if not contract.signed:
+        return redirect('clients:contract_sign',
+                        contract_token=contract_token)
+    if not contract.includes_build:
+        return redirect('clients:contract_signed')
+
+    full = contract.build_price or Decimal('0')
+    deposit = contract.deposit_amount or (full / 2)
+
+    if request.method == 'POST':
+        pay_in_full = request.POST.get('amount_choice') == 'full'
+        amount = full if pay_in_full else deposit
+        from billing.stripe_helpers import start_contract_payment
+        try:
+            invoice = start_contract_payment(
+                contract, amount, is_deposit=not pay_in_full)
+        except Exception:
+            logger.exception(
+                'start_contract_payment failed for contract %s', contract.pk)
+            invoice = None
+        if invoice is None:
+            messages.error(
+                request,
+                'We could not start the payment right now. Please contact '
+                'us at zacherylong@aspiredwebsites.com.')
+            return redirect('clients:contract_signed')
+        return redirect('pay_invoice', token=invoice.payment_token)
+
+    return render(request, 'clients/contract_pay.html', {
+        'contract': contract,
+        'deposit': deposit,
+        'full': full,
+    })
 
 
 # ── Phase 7 Part 2 — Public referral + proposal tracking endpoints ─────────

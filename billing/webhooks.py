@@ -178,7 +178,7 @@ def _handle_payment_intent_succeeded(event):
                 'Hosting subscription creation failed for client %s',
                 client.pk)
 
-    _on_onboarding_invoice_paid(client)
+    _on_onboarding_invoice_paid(client, invoice)
 
     # Generate the branded receipt PDF + email it. Best-effort; the
     # invoice row already records the payment, so receipt issues don't
@@ -397,16 +397,21 @@ def _handle_invoice_paid(event):
         _on_deposit_paid(client)
 
 
-def _on_onboarding_invoice_paid(client):
+def _on_onboarding_invoice_paid(client, invoice=None):
     """
-    First-touch handler for the admin onboarding-invoice flow.
+    First-touch handler for the inline onboarding-invoice payment.
 
-    The client paid the single one-off invoice that covers their build
-    (and optionally first-month maintenance + hosting). We:
+    Covers two callers:
+      - the admin one-off onboarding invoice (single-pay → fully_paid), and
+      - the build-contract deposit/pay-in-full flow, where ``invoice`` is the
+        OnboardingInvoice and ``invoice.is_deposit`` decides whether this is a
+        50% deposit (→ deposit_paid, final invoiced later) or a full payment.
+
+    We:
       1. Activate the Django user so they can use the setup link
       2. Mark the profile active + pending_setup
       3. Bootstrap the IntakeResponse + ClientVault
-      4. Mark payment_status='fully_paid' (admin invoice = single one-off)
+      4. Set payment_status (deposit_paid vs fully_paid)
       5. Email the setup link
 
     Note: Droplet provisioning is intentionally deferred to intake
@@ -426,12 +431,20 @@ def _on_onboarding_invoice_paid(client):
         client.onboarding_status = 'pending_setup'
         fields_to_save.append('onboarding_status')
 
-    # Admin onboarding invoice is single-pay (not split deposit/final),
-    # so mark it fully paid up front. Stage stays 'intake' (the default).
-    if client.payment_status != 'fully_paid':
-        client.payment_status = 'fully_paid'
-        client.final_paid_at = timezone.now()
-        fields_to_save += ['payment_status', 'final_paid_at']
+    # A build-contract deposit covers only 50% — keep payment_status at
+    # 'deposit_paid' so the final invoice is still issued at pre-launch.
+    # Everything else (admin one-off invoice, or pay-in-full) is fully paid.
+    is_deposit = bool(getattr(invoice, 'is_deposit', False))
+    if is_deposit:
+        if client.payment_status != 'deposit_paid':
+            client.payment_status = 'deposit_paid'
+            client.deposit_paid_at = timezone.now()
+            fields_to_save += ['payment_status', 'deposit_paid_at']
+    else:
+        if client.payment_status != 'fully_paid':
+            client.payment_status = 'fully_paid'
+            client.final_paid_at = timezone.now()
+            fields_to_save += ['payment_status', 'final_paid_at']
     if not client.stage:
         client.stage = 'intake'
         fields_to_save.append('stage')
