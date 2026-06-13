@@ -46,9 +46,17 @@
     {% if subscriptions %}
         <ul class="sub-list">
             {% for sub in subscriptions %}
-                <li class="sub-card">
-                    <div class="sub-card__head">
-                        <h3 class="sub-card__title">{{ sub.product_name|default:"Subscription" }}</h3>
+                <li class="sub-card svc-card">
+                    <div class="svc-card__top">
+                        <div class="svc-card__lead">
+                            <h3 class="sub-card__title">{{ sub.product_name|default:"Subscription" }}</h3>
+                            <div class="svc-card__price">${{ sub.amount|floatformat:2 }}<span class="svc-card__interval">{% if sub.interval %} / {{ sub.interval }}{% endif %}</span></div>
+                            {% if sub.trial_end %}
+                                <p class="svc-card__renews">Next charge {{ sub.trial_end|date:"M j, Y" }}</p>
+                            {% elif sub.current_period_end %}
+                                <p class="svc-card__renews">{% if sub.cancel_at_period_end %}Ends{% else %}Renews{% endif %} {{ sub.current_period_end|date:"M j, Y" }}</p>
+                            {% endif %}
+                        </div>
                         {% if sub.cancel_at_period_end %}
                             <span class="sub-card__badge sub-card__badge--warn">Cancels at period end</span>
                         {% elif sub.status == 'trialing' %}
@@ -59,15 +67,7 @@
                             <span class="sub-card__badge sub-card__badge--ok">{{ sub.status|capfirst }}</span>
                         {% endif %}
                     </div>
-                    <div class="sub-card__meta">
-                        <strong>${{ sub.amount|floatformat:2 }}</strong>
-                        {% if sub.interval %} / {{ sub.interval }}{% endif %}
-                        {% if sub.trial_end %}
-                            · Next charge: {{ sub.trial_end|date:"M j, Y" }}
-                        {% elif sub.current_period_end %}
-                            · Renews: {{ sub.current_period_end|date:"M j, Y" }}
-                        {% endif %}
-                    </div>
+
                     {# Maintenance-sub-specific actions: cancel / resume / change tier #}
                     {% if sub.id == request.client_profile.stripe_subscription_id %}
                         <div class="sub-card__actions">
@@ -77,7 +77,7 @@
                                     <button type="submit" class="btn-secondary btn-sm">Resume subscription</button>
                                 </form>
                             {% else %}
-                                <a href="{% url 'clients:portal_maintenance' %}" class="btn-link sub-card__link">Change plan</a>
+                                <a href="{% url 'clients:portal_maintenance' %}" class="btn-secondary btn-sm">Change plan</a>
                                 <form method="post" action="{% url 'clients:portal_maintenance_cancel' %}" style="display:inline;"
                                       onsubmit="return confirm('Cancel maintenance at the end of the current period? You\'ll keep service through what you\'ve already paid for.');">
                                     {% csrf_token %}
@@ -88,11 +88,10 @@
                     {% endif %}
 
                     {% comment %}
-                        Phase C4 — per-subscription payment-method picker.
-                        Stripe lets a subscription override the customer
-                        default with its own default_payment_method. The
-                        dropdown maps "Default" → empty value (clears the
-                        override, falls back to account default).
+                        Per-subscription payment-method picker. Stripe lets a
+                        subscription override the customer default with its own
+                        default_payment_method. "Default" → empty value clears
+                        the override (falls back to account default).
                     {% endcomment %}
                     {% if payment_methods %}
                         <form method="post"
@@ -105,9 +104,11 @@
                                     onchange="this.form.submit()">
                                 <option value=""{% if not sub.default_payment_method %} selected{% endif %}>Default payment method</option>
                                 {% for pm in payment_methods %}
+                                    {% with card=pm.card %}
                                     <option value="{{ pm.id }}"{% if pm.id == sub.default_payment_method %} selected{% endif %}>
-                                        {{ pm.brand|capfirst }} •••• {{ pm.last4 }}{% if pm.id == default_pm_id %} (default){% endif %}
+                                        {{ card.brand|title }} •••• {{ card.last4 }} · exp {{ card.exp_month|stringformat:"02d" }}/{{ card.exp_year|stringformat:"02d"|slice:"-2:" }}{% if pm.id == default_pm_id %} (default){% endif %}
                                     </option>
+                                    {% endwith %}
                                 {% endfor %}
                             </select>
                             <noscript><button type="submit" class="btn-secondary btn-sm">Save</button></noscript>

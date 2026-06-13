@@ -1102,16 +1102,23 @@ def invoices(request):
             if not settings.STRIPE_SECRET_KEY:
                 raise RuntimeError('Stripe not configured')
             stripe.api_key = settings.STRIPE_SECRET_KEY
-            result = stripe.Invoice.list(customer=profile.stripe_customer_id, limit=24)
-            for inv in result.get('data', []):
+            result = stripe.Invoice.list(
+                customer=profile.stripe_customer_id, limit=24)
+            # Stripe v8+ StripeObjects are attribute-only (no .get()).
+            for inv in result.data:
+                status = getattr(inv, 'status', '') or ''
+                number = getattr(inv, 'number', None)
+                amount = (getattr(inv, 'amount_due', 0)
+                          or getattr(inv, 'amount_paid', 0) or 0)
                 invoice_list.append({
-                    'description': (inv.get('description')
-                                    or f'Invoice {inv.get("number") or inv.get("id")}'),
-                    'amount': (inv.get('amount_due') or 0) / 100,
-                    'status': inv.get('status'),
-                    'created': inv.get('created'),
-                    'pdf_url': inv.get('hosted_invoice_url') or inv.get('invoice_pdf'),
-                    'is_open': inv.get('status') == 'open',
+                    'description': (getattr(inv, 'description', None)
+                                    or f'Invoice {number or inv.id}'),
+                    'amount': amount / 100,
+                    'status': status,
+                    'created': _ts_to_dt(getattr(inv, 'created', None)),
+                    'pdf_url': (getattr(inv, 'hosted_invoice_url', None)
+                                or getattr(inv, 'invoice_pdf', None)),
+                    'is_open': status == 'open',
                 })
         except Exception:
             logger.exception('Could not load Stripe invoices for %s', profile.pk)
@@ -2136,6 +2143,18 @@ def portal_suggestions(request):
 
 # ── Portal subscriptions + payment methods ─────────────────────────────────
 
+def _ts_to_dt(value):
+    """Convert a Stripe unix timestamp to a datetime so Django's |date filter
+    renders it. Returns None for falsy input."""
+    if not value:
+        return None
+    try:
+        from datetime import datetime, timezone as _dttz
+        return datetime.fromtimestamp(int(value), tz=_dttz.utc)
+    except Exception:
+        return None
+
+
 def _subscription_card(stripe_sub):
     """Normalise a Stripe Subscription into a flat dict for the template.
 
@@ -2174,9 +2193,9 @@ def _subscription_card(stripe_sub):
         'product_name': product_name,
         'cancel_at_period_end': getattr(
             stripe_sub, 'cancel_at_period_end', False),
-        'current_period_end': getattr(
-            stripe_sub, 'current_period_end', None),
-        'trial_end': getattr(stripe_sub, 'trial_end', None),
+        'current_period_end': _ts_to_dt(
+            getattr(stripe_sub, 'current_period_end', None)),
+        'trial_end': _ts_to_dt(getattr(stripe_sub, 'trial_end', None)),
         # Phase C4 — Stripe's own per-subscription payment-method
         # override. None / '' means the subscription uses the
         # customer-level default. The portal renders a dropdown that

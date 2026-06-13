@@ -20,9 +20,9 @@
                 {% for inv in invoice_list %}
                     <tr>
                         <td>{{ inv.description }}</td>
-                        <td>${{ inv.amount }}</td>
+                        <td>${{ inv.amount|floatformat:2 }}</td>
                         <td><span class="status-pill status-pill--{{ inv.status }}">{{ inv.status|capfirst }}</span></td>
-                        <td>{% if inv.created %}{{ inv.created }}{% else %}—{% endif %}</td>
+                        <td>{% if inv.created %}{{ inv.created|date:"M j, Y" }}{% else %}—{% endif %}</td>
                         <td class="invoice-table__actions">
                             {% if inv.pdf_url %}<a class="btn-secondary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Download PDF</a>{% endif %}
                             {% if inv.is_open and inv.pdf_url %}<a class="btn-primary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Pay Now</a>{% endif %}
