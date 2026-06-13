@@ -264,10 +264,6 @@ class AdminMonitoringPageTests(TestCase):
         self.assertEqual(
             self.client.get(reverse('admin_dashboard:client_list')).status_code,
             200)
-        for name in ['client_tracker']:
-            resp = self.client.get(
-                reverse(f'admin_dashboard:{name}', args=[self.cp.id]))
-            self.assertEqual(resp.status_code, 200, name)
         # Per-website monitoring (Phase D).
         site = self.cp.migrated_account.websites.first()
         for name in ['website_uptime', 'website_keywords',
@@ -300,9 +296,12 @@ class AdminMonitoringPageTests(TestCase):
         self.assertEqual(TrackedKeyword.objects.filter(
             website_new=site, keyword='dup kw').count(), 1)
 
-    def test_tracker_snippet_contains_client_id(self):
+    def test_tracker_snippet_on_website_page(self):
+        # The standalone tracker page was retired; the snippet now lives in
+        # the Website detail page's Conversion Tracker card.
+        site = self.cp.migrated_account.websites.first()
         resp = self.client.get(
-            reverse('admin_dashboard:client_tracker', args=[self.cp.id]))
+            reverse('admin_dashboard:website_detail', args=[site.id]))
         self.assertContains(resp, str(self.cp.id))
         self.assertContains(resp, 'aspired-tracker.js')
 

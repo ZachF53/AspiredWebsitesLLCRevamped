@@ -2135,88 +2135,36 @@ def website_conversions(request, website_id):
 
 
 @admin_required
-def client_tracker(request, client_id):
-    """
-    Snippet generator — shows Tier 1 (always available) and Tier 2
-    (gated by ClientProfile.session_recording_enabled, which is set
-    by the operator either manually or because the client is on a
-    Growth/Dominant maintenance plan that includes it).
-    """
-    from clients.models import ClientProfile
-    from reporting.models import ConversionEvent, PageSession
-
-    client = get_object_or_404(ClientProfile, id=client_id)
-
-    base = settings.SITE_BASE_URL
-    # ONE snippet, forever. Session recording (Tier 2) is gated
-    # by a server-side flag the tracker fetches from
-    # /api/tracker-config/<id>/ at runtime — no attribute change
-    # needed on the client's site to flip it on or off.
-    snippet = (
-        f'<script src="{base}/static/js/aspired-tracker.js" '
-        f'data-aspired-client="{client.id}" defer></script>'
-    )
-
-    # Session recording is "included via plan" when the client's
-    # package is in the Session Recording addon's
-    # `included_in_plans` list.
-    included_via_plan = False
-    try:
-        from billing.pricing_models import AddonPricing
-        recording_addon = AddonPricing.objects.filter(
-            slug='addon-session-recording').first()
-        if recording_addon:
-            included_via_plan = recording_addon.is_included_for(
-                client.package)
-    except Exception:
-        included_via_plan = False
-
-    recording_active = bool(client.session_recording_enabled)
-
-    # Primary website for the cross-links to the (per-website) conversions
-    # + recordings pages during the teardown.
-    try:
-        _acct = client.migrated_account
-    except Exception:
-        _acct = None
-    conv_website = (
-        _acct.websites.order_by('created_at').first() if _acct else None)
-
-    return render(request, 'admin_dashboard/client_tracker.html',
-                  _admin_context(
-                      'clients',
-                      client=client,
-                      conv_website=conv_website,
-                      snippet=snippet,
-                      recording_active=recording_active,
-                      recording_included_via_plan=included_via_plan,
-                      last_event=ConversionEvent.objects.filter(
-                          client=client).first(),
-                      last_session=PageSession.objects.filter(
-                          client=client).first(),
-                  ))
-
-
-@admin_required
 @require_POST
 def client_toggle_session_recording(request, client_id):
-    """Operator toggle — flip ClientProfile.session_recording_enabled."""
+    """Operator toggle — flip ClientProfile.session_recording_enabled.
+
+    The standalone tracker page was retired (the Website detail page's
+    Conversion Tracker card is the snippet/recording UI now); this toggle
+    is posted from that card with a ?next= back to the website page.
+    """
     from clients.models import ClientProfile
     client = get_object_or_404(ClientProfile, id=client_id)
     client.session_recording_enabled = (
         not client.session_recording_enabled)
     client.save(update_fields=[
         'session_recording_enabled', 'updated_at'])
-    # Honor ?next= (e.g. the inline tracker card on the Website page)
-    # as long as it's a safe same-host path.
+    # Honor ?next= (the inline tracker card on the Website page) as long
+    # as it's a safe same-host path.
     from django.utils.http import url_has_allowed_host_and_scheme
     nxt = request.POST.get('next') or ''
     if nxt and url_has_allowed_host_and_scheme(
             nxt, allowed_hosts={request.get_host()},
             require_https=request.is_secure()):
         return redirect(nxt)
-    return redirect('admin_dashboard:client_tracker',
-                    client_id=client.id)
+    try:
+        account = client.migrated_account
+    except Exception:
+        account = None
+    if account is not None:
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+    return redirect('admin_dashboard:accounts_list')
 
 
 @admin_required
