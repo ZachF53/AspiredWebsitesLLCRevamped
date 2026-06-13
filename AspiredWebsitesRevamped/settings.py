@@ -458,11 +458,6 @@ MOONIEFUL_SYNC_SECRET = env('MOONIEFUL_SYNC_SECRET', '')
 # encrypted_with_server_key=True unrecoverable — see CLAUDE.md.
 VAULT_SERVER_SECRET = env('VAULT_SERVER_SECRET', '')
 
-# Legacy alias — kept so a stale .env still boots during the split rollout.
-# Falls back to MOONIEFUL_SYNC_SECRET so old code paths still resolve.
-# Remove after both new vars are confirmed everywhere.
-SYNC_SECRET = env('SYNC_SECRET', default=MOONIEFUL_SYNC_SECRET)
-
 MOONIEFUL_SYNC_URL = env('MOONIEFUL_SYNC_URL', '')
 SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
