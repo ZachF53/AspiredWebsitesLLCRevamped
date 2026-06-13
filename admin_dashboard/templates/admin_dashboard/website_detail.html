@@ -22,6 +22,78 @@
     </div>
 
     {% comment %}
+        At-a-glance summary strip — the build's key state above the fold
+        so an admin can read where a project stands without scrolling
+        into the cards. Read-only; every value is editable in a card below.
+    {% endcomment %}
+    <div class="wd-summary">
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Stage</span>
+            <span class="wd-summary__value">{{ website.get_stage_display }}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Lifecycle</span>
+            <span class="wd-summary__value">{{ website.get_lifecycle_status_display|default:"—" }}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Package</span>
+            <span class="wd-summary__value">{{ website.get_package_display|default:"—" }}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Payment</span>
+            <span class="wd-summary__value">{{ website.get_payment_status_display }}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Contract</span>
+            <span class="wd-summary__value">
+                {% if contract_signed %}<span class="ok">Signed</span>{% elif contract_pending %}<span class="warn">Awaiting signature</span>{% else %}<span class="muted">None sent</span>{% endif %}
+            </span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Intake</span>
+            <span class="wd-summary__value">
+                {% if intake_response and intake_response.completed %}<span class="ok">Complete</span>{% elif intake_response %}<span class="warn">In progress</span>{% else %}<span class="muted">None</span>{% endif %}
+            </span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Plans</span>
+            <span class="wd-summary__value">{% if website_plans %}{{ website_plans|length }} active{% else %}<span class="muted">None</span>{% endif %}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">GA4</span>
+            <span class="wd-summary__value">{% if website.ga4_measurement_id %}<code>{{ website.ga4_measurement_id }}</code>{% else %}<span class="muted">—</span>{% endif %}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Live URL</span>
+            <span class="wd-summary__value">{% if website.url %}<a href="{{ website.url }}" target="_blank" rel="noopener">{{ website.url }} ↗</a>{% else %}<span class="muted">—</span>{% endif %}</span>
+        </div>
+        <div class="wd-summary__cell">
+            <span class="wd-summary__label">Droplet IP</span>
+            <span class="wd-summary__value">{% if website.do_droplet_ip %}<a href="http://{{ website.do_droplet_ip }}" target="_blank" rel="noopener">{{ website.do_droplet_ip }} ↗</a>{% else %}<span class="muted">—</span>{% endif %}</span>
+        </div>
+    </div>
+
+    {% comment %} Quick actions — the moves an admin makes most, hoisted to the top. {% endcomment %}
+    <div class="wd-actions">
+        {% if next_stage %}
+            <form method="post" action="{% url 'admin_dashboard:website_change_stage' website.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="stage" value="{{ next_stage }}">
+                <button type="submit" class="btn-primary btn-sm">Push to next phase →</button>
+            </form>
+        {% endif %}
+        {% if can_send_contract and contract_pending or can_send_contract and not website_contracts %}
+            <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary btn-sm">Send contract ({{ website.get_package_display }})</button>
+            </form>
+        {% endif %}
+        {% if website.url %}<a href="{{ website.url }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Visit site ↗</a>{% endif %}
+        {% if do_console_url %}<a href="{{ do_console_url }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Open in DigitalOcean ↗</a>{% endif %}
+        <a href="{% url 'admin_dashboard:account_detail' account.id %}" class="btn-secondary btn-sm">View account →</a>
+    </div>
+
+    {% comment %}
         Stage tracker — same pill stepper the client sees on their
         dashboard, with admin-only forward / back / skip controls
         below. Lives at the top so admins can move a project without
@@ -85,6 +157,7 @@
         </div>
     </div>
 
+    <div class="wd-grid">
     {% comment %}
         Contract (per-website). One button — uses the build tier captured on
         the website at booking. Signing flows into deposit → setup → intake.
@@ -183,11 +256,13 @@
             <p class="muted" style="font-size:.75rem;margin-top:.5rem;">Charges the card on file, or emails a payment link if there's no card.</p>
         </div>
     </div>
+    </div>{# /wd-grid (Contract + Plans) #}
 
     {# Single big edit form covering every editable Website field. #}
     <form method="post">
         {% csrf_token %}
 
+        <div class="wd-grid">
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Identity</h2></div>
             <div class="admin-card__body">
@@ -383,11 +458,14 @@
             </div>
         </div>
 
+        </div>{# /wd-grid (edit-form cards) #}
+
         <div class="form-actions">
             <button type="submit" class="btn-primary">Save Website</button>
         </div>
     </form>
 
+    <div class="wd-grid">
     {% comment %}
         Intake override card — sits outside the main edit form because
         it POSTs to its own endpoint. Built for legacy websites where
@@ -399,7 +477,7 @@
         + Website.onboarding_status) but DOES NOT enqueue the
         provision_droplet_task or send the confirmation email.
     {% endcomment %}
-    <div class="admin-card" style="margin-top: 2rem;">
+    <div class="admin-card">
         <div class="admin-card__header">
             <h2 class="admin-card__title">Intake Form</h2>
         </div>
@@ -454,7 +532,7 @@
         </div>
     </div>
 
-    <div class="admin-card" style="margin-top: 2rem;">
+    <div class="admin-card">
         <div class="admin-card__header"><h2 class="admin-card__title">Domains pointed at this site ({{ domains|length }})</h2></div>
         <div class="admin-card__body">
             {% if domains %}
@@ -464,6 +542,7 @@
             {% endif %}
         </div>
     </div>
+    </div>{# /wd-grid (Intake + Domains) #}
 
     {% comment %}
         Destructive action — pushed to the very bottom + framed in

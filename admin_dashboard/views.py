@@ -8454,6 +8454,9 @@ def website_detail(request, website_id):
         .order_by('-created_at')[:5])
     contract_sign_base = request.build_absolute_uri('/portal/contract/')
     can_send_contract = (website.package in _PACKAGE_TO_BUILD_SLUG)
+    # Summary-strip flags — cheap derivations off the already-fetched list.
+    contract_signed = any(c.signed for c in website_contracts)
+    contract_pending = any(not c.signed for c in website_contracts)
     maintenance_tiers = list(ServiceTier.objects.filter(
         category='maintenance', is_active=True).order_by('sort_order'))
     social_tiers = list(ServiceTier.objects.filter(
@@ -8472,6 +8475,8 @@ def website_detail(request, website_id):
             website_contracts=website_contracts,
             contract_sign_base=contract_sign_base,
             can_send_contract=can_send_contract,
+            contract_signed=contract_signed,
+            contract_pending=contract_pending,
             maintenance_tiers=maintenance_tiers,
             social_tiers=social_tiers,
             website_plans=website_plans,
