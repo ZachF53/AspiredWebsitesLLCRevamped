@@ -25,6 +25,14 @@ def _ts(v):
     return datetime.fromtimestamp(int(v), tz=_tz.utc) if v else None
 
 
+def _meta_get(obj, key):
+    """Read a metadata key whether Stripe gave us a dict or a StripeObject."""
+    md = getattr(obj, 'metadata', None) or {}
+    if isinstance(md, dict):
+        return md.get(key)
+    return getattr(md, key, None)
+
+
 def _kind_from_pi_desc(desc):
     d = (desc or '').lower()
     if 'deposit' in d:
@@ -83,8 +91,10 @@ class Command(BaseCommand):
                         customer=cust, limit=100).auto_paging_iter():
                     if getattr(pi, 'status', '') != 'succeeded':
                         continue
-                    if getattr(pi, 'invoice', None):
-                        continue  # subscription charge — recorded via Invoice
+                    # Only OUR one-time build charges (deposit/final/full).
+                    # Subscription PIs are captured via their Invoice below.
+                    if _meta_get(pi, 'kind') != 'onboarding':
+                        continue
                     amt = (getattr(pi, 'amount_received', 0)
                            or getattr(pi, 'amount', 0) or 0) / 100
                     if amt <= 0:
@@ -110,6 +120,16 @@ class Command(BaseCommand):
                     sub_id = getattr(inv, 'subscription', '') or ''
                     if sub_id:
                         kind, web = _kind_for_sub(sub_id, cp)
+                        # Fall back to the subscription's product_type metadata.
+                        if kind == 'other':
+                            try:
+                                sub = stripe.Subscription.retrieve(sub_id)
+                                pt = _meta_get(sub, 'product_type') or ''
+                                kind = {'maintenance': 'maintenance',
+                                        'social_media': 'social',
+                                        'hosting': 'hosting'}.get(pt, 'other')
+                            except Exception:
+                                pass
                     else:
                         kind, web = 'other', None
                     ld = ''
