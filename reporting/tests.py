@@ -264,14 +264,14 @@ class AdminMonitoringPageTests(TestCase):
         self.assertEqual(
             self.client.get(reverse('admin_dashboard:client_list')).status_code,
             200)
-        for name in ['client_conversions', 'client_tracker']:
+        for name in ['client_tracker']:
             resp = self.client.get(
                 reverse(f'admin_dashboard:{name}', args=[self.cp.id]))
             self.assertEqual(resp.status_code, 200, name)
-        # Per-website monitoring (Phase D): uptime + keywords are
-        # website-scoped now.
+        # Per-website monitoring (Phase D).
         site = self.cp.migrated_account.websites.first()
-        for name in ['website_uptime', 'website_keywords']:
+        for name in ['website_uptime', 'website_keywords',
+                     'website_conversions']:
             resp = self.client.get(
                 reverse(f'admin_dashboard:{name}', args=[site.id]))
             self.assertEqual(resp.status_code, 200, name)

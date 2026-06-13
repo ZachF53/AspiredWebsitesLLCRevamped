@@ -1,7 +1,7 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}{{ client.firm_name }} — Conversions{% endblock %}
+{% block title %}{{ website.name }} — Conversions{% endblock %}
 
 {% block extra_scripts %}
     <script src="{% static 'js/click_overlay.js' %}" defer></script>
@@ -11,12 +11,12 @@
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_detail' website.id %}" class="admin-back-link">&larr; {{ website.name }}</a></span>
             <h1 class="admin-page-title">Conversion Activity</h1>
             <p class="muted">Last {{ overview.days }} days · {{ overview.total_page_views }} page view{{ overview.total_page_views|pluralize }}</p>
         </div>
         <div class="admin-page-actions">
-            <a class="btn-secondary" href="{% url 'admin_dashboard:client_tracker' client.id %}">Tracker Snippet</a>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:website_detail' website.id %}">&larr; Website</a>
         </div>
     </div>
 

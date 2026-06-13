@@ -2063,19 +2063,15 @@ def keyword_run_check(request, website_id):
 
 
 @admin_required
-def client_conversions(request, client_id):
+def website_conversions(request, website_id):
     """
-    Tier 1 analytics dashboard — overview cards, conversion funnel,
-    top pages, scroll-depth distribution, click-density grid, and
-    recent session list. Backed by `PageSession` (v2 tracker).
-
-    Falls back gracefully when no PageSession data exists yet (e.g.
-    legacy clients still on v1 tracker) — every helper returns an
-    empty/zeroed shape.
+    Tier 1 analytics dashboard (per-website) — overview cards, funnel,
+    top pages, scroll-depth, click-density grid, recent sessions.
+    Backed by `PageSession` (v2 tracker).
     """
     from django.core.serializers.json import DjangoJSONEncoder
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.analytics_helpers import (
         click_breakdown, conversion_funnel, overview_stats,
         recent_sessions, scroll_distribution, top_pages,
@@ -2083,26 +2079,26 @@ def client_conversions(request, client_id):
     from reporting.conversion_helpers import conversion_counts
     from reporting.models import ConversionEvent
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    breakdown = click_breakdown(client)
+    website = get_object_or_404(Website, id=website_id)
+    breakdown = click_breakdown(website)
     return render(request, 'admin_dashboard/client_conversions.html',
                   _admin_context(
                       'clients',
-                      client=client,
-                      counts=conversion_counts(client),
-                      overview=overview_stats(client),
-                      funnel=conversion_funnel(client),
-                      top_pages=top_pages(client, limit=10),
-                      scroll_dist=scroll_distribution(client),
+                      website=website,
+                      counts=conversion_counts(website),
+                      overview=overview_stats(website),
+                      funnel=conversion_funnel(website),
+                      top_pages=top_pages(website, limit=10),
+                      scroll_dist=scroll_distribution(website),
                       click_sections=breakdown['sections'],
                       click_overlay_json=json.dumps(
                           breakdown['overlay_clicks'],
                           cls=DjangoJSONEncoder),
                       click_top_elements=breakdown['top_elements'],
                       click_total=breakdown['total_clicks'],
-                      sessions=recent_sessions(client, limit=50),
+                      sessions=recent_sessions(website, limit=50),
                       events=ConversionEvent.objects.filter(
-                          client=client)[:20],
+                          website_new=website)[:20],
                   ))
 
 
@@ -2145,10 +2141,20 @@ def client_tracker(request, client_id):
 
     recording_active = bool(client.session_recording_enabled)
 
+    # Primary website for the cross-links to the (per-website) conversions
+    # + recordings pages during the teardown.
+    try:
+        _acct = client.migrated_account
+    except Exception:
+        _acct = None
+    conv_website = (
+        _acct.websites.order_by('created_at').first() if _acct else None)
+
     return render(request, 'admin_dashboard/client_tracker.html',
                   _admin_context(
                       'clients',
                       client=client,
+                      conv_website=conv_website,
                       snippet=snippet,
                       recording_active=recording_active,
                       recording_included_via_plan=included_via_plan,
@@ -8337,7 +8343,7 @@ def website_detail(request, website_id):
             {'label': 'Keywords',
              'url': reverse('admin_dashboard:website_keywords', args=[website.id])},
             {'label': 'Conversions',
-             'url': reverse('admin_dashboard:client_conversions', args=[cid])},
+             'url': reverse('admin_dashboard:website_conversions', args=[website.id])},
             {'label': 'Content Freshness', 'badge': fresh_badge,
              'url': reverse('admin_dashboard:client_freshness', args=[cid])},
             {'label': 'Chatbot',

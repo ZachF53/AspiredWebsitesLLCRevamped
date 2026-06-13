@@ -11,7 +11,7 @@
             <p class="muted">{{ client.firm_name }}{% if project.live_url %} — {{ project.live_url }}{% endif %}</p>
         </div>
         <div class="admin-page-actions">
-            <a class="btn-secondary" href="{% url 'admin_dashboard:client_conversions' client.id %}">View Conversions</a>
+            {% if conv_website %}<a class="btn-secondary" href="{% url 'admin_dashboard:website_conversions' conv_website.id %}">View Conversions</a>{% endif %}
             {% if client.session_recording_enabled %}
                 <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' client.id %}">View Recordings</a>
             {% endif %}
@@ -107,7 +107,7 @@
             <li>Paste it just before the closing <code>&lt;/body&gt;</code> tag on every page of the client's site.</li>
             <li>Tier 1 analytics start collecting events immediately. Session recording activates the next time you flip the toggle above (config refresh: up to 5 minutes).</li>
             <li>Page sessions appear on the
-                <a href="{% url 'admin_dashboard:client_conversions' client.id %}">Conversions page</a>
+                {% if conv_website %}<a href="{% url 'admin_dashboard:website_conversions' conv_website.id %}">Conversions page</a>{% else %}Conversions page{% endif %}
                 within a minute of the first page unload.</li>
         </ol>
     </section>
