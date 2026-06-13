@@ -2689,6 +2689,37 @@ a.contact-list__value:hover {
     color: var(--color-text-muted);
 }
 
+/* Contract deposit / pay-in-full chooser (public, CSP-safe — no inline styles) */
+.contract-pay-form {
+    text-align: left;
+    margin-top: var(--space-4);
+}
+.pay-option {
+    display: block;
+    border: 1px solid var(--color-border, #d8dee5);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+.pay-option__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+}
+.pay-option__desc {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+.contract-pay-form .btn-block {
+    margin-top: var(--space-4);
+}
+
 .login-form {
     text-align: left;
     margin-top: var(--space-2);

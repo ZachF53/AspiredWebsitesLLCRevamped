@@ -24,26 +24,26 @@
                 on delivery. Each radio is its own labelled option; the single
                 Continue button posts the chosen amount.
             {% endcomment %}
-            <form method="post" class="contract-pay-form" style="text-align:left;margin-top:1.5rem;">
+            <form method="post" class="contract-pay-form">
                 {% csrf_token %}
 
-                <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:.75rem;cursor:pointer;">
-                    <span style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
-                        <span><input type="radio" name="amount_choice" value="deposit" checked> <strong>Pay 50% deposit now</strong></span>
-                        <strong>${{ deposit|floatformat:2 }}</strong>
+                <label class="pay-option">
+                    <span class="pay-option__row">
+                        <span><input type="radio" name="amount_choice" value="deposit" checked> Pay 50% deposit now</span>
+                        <span>${{ deposit|floatformat:2 }}</span>
                     </span>
-                    <span class="muted" style="display:block;font-size:.85rem;margin-top:.4rem;">
+                    <span class="pay-option__desc">
                         The remaining ${{ remaining|floatformat:2 }} is invoiced on
                         delivery, before your site goes live.
                     </span>
                 </label>
 
-                <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:1rem;cursor:pointer;">
-                    <span style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
-                        <span><input type="radio" name="amount_choice" value="full"> <strong>Pay in full now</strong></span>
-                        <strong>${{ full|floatformat:2 }}</strong>
+                <label class="pay-option">
+                    <span class="pay-option__row">
+                        <span><input type="radio" name="amount_choice" value="full"> Pay in full now</span>
+                        <span>${{ full|floatformat:2 }}</span>
                     </span>
-                    <span class="muted" style="display:block;font-size:.85rem;margin-top:.4rem;">
+                    <span class="pay-option__desc">
                         Settle the whole build up front — no second invoice later.
                     </span>
                 </label>
