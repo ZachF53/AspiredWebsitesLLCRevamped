@@ -66,6 +66,52 @@ def stripe_webhook(request):
 
 # ── payment_intent.succeeded ────────────────────────────────────────────────
 
+def _record_payment(*, client, stripe_id, kind, amount, description='',
+                    paid_at=None, website=None, account=None, receipt_url=''):
+    """Idempotently log a successful payment to the PaymentRecord ledger so
+    the client's Invoices page is a complete billing history. Keyed on
+    stripe_id so webhook re-deliveries don't duplicate."""
+    if not stripe_id or amount is None:
+        return
+    try:
+        from clients.account_models import Account
+        from clients.models import PaymentRecord
+        if account is None:
+            account = (website.account if website is not None
+                       else Account.objects.filter(
+                           legacy_client_profile=client).first())
+        PaymentRecord.objects.get_or_create(
+            stripe_id=stripe_id,
+            defaults={
+                'client': client,
+                'account': account,
+                'website': website,
+                'kind': kind,
+                'description': (description or '')[:255],
+                'amount': amount,
+                'paid_at': paid_at or timezone.now(),
+                'receipt_url': receipt_url or '',
+            })
+    except Exception:
+        logger.exception('PaymentRecord write failed for %s', stripe_id)
+
+
+def _infer_subscription_kind(sub_id, client, invoice):
+    """Best-effort: which product a recurring invoice is for, + the website."""
+    from clients.service_models import MaintenancePlan, SocialMediaPlan
+    if sub_id and sub_id == client.stripe_hosting_subscription_id:
+        return 'hosting', None
+    mp = MaintenancePlan.objects.filter(stripe_subscription_id=sub_id).first()
+    if mp is not None or sub_id == client.stripe_subscription_id:
+        return 'maintenance', (mp.website if mp else None)
+    sp = SocialMediaPlan.objects.filter(stripe_subscription_id=sub_id).first()
+    if sp is not None or sub_id == client.stripe_social_subscription_id:
+        return 'social', (sp.website if sp else None)
+    if _invoice_lines_mention_maintenance(invoice):
+        return 'maintenance', None
+    return 'other', None
+
+
 def _handle_payment_intent_succeeded(event):
     """
     Fires when the client successfully pays the onboarding invoice via
@@ -179,6 +225,22 @@ def _handle_payment_intent_succeeded(event):
                 client.pk)
 
     _on_onboarding_invoice_paid(client, invoice)
+
+    # Ledger entry for this one-time build payment.
+    desc = ''
+    try:
+        if invoice.line_items:
+            desc = invoice.line_items[0].get('description', '')
+    except Exception:
+        desc = ''
+    _record_payment(
+        client=client, stripe_id=pi.get('id'),
+        kind=('deposit' if invoice.is_deposit else 'final'),
+        amount=invoice.total_amount,
+        description=desc or 'Website payment',
+        paid_at=timezone.now(),
+        website=getattr(invoice, 'website_new', None),
+        account=getattr(invoice, 'account_new', None))
 
     # Generate the branded receipt PDF + email it. Best-effort; the
     # invoice row already records the payment, so receipt issues don't
@@ -302,6 +364,21 @@ def _handle_invoice_paid(event):
     # flipping any local flags. Hosting invoices must NOT touch the
     # maintenance fields, and vice versa.
     sub_id = invoice.get('subscription') or ''
+    # Ledger entry for every recurring (subscription) charge — recorded up
+    # front so it's captured no matter which branch below returns.
+    if sub_id and (invoice.get('amount_paid') or 0) > 0:
+        kind, plan_website = _infer_subscription_kind(sub_id, client, invoice)
+        line_desc = ''
+        try:
+            line_desc = invoice['lines']['data'][0].get('description', '')
+        except Exception:
+            line_desc = ''
+        _record_payment(
+            client=client, stripe_id=invoice.get('id'), kind=kind,
+            amount=(invoice.get('amount_paid') or 0) / 100,
+            description=line_desc or f'{kind.title()} subscription',
+            paid_at=timezone.now(), website=plan_website,
+            receipt_url=(invoice.get('hosted_invoice_url') or ''))
     # Per-website maintenance/social plans (new model) own their own
     # subscription ids. Recognise + clear any awaiting_payment hold first so
     # they don't fall through to the legacy ClientProfile branches below.

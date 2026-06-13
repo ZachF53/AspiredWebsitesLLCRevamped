@@ -1161,3 +1161,44 @@ class WebsiteContractAndPlanTests(TestCase):
         _a, kw = mock_start.call_args
         self.assertEqual(kw.get('discount_percent'), 15)
         self.assertEqual(kw.get('discount_duration'), 'forever')
+
+
+class PaymentLedgerTests(TestCase):
+    """Every payment is recorded to PaymentRecord; the Invoices page reads it."""
+
+    @classmethod
+    def setUpTestData(cls):
+        u = User.objects.create_user(
+            username='ledger1', password='x', email='ledger1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Ledger LLC')
+
+    def test_record_payment_is_idempotent(self):
+        from decimal import Decimal
+
+        from billing.webhooks import _record_payment
+        from clients.models import PaymentRecord
+        _record_payment(client=self.profile, stripe_id='pi_led1',
+                        kind='deposit', amount=Decimal('1250'),
+                        description='Deposit')
+        _record_payment(client=self.profile, stripe_id='pi_led1',
+                        kind='deposit', amount=Decimal('1250'),
+                        description='Deposit')
+        self.assertEqual(
+            PaymentRecord.objects.filter(stripe_id='pi_led1').count(), 1)
+
+    def test_invoices_page_lists_ledger(self):
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from billing.webhooks import _record_payment
+        _record_payment(client=self.profile, stripe_id='in_led2',
+                        kind='maintenance', amount=Decimal('599'),
+                        description='Growth subscription',
+                        paid_at=timezone.now())
+        self.client.force_login(self.profile.user)
+        r = self.client.get(reverse('clients:invoices'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Growth subscription')
+        self.assertContains(r, '599')

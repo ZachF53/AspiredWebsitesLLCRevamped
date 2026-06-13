@@ -14,12 +14,13 @@
     {% elif invoice_list %}
         <table class="invoice-table">
             <thead>
-                <tr><th>Description</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr>
+                <tr><th>Description</th><th>Type</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr>
             </thead>
             <tbody>
                 {% for inv in invoice_list %}
                     <tr>
                         <td>{{ inv.description }}</td>
+                        <td>{{ inv.kind_label }}</td>
                         <td>${{ inv.amount|floatformat:2 }}</td>
                         <td><span class="status-pill status-pill--{{ inv.status }}">{{ inv.status|capfirst }}</span></td>
                         <td>{% if inv.created %}{{ inv.created|date:"M j, Y" }}{% else %}—{% endif %}</td>

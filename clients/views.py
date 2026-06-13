@@ -1092,41 +1092,24 @@ def _notify_admin_ticket(profile, ticket):
 
 @client_required
 def invoices(request):
+    """Billing history — read from the PaymentRecord ledger (written by the
+    Stripe webhooks for every payment: one-time build deposits/finals AND
+    recurring subscription charges). Durable + no live Stripe dependency."""
     profile = request.client_profile
-    invoice_list = []
-    stripe_error = None
-    if profile.stripe_customer_id:
-        try:
-            from django.conf import settings
-            import stripe
-            if not settings.STRIPE_SECRET_KEY:
-                raise RuntimeError('Stripe not configured')
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            result = stripe.Invoice.list(
-                customer=profile.stripe_customer_id, limit=24)
-            # Stripe v8+ StripeObjects are attribute-only (no .get()).
-            for inv in result.data:
-                status = getattr(inv, 'status', '') or ''
-                number = getattr(inv, 'number', None)
-                amount = (getattr(inv, 'amount_due', 0)
-                          or getattr(inv, 'amount_paid', 0) or 0)
-                invoice_list.append({
-                    'description': (getattr(inv, 'description', None)
-                                    or f'Invoice {number or inv.id}'),
-                    'amount': amount / 100,
-                    'status': status,
-                    'created': _ts_to_dt(getattr(inv, 'created', None)),
-                    'pdf_url': (getattr(inv, 'hosted_invoice_url', None)
-                                or getattr(inv, 'invoice_pdf', None)),
-                    'is_open': status == 'open',
-                })
-        except Exception:
-            logger.exception('Could not load Stripe invoices for %s', profile.pk)
-            stripe_error = 'Invoices are temporarily unavailable. Please try again later.'
+    records = list(profile.payment_records.all())  # ordered -paid_at (Meta)
+    invoice_list = [{
+        'description': r.description or r.get_kind_display(),
+        'kind_label': r.get_kind_display(),
+        'amount': r.amount,
+        'status': r.status,
+        'created': r.paid_at,
+        'pdf_url': r.receipt_url,
+        'is_open': r.status == 'open',
+    } for r in records]
     ctx = _portal_context(
         request, 'invoices',
         invoice_list=invoice_list,
-        stripe_error=stripe_error,
+        stripe_error=None,
     )
     return render(request, 'clients/invoices.html', ctx)
 

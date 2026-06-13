@@ -14,6 +14,7 @@ from .models import (
     Contract,
     ContractService,
     IntakeResponse,
+    PaymentRecord,
     Project,
     ProjectStageLog,
     RevisionRequest,
@@ -138,6 +139,16 @@ class ContractAdmin(admin.ModelAdmin):
         'signed_ip', 'signed_user_agent', 'signed_content_hash', 'pdf_path',
     )
     inlines = [ContractServiceInline]
+
+
+@admin.register(PaymentRecord)
+class PaymentRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        'client', 'kind', 'amount', 'status', 'paid_at', 'stripe_id',
+    )
+    list_filter = ('kind', 'status')
+    search_fields = ('client__firm_name', 'stripe_id', 'description')
+    readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(ProjectStageLog)

@@ -1908,3 +1908,53 @@ class OnboardingInvoice(TimestampedModel):
             settings, 'SITE_BASE_URL',
             'https://aspiredwebsites.com').rstrip('/')
         return f'{base}/pay/{self.payment_token}/'
+
+
+class PaymentRecord(TimestampedModel):
+    """A ledger entry for every successful payment — one-time website-build
+    payments (deposit/final, via PaymentIntent) AND recurring subscription
+    charges (maintenance/social/hosting, via Stripe invoices). Written by the
+    Stripe webhooks so the client's Invoices page is a complete, durable
+    billing history independent of live Stripe calls.
+    """
+
+    KIND_CHOICES = [
+        ('deposit', 'Website Deposit'),
+        ('final', 'Website Final Payment'),
+        ('build', 'Website Payment'),
+        ('maintenance', 'Maintenance'),
+        ('social', 'Social Media'),
+        ('hosting', 'Hosting'),
+        ('addon', 'Add-on / Out-of-scope'),
+        ('other', 'Payment'),
+    ]
+
+    client = models.ForeignKey(
+        ClientProfile, on_delete=models.CASCADE,
+        related_name='payment_records',
+    )
+    account = models.ForeignKey(
+        'clients.Account', on_delete=models.SET_NULL,
+        related_name='payment_records', null=True, blank=True,
+    )
+    website = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        related_name='payment_records', null=True, blank=True,
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default='other')
+    description = models.CharField(max_length=255, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, default='paid')
+    # Stripe PaymentIntent id or Invoice id — unique for idempotent recording
+    # across webhook re-deliveries.
+    stripe_id = models.CharField(max_length=255, unique=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    # Hosted Stripe invoice/receipt URL (subscriptions) when available.
+    receipt_url = models.URLField(blank=True)
+
+    class Meta:
+        ordering = ['-paid_at', '-created_at']
+
+    def __str__(self):
+        return (f'{self.client.firm_name} — {self.get_kind_display()} '
+                f'${self.amount:,.2f}')
