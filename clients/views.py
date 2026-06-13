@@ -1098,6 +1098,7 @@ def invoices(request):
     profile = request.client_profile
     records = list(profile.payment_records.all())  # ordered -paid_at (Meta)
     invoice_list = [{
+        'id': r.id,
         'description': r.description or r.get_kind_display(),
         'kind_label': r.get_kind_display(),
         'amount': r.amount,
@@ -1112,6 +1113,25 @@ def invoices(request):
         stripe_error=None,
     )
     return render(request, 'clients/invoices.html', ctx)
+
+
+@client_required
+def invoice_receipt(request, record_id):
+    """View/download a branded PDF receipt for one of the client's own
+    payments. Scoped to the logged-in client's records (ownership enforced
+    via the related manager). Inline so it opens in-browser; the viewer's
+    Save still downloads it."""
+    from billing.receipt_pdf import render_payment_receipt
+    record = get_object_or_404(
+        request.client_profile.payment_records, id=record_id)
+    content, is_pdf = render_payment_receipt(record)
+    short = str(record.id)[:8]
+    if is_pdf:
+        resp = HttpResponse(content, content_type='application/pdf')
+        resp['Content-Disposition'] = (
+            f'inline; filename="receipt-{short}.pdf"')
+        return resp
+    return HttpResponse(content, content_type='text/html')
 
 
 # ── Page 9: Credentials (PIN-gated client vault) ────────────────────────────

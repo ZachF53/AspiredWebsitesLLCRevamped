@@ -31,6 +31,8 @@ urlpatterns = [
     path('support/', views.support, name='support'),
     path('support/new/', views.support_new, name='support_new'),
     path('invoices/', views.invoices, name='invoices'),
+    path('invoices/<uuid:record_id>/receipt/', views.invoice_receipt,
+         name='invoice_receipt'),
 
     # Subscriptions + saved payment methods (Stripe Elements card add).
     path('subscriptions/', views.portal_subscriptions,

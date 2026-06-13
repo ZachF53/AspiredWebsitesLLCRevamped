@@ -1202,3 +1202,43 @@ class PaymentLedgerTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Growth subscription')
         self.assertContains(r, '599')
+
+
+class PaymentReceiptDownloadTests(TestCase):
+    """Clients can view/download a receipt for their own payments only."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from clients.models import PaymentRecord
+        u = User.objects.create_user(
+            username='rcpt1', password='x', email='rcpt1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Receipt LLC')
+        cls.rec = PaymentRecord.objects.create(
+            client=cls.profile, kind='final', amount=Decimal('1250'),
+            description='Essential Website Build — Final Payment',
+            stripe_id='pi_rcpt1', status='paid')
+        # A different client's record (must NOT be downloadable).
+        u2 = User.objects.create_user(
+            username='rcpt2', password='x', email='rcpt2@example.com')
+        cls.other = ClientProfile.objects.create(
+            user=u2, firm_name='Other LLC')
+        cls.other_rec = PaymentRecord.objects.create(
+            client=cls.other, kind='deposit', amount=Decimal('1250'),
+            stripe_id='pi_rcpt2', status='paid')
+
+    def test_owner_can_view_receipt(self):
+        self.client.force_login(self.profile.user)
+        r = self.client.get(
+            reverse('clients:invoice_receipt', args=[self.rec.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            r['Content-Type'].startswith(('application/pdf', 'text/html')))
+
+    def test_cannot_view_other_clients_receipt(self):
+        self.client.force_login(self.profile.user)
+        r = self.client.get(
+            reverse('clients:invoice_receipt', args=[self.other_rec.id]))
+        self.assertEqual(r.status_code, 404)

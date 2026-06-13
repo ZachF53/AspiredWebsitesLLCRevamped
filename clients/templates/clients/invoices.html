@@ -25,7 +25,7 @@
                         <td><span class="status-pill status-pill--{{ inv.status }}">{{ inv.status|capfirst }}</span></td>
                         <td>{% if inv.created %}{{ inv.created|date:"M j, Y" }}{% else %}—{% endif %}</td>
                         <td class="invoice-table__actions">
-                            {% if inv.pdf_url %}<a class="btn-secondary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Download PDF</a>{% endif %}
+                            <a class="btn-secondary btn-sm" href="{% url 'clients:invoice_receipt' inv.id %}" target="_blank" rel="noopener">View / download</a>
                             {% if inv.is_open and inv.pdf_url %}<a class="btn-primary btn-sm" href="{{ inv.pdf_url }}" target="_blank" rel="noopener">Pay Now</a>{% endif %}
                         </td>
                     </tr>

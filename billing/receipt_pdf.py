@@ -77,3 +77,35 @@ def generate_invoice_receipt_pdf(invoice):
     invoice.receipt_pdf_path = saved_rel
     invoice.save(update_fields=['receipt_pdf_path', 'updated_at'])
     return saved_rel
+
+
+def render_payment_receipt(record):
+    """Render a branded receipt for a PaymentRecord on demand.
+
+    Returns ``(content, is_pdf)`` — PDF bytes when WeasyPrint is available,
+    else the HTML string (Windows-dev / no-cairo fallback). Used by the
+    client portal's view/download-receipt endpoint.
+    """
+    line_items = [{
+        'description': record.description or record.get_kind_display(),
+        'amount': float(record.amount or 0),
+    }]
+    html_string = render_to_string(
+        'billing/receipt_pdf.html',
+        {
+            'invoice': record,            # template reads invoice.id for the #
+            'client': record.client,
+            'line_items': line_items,
+            'total_amount': float(record.amount or 0),
+            'paid_at': record.paid_at or timezone.now(),
+            'rendered_at': timezone.now(),
+        },
+    )
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_string).write_pdf(), True
+    except Exception:
+        logger.exception(
+            'WeasyPrint failed for payment receipt %s — HTML fallback',
+            record.pk)
+        return html_string, False
