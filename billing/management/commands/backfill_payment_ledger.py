@@ -137,6 +137,20 @@ class Command(BaseCommand):
                         ld = inv.lines.data[0].description
                     except Exception:
                         ld = ''
+                    # Last-resort label from the line description (legacy
+                    # subs with no plan row / metadata).
+                    if kind == 'other':
+                        dl = (ld or '').lower()
+                        if any(t in dl for t in (
+                                'essentials', 'growth', 'dominant',
+                                'maintenance')):
+                            kind = 'maintenance'
+                        elif any(t in dl for t in (
+                                'basic', 'standard', 'full management',
+                                'social')):
+                            kind = 'social'
+                        elif 'hosting' in dl:
+                            kind = 'hosting'
                     _record_payment(
                         client=cp, stripe_id=inv.id, kind=kind, amount=amt,
                         description=ld or f'{kind.title()} charge',
