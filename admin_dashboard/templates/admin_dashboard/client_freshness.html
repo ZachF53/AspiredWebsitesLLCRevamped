@@ -1,16 +1,16 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}{{ client.firm_name }} — Content Freshness{% endblock %}
+{% block title %}{{ website.name }} — Content Freshness{% endblock %}
 
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_detail' website.id %}" class="admin-back-link">&larr; {{ website.name }}</a></span>
             <h1 class="admin-page-title">Content Freshness</h1>
         </div>
         <div class="admin-page-actions">
-            <form method="post" action="{% url 'admin_dashboard:freshness_generate' client.id %}" class="cl-delete-form">
+            <form method="post" action="{% url 'admin_dashboard:freshness_generate' website.id %}" class="cl-delete-form">
                 {% csrf_token %}
                 <button type="submit" class="btn-primary">Generate Now</button>
             </form>
@@ -48,7 +48,7 @@
                                 <td><span class="fresh-score fresh-score--{{ page.priority }}">{{ page.freshness_score }}</span></td>
                                 <td><span class="rank rank--{% if page.priority == 'high' %}low{% elif page.priority == 'medium' %}page2{% else %}top{% endif %}">{{ page.priority|capfirst }}</span></td>
                                 <td class="lead-table__col-actions">
-                                    <form method="post" action="{% url 'admin_dashboard:freshness_flag' client.id %}" class="cl-delete-form">
+                                    <form method="post" action="{% url 'admin_dashboard:freshness_flag' website.id %}" class="cl-delete-form">
                                         {% csrf_token %}
                                         <input type="hidden" name="url" value="{{ page.url }}">
                                         <input type="hidden" name="title" value="{{ page.title }}">
@@ -65,7 +65,7 @@
         {% endif %}
     {% else %}
         <div class="admin-empty">
-            <p>No freshness report for {{ client.firm_name }} yet.</p>
+            <p>No freshness report for {{ website.name }} yet.</p>
             <p class="muted">Click <strong>Generate Now</strong> to crawl the site.</p>
         </div>
     {% endif %}

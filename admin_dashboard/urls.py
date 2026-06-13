@@ -222,9 +222,9 @@ urlpatterns = [
     path('reports/<uuid:report_id>/download/', views.report_download, name='report_download'),
 
     # Phase 5b — content freshness
-    path('clients/<uuid:client_id>/freshness/', views.client_freshness, name='client_freshness'),
-    path('clients/<uuid:client_id>/freshness/generate/', views.freshness_generate, name='freshness_generate'),
-    path('clients/<uuid:client_id>/freshness/flag/', views.freshness_flag, name='freshness_flag'),
+    path('websites/<uuid:website_id>/freshness/', views.website_freshness, name='website_freshness'),
+    path('websites/<uuid:website_id>/freshness/generate/', views.freshness_generate, name='freshness_generate'),
+    path('websites/<uuid:website_id>/freshness/flag/', views.freshness_flag, name='freshness_flag'),
 
     # Phase 5b — NPS
     path('nps/', views.nps_list, name='nps_list'),

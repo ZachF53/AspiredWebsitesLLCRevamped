@@ -728,6 +728,7 @@ def generate_freshness_report(client_id):
 
     ContentFreshnessReport.objects.create(
         client=client,
+        website_new=_primary_website(client),
         pages_analyzed=len(pages),
         pages_needing_update=sum(
             1 for p in report_data if p['priority'] == 'high'),

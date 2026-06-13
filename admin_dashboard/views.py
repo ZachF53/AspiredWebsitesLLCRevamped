@@ -2302,50 +2302,56 @@ def report_download(request, report_id):
 
 
 @admin_required
-def client_freshness(request, client_id):
-    """Content-freshness report for one client."""
-    from clients.models import ClientProfile
+def website_freshness(request, website_id):
+    """Content-freshness report for one website."""
+    from clients.account_models import Website
     from reporting.models import ContentFreshnessReport
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    reports = ContentFreshnessReport.objects.filter(client=client)
+    website = get_object_or_404(Website, id=website_id)
+    reports = ContentFreshnessReport.objects.filter(website_new=website)
     report_id = request.GET.get('report', '')
     report = (reports.filter(id=report_id).first() if _is_uuid(report_id)
               else reports.first())
     return render(request, 'admin_dashboard/client_freshness.html',
                   _admin_context(
-                      'clients', client=client, report=report,
+                      'clients', website=website, report=report,
                       previous_reports=list(reports[:12])))
 
 
 @admin_required
 @require_POST
-def freshness_generate(request, client_id):
-    """Run a freshness crawl for one client on demand."""
-    from clients.models import ClientProfile
+def freshness_generate(request, website_id):
+    """Run a freshness crawl for one website on demand."""
+    from clients.account_models import Website
     from reporting.tasks import generate_freshness_report
-    client = get_object_or_404(ClientProfile, id=client_id)
-    generate_freshness_report(str(client.id))
-    return redirect('admin_dashboard:client_freshness', client_id=client.id)
+    website = get_object_or_404(Website, id=website_id)
+    # The crawl task still keys off the legacy profile (it reads the live
+    # URL there) and stamps website_new on the report it writes.
+    cp = website.account.legacy_client_profile
+    if cp is not None:
+        generate_freshness_report(str(cp.id))
+    return redirect('admin_dashboard:website_freshness', website_id=website.id)
 
 
 @admin_required
 @require_POST
-def freshness_flag(request, client_id):
+def freshness_flag(request, website_id):
     """Flag a stale page — logs an internal-only changelog entry."""
-    from clients.models import ClientProfile, SiteChangelogEntry
-    client = get_object_or_404(ClientProfile, id=client_id)
+    from clients.account_models import Website
+    from clients.models import SiteChangelogEntry
+    website = get_object_or_404(Website, id=website_id)
     url = (request.POST.get('url') or '').strip()
     title = (request.POST.get('title') or '').strip()
     SiteChangelogEntry.objects.create(
-        client=client,
+        client=website.account.legacy_client_profile,
+        website_new=website,
         change_type='content_update',
         title=f'Content flagged for update: {title or url}'[:200],
         description=f'Flagged from the content freshness report.\n{url}',
         is_client_visible=False,
         url_changed=url[:200],
     )
-    return redirect('admin_dashboard:client_freshness', client_id=client.id)
+    return redirect('admin_dashboard:website_freshness', website_id=website.id)
 
 
 @admin_required
@@ -8345,7 +8351,7 @@ def website_detail(request, website_id):
             {'label': 'Conversions',
              'url': reverse('admin_dashboard:website_conversions', args=[website.id])},
             {'label': 'Content Freshness', 'badge': fresh_badge,
-             'url': reverse('admin_dashboard:client_freshness', args=[cid])},
+             'url': reverse('admin_dashboard:website_freshness', args=[website.id])},
             {'label': 'Chatbot',
              'url': reverse('admin_dashboard:client_chatbot', args=[cid])},
             {'label': 'Changelog',
