@@ -278,7 +278,6 @@ def _intake_steps(intake):
 
 @client_required
 def dashboard(request):
-    profile = request.client_profile
     project = _active_project(request)
 
     next_invoice = None
@@ -287,7 +286,7 @@ def dashboard(request):
     if project:
         stage_steps = _stage_steps(project)
         activity = list(project.stage_logs.all()[:5])
-        contract = profile.contracts.order_by('-created_at').first()
+        contract = project.contracts.order_by('-created_at').first()
         if contract:
             if project.payment_status == 'awaiting_deposit':
                 next_invoice = {'label': 'Deposit (50%)', 'amount': contract.deposit_amount}
@@ -325,8 +324,9 @@ def dashboard(request):
         stage_steps=stage_steps,
         activity=activity,
         next_invoice=next_invoice,
-        uptime_30=get_uptime_percentage(profile, 30),
-        uptime_avg_response=get_avg_response_time(profile, 30),
+        uptime_30=get_uptime_percentage(project, 30) if project else None,
+        uptime_avg_response=(
+            get_avg_response_time(project, 30) if project else None),
         maintenance_plans=maintenance_plans,
         social_media_plans=social_media_plans,
         droplets=droplets,

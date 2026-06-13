@@ -428,6 +428,30 @@ class Website(TimestampedModel):
     def stage_logs(self):
         return self.stage_logs_new
 
+    @property
+    def contracts(self):
+        return self.contracts_new
+
+    @property
+    def documents(self):
+        return self.documents_new
+
+    @property
+    def tickets(self):
+        return self.tickets_new
+
+    @property
+    def changelog_entries(self):
+        return self.changelog_entries_new
+
+    @property
+    def intake(self):
+        """O2O reverse — returns the IntakeResponse or None (never raises)."""
+        try:
+            return self.intake_new
+        except Exception:
+            return None
+
     # Convenience — slug autogeneration on save.
     def save(self, *args, **kwargs):
         if not self.slug:
