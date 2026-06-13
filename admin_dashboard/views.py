@@ -1529,53 +1529,74 @@ def changelog_list(request):
 
 
 @admin_required
-def client_changelog(request, client_id):
-    """Changelog entries for a single client."""
-    from clients.models import ClientProfile, SiteChangelogEntry
-    client = get_object_or_404(ClientProfile, id=client_id)
+def website_changelog(request, website_id):
+    """Changelog entries for a single website."""
+    from clients.account_models import Website
+    from clients.models import SiteChangelogEntry
+    website = get_object_or_404(Website, id=website_id)
     return render(request, 'admin_dashboard/changelog_list.html', _admin_context(
         'changelog',
-        entries=SiteChangelogEntry.objects.filter(client=client),
-        single_client=client,
+        entries=SiteChangelogEntry.objects.filter(website_new=website),
+        single_website=website,
         change_type_choices=SiteChangelogEntry.CHANGE_TYPE_CHOICES,
     ))
 
 
 @admin_required
-def changelog_add(request, client_id=None):
-    """Add a changelog entry — pre-fills the client when client-scoped."""
+def changelog_add_website(request, website_id):
+    """Add a changelog entry pre-scoped to a website."""
+    from clients.account_models import Website
     from clients.models import ClientProfile
     from .forms import SiteChangelogForm
 
-    preset_client = (
-        get_object_or_404(ClientProfile, id=client_id) if client_id else None
-    )
+    website = get_object_or_404(Website, id=website_id)
+    cp = website.account.legacy_client_profile
 
     if request.method == 'POST':
         form = SiteChangelogForm(request.POST)
         if form.is_valid():
-            entry = form.save()
-            if client_id:
-                return redirect('admin_dashboard:client_changelog',
-                                client_id=entry.client_id)
-            return redirect('admin_dashboard:changelog_list')
+            entry = form.save(commit=False)
+            entry.website_new = website
+            if entry.client_id is None:
+                entry.client = cp
+            entry.save()
+            return redirect(
+                'admin_dashboard:website_changelog', website_id=website.id)
     else:
         form = SiteChangelogForm(
-            initial={'client': preset_client} if preset_client else None
-        )
-
-    if client_id:
-        form_action = reverse('admin_dashboard:changelog_add_client',
-                              args=[client_id])
-    else:
-        form_action = reverse('admin_dashboard:changelog_add')
+            initial={'client': cp} if cp else None)
 
     return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
         'changelog',
         form=form,
         mode='add',
-        preset_client=preset_client,
-        form_action=form_action,
+        preset_client=cp,
+        form_action=reverse(
+            'admin_dashboard:changelog_add_website', args=[website.id]),
+        clients=ClientProfile.objects.order_by('firm_name'),
+    ))
+
+
+@admin_required
+def changelog_add(request):
+    """Add a changelog entry (global — pick the client in the form)."""
+    from clients.models import ClientProfile
+    from .forms import SiteChangelogForm
+
+    if request.method == 'POST':
+        form = SiteChangelogForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('admin_dashboard:changelog_list')
+    else:
+        form = SiteChangelogForm()
+
+    return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
+        'changelog',
+        form=form,
+        mode='add',
+        preset_client=None,
+        form_action=reverse('admin_dashboard:changelog_add'),
         clients=ClientProfile.objects.order_by('firm_name'),
     ))
 
@@ -1592,9 +1613,9 @@ def changelog_edit(request, entry_id):
         form = SiteChangelogForm(request.POST, instance=entry)
         if form.is_valid():
             form.save()
-            if request.POST.get('next') == 'client':
-                return redirect('admin_dashboard:client_changelog',
-                                client_id=entry.client_id)
+            if request.POST.get('next') == 'website' and entry.website_new_id:
+                return redirect('admin_dashboard:website_changelog',
+                                website_id=entry.website_new_id)
             return redirect('admin_dashboard:changelog_list')
     else:
         form = SiteChangelogForm(instance=entry)
@@ -1614,11 +1635,12 @@ def changelog_delete(request, entry_id):
     """Delete a changelog entry (POST + CSRF only)."""
     from clients.models import SiteChangelogEntry
     entry = get_object_or_404(SiteChangelogEntry, id=entry_id)
-    client_id = entry.client_id
-    came_from_client = request.POST.get('next') == 'client'
+    website_id = entry.website_new_id
+    came_from_website = request.POST.get('next') == 'website'
     entry.delete()
-    if came_from_client:
-        return redirect('admin_dashboard:client_changelog', client_id=client_id)
+    if came_from_website and website_id:
+        return redirect(
+            'admin_dashboard:website_changelog', website_id=website_id)
     return redirect('admin_dashboard:changelog_list')
 
 
@@ -1646,17 +1668,27 @@ def changelog_import(request):
 
     if step == 'save' and client and parsed:
         today = timezone.localdate()
+        try:
+            _acct = client.migrated_account
+        except Exception:
+            _acct = None
+        site = (_acct.websites.order_by('created_at').first()
+                if _acct else None)
         for title in parsed:
             # Imported deploy steps land as an internal audit trail — staff
             # flip individual entries visible to surface them to the client.
             SiteChangelogEntry.objects.create(
                 client=client,
+                website_new=site,
                 change_type='deployment',
                 title=title,
                 is_client_visible=False,
                 date_of_change=today,
             )
-        return redirect('admin_dashboard:client_changelog', client_id=client.id)
+        if site is not None:
+            return redirect(
+                'admin_dashboard:website_changelog', website_id=site.id)
+        return redirect('admin_dashboard:changelog_list')
 
     import_error = None
     if not parsed:
@@ -8373,7 +8405,7 @@ def website_detail(request, website_id):
             {'label': 'Chatbot',
              'url': reverse('admin_dashboard:website_chatbot', args=[website.id])},
             {'label': 'Changelog',
-             'url': reverse('admin_dashboard:client_changelog', args=[cid])},
+             'url': reverse('admin_dashboard:website_changelog', args=[website.id])},
         ]
 
     return render(

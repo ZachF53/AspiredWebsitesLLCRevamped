@@ -242,9 +242,9 @@ class AdminChangelogTests(TestCase):
         self.assertEqual(entry.change_type, 'security_patch')
         self.assertTrue(entry.is_client_visible)
 
-    def test_client_scoped_add_prefills_and_redirects(self):
-        url = reverse('admin_dashboard:changelog_add_client',
-                      args=[self.client_profile.id])
+    def test_website_scoped_add_prefills_and_redirects(self):
+        site = self.client_profile.migrated_account.websites.first()
+        url = reverse('admin_dashboard:changelog_add_website', args=[site.id])
         resp = self.client.post(url, {
             'client': str(self.client_profile.id),
             'date_of_change': '2026-05-21',
@@ -253,7 +253,7 @@ class AdminChangelogTests(TestCase):
             'is_client_visible': 'on',
         })
         self.assertRedirects(resp, reverse(
-            'admin_dashboard:client_changelog', args=[self.client_profile.id]))
+            'admin_dashboard:website_changelog', args=[site.id]))
 
     def test_edit_updates_entry(self):
         entry = SiteChangelogEntry.objects.create(
@@ -286,15 +286,16 @@ class AdminChangelogTests(TestCase):
         self.assertEqual(resp.status_code, 405)
         self.assertTrue(SiteChangelogEntry.objects.filter(id=entry.id).exists())
 
-    def test_client_changelog_filtered_to_client(self):
+    def test_website_changelog_filtered_to_website(self):
+        site = self.client_profile.migrated_account.websites.first()
         other_user = User.objects.create_user(username='other', password='x')
         other = ClientProfile.objects.create(
             user=other_user, firm_name='Other Firm')
         SiteChangelogEntry.objects.create(
-            client=self.client_profile, title='Acme entry')
+            client=self.client_profile, website_new=site, title='Acme entry')
         SiteChangelogEntry.objects.create(client=other, title='Other entry')
         resp = self.client.get(reverse(
-            'admin_dashboard:client_changelog', args=[self.client_profile.id]))
+            'admin_dashboard:website_changelog', args=[site.id]))
         self.assertContains(resp, 'Acme entry')
         self.assertNotContains(resp, 'Other entry')
 
@@ -330,8 +331,9 @@ class AdminChangelogTests(TestCase):
             'import_client': str(self.client_profile.id),
             'raw_log': raw,
         })
+        site = self.client_profile.migrated_account.websites.first()
         self.assertRedirects(resp, reverse(
-            'admin_dashboard:client_changelog', args=[self.client_profile.id]))
+            'admin_dashboard:website_changelog', args=[site.id]))
         self.assertEqual(SiteChangelogEntry.objects.count(), 3)
         self.assertTrue(SiteChangelogEntry.objects.filter(
             change_type='deployment',
