@@ -14,15 +14,17 @@ from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 
 from .models import PageSession
+from .scope import scope_filter
 
 
 DEFAULT_WINDOW_DAYS = 30
 
 
-def _qs(client, days=DEFAULT_WINDOW_DAYS):
+def _qs(scope, days=DEFAULT_WINDOW_DAYS):
+    """`scope` is a Website (per-site) or a ClientProfile (legacy)."""
     since = timezone.now() - timedelta(days=days)
     return PageSession.objects.filter(
-        client=client, created_at__gte=since)
+        **scope_filter(scope), created_at__gte=since)
 
 
 def _band_time(seconds):
@@ -329,10 +331,10 @@ def click_breakdown(client, days=DEFAULT_WINDOW_DAYS,
     }
 
 
-def recent_sessions(client, limit=50):
+def recent_sessions(scope, limit=50):
     """Latest session rows for the table at the bottom of the page."""
     return (PageSession.objects
-            .filter(client=client)
+            .filter(**scope_filter(scope))
             .order_by('-created_at')[:limit])
 
 

@@ -35,9 +35,14 @@ def keyword_trend(current, previous):
     return {'symbol': '→', 'label': 'No change', 'css': 'same'}
 
 
-def build_keyword_rows(client, active_only=False):
-    """Per-keyword display rows: current/previous record, trend, colour band."""
-    keywords = client.tracked_keywords.all()
+def build_keyword_rows(scope, active_only=False):
+    """Per-keyword display rows: current/previous record, trend, colour band.
+
+    `scope` is a Website (per-site) or a ClientProfile (legacy).
+    """
+    from .models import TrackedKeyword
+    from .scope import scope_filter
+    keywords = TrackedKeyword.objects.filter(**scope_filter(scope))
     if active_only:
         keywords = keywords.filter(is_active=True)
 

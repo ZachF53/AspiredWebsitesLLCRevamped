@@ -4,6 +4,8 @@ import calendar
 
 from django.utils import timezone
 
+from .scope import scope_filter
+
 
 def _month_bounds(now):
     """(this_month_start, last_month_start) as aware datetimes."""
@@ -14,10 +16,12 @@ def _month_bounds(now):
     return this_start, last_start
 
 
-def conversion_counts(client):
+def conversion_counts(scope):
     """
     Per event type: this-month vs last-month counts and the delta.
     Returns a list of {type, label, this_month, last_month, delta}.
+
+    `scope` is a Website (per-site) or a ClientProfile (legacy).
     """
     from .models import ConversionEvent
 
@@ -26,7 +30,8 @@ def conversion_counts(client):
 
     rows = []
     for value, label in ConversionEvent.EVENT_TYPE_CHOICES:
-        base = ConversionEvent.objects.filter(client=client, event_type=value)
+        base = ConversionEvent.objects.filter(
+            **scope_filter(scope), event_type=value)
         this_n = base.filter(event_timestamp__gte=this_start).count()
         last_n = base.filter(
             event_timestamp__gte=last_start,
@@ -42,10 +47,12 @@ def conversion_counts(client):
     return rows
 
 
-def conversion_6month_chart(client):
+def conversion_6month_chart(scope):
     """
     Form-submission counts for the last 6 calendar months (oldest first),
     each with a 0-100 bar height for the CSS chart.
+
+    `scope` is a Website (per-site) or a ClientProfile (legacy).
     """
     from .models import ConversionEvent
 
@@ -62,7 +69,7 @@ def conversion_6month_chart(client):
     counts = []
     for (y, m) in ranges:
         n = ConversionEvent.objects.filter(
-            client=client, event_type='form_submit',
+            **scope_filter(scope), event_type='form_submit',
             event_timestamp__year=y, event_timestamp__month=m,
         ).count()
         counts.append({'year': y, 'month': m, 'count': n})
