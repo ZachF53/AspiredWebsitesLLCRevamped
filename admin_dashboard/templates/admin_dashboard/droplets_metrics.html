@@ -39,7 +39,7 @@
                 <li><strong>Uptime</strong> {% if uptime_30 is not None %}{{ uptime_30|floatformat:2 }}%{% else %}—{% endif %}</li>
                 <li><strong>Avg response</strong> {% if uptime_avg_ms is not None %}{{ uptime_avg_ms|floatformat:0 }} ms{% else %}—{% endif %}</li>
                 <li>
-                    <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_uptime' client.id %}">Open uptime detail &rarr;</a>
+                    {% if uptime_website %}<a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:website_uptime' uptime_website.id %}">Open uptime detail &rarr;</a>{% endif %}
                 </li>
             </ul>
         </section>

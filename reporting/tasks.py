@@ -37,6 +37,16 @@ def send_admin_alert(subject, message):
 # ── Part 1: Uptime monitoring ───────────────────────────────────────────────
 
 @shared_task
+def _primary_website(client):
+    """The client's primary (oldest) Website, or None. Used to stamp the
+    per-website FK on uptime rows during the Phase-D teardown."""
+    try:
+        acct = client.migrated_account
+    except Exception:
+        return None
+    return acct.websites.order_by('created_at').first() if acct else None
+
+
 def check_client_uptime():
     """Ping every active, launched client site. Scheduled every 5 minutes."""
     import requests
@@ -57,6 +67,7 @@ def check_client_uptime():
         url = client.website
         if not url.startswith('http'):
             url = f'https://{url}'
+        site = _primary_website(client)
 
         try:
             start = timezone.now()
@@ -70,6 +81,7 @@ def check_client_uptime():
 
             UptimeRecord.objects.create(
                 client=client,
+                website_new=site,
                 response_time_ms=response_time,
                 status_code=response.status_code,
                 is_up=is_up,
@@ -81,26 +93,28 @@ def check_client_uptime():
                     client=client, is_resolved=False,
                 ).update(is_resolved=True, resolved_at=timezone.now())
             else:
-                check_and_fire_alert(client)
+                check_and_fire_alert(client, site)
 
         except requests.RequestException as exc:
             UptimeRecord.objects.create(
                 client=client,
+                website_new=site,
                 response_time_ms=None,
                 status_code=None,
                 is_up=False,
                 error_message=str(exc)[:200],
             )
-            check_and_fire_alert(client)
+            check_and_fire_alert(client, site)
         checked += 1
 
     return f'Checked {checked} client site(s).'
 
 
-def check_and_fire_alert(client):
+def check_and_fire_alert(client, site=None):
     """
     Open a downtime alert after 3 consecutive failed checks — once per
     outage, so a long outage does not spam the admin on every check.
+    `site` is the Website to stamp on the alert (Phase-D per-website FK).
     """
     from clients.models import UptimeRecord, UptimeAlert
 
@@ -114,15 +128,19 @@ def check_and_fire_alert(client):
         return  # an alert is already open for this outage
 
     UptimeAlert.objects.create(
-        client=client, consecutive_failures=3, alert_sent=True)
+        client=client, website_new=site,
+        consecutive_failures=3, alert_sent=True)
 
     live_url = client.website or '(unknown)'
+    check_link = (
+        f'/admin-dashboard/websites/{site.id}/uptime/' if site
+        else '/admin-dashboard/accounts/')
     send_admin_alert(
         subject=f'🔴 Site Down: {client.firm_name}',
         message=(
             f'{client.firm_name} has been down for 3 consecutive checks.\n'
             f'Domain: {live_url}\n'
-            f'Check: /admin-dashboard/clients/{client.id}/uptime/'
+            f'Check: {check_link}'
         ),
     )
 

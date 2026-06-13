@@ -1962,31 +1962,33 @@ def clients_onboarding(request):
 
 
 @admin_required
-def client_uptime(request, client_id):
-    """Uptime detail — 30/60/90-day stats, open alerts, last 50 checks, chart."""
-    from clients.models import ClientProfile, UptimeAlert, UptimeRecord
+def website_uptime(request, website_id):
+    """Uptime detail (per-website) — 30/60/90-day stats, alerts, checks, chart."""
+    from clients.account_models import Website
+    from clients.models import UptimeAlert, UptimeRecord
     from reporting.uptime_helpers import (
         get_avg_response_time, get_current_status, get_uptime_chart_data,
         get_uptime_percentage,
     )
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    website = get_object_or_404(Website, id=website_id)
 
-    chart = get_uptime_chart_data(client, 30)
+    chart = get_uptime_chart_data(website, 30)
     max_ms = max((d['avg_response_ms'] or 0 for d in chart), default=0) or 1
     for day in chart:
         day['bar_h'] = round((day['avg_response_ms'] or 0) / max_ms * 100)
 
     return render(request, 'admin_dashboard/client_uptime.html', _admin_context(
         'clients',
-        client=client,
-        uptime_status=get_current_status(client),
-        uptime_30=get_uptime_percentage(client, 30),
-        uptime_60=get_uptime_percentage(client, 60),
-        uptime_90=get_uptime_percentage(client, 90),
-        avg_response=get_avg_response_time(client, 30),
-        open_alerts=UptimeAlert.objects.filter(client=client, is_resolved=False),
-        records=UptimeRecord.objects.filter(client=client)[:50],
+        website=website,
+        uptime_status=get_current_status(website),
+        uptime_30=get_uptime_percentage(website, 30),
+        uptime_60=get_uptime_percentage(website, 60),
+        uptime_90=get_uptime_percentage(website, 90),
+        avg_response=get_avg_response_time(website, 30),
+        open_alerts=UptimeAlert.objects.filter(
+            website_new=website, is_resolved=False),
+        records=UptimeRecord.objects.filter(website_new=website)[:50],
         chart=chart,
     ))
 
@@ -3060,16 +3062,25 @@ def droplet_metrics(request, droplet_id):
         ssh_metrics = _fetch_ssh_metrics(cred, vault_key)
 
     uptime_30 = uptime_avg_ms = uptime_status = None
+    uptime_website = None
     if client:
-        uptime_30 = get_uptime_percentage(client, 30)
-        uptime_avg_ms = get_avg_response_time(client, 30)
-        uptime_status = get_current_status(client)
+        try:
+            _acct = client.migrated_account
+        except Exception:
+            _acct = None
+        if _acct is not None:
+            uptime_website = _acct.websites.order_by('created_at').first()
+        scope = uptime_website or client
+        uptime_30 = get_uptime_percentage(scope, 30)
+        uptime_avg_ms = get_avg_response_time(scope, 30)
+        uptime_status = get_current_status(scope)
 
     return render(request, 'admin_dashboard/droplets_metrics.html',
                   _admin_context(
                       'droplets',
                       droplet=d,
                       client=client,
+                      uptime_website=uptime_website,
                       cred=cred,
                       vault_unlocked=vault_key is not None,
                       ssh_metrics=ssh_metrics,
@@ -8317,7 +8328,7 @@ def website_detail(request, website_id):
             fresh_badge = f'{freshness_report.pages_needing_update} flagged'
         mon_tools = [
             {'label': 'Uptime',
-             'url': reverse('admin_dashboard:client_uptime', args=[cid])},
+             'url': reverse('admin_dashboard:website_uptime', args=[website.id])},
             {'label': 'Keywords',
              'url': reverse('admin_dashboard:client_keywords', args=[cid])},
             {'label': 'Conversions',

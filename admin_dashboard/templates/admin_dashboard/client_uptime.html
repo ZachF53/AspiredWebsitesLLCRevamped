@@ -1,13 +1,13 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}{{ client.firm_name }} — Uptime{% endblock %}
+{% block title %}{{ website.name }} — Uptime{% endblock %}
 
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_detail' website.id %}" class="admin-back-link">&larr; {{ website.name }}</a></span>
             <h1 class="admin-page-title">Uptime Monitoring</h1>
         </div>
         <div class="admin-page-actions">
