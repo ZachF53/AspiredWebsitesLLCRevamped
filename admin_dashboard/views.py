@@ -1838,105 +1838,22 @@ def client_list(request):
 
 @admin_required
 def client_detail(request, client_id):
-    """Per-client hub — uptime, GBP, NPS, testimonial, links to each tool."""
-    from clients.models import ClientProfile, PROJECT_STAGES
-    from reporting.models import GBPSyncCheck, NPSSurvey
-    from reporting.uptime_helpers import (
-        get_avg_response_time, get_current_status, get_uptime_percentage,
-    )
-
+    """
+    Legacy per-client hub — RETIRED. The Account/Website pages replace it:
+    account-level data on account_detail, per-build state + monitoring on
+    website_detail. Kept as a redirect so the inbound links across the
+    admin still resolve while they get repointed.
+    """
+    from clients.models import ClientProfile
     client = get_object_or_404(ClientProfile, id=client_id)
-    # Post-2026-05-25 refactor: project fields live on ClientProfile.
-    # `project` alias preserved so existing reads (project.stage,
-    # project.intake, project.stage_logs, etc.) keep working.
-    project = client
-
-    # Latest GBP check per field.
-    gbp_checks, seen = [], set()
-    for check in GBPSyncCheck.objects.filter(client=client):  # -checked_at
-        if check.field_name not in seen:
-            seen.add(check.field_name)
-            gbp_checks.append(check)
-
-    nps_surveys = list(NPSSurvey.objects.filter(client=client)[:4])
-    latest_nps = next((s for s in nps_surveys if s.score is not None), None)
-    nps_avg = NPSSurvey.objects.filter(
-        client=client, score__isnull=False).aggregate(a=Avg('score'))['a']
-
-    # Phase 6c — security scan summary for this client.
-    # Show the latest COMPLETED scan only (consistency with the client
-    # list dot — both surfaces report on known results, not a run in
-    # flight). A separate flag flags any scan currently in progress so
-    # we can surface a non-misleading "scan in progress" banner.
-    from reporting.models import VulnerabilityScan
-    last_scan = (VulnerabilityScan.objects
-                 .filter(client=client, status='complete')
-                 .order_by('-completed_at').first())
-    scan_in_progress = VulnerabilityScan.objects.filter(
-        client=client, status__in=('pending', 'running')).exists()
-    top_open_findings = []
-    if last_scan:
-        top_open_findings = list(
-            last_scan.findings
-            .filter(status='open', severity__in=('critical', 'high'))
-            .order_by('severity', 'tool', 'title')[:3])
-
-    # Phase 7 Part 3 — Website Intelligence summary for this client.
-    latest_intel_report = client.intelligence_reports.first()
-    open_intel_suggestions = client.intelligence_suggestions.exclude(
-        status__in=['implemented', 'dismissed', 'client_declined']
-    ).order_by('-generated_at')[:5]
-    intel_pending_count = client.intelligence_suggestions.filter(
-        status='pending_review').count()
-    intel_sent_count = client.intelligence_suggestions.filter(
-        status='sent_to_client').count()
-
-    # Resolved live URL — canonical = client.website. Legacy
-    # project.live_url data was backfilled into client.website on
-    # 2026-05-25.
-    resolved_live_url = client.website or ''
-
-    return render(request, 'admin_dashboard/client_detail.html', _admin_context(
-        'clients',
-        client=client,
-        project=project,
-        live_url=resolved_live_url,
-        uptime_status=get_current_status(client),
-        uptime_30=get_uptime_percentage(client, 30),
-        avg_response=get_avg_response_time(client, 30),
-        gbp_checks=gbp_checks,
-        nps_surveys=nps_surveys,
-        latest_nps=latest_nps,
-        nps_avg=round(nps_avg, 1) if nps_avg is not None else None,
-        freshness_report=client.freshness_reports.first(),
-        last_scan=last_scan,
-        scan_in_progress=scan_in_progress,
-        top_open_findings=top_open_findings,
-        latest_intel_report=latest_intel_report,
-        open_intel_suggestions=open_intel_suggestions,
-        intel_pending_count=intel_pending_count,
-        intel_sent_count=intel_sent_count,
-        # Project stage controls — list of (slug, label) and the
-        # next-stage slug for the "Move to next →" quick button.
-        project_stages=list(PROJECT_STAGES),
-        next_stage_slug=_compute_next_stage(project),
-        recent_stage_logs=list(
-            project.stage_logs.all()[:5]) if project else [],
-    ))
-
-
-def _compute_next_stage(project):
-    """Return the slug of the stage following `project.stage`, or '' if
-    the project is already live (no further stage)."""
-    if project is None:
-        return ''
-    from clients.models import PROJECT_STAGES
-    slugs = [k for k, _ in PROJECT_STAGES]
     try:
-        idx = slugs.index(project.stage)
-    except ValueError:
-        return ''
-    return slugs[idx + 1] if idx + 1 < len(slugs) else ''
+        account = client.migrated_account
+    except Exception:
+        account = None
+    if account is not None:
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+    return redirect('admin_dashboard:accounts_list')
 
 
 @admin_required
