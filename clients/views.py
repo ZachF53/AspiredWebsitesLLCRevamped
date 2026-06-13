@@ -2276,6 +2276,10 @@ def portal_subscriptions(request):
                 profile.stripe_customer_id)
             default_pm_id = get_customer_default_payment_method(
                 profile.stripe_customer_id)
+            # Always show the default card first.
+            payment_methods = sorted(
+                payment_methods,
+                key=lambda pm: getattr(pm, 'id', '') != default_pm_id)
         except Exception:
             logger.exception(
                 'Payment method fetch failed for client %s', profile.pk)

@@ -100,6 +100,11 @@ def billing_home(request):
                 customer_id) or ''
         except Exception:
             pass
+    # Always show the default card first.
+    if payment_methods:
+        payment_methods = sorted(
+            payment_methods,
+            key=lambda pm: getattr(pm, 'id', '') != default_pm_id)
     return render(request, 'billing/portal_home.html', {
         'subscriptions': subscriptions,
         'payment_methods': payment_methods,

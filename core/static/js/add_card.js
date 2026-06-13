@@ -16,8 +16,24 @@
     var errorEl = document.getElementById('add-card-error');
 
     var stripe = Stripe(pubKey);
-    var elements = stripe.elements({ clientSecret: clientSecret });
-    var paymentElement = elements.create('payment');
+    // Match the dark site theme (same appearance as the checkout +
+    // subscriptions add-card flows) so the fields look like the rest of
+    // the site instead of Stripe's default white.
+    var elements = stripe.elements({
+        clientSecret: clientSecret,
+        appearance: {
+            theme: 'night',
+            variables: {
+                colorPrimary: '#E8650A',
+                colorBackground: '#070614',
+                colorText: '#F8FAFC',
+                colorDanger: '#EF4444',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+                borderRadius: '8px',
+            },
+        },
+    });
+    var paymentElement = elements.create('payment', { layout: 'tabs' });
     paymentElement.mount('#payment-element');
 
     function showError(msg) {
