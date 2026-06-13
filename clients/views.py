@@ -1852,6 +1852,7 @@ def contract_pay(request, contract_token):
 
     full = contract.build_price or Decimal('0')
     deposit = contract.deposit_amount or (full / 2)
+    remaining = full - deposit  # balance invoiced on delivery
 
     if request.method == 'POST':
         pay_in_full = request.POST.get('amount_choice') == 'full'
@@ -1876,6 +1877,7 @@ def contract_pay(request, contract_token):
         'contract': contract,
         'deposit': deposit,
         'full': full,
+        'remaining': remaining,
     })
 
 

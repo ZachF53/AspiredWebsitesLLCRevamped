@@ -28,22 +28,22 @@
                 {% csrf_token %}
 
                 <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:.75rem;cursor:pointer;">
-                    <input type="radio" name="amount_choice" value="deposit" checked>
-                    <strong>Pay 50% deposit now</strong>
-                    <span style="float:right;font-weight:700;">${{ deposit|floatformat:2 }}</span>
-                    <br>
-                    <span class="muted" style="font-size:.85rem;">
-                        The remaining ${{ full|floatformat:2 }} balance is invoiced on
+                    <span style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+                        <span><input type="radio" name="amount_choice" value="deposit" checked> <strong>Pay 50% deposit now</strong></span>
+                        <strong>${{ deposit|floatformat:2 }}</strong>
+                    </span>
+                    <span class="muted" style="display:block;font-size:.85rem;margin-top:.4rem;">
+                        The remaining ${{ remaining|floatformat:2 }} is invoiced on
                         delivery, before your site goes live.
                     </span>
                 </label>
 
                 <label class="pay-option" style="display:block;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:1rem;cursor:pointer;">
-                    <input type="radio" name="amount_choice" value="full">
-                    <strong>Pay in full now</strong>
-                    <span style="float:right;font-weight:700;">${{ full|floatformat:2 }}</span>
-                    <br>
-                    <span class="muted" style="font-size:.85rem;">
+                    <span style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+                        <span><input type="radio" name="amount_choice" value="full"> <strong>Pay in full now</strong></span>
+                        <strong>${{ full|floatformat:2 }}</strong>
+                    </span>
+                    <span class="muted" style="display:block;font-size:.85rem;margin-top:.4rem;">
                         Settle the whole build up front — no second invoice later.
                     </span>
                 </label>
