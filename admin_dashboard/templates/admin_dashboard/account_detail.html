@@ -19,7 +19,6 @@
             {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
                 <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' client_id=account.legacy_client_profile_id %}">Manage GBP &rarr;</a>
             {% endif %}
-            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:client_detail' account.legacy_client_profile_id %}">Legacy Client view &rarr;</a>
         </div>
     </div>
 
