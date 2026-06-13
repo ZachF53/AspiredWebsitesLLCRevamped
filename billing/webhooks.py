@@ -511,13 +511,18 @@ def _on_onboarding_invoice_paid(client, invoice=None):
             website.payment_status = 'deposit_paid'
             website.deposit_paid_at = timezone.now()
             website.lifecycle_status = 'deposit_paid'
+            website.save(update_fields=[
+                'payment_status', 'deposit_paid_at',
+                'lifecycle_status', 'updated_at'])
         else:
+            # Final balance paid — mark fully paid + clear the portal pay
+            # button. Don't touch lifecycle_status (it's mid-build by now).
             website.payment_status = 'fully_paid'
             website.final_paid_at = timezone.now()
-            website.lifecycle_status = 'deposit_paid'
-        website.save(update_fields=[
-            'payment_status', 'deposit_paid_at', 'final_paid_at',
-            'lifecycle_status', 'updated_at'])
+            website.final_invoice_url = ''
+            website.save(update_fields=[
+                'payment_status', 'final_paid_at',
+                'final_invoice_url', 'updated_at'])
 
     IntakeResponse.objects.get_or_create(client=client)
     ClientVault.objects.get_or_create(client=client)

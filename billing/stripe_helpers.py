@@ -1209,6 +1209,93 @@ def start_contract_payment(contract, amount, *, is_deposit):
     return invoice
 
 
+def start_contract_final_payment(contract):
+    """Set up the remaining-balance (final 50%) payment for a build on OUR
+    own ``/pay/<token>/`` Stripe Elements page — never a Stripe-hosted page.
+
+    Reuses the client's OnboardingInvoice row + Stripe customer (the card
+    saved at the deposit) so the whole flow stays on our domain. Returns the
+    OnboardingInvoice (call ``.get_pay_url()`` for the on-site link), or None
+    when nothing is owed / Stripe isn't configured.
+    """
+    from decimal import Decimal
+
+    from django.utils import timezone
+
+    from clients.models import OnboardingInvoice
+
+    client = contract.client
+    amount = Decimal(contract.final_amount or 0)
+    if amount <= 0:
+        return None
+    label = contract.get_package_display() or 'Website Build'
+    desc = f'{label} — Final Payment'
+
+    try:
+        _init()
+    except StripeNotConfigured:
+        return None
+
+    # Reuse the customer that holds the saved card from the deposit.
+    customer_id = client.stripe_customer_id
+    if not customer_id:
+        try:
+            cust = stripe.Customer.create(
+                email=(client.user.email if client.user_id else ''),
+                name=client.firm_name)
+            customer_id = cust.id
+            client.stripe_customer_id = customer_id
+            client.save(update_fields=['stripe_customer_id', 'updated_at'])
+        except Exception:
+            logger.exception(
+                'final payment: customer create failed for %s', client.pk)
+            return None
+
+    line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
+    invoice = OnboardingInvoice.objects.filter(client=client).first()
+    if invoice is None:
+        invoice = OnboardingInvoice.objects.create(
+            client=client, contract=contract, is_deposit=False,
+            account_new=contract.account, website_new=contract.website_new,
+            line_items=line_items, total_amount=amount, status='draft')
+    else:
+        # Reuse the deposit's row for the final charge.
+        invoice.contract = contract
+        invoice.is_deposit = False
+        invoice.account_new = contract.account
+        invoice.website_new = contract.website_new
+        invoice.line_items = line_items
+        invoice.total_amount = amount
+        invoice.status = 'draft'
+        invoice.paid_at = None
+        invoice.save(update_fields=[
+            'contract', 'is_deposit', 'account_new', 'website_new',
+            'line_items', 'total_amount', 'status', 'paid_at', 'updated_at'])
+
+    try:
+        pi = stripe.PaymentIntent.create(
+            amount=_cents(amount), currency='usd', customer=customer_id,
+            payment_method_types=['card'], setup_future_usage='off_session',
+            description=f'Aspired Websites — {desc}'[:1000],
+            metadata={
+                'source': 'aspired_websites', 'kind': 'onboarding',
+                'client_profile_id': str(client.id),
+                'invoice_id': str(invoice.id)})
+    except Exception:
+        logger.exception(
+            'final payment: PaymentIntent create failed for %s', client.pk)
+        return None
+
+    invoice.stripe_payment_intent_id = pi.id
+    invoice.stripe_client_secret = pi.client_secret
+    invoice.status = 'sent'
+    invoice.sent_at = timezone.now()
+    invoice.save(update_fields=[
+        'stripe_payment_intent_id', 'stripe_client_secret',
+        'status', 'sent_at', 'updated_at'])
+    return invoice
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 1.3 — MiniInvoice (out-of-scope work) → Stripe
 # ─────────────────────────────────────────────────────────────────────────────

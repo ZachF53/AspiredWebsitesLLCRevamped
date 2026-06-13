@@ -8028,9 +8028,10 @@ def website_add_plan(request, website_id):
 
 
 def _issue_website_final_invoice(website):
-    """On → Pre-Launch: send the remaining build balance invoice for this
-    website (skip if already fully paid). Best-effort."""
-    from billing.stripe_helpers import create_final_invoice
+    """On → Pre-Launch: set up the remaining-balance payment on OUR own
+    /pay/ page (not a Stripe-hosted page), store the on-site pay link for the
+    portal button, and email our branded notice. Best-effort."""
+    from billing.stripe_helpers import start_contract_final_payment
     from clients.models import Contract
 
     if website.payment_status == 'fully_paid':
@@ -8041,20 +8042,17 @@ def _issue_website_final_invoice(website):
     if cp is None or contract is None:
         return
     try:
-        invoice = create_final_invoice(cp, contract)
+        invoice = start_contract_final_payment(contract)
     except Exception:
         logger.exception(
             'final invoice failed for website %s', website.pk)
         return
-    # Store the hosted pay URL on the website (portal button) and email our
-    # own branded notice — Stripe doesn't send invoice emails in test mode,
-    # and our email is on-brand in prod too.
-    pay_url = getattr(invoice, 'hosted_invoice_url', '') or ''
-    if pay_url:
-        website.final_invoice_url = pay_url
-        website.stripe_invoice_id = getattr(invoice, 'id', '') or ''
-        website.save(update_fields=[
-            'final_invoice_url', 'stripe_invoice_id', 'updated_at'])
+    if invoice is None:
+        return
+    # On-site /pay/<token>/ link — everything stays on our domain.
+    pay_url = invoice.get_pay_url()
+    website.final_invoice_url = pay_url
+    website.save(update_fields=['final_invoice_url', 'updated_at'])
     try:
         from clients.emails import send_final_invoice_email
         send_final_invoice_email(cp, contract, pay_url)

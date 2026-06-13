@@ -1118,17 +1118,18 @@ class WebsiteContractAndPlanTests(TestCase):
                       args=[self.website.id])
         from unittest.mock import MagicMock
         inv = MagicMock()
-        inv.id = 'in_final'
-        inv.hosted_invoice_url = 'https://pay.stripe.test/in_final'
-        with patch('billing.stripe_helpers.create_final_invoice',
+        inv.get_pay_url.return_value = 'https://aspiredwebsites.test/pay/abc/'
+        with patch('billing.stripe_helpers.start_contract_final_payment',
                    return_value=inv) as mock_final, \
              patch('clients.emails.send_final_invoice_email'), \
              patch('clients.emails.send_stage_change_email'):
             self.client.post(url, data={'stage': 'pre_launch'})
         mock_final.assert_called_once()
         self.website.refresh_from_db()
+        # On-site /pay/ link — not a Stripe-hosted URL.
         self.assertEqual(
-            self.website.final_invoice_url, 'https://pay.stripe.test/in_final')
+            self.website.final_invoice_url,
+            'https://aspiredwebsites.test/pay/abc/')
 
     def test_webhook_clears_awaiting_payment(self):
         from billing.webhooks import _activate_website_plan_sub
