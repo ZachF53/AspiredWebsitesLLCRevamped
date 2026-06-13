@@ -100,10 +100,16 @@
         scrolling through the whole edit form.
     {% endcomment %}
     <div class="admin-card">
-        <div class="admin-card__header">
-            <h2 class="admin-card__title">Project Progress</h2>
-            <span class="muted">Current: <strong style="color:var(--color-text);">{{ website.get_stage_display }}</strong></span>
-        </div>
+        {% comment %}
+            Collapsible — collapsed by default once the site is Live so
+            the finished stepper stops eating space. Still expands to the
+            full stepper + Back/Push/Skip controls on click.
+        {% endcomment %}
+        <details class="wd-progress"{% if website.stage != 'live' %} open{% endif %}>
+        <summary class="wd-progress__summary">
+            <span class="admin-card__title">Project Progress</span>
+            <span class="muted wd-progress__current">Current: <strong style="color:var(--color-text);">{{ website.get_stage_display }}</strong></span>
+        </summary>
         <div class="admin-card__body">
             <ol class="admin-stage-bar admin-stage-bar--steps">
                 {% for step in stage_steps %}
@@ -155,6 +161,7 @@
                 </form>
             </div>
         </div>
+        </details>
     </div>
 
     <div class="wd-grid">

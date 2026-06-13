@@ -13736,6 +13736,27 @@ button.htmx-request {
 .website-detail .admin-card__body .lead-table th,
 .website-detail .admin-card__body .lead-table td { padding: 0.5rem 0.6rem; }
 
+/* === Project Progress — collapsible (collapsed by default when Live) === */
+.wd-progress__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.25rem 0;
+    user-select: none;
+}
+.wd-progress__summary::-webkit-details-marker { display: none; }
+.wd-progress__summary::before {
+    content: '▸';
+    color: var(--color-text-muted);
+    transition: transform 0.15s ease;
+    font-size: 0.85rem;
+}
+.wd-progress[open] .wd-progress__summary::before { transform: rotate(90deg); }
+.wd-progress__summary .admin-card__title { margin: 0; }
+.wd-progress__current { margin-left: auto; }
+
 /* === Conversion tracker (inline) === */
 .wd-snippet {
     display: flex;
