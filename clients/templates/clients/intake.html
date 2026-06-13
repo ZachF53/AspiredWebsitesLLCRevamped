@@ -100,20 +100,20 @@
         <h2 class="portal-section__title">Step 3 — Website Copy</h2>
 
         <div class="form-group" data-required>
-            <label for="{{ form.about_copy.id_for_label }}">About your firm <span class="form-required">*</span></label>
-            <p class="form-hint">A few paragraphs about your firm — your story, what makes you different, why clients should trust you. Don't worry about polish; we'll edit.</p>
+            <label for="{{ form.about_copy.id_for_label }}">About your business <span class="form-required">*</span></label>
+            <p class="form-hint">A few paragraphs about your business — your story, what makes you different, why customers should trust you. Don't worry about polish; we'll edit.</p>
             {{ form.about_copy }}
         </div>
 
         <div class="form-group" data-required>
-            <label for="{{ form.practice_areas.id_for_label }}">Practice areas / services <span class="form-required">*</span></label>
-            <p class="form-hint">List each area you handle, one per line. A sentence or two about each helps us write better page copy.</p>
+            <label for="{{ form.practice_areas.id_for_label }}">Your services <span class="form-required">*</span></label>
+            <p class="form-hint">List each service you offer, one per line. A sentence or two about each helps us write better page copy.</p>
             {{ form.practice_areas }}
         </div>
 
         <div class="form-group" data-required>
-            <label for="{{ form.attorney_bios.id_for_label }}">Attorney / team bios <span class="form-required">*</span></label>
-            <p class="form-hint">Name, role, bar admissions, years of experience, education, notable cases or wins. Rough draft is fine — we'll format into proper bios.</p>
+            <label for="{{ form.attorney_bios.id_for_label }}">Team bios <span class="form-required">*</span></label>
+            <p class="form-hint">Name, role, years of experience, background, notable achievements. Rough draft is fine — we'll format into proper bios.</p>
             {{ form.attorney_bios }}
         </div>
     </section>
@@ -130,7 +130,7 @@
 
         <div class="form-group" data-required>
             <label for="{{ form.competitors.id_for_label }}">Your competitors <span class="form-required">*</span></label>
-            <p class="form-hint">3–5 firms you compete with most directly. Name + website if you know it.</p>
+            <p class="form-hint">3–5 businesses you compete with most directly. Name + website if you know it.</p>
             {{ form.competitors }}
         </div>
     </section>
@@ -141,7 +141,7 @@
 
         <div class="form-group" data-required>
             <label for="{{ form.domain_name.id_for_label }}">Your domain <span class="form-required">*</span></label>
-            <p class="form-hint">Your domain (e.g. <code>johnsonlaw.com</code>).</p>
+            <p class="form-hint">Your domain (e.g. <code>yourbusiness.com</code>).</p>
             {{ form.domain_name }}
         </div>
 
@@ -206,131 +206,7 @@
         {% else %}
             <p class="form-hint form-hint--block">Review everything below. If any section needs a tweak, click <strong style="color:var(--color-text);">Edit</strong> to jump back. When it all looks right, hit Submit at the bottom.</p>
 
-            {# ── Brand summary ── #}
-            <div class="review-card">
-                <div class="review-card__head">
-                    <h3 class="review-card__title">Brand</h3>
-                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="1">Edit</button>
-                </div>
-                <dl class="review-dl">
-                    <dt>Brand colors</dt>
-                    <dd>{{ intake.brand_colors|default:'—' }}</dd>
-                    <dt>Brand fonts</dt>
-                    <dd>{{ intake.brand_fonts|default:'—' }}</dd>
-                    <dt>Logo</dt>
-                    <dd>
-                        {% if intake.logo %}
-                            <a href="{{ intake.logo.url }}" target="_blank" rel="noopener">{{ intake.logo.name|cut:"portal/intake/logos/" }}</a>
-                        {% elif intake.no_logo_yet %}
-                            <span class="review-muted">I don't have a logo yet</span>
-                        {% else %}
-                            <span class="review-muted">—</span>
-                        {% endif %}
-                    </dd>
-                </dl>
-            </div>
-
-            {# ── Photos summary ── #}
-            <div class="review-card">
-                <div class="review-card__head">
-                    <h3 class="review-card__title">Photos <span class="review-card__optional">(optional)</span></h3>
-                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="2">Edit</button>
-                </div>
-                <dl class="review-dl">
-                    {% with photos=intake.photos.all %}
-                        <dt>Uploaded</dt>
-                        <dd>
-                            {% if photos %}
-                                {{ photos|length }} photo{{ photos|length|pluralize }}
-                                <ul class="review-photo-grid">
-                                    {% for photo in photos %}
-                                        <li class="review-photo-grid__item">
-                                            <a href="{{ photo.file.url }}" target="_blank" rel="noopener" title="{{ photo.label|default:photo.file.name }}">
-                                                <img src="{{ photo.file.url }}" alt="{{ photo.label|default:photo.file.name }}">
-                                            </a>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <span class="review-muted">No photos uploaded</span>
-                            {% endif %}
-                        </dd>
-                    {% endwith %}
-                    {% if intake.photos_note %}
-                        <dt>Notes</dt>
-                        <dd>{{ intake.photos_note|linebreaksbr }}</dd>
-                    {% endif %}
-                </dl>
-            </div>
-
-            {# ── Website Copy summary ── #}
-            <div class="review-card">
-                <div class="review-card__head">
-                    <h3 class="review-card__title">Website Copy</h3>
-                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="3">Edit</button>
-                </div>
-                <dl class="review-dl">
-                    <dt>About your firm</dt>
-                    <dd class="review-pre">{{ intake.about_copy|default:'—' }}</dd>
-                    <dt>Practice areas / services</dt>
-                    <dd class="review-pre">{{ intake.practice_areas|default:'—' }}</dd>
-                    <dt>Attorney / team bios</dt>
-                    <dd class="review-pre">{{ intake.attorney_bios|default:'—' }}</dd>
-                </dl>
-            </div>
-
-            {# ── References summary ── #}
-            <div class="review-card">
-                <div class="review-card__head">
-                    <h3 class="review-card__title">References</h3>
-                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="4">Edit</button>
-                </div>
-                <dl class="review-dl">
-                    <dt>Sites you like the look of</dt>
-                    <dd class="review-pre">{{ intake.reference_sites|default:'—' }}</dd>
-                    <dt>Your competitors</dt>
-                    <dd class="review-pre">{{ intake.competitors|default:'—' }}</dd>
-                </dl>
-            </div>
-
-            {# ── Domain & Social summary ── #}
-            <div class="review-card">
-                <div class="review-card__head">
-                    <h3 class="review-card__title">Domain &amp; Social</h3>
-                    <button type="button" class="btn-link review-card__edit" data-wizard-goto="5">Edit</button>
-                </div>
-                <dl class="review-dl">
-                    <dt>Domain</dt>
-                    <dd>{{ intake.domain_name|default:'—' }}</dd>
-                    <dt>Registered with</dt>
-                    <dd>
-                        {% if intake.domain_registrar == 'other' %}
-                            Other — {{ intake.domain_registrar_other|default:'(not specified)' }}
-                        {% elif intake.domain_registrar %}
-                            {{ intake.get_domain_registrar_display }}
-                        {% else %}
-                            <span class="review-muted">—</span>
-                        {% endif %}
-                    </dd>
-
-                    {% if intake.facebook_url or intake.instagram_url or intake.linkedin_url or intake.twitter_url or intake.google_business_url or intake.social_links %}
-                        <dt>Social profiles</dt>
-                        <dd>
-                            <ul class="review-social-list">
-                                {% if intake.facebook_url %}<li><strong>Facebook:</strong> <a href="{{ intake.facebook_url }}" target="_blank" rel="noopener">{{ intake.facebook_url }}</a></li>{% endif %}
-                                {% if intake.instagram_url %}<li><strong>Instagram:</strong> <a href="{{ intake.instagram_url }}" target="_blank" rel="noopener">{{ intake.instagram_url }}</a></li>{% endif %}
-                                {% if intake.linkedin_url %}<li><strong>LinkedIn:</strong> <a href="{{ intake.linkedin_url }}" target="_blank" rel="noopener">{{ intake.linkedin_url }}</a></li>{% endif %}
-                                {% if intake.twitter_url %}<li><strong>X (Twitter):</strong> <a href="{{ intake.twitter_url }}" target="_blank" rel="noopener">{{ intake.twitter_url }}</a></li>{% endif %}
-                                {% if intake.google_business_url %}<li><strong>Google Business:</strong> <a href="{{ intake.google_business_url }}" target="_blank" rel="noopener">{{ intake.google_business_url }}</a></li>{% endif %}
-                                {% if intake.social_links %}<li><strong>Other:</strong> <span class="review-pre">{{ intake.social_links|linebreaksbr }}</span></li>{% endif %}
-                            </ul>
-                        </dd>
-                    {% else %}
-                        <dt>Social profiles</dt>
-                        <dd><span class="review-muted">None added</span></dd>
-                    {% endif %}
-                </dl>
-            </div>
+            {% include "clients/_intake_review.html" %}
         {% endif %}
     </section>
 

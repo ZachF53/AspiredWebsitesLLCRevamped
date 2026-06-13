@@ -615,12 +615,21 @@ def intake_save(request):
         form.save()
         intake_obj.refresh_from_db()
     steps, completed, percent = _intake_steps(intake_obj)
-    return render(request, 'clients/_intake_progress.html', {
+    # Return the progress bar (primary swap) PLUS the Step-6 review summary
+    # as an out-of-band swap, so the review always reflects the latest saved
+    # answers instead of the empty page-load snapshot.
+    from django.template.loader import render_to_string
+    progress_html = render_to_string('clients/_intake_progress.html', {
         'intake_steps': steps,
         'intake_completed_count': completed,
         'intake_percent': percent,
         'saved_at': timezone.now(),
-    })
+    }, request=request)
+    review_html = render_to_string('clients/_intake_review.html', {
+        'intake': intake_obj,
+        'oob': True,
+    }, request=request)
+    return HttpResponse(progress_html + review_html)
 
 
 # ── Intake photos (step 2) ──────────────────────────────────────────────────

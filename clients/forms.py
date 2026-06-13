@@ -58,11 +58,11 @@ class IntakeForm(forms.ModelForm):
             }),
             'practice_areas': forms.Textarea(attrs={
                 'class': 'form-control', 'rows': 4,
-                'placeholder': 'One per line. A sentence or two about each if you can — Personal Injury, Family Law, etc.',
+                'placeholder': 'One per line. A sentence or two about each if you can — e.g. Consulting, Installations, Catering, etc.',
             }),
             'attorney_bios': forms.Textarea(attrs={
                 'class': 'form-control', 'rows': 5,
-                'placeholder': 'Name, role, bar admissions, years of experience, education, notable cases. We\'ll format into proper bios.',
+                'placeholder': 'Name, role, years of experience, background, notable achievements. We\'ll format into proper bios.',
             }),
             'reference_sites': forms.Textarea(attrs={
                 'class': 'form-control', 'rows': 4,
@@ -70,11 +70,11 @@ class IntakeForm(forms.ModelForm):
             }),
             'competitors': forms.Textarea(attrs={
                 'class': 'form-control', 'rows': 3,
-                'placeholder': '3-5 firms you compete with most directly. Name + website if you know it.',
+                'placeholder': '3-5 businesses you compete with most directly. Name + website if you know it.',
             }),
             'domain_name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'johnsonlaw.com',
+                'placeholder': 'yourbusiness.com',
             }),
             'domain_registrar': forms.Select(attrs={
                 'class': 'form-control',
@@ -86,16 +86,16 @@ class IntakeForm(forms.ModelForm):
                 'data-registrar-other': '1',
             }),
             'facebook_url': forms.URLInput(attrs={
-                'class': 'form-control', 'placeholder': 'https://facebook.com/your-firm',
+                'class': 'form-control', 'placeholder': 'https://facebook.com/yourbusiness',
             }),
             'instagram_url': forms.URLInput(attrs={
-                'class': 'form-control', 'placeholder': 'https://instagram.com/your-firm',
+                'class': 'form-control', 'placeholder': 'https://instagram.com/yourbusiness',
             }),
             'linkedin_url': forms.URLInput(attrs={
-                'class': 'form-control', 'placeholder': 'https://linkedin.com/company/your-firm',
+                'class': 'form-control', 'placeholder': 'https://linkedin.com/company/yourbusiness',
             }),
             'twitter_url': forms.URLInput(attrs={
-                'class': 'form-control', 'placeholder': 'https://x.com/your-firm',
+                'class': 'form-control', 'placeholder': 'https://x.com/yourbusiness',
             }),
             'google_business_url': forms.URLInput(attrs={
                 'class': 'form-control', 'placeholder': 'https://maps.google.com/?cid=...',
