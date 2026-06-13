@@ -3805,55 +3805,20 @@ def scan_cancel(request, scan_id):
 @admin_required
 def client_edit(request, client_id):
     """
-    Full client edit form.
-
-    The live URL lives on `ClientProfile.website` (the canonical
-    field). For backward-compat with existing code that reads
-    `Project.live_url` (uptime monitor, scans, monthly reports), we
-    also mirror writes to the project when one exists. Initial value
-    is read from website first, then falls back to project.live_url
-    so legacy data still surfaces correctly.
-
-    Critical: the save MUST work even when the client has no Project
-    (auxiliary vault-only profiles, freshly-created accounts, etc.).
-    The old code silently no-op'd in that case while flashing
-    "saved" — losing the URL.
+    Legacy ClientProfile editor — RETIRED. Account-level fields are edited
+    on account_detail, per-website fields on website_detail. Kept as a
+    redirect so any lingering links resolve.
     """
     from clients.models import ClientProfile
-    from django.contrib import messages
-
-    from .forms import ClientProfileEditForm
-
     client = get_object_or_404(ClientProfile, id=client_id)
-    # Post-2026-05-25 refactor: project fields live on ClientProfile.
-    # `project` alias preserved so existing reads (project.stage,
-    # project.intake, project.stage_logs, etc.) keep working.
-    project = client
-    # Single source of truth: client.website. Legacy project.live_url
-    # data was backfilled on 2026-05-25.
-    current_live_url = client.website or ''
-
-    if request.method == 'POST':
-        form = ClientProfileEditForm(request.POST, instance=client)
-        if form.is_valid():
-            client = form.save(commit=False)
-            new_url = (form.cleaned_data.get('live_url') or '').strip()
-            client.website = new_url
-            client.save()
-            messages.success(request, 'Client updated successfully.')
-            return redirect(
-                'admin_dashboard:client_detail', client_id=client.id)
-    else:
-        form = ClientProfileEditForm(
-            instance=client, initial={'live_url': current_live_url})
-
-    return render(request, 'admin_dashboard/client_edit.html',
-                  _admin_context(
-                      'clients', client=client, form=form,
-                      project=project,
-                      client_email=(client.user.email if client.user
-                                    else ''),
-                  ))
+    try:
+        account = client.migrated_account
+    except Exception:
+        account = None
+    if account is not None:
+        return redirect(
+            'admin_dashboard:account_detail', account_id=account.id)
+    return redirect('admin_dashboard:accounts_list')
 
 
 # ── Inline HTMX quick-edit on the client detail page ───────────────────────
