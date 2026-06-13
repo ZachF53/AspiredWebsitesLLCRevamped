@@ -1,0 +1,25 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Add us to your Google Business Profile{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — one quick Google step.</h1>
+
+<p style="margin:0 0 18px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    So we can manage your <strong>Google Business Profile</strong> (posts, reviews, and keeping your info accurate), please add us as a <strong>Manager</strong>:
+</p>
+
+<ol style="margin:0 0 22px;padding-left:20px;color:#F8FAFC;font-size:15px;line-height:1.7;">
+    <li>On a computer, go to Google and <strong>search your business name</strong> while signed in to the Google account that manages it. <span style="color:#94A3B8;">(Or open the Google Maps app → tap your profile picture → <em>Your Business Profile</em>.)</span></li>
+    <li>Click the <strong>Menu</strong> / <strong>“More”</strong>, then <strong>“Business Profile settings”</strong>.</li>
+    <li>Click <strong>“People and access”</strong>.</li>
+    <li>Click <strong>“Add”</strong> (the person icon near the top).</li>
+    <li>Enter our email: <strong>{{ manager_email }}</strong></li>
+    <li>Under <strong>“Access”</strong>, choose <strong>“Manager”</strong>.</li>
+    <li>Click <strong>“Invite”</strong>.</li>
+</ol>
+
+<p style="margin:0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We’ll accept the invitation and take it from there. You stay the owner — a Manager can edit info, post, and reply to reviews, but can’t remove owners or delete the profile. Questions? Just reply to this email.
+</p>
+{% endblock %}

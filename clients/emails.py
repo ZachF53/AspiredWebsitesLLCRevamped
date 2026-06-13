@@ -653,6 +653,83 @@ def send_final_invoice_email(client, contract, pay_url):
     )
 
 
+GMB_MANAGER_EMAIL = 'zacherylong@aspiredwebsites.com'
+
+
+def send_gmb_add_manager_email(client):
+    """Client HAS a Google Business Profile — email them step-by-step
+    instructions to add us as a Manager. Best-effort."""
+    name = client.contact_name or client.firm_name
+    text_body = (
+        f'Hi {name},\n\n'
+        f'To let us manage your Google Business Profile (posts, reviews, and '
+        f'keeping your info accurate), please add us as a Manager:\n\n'
+        f'1. On a computer, go to Google and search your business name while '
+        f'signed in to the Google account that manages it. (Or open the '
+        f'Google Maps app and tap your profile picture > Your Business '
+        f'Profile.)\n'
+        f'2. Click the Menu / "More", then "Business Profile settings".\n'
+        f'3. Click "People and access".\n'
+        f'4. Click "Add" (the person icon near the top).\n'
+        f'5. Enter our email: {GMB_MANAGER_EMAIL}\n'
+        f'6. Under "Access", choose "Manager".\n'
+        f'7. Click "Invite".\n\n'
+        f'We\'ll accept the invite and take it from there. You stay the owner '
+        f'— a Manager can edit info, post, and reply to reviews, but can\'t '
+        f'remove owners or delete the profile.\n\n'
+        f'— Aspired Websites LLC\n'
+    )
+    send_branded(
+        subject='Add us to your Google Business Profile — Aspired Websites',
+        template='gmb_add_manager',
+        context={'name': name, 'manager_email': GMB_MANAGER_EMAIL,
+                 'preheader': 'A quick step so we can manage your Google listing.'},
+        recipient_list=[client.user.email],
+        text_body=text_body,
+    )
+
+
+def send_gmb_create_email(client):
+    """Client has NO Google Business Profile — email them step-by-step
+    instructions to create one AND then add us as a Manager. Best-effort."""
+    name = client.contact_name or client.firm_name
+    text_body = (
+        f'Hi {name},\n\n'
+        f'Let\'s get your business on Google Search & Maps. First create your '
+        f'Google Business Profile, then add us as a Manager so we can run it '
+        f'for you.\n\n'
+        f'PART 1 — Create your profile\n'
+        f'1. On a computer, sign in to your Google account (or create a free '
+        f'one at accounts.google.com).\n'
+        f'2. Go to https://business.google.com/add and click "Add your '
+        f'business to Google".\n'
+        f'3. Enter your business name.\n'
+        f'4. Choose your business category, then click Next.\n'
+        f'5. Choose whether customers can visit you: "Yes" (add your address '
+        f'or place the map marker) or "No" (set the areas you serve).\n'
+        f'6. Add your phone number and website, then Continue.\n'
+        f'7. Pick a verification method (postcard code, phone, email, or '
+        f'video) and follow the steps. Verification can take a few days; your '
+        f'profile shows on Google once verified.\n\n'
+        f'PART 2 — Add us as a Manager (once it exists)\n'
+        f'1. In your Business Profile, open Menu / "More" > "Business Profile '
+        f'settings" > "People and access".\n'
+        f'2. Click "Add", enter our email: {GMB_MANAGER_EMAIL}\n'
+        f'3. Under "Access" choose "Manager", then click "Invite".\n\n'
+        f'We\'ll accept the invite and handle the rest. Reply to this email if '
+        f'you\'d like us to walk you through it.\n\n'
+        f'— Aspired Websites LLC\n'
+    )
+    send_branded(
+        subject='Set up your Google Business Profile — Aspired Websites',
+        template='gmb_create',
+        context={'name': name, 'manager_email': GMB_MANAGER_EMAIL,
+                 'preheader': 'Get on Google Maps — create your profile + add us.'},
+        recipient_list=[client.user.email],
+        text_body=text_body,
+    )
+
+
 def send_welcome_email(client):
     """Sent once the deposit clears — client is active, intake unlocked."""
     name = client.contact_name or client.firm_name

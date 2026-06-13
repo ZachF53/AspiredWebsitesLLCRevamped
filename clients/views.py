@@ -895,6 +895,39 @@ def _on_intake_submitted(profile, project):
         logger.exception(
             'GA4 provisioning enqueue failed for %s', profile.pk)
 
+    # Google Business Profile — based on the intake answer, email the client
+    # the right step-by-step + drop a setup task. 'decline' → do nothing.
+    try:
+        intake_obj = getattr(profile, 'intake', None)
+        gmb = getattr(intake_obj, 'gmb_status', '') if intake_obj else ''
+        if gmb in ('have', 'need'):
+            from .emails import (
+                send_gmb_add_manager_email, send_gmb_create_email,
+            )
+            try:
+                if gmb == 'have':
+                    send_gmb_add_manager_email(profile)
+                else:
+                    send_gmb_create_email(profile)
+            except Exception:
+                logger.exception('GMB email failed for %s', profile.pk)
+            if profile.user_id:
+                from onboarding.todo_models import SetupTodo
+                title = (
+                    'Add Aspired Websites as a manager on your Google '
+                    'Business Profile' if gmb == 'have' else
+                    'Create your Google Business Profile + add us as manager')
+                if not SetupTodo.objects.filter(
+                        user=profile.user, task_type='google_access',
+                        credential_type='gmb_manager').exists():
+                    SetupTodo.objects.create(
+                        user=profile.user, task_type='google_access',
+                        credential_type='gmb_manager', title=title[:120],
+                        description='See the email we just sent for '
+                                    'step-by-step instructions.')
+    except Exception:
+        logger.exception('GMB intake follow-up failed for %s', profile.pk)
+
     # Confirmation email.
     try:
         send_intake_received_email(profile)

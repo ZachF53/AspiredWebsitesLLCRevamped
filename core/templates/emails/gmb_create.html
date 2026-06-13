@@ -1,0 +1,33 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Set up your Google Business Profile{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — let’s get you on Google Maps.</h1>
+
+<p style="margin:0 0 20px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    First create your <strong>Google Business Profile</strong>, then add us as a <strong>Manager</strong> so we can run it for you.
+</p>
+
+<p style="margin:0 0 8px;color:#E8650A;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Part 1 — Create your profile</p>
+<ol style="margin:0 0 22px;padding-left:20px;color:#F8FAFC;font-size:15px;line-height:1.7;">
+    <li>On a computer, sign in to your Google account <span style="color:#94A3B8;">(or create a free one at accounts.google.com)</span>.</li>
+    <li>Go to <a href="https://business.google.com/add" style="color:#E8650A;">business.google.com/add</a> and click <strong>“Add your business to Google”</strong>.</li>
+    <li>Enter your <strong>business name</strong>.</li>
+    <li>Choose your <strong>business category</strong>, then click <strong>Next</strong>.</li>
+    <li>Choose whether customers can visit you: <strong>“Yes”</strong> (add your address / place the map marker) or <strong>“No”</strong> (set the areas you serve).</li>
+    <li>Add your <strong>phone number</strong> and <strong>website</strong>, then <strong>Continue</strong>.</li>
+    <li>Pick a <strong>verification method</strong> (postcard code, phone, email, or video) and follow the steps. Verification can take a few days; your profile shows on Google once verified.</li>
+</ol>
+
+<p style="margin:0 0 8px;color:#E8650A;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Part 2 — Add us as a Manager</p>
+<ol style="margin:0 0 22px;padding-left:20px;color:#F8FAFC;font-size:15px;line-height:1.7;">
+    <li>In your Business Profile, open <strong>Menu</strong> / <strong>“More”</strong> → <strong>“Business Profile settings”</strong> → <strong>“People and access”</strong>.</li>
+    <li>Click <strong>“Add”</strong> and enter our email: <strong>{{ manager_email }}</strong></li>
+    <li>Under <strong>“Access”</strong> choose <strong>“Manager”</strong>, then click <strong>“Invite”</strong>.</li>
+</ol>
+
+<p style="margin:0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    We’ll accept the invite and handle the rest. Reply to this email any time and we’ll walk you through it.
+</p>
+{% endblock %}

@@ -35,10 +35,12 @@ class IntakeForm(forms.ModelForm):
             'about_copy', 'practice_areas', 'attorney_bios',
             'reference_sites', 'competitors',
             'domain_name', 'domain_registrar', 'domain_registrar_other',
+            'gmb_status',
             'facebook_url', 'instagram_url', 'linkedin_url',
             'twitter_url', 'google_business_url', 'social_links',
         ]
         widgets = {
+            'gmb_status': forms.RadioSelect(),
             'brand_colors': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'e.g. navy blue, gold, white',

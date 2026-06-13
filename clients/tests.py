@@ -1242,3 +1242,56 @@ class PaymentReceiptDownloadTests(TestCase):
         r = self.client.get(
             reverse('clients:invoice_receipt', args=[self.other_rec.id]))
         self.assertEqual(r.status_code, 404)
+
+
+class GmbIntakeFollowupTests(TestCase):
+    """gmb_status drives the post-intake email + SetupTodo (or nothing)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from clients.account_models import Account
+        u = User.objects.create_user(
+            username='gmb1', password='x', email='gmb1@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='GMB LLC')
+        cls.account = Account.objects.get(legacy_client_profile=cls.profile)
+        cls.website = cls.account.websites.first()
+
+    def _run(self, gmb_status):
+        from unittest.mock import patch
+
+        from clients.models import IntakeResponse
+        from clients.views import _on_intake_submitted
+        IntakeResponse.objects.update_or_create(
+            client=self.profile, defaults={'gmb_status': gmb_status})
+        with patch('clients.views._copy_intake_files_to_documents'), \
+             patch('billing.tasks.provision_droplet_task.delay'), \
+             patch('reporting.tasks.provision_ga4_task.delay'), \
+             patch('clients.emails.send_intake_received_email'), \
+             patch('clients.emails.send_gmb_add_manager_email') as madd, \
+             patch('clients.emails.send_gmb_create_email') as mcreate:
+            _on_intake_submitted(self.profile, self.website)
+        return madd, mcreate
+
+    def _has_todo(self):
+        from onboarding.todo_models import SetupTodo
+        return SetupTodo.objects.filter(
+            user=self.profile.user, credential_type='gmb_manager').exists()
+
+    def test_have_sends_add_manager_and_creates_todo(self):
+        madd, mcreate = self._run('have')
+        madd.assert_called_once()
+        mcreate.assert_not_called()
+        self.assertTrue(self._has_todo())
+
+    def test_need_sends_create_and_creates_todo(self):
+        madd, mcreate = self._run('need')
+        mcreate.assert_called_once()
+        madd.assert_not_called()
+        self.assertTrue(self._has_todo())
+
+    def test_decline_sends_nothing_no_todo(self):
+        madd, mcreate = self._run('decline')
+        madd.assert_not_called()
+        mcreate.assert_not_called()
+        self.assertFalse(self._has_todo())

@@ -620,6 +620,19 @@ class IntakeResponse(TimestampedModel):
     # model so legacy data isn't lost and the admin can still see it.
     google_business_access = models.BooleanField(default=False)
 
+    # ── Google Business Profile (GMB) management opt-in ──
+    # Asked on the website intake. Drives the post-intake email + SetupTodo:
+    #   have    → they have a GBP → email steps to add us as a Manager
+    #   need    → no GBP yet      → email steps to create one + add us
+    #   decline → they don't want us managing it → no email, no task
+    GMB_STATUS_CHOICES = [
+        ('have', 'I have a Google Business Profile'),
+        ('need', "I don't have one yet"),
+        ('decline', "I don't want you to manage it"),
+    ]
+    gmb_status = models.CharField(
+        max_length=10, choices=GMB_STATUS_CHOICES, blank=True)
+
     # ── Step 5 — Social profiles ──
     # Split out of the freeform `social_links` blob so we can render proper
     # input boxes for the four common channels. The textarea below now
