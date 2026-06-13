@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Session Recording — {{ client.firm_name|escape }} — {{ recording.created_at|date:"Y-m-d H:i" }}</title>
+    <title>Session Recording — {{ website.name|escape }} — {{ recording.created_at|date:"Y-m-d H:i" }}</title>
     <style>
         body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
                background: #0F172A; color: #fff; margin: 0; padding: 24px; }
@@ -53,7 +53,7 @@
 <body>
     <h1>Aspired Websites — Session Recording</h1>
     <p class="meta">
-        {{ client.firm_name|escape }} ·
+        {{ website.name|escape }} ·
         {{ recording.page_url|escape }} ·
         {{ recording.created_at|date:"F j, Y H:i" }} ·
         Duration: {{ recording.duration_display }}

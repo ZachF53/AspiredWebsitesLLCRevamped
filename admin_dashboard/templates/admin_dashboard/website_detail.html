@@ -609,7 +609,7 @@
                         <button type="submit" class="btn-secondary btn-sm">{% if tracker_recording_active %}Turn off{% else %}Turn on{% endif %} recording</button>
                     </form>
                     {% if tracker_recording_active %}
-                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:recordings_list' legacy_cp.id %}">Session Recordings ({{ legacy_cp.session_recordings.count }}) ↗</a>
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:recordings_list' website.id %}">Session Recordings ({{ tracker_recordings_count }}) ↗</a>
                     {% endif %}
                 </div>
                 <p class="muted" style="font-size:0.75rem;margin:0.6rem 0 0;">

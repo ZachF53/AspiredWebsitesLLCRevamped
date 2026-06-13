@@ -12,8 +12,8 @@
         </div>
         <div class="admin-page-actions">
             {% if conv_website %}<a class="btn-secondary" href="{% url 'admin_dashboard:website_conversions' conv_website.id %}">View Conversions</a>{% endif %}
-            {% if client.session_recording_enabled %}
-                <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' client.id %}">View Recordings</a>
+            {% if client.session_recording_enabled and conv_website %}
+                <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' conv_website.id %}">View Recordings</a>
             {% endif %}
         </div>
     </div>
@@ -80,7 +80,7 @@
                     {% csrf_token %}
                     <button type="submit" class="btn-secondary">Disable Session Recording</button>
                 </form>
-                <a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' client.id %}">View Recordings</a>
+                {% if conv_website %}<a class="btn-secondary" href="{% url 'admin_dashboard:recordings_list' conv_website.id %}">View Recordings</a>{% endif %}
             </div>
         {% else %}
             <p>

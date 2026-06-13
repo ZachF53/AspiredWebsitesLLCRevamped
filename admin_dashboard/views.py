@@ -5746,22 +5746,22 @@ def lead_bulk_delete(request):
 # ────────────────────────────────────────────────────────────────────────────
 
 @admin_required
-def recordings_list(request, client_id):
+def recordings_list(request, website_id):
     """
-    Per-client recordings table with storage stats + filters.
+    Per-website recordings table with storage stats + filters.
 
     Filters (all optional, all GET): page, min_duration, q.
     """
     from django.db.models import Avg, Count, Sum
     from django.utils import timezone
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    website = get_object_or_404(Website, id=website_id)
 
     qs = (SessionRecording.objects
-          .filter(client=client).order_by('-created_at'))
+          .filter(website_new=website).order_by('-created_at'))
 
     # Filters.
     page_filter = (request.GET.get('page') or '').strip()
@@ -5775,7 +5775,7 @@ def recordings_list(request, client_id):
             pass
 
     # Storage stats — never filtered, always full picture.
-    stats = SessionRecording.objects.filter(client=client).aggregate(
+    stats = SessionRecording.objects.filter(website_new=website).aggregate(
         total_recordings=Count('id'),
         total_size_kb=Sum('estimated_size_kb'),
         avg_duration=Avg('duration_seconds'),
@@ -5784,13 +5784,13 @@ def recordings_list(request, client_id):
     total_size_mb = round(total_size_kb / 1024, 1)
 
     oldest = (SessionRecording.objects
-              .filter(client=client)
+              .filter(website_new=website)
               .order_by('created_at').first())
     oldest_days = (timezone.now() - oldest.created_at).days if oldest else 0
 
     # Distinct page URLs for the dropdown filter.
     pages_seen = list(
-        SessionRecording.objects.filter(client=client)
+        SessionRecording.objects.filter(website_new=website)
         .values_list('page_url', flat=True)
         .distinct().order_by('page_url')[:30])
 
@@ -5799,7 +5799,7 @@ def recordings_list(request, client_id):
         'admin_dashboard/recordings_list.html',
         _admin_context(
             'clients',
-            client=client,
+            website=website,
             recordings=qs[:200],
             total_recordings=stats['total_recordings'] or 0,
             total_size_mb=total_size_mb,
@@ -5812,7 +5812,7 @@ def recordings_list(request, client_id):
 
 
 @admin_required
-def recording_replay(request, client_id, rec_id):
+def recording_replay(request, website_id, rec_id):
     """
     Full-page rrweb Replayer view. Events are inlined via
     `{{ events_json|json_script:"recording-events" }}` so the
@@ -5822,11 +5822,11 @@ def recording_replay(request, client_id, rec_id):
     """
     from django.core.serializers.json import DjangoJSONEncoder
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+    website = get_object_or_404(Website, id=website_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, website_new=website)
     events = rec.get_all_events()
 
     # Lightweight diagnostics for the operator — surface whether
@@ -5844,7 +5844,7 @@ def recording_replay(request, client_id, rec_id):
         'admin_dashboard/recording_replay.html',
         _admin_context(
             'clients',
-            client=client,
+            website=website,
             recording=rec,
             # DjangoJSONEncoder handles datetime/UUID/Decimal cleanly
             # if any sneak into the rrweb chunks via custom plugins.
@@ -5857,7 +5857,7 @@ def recording_replay(request, client_id, rec_id):
 
 
 @admin_required
-def recording_download(request, client_id, rec_id):
+def recording_download(request, website_id, rec_id):
     """
     Stream a self-contained HTML file — rrweb-player CSS + JS +
     the recording events all inlined. Recipient just opens it in
@@ -5867,11 +5867,11 @@ def recording_download(request, client_id, rec_id):
 
     from django.http import HttpResponse
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+    website = get_object_or_404(Website, id=website_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, website_new=website)
 
     static_root = Path(settings.BASE_DIR) / 'core' / 'static' / 'js'
     try:
@@ -5893,7 +5893,7 @@ def recording_download(request, client_id, rec_id):
         request,
         'admin_dashboard/recording_download.html',
         {
-            'client': client,
+            'website': website,
             'recording': rec,
             'rrweb_js': rrweb_js,
             'events_json': events_json,
@@ -5908,35 +5908,35 @@ def recording_download(request, client_id, rec_id):
 
 @admin_required
 @require_POST
-def recording_delete(request, client_id, rec_id):
+def recording_delete(request, website_id, rec_id):
     """Single-row delete from the recordings list."""
     from django.contrib import messages as _msg
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    rec = get_object_or_404(SessionRecording, id=rec_id, client=client)
+    website = get_object_or_404(Website, id=website_id)
+    rec = get_object_or_404(SessionRecording, id=rec_id, website_new=website)
     rec.delete()
     _msg.success(request, 'Recording deleted.')
     return redirect('admin_dashboard:recordings_list',
-                    client_id=client.id)
+                    website_id=website.id)
 
 
 @admin_required
 @require_POST
-def recording_delete_all(request, client_id):
-    """Wipe every recording for one client (with confirmation in template)."""
+def recording_delete_all(request, website_id):
+    """Wipe every recording for one website (with confirmation in template)."""
     from django.contrib import messages as _msg
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    n, _ = SessionRecording.objects.filter(client=client).delete()
+    website = get_object_or_404(Website, id=website_id)
+    n, _ = SessionRecording.objects.filter(website_new=website).delete()
     _msg.success(request, f'Deleted {n} recording(s).')
     return redirect('admin_dashboard:recordings_list',
-                    client_id=client.id)
+                    website_id=website.id)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -8376,11 +8376,17 @@ def website_detail(request, website_id):
         try:
             from reporting.models import ConversionEvent, PageSession
             tracker_last_event = ConversionEvent.objects.filter(
-                client=legacy_cp).first()
+                website_new=website).first()
             tracker_last_session = PageSession.objects.filter(
-                client=legacy_cp).first()
+                website_new=website).first()
         except Exception:
             pass
+    try:
+        from reporting.models import SessionRecording
+        tracker_recordings_count = SessionRecording.objects.filter(
+            website_new=website).count()
+    except Exception:
+        tracker_recordings_count = 0
 
     # ── Monitoring & reporting accordion tools ──
     # Each lazy-loads its existing admin page in an iframe (?embed=1).
@@ -8443,6 +8449,7 @@ def website_detail(request, website_id):
             tracker_recording_included=tracker_recording_included,
             tracker_last_event=tracker_last_event,
             tracker_last_session=tracker_last_session,
+            tracker_recordings_count=tracker_recordings_count,
             mon_tools=mon_tools,
         ),
     )

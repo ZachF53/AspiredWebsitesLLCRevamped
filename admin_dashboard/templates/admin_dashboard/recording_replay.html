@@ -1,18 +1,18 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}Replay — {{ client.firm_name }}{% endblock %}
+{% block title %}Replay — {{ website.name }}{% endblock %}
 
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
             <span class="eyebrow">
-                <a href="{% url 'admin_dashboard:recordings_list' client.id %}" class="admin-back-link">&larr; All recordings</a>
+                <a href="{% url 'admin_dashboard:recordings_list' website.id %}" class="admin-back-link">&larr; All recordings</a>
             </span>
             <h1 class="admin-page-title">Session Replay</h1>
             <p class="muted">
-                {{ client.firm_name }} ·
+                {{ website.name }} ·
                 <a href="{{ recording.page_url }}" target="_blank" rel="noopener">{{ recording.page_url|truncatechars:60 }}</a>
                 · Duration: {{ recording.duration_display }}
                 · Recorded {{ recording.created_at|date:"M j, Y H:i" }}
@@ -29,7 +29,7 @@
             </p>
         </div>
         <div class="admin-page-actions">
-            <a class="btn-secondary" href="{% url 'admin_dashboard:recording_download' client.id recording.id %}">⬇ Download HTML</a>
+            <a class="btn-secondary" href="{% url 'admin_dashboard:recording_download' website.id recording.id %}">⬇ Download HTML</a>
         </div>
     </div>
 
