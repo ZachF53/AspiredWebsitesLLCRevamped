@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 SCOPES = ' '.join([
     'https://www.googleapis.com/auth/business.manage',
     'https://www.googleapis.com/auth/webmasters.readonly',
+    # GA4 auto-provisioning: create properties/streams + grant client access.
+    'https://www.googleapis.com/auth/analytics.edit',
+    'https://www.googleapis.com/auth/analytics.manage.users',
     'https://www.googleapis.com/auth/userinfo.email',
 ])
 AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'

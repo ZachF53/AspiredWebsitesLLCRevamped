@@ -8348,6 +8348,7 @@ def website_detail(request, website_id):
             'stripe_hosting_subscription_id',
             'stripe_maintenance_subscription_id',
             'stripe_invoice_id', 'testimonial_url',
+            'ga4_measurement_id',
         )
         select_fields = (
             'status', 'stage', 'package', 'onboarding_status',

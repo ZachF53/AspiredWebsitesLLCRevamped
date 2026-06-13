@@ -211,6 +211,24 @@
         </div>
 
         <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Analytics (GA4)</h2></div>
+            <div class="admin-card__body">
+                <div class="form-row form-row--inline">
+                    <label class="form-row__label">Measurement ID</label>
+                    <input type="text" name="ga4_measurement_id" value="{{ website.ga4_measurement_id }}" class="form-control" placeholder="G-XXXXXXXXXX">
+                </div>
+                <p class="muted" style="font-size:.8rem;margin:.25rem 0 0;">
+                    {% if website.ga4_measurement_id %}
+                        Auto-created {{ website.ga4_provisioned_at|date:"M j, Y"|default:"" }} — paste this into the build's &lt;head&gt;.
+                        {% if website.ga4_property_id %}<br><a href="https://analytics.google.com/analytics/web/#/p{{ website.ga4_property_id|cut:'properties/' }}/" target="_blank" rel="noopener">Open in Google Analytics &rarr;</a>{% endif %}
+                    {% else %}
+                        Auto-provisions when the client completes intake (needs Google connected + GA4_ACCOUNT_ID set). You can also paste an ID manually.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Status &amp; Stage</h2></div>
             <div class="admin-card__body">
                 <div class="form-row form-row--inline">

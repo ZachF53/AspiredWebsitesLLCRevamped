@@ -885,6 +885,16 @@ def _on_intake_submitted(profile, project):
         logger.exception(
             'Droplet provisioning enqueue failed for %s', profile.pk)
 
+    # Auto-provision a GA4 property for this build (best-effort). `project`
+    # is the active Website; its Measurement ID lands in the build.
+    try:
+        if project is not None and getattr(project, 'id', None):
+            from reporting.tasks import provision_ga4_task
+            provision_ga4_task.delay(str(project.id))
+    except Exception:
+        logger.exception(
+            'GA4 provisioning enqueue failed for %s', profile.pk)
+
     # Confirmation email.
     try:
         send_intake_received_email(profile)

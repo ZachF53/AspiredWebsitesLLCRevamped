@@ -342,6 +342,14 @@ class Website(TimestampedModel):
     # the portal + emailed to the client. Cleared once the invoice is paid.
     final_invoice_url = models.URLField(blank=True)
 
+    # ── Google Analytics (GA4) — auto-provisioned at intake completion ──
+    # Property + web data stream created under the agency GA account via the
+    # operator's Google token. Measurement ID is dropped into the build.
+    ga4_property_id = models.CharField(max_length=80, blank=True)
+    ga4_stream_id = models.CharField(max_length=120, blank=True)
+    ga4_measurement_id = models.CharField(max_length=40, blank=True)
+    ga4_provisioned_at = models.DateTimeField(null=True, blank=True)
+
     # ── Maintenance state ──
     maintenance_active = models.BooleanField(default=False)
     maintenance_started_at = models.DateTimeField(null=True, blank=True)

@@ -728,3 +728,66 @@ class CheckKeywordRanksTests(TestCase):
         check_keyword_ranks()
         # Second keyword still got a record despite first one raising
         self.assertEqual(KeywordRankRecord.objects.count(), 1)
+
+
+@override_settings(GA4_ACCOUNT_ID='12345')
+class GA4ProvisionTests(TestCase):
+    """reporting.ga4.provision_ga4_for_website — create property + stream."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from clients.account_models import Account
+        u = User.objects.create_user(
+            username='ga4u', password='x', email='ga4u@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='GA4 LLC', website='https://ga4llc.com')
+        cls.account = Account.objects.get(legacy_client_profile=cls.profile)
+        cls.website = cls.account.websites.first()
+
+    def test_provisions_property_stream_and_stores_id(self):
+        prop = MagicMock(); prop.raise_for_status.return_value = None
+        prop.json.return_value = {'name': 'properties/999'}
+        stream = MagicMock(); stream.raise_for_status.return_value = None
+        stream.json.return_value = {
+            'name': 'properties/999/dataStreams/1',
+            'webStreamData': {'measurementId': 'G-TEST123'}}
+        access = MagicMock(); access.raise_for_status.return_value = None
+        with patch('reporting.ga4._operator_token', return_value=MagicMock()), \
+             patch('reporting.ga4.refresh_if_needed'), \
+             patch('reporting.ga4._auth_header',
+                   return_value={'Authorization': 'Bearer x'}), \
+             patch('reporting.ga4.requests.post',
+                   side_effect=[prop, stream, access]) as mpost:
+            from reporting.ga4 import provision_ga4_for_website
+            mid = provision_ga4_for_website(self.website)
+        self.assertEqual(mid, 'G-TEST123')
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.ga4_measurement_id, 'G-TEST123')
+        self.assertEqual(self.website.ga4_property_id, 'properties/999')
+        # property + stream + access binding = 3 POSTs
+        self.assertEqual(mpost.call_count, 3)
+
+    def test_idempotent_when_already_provisioned(self):
+        self.website.ga4_measurement_id = 'G-EXISTS'
+        self.website.save(update_fields=['ga4_measurement_id'])
+        with patch('reporting.ga4.requests.post') as mpost:
+            from reporting.ga4 import provision_ga4_for_website
+            r = provision_ga4_for_website(self.website)
+        self.assertEqual(r, 'G-EXISTS')
+        mpost.assert_not_called()
+
+    def test_skips_without_account_id(self):
+        with override_settings(GA4_ACCOUNT_ID=''):
+            with patch('reporting.ga4.requests.post') as mpost:
+                from reporting.ga4 import provision_ga4_for_website
+                r = provision_ga4_for_website(self.website)
+        self.assertIsNone(r)
+        mpost.assert_not_called()
+
+    def test_skips_without_operator_token(self):
+        with patch('reporting.ga4._operator_token', return_value=None), \
+             patch('reporting.ga4.requests.post') as mpost:
+            from reporting.ga4 import provision_ga4_for_website
+            r = provision_ga4_for_website(self.website)
+        self.assertIsNone(r)
+        mpost.assert_not_called()

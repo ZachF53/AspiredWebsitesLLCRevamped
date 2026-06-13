@@ -402,6 +402,11 @@ GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
 # Places API — powers the Google Maps lead scraper. See CLAUDE.md →
 # External APIs & Costs.
 GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
+# GA4 auto-provisioning — the agency's Google Analytics *account* id (digits
+# only, from GA Admin → Account Settings). New client properties are created
+# under it via the operator's Google token. Blank = provisioning is skipped
+# (logged, never errors).
+GA4_ACCOUNT_ID = env('GA4_ACCOUNT_ID', '')
 
 
 # ── Brave Search API ────────────────────────────────────────────────────────

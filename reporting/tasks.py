@@ -1116,3 +1116,16 @@ def snapshot_redis_clients_task():
         f'total={snapshot.total} categories={counts} '
         f'pruned={deleted}'
     )
+
+
+@shared_task
+def provision_ga4_task(website_id):
+    """Create the GA4 property + web stream for a Website at intake
+    completion. Best-effort; no-ops if Google isn't connected / configured."""
+    from clients.account_models import Website
+    from reporting.ga4 import provision_ga4_for_website
+    website = Website.objects.filter(id=website_id).first()
+    if website is None:
+        return 'no website'
+    mid = provision_ga4_for_website(website)
+    return f'ga4={mid or "skipped"}'
