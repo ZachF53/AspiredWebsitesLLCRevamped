@@ -84,17 +84,27 @@ def _active_project(request):
 def _portal_context(request, active_nav, **extra):
     """Common context for every portal page — drives the sidebar + badges."""
     profile = request.client_profile
-    # Project fields are now flat on ClientProfile (2026-05-25 refactor).
-    # `intake` lookup checks the new client FK first, falls back to the
-    # old project FK so legacy IntakeResponse rows (with client=NULL but
-    # project=<row>) still resolve until the data backfill catches them.
-    intake = getattr(profile, 'intake', None)
-    pending_revisions = profile.revisions.filter(status='pending').count()
-    open_tickets = profile.tickets.filter(
-        status__in=['open', 'in_progress']
-    ).count()
+    account = getattr(request, 'account', None)
+    website = getattr(request, 'website', None)
+
+    # Scope the badge queries to the active Website (per-build) when one
+    # is resolved, falling back to the legacy ClientProfile. `flt` works
+    # for every model that carries both the client + website_new FK.
+    scope = website or profile
+    flt = ({'website_new': website} if website is not None
+           else {'client': profile})
+
+    from .models import (
+        IntakeResponse, RevisionRequest, SiteChangelogEntry, SupportTicket,
+    )
+    intake = IntakeResponse.objects.filter(**flt).first()
+    pending_revisions = RevisionRequest.objects.filter(
+        **flt, status='pending').count()
+    open_tickets = SupportTicket.objects.filter(
+        **flt, status__in=['open', 'in_progress']).count()
     # Green-dot badge on the Activity Log nav item — new entries in last 7 days.
-    changelog_has_new = profile.changelog_entries.filter(
+    changelog_has_new = SiteChangelogEntry.objects.filter(
+        **flt,
         is_client_visible=True,
         created_at__gte=timezone.now() - timedelta(days=7),
     ).exists()
@@ -106,7 +116,7 @@ def _portal_context(request, active_nav, **extra):
         from reporting.models import VulnerabilityScan
         latest_scan = (
             VulnerabilityScan.objects
-            .filter(client=profile, status='complete')
+            .filter(**flt, status='complete')
             .order_by('-completed_at').first()
         )
         if latest_scan:
@@ -125,19 +135,19 @@ def _portal_context(request, active_nav, **extra):
     try:
         from .models import IntelligenceSuggestion
         portal_suggestions_pending = IntelligenceSuggestion.objects.filter(
-            client=profile, status='sent_to_client',
+            **flt, status='sent_to_client',
         ).exists()
     except Exception:
         # IntelligenceSuggestion table may not exist on a fresh
         # checkout — never break the chrome over a missing table.
         portal_suggestions_pending = False
 
-    # Intake-only mode — true while the client is in `pending_intake`.
+    # Intake-only mode — true while the build is in `pending_intake`.
     # Drives the portal base template's nav: when set, only the Intake
     # Form link and Sign Out are rendered. Prevents the confusing UX
     # of links that immediately redirect back to /portal/intake/.
     intake_only = (
-        getattr(profile, 'onboarding_status', '') == 'pending_intake')
+        getattr(scope, 'onboarding_status', '') == 'pending_intake')
 
     # Namecheap sandbox mode — when on, every domain action goes to
     # the sandbox registry (not real, not permanent). Surfaced on
@@ -154,11 +164,8 @@ def _portal_context(request, active_nav, **extra):
 
     # Phase C — surface Account + Website + the account's website
     # list so templates can render the "viewing: <site name>" header,
-    # a switch link, and account-vs-website nav distinctions. All
-    # nullable so legacy templates / fresh-install environments
-    # still render.
-    account = getattr(request, 'account', None)
-    website = getattr(request, 'website', None)
+    # a switch link, and account-vs-website nav distinctions. (account +
+    # website already resolved at the top of this function.)
     if account is not None:
         websites_list = list(account.websites.all().order_by('name'))
     else:
@@ -184,7 +191,7 @@ def _portal_context(request, active_nav, **extra):
         # Tier 2 — only show the Recordings nav link when the addon
         # is active for this client.
         'session_recording_nav_visible': bool(
-            profile.session_recording_enabled),
+            getattr(scope, 'session_recording_enabled', False)),
         'intake_only': intake_only,
         'namecheap_sandbox_mode': namecheap_sandbox_mode,
         # Phase C — Account / Website context.

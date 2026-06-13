@@ -411,8 +411,10 @@ class PortalChangelogTests(TestCase):
         self.assertNotContains(resp, 'April thing')
 
     def test_new_entry_dot_in_context(self):
+        site = self.profile.migrated_account.websites.first()
         SiteChangelogEntry.objects.create(
-            client=self.profile, title='Fresh', is_client_visible=True)
+            client=self.profile, website_new=site,
+            title='Fresh', is_client_visible=True)
         resp = self.client.get(self.url)
         self.assertTrue(resp.context['changelog_has_new'])
 
