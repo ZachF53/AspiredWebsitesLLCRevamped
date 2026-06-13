@@ -90,10 +90,21 @@ def billing_home(request):
                 customer=customer_id, limit=10).data
         except Exception:
             pass
+    default_pm_id = ''
+    if customer_id:
+        try:
+            from billing.stripe_helpers import (
+                get_customer_default_payment_method,
+            )
+            default_pm_id = get_customer_default_payment_method(
+                customer_id) or ''
+        except Exception:
+            pass
     return render(request, 'billing/portal_home.html', {
         'subscriptions': subscriptions,
         'payment_methods': payment_methods,
         'invoices': invoices,
+        'default_pm_id': default_pm_id,
         # Highlight the "Manage Billing" item in clients/base.html sidebar.
         'active_portal_nav': 'billing',
     })

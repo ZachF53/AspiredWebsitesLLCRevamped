@@ -52,37 +52,48 @@
     {% endif %}
 </section>
 
-{% comment %} ── Payment methods ── {% endcomment %}
+{% comment %} ── Payment methods (matches the Subscriptions page card style) ── {% endcomment %}
 <section class="portal-section">
-    <h2 class="portal-section__title">Payment methods</h2>
+    <div class="portal-section__head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <h2 class="portal-section__title" style="margin-bottom:0;">Payment methods</h2>
+        <a class="btn-primary btn-sm" href="{% url 'billing:add_card' %}">+ Add card</a>
+    </div>
+    <p class="form-hint form-hint--block">
+        The card marked <strong>Default</strong> is what we charge for every renewal.
+    </p>
+
     {% if payment_methods %}
-        <ul class="sub-list">
+        <ul class="pm-list">
             {% for pm in payment_methods %}
-                <li class="sub-card">
-                    <div class="sub-card__head">
-                        <h3 class="sub-card__title">{{ pm.card.brand|title }} •••• {{ pm.card.last4 }}</h3>
-                        <span class="sub-card__badge sub-card__badge--info">Exp {{ pm.card.exp_month }}/{{ pm.card.exp_year }}</span>
+                {% with card=pm.card %}
+                <li class="pm-card {% if pm.id == default_pm_id %}is-default{% endif %}">
+                    <div class="pm-card__visual">
+                        <span class="pm-card__brand">{{ card.brand|upper }}</span>
+                        <span class="pm-card__last4">•••• {{ card.last4 }}</span>
+                        <span class="pm-card__exp">{{ card.exp_month|stringformat:"02d" }}/{{ card.exp_year|stringformat:"02d"|slice:"-2:" }}</span>
                     </div>
-                    <div class="sub-card__actions">
-                        <form method="post" action="{% url 'billing:card_set_default' pm.id %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-link sub-card__link">Make default</button>
-                        </form>
-                        <form method="post" action="{% url 'billing:card_remove' pm.id %}"
-                              onsubmit="return confirm('Remove this card?');" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-link sub-card__link sub-card__link--danger">Remove</button>
-                        </form>
+                    <div class="pm-card__actions">
+                        {% if pm.id == default_pm_id %}
+                            <span class="pm-card__default-badge">Default</span>
+                        {% else %}
+                            <form method="post" action="{% url 'billing:card_set_default' pm.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-secondary btn-sm">Set as default</button>
+                            </form>
+                            <form method="post" action="{% url 'billing:card_remove' pm.id %}" style="display:inline;"
+                                  onsubmit="return confirm('Remove this card?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-link pm-card__remove">Remove</button>
+                            </form>
+                        {% endif %}
                     </div>
                 </li>
+                {% endwith %}
             {% endfor %}
         </ul>
     {% else %}
-        <p class="portal-empty">No cards on file.</p>
+        <p class="portal-empty">No cards on file. Click <strong>+ Add card</strong> to save one.</p>
     {% endif %}
-    <div style="margin-top:1rem;">
-        <a class="btn-primary btn-sm" href="{% url 'billing:add_card' %}">+ Add card</a>
-    </div>
 </section>
 
 {% comment %} ── Past invoices ── {% endcomment %}
