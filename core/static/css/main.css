@@ -13707,28 +13707,42 @@ button.htmx-request {
 
 .wd-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem;
     align-items: start;
     margin-bottom: 1.25rem;
 }
+@media (max-width: 1024px) {
+    .wd-grid { grid-template-columns: 1fr; }
+}
 .website-detail .wd-grid > .admin-card { margin-bottom: 0; }
 .wd-full { grid-column: 1 / -1; }
 
+/* The contract table uses the wide leads-list .lead-table component,
+   which forces min-width:1100px and overflows the card. Inside a
+   detail card it should just fit the column width. */
+.website-detail .admin-card__body .lead-table { min-width: 0; }
+.website-detail .admin-card__body .lead-table th,
+.website-detail .admin-card__body .lead-table td { padding: 0.5rem 0.6rem; }
+
 .website-detail .form-row--inline {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 1rem;
-    padding: 0.5rem 0;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+    padding: 0.6rem 0;
+    align-items: stretch;
     border-bottom: 1px solid var(--color-border-subtle, #2a2a2a);
 }
 .website-detail .form-row--inline:last-child { border-bottom: 0; }
 .website-detail .form-row__label {
+    display: block;
     color: var(--color-text-muted);
-    font-size: 0.875rem;
-    padding-top: 0.5rem;
+    font-size: 0.8rem;
+    padding-top: 0;
 }
+/* Stacked: every field/control fills the card width under its label. */
+.website-detail .form-row--inline .form-control,
+.website-detail .form-row--inline .form-row__field { width: 100%; }
 .website-detail .form-row__field-with-link {
     display: flex;
     gap: 0.5rem;
