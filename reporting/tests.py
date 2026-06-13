@@ -589,16 +589,12 @@ class AdminReportingPageTests(TestCase):
             self.assertEqual(
                 self.client.get(reverse(f'admin_dashboard:{name}')).status_code,
                 200, name)
-        for name in ['client_chatbot']:
+        site = self.cp.migrated_account.websites.first()
+        for name in ['website_chatbot', 'website_freshness']:
             self.assertEqual(
                 self.client.get(reverse(
-                    f'admin_dashboard:{name}', args=[self.cp.id])).status_code,
+                    f'admin_dashboard:{name}', args=[site.id])).status_code,
                 200, name)
-        site = self.cp.migrated_account.websites.first()
-        self.assertEqual(
-            self.client.get(reverse(
-                'admin_dashboard:website_freshness',
-                args=[site.id])).status_code, 200)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -268,9 +268,9 @@ urlpatterns = [
          views.toggle_auto_send_scans, name='toggle_auto_send_scans'),
 
     # Phase 5b — AI chatbot
-    path('clients/<uuid:client_id>/chatbot/', views.client_chatbot, name='client_chatbot'),
-    path('clients/<uuid:client_id>/chatbot/regenerate-prompt/', views.chatbot_regenerate_prompt, name='chatbot_regenerate_prompt'),
-    path('clients/<uuid:client_id>/chatbot/conversations/<uuid:conv_id>/', views.chatbot_conversation, name='chatbot_conversation'),
+    path('websites/<uuid:website_id>/chatbot/', views.website_chatbot, name='website_chatbot'),
+    path('websites/<uuid:website_id>/chatbot/regenerate-prompt/', views.chatbot_regenerate_prompt, name='chatbot_regenerate_prompt'),
+    path('websites/<uuid:website_id>/chatbot/conversations/<uuid:conv_id>/', views.chatbot_conversation, name='chatbot_conversation'),
     path('clients/<uuid:client_id>/testimonial/', views.testimonial_mark_received, name='testimonial_mark_received'),
 
     # Phase 7 Part 2 — referrals

@@ -6,7 +6,7 @@
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_chatbot' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }} chatbot</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_chatbot' website.id %}" class="admin-back-link">&larr; {{ website.name }} chatbot</a></span>
             <h1 class="admin-page-title">Conversation</h1>
             <p class="muted">{{ conversation.started_at|date:"M j, Y H:i" }} · session {{ conversation.session_id|truncatechars:16 }}</p>
         </div>

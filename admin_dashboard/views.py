@@ -2558,32 +2558,49 @@ def blog_detail(request, post_id):
 
 # ── AI chatbot configuration ────────────────────────────────────────────────
 
-@admin_required
-def client_chatbot(request, client_id):
-    """Configure a client's AI chatbot."""
-    from clients.models import ClientProfile
+def _chatbot_for_website(website):
+    """Resolve (or create) the ClientChatbot for a Website. Falls back to the
+    account's existing chatbot (client is O2O, so multi-website accounts share
+    one config until the FK flip)."""
     from reporting.models import ClientChatbot
+    bot = ClientChatbot.objects.filter(website_new=website).first()
+    if bot is not None:
+        return bot
+    cp = website.account.legacy_client_profile
+    if cp is None:
+        return None
+    bot = ClientChatbot.objects.filter(client=cp).first()
+    if bot is None:
+        bot = ClientChatbot.objects.create(client=cp, website_new=website)
+    return bot
+
+
+@admin_required
+def website_chatbot(request, website_id):
+    """Configure a website's AI chatbot."""
+    from clients.account_models import Website
 
     from .forms import ChatbotConfigForm
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    chatbot, _ = ClientChatbot.objects.get_or_create(client=client)
+    website = get_object_or_404(Website, id=website_id)
+    chatbot = _chatbot_for_website(website)
 
     if request.method == 'POST':
         form = ChatbotConfigForm(request.POST, instance=chatbot)
         if form.is_valid():
             form.save()
-            return redirect('admin_dashboard:client_chatbot', client_id=client.id)
+            return redirect(
+                'admin_dashboard:website_chatbot', website_id=website.id)
     else:
         form = ChatbotConfigForm(instance=chatbot)
 
     snippet = (
         f'<script src="{settings.SITE_BASE_URL}/static/js/aspired-chat.js" '
-        f'data-aspired-client="{client.id}" defer></script>'
+        f'data-aspired-client="{chatbot.client_id}" defer></script>'
     )
     return render(request, 'admin_dashboard/client_chatbot.html', _admin_context(
         'clients',
-        client=client,
+        website=website,
         chatbot=chatbot,
         form=form,
         snippet=snippet,
@@ -2593,14 +2610,14 @@ def client_chatbot(request, client_id):
 
 @admin_required
 @require_POST
-def chatbot_regenerate_prompt(request, client_id):
+def chatbot_regenerate_prompt(request, website_id):
     """Use Claude to write a system prompt from the client's info + FAQs."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.ai import MODEL_CONTENT, AIError, claude_complete
-    from reporting.models import ClientChatbot
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    chatbot, _ = ClientChatbot.objects.get_or_create(client=client)
+    website = get_object_or_404(Website, id=website_id)
+    chatbot = _chatbot_for_website(website)
+    client = chatbot.client
 
     project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
     intake = getattr(project, 'intake', None) if project else None
@@ -2625,21 +2642,22 @@ def chatbot_regenerate_prompt(request, client_id):
         chatbot.save(update_fields=['system_prompt', 'updated_at'])
     except AIError:
         logger.exception('Chatbot prompt regeneration failed')
-    return redirect('admin_dashboard:client_chatbot', client_id=client.id)
+    return redirect('admin_dashboard:website_chatbot', website_id=website.id)
 
 
 @admin_required
-def chatbot_conversation(request, client_id, conv_id):
+def chatbot_conversation(request, website_id, conv_id):
     """Full transcript of one chatbot conversation."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import ChatbotConversation
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    website = get_object_or_404(Website, id=website_id)
+    chatbot = _chatbot_for_website(website)
     conversation = get_object_or_404(
-        ChatbotConversation, id=conv_id, chatbot__client=client)
+        ChatbotConversation, id=conv_id, chatbot=chatbot)
     return render(request, 'admin_dashboard/chatbot_conversation.html',
                   _admin_context(
-                      'clients', client=client, conversation=conversation))
+                      'clients', website=website, conversation=conversation))
 
 
 @admin_required
@@ -8353,7 +8371,7 @@ def website_detail(request, website_id):
             {'label': 'Content Freshness', 'badge': fresh_badge,
              'url': reverse('admin_dashboard:website_freshness', args=[website.id])},
             {'label': 'Chatbot',
-             'url': reverse('admin_dashboard:client_chatbot', args=[cid])},
+             'url': reverse('admin_dashboard:website_chatbot', args=[website.id])},
             {'label': 'Changelog',
              'url': reverse('admin_dashboard:client_changelog', args=[cid])},
         ]

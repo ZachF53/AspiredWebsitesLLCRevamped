@@ -1,12 +1,12 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}{{ client.firm_name }} — Chatbot{% endblock %}
+{% block title %}{{ website.name }} — Chatbot{% endblock %}
 
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_detail' website.id %}" class="admin-back-link">&larr; {{ website.name }}</a></span>
             <h1 class="admin-page-title">AI Chatbot</h1>
             <p class="muted">
                 {{ chatbot.total_conversations }} conversation{{ chatbot.total_conversations|pluralize }}
@@ -55,7 +55,7 @@
     <section class="admin-card">
         <div class="admin-card__head">
             <h3 class="admin-card__title">System Prompt Builder</h3>
-            <form method="post" action="{% url 'admin_dashboard:chatbot_regenerate_prompt' client.id %}" class="cl-delete-form">
+            <form method="post" action="{% url 'admin_dashboard:chatbot_regenerate_prompt' website.id %}" class="cl-delete-form">
                 {% csrf_token %}
                 <button type="submit" class="btn-secondary">Regenerate System Prompt</button>
             </form>
@@ -86,7 +86,7 @@
                             <td>{{ conv.messages|length }}</td>
                             <td>{% if conv.lead_captured %}<span class="cl-badge cl-badge--blog_published">Lead</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                             <td class="lead-table__col-actions">
-                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:chatbot_conversation' client.id conv.id %}">View</a>
+                                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:chatbot_conversation' website.id conv.id %}">View</a>
                             </td>
                         </tr>
                     {% endfor %}
