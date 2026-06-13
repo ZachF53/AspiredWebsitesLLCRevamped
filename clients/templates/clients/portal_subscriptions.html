@@ -121,8 +121,33 @@
     {% endif %}
 </section>
 
-{# ── Maintenance upsell card (shown only when client has no maintenance sub) ── #}
-{% if upsell_state.show_upsell and upsell_tiers %}
+{# ── Pending maintenance opt-in (selected at booking, charged at Live) ── #}
+{% if pending_maintenance %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Maintenance plan — selected</h2>
+        <div class="sub-card">
+            <div class="sub-card__head">
+                <h3 class="sub-card__title">{{ pending_maintenance.tier_name }} maintenance</h3>
+                <span class="sub-card__badge sub-card__badge--info">Starts at launch</span>
+            </div>
+            <p style="margin:.5rem 0 0;">
+                You selected <strong>10% off the {{ pending_maintenance.tier_name }} maintenance plan</strong>.
+                Once we push your site to <strong>live</strong>, the card on file will be
+                auto-charged <strong>${{ pending_maintenance.discounted_price|floatformat:2 }}</strong>
+                for your first month — that's 10% off the regular
+                <strong>${{ pending_maintenance.full_price|floatformat:2 }}/{{ pending_maintenance.interval }}</strong>.
+                It renews at ${{ pending_maintenance.full_price|floatformat:2 }}/{{ pending_maintenance.interval }} after that, month-to-month.
+            </p>
+            <p class="portal-empty" style="margin:.75rem 0 0;">
+                Want to change or cancel this plan? Just
+                <a href="{% url 'clients:support' %}">contact us</a> and we'll take care of it.
+            </p>
+        </div>
+    </section>
+{% endif %}
+
+{# ── Maintenance upsell card (only when no plan is active OR pending) ── #}
+{% if upsell_state.show_upsell and upsell_tiers and not pending_maintenance %}
     <section class="maint-upsell-card">
         <div class="maint-upsell-card__pulse" aria-hidden="true"></div>
         <div class="maint-upsell-card__inner">

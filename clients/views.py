@@ -2294,9 +2294,43 @@ def portal_subscriptions(request):
         and sub.get('id') == profile.stripe_subscription_id
     )
 
+    # Pending maintenance opt-in — the client selected a maintenance plan
+    # (with the 10%-off-first-month promise) when booking, but it hasn't
+    # started yet (it auto-charges when we push the site to Live). Show a
+    # locked confirmation instead of the plan picker; changes go through us.
+    pending_maintenance = None
+    account = getattr(request, 'account', None)
+    if account is not None:
+        from decimal import ROUND_HALF_UP, Decimal
+
+        from billing.pricing_models import ServiceTier
+        for w in account.websites.all():
+            slug = (w.opted_in_maintenance_tier or '').strip()
+            if not slug:
+                continue
+            if w.maintenance_plans.filter(
+                    status__in=('active', 'awaiting_payment')).exists():
+                continue  # already started / billing — not pending anymore
+            tier = ServiceTier.objects.filter(
+                slug=slug, category='maintenance').first()
+            if tier is None:
+                continue
+            full = Decimal(tier.price)
+            discounted = (full * Decimal('0.90')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
+            pending_maintenance = {
+                'website_name': w.name,
+                'tier_name': tier.name,
+                'full_price': full,
+                'discounted_price': discounted,
+                'interval': tier.billing_interval or 'month',
+            }
+            break
+
     # Top-3 maintenance tiers for the upsell card's mini-comparison.
+    # Suppressed when a plan is already pending (they've chosen — no picker).
     upsell_tiers = []
-    if upsell_state['show_upsell']:
+    if upsell_state['show_upsell'] and pending_maintenance is None:
         upsell_tiers = list(_maintenance_tiers())
 
     ctx = _portal_context(
@@ -2310,6 +2344,7 @@ def portal_subscriptions(request):
         upsell_state=upsell_state,
         upsell_tiers=upsell_tiers,
         maintenance_cancel_pending=maintenance_cancel_pending,
+        pending_maintenance=pending_maintenance,
     )
     return render(request, 'clients/portal_subscriptions.html', ctx)
 
