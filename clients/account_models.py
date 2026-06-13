@@ -337,6 +337,10 @@ class Website(TimestampedModel):
         max_length=255, blank=True,
         help_text='One-time onboarding invoice ID for this build.',
     )
+    # Hosted Stripe pay-page URL for the remaining-balance (final 50%)
+    # invoice, issued at Pre-Launch. Surfaced as a "Pay balance" button in
+    # the portal + emailed to the client. Cleared once the invoice is paid.
+    final_invoice_url = models.URLField(blank=True)
 
     # ── Maintenance state ──
     maintenance_active = models.BooleanField(default=False)

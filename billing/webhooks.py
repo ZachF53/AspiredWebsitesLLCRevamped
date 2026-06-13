@@ -392,6 +392,19 @@ def _handle_invoice_paid(event):
         client.final_paid_at = timezone.now()
         client.save(update_fields=[
             'payment_status', 'final_paid_at', 'updated_at'])
+        # Mirror onto the per-website record + clear the portal pay button.
+        contract_id = (invoice.get('metadata') or {}).get('contract_id')
+        if contract_id:
+            from clients.models import Contract
+            contract = Contract.objects.filter(id=contract_id).first()
+            website = getattr(contract, 'website_new', None) if contract else None
+            if website is not None:
+                website.payment_status = 'fully_paid'
+                website.final_paid_at = timezone.now()
+                website.final_invoice_url = ''
+                website.save(update_fields=[
+                    'payment_status', 'final_paid_at',
+                    'final_invoice_url', 'updated_at'])
         logger.info('invoice.paid (final): client %s fully paid', client.pk)
     else:
         # Anything not explicitly 'final' is treated as the deposit.

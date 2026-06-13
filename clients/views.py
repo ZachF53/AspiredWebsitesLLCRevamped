@@ -376,12 +376,24 @@ def project_detail(request):
     timeline = []
     revisions = []
     support_window_left = None
+    final_pay_url = ''
+    final_due = None
     if project:
         timeline = _project_timeline(project)
         revisions = list(project.revisions.all())
         if project.stage == 'live' and project.support_window_ends:
             delta = (project.support_window_ends - timezone.localdate()).days
             support_window_left = delta
+        # Remaining-balance pay button — shown when the deposit is in but
+        # the final invoice is outstanding (issued at Pre-Launch).
+        if (getattr(project, 'payment_status', '') == 'deposit_paid'
+                and getattr(project, 'final_invoice_url', '')):
+            final_pay_url = project.final_invoice_url
+            from clients.models import Contract
+            c = (Contract.objects.filter(website_new=project, signed=True)
+                 .order_by('-created_at').first())
+            if c is not None and c.build_price:
+                final_due = c.final_amount
 
     from reporting.uptime_helpers import (
         get_current_status, get_uptime_chart_data, get_uptime_percentage,
@@ -397,6 +409,8 @@ def project_detail(request):
         timeline=timeline,
         revisions=revisions,
         support_window_left=support_window_left,
+        final_pay_url=final_pay_url,
+        final_due=final_due,
         uptime_status=get_current_status(profile),
         uptime_30=get_uptime_percentage(profile, 30),
         uptime_90=get_uptime_percentage(profile, 90),

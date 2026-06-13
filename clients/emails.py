@@ -620,6 +620,39 @@ def send_contract_signed_email(contract):
     )
 
 
+def send_final_invoice_email(client, contract, pay_url):
+    """Email the client the remaining-balance (final 50%) invoice link,
+    sent when the build reaches Pre-Launch. Best-effort."""
+    name = client.contact_name or client.firm_name
+    amount = ''
+    try:
+        amount = f'${contract.final_amount:,.2f}'
+    except Exception:
+        amount = ''
+    text_body = (
+        f'Hi {name},\n\n'
+        f'Your site is almost ready to launch! The remaining balance'
+        f'{" of " + amount if amount else ""} is now due before we take it '
+        f'live.\n\n'
+        f'Pay securely here:\n{pay_url}\n\n'
+        f'As soon as it clears, we\'ll launch your site.\n\n'
+        f'— Aspired Websites LLC\n'
+    )
+    send_branded(
+        subject='Your final invoice — Aspired Websites',
+        template='final_invoice',
+        context={
+            'name': name,
+            'amount': amount,
+            'pay_url': pay_url,
+            'preheader': 'Final balance due before launch.',
+        },
+        recipient_list=[client.user.email],
+        text_body=text_body,
+        secure=True,  # contains a payable invoice URL
+    )
+
+
 def send_welcome_email(client):
     """Sent once the deposit clears — client is active, intake unlocked."""
     name = client.contact_name or client.firm_name

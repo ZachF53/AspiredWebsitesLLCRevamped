@@ -1,0 +1,25 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your final invoice{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ name }} — your site is almost live.</h1>
+
+<p style="margin:0 0 24px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your remaining balance{% if amount %} of <strong>{{ amount }}</strong>{% endif %} is now due. Once it clears, we'll take your site live.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ pay_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Pay final balance →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    As soon as your payment is received, we'll launch your site. Questions? Just reply to this email.
+</p>
+{% endblock %}

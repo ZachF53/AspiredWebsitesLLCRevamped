@@ -8041,10 +8041,26 @@ def _issue_website_final_invoice(website):
     if cp is None or contract is None:
         return
     try:
-        create_final_invoice(cp, contract)
+        invoice = create_final_invoice(cp, contract)
     except Exception:
         logger.exception(
             'final invoice failed for website %s', website.pk)
+        return
+    # Store the hosted pay URL on the website (portal button) and email our
+    # own branded notice — Stripe doesn't send invoice emails in test mode,
+    # and our email is on-brand in prod too.
+    pay_url = getattr(invoice, 'hosted_invoice_url', '') or ''
+    if pay_url:
+        website.final_invoice_url = pay_url
+        website.stripe_invoice_id = getattr(invoice, 'id', '') or ''
+        website.save(update_fields=[
+            'final_invoice_url', 'stripe_invoice_id', 'updated_at'])
+    try:
+        from clients.emails import send_final_invoice_email
+        send_final_invoice_email(cp, contract, pay_url)
+    except Exception:
+        logger.exception(
+            'final invoice email failed for website %s', website.pk)
 
 
 def _start_website_live_plans(website):

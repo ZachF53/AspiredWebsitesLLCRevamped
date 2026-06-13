@@ -1116,10 +1116,19 @@ class WebsiteContractAndPlanTests(TestCase):
             deposit_amount=Decimal('1250'), contract_text='x', signed=True)
         url = reverse('admin_dashboard:website_change_stage',
                       args=[self.website.id])
-        with patch('billing.stripe_helpers.create_final_invoice') as mock_final, \
+        from unittest.mock import MagicMock
+        inv = MagicMock()
+        inv.id = 'in_final'
+        inv.hosted_invoice_url = 'https://pay.stripe.test/in_final'
+        with patch('billing.stripe_helpers.create_final_invoice',
+                   return_value=inv) as mock_final, \
+             patch('clients.emails.send_final_invoice_email'), \
              patch('clients.emails.send_stage_change_email'):
             self.client.post(url, data={'stage': 'pre_launch'})
         mock_final.assert_called_once()
+        self.website.refresh_from_db()
+        self.assertEqual(
+            self.website.final_invoice_url, 'https://pay.stripe.test/in_final')
 
     def test_webhook_clears_awaiting_payment(self):
         from billing.webhooks import _activate_website_plan_sub

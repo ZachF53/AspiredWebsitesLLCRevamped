@@ -125,8 +125,10 @@ def _create_build_invoice(client, contract, kind, description):
         currency='usd',
         description=description,
     )
+    # Finalize (not send_invoice): this makes the invoice payable and gives
+    # us hosted_invoice_url, but does NOT trigger Stripe's own email. We send
+    # our own branded email with the pay link instead.
     invoice = stripe.Invoice.finalize_invoice(invoice.id)
-    stripe.Invoice.send_invoice(invoice.id)
     return invoice
 
 
