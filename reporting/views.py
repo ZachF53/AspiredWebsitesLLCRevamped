@@ -93,6 +93,16 @@ def _hash_ip(request):
         (ip + settings.SECRET_KEY).encode('utf-8')).hexdigest()
 
 
+def _primary_website(client):
+    """The client's primary (oldest) Website, or None — used to stamp the
+    per-website FK on ingested analytics during the Phase-D teardown."""
+    try:
+        acct = client.migrated_account
+    except Exception:
+        return None
+    return acct.websites.order_by('created_at').first() if acct else None
+
+
 @cors_post
 @csrf_exempt
 @ratelimit(key='ip', rate='100/m', block=True)
@@ -120,6 +130,7 @@ def track_conversion_event(request):
 
     ConversionEvent.objects.create(
         client=client,
+        website_new=_primary_website(client),
         event_type=event_type,
         element_id=str(data.get('element_id') or '')[:100],
         element_text=str(data.get('element_text') or '')[:100],
@@ -170,6 +181,7 @@ def track_batch(request):
     client = ClientProfile.objects.filter(id=client_id).first()
     if client is None or not events:
         return _ok()
+    site = _primary_website(client)
 
     # Pull the page_summary event (always last on the queue but
     # don't depend on position — find by type).
@@ -207,6 +219,7 @@ def track_batch(request):
     try:
         PageSession.objects.create(
             client=client,
+            website_new=site,
             session_id=session_id,
             page_url=page_url[:2000],
             page_title=page_title[:200],
@@ -239,6 +252,7 @@ def track_batch(request):
         try:
             ConversionEvent.objects.create(
                 client=client,
+                website_new=site,
                 event_type=etype,
                 element_id=str(e.get('element_id') or '')[:100],
                 element_text=str(e.get('element_text') or '')[:100],
