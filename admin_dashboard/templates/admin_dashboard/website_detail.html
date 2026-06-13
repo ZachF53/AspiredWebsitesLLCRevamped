@@ -379,18 +379,29 @@
                         {% for v, l in payment_statuses %}<option value="{{ v }}"{% if v == website.payment_status %} selected{% endif %}>{{ l }}</option>{% endfor %}
                     </select>
                 </div>
-                <div class="form-row form-row--inline">
-                    <label class="form-row__label">Hosting sub ID</label>
-                    <input type="text" name="stripe_hosting_subscription_id" value="{{ website.stripe_hosting_subscription_id }}" class="form-control">
-                </div>
-                <div class="form-row form-row--inline">
-                    <label class="form-row__label">Maintenance sub ID</label>
-                    <input type="text" name="stripe_maintenance_subscription_id" value="{{ website.stripe_maintenance_subscription_id }}" class="form-control">
-                </div>
-                <div class="form-row form-row--inline">
-                    <label class="form-row__label">Onboarding invoice ID</label>
-                    <input type="text" name="stripe_invoice_id" value="{{ website.stripe_invoice_id }}" class="form-control">
-                </div>
+                {% comment %}
+                    Stripe IDs are set automatically by checkout/webhooks and
+                    almost never hand-edited — tuck them in an accordion so the
+                    card isn't cluttered. They still submit with the form when
+                    collapsed.
+                {% endcomment %}
+                <details class="wd-advanced">
+                    <summary class="wd-advanced__summary">Stripe IDs (advanced)</summary>
+                    <div class="wd-advanced__body">
+                        <div class="form-row form-row--inline">
+                            <label class="form-row__label">Hosting sub ID</label>
+                            <input type="text" name="stripe_hosting_subscription_id" value="{{ website.stripe_hosting_subscription_id }}" class="form-control">
+                        </div>
+                        <div class="form-row form-row--inline">
+                            <label class="form-row__label">Maintenance sub ID</label>
+                            <input type="text" name="stripe_maintenance_subscription_id" value="{{ website.stripe_maintenance_subscription_id }}" class="form-control">
+                        </div>
+                        <div class="form-row form-row--inline">
+                            <label class="form-row__label">Onboarding invoice ID</label>
+                            <input type="text" name="stripe_invoice_id" value="{{ website.stripe_invoice_id }}" class="form-control">
+                        </div>
+                    </div>
+                </details>
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Maintenance active</label>
                     <label class="checkbox-row">

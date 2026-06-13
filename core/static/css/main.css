@@ -13757,6 +13757,31 @@ button.htmx-request {
 .wd-progress__summary .admin-card__title { margin: 0; }
 .wd-progress__current { margin-left: auto; }
 
+/* === Inline "advanced" accordion (e.g. Stripe IDs in a card) === */
+.wd-advanced {
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    margin: 0.4rem 0;
+}
+.wd-advanced__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.6rem 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    user-select: none;
+}
+.wd-advanced__summary::-webkit-details-marker { display: none; }
+.wd-advanced__summary::before {
+    content: '▸';
+    transition: transform 0.15s ease;
+    font-size: 0.75rem;
+}
+.wd-advanced[open] .wd-advanced__summary::before { transform: rotate(90deg); }
+
 /* === Conversion tracker (inline) === */
 .wd-snippet {
     display: flex;

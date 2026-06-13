@@ -847,6 +847,21 @@ def _on_intake_submitted(profile, project):
         'updated_at',
     ])
 
+    # Mirror the intake-complete flag onto the per-website record. The
+    # ClientProfile above gates the portal, but the Website's OWN
+    # onboarding_status is what the admin Website page shows — without
+    # this it stays "Pending Intake" forever after the client submits.
+    # Only advance from pending_intake, never downgrade a later state.
+    try:
+        from .account_models import Website
+        if isinstance(project, Website) and (
+                project.onboarding_status == 'pending_intake'):
+            project.onboarding_status = 'intake_complete'
+            project.save(update_fields=['onboarding_status', 'updated_at'])
+    except Exception:
+        logger.exception(
+            'Website onboarding_status sync failed for %s', profile.pk)
+
     # Copy any client-uploaded intake files (logo + photos) into the
     # portal Files page so they live alongside everything else the
     # client has sent us. Best-effort — never block intake on file
