@@ -377,7 +377,6 @@ def social_channels(request):
 
 @client_required
 def project_detail(request):
-    profile = request.client_profile
     project = _active_project(request)
 
     timeline = []
@@ -405,7 +404,7 @@ def project_detail(request):
     from reporting.uptime_helpers import (
         get_current_status, get_uptime_chart_data, get_uptime_percentage,
     )
-    uptime_chart = get_uptime_chart_data(profile, 30)
+    uptime_chart = get_uptime_chart_data(project, 30) if project else []
     peak_ms = max(
         (d['avg_response_ms'] or 0 for d in uptime_chart), default=0) or 1
     for day in uptime_chart:
