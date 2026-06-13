@@ -1,0 +1,101 @@
+"""
+Backfill `website_new` / `account_new` FKs from the legacy `client`
+(ClientProfile) FK across every model that still carries both.
+
+Part of the Phase-D ClientProfile teardown: once every dependent row
+points at an Account/Website, the legacy `client`/`project` columns can
+be dropped without orphaning data.
+
+Mapping rule:
+  - account_new  = client.migrated_account
+  - website_new  = that account's PRIMARY website (oldest by created_at)
+
+Multi-website accounts: historical client-level rows can't be split per
+site, so they attach to the primary website. Acceptable — this data is
+disposable (pre-launch clients) and going forward collection is
+per-website.
+
+Idempotent + dry-run by default. Run with --apply to write.
+"""
+
+from django.apps import apps
+from django.core.management.base import BaseCommand
+
+
+class Command(BaseCommand):
+    help = "Backfill website_new/account_new from the legacy client FK."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--apply', action='store_true',
+            help='Write changes (default: dry-run, no writes).')
+
+    def handle(self, *args, **opts):
+        apply = opts['apply']
+        from clients.account_models import Account
+
+        # account by legacy ClientProfile id
+        acct_by_cp = {
+            a.legacy_client_profile_id: a
+            for a in Account.objects.filter(
+                legacy_client_profile__isnull=False)
+        }
+        # primary (oldest) website per account
+        primary_site = {}
+        for a in Account.objects.all():
+            w = a.websites.order_by('created_at').first()
+            if w:
+                primary_site[a.id] = w
+
+        self.stdout.write(
+            f'Accounts: {Account.objects.count()} | '
+            f'CP->account map: {len(acct_by_cp)} | '
+            f'accounts with a website: {len(primary_site)}')
+        self.stdout.write('DRY RUN - no writes\n' if not apply
+                          else 'APPLYING changes\n')
+
+        total = 0
+        for model in apps.get_models():
+            field_names = {f.name for f in model._meta.get_fields()}
+            # Must have a `client` FK pointing at ClientProfile.
+            client_field = next(
+                (f for f in model._meta.get_fields()
+                 if f.name == 'client' and getattr(f, 'related_model', None)
+                 and f.related_model.__name__ == 'ClientProfile'), None)
+            if client_field is None:
+                continue
+            do_website = 'website_new' in field_names
+            do_account = 'account_new' in field_names
+            if not (do_website or do_account):
+                continue
+
+            label = f'{model._meta.app_label}.{model.__name__}'
+            qs = model.objects.filter(client__isnull=False)
+            fixed_w = fixed_a = skipped = 0
+            for row in qs.iterator():
+                acct = acct_by_cp.get(row.client_id)
+                if acct is None:
+                    skipped += 1
+                    continue
+                changed = []
+                if do_account and getattr(row, 'account_new_id', None) is None:
+                    row.account_new = acct
+                    changed.append('account_new')
+                    fixed_a += 1
+                if do_website and getattr(row, 'website_new_id', None) is None:
+                    site = primary_site.get(acct.id)
+                    if site is not None:
+                        row.website_new = site
+                        changed.append('website_new')
+                        fixed_w += 1
+                if changed and apply:
+                    row.save(update_fields=changed)
+            if fixed_w or fixed_a or skipped:
+                total += fixed_w + fixed_a
+                self.stdout.write(
+                    f'  {label}: website_new+={fixed_w} '
+                    f'account_new+={fixed_a} skipped(no account)={skipped}')
+
+        self.stdout.write(
+            f'\nTotal field writes {"applied" if apply else "pending"}: '
+            f'{total}')
