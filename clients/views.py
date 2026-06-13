@@ -961,8 +961,8 @@ def _on_intake_submitted(profile, project):
 
 @client_required
 def files(request):
-    profile = request.client_profile
-    docs = profile.documents.all()
+    project = _active_project(request)
+    docs = list(project.documents.all()) if project else []
     ctx = _portal_context(
         request, 'files',
         docs_to_client=[d for d in docs if d.direction == 'to_client'],
@@ -974,14 +974,15 @@ def files(request):
 
 @client_required
 def file_upload(request):
-    profile = request.client_profile
+    project = _active_project(request)
     if request.method == 'POST':
         form = FileUploadForm(request.POST, request.FILES)
         if form.is_valid():
             doc = form.save(commit=False)
-            doc.client = profile
-            # ClientDocument.project is a vestigial nullable FK being
-            # dropped in Phase 3 — leave it None.
+            # client FK retained (table not dropped) as a bridge; the
+            # per-website FK is the one reads now use.
+            doc.client = request.client_profile
+            doc.website_new = getattr(request, 'website', None)
             doc.direction = 'from_client'
             doc.uploaded_by = request.user
             doc.save()
@@ -989,7 +990,7 @@ def file_upload(request):
             return redirect('clients:files')
         ctx = _portal_context(request, 'files', upload_form=form,
                               docs_to_client=[], docs_from_client=[])
-        docs = profile.documents.all()
+        docs = list(project.documents.all()) if project else []
         ctx['docs_to_client'] = [d for d in docs if d.direction == 'to_client']
         ctx['docs_from_client'] = [d for d in docs if d.direction == 'from_client']
         return render(request, 'clients/files.html', ctx)
@@ -1044,19 +1045,20 @@ def revision_new(request):
         form = RevisionForm(request.POST)
         if form.is_valid():
             revision = form.save(commit=False)
-            # `client` is the canonical FK; `project` kept temporarily
-            # for back-compat readers (will be dropped in Phase 3).
+            # website_new is the canonical per-build FK now; client kept
+            # as a bridge (table not dropped).
             revision.client = profile
+            revision.website_new = getattr(request, 'website', None)
             revision.source = 'aspired_portal'
             revision.counts_against_limit = revision.is_major
             revision.save()
 
             if revision.is_major:
-                profile.revision_count += 1
-                profile.save(update_fields=[
+                project.revision_count += 1
+                project.save(update_fields=[
                     'revision_count', 'updated_at'])
 
-            if profile.revision_count > profile.revision_limit:
+            if project.revision_count > project.revision_limit:
                 # Out of scope — bill it before work begins.
                 revision.status = 'out_of_scope'
                 revision.save(update_fields=['status', 'updated_at'])
