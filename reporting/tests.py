@@ -264,37 +264,41 @@ class AdminMonitoringPageTests(TestCase):
         self.assertEqual(
             self.client.get(reverse('admin_dashboard:client_list')).status_code,
             200)
-        for name in ['client_keywords',
-                     'client_conversions', 'client_tracker']:
+        for name in ['client_conversions', 'client_tracker']:
             resp = self.client.get(
                 reverse(f'admin_dashboard:{name}', args=[self.cp.id]))
             self.assertEqual(resp.status_code, 200, name)
-        # Per-website monitoring (Phase D): uptime is website-scoped now.
+        # Per-website monitoring (Phase D): uptime + keywords are
+        # website-scoped now.
         site = self.cp.migrated_account.websites.first()
-        resp = self.client.get(
-            reverse('admin_dashboard:website_uptime', args=[site.id]))
-        self.assertEqual(resp.status_code, 200)
+        for name in ['website_uptime', 'website_keywords']:
+            resp = self.client.get(
+                reverse(f'admin_dashboard:{name}', args=[site.id]))
+            self.assertEqual(resp.status_code, 200, name)
         # client_detail is retired — now redirects to the account page.
         resp = self.client.get(
             reverse('admin_dashboard:client_detail', args=[self.cp.id]))
         self.assertEqual(resp.status_code, 302)
 
     def test_keyword_add(self):
+        site = self.cp.migrated_account.websites.first()
         resp = self.client.post(
-            reverse('admin_dashboard:keyword_add', args=[self.cp.id]),
+            reverse('admin_dashboard:keyword_add', args=[site.id]),
             {'keyword': 'family law attorney', 'target_url': '', 'notes': ''})
         self.assertRedirects(resp, reverse(
-            'admin_dashboard:client_keywords', args=[self.cp.id]))
+            'admin_dashboard:website_keywords', args=[site.id]))
         self.assertTrue(TrackedKeyword.objects.filter(
-            client=self.cp, keyword='family law attorney').exists())
+            website_new=site, keyword='family law attorney').exists())
 
     def test_keyword_add_rejects_duplicate(self):
-        TrackedKeyword.objects.create(client=self.cp, keyword='dup kw')
+        site = self.cp.migrated_account.websites.first()
+        TrackedKeyword.objects.create(
+            client=self.cp, website_new=site, keyword='dup kw')
         self.client.post(
-            reverse('admin_dashboard:keyword_add', args=[self.cp.id]),
+            reverse('admin_dashboard:keyword_add', args=[site.id]),
             {'keyword': 'dup kw', 'target_url': '', 'notes': ''})
         self.assertEqual(TrackedKeyword.objects.filter(
-            client=self.cp, keyword='dup kw').count(), 1)
+            website_new=site, keyword='dup kw').count(), 1)
 
     def test_tracker_snippet_contains_client_id(self):
         resp = self.client.get(

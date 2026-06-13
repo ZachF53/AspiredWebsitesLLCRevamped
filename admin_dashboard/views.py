@@ -1994,18 +1994,18 @@ def website_uptime(request, website_id):
 
 
 @admin_required
-def client_keywords(request, client_id):
-    """Keyword rank tracker for one client + add-keyword form."""
-    from clients.models import ClientProfile
+def website_keywords(request, website_id):
+    """Keyword rank tracker for one website + add-keyword form."""
+    from clients.account_models import Website
     from reporting.keyword_helpers import build_keyword_rows
 
     from .forms import KeywordForm
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    website = get_object_or_404(Website, id=website_id)
     return render(request, 'admin_dashboard/client_keywords.html', _admin_context(
         'clients',
-        client=client,
-        keyword_rows=build_keyword_rows(client),
+        website=website,
+        keyword_rows=build_keyword_rows(website),
         form=KeywordForm(),
         checked=request.GET.get('checked', ''),
     ))
@@ -2013,46 +2013,51 @@ def client_keywords(request, client_id):
 
 @admin_required
 @require_POST
-def keyword_add(request, client_id):
-    """Add a tracked keyword for a client."""
-    from clients.models import ClientProfile
+def keyword_add(request, website_id):
+    """Add a tracked keyword for a website."""
+    from clients.account_models import Website
     from reporting.keyword_helpers import build_keyword_rows
+    from reporting.models import TrackedKeyword
 
     from .forms import KeywordForm
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    website = get_object_or_404(Website, id=website_id)
     form = KeywordForm(request.POST)
-    form.instance.client = client
+    form.instance.website_new = website
+    # `client` FK is still non-null during the teardown — bridge it to the
+    # account's legacy profile until the FK flip drops it.
+    form.instance.client = website.account.legacy_client_profile
     if form.is_valid():
-        # client isn't a form field, so the (client, keyword) unique_together
-        # check is skipped by ModelForm — verify it explicitly here.
-        if client.tracked_keywords.filter(
+        # client/website aren't form fields, so the unique check is skipped
+        # by ModelForm — verify per-website explicitly here.
+        if TrackedKeyword.objects.filter(
+                website_new=website,
                 keyword=form.cleaned_data['keyword']).exists():
             form.add_error(
-                'keyword', 'This keyword is already tracked for this client.')
+                'keyword', 'This keyword is already tracked for this website.')
         else:
             form.save()
-            return redirect('admin_dashboard:client_keywords',
-                            client_id=client.id)
+            return redirect('admin_dashboard:website_keywords',
+                            website_id=website.id)
     return render(request, 'admin_dashboard/client_keywords.html', _admin_context(
         'clients',
-        client=client,
-        keyword_rows=build_keyword_rows(client),
+        website=website,
+        keyword_rows=build_keyword_rows(website),
         form=form,
     ))
 
 
 @admin_required
 @require_POST
-def keyword_run_check(request, client_id):
+def keyword_run_check(request, website_id):
     """
     Manual 'Run Check Now'. Live ranks need Google Search Console OAuth
     (Phase 4) — until then this reports the gap rather than failing.
     """
-    from clients.models import ClientProfile
-    get_object_or_404(ClientProfile, id=client_id)
+    from clients.account_models import Website
+    get_object_or_404(Website, id=website_id)
     return redirect(
-        f"{reverse('admin_dashboard:client_keywords', args=[client_id])}"
+        f"{reverse('admin_dashboard:website_keywords', args=[website_id])}"
         f"?checked=gsc_unavailable"
     )
 
@@ -8330,7 +8335,7 @@ def website_detail(request, website_id):
             {'label': 'Uptime',
              'url': reverse('admin_dashboard:website_uptime', args=[website.id])},
             {'label': 'Keywords',
-             'url': reverse('admin_dashboard:client_keywords', args=[cid])},
+             'url': reverse('admin_dashboard:website_keywords', args=[website.id])},
             {'label': 'Conversions',
              'url': reverse('admin_dashboard:client_conversions', args=[cid])},
             {'label': 'Content Freshness', 'badge': fresh_badge,

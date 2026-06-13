@@ -1,16 +1,16 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}{{ client.firm_name }} — Keywords{% endblock %}
+{% block title %}{{ website.name }} — Keywords{% endblock %}
 
 {% block content %}
 <div class="admin-container">
     <div class="admin-page-header">
         <div>
-            <span class="eyebrow"><a href="{% url 'admin_dashboard:client_detail' client.id %}" class="admin-back-link">&larr; {{ client.firm_name }}</a></span>
+            <span class="eyebrow"><a href="{% url 'admin_dashboard:website_detail' website.id %}" class="admin-back-link">&larr; {{ website.name }}</a></span>
             <h1 class="admin-page-title">Keyword Rankings</h1>
         </div>
         <div class="admin-page-actions">
-            <form method="post" action="{% url 'admin_dashboard:keyword_run_check' client.id %}" class="cl-delete-form">
+            <form method="post" action="{% url 'admin_dashboard:keyword_run_check' website.id %}" class="cl-delete-form">
                 {% csrf_token %}
                 <button type="submit" class="btn-secondary">Run Check Now</button>
             </form>
@@ -27,7 +27,7 @@
 
     <section class="admin-card">
         <h3 class="admin-card__title">Add a Keyword</h3>
-        <form method="post" action="{% url 'admin_dashboard:keyword_add' client.id %}" class="form">
+        <form method="post" action="{% url 'admin_dashboard:keyword_add' website.id %}" class="form">
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="form-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
             <div class="cl-form-grid">
@@ -75,7 +75,7 @@
             </table>
         </div>
     {% else %}
-        <div class="admin-empty"><p>No keywords tracked for {{ client.firm_name }} yet.</p></div>
+        <div class="admin-empty"><p>No keywords tracked for {{ website.name }} yet.</p></div>
     {% endif %}
 </div>
 {% endblock %}
