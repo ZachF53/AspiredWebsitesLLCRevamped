@@ -2245,6 +2245,14 @@ def client_toggle_session_recording(request, client_id):
         not client.session_recording_enabled)
     client.save(update_fields=[
         'session_recording_enabled', 'updated_at'])
+    # Honor ?next= (e.g. the inline tracker card on the Website page)
+    # as long as it's a safe same-host path.
+    from django.utils.http import url_has_allowed_host_and_scheme
+    nxt = request.POST.get('next') or ''
+    if nxt and url_has_allowed_host_and_scheme(
+            nxt, allowed_hosts={request.get_host()},
+            require_https=request.is_secure()):
+        return redirect(nxt)
     return redirect('admin_dashboard:client_tracker',
                     client_id=client.id)
 
@@ -8465,6 +8473,67 @@ def website_detail(request, website_id):
         list(website.maintenance_plans.all())
         + list(website.social_media_plans.all()))
 
+    # ── Tracker snippet (inline on this page) ──
+    # Mirrors client_tracker: one snippet forever, session recording
+    # (Tier 2) gated server-side. Resolves via the legacy ClientProfile
+    # because the tracker + conversion/session data still live there
+    # (per-website split is Phase D). Degrades to None when the website
+    # has no legacy mirror yet.
+    tracker_snippet = None
+    tracker_recording_active = False
+    tracker_recording_included = False
+    tracker_last_event = None
+    tracker_last_session = None
+    if legacy_cp is not None:
+        base_url = settings.SITE_BASE_URL
+        tracker_snippet = (
+            f'<script src="{base_url}/static/js/aspired-tracker.js" '
+            f'data-aspired-client="{legacy_cp.id}" defer></script>')
+        tracker_recording_active = bool(legacy_cp.session_recording_enabled)
+        try:
+            from billing.pricing_models import AddonPricing
+            addon = AddonPricing.objects.filter(
+                slug='addon-session-recording').first()
+            if addon:
+                tracker_recording_included = addon.is_included_for(
+                    legacy_cp.package)
+        except Exception:
+            tracker_recording_included = False
+        try:
+            from reporting.models import ConversionEvent, PageSession
+            tracker_last_event = ConversionEvent.objects.filter(
+                client=legacy_cp).first()
+            tracker_last_session = PageSession.objects.filter(
+                client=legacy_cp).first()
+        except Exception:
+            pass
+
+    # ── Monitoring & reporting accordion tools ──
+    # Each lazy-loads its existing admin page in an iframe (?embed=1).
+    # Data resolves via legacy_cp (per-website split is Phase D).
+    # Session Recordings deliberately omitted — it's a media list with
+    # its own page, linked from the Conversion Tracker card instead.
+    mon_tools = []
+    if legacy_cp is not None:
+        cid = legacy_cp.id
+        fresh_badge = ''
+        if freshness_report and freshness_report.pages_needing_update:
+            fresh_badge = f'{freshness_report.pages_needing_update} flagged'
+        mon_tools = [
+            {'label': 'Uptime',
+             'url': reverse('admin_dashboard:client_uptime', args=[cid])},
+            {'label': 'Keywords',
+             'url': reverse('admin_dashboard:client_keywords', args=[cid])},
+            {'label': 'Conversions',
+             'url': reverse('admin_dashboard:client_conversions', args=[cid])},
+            {'label': 'Content Freshness', 'badge': fresh_badge,
+             'url': reverse('admin_dashboard:client_freshness', args=[cid])},
+            {'label': 'Chatbot',
+             'url': reverse('admin_dashboard:client_chatbot', args=[cid])},
+            {'label': 'Changelog',
+             'url': reverse('admin_dashboard:client_changelog', args=[cid])},
+        ]
+
     return render(
         request, 'admin_dashboard/website_detail.html',
         _admin_context(
@@ -8495,6 +8564,12 @@ def website_detail(request, website_id):
             intake_needs_admin_complete=intake_needs_admin_complete,
             legacy_cp=legacy_cp,
             freshness_report=freshness_report,
+            tracker_snippet=tracker_snippet,
+            tracker_recording_active=tracker_recording_active,
+            tracker_recording_included=tracker_recording_included,
+            tracker_last_event=tracker_last_event,
+            tracker_last_session=tracker_last_session,
+            mon_tools=mon_tools,
         ),
     )
 

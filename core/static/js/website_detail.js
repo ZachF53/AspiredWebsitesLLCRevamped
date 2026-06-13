@@ -62,3 +62,53 @@
         if (e.key === 'Escape' && !modal.hidden) { hide(); }
     });
 })();
+
+/**
+ * Monitoring accordion — lazy-load each tool's iframe the first time
+ * its <details> panel is opened. The iframe carries the real URL on
+ * data-src and stays empty until needed, so opening the page doesn't
+ * fire six embedded page loads at once.
+ */
+(function () {
+    var tools = document.querySelectorAll('details.wd-tool');
+    Array.prototype.forEach.call(tools, function (d) {
+        d.addEventListener('toggle', function () {
+            if (!d.open) { return; }
+            var frame = d.querySelector('iframe.wd-tool__frame');
+            if (frame && !frame.src && frame.dataset.src) {
+                frame.src = frame.dataset.src;
+            }
+        });
+    });
+})();
+
+/**
+ * Copy-to-clipboard for elements flagged with data-copy-target="<id>".
+ * Copies that element's text and briefly flips the button label.
+ */
+(function () {
+    var btns = document.querySelectorAll('[data-copy-target]');
+    Array.prototype.forEach.call(btns, function (btn) {
+        btn.addEventListener('click', function () {
+            var el = document.getElementById(btn.dataset.copyTarget);
+            if (!el) { return; }
+            var text = el.textContent || '';
+            var done = function () {
+                var orig = btn.textContent;
+                btn.textContent = 'Copied';
+                setTimeout(function () { btn.textContent = orig; }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done, done);
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(ta);
+                done();
+            }
+        });
+    });
+})();

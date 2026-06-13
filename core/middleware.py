@@ -164,6 +164,18 @@ class SecurityHeadersMiddleware:
             response['Content-Security-Policy'] = CSP_REPLAY
         else:
             response['Content-Security-Policy'] = CSP_PUBLIC
+
+        # Embedded admin tool pages (?embed=1) are lazy-loaded inside an
+        # iframe by the Website detail Monitoring accordion. They must be
+        # framable by the SAME origin only — relax frame-ancestors to
+        # 'self' and downgrade X-Frame-Options from DENY to SAMEORIGIN.
+        # No external site can frame them (no clickjacking surface).
+        if request.GET.get('embed') and path.startswith('/admin-dashboard/'):
+            response['Content-Security-Policy'] = (
+                response['Content-Security-Policy'].replace(
+                    "frame-ancestors 'none'", "frame-ancestors 'self'"))
+            response['X-Frame-Options'] = 'SAMEORIGIN'
+
         response['Permissions-Policy'] = PERMISSIONS_POLICY
         # Belt-and-suspenders: explicitly assert nosniff even though
         # Django's SecurityMiddleware also sets this.

@@ -10906,6 +10906,17 @@ button.htmx-request {
     padding-bottom: 64px;
 }
 
+/* Embed mode (?embed=1) — page rendered chromeless inside an iframe.
+   Reclaim the sidebar offset and trim padding so the tool fills it. */
+.admin-body--embed .admin-main {
+    margin-left: 0;
+    padding: 16px;
+    padding-bottom: 24px;
+}
+.admin-body--embed { background: transparent; }
+/* The detail-page page-header is redundant inside an embedded tool. */
+.admin-body--embed .admin-page-header { margin-top: 0; }
+
 /* ── Logo block at top of sidebar ── */
 .sidebar-logo {
     display: flex;
@@ -13724,6 +13735,87 @@ button.htmx-request {
 .website-detail .admin-card__body .lead-table { min-width: 0; }
 .website-detail .admin-card__body .lead-table th,
 .website-detail .admin-card__body .lead-table td { padding: 0.5rem 0.6rem; }
+
+/* === Conversion tracker (inline) === */
+.wd-snippet {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+}
+.wd-snippet code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--color-text);
+}
+.wd-snippet .btn-secondary { flex: none; }
+.wd-tracker-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+.wd-tracker-meta .ok-text { color: var(--color-success); }
+
+/* === Monitoring accordion === */
+.wd-tools { display: flex; flex-direction: column; gap: 0.5rem; }
+.wd-tool {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-deep);
+    overflow: hidden;
+}
+.wd-tool__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.7rem 0.9rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 600;
+    color: var(--color-text);
+    user-select: none;
+}
+.wd-tool__summary::-webkit-details-marker { display: none; }
+.wd-tool__summary::before {
+    content: '▸';
+    color: var(--color-text-muted);
+    transition: transform 0.15s ease;
+    font-size: 0.8rem;
+}
+.wd-tool[open] .wd-tool__summary::before { transform: rotate(90deg); }
+.wd-tool__name { flex: 1; }
+.wd-tool__badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-orange-light);
+    margin-left: 0.4rem;
+}
+.wd-tool__open {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-size: 1rem;
+    padding: 0 0.3rem;
+}
+.wd-tool__open:hover { color: var(--color-orange); }
+.wd-tool__panel { border-top: 1px solid var(--color-border); }
+.wd-tool__frame {
+    display: block;
+    width: 100%;
+    height: 640px;
+    border: 0;
+    background: var(--color-bg-deep);
+}
 
 .website-detail .form-row--inline {
     display: grid;

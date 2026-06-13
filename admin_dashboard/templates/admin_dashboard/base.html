@@ -11,11 +11,18 @@
     <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
     {% block extra_head %}{% endblock %}
 </head>
-<body class="admin-body">
+<body class="admin-body{% if request.GET.embed %} admin-body--embed{% endif %}">
     <a class="skip-link" href="#main">Skip to content</a>
 
     <div class="admin-wrapper">
 
+        {% comment %}
+            Embed mode (?embed=1) strips the sidebar/hamburger so a page
+            can be lazy-loaded inside an iframe — used by the Website
+            detail page's Monitoring accordion. Chrome is hidden; the
+            page's own content renders full-width.
+        {% endcomment %}
+        {% if not request.GET.embed %}
         {# ── SIDEBAR ─────────────────────────────────────────── #}
         <nav id="admin-sidebar" aria-label="Admin navigation">
             <div class="sidebar-logo">
@@ -269,6 +276,7 @@
         <button type="button" id="hamburger-btn" aria-label="Open menu" aria-controls="admin-sidebar">
             <span></span><span></span><span></span>
         </button>
+        {% endif %}{# /not embed #}
 
         {# ── MAIN CONTENT ────────────────────────────────────── #}
         <main id="main" class="admin-main">

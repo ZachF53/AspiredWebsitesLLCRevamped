@@ -565,27 +565,71 @@
         rather than show broken links.
     {% endcomment %}
     {% if legacy_cp %}
+        {% comment %}
+            Conversion tracker — inline (always visible). One snippet
+            forever; session recording (Tier 2) flips server-side.
+        {% endcomment %}
+        {% if tracker_snippet %}
+        <div class="admin-card" style="margin-top: 2rem;">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Conversion Tracker</h2>
+                <span class="muted" style="font-size:0.78rem;">Paste once into the site's &lt;head&gt;.</span>
+            </div>
+            <div class="admin-card__body">
+                <div class="wd-snippet">
+                    <code id="tracker-snippet">{{ tracker_snippet }}</code>
+                    <button type="button" class="btn-secondary btn-sm" data-copy-target="tracker-snippet">Copy</button>
+                </div>
+                <div class="wd-tracker-meta">
+                    <span>Session recording:
+                        {% if tracker_recording_active %}<strong class="ok-text">On</strong>{% else %}<strong>Off</strong>{% endif %}
+                        {% if tracker_recording_included %}<span class="muted">· included in plan</span>{% endif %}
+                    </span>
+                    <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' legacy_cp.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="btn-secondary btn-sm">{% if tracker_recording_active %}Turn off{% else %}Turn on{% endif %} recording</button>
+                    </form>
+                    {% if tracker_recording_active %}
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:recordings_list' legacy_cp.id %}">Session Recordings ({{ legacy_cp.session_recordings.count }}) ↗</a>
+                    {% endif %}
+                </div>
+                <p class="muted" style="font-size:0.75rem;margin:0.6rem 0 0;">
+                    Last event: {{ tracker_last_event.created_at|date:"M j, Y g:i a"|default:"none yet" }}
+                    &nbsp;·&nbsp; Last session: {{ tracker_last_session.created_at|date:"M j, Y g:i a"|default:"none yet" }}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% comment %}
+            Monitoring & reporting accordion. Each tool lazy-loads its
+            existing admin page inside an iframe (?embed=1 = chromeless)
+            the first time its panel is opened — keeps everything in one
+            area without stacking six full pages on load. Data still
+            resolves via ``legacy_cp`` (per-website split is Phase D).
+            Session Recordings stays its own page (media list), linked
+            from the Conversion Tracker card above.
+        {% endcomment %}
         <div class="admin-card" style="margin-top: 2rem;">
             <div class="admin-card__header">
                 <h2 class="admin-card__title">Monitoring &amp; Reporting</h2>
                 <span class="muted" style="font-size: 0.78rem;">
-                    Tools currently aggregate at the client level —
-                    per-website split in Phase D.
+                    Click a tool to load it · client-level until Phase D
                 </span>
             </div>
-            <div class="admin-card__body">
-                <div class="mon-toollinks">
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_uptime' legacy_cp.id %}">Uptime</a>
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_keywords' legacy_cp.id %}">Keywords</a>
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_conversions' legacy_cp.id %}">Conversions</a>
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_tracker' legacy_cp.id %}">Tracker Snippet</a>
-                    {% if legacy_cp.session_recording_enabled %}
-                        <a class="mon-toollink" href="{% url 'admin_dashboard:recordings_list' legacy_cp.id %}">Session Recordings ({{ legacy_cp.session_recordings.count }})</a>
-                    {% endif %}
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_freshness' legacy_cp.id %}">Content Freshness{% if freshness_report %} ({{ freshness_report.pages_needing_update }} flagged){% endif %}</a>
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_chatbot' legacy_cp.id %}">Chatbot</a>
-                    <a class="mon-toollink" href="{% url 'admin_dashboard:client_changelog' legacy_cp.id %}">Changelog</a>
-                </div>
+            <div class="admin-card__body wd-tools">
+                {% for tool in mon_tools %}
+                    <details class="wd-tool">
+                        <summary class="wd-tool__summary">
+                            <span class="wd-tool__name">{{ tool.label }}{% if tool.badge %} <span class="wd-tool__badge">{{ tool.badge }}</span>{% endif %}</span>
+                            <a class="wd-tool__open" href="{{ tool.url }}" target="_blank" rel="noopener" title="Open full page">↗</a>
+                        </summary>
+                        <div class="wd-tool__panel">
+                            <iframe class="wd-tool__frame" data-src="{{ tool.url }}?embed=1" title="{{ tool.label }}" loading="lazy"></iframe>
+                        </div>
+                    </details>
+                {% endfor %}
             </div>
         </div>
     {% endif %}
