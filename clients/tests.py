@@ -1343,3 +1343,63 @@ class PortalSmokeTests(TestCase):
             self.assertLess(
                 resp.status_code, 500,
                 f'{name} returned {resp.status_code}')
+
+
+class IntelligenceRespondTests(TestCase):
+    """Approve/decline now stays inside the portal and is login-gated +
+    ownership-scoped (the old flow rendered a public standalone page from
+    a leaked token)."""
+
+    def setUp(self):
+        from clients.models import IntelligenceSuggestion
+        self.user = User.objects.create_user(
+            username='rec-cl', password='rec-pass-123',
+            email='rec@example.com')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Rec Co')
+        self.profile.onboarding_status = 'onboarding_complete'
+        self.profile.onboarding_complete = True
+        self.profile.save(update_fields=[
+            'onboarding_status', 'onboarding_complete', 'updated_at'])
+        self.s = IntelligenceSuggestion.objects.create(
+            client=self.profile, title='Speed up your homepage',
+            description='LCP is slow.', status='sent_to_client',
+            sent_to_client_at=timezone.now())
+
+    def _decline_url(self):
+        return reverse('intelligence_decline', args=[self.s.response_token])
+
+    def test_anonymous_click_must_sign_in(self):
+        """Email link is now login-gated — anonymous → redirect to login."""
+        resp = self.client.get(self._decline_url())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/login', resp['Location'].lower())
+
+    def test_owner_decline_records_and_returns_to_portal(self):
+        from clients.models import IntelligenceSuggestion
+        self.client.login(username='rec-cl', password='rec-pass-123')
+        resp = self.client.post(self._decline_url())
+        self.assertRedirects(
+            resp, reverse('clients:portal_suggestions'))
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.status, 'client_declined')
+        self.assertIsNotNone(self.s.client_responded_at)
+
+    def test_other_client_cannot_act_on_someone_elses(self):
+        from clients.models import IntelligenceSuggestion
+        other = User.objects.create_user(
+            username='other-cl', password='other-pass-123',
+            email='other@example.com')
+        op = ClientProfile.objects.create(user=other, firm_name='Other Co')
+        op.onboarding_status = 'onboarding_complete'
+        op.onboarding_complete = True
+        op.save(update_fields=[
+            'onboarding_status', 'onboarding_complete', 'updated_at'])
+        self.client.login(username='other-cl', password='other-pass-123')
+        resp = self.client.post(self._decline_url())
+        self.assertRedirects(
+            resp, reverse('clients:portal_suggestions'))
+        self.s.refresh_from_db()
+        # Untouched — not their suggestion.
+        self.assertEqual(self.s.status, 'sent_to_client')
+        self.assertIsNone(self.s.client_responded_at)

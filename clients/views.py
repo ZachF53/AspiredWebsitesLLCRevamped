@@ -2200,46 +2200,62 @@ def _intel_record_response(suggestion, action):
         logger.exception('admin alert for intel response failed')
 
 
+def _intel_respond(request, token, action):
+    """Record an approve/decline and bounce back into the portal
+    Recommendations page with a flash message.
+
+    Used by BOTH the email link (a GET that's now login-gated by
+    @client_required, so the client signs in first) and the in-portal
+    Approve / Not Now buttons (a POST). Either way the client stays
+    inside the portal shell — no standalone page. The response is scoped
+    to the logged-in client's own account, so a leaked token can't be
+    used to act on someone else's recommendation.
+    """
+    from .models import IntelligenceSuggestion
+
+    s = IntelligenceSuggestion.objects.filter(response_token=token).first()
+    if s is None:
+        messages.error(
+            request,
+            "That recommendation link is invalid or has been removed.")
+        return redirect('clients:portal_suggestions')
+
+    account = getattr(request, 'account', None)
+    owned = (s.client_id == request.client_profile.id) or (
+        s.website_new_id and account is not None
+        and s.website_new.account_id == account.id)
+    if not owned:
+        messages.error(
+            request, "That recommendation isn't on your account.")
+        return redirect('clients:portal_suggestions')
+
+    if s.client_responded_at is not None:
+        messages.info(request, f'You already responded to "{s.title}".')
+        return redirect('clients:portal_suggestions')
+
+    _intel_record_response(s, action)
+    if action == 'approve':
+        messages.success(
+            request,
+            f'Approved "{s.title}". We\'ll be in touch about next steps.')
+    else:
+        messages.success(
+            request,
+            f'Got it — we\'ve marked "{s.title}" as not now.')
+    return redirect('clients:portal_suggestions')
+
+
+@client_required
 def intelligence_approve(request, token):
-    """Public magic-link landing — records approval, renders thanks."""
-    from .models import IntelligenceSuggestion
-
-    try:
-        s = IntelligenceSuggestion.objects.get(response_token=token)
-    except (IntelligenceSuggestion.DoesNotExist, ValueError):
-        return render(request, 'clients/intel_response.html',
-                      {'state': 'not_found'})
-
-    already_responded = s.client_responded_at is not None
-    if not already_responded:
-        _intel_record_response(s, 'approve')
-
-    return render(request, 'clients/intel_response.html', {
-        'state': 'approved',
-        'suggestion': s,
-        'already_responded': already_responded,
-    })
+    """Approve a recommendation. Login-gated: an email click signs in
+    first, then lands back in the portal."""
+    return _intel_respond(request, token, 'approve')
 
 
+@client_required
 def intelligence_decline(request, token):
-    """Public magic-link landing — records decline, renders thanks."""
-    from .models import IntelligenceSuggestion
-
-    try:
-        s = IntelligenceSuggestion.objects.get(response_token=token)
-    except (IntelligenceSuggestion.DoesNotExist, ValueError):
-        return render(request, 'clients/intel_response.html',
-                      {'state': 'not_found'})
-
-    already_responded = s.client_responded_at is not None
-    if not already_responded:
-        _intel_record_response(s, 'decline')
-
-    return render(request, 'clients/intel_response.html', {
-        'state': 'declined',
-        'suggestion': s,
-        'already_responded': already_responded,
-    })
+    """Decline a recommendation. Login-gated like the approve view."""
+    return _intel_respond(request, token, 'decline')
 
 
 # ── Phase 7 Part 3 — Client portal suggestions list ────────────────────────
