@@ -2648,6 +2648,26 @@ def _maintenance_tiers():
     )
 
 
+def _tier_change_direction(current_tier_slug, target_tier):
+    """Compare the current tier to the target by price.
+
+    Returns 'upgrade' | 'downgrade' | 'same' | '' (unknown / not a change).
+    Used by the confirmation screens so the copy matches what will
+    actually happen before the client commits.
+    """
+    if not current_tier_slug or target_tier is None:
+        return ''
+    from billing.pricing_models import ServiceTier
+    current = ServiceTier.objects.filter(slug=current_tier_slug).first()
+    if current is None or current.price is None or target_tier.price is None:
+        return ''
+    if target_tier.price > current.price:
+        return 'upgrade'
+    if target_tier.price < current.price:
+        return 'downgrade'
+    return 'same'
+
+
 def _tier_change_message(tier, result, label):
     """Word a subscription tier-change confirmation by direction.
 
@@ -2865,6 +2885,9 @@ def portal_maintenance_start(request, slug):
         is_change=is_change,
         is_same_tier=is_same_tier,
         current_tier_slug=state['current_tier_slug'],
+        change_direction=(
+            _tier_change_direction(state['current_tier_slug'], tier)
+            if is_change else ''),
     )
     return render(request, 'clients/portal_maintenance_confirm.html', ctx)
 
@@ -3194,6 +3217,9 @@ def portal_social_plans_start(request, slug):
         is_change=is_change,
         is_same_tier=is_same_tier,
         current_tier_slug=state['current_tier_slug'],
+        change_direction=(
+            _tier_change_direction(state['current_tier_slug'], tier)
+            if is_change else ''),
         target_website=website,
     )
     return render(
