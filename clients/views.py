@@ -433,9 +433,9 @@ def project_detail(request):
         support_window_left=support_window_left,
         final_pay_url=final_pay_url,
         final_due=final_due,
-        uptime_status=get_current_status(profile),
-        uptime_30=get_uptime_percentage(profile, 30),
-        uptime_90=get_uptime_percentage(profile, 90),
+        uptime_status=get_current_status(project) if project else None,
+        uptime_30=get_uptime_percentage(project, 30) if project else None,
+        uptime_90=get_uptime_percentage(project, 90) if project else None,
         uptime_chart=uptime_chart,
     )
     return render(request, 'clients/project.html', ctx)
