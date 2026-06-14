@@ -88,6 +88,28 @@
                     {% endif %}
 
                     {% comment %}
+                        Social-sub-specific actions: cancel / resume / change tier.
+                        Cancel + resume are scoped to request.website server-side.
+                    {% endcomment %}
+                    {% if sub.id in social_sub_ids %}
+                        <div class="sub-card__actions">
+                            {% if sub.cancel_at_period_end %}
+                                <form method="post" action="{% url 'clients:portal_social_resume' %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm">Resume subscription</button>
+                                </form>
+                            {% else %}
+                                <a href="{% url 'clients:portal_social_plans' %}" class="btn-secondary btn-sm">Change plan</a>
+                                <form method="post" action="{% url 'clients:portal_social_cancel' %}" style="display:inline;"
+                                      onsubmit="return confirm('Cancel social media at the end of the current period? You\'ll keep service through what you\'ve already paid for.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-link sub-card__link sub-card__link--danger">Cancel</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% comment %}
                         Per-subscription payment-method picker. Stripe lets a
                         subscription override the customer default with its own
                         default_payment_method. "Default" → empty value clears

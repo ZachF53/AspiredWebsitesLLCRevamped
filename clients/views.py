@@ -2462,6 +2462,9 @@ def portal_subscriptions(request):
     maint_sub_ids = set(
         account.maintenance_plans.exclude(stripe_subscription_id='')
         .values_list('stripe_subscription_id', flat=True))
+    social_sub_ids = set(
+        account.social_media_plans.exclude(stripe_subscription_id='')
+        .values_list('stripe_subscription_id', flat=True))
     maintenance_cancel_pending = any(
         sub for sub in subscriptions
         if sub and sub.get('cancel_at_period_end')
@@ -2519,6 +2522,7 @@ def portal_subscriptions(request):
         upsell_tiers=upsell_tiers,
         maintenance_cancel_pending=maintenance_cancel_pending,
         maintenance_sub_ids=list(maint_sub_ids),
+        social_sub_ids=list(social_sub_ids),
         pending_maintenance=pending_maintenance,
     )
     return render(request, 'clients/portal_subscriptions.html', ctx)
