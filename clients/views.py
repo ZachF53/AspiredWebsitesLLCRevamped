@@ -2339,26 +2339,24 @@ def portal_subscriptions(request):
         list_customer_payment_methods,
     )
 
-    profile = request.client_profile
+    from .models import ClientProfile
+    account = request.account
     _stripe.api_key = _s.STRIPE_SECRET_KEY
 
     subscriptions = []
-    if profile.stripe_customer_id:
-        # Stripe sub ids from the legacy "primary pointer" fields on CP
-        # — plus every per-Website SocialMediaPlan.stripe_subscription_id
-        # so multi-business accounts see all their social subs at once.
-        sub_ids = [
-            profile.stripe_hosting_subscription_id,
-            profile.stripe_subscription_id,
-            profile.stripe_social_subscription_id,
-        ]
-        account = getattr(request, 'account', None)
-        if account is not None:
-            for plan in account.social_media_plans.filter(
-                    status__in=('active', 'cancelled'),
-                    ).exclude(stripe_subscription_id=''):
-                if plan.stripe_subscription_id not in sub_ids:
-                    sub_ids.append(plan.stripe_subscription_id)
+    if account.stripe_customer_id:
+        # Every Stripe subscription id across the account's maintenance +
+        # social plans and per-website hosting subs.
+        sub_ids = []
+        for plan in account.maintenance_plans.exclude(
+                stripe_subscription_id=''):
+            sub_ids.append(plan.stripe_subscription_id)
+        for plan in account.social_media_plans.filter(
+                status__in=('active', 'cancelled'),
+                ).exclude(stripe_subscription_id=''):
+            sub_ids.append(plan.stripe_subscription_id)
+        for w in account.websites.exclude(stripe_hosting_subscription_id=''):
+            sub_ids.append(w.stripe_hosting_subscription_id)
         seen = set()
         for sub_id in sub_ids:
             if not sub_id or sub_id in seen:
@@ -2377,76 +2375,80 @@ def portal_subscriptions(request):
     # alongside Stripe subscriptions. The template renders these with a
     # "Comped" badge instead of pricing + Stripe controls.
     comp_subscriptions = []
-    if profile.comp_build_package:
-        label = dict(profile.BUILD_COMP_CHOICES).get(
-            profile.comp_build_package, profile.comp_build_package)
+    if account.comp_build_package:
+        label = dict(ClientProfile.BUILD_COMP_CHOICES).get(
+            account.comp_build_package, account.comp_build_package)
         comp_subscriptions.append({
-            'id': f'comp-build-{profile.id}',
+            'id': f'comp-build-{account.id}',
             'product_name': label,
             'status': 'comped',
             'amount': 0,
             'interval': '',
             'kind': 'build',
             'is_comped': True,
-            'comp_notes': profile.comp_notes,
+            'comp_notes': account.comp_notes,
         })
-    if profile.comp_maintenance_package:
-        label = dict(profile.MAINTENANCE_COMP_CHOICES).get(
-            profile.comp_maintenance_package,
-            profile.comp_maintenance_package)
+    if account.comp_maintenance_package:
+        label = dict(ClientProfile.MAINTENANCE_COMP_CHOICES).get(
+            account.comp_maintenance_package,
+            account.comp_maintenance_package)
         comp_subscriptions.append({
-            'id': f'comp-maint-{profile.id}',
+            'id': f'comp-maint-{account.id}',
             'product_name': label,
             'status': 'comped',
             'amount': 0,
             'interval': 'month',
             'kind': 'maintenance',
             'is_comped': True,
-            'comp_notes': profile.comp_notes,
+            'comp_notes': account.comp_notes,
         })
-    if (profile.comp_social_tier
-            and not profile.stripe_social_subscription_id):
-        label = dict(profile.SOCIAL_COMP_CHOICES).get(
-            profile.comp_social_tier, profile.comp_social_tier)
+    if (account.comp_social_tier
+            and not account.social_media_plans.filter(
+                status='active').exclude(stripe_subscription_id='').exists()):
+        label = dict(ClientProfile.SOCIAL_COMP_CHOICES).get(
+            account.comp_social_tier, account.comp_social_tier)
         comp_subscriptions.append({
-            'id': f'comp-social-{profile.id}',
+            'id': f'comp-social-{account.id}',
             'product_name': label,
             'status': 'comped',
             'amount': 0,
             'interval': 'month',
             'kind': 'social_media',
             'is_comped': True,
-            'comp_notes': profile.comp_notes,
+            'comp_notes': account.comp_notes,
         })
 
     payment_methods = []
     default_pm_id = ''
-    if profile.stripe_customer_id:
+    if account.stripe_customer_id:
         try:
             payment_methods = list_customer_payment_methods(
-                profile.stripe_customer_id)
+                account.stripe_customer_id)
             default_pm_id = get_customer_default_payment_method(
-                profile.stripe_customer_id)
+                account.stripe_customer_id)
             # Always show the default card first.
             payment_methods = sorted(
                 payment_methods,
                 key=lambda pm: getattr(pm, 'id', '') != default_pm_id)
         except Exception:
             logger.exception(
-                'Payment method fetch failed for client %s', profile.pk)
+                'Payment method fetch failed for account %s', account.pk)
 
     # Maintenance upsell — show a pitch card on the subscriptions page
-    # whenever the client has no active maintenance subscription. The
+    # whenever the account has no active maintenance subscription. The
     # card itself does the "stronger pitch once project is live"
     # styling switch in template; the view passes the raw state.
-    upsell_state = _maintenance_upsell_state(profile)
+    upsell_state = _maintenance_upsell_state(account)
 
-    # Also surface whether the maintenance sub is set to cancel at
-    # period end so we can render a Resume button.
+    # Also surface whether a maintenance sub is set to cancel at period
+    # end so we can render a Resume button.
+    maint_sub_ids = set(
+        account.maintenance_plans.exclude(stripe_subscription_id='')
+        .values_list('stripe_subscription_id', flat=True))
     maintenance_cancel_pending = any(
         sub for sub in subscriptions
         if sub and sub.get('cancel_at_period_end')
-        and sub.get('id') == profile.stripe_subscription_id
+        and sub.get('id') in maint_sub_ids
     )
 
     # Pending maintenance opt-in — the client selected a maintenance plan
@@ -2520,15 +2522,15 @@ def portal_payment_method_add(request):
         StripeNotConfigured, create_setup_intent_for_customer,
     )
 
-    profile = request.client_profile
-    if not profile.stripe_customer_id:
+    account = request.account
+    if not account.stripe_customer_id:
         return JsonResponse(
             {'error': 'No Stripe customer on file. '
                       'Pay an invoice first to seed the customer.'},
             status=400)
     try:
         intent = create_setup_intent_for_customer(
-            profile.stripe_customer_id)
+            account.stripe_customer_id)
     except StripeNotConfigured as exc:
         return JsonResponse({'error': str(exc)}, status=500)
     except Exception as exc:  # noqa: BLE001
@@ -2548,9 +2550,9 @@ def portal_payment_method_remove(request, pm_id):
         detach_payment_method, list_customer_payment_methods,
     )
 
-    profile = request.client_profile
+    account = request.account
     # Sanity check — the PM must belong to this client's customer.
-    methods = list_customer_payment_methods(profile.stripe_customer_id)
+    methods = list_customer_payment_methods(account.stripe_customer_id)
     if not any(m['id'] == pm_id for m in methods):
         messages.error(request, 'That card is not on your account.')
         return redirect('clients:portal_subscriptions')
@@ -2572,14 +2574,14 @@ def portal_payment_method_default(request, pm_id):
         set_customer_default_payment_method,
     )
 
-    profile = request.client_profile
-    methods = list_customer_payment_methods(profile.stripe_customer_id)
+    account = request.account
+    methods = list_customer_payment_methods(account.stripe_customer_id)
     if not any(m['id'] == pm_id for m in methods):
         messages.error(request, 'That card is not on your account.')
         return redirect('clients:portal_subscriptions')
     try:
         set_customer_default_payment_method(
-            profile.stripe_customer_id, pm_id)
+            account.stripe_customer_id, pm_id)
         messages.success(request, 'Default payment method updated.')
     except Exception as exc:  # noqa: BLE001
         logger.exception('Set-default payment method failed')
@@ -2609,49 +2611,40 @@ def _maintenance_tiers():
     )
 
 
-def _maintenance_upsell_state(profile):
+def _maintenance_upsell_state(account):
     """
-    Return a small dict describing the upsell state for a client. Used
+    Return a small dict describing the upsell state for an account. Used
     by both the subscriptions page (to render the upsell card) and the
     /portal/maintenance/ page (to gate the "subscribe" CTA).
 
     Keys:
       show_upsell    — bool, render the pitch card on /portal/subscriptions/
-      is_subscribed  — bool, client already has an active maintenance sub
-      project_live   — bool, project has reached the 'live' stage
+      is_subscribed  — bool, account already has an active maintenance plan
+      project_live   — bool, any website has reached the 'live' stage
       days_since_live — int or None
       current_tier_slug — '' or the active tier slug
     """
-    # Stage / launch_date live on ClientProfile (mirror of the build's
-    # Project / Website). Don't need _active_project here — the upsell
-    # is account-wide, not per-Website.
-    project_live = bool(getattr(profile, 'stage', '') == 'live')
+    websites = list(account.websites.all()) if account else []
+    project_live = any(getattr(w, 'stage', '') == 'live' for w in websites)
     days_since_live = None
-    launch_date = getattr(profile, 'launch_date', None)
-    if launch_date:
-        delta = timezone.now().date() - launch_date
+    launch_dates = [w.launch_date for w in websites
+                    if getattr(w, 'launch_date', None)]
+    if launch_dates:
+        delta = timezone.now().date() - min(launch_dates)
         days_since_live = max(delta.days, 0)
 
-    # A maintenance "tier" can be earned three ways:
-    #   1. Paid Stripe subscription -> profile.maintenance_active=True
-    #   2. comp_maintenance_package set by an operator
-    #   3. legacy comp_package set to a maintenance value
-    # Any of those should suppress the upsell and show "Your plan" on
-    # the matching tier card.
-    paid_slug = (profile.package.replace('_', '-')
-                 if (profile.maintenance_active and profile.package
-                     and profile.package.startswith('maintenance_'))
-                 else '')
-    comp_slug = (profile.comp_maintenance_package.replace('_', '-')
-                 if profile.comp_maintenance_package else '')
-    legacy_comp_slug = ''
-    if (profile.comp_package
-            and profile.comp_package.startswith('maintenance_')):
-        legacy_comp_slug = profile.comp_package.replace('_', '-')
+    # A maintenance "tier" is earned via an active MaintenancePlan or an
+    # operator-granted comp tier on the Account. Either suppresses the
+    # upsell and shows "Your plan" on the matching tier card.
+    active_plan = (account.maintenance_plans.filter(status='active').first()
+                   if account else None)
+    paid_slug = active_plan.tier_slug if active_plan else ''
+    comp_slug = (account.comp_maintenance_package.replace('_', '-')
+                 if account and account.comp_maintenance_package else '')
 
-    current_tier_slug = paid_slug or comp_slug or legacy_comp_slug
+    current_tier_slug = paid_slug or comp_slug
     is_subscribed = bool(current_tier_slug)
-    is_comped = bool(not paid_slug and (comp_slug or legacy_comp_slug))
+    is_comped = bool(not paid_slug and comp_slug)
 
     return {
         'show_upsell': not is_subscribed,
@@ -2671,9 +2664,8 @@ def portal_maintenance(request):
     If the client already has maintenance, the matching tier shows as
     Current and the others offer Upgrade/Downgrade.
     """
-    profile = request.client_profile
     tiers = list(_maintenance_tiers())
-    state = _maintenance_upsell_state(profile)
+    state = _maintenance_upsell_state(request.account)
 
     ctx = _portal_context(
         request, 'maintenance',
@@ -2721,20 +2713,20 @@ def portal_maintenance_start(request, slug):
 
     # Resolve current state up front so both GET render + POST validation
     # use the same source of truth.
-    state = _maintenance_upsell_state(profile)
+    state = _maintenance_upsell_state(request.account)
     is_change = state['is_subscribed']
     is_same_tier = is_change and state['current_tier_slug'] == slug
 
     # Pull the default card so the confirmation page can show "Charged to
     # Visa •••• 4242" without a second round trip on POST.
     default_card = None
-    if profile.stripe_customer_id:
+    if request.account.stripe_customer_id:
         try:
             pm_id = get_customer_default_payment_method(
-                profile.stripe_customer_id)
+                request.account.stripe_customer_id)
             if pm_id:
                 methods = list_customer_payment_methods(
-                    profile.stripe_customer_id)
+                    request.account.stripe_customer_id)
                 for m in methods:
                     if getattr(m, 'id', '') == pm_id:
                         default_card = {
@@ -3059,13 +3051,13 @@ def portal_social_plans_start(request, slug):
     is_same_tier = is_change and state['current_tier_slug'] == slug
 
     default_card = None
-    if profile.stripe_customer_id:
+    if request.account.stripe_customer_id:
         try:
             pm_id = get_customer_default_payment_method(
-                profile.stripe_customer_id)
+                request.account.stripe_customer_id)
             if pm_id:
                 methods = list_customer_payment_methods(
-                    profile.stripe_customer_id)
+                    request.account.stripe_customer_id)
                 for m in methods:
                     if getattr(m, 'id', '') == pm_id:
                         default_card = {
@@ -3078,7 +3070,8 @@ def portal_social_plans_start(request, slug):
                         break
         except Exception:
             logger.exception(
-                'Default-card lookup failed for client %s', profile.pk)
+                'Default-card lookup failed for account %s',
+                request.account.pk)
 
     if request.method == 'POST':
         if is_same_tier:
@@ -3200,11 +3193,18 @@ def portal_referral(request):
     """Client-facing referral link + stats page."""
     from .models import ReferralLink, generate_referral_code
 
-    profile = request.client_profile
-    link, _ = ReferralLink.objects.get_or_create(
-        client=profile,
-        defaults={'code': generate_referral_code(profile.firm_name)},
-    )
+    account = request.account
+    link = ReferralLink.objects.filter(account_new=account).first()
+    if link is None:
+        link = ReferralLink.objects.filter(
+            client=request.client_profile).first()
+    if link is None:
+        link = ReferralLink.objects.create(
+            client=request.client_profile, account_new=account,
+            code=generate_referral_code(account.name))
+    elif link.account_new_id is None:
+        link.account_new = account
+        link.save(update_fields=['account_new', 'updated_at'])
 
     return render(request, 'clients/portal_referral.html',
                   _portal_context(request, 'referral',
@@ -3418,21 +3418,20 @@ def portal_subscription_payment_method(request, sub_id):
     from billing.stripe_helpers import list_customer_payment_methods
     from clients.account_models import SubscriptionPaymentMethod
 
-    profile = request.client_profile
-    account = getattr(request, 'account', None)
+    account = request.account
     _stripe.api_key = _s.STRIPE_SECRET_KEY
 
     pm_id = (request.POST.get('payment_method_id') or '').strip()
 
     # Guard: the customer must own both the sub and the PM. Defensive
     # against a crafted POST trying to bind someone else's card.
-    if not profile.stripe_customer_id:
+    if not account.stripe_customer_id:
         messages.error(request, 'No billing account on file.')
         return redirect('clients:portal_subscriptions')
 
     try:
         sub = _stripe.Subscription.retrieve(sub_id)
-        if getattr(sub, 'customer', '') != profile.stripe_customer_id:
+        if getattr(sub, 'customer', '') != account.stripe_customer_id:
             messages.error(request, 'That subscription is not on your account.')
             return redirect('clients:portal_subscriptions')
     except Exception:
@@ -3442,7 +3441,7 @@ def portal_subscription_payment_method(request, sub_id):
 
     if pm_id:
         valid_ids = {p['id'] for p in list_customer_payment_methods(
-            profile.stripe_customer_id)}
+            account.stripe_customer_id)}
         if pm_id not in valid_ids:
             messages.error(request, 'That card is not on your account.')
             return redirect('clients:portal_subscriptions')
