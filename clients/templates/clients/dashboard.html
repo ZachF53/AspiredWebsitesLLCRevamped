@@ -4,8 +4,8 @@
 
 {% block portal_content %}
 <header class="portal-page-head">
-    <h1>Welcome back, {{ profile.contact_name|default:profile.firm_name }}.</h1>
-    <p class="portal-page-head__sub">{{ profile.firm_name }}</p>
+    <h1>Welcome back, {{ account.contact_name|default:account.name }}.</h1>
+    <p class="portal-page-head__sub">{{ website.name|default:account.name }}</p>
 </header>
 
 {% comment %}

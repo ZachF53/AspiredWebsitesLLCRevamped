@@ -2354,28 +2354,36 @@ def portal_subscriptions(request):
 
     subscriptions = []
     if account.stripe_customer_id:
-        # Every Stripe subscription id across the account's maintenance +
-        # social plans and per-website hosting subs.
-        sub_ids = []
+        # Map every Stripe subscription id across the account's maintenance
+        # + social plans and per-website hosting subs to a friendly label
+        # (Stripe test-mode product names are unreliable, so the plan tier
+        # is the authoritative title).
+        label_by_sub = {}
         for plan in account.maintenance_plans.exclude(
                 stripe_subscription_id=''):
-            sub_ids.append(plan.stripe_subscription_id)
+            label_by_sub[plan.stripe_subscription_id] = (
+                f'Maintenance — {plan.get_tier_slug_display()}')
         for plan in account.social_media_plans.filter(
                 status__in=('active', 'cancelled'),
                 ).exclude(stripe_subscription_id=''):
-            sub_ids.append(plan.stripe_subscription_id)
+            label_by_sub[plan.stripe_subscription_id] = (
+                f'Social Media — {plan.get_tier_slug_display()}')
         for w in account.websites.exclude(stripe_hosting_subscription_id=''):
-            sub_ids.append(w.stripe_hosting_subscription_id)
-        seen = set()
-        for sub_id in sub_ids:
-            if not sub_id or sub_id in seen:
-                continue
-            seen.add(sub_id)
+            label_by_sub[w.stripe_hosting_subscription_id] = (
+                f'Hosting — {w.name}')
+        for sub_id in label_by_sub:
             try:
                 sub = _stripe.Subscription.retrieve(sub_id)
                 if getattr(sub, 'status', '') in (
                         'active', 'trialing', 'past_due', 'unpaid'):
-                    subscriptions.append(_subscription_card(sub))
+                    card = _subscription_card(sub)
+                    if card is not None:
+                        # Authoritative title from the plan tier; fall back
+                        # to the Stripe product name only if unmapped.
+                        card['product_name'] = (
+                            label_by_sub.get(sub_id)
+                            or card.get('product_name') or 'Subscription')
+                        subscriptions.append(card)
             except Exception:
                 logger.exception(
                     'Subscription fetch failed for %s', sub_id)
@@ -2510,6 +2518,7 @@ def portal_subscriptions(request):
         upsell_state=upsell_state,
         upsell_tiers=upsell_tiers,
         maintenance_cancel_pending=maintenance_cancel_pending,
+        maintenance_sub_ids=list(maint_sub_ids),
         pending_maintenance=pending_maintenance,
     )
     return render(request, 'clients/portal_subscriptions.html', ctx)

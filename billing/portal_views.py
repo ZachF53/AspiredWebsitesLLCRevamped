@@ -62,57 +62,12 @@ def _customer_id_for_user(user):
 
 @login_required
 def billing_home(request):
-    """Hub — active subscriptions + payment methods + recent invoices."""
-    customer_id = _customer_id_for_user(request.user)
-    subscriptions = []
-    payment_methods = []
-    invoices = []
-    if customer_id:
-        stripe = _stripe()
-        try:
-            subscriptions = stripe.Subscription.list(
-                customer=customer_id, status='all',
-                expand=['data.items'],
-            ).data
-        except Exception:  # noqa: BLE001
-            logger.exception('billing_home: sub list failed')
-        try:
-            payment_methods = stripe.Customer.list_payment_methods(
-                customer_id, type='card').data
-        except Exception:
-            try:
-                payment_methods = stripe.PaymentMethod.list(
-                    customer=customer_id, type='card').data
-            except Exception:
-                pass
-        try:
-            invoices = stripe.Invoice.list(
-                customer=customer_id, limit=10).data
-        except Exception:
-            pass
-    default_pm_id = ''
-    if customer_id:
-        try:
-            from billing.stripe_helpers import (
-                get_customer_default_payment_method,
-            )
-            default_pm_id = get_customer_default_payment_method(
-                customer_id) or ''
-        except Exception:
-            pass
-    # Always show the default card first.
-    if payment_methods:
-        payment_methods = sorted(
-            payment_methods,
-            key=lambda pm: getattr(pm, 'id', '') != default_pm_id)
-    return render(request, 'billing/portal_home.html', {
-        'subscriptions': subscriptions,
-        'payment_methods': payment_methods,
-        'invoices': invoices,
-        'default_pm_id': default_pm_id,
-        # Highlight the "Manage Billing" item in clients/base.html sidebar.
-        'active_portal_nav': 'billing',
-    })
+    """Retired — the Manage Billing hub was consolidated into the portal
+    Subscription / Billing page (clients:portal_subscriptions), which has
+    per-website plan names, comp tiers, the upsell, and per-subscription
+    card selection. Redirect so old links/bookmarks still land somewhere."""
+    from django.shortcuts import redirect
+    return redirect('clients:portal_subscriptions')
 
 
 @login_required

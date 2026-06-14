@@ -1,11 +1,11 @@
 {% extends "clients/base.html" %}
 {% load static %}
 
-{% block title %}Subscriptions{% endblock %}
+{% block title %}Subscription / Billing{% endblock %}
 
 {% block portal_content %}
 <header class="portal-page-head">
-    <h1>Subscriptions &amp; Payment</h1>
+    <h1>Subscription / Billing</h1>
     <p class="portal-page-head__sub">
         Recurring services on your account + the cards we use to charge them. Whichever card you set as default is what gets charged for every renewal.
     </p>
@@ -69,7 +69,7 @@
                     </div>
 
                     {# Maintenance-sub-specific actions: cancel / resume / change tier #}
-                    {% if sub.id == request.client_profile.stripe_subscription_id %}
+                    {% if sub.id in maintenance_sub_ids %}
                         <div class="sub-card__actions">
                             {% if sub.cancel_at_period_end %}
                                 <form method="post" action="{% url 'clients:portal_maintenance_resume' %}" style="display:inline;">

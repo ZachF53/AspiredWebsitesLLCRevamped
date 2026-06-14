@@ -6,7 +6,7 @@
 {% block portal_content %}
 <header class="portal-page-head">
     <h1>My Project</h1>
-    <p class="portal-page-head__sub">{{ profile.firm_name }}</p>
+    <p class="portal-page-head__sub">{{ website.name|default:account.name }}</p>
 </header>
 
 {% if not project %}
