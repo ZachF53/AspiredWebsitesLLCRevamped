@@ -369,12 +369,14 @@ class PortalChangelogTests(TestCase):
             username='portal-cl', password='portal-pass-123')
         self.profile = ClientProfile.objects.create(
             user=self.user, firm_name='Portal Firm')
+        self.site = self.profile.migrated_account.websites.first()
         self.url = reverse('clients:portal_changelog')
         self.client.login(username='portal-cl', password='portal-pass-123')
 
     def test_visible_entry_shown(self):
         SiteChangelogEntry.objects.create(
-            client=self.profile, title='Visible work', is_client_visible=True)
+            client=self.profile, website_new=self.site,
+            title='Visible work', is_client_visible=True)
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Visible work')
@@ -401,10 +403,10 @@ class PortalChangelogTests(TestCase):
 
     def test_month_filter(self):
         SiteChangelogEntry.objects.create(
-            client=self.profile, title='April thing',
+            client=self.profile, website_new=self.site, title='April thing',
             date_of_change=date(2026, 4, 10))
         SiteChangelogEntry.objects.create(
-            client=self.profile, title='May thing',
+            client=self.profile, website_new=self.site, title='May thing',
             date_of_change=date(2026, 5, 10))
         resp = self.client.get(self.url, {'month': '2026-05'})
         self.assertContains(resp, 'May thing')

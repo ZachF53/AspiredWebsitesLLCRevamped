@@ -1501,8 +1501,9 @@ def portal_credentials_add(request):
 @client_required
 def portal_changelog(request):
     """The client-facing site changelog — grouped by month, month-filterable."""
-    profile = request.client_profile
-    visible = profile.changelog_entries.filter(is_client_visible=True)
+    project = _active_project(request)
+    visible = (project.changelog_entries.filter(is_client_visible=True)
+               if project else [])
 
     # Month options from the full visible set (newest-first via model Meta).
     month_options = []
@@ -2235,10 +2236,12 @@ def portal_suggestions(request):
     """Portal page that mirrors what the client received via email."""
     from .models import IntelligenceSuggestion
 
-    profile = request.client_profile
+    flt = ({'website_new': _active_project(request)}
+           if getattr(request, 'website', None)
+           else {'client': request.client_profile})
     suggestions = (
         IntelligenceSuggestion.objects
-        .filter(client=profile, status__in=_PORTAL_INTEL_STATUSES)
+        .filter(**flt, status__in=_PORTAL_INTEL_STATUSES)
         .order_by('-sent_to_client_at', '-generated_at')
     )
     pending_response = any(
