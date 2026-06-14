@@ -1223,7 +1223,8 @@ class PaymentReceiptDownloadTests(TestCase):
         cls.profile = ClientProfile.objects.create(
             user=u, firm_name='Receipt LLC')
         cls.rec = PaymentRecord.objects.create(
-            client=cls.profile, kind='final', amount=Decimal('1250'),
+            client=cls.profile, account=cls.profile.migrated_account,
+            kind='final', amount=Decimal('1250'),
             description='Essential Website Build — Final Payment',
             stripe_id='pi_rcpt1', status='paid')
         # A different client's record (must NOT be downloadable).
@@ -1232,7 +1233,8 @@ class PaymentReceiptDownloadTests(TestCase):
         cls.other = ClientProfile.objects.create(
             user=u2, firm_name='Other LLC')
         cls.other_rec = PaymentRecord.objects.create(
-            client=cls.other, kind='deposit', amount=Decimal('1250'),
+            client=cls.other, account=cls.other.migrated_account,
+            kind='deposit', amount=Decimal('1250'),
             stripe_id='pi_rcpt2', status='paid')
 
     def test_owner_can_view_receipt(self):
