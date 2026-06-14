@@ -4062,6 +4062,10 @@ button.htmx-request {
     font-size: 0.8rem;
     color: var(--color-text-muted);
 }
+.svc-card__renews--pending {
+    color: var(--color-primary);
+    font-weight: 600;
+}
 .svc-card .sub-card__actions {
     margin-top: 14px;
 }
@@ -12532,6 +12536,16 @@ button.htmx-request {
     color: var(--color-text);
     font-size: 1.15rem;
     font-weight: 700;
+}
+.maint-current__pending {
+    margin: 12px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    font-size: 0.85rem;
+    color: var(--color-primary);
+}
+.maint-current__pending strong {
+    color: var(--color-primary);
 }
 
 .maint-pitch {

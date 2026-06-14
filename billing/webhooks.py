@@ -1155,6 +1155,48 @@ def _price_id_to_local_package(price_id):
     return MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, '')
 
 
+def _price_id_to_tier_slug(price_id, category):
+    """Map a Stripe Price ID back to its local ServiceTier slug within a
+    category ('maintenance' / 'social_media'), or '' if unknown."""
+    if not price_id:
+        return ''
+    from billing.pricing_models import ServiceTier
+    tier = ServiceTier.objects.filter(
+        stripe_price_id=price_id, category=category).first()
+    return tier.slug if tier else ''
+
+
+def _sync_plan_rows_for_sub(sub_id, price_id):
+    """Reconcile the local MaintenancePlan / SocialMediaPlan tier with the
+    subscription's CURRENT Stripe price. This is what applies a deferred
+    downgrade when its scheduled phase kicks in (Stripe fires
+    subscription.updated with the new price): we flip tier_slug to match
+    and clear the pending-downgrade markers.
+    """
+    if not sub_id:
+        return
+    from clients.service_models import MaintenancePlan, SocialMediaPlan
+    for model, category in (
+            (MaintenancePlan, 'maintenance'),
+            (SocialMediaPlan, 'social_media')):
+        for plan in model.objects.filter(stripe_subscription_id=sub_id):
+            new_slug = _price_id_to_tier_slug(price_id, category)
+            fields = []
+            if new_slug and plan.tier_slug != new_slug:
+                plan.tier_slug = new_slug
+                fields.append('tier_slug')
+            # Clear a pending downgrade once it has actually applied (or
+            # the live price already matches the queued tier).
+            if plan.pending_tier_slug and (
+                    not new_slug or plan.pending_tier_slug == new_slug):
+                plan.pending_tier_slug = ''
+                plan.pending_tier_effective = None
+                fields += ['pending_tier_slug', 'pending_tier_effective']
+            if fields:
+                fields.append('updated_at')
+                plan.save(update_fields=fields)
+
+
 def _handle_subscription_updated(event):
     """
     Reconcile local maintenance fields whenever the subscription is
@@ -1164,17 +1206,25 @@ def _handle_subscription_updated(event):
     """
     subscription = event['data']['object']
     sub_id = subscription.get('id', '')
-    client = _client_for_customer(subscription.get('customer'))
-    if client is None or sub_id != client.stripe_subscription_id:
-        # Only react to the client's MAINTENANCE subscription. Hosting +
-        # any third-party subs the customer might have are ignored.
-        return
 
     status = subscription.get('status', '')
     items = ((subscription.get('items') or {}).get('data') or [])
     price_id = ''
     if items:
         price_id = ((items[0].get('price') or {}).get('id') or '')
+
+    # Reconcile local plan rows for ANY of the account's subscriptions
+    # (maintenance OR social) — this is how a deferred downgrade applies
+    # itself when its scheduled phase activates. Done before the
+    # maintenance-only client sync below, which has a narrower scope.
+    _sync_plan_rows_for_sub(sub_id, price_id)
+
+    client = _client_for_customer(subscription.get('customer'))
+    if client is None or sub_id != client.stripe_subscription_id:
+        # Past here we only touch the client's MAINTENANCE subscription
+        # mirror (package + maintenance_active). Hosting + social + any
+        # third-party subs are handled by _sync_plan_rows_for_sub above.
+        return
 
     fields = ['updated_at']
     if status in ('active', 'trialing'):

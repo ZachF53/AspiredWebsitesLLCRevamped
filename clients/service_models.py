@@ -70,6 +70,16 @@ class MaintenancePlan(TimestampedModel):
         max_length=50, choices=TIER_CHOICES,
         default='maintenance-essentials',
     )
+    # A pending DOWNGRADE that hasn't taken effect yet. Downgrades are
+    # deferred to the end of the paid period (no charge until then) via a
+    # Stripe SubscriptionSchedule. `tier_slug` stays on the CURRENT (paid)
+    # tier until the switch applies; these two record the queued lower tier
+    # + the date it kicks in so the portal can show "switching to X on Y".
+    # Cleared when the change applies (webhook) or is overridden by an
+    # upgrade. Empty string = no pending change.
+    pending_tier_slug = models.CharField(
+        max_length=50, blank=True, default='')
+    pending_tier_effective = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='active',
     )
@@ -97,6 +107,14 @@ class MaintenancePlan(TimestampedModel):
         which = (self.website.url if self.website
                  else self.external_site_url or 'no site')
         return f'{self.account.name} — {self.get_tier_slug_display()} ({which})'
+
+    @property
+    def pending_tier_display(self):
+        """Human label for a queued downgrade, or '' if none."""
+        if not self.pending_tier_slug:
+            return ''
+        return dict(self.TIER_CHOICES).get(
+            self.pending_tier_slug, self.pending_tier_slug)
 
 
 # ── D2 — Social media ────────────────────────────────────────────────
@@ -140,6 +158,11 @@ class SocialMediaPlan(TimestampedModel):
     tier_slug = models.CharField(
         max_length=50, choices=TIER_CHOICES, default='social-basic',
     )
+    # Pending DOWNGRADE queued for the end of the paid period — see the
+    # matching fields on MaintenancePlan for the full rationale.
+    pending_tier_slug = models.CharField(
+        max_length=50, blank=True, default='')
+    pending_tier_effective = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='active',
     )
@@ -164,6 +187,14 @@ class SocialMediaPlan(TimestampedModel):
 
     def __str__(self):
         return f'{self.account.name} — {self.get_tier_slug_display()}'
+
+    @property
+    def pending_tier_display(self):
+        """Human label for a queued downgrade, or '' if none."""
+        if not self.pending_tier_slug:
+            return ''
+        return dict(self.TIER_CHOICES).get(
+            self.pending_tier_slug, self.pending_tier_slug)
 
 
 class SocialChannel(TimestampedModel):

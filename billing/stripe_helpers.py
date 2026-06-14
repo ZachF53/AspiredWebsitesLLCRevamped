@@ -249,20 +249,149 @@ def create_maintenance_subscription(client, plan_slug):
     return subscription
 
 
+def _metadata_dict(obj):
+    """Coerce a Stripe object's `metadata` to a plain dict.
+
+    Stripe Python v15 StripeObjects are attribute-only — both `**meta`
+    (used to merge existing metadata) and `meta.get(...)` raise
+    ("'StripeObject' object is not a mapping" / AttributeError). This
+    returns a real dict we can safely splat and mutate.
+    """
+    meta = getattr(obj, 'metadata', None)
+    if not meta:
+        return {}
+    if isinstance(meta, dict):
+        return dict(meta)
+    for attr in ('to_dict_recursive', 'to_dict'):
+        fn = getattr(meta, attr, None)
+        if callable(fn):
+            try:
+                return dict(fn())
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        return {k: meta[k] for k in meta.keys()}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _ts_to_dt(ts):
+    """Unix timestamp (Stripe) → aware UTC datetime, or None."""
+    if not ts:
+        return None
+    import datetime
+    return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+
+
+def _change_subscription_tier(sub_id, new_price_id, new_amount_cents,
+                              extra_metadata):
+    """Swap a subscription to `new_price_id`, choosing billing behaviour
+    by direction:
+
+      * UPGRADE  (new price > current) — takes effect immediately and
+        invoices the prorated difference NOW (`always_invoice`). Any
+        pending downgrade schedule is released first.
+      * DOWNGRADE (new price < current) — NO charge now. The lower price
+        is queued to take effect at the end of the current paid period
+        via a Stripe SubscriptionSchedule; the client keeps the current
+        plan until then.
+      * SAME price — plain swap, no proration.
+
+    Also un-cancels a sub set to cancel-at-period-end (re-subscribe).
+
+    Returns {'direction': 'upgrade'|'downgrade'|'same',
+             'effective_ts': <unix ts when a downgrade applies> | None}.
+    """
+    sub = stripe.Subscription.retrieve(sub_id)
+    items_obj = getattr(sub, 'items', None)
+    items_data = list(getattr(items_obj, 'data', [])) if items_obj else []
+    if not items_data:
+        raise ValueError(f'Subscription {sub_id} has no items.')
+    item = items_data[0]
+    item_id = item.id
+    current_price = getattr(item, 'price', None)
+    current_amount = getattr(current_price, 'unit_amount', None)
+    current_price_id = getattr(current_price, 'id', None)
+
+    base_meta = _metadata_dict(sub)
+    base_meta.update(extra_metadata)
+
+    if (current_amount is not None and new_amount_cents is not None
+            and new_amount_cents < current_amount):
+        direction = 'downgrade'
+    elif (current_amount is not None and new_amount_cents is not None
+            and new_amount_cents == current_amount):
+        direction = 'same'
+    else:
+        # Unknown amounts (shouldn't happen) → treat as an upgrade so we
+        # never silently defer a change the client expects immediately.
+        direction = 'upgrade'
+
+    existing_schedule = getattr(sub, 'schedule', None)
+
+    if direction == 'downgrade':
+        # Defer to period end with a subscription schedule. No charge now.
+        if existing_schedule:
+            sched = stripe.SubscriptionSchedule.retrieve(existing_schedule)
+        else:
+            sched = stripe.SubscriptionSchedule.create(
+                from_subscription=sub_id)
+        phases = list(getattr(sched, 'phases', []) or [])
+        if not phases:
+            raise ValueError(
+                f'Could not schedule downgrade for {sub_id}: no phases.')
+        cur = phases[0]
+        stripe.SubscriptionSchedule.modify(
+            sched.id,
+            end_behavior='release',
+            proration_behavior='none',
+            phases=[
+                {
+                    'items': [{'price': current_price_id, 'quantity': 1}],
+                    'start_date': cur.start_date,
+                    'end_date': cur.end_date,
+                },
+                {
+                    'items': [{'price': new_price_id, 'quantity': 1}],
+                    'iterations': 1,
+                },
+            ],
+        )
+        return {'direction': 'downgrade',
+                'effective_ts': getattr(cur, 'end_date', None)}
+
+    # upgrade / same — release any pending downgrade schedule first, or
+    # Stripe rejects the direct item swap on a schedule-managed sub.
+    if existing_schedule:
+        try:
+            stripe.SubscriptionSchedule.release(existing_schedule)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                'Could not release schedule %s before tier change',
+                existing_schedule)
+
+    stripe.Subscription.modify(
+        sub_id,
+        cancel_at_period_end=False,
+        items=[{'id': item_id, 'price': new_price_id}],
+        proration_behavior=(
+            'always_invoice' if direction == 'upgrade' else 'none'),
+        metadata=base_meta,
+    )
+    return {'direction': direction, 'effective_ts': None}
+
+
 def change_maintenance_subscription_tier(client, new_plan_slug):
     """
     Swap an existing maintenance subscription to a different tier.
 
-    Stripe handles proration automatically (`proration_behavior=
-    'create_prorations'`) — if upgrading, the client is charged the
-    prorated difference on their next invoice; if downgrading, they
-    get a prorated credit. The subscription ID stays the same.
+    Upgrades charge the prorated difference immediately; downgrades are
+    queued for the end of the current paid period (no charge until then).
+    See `_change_subscription_tier`. Returns its result dict so the view
+    can word the confirmation accordingly. The subscription ID is kept.
 
-    Also un-cancels a subscription that was set to cancel at period
-    end (the client effectively re-subscribed by upgrading).
-
-    Raises ValueError if the client has no active subscription to
-    modify or the new slug is invalid.
+    Raises ValueError if the client has no active subscription to modify
+    or the new slug is invalid.
     """
     _init()
     if not client.stripe_subscription_id:
@@ -271,31 +400,54 @@ def change_maintenance_subscription_tier(client, new_plan_slug):
             'first.')
 
     tier = get_maintenance_tier(new_plan_slug)
-    sub = stripe.Subscription.retrieve(client.stripe_subscription_id)
-    items_obj = getattr(sub, 'items', None)
-    items_data = list(getattr(items_obj, 'data', [])) if items_obj else []
-    if not items_data:
-        raise ValueError(
-            f'Subscription {client.stripe_subscription_id} has no items.')
-    item_id = items_data[0].id
-
-    updated = stripe.Subscription.modify(
+    result = _change_subscription_tier(
         client.stripe_subscription_id,
-        cancel_at_period_end=False,
-        items=[{'id': item_id, 'price': tier.stripe_price_id}],
-        proration_behavior='create_prorations',
-        metadata={
-            **(getattr(sub, 'metadata', {}) or {}),
-            'kind': 'maintenance',
-            'plan': tier.slug,
-        },
+        tier.stripe_price_id,
+        _cents(tier.price),
+        {'kind': 'maintenance', 'plan': tier.slug},
     )
+    _sync_local_maintenance_after_change(client, tier, result)
+    logger.info(
+        'change_maintenance_subscription_tier: client %s -> %s (%s)',
+        client.pk, tier.slug, result['direction'])
+    return result
+
+
+def _sync_local_maintenance_after_change(client, tier, result):
+    """Mirror a tier change onto the local MaintenancePlan + package.
+
+    Upgrade/same apply now: flip tier_slug + package and clear any pending
+    downgrade. Downgrade is deferred: leave the current tier in place and
+    record the queued tier + effective date so the portal can show it.
+    """
+    from clients.service_models import MaintenancePlan
+    sub_id = client.stripe_subscription_id
+    plan = MaintenancePlan.objects.filter(
+        stripe_subscription_id=sub_id).first()
+    if plan is None:
+        account = getattr(client, 'migrated_account', None)
+        if account is not None:
+            plan = account.maintenance_plans.filter(status='active').first()
+
+    if result['direction'] == 'downgrade':
+        if plan is not None:
+            plan.pending_tier_slug = tier.slug
+            plan.pending_tier_effective = _ts_to_dt(result['effective_ts'])
+            plan.save(update_fields=[
+                'pending_tier_slug', 'pending_tier_effective', 'updated_at'])
+        # Package + tier stay on the current (paid) plan until it applies.
+        return
+
+    # upgrade / same — effective immediately
     client.package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, client.package)
     client.save(update_fields=['package', 'updated_at'])
-    logger.info(
-        'change_maintenance_subscription_tier: client %s swapped to %s',
-        client.pk, tier.slug)
-    return updated
+    if plan is not None:
+        plan.tier_slug = tier.slug
+        plan.pending_tier_slug = ''
+        plan.pending_tier_effective = None
+        plan.save(update_fields=[
+            'tier_slug', 'pending_tier_slug', 'pending_tier_effective',
+            'updated_at'])
 
 
 def cancel_maintenance_subscription(client, reason=''):
@@ -318,11 +470,12 @@ def cancel_maintenance_subscription(client, reason=''):
         return None
     if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
+    _cancel_meta = _metadata_dict(sub)
+    _cancel_meta['cancel_reason'] = reason[:200] if reason else ''
     updated = stripe.Subscription.modify(
         client.stripe_subscription_id,
         cancel_at_period_end=True,
-        metadata={**(getattr(sub, 'metadata', {}) or {}),
-                  'cancel_reason': reason[:200] if reason else ''},
+        metadata=_cancel_meta,
     )
     logger.info(
         'cancel_maintenance_subscription: client %s sub %s '
@@ -489,7 +642,11 @@ def create_social_subscription(client, plan_slug, website=None):
 
 def change_social_subscription_tier(client, new_plan_slug, website=None):
     """Swap an existing per-Website social sub to a different tier.
-    Stripe prorates. Sub id stays the same."""
+
+    Upgrades charge the prorated difference immediately; downgrades are
+    queued for the end of the current paid period (no charge until then).
+    Sub id stays the same. Returns the `_change_subscription_tier` result
+    dict so the view can word the confirmation accordingly."""
     _init()
     plan = _social_plan_for(client, website)
     sub_id = (plan.stripe_subscription_id if plan else '') \
@@ -500,34 +657,38 @@ def change_social_subscription_tier(client, new_plan_slug, website=None):
             'Subscribe first.')
 
     tier = get_social_tier(new_plan_slug)
-    sub = stripe.Subscription.retrieve(sub_id)
-    items_obj = getattr(sub, 'items', None)
-    items_data = list(getattr(items_obj, 'data', [])) if items_obj else []
-    if not items_data:
-        raise ValueError(f'Subscription {sub_id} has no items.')
-    item_id = items_data[0].id
-
-    updated = stripe.Subscription.modify(
+    result = _change_subscription_tier(
         sub_id,
-        cancel_at_period_end=False,
-        items=[{'id': item_id, 'price': tier.stripe_price_id}],
-        proration_behavior='create_prorations',
-        metadata={
-            **(getattr(sub, 'metadata', {}) or {}),
-            'kind': 'social_media',
-            'plan': tier.slug,
-        },
+        tier.stripe_price_id,
+        _cents(tier.price),
+        {'kind': 'social_media', 'plan': tier.slug},
     )
-    plan = _ensure_social_plan(client, tier, website=website)
-    if plan is not None and not plan.stripe_subscription_id:
-        plan.stripe_subscription_id = sub_id
-        plan.save(update_fields=[
-            'stripe_subscription_id', 'updated_at'])
+
+    if result['direction'] == 'downgrade':
+        # Keep the current paid tier; record the queued downgrade.
+        if plan is not None:
+            plan.pending_tier_slug = tier.slug
+            plan.pending_tier_effective = _ts_to_dt(result['effective_ts'])
+            plan.save(update_fields=[
+                'pending_tier_slug', 'pending_tier_effective', 'updated_at'])
+    else:
+        # upgrade / same — apply now (also clears any pending downgrade).
+        plan = _ensure_social_plan(client, tier, website=website)
+        if plan is not None:
+            fields = ['pending_tier_slug', 'pending_tier_effective',
+                      'updated_at']
+            plan.pending_tier_slug = ''
+            plan.pending_tier_effective = None
+            if not plan.stripe_subscription_id:
+                plan.stripe_subscription_id = sub_id
+                fields.append('stripe_subscription_id')
+            plan.save(update_fields=fields)
+
     logger.info(
-        'change_social_subscription_tier: client %s website %s '
-        'swapped to %s',
-        client.pk, getattr(website, 'pk', None), tier.slug)
-    return updated
+        'change_social_subscription_tier: client %s website %s -> %s (%s)',
+        client.pk, getattr(website, 'pk', None), tier.slug,
+        result['direction'])
+    return result
 
 
 def cancel_social_subscription(client, reason='', website=None):
@@ -552,11 +713,12 @@ def cancel_social_subscription(client, reason='', website=None):
         return None
     if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
+    _cancel_meta = _metadata_dict(sub)
+    _cancel_meta['cancel_reason'] = reason[:200] if reason else ''
     return stripe.Subscription.modify(
         sub_id,
         cancel_at_period_end=True,
-        metadata={**(getattr(sub, 'metadata', {}) or {}),
-                  'cancel_reason': reason[:200] if reason else ''},
+        metadata=_cancel_meta,
     )
 
 
@@ -709,13 +871,14 @@ def cancel_hosting_subscription(client, reason=''):
         client.save(update_fields=[
             'stripe_hosting_subscription_id', 'updated_at'])
         return None
-    if sub.get('status') in ('canceled', 'incomplete_expired'):
+    if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
+    _cancel_meta = _metadata_dict(sub)
+    _cancel_meta['cancel_reason'] = reason[:200] if reason else ''
     updated = stripe.Subscription.modify(
         sub_id,
         cancel_at_period_end=True,
-        metadata={**(sub.get('metadata') or {}),
-                  'cancel_reason': reason[:200] if reason else ''},
+        metadata=_cancel_meta,
     )
     logger.info(
         'cancel_hosting_subscription: client %s sub %s set to '
@@ -1014,11 +1177,12 @@ def cancel_domain_subscription(registration, reason=''):
         return None
     if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
+    _cancel_meta = _metadata_dict(sub)
+    _cancel_meta['cancel_reason'] = reason[:200] if reason else ''
     updated = stripe.Subscription.modify(
         sub_id,
         cancel_at_period_end=True,
-        metadata={**(getattr(sub, 'metadata', {}) or {}),
-                  'cancel_reason': reason[:200] if reason else ''},
+        metadata=_cancel_meta,
     )
     logger.info(
         'cancel_domain_subscription: domain %s sub %s '

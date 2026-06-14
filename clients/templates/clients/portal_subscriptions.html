@@ -56,6 +56,11 @@
                             {% elif sub.current_period_end %}
                                 <p class="svc-card__renews">{% if sub.cancel_at_period_end %}Ends{% else %}Renews{% endif %} {{ sub.current_period_end|date:"M j, Y" }}</p>
                             {% endif %}
+                            {% if sub.pending_change %}
+                                <p class="svc-card__renews svc-card__renews--pending">
+                                    Switching to {{ sub.pending_change.tier }}{% if sub.pending_change.date %} on {{ sub.pending_change.date|date:"M j, Y" }}{% endif %} — no charge until then.
+                                </p>
+                            {% endif %}
                         </div>
                         {% if sub.cancel_at_period_end %}
                             <span class="sub-card__badge sub-card__badge--warn">Cancels at period end</span>

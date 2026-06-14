@@ -46,6 +46,11 @@
                     </div>
                     <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
                 </div>
+                {% if upsell_state.pending_tier_display %}
+                    <p class="maint-current__pending">
+                        Scheduled downgrade to <strong>{{ upsell_state.pending_tier_display }}</strong>{% if upsell_state.pending_tier_effective %} on {{ upsell_state.pending_tier_effective|date:"F j, Y" }}{% endif %}. You keep your current plan until then — no charge until the switch.
+                    </p>
+                {% endif %}
             </section>
         {% endif %}
 

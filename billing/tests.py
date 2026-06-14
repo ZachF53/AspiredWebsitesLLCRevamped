@@ -899,3 +899,96 @@ class BuildInvoiceItemAttachTests(TestCase):
         self.assertEqual(kw.get('pending_invoice_items_behavior'), 'exclude')
         _a2, kw2 = ms.InvoiceItem.create.call_args
         self.assertEqual(kw2.get('invoice'), 'in_1')
+
+
+class TierChangeBillingLogicTests(TestCase):
+    """Pure-logic coverage for the maintenance/social tier-change path:
+    the v15 metadata-mapping crash fix and upgrade/downgrade routing.
+    No network — Stripe is stubbed."""
+
+    def test_metadata_dict_handles_attribute_only_stripeobject(self):
+        """Stripe v15 metadata is attribute-only — `**meta` raised
+        'StripeObject is not a mapping'. _metadata_dict must coerce it."""
+        from billing.stripe_helpers import _metadata_dict
+
+        class FakeMeta:
+            # Not a mapping: ** would raise, .get is absent.
+            def to_dict_recursive(self):
+                return {'kind': 'maintenance', 'plan': 'old'}
+
+        class FakeSub:
+            metadata = FakeMeta()
+
+        out = _metadata_dict(FakeSub())
+        self.assertEqual(out, {'kind': 'maintenance', 'plan': 'old'})
+        # And it must be a real dict we can splat without error.
+        self.assertEqual({**out, 'extra': 1}['extra'], 1)
+
+    def test_metadata_dict_empty_and_none(self):
+        from billing.stripe_helpers import _metadata_dict
+        self.assertEqual(_metadata_dict(object()), {})
+
+    @patch('billing.stripe_helpers.stripe')
+    def test_upgrade_charges_difference_immediately(self, ms):
+        """Higher new price → modify with always_invoice, no schedule."""
+        from billing.stripe_helpers import _change_subscription_tier
+        item = MagicMock()
+        item.id = 'si_1'
+        item.price.unit_amount = 29900   # current $299
+        item.price.id = 'price_old'
+        sub = MagicMock()
+        sub.items.data = [item]
+        sub.schedule = None
+        ms.Subscription.retrieve.return_value = sub
+
+        res = _change_subscription_tier(
+            'sub_1', 'price_new', 59900, {'kind': 'maintenance'})
+
+        self.assertEqual(res['direction'], 'upgrade')
+        self.assertIsNone(res['effective_ts'])
+        _a, kw = ms.Subscription.modify.call_args
+        self.assertEqual(kw['proration_behavior'], 'always_invoice')
+        ms.SubscriptionSchedule.create.assert_not_called()
+
+    @patch('billing.stripe_helpers.stripe')
+    def test_downgrade_defers_via_schedule_no_immediate_charge(self, ms):
+        """Lower new price → subscription schedule, sub NOT modified now."""
+        from billing.stripe_helpers import _change_subscription_tier
+        item = MagicMock()
+        item.id = 'si_1'
+        item.price.unit_amount = 119900   # current $1199
+        item.price.id = 'price_old'
+        sub = MagicMock()
+        sub.items.data = [item]
+        sub.schedule = None
+        ms.Subscription.retrieve.return_value = sub
+
+        phase = MagicMock()
+        phase.start_date = 1000
+        phase.end_date = 2000
+        sched = MagicMock()
+        sched.id = 'sub_sched_1'
+        sched.phases = [phase]
+        ms.SubscriptionSchedule.create.return_value = sched
+
+        res = _change_subscription_tier(
+            'sub_1', 'price_new', 29900, {'kind': 'maintenance'})
+
+        self.assertEqual(res['direction'], 'downgrade')
+        self.assertEqual(res['effective_ts'], 2000)
+        ms.SubscriptionSchedule.create.assert_called_once()
+        ms.SubscriptionSchedule.modify.assert_called_once()
+        # No immediate item swap / charge on a downgrade.
+        ms.Subscription.modify.assert_not_called()
+
+    def test_tier_change_message_wording(self):
+        from clients.views import _tier_change_message
+        tier = MagicMock()
+        tier.name = 'Growth'
+        up = _tier_change_message(tier, {'direction': 'upgrade'}, 'maintenance')
+        self.assertIn('prorated difference', up)
+        down = _tier_change_message(
+            tier, {'direction': 'downgrade', 'effective_ts': None},
+            'maintenance')
+        self.assertIn('no charge now', down)
+        self.assertIn('Growth', down)

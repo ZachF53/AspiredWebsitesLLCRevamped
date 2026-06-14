@@ -2359,15 +2359,29 @@ def portal_subscriptions(request):
         # (Stripe test-mode product names are unreliable, so the plan tier
         # is the authoritative title).
         label_by_sub = {}
+        # Queued downgrades (tier_slug stays current; the lower tier is
+        # scheduled at period end). Surfaced on the card as a "scheduled"
+        # note so the client sees the upcoming switch + no charge until then.
+        pending_by_sub = {}
         for plan in account.maintenance_plans.exclude(
                 stripe_subscription_id=''):
             label_by_sub[plan.stripe_subscription_id] = (
                 f'Maintenance — {plan.get_tier_slug_display()}')
+            if plan.pending_tier_slug:
+                pending_by_sub[plan.stripe_subscription_id] = {
+                    'tier': plan.pending_tier_display,
+                    'date': plan.pending_tier_effective,
+                }
         for plan in account.social_media_plans.filter(
                 status__in=('active', 'cancelled'),
                 ).exclude(stripe_subscription_id=''):
             label_by_sub[plan.stripe_subscription_id] = (
                 f'Social Media — {plan.get_tier_slug_display()}')
+            if plan.pending_tier_slug:
+                pending_by_sub[plan.stripe_subscription_id] = {
+                    'tier': plan.pending_tier_display,
+                    'date': plan.pending_tier_effective,
+                }
         for w in account.websites.exclude(stripe_hosting_subscription_id=''):
             label_by_sub[w.stripe_hosting_subscription_id] = (
                 f'Hosting — {w.name}')
@@ -2383,6 +2397,7 @@ def portal_subscriptions(request):
                         card['product_name'] = (
                             label_by_sub.get(sub_id)
                             or card.get('product_name') or 'Subscription')
+                        card['pending_change'] = pending_by_sub.get(sub_id)
                         subscriptions.append(card)
             except Exception:
                 logger.exception(
@@ -2633,6 +2648,35 @@ def _maintenance_tiers():
     )
 
 
+def _tier_change_message(tier, result, label):
+    """Word a subscription tier-change confirmation by direction.
+
+    `result` is the dict from change_*_subscription_tier:
+    {'direction': 'upgrade'|'downgrade'|'same', 'effective_ts': ts|None}.
+    `label` is 'maintenance' or 'social media'.
+    """
+    direction = (result or {}).get('direction', 'upgrade')
+    if direction == 'same':
+        return f'You\'re already on the {tier.name} {label} plan.'
+    if direction == 'downgrade':
+        ts = (result or {}).get('effective_ts')
+        when = 'the end of your current billing period'
+        if ts:
+            import datetime
+            dt = datetime.datetime.fromtimestamp(
+                ts, tz=datetime.timezone.utc)
+            when = dt.strftime('%B %d, %Y').replace(' 0', ' ')
+        return (
+            f'Your {label} plan will switch to {tier.name} on {when}. '
+            f'You keep your current plan until then — no charge now, and '
+            f'your next invoice will be at the new rate.')
+    # upgrade
+    return (
+        f'Upgraded to the {tier.name} {label} plan. We\'ve charged the '
+        f'prorated difference for the rest of this billing period to your '
+        f'card on file; future invoices bill at the new rate.')
+
+
 def _maintenance_upsell_state(account):
     """
     Return a small dict describing the upsell state for an account. Used
@@ -2675,6 +2719,10 @@ def _maintenance_upsell_state(account):
         'project_live': project_live,
         'days_since_live': days_since_live,
         'current_tier_slug': current_tier_slug,
+        'pending_tier_display': (
+            active_plan.pending_tier_display if active_plan else ''),
+        'pending_tier_effective': (
+            active_plan.pending_tier_effective if active_plan else None),
     }
 
 
@@ -2781,11 +2829,9 @@ def portal_maintenance_start(request, slug):
 
         try:
             if is_change:
-                change_maintenance_subscription_tier(profile, slug)
+                result = change_maintenance_subscription_tier(profile, slug)
                 messages.success(
-                    request,
-                    f'Switched to the {tier.name} maintenance plan. '
-                    f'Stripe will prorate the change on your next invoice.')
+                    request, _tier_change_message(tier, result, 'maintenance'))
             else:
                 create_maintenance_subscription(profile, slug)
                 messages.success(
@@ -2967,6 +3013,10 @@ def _social_upsell_state(account, website=None):
         'is_subscribed': is_subscribed or has_comp,
         'is_comped': is_comped,
         'current_tier_slug': current_tier_slug,
+        'pending_tier_display': (
+            active_plan.pending_tier_display if active_plan else ''),
+        'pending_tier_effective': (
+            active_plan.pending_tier_effective if active_plan else None),
     }
 
 
@@ -3107,12 +3157,11 @@ def portal_social_plans_start(request, slug):
 
         try:
             if is_change:
-                change_social_subscription_tier(
+                result = change_social_subscription_tier(
                     profile, slug, website=website)
                 messages.success(
                     request,
-                    f'Switched to the {tier.name} social media plan. '
-                    f'Stripe will prorate the change on your next invoice.')
+                    _tier_change_message(tier, result, 'social media'))
             else:
                 create_social_subscription(
                     profile, slug, website=website)
