@@ -67,11 +67,12 @@ class PortalCredentialsTests(TestCase):
     def test_setup_creates_pin_and_unlocks(self):
         resp = self.client.post(self.url, {'pin': '4821', 'pin_confirm': '4821'})
         self.assertRedirects(resp, self.url)
-        self.profile.refresh_from_db()
-        self.assertTrue(self.profile.client_pin_set)
+        account = self.profile.migrated_account
+        account.refresh_from_db()
+        self.assertTrue(account.client_pin_set)
         self.assertTrue(verify_client_pin(
-            '4821', self.profile.client_pin_hash,
-            bytes(self.profile.client_pin_salt)))
+            '4821', account.client_pin_hash,
+            bytes(account.client_pin_salt)))
         # The setup unlocked the session — credentials render straight away.
         resp = self.client.get(self.url)
         self.assertContains(resp, 'Account logins Aspired Websites')
@@ -105,8 +106,9 @@ class PortalCredentialsTests(TestCase):
         resp = self.client.post(
             self.url, {'d1': '9', 'd2': '9', 'd3': '9', 'd4': '9'})
         self.assertContains(resp, 'Incorrect PIN')
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.client_pin_failed_attempts, 1)
+        account = self.profile.migrated_account
+        account.refresh_from_db()
+        self.assertEqual(account.client_pin_failed_attempts, 1)
 
     def test_five_wrong_pins_trigger_lockout(self):
         self._set_pin('1234')
@@ -114,8 +116,9 @@ class PortalCredentialsTests(TestCase):
             resp = self.client.post(
                 self.url, {'d1': '9', 'd2': '9', 'd3': '9', 'd4': '9'})
         self.assertContains(resp, 'Too Many Attempts')
-        self.profile.refresh_from_db()
-        self.assertIsNotNone(self.profile.client_pin_lockout_until)
+        account = self.profile.migrated_account
+        account.refresh_from_db()
+        self.assertIsNotNone(account.client_pin_lockout_until)
         # A fresh GET stays locked.
         resp = self.client.get(self.url)
         self.assertContains(resp, 'Too Many Attempts')
@@ -125,6 +128,8 @@ class PortalCredentialsTests(TestCase):
         self._set_pin()
         self._unlock_session()
         vault = self.profile.vault
+        vault.account_new = self.profile.migrated_account
+        vault.save(update_fields=['account_new', 'updated_at'])
         VaultCredential.objects.create(
             vault=vault, label='DigitalOcean', category='server',
             visible_to_client=True,
