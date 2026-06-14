@@ -361,8 +361,7 @@ def social_channels(request):
     admin side at /admin-dashboard/social/. This page just shows the
     client what's connected and what's been published recently.
     """
-    profile = request.client_profile
-    account = getattr(request.user, 'account', None)
+    account = request.account
 
     plans = []
     recent_posts = []
@@ -372,11 +371,12 @@ def social_channels(request):
             .prefetch_related('channels')
             .order_by('-started_at')
         )
-        # Pull the last 10 posts across every channel on this account.
+        # Pull the last 10 posts across every channel on this account
+        # (via channel -> plan -> account).
         from social.models import ScheduledPost
         recent_posts = list(
             ScheduledPost.objects
-            .filter(client=profile)
+            .filter(channel__plan__account=account)
             .select_related('channel')
             .order_by('-scheduled_for', '-created_at')[:10]
         )
@@ -2813,7 +2813,6 @@ def portal_maintenance_start(request, slug):
 @client_required
 def portal_maintenance_success(request):
     """Thank-you page shown after a successful maintenance signup."""
-    profile = request.client_profile
     slug = request.GET.get('tier', '') or ''
     tier = None
     if slug in _MAINTENANCE_TIER_SLUGS:
@@ -2822,7 +2821,6 @@ def portal_maintenance_success(request):
     ctx = _portal_context(
         request, 'subscriptions',
         tier=tier,
-        profile=profile,
     )
     return render(request, 'clients/portal_maintenance_success.html', ctx)
 
@@ -2912,12 +2910,11 @@ def _social_tiers():
     )
 
 
-def _active_social_plan(profile, website=None):
-    """Return the active SocialMediaPlan for (profile.account, website)
-    — or None. Per-Website scope: one Account can hold N plans, one per
-    business. When `website` is None we fall back to the legacy
-    account-wide row (website IS NULL)."""
-    account = getattr(getattr(profile, 'user', None), 'account', None)
+def _active_social_plan(account, website=None):
+    """Return the active SocialMediaPlan for (account, website) — or None.
+    Per-Website scope: one Account can hold N plans, one per business.
+    When `website` is None we fall back to the account-wide row
+    (website IS NULL)."""
     if account is None:
         return None
     return (
@@ -2928,7 +2925,7 @@ def _active_social_plan(profile, website=None):
     )
 
 
-def _social_upsell_state(profile, website=None):
+def _social_upsell_state(account, website=None):
     """Dict describing the upsell state for social plans on `website`.
     Parallel to _maintenance_upsell_state — every key is scoped to the
     single Website passed in, so an Account with three businesses gets
@@ -2940,18 +2937,18 @@ def _social_upsell_state(profile, website=None):
       is_comped          — bool, active via comp not Stripe
       current_tier_slug  — '' or the active tier slug
     """
-    active_plan = _active_social_plan(profile, website=website)
+    active_plan = _active_social_plan(account, website=website)
     is_subscribed = active_plan is not None
-    # Comp on ClientProfile is account-wide — applies to every Website
-    # on the Account. Paid sub on stripe_social_subscription_id wins
-    # over the comp for the "is_comped" flag.
-    has_comp = bool(getattr(profile, 'comp_social_tier', ''))
-    is_comped = has_comp and not profile.stripe_social_subscription_id
+    # Comp on the Account is account-wide — applies to every Website.
+    # A paid plan wins over the comp for the "is_comped" flag.
+    has_comp = bool(getattr(account, 'comp_social_tier', '') if account else '')
+    has_paid = bool(active_plan and active_plan.stripe_subscription_id)
+    is_comped = has_comp and not has_paid
     current_tier_slug = ''
     if active_plan is not None:
         current_tier_slug = active_plan.tier_slug
     elif has_comp:
-        current_tier_slug = profile.comp_social_tier
+        current_tier_slug = account.comp_social_tier
     return {
         'show_upsell': not (is_subscribed or has_comp),
         'is_subscribed': is_subscribed or has_comp,
@@ -2970,7 +2967,6 @@ def portal_social_plans(request):
     (rare — pre-build / migrated-in client), we render a single
     legacy account-wide block (website=None).
     """
-    profile = request.client_profile
     tiers = list(_social_tiers())
 
     account = getattr(request, 'account', None)
@@ -2991,12 +2987,12 @@ def portal_social_plans(request):
         for w in ordered:
             blocks.append({
                 'website': w,
-                'upsell_state': _social_upsell_state(profile, website=w),
+                'upsell_state': _social_upsell_state(account, website=w),
             })
     else:
         blocks.append({
             'website': None,
-            'upsell_state': _social_upsell_state(profile, website=None),
+            'upsell_state': _social_upsell_state(account, website=None),
         })
 
     ctx = _portal_context(
@@ -3051,10 +3047,10 @@ def portal_social_plans_start(request, slug):
         messages.error(request, str(exc))
         return redirect('clients:portal_social_plans')
 
-    state = _social_upsell_state(profile, website=website)
+    state = _social_upsell_state(request.account, website=website)
     # is_change must NOT be true for a purely-comped client — they have
     # no Stripe sub to mutate, just an upsell to a paid plan.
-    existing_plan = _active_social_plan(profile, website=website)
+    existing_plan = _active_social_plan(request.account, website=website)
     is_change = bool(
         existing_plan and existing_plan.stripe_subscription_id)
     is_same_tier = is_change and state['current_tier_slug'] == slug
