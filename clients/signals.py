@@ -36,6 +36,8 @@ _ACCOUNT_SYNC_FIELDS = [
     'client_pin_failed_attempts', 'client_pin_lockout_until',
     'moonieful_client_id', 'synced_from_moonieful', 'last_synced_at',
     'sync_conflict_flagged',
+    'comp_build_package', 'comp_maintenance_package', 'comp_social_tier',
+    'comp_notes',
 ]
 
 

@@ -1193,8 +1193,8 @@ def invoices(request):
     """Billing history — read from the PaymentRecord ledger (written by the
     Stripe webhooks for every payment: one-time build deposits/finals AND
     recurring subscription charges). Durable + no live Stripe dependency."""
-    profile = request.client_profile
-    records = list(profile.payment_records.all())  # ordered -paid_at (Meta)
+    account = request.account
+    records = list(account.payment_records.all())  # ordered -paid_at (Meta)
     invoice_list = [{
         'id': r.id,
         'description': r.description or r.get_kind_display(),
@@ -1221,7 +1221,7 @@ def invoice_receipt(request, record_id):
     Save still downloads it."""
     from billing.receipt_pdf import render_payment_receipt
     record = get_object_or_404(
-        request.client_profile.payment_records, id=record_id)
+        request.account.payment_records, id=record_id)
     content, is_pdf = render_payment_receipt(record)
     short = str(record.id)[:8]
     if is_pdf:

@@ -176,6 +176,14 @@ class Account(TimestampedModel):
     last_synced_at = models.DateTimeField(null=True, blank=True)
     sync_conflict_flagged = models.BooleanField(default=False)
 
+    # ── Comped tiers (operator-granted free access) ──
+    # Migrated from ClientProfile.comp_* during Phase D. Plain CharFields;
+    # label lookups reuse ClientProfile's *_COMP_CHOICES dicts.
+    comp_build_package = models.CharField(max_length=30, blank=True)
+    comp_maintenance_package = models.CharField(max_length=30, blank=True)
+    comp_social_tier = models.CharField(max_length=30, blank=True)
+    comp_notes = models.TextField(blank=True)
+
     # ── Legacy ClientProfile reference — kept during Phase B/C so
     # the backfill is reversible. Dropped in Phase D.
     legacy_client_profile = models.OneToOneField(
