@@ -1113,10 +1113,10 @@ def _notify_admin_revision(profile, revision):
 
 @client_required
 def support(request):
-    profile = request.client_profile
+    project = _active_project(request)
     ctx = _portal_context(
         request, 'support',
-        tickets=list(profile.tickets.all()),
+        tickets=list(project.tickets.all()) if project else [],
         form=SupportTicketForm(),
     )
     return render(request, 'clients/support.html', ctx)
@@ -1124,20 +1124,23 @@ def support(request):
 
 @client_required
 def support_new(request):
-    profile = request.client_profile
+    project = _active_project(request)
     if request.method == 'POST':
         form = SupportTicketForm(request.POST)
         if form.is_valid():
             ticket = form.save(commit=False)
-            ticket.client = profile
-            # SupportTicket.project is a vestigial nullable FK being
-            # dropped in Phase 3 — leave it None.
+            # client kept as a bridge (table retained); the per-website
+            # / per-account FKs are canonical now.
+            ticket.client = request.client_profile
+            ticket.website_new = getattr(request, 'website', None)
+            ticket.account_new = getattr(request, 'account', None)
             ticket.save()
-            _notify_admin_ticket(profile, ticket)
+            _notify_admin_ticket(request.client_profile, ticket)
             messages.success(request, 'Support ticket submitted.')
             return redirect('clients:support')
-        ctx = _portal_context(request, 'support', form=form,
-                              tickets=list(profile.tickets.all()))
+        ctx = _portal_context(
+            request, 'support', form=form,
+            tickets=list(project.tickets.all()) if project else [])
         return render(request, 'clients/support.html', ctx)
     return redirect('clients:support')
 
