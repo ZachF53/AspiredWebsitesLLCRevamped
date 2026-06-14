@@ -23,6 +23,48 @@ from .models import ClientProfile
 logger = logging.getLogger(__name__)
 
 
+# Account-level fields kept in sync ClientProfile -> Account on every CP
+# update during the Phase-D transition, so Account stays the live source
+# of truth even while some legacy code still writes the CP. One-way only
+# (Account.save never re-saves the CP), so there's no signal loop.
+_ACCOUNT_SYNC_FIELDS = [
+    'contact_name', 'phone', 'address', 'city', 'state', 'zip_code',
+    'status', 'is_tester', 'internal_notes', 'stripe_customer_id',
+    'preferred_contact_method', 'notify_on_stage_change',
+    'onboarding_complete',
+    'client_pin_hash', 'client_pin_salt', 'client_pin_set',
+    'client_pin_failed_attempts', 'client_pin_lockout_until',
+    'moonieful_client_id', 'synced_from_moonieful', 'last_synced_at',
+    'sync_conflict_flagged',
+]
+
+
+def _sync_account_fields(cp):
+    """Mirror account-level fields from a ClientProfile onto its Account."""
+    try:
+        acc = cp.migrated_account
+    except Exception:
+        acc = None
+    if acc is None:
+        return
+    changed = []
+    for f in _ACCOUNT_SYNC_FIELDS:
+        if (hasattr(cp, f) and hasattr(acc, f)
+                and getattr(acc, f) != getattr(cp, f)):
+            setattr(acc, f, getattr(cp, f))
+            changed.append(f)
+    firm = getattr(cp, 'firm_name', '') or ''
+    if firm and acc.name != firm:
+        acc.name = firm
+        changed.append('name')
+    if changed:
+        try:
+            acc.save(update_fields=changed + ['updated_at'])
+        except Exception:
+            logger.exception(
+                'CP->Account field sync failed for %s', cp.pk)
+
+
 @receiver(post_save, sender=ClientProfile)
 def autocreate_account_and_website(sender, instance, created, **kwargs):
     """
@@ -42,9 +84,12 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
     so the `refactor_to_accounts` backfill can opt out by setting
     ``instance._skip_autocreate = True`` before save().
     """
-    if not created:
-        return
     if getattr(instance, '_skip_autocreate', False):
+        return
+    if not created:
+        # Keep Account current with later CP edits (settings, PIN, billing)
+        # until those writes move to Account directly.
+        _sync_account_fields(instance)
         return
 
     try:
