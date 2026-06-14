@@ -81,6 +81,22 @@ def _active_project(request):
     return getattr(request, 'client_profile', None)
 
 
+def _intake_for(profile, site):
+    """Resolve (or create) the IntakeResponse, ensuring website_new is set so
+    the per-website reads (e.g. _portal_context) find it. Never duplicates:
+    IntakeResponse.client is O2O, so we look up by client first."""
+    from .models import IntakeResponse
+    obj = IntakeResponse.objects.filter(client=profile).first()
+    if obj is None and site is not None:
+        obj = IntakeResponse.objects.filter(website_new=site).first()
+    if obj is None:
+        obj = IntakeResponse.objects.create(client=profile, website_new=site)
+    elif site is not None and obj.website_new_id is None:
+        obj.website_new = site
+        obj.save(update_fields=['website_new', 'updated_at'])
+    return obj
+
+
 def _portal_context(request, active_nav, **extra):
     """Common context for every portal page — drives the sidebar + badges."""
     profile = request.client_profile
@@ -565,7 +581,7 @@ def intake(request):
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
 
-    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
+    intake_obj = _intake_for(profile, getattr(request, 'website', None))
 
     if request.method == 'POST':
         # Final submission — fields are already auto-saved; this just
@@ -615,7 +631,7 @@ def intake_save(request):
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
 
-    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
+    intake_obj = _intake_for(profile, getattr(request, 'website', None))
 
     # Step 2 radios POST `photos_provided=yes|no`. Django's
     # CheckboxInput.value_from_datadict treats both as truthy (any
@@ -683,7 +699,7 @@ def intake_photo_upload(request):
         return HttpResponse(status=403)
     if project is None:
         project = _ensure_project_for_unlocked_intake(profile)
-    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
+    intake_obj = _intake_for(profile, getattr(request, 'website', None))
 
     files = request.FILES.getlist('file')
     if not files:
@@ -734,7 +750,7 @@ def intake_photo_delete(request, photo_id):
     project = _active_project(request)
     if project is None or not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
-    intake_obj, _ = IntakeResponse.objects.get_or_create(client=profile)
+    intake_obj = _intake_for(profile, getattr(request, 'website', None))
 
     photo = (IntakePhoto.objects
              .filter(id=photo_id, intake=intake_obj).first())
