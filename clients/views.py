@@ -999,6 +999,19 @@ def file_upload(request):
 
 # ── Page 5: Revisions ───────────────────────────────────────────────────────
 
+def _on_essentials(account):
+    """True when the account holds an active Essentials maintenance plan
+    (replaces the deprecated ClientProfile.package == 'maintenance_essentials'
+    check now that plans are per-Account rows)."""
+    if account is None:
+        return False
+    try:
+        return account.maintenance_plans.filter(
+            status='active', tier_slug='maintenance-essentials').exists()
+    except Exception:
+        return False
+
+
 def _hourly_rate():
     """The out-of-scope hourly rate, from billing AddonPricing (DB-driven)."""
     from billing.pricing_models import AddonPricing
@@ -1531,7 +1544,8 @@ def portal_seo(request):
     analytics (page views, time on page, scroll depth, top pages)
     for the client.
     """
-    profile = request.client_profile
+    project = _active_project(request)
+    account = getattr(request, 'account', None)
     from reporting.analytics_helpers import (
         exit_intent_insight, overview_stats, scroll_insight,
         top_pages,
@@ -1543,23 +1557,23 @@ def portal_seo(request):
         build_keyword_rows, keyword_insight,
     )
 
-    rows = build_keyword_rows(profile, active_only=True)
-    overview = overview_stats(profile)
+    rows = build_keyword_rows(project, active_only=True)
+    overview = overview_stats(project)
 
     ctx = _portal_context(
         request, 'seo',
         keyword_rows=rows,
         keyword_insight=keyword_insight(rows),
-        conversion_counts=conversion_counts(profile),
-        conversion_chart=conversion_6month_chart(profile),
+        conversion_counts=conversion_counts(project),
+        conversion_chart=conversion_6month_chart(project),
         analytics_overview=overview,
-        analytics_top_pages=top_pages(profile, limit=5),
+        analytics_top_pages=top_pages(project, limit=5),
         scroll_insight=scroll_insight(overview['avg_scroll_depth']),
         exit_intent_insight=exit_intent_insight(
             overview['exit_intent_rate']),
         session_recording_enabled=bool(
-            profile.session_recording_enabled),
-        on_essentials=(profile.package == 'maintenance_essentials'),
+            getattr(project, 'session_recording_enabled', False)),
+        on_essentials=_on_essentials(account),
     )
     return render(request, 'clients/portal_seo.html', ctx)
 
@@ -1573,13 +1587,14 @@ def portal_reports(request):
     Part 4) annual reports the client can download once they're
     `ready` or `sent`.
     """
-    profile = request.client_profile
+    project = _active_project(request)
+    flt = ({'website_new': project} if getattr(request, 'website', None)
+           else {'client': request.client_profile})
     from reporting.models import MonthlyReport
     from .models import AnnualReport
-    reports = list(MonthlyReport.objects.filter(
-        client=profile, status='sent'))
+    reports = list(MonthlyReport.objects.filter(**flt, status='sent'))
     annual_reports = list(AnnualReport.objects.filter(
-        client=profile, status__in=['ready', 'sent']
+        **flt, status__in=['ready', 'sent']
     ).order_by('-report_year'))
     ctx = _portal_context(
         request, 'reports',
@@ -1607,10 +1622,13 @@ def portal_recordings(request):
 
     from reporting.models import SessionRecording
 
-    profile = request.client_profile
-    enabled = bool(profile.session_recording_enabled)
+    project = _active_project(request)
+    account = getattr(request, 'account', None)
+    enabled = bool(getattr(project, 'session_recording_enabled', False))
 
-    recordings = SessionRecording.objects.filter(client=profile)
+    flt = ({'website_new': project} if getattr(request, 'website', None)
+           else {'client': request.client_profile})
+    recordings = SessionRecording.objects.filter(**flt)
     stats = recordings.aggregate(
         total=Count('id'),
         avg_dur=Avg('duration_seconds'),
@@ -1628,7 +1646,7 @@ def portal_recordings(request):
     ctx = _portal_context(
         request, 'recordings',
         enabled=enabled,
-        on_essentials=(profile.package == 'maintenance_essentials'),
+        on_essentials=_on_essentials(account),
         recordings=recordings.order_by('-created_at')[:100],
         total_recordings=stats['total'] or 0,
         avg_duration_display=_format_seconds_simple(stats['avg_dur']),
