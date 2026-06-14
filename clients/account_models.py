@@ -201,6 +201,14 @@ class Account(TimestampedModel):
     def __str__(self):
         return self.name or (self.user.email if self.user_id else '(no name)')
 
+    def has_unpaid_out_of_scope(self):
+        """True if any MiniInvoice on this account is unpaid (gates revision
+        work in the portal). Account-level mirror of the legacy
+        ClientProfile.has_unpaid_out_of_scope()."""
+        from billing.models import MiniInvoice
+        return MiniInvoice.objects.filter(account_new=self).exclude(
+            status__in=['paid', 'cancelled']).exists()
+
 
 # ── Website ─────────────────────────────────────────────────────────────────
 

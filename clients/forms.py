@@ -2,6 +2,7 @@
 
 from django import forms
 
+from .account_models import Account
 from .models import (
     ClientDocument,
     ClientProfile,
@@ -223,7 +224,7 @@ class SettingsForm(forms.ModelForm):
     + the WHOIS-registrant info needed for domain registration."""
 
     class Meta:
-        model = ClientProfile
+        model = Account
         fields = [
             # Contact identity (required for WHOIS registrant)
             'contact_name', 'phone',

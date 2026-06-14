@@ -1037,7 +1037,7 @@ def _hourly_rate():
 
 @client_required
 def revisions(request):
-    profile = request.client_profile
+    account = request.account
     project = _active_project(request)
     revision_list = list(project.revisions.all()) if project else []
     ctx = _portal_context(
@@ -1046,14 +1046,14 @@ def revisions(request):
         form=RevisionForm(),
         hourly_rate=_hourly_rate(),
         # Phase 1.4 — surface the work-blocking banner when applicable.
-        work_blocked=profile.has_unpaid_out_of_scope(),
+        work_blocked=account.has_unpaid_out_of_scope(),
     )
     return render(request, 'clients/revisions.html', ctx)
 
 
 @client_required
 def revision_new(request):
-    profile = request.client_profile
+    account = request.account
     project = _active_project(request)
     if project is None:
         messages.error(request, 'You need an active project to request a revision.')
@@ -1063,7 +1063,7 @@ def revision_new(request):
     # MiniInvoice and work is blocked until status == 'paid'. Hard-stop
     # any new major-revision request while any MiniInvoice for this
     # client is pending or sent.
-    if profile.has_unpaid_out_of_scope():
+    if account.has_unpaid_out_of_scope():
         messages.error(
             request,
             'You have an unpaid out-of-scope invoice. Please pay it '
@@ -1076,7 +1076,7 @@ def revision_new(request):
             revision = form.save(commit=False)
             # website_new is the canonical per-build FK now; client kept
             # as a bridge (table not dropped).
-            revision.client = profile
+            revision.client = request.client_profile
             revision.website_new = getattr(request, 'website', None)
             revision.source = 'aspired_portal'
             revision.counts_against_limit = revision.is_major
@@ -1091,7 +1091,9 @@ def revision_new(request):
                 # Out of scope — bill it before work begins.
                 revision.status = 'out_of_scope'
                 revision.save(update_fields=['status', 'updated_at'])
-                _create_revision_mini_invoice(profile, revision)
+                _create_revision_mini_invoice(
+                    request.client_profile, revision,
+                    account=account, website=getattr(request, 'website', None))
                 messages.warning(
                     request,
                     'This exceeds your included revisions. An out-of-scope '
@@ -1100,7 +1102,7 @@ def revision_new(request):
             else:
                 messages.success(request, 'Revision request submitted.')
 
-            _notify_admin_revision(profile, revision)
+            _notify_admin_revision(request.client_profile, revision)
             return redirect('clients:revisions')
 
         ctx = _portal_context(
@@ -1112,12 +1114,14 @@ def revision_new(request):
     return redirect('clients:revisions')
 
 
-def _create_revision_mini_invoice(profile, revision):
+def _create_revision_mini_invoice(profile, revision, account=None,
+                                  website=None):
     from billing.models import MiniInvoice
-    # MiniInvoice.project is a vestigial nullable FK being dropped in
-    # Phase 3 — only `client` matters now.
+    # account_new/website_new are canonical; client kept as a bridge.
     MiniInvoice.objects.create(
         client=profile,
+        account_new=account,
+        website_new=website,
         revision=revision,
         description=f'Out-of-scope revision: {revision.description[:120]}',
         amount=0,
@@ -1872,15 +1876,15 @@ def portal_report_download(request, report_id):
 
 @client_required
 def settings_page(request):
-    profile = request.client_profile
+    account = request.account
     if request.method == 'POST':
-        form = SettingsForm(request.POST, instance=profile)
+        form = SettingsForm(request.POST, instance=account)
         if form.is_valid():
             form.save()
             messages.success(request, 'Settings saved.')
             return redirect('clients:settings')
     else:
-        form = SettingsForm(instance=profile)
+        form = SettingsForm(instance=account)
     ctx = _portal_context(request, 'settings', form=form)
     return render(request, 'clients/settings.html', ctx)
 
