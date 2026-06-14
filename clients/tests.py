@@ -1301,3 +1301,38 @@ class GmbIntakeFollowupTests(TestCase):
         madd.assert_not_called()
         mcreate.assert_not_called()
         self.assertFalse(self._has_todo())
+
+
+class PortalSmokeTests(TestCase):
+    """GET every main portal page for an onboarded client and assert none
+    500s. Guards against stray-attribute regressions (e.g. a `profile`
+    reference left behind during the ClientProfile -> Account/Website
+    re-key) that unit tests on individual helpers don't catch."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username='smoke-cl', password='smoke-pass-123',
+            email='smoke@example.com')
+        self.profile = ClientProfile.objects.create(
+            user=self.user, firm_name='Smoke Co')
+        # Past the intake gate so client_required doesn't bounce us.
+        self.profile.onboarding_status = 'onboarding_complete'
+        self.profile.onboarding_complete = True
+        self.profile.save(update_fields=[
+            'onboarding_status', 'onboarding_complete', 'updated_at'])
+        self.client.login(username='smoke-cl', password='smoke-pass-123')
+
+    def test_portal_pages_do_not_500(self):
+        names = [
+            'dashboard', 'project', 'files', 'support', 'invoices',
+            'portal_seo', 'portal_reports', 'portal_recordings',
+            'portal_security', 'portal_changelog', 'portal_suggestions',
+            'settings', 'credentials', 'social_channels',
+            'portal_maintenance', 'portal_social_plans', 'portal_referral',
+        ]
+        for name in names:
+            resp = self.client.get(reverse(f'clients:{name}'))
+            self.assertLess(
+                resp.status_code, 500,
+                f'{name} returned {resp.status_code}')
