@@ -992,3 +992,50 @@ class TierChangeBillingLogicTests(TestCase):
             'maintenance')
         self.assertIn('no charge now', down)
         self.assertIn('Growth', down)
+
+
+class SeedStripeCustomersCommandTests(TestCase):
+    """seed_stripe_customers creates a customer only for clients missing
+    one, and is idempotent."""
+
+    def test_creates_for_missing_skips_existing(self):
+        from io import StringIO
+        from django.core.management import call_command
+        User = get_user_model()
+        u1 = User.objects.create_user(
+            username='seed1', password='x', email='s1@example.com')
+        cp1 = ClientProfile.objects.create(user=u1, firm_name='Needs Cust')
+        u2 = User.objects.create_user(
+            username='seed2', password='x', email='s2@example.com')
+        cp2 = ClientProfile.objects.create(
+            user=u2, firm_name='Has Cust', stripe_customer_id='cus_existing')
+
+        with patch('billing.management.commands.seed_stripe_customers.'
+                   'create_or_get_customer') as mock_create:
+            def _fake(cp):
+                cp.stripe_customer_id = 'cus_new'
+                cp.save(update_fields=['stripe_customer_id', 'updated_at'])
+                return type('C', (), {'id': 'cus_new'})()
+            mock_create.side_effect = _fake
+            call_command('seed_stripe_customers', '--apply', stdout=StringIO())
+
+        cp1.refresh_from_db()
+        cp2.refresh_from_db()
+        self.assertEqual(cp1.stripe_customer_id, 'cus_new')
+        self.assertEqual(cp2.stripe_customer_id, 'cus_existing')
+        # Only the one missing an id should have been created.
+        self.assertEqual(mock_create.call_count, 1)
+
+    def test_dry_run_writes_nothing(self):
+        from io import StringIO
+        from django.core.management import call_command
+        User = get_user_model()
+        u = User.objects.create_user(
+            username='seed3', password='x', email='s3@example.com')
+        cp = ClientProfile.objects.create(user=u, firm_name='Dry Co')
+        with patch('billing.management.commands.seed_stripe_customers.'
+                   'create_or_get_customer') as mock_create:
+            call_command('seed_stripe_customers', stdout=StringIO())
+            mock_create.assert_not_called()
+        cp.refresh_from_db()
+        self.assertEqual(cp.stripe_customer_id, '')
