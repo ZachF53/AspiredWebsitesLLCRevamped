@@ -64,9 +64,18 @@ class Command(BaseCommand):
                  and f.related_model.__name__ == 'ClientProfile'), None)
             if client_field is None:
                 continue
-            do_website = 'website_new' in field_names
-            do_account = 'account_new' in field_names
-            if not (do_website or do_account):
+            # Account FK may be named account_new (legacy-coexist models) or
+            # account (newer models like PaymentRecord/plans). Same for
+            # website_new vs website. Verify each points at the right model.
+            def _fk(name, target):
+                f = next((g for g in model._meta.get_fields()
+                          if g.name == name and getattr(g, 'related_model', None)
+                          and g.related_model.__name__ == target), None)
+                return name if f is not None else None
+
+            acct_field = _fk('account_new', 'Account') or _fk('account', 'Account')
+            site_field = _fk('website_new', 'Website') or _fk('website', 'Website')
+            if not (acct_field or site_field):
                 continue
 
             label = f'{model._meta.app_label}.{model.__name__}'
@@ -78,15 +87,15 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
                 changed = []
-                if do_account and getattr(row, 'account_new_id', None) is None:
-                    row.account_new = acct
-                    changed.append('account_new')
+                if acct_field and getattr(row, acct_field + '_id', None) is None:
+                    setattr(row, acct_field, acct)
+                    changed.append(acct_field)
                     fixed_a += 1
-                if do_website and getattr(row, 'website_new_id', None) is None:
+                if site_field and getattr(row, site_field + '_id', None) is None:
                     site = primary_site.get(acct.id)
                     if site is not None:
-                        row.website_new = site
-                        changed.append('website_new')
+                        setattr(row, site_field, site)
+                        changed.append(site_field)
                         fixed_w += 1
                 if changed and apply:
                     row.save(update_fields=changed)
