@@ -55,10 +55,10 @@ def _normalize_name(raw):
 @client_required
 def portal_domains(request):
     """List every domain the client has registered through us."""
-    profile = request.client_profile
+    account = request.account
     registrations = (
         DomainRegistration.objects
-        .filter(client=profile)
+        .filter(account_new=account)
         .order_by('-created_at')
     )
     ctx = _portal_ctx(
@@ -124,6 +124,7 @@ def portal_domain_register(request, domain):
     )
 
     profile = request.client_profile
+    account = request.account
 
     domain = (domain or '').lower().strip()
     if '.' not in domain:
@@ -136,13 +137,13 @@ def portal_domain_register(request, domain):
 
     # Default card lookup for the confirm page.
     default_card = None
-    if profile.stripe_customer_id:
+    if account.stripe_customer_id:
         try:
             pm_id = get_customer_default_payment_method(
-                profile.stripe_customer_id)
+                account.stripe_customer_id)
             if pm_id:
                 methods = list_customer_payment_methods(
-                    profile.stripe_customer_id)
+                    account.stripe_customer_id)
                 for m in methods:
                     if getattr(m, 'id', '') == pm_id:
                         default_card = {
@@ -247,9 +248,9 @@ def _is_profile_complete(profile):
 @client_required
 def portal_domain_detail(request, pk):
     """Domain detail — status, nameservers, DNS records, transfer-out."""
-    profile = request.client_profile
+    account = request.account
     registration = get_object_or_404(
-        DomainRegistration, pk=pk, client=profile)
+        DomainRegistration, pk=pk, account_new=account)
 
     # Refresh state from Namecheap if it's been more than an hour
     # since the last sync — keeps the page accurate without an
@@ -282,9 +283,9 @@ def portal_domain_detail(request, pk):
 @client_required
 def portal_domain_dns(request, pk):
     """GET edit form; POST replaces full record set."""
-    profile = request.client_profile
+    account = request.account
     registration = get_object_or_404(
-        DomainRegistration, pk=pk, client=profile)
+        DomainRegistration, pk=pk, account_new=account)
 
     if registration.status != 'active':
         messages.error(
@@ -393,9 +394,9 @@ def portal_domain_cancel(request, pk):
     end, lifts registrar lock, pulls EPP code, and emails the client
     the transfer-out package.
     """
-    profile = request.client_profile
+    account = request.account
     registration = get_object_or_404(
-        DomainRegistration, pk=pk, client=profile)
+        DomainRegistration, pk=pk, account_new=account)
     if registration.status not in ('active',):
         messages.info(
             request,
@@ -439,9 +440,9 @@ def portal_domain_resume(request, pk):
     issued EPP code (it's been emailed already so we treat it as
     burned), and put the registration back to active.
     """
-    profile = request.client_profile
+    account = request.account
     registration = get_object_or_404(
-        DomainRegistration, pk=pk, client=profile)
+        DomainRegistration, pk=pk, account_new=account)
     if registration.status != 'grace':
         messages.info(
             request,
@@ -486,9 +487,9 @@ def portal_domain_delete(request, pk):
     Scoped to the client's own registrations — they can't touch
     anyone else's.
     """
-    profile = request.client_profile
+    account = request.account
     registration = get_object_or_404(
-        DomainRegistration, pk=pk, client=profile)
+        DomainRegistration, pk=pk, account_new=account)
     if registration.status != 'failed':
         messages.error(
             request,

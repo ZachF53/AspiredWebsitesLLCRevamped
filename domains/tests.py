@@ -559,7 +559,7 @@ class DomainWebhookTests(TestCase):
             stripe_customer_id='cus_abc',
         )
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='wb.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='wb.com', tld='com',
             status='active', stripe_subscription_id='sub_domain_123',
         )
 
@@ -637,7 +637,7 @@ class ReconcileCommandTests(TestCase):
             user=self.user, firm_name='RC')
         # Domain renews in 7 days — should fire heads-up.
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='rc.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='rc.com', tld='com',
             status='active',
             expires_at=_tz.now() + timedelta(days=7),
         )
@@ -698,7 +698,7 @@ class DNSEditViewTests(TestCase):
             user=self.user, firm_name='DNS Co',
         )
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='dnsguard.com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='dnsguard.com',
             tld='com', status='active',
         )
         self.tc = DjangoTestClient()
@@ -1167,7 +1167,7 @@ class ResumeDomainTests(TestCase):
             stripe_customer_id='cus_resume')
         from domains.models import DomainRegistration
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='undo.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='undo.com', tld='com',
             status='grace', stripe_subscription_id='sub_rs')
         self.reg.set_epp_code('abc123')
         self.reg.registrar_lock = False
@@ -1220,7 +1220,7 @@ class TransferOutRegistrantSwapTests(TestCase):
             stripe_customer_id='cus_to')
         from domains.models import DomainRegistration
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='leaving.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='leaving.com', tld='com',
             status='active', stripe_subscription_id='sub_to')
 
     def test_transfer_out_calls_set_contacts_with_client_data(self):
@@ -1274,7 +1274,7 @@ class ParkUnparkTests(TestCase):
             user=self.user, firm_name='Park Co')
         from domains.models import DomainRegistration, DNSRecord
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='park.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='park.com', tld='com',
             status='active')
 
     def test_park_pushes_url301_for_apex_and_www(self):
@@ -1335,7 +1335,7 @@ class HostingCancelParksDomainsTests(TestCase):
             stripe_hosting_subscription_id='sub_hosting_xyz')
         from domains.models import DomainRegistration
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='hostparked.com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='hostparked.com',
             tld='com', status='active')
 
     def test_hosting_subscription_deleted_parks_active_domains(self):
@@ -1464,7 +1464,7 @@ class ExpirationCascadeTests(TestCase):
             user=self.user, firm_name='Ex Co')
         # In grace, expires in 3 days
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='ex.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='ex.com', tld='com',
             status='grace',
             expires_at=_tz.now() + timedelta(days=3))
 
@@ -1525,7 +1525,7 @@ class RenewRetryTests(TestCase):
             user=self.user, firm_name='RR Co')
         # Active row with last_api_error indicating a failed renew
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='rr.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='rr.com', tld='com',
             status='active',
             stripe_subscription_id='sub_rr',
             last_api_error='renew: Namecheap returned ERROR',
@@ -1637,7 +1637,7 @@ class PortalResumeViewTests(TestCase):
         self.profile = ClientProfile.objects.create(
             user=self.user, firm_name='PRV Co')
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, domain_name='resumetest.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='resumetest.com', tld='com',
             status='grace')
         self.tc = DjangoTestClient()
         self.tc.force_login(self.user)
@@ -1684,11 +1684,11 @@ class DeleteFailedRegistrationTests(TestCase):
         self.profile = ClientProfile.objects.create(
             user=self.user, firm_name='Del Co')
         self.reg_failed = DomainRegistration.objects.create(
-            client=self.profile, domain_name='bad.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='bad.com', tld='com',
             status='failed',
             last_api_error='Namecheap: domain reserved')
         self.reg_active = DomainRegistration.objects.create(
-            client=self.profile, domain_name='good.com', tld='com',
+            client=self.profile, account_new=self.profile.migrated_account, domain_name='good.com', tld='com',
             status='active')
 
         self.tc = DjangoTestClient()
