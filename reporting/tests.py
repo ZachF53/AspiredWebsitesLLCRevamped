@@ -335,7 +335,9 @@ class PortalSeoTests(TestCase):
 
     def test_seo_page_shows_keyword(self):
         kw = TrackedKeyword.objects.create(
-            client=self.cp, keyword='probate lawyer', is_active=True)
+            client=self.cp,
+            website_new=self.cp.migrated_account.websites.first(),
+            keyword='probate lawyer', is_active=True)
         KeywordRankRecord.objects.create(keyword=kw, position=4, impressions=120)
         resp = self.client.get(reverse('clients:portal_seo'))
         self.assertContains(resp, 'probate lawyer')
