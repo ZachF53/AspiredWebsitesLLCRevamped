@@ -1692,7 +1692,8 @@ def portal_recording_download(request, rec_id):
     from reporting.models import SessionRecording
 
     rec = get_object_or_404(
-        SessionRecording, id=rec_id, client=request.client_profile)
+        SessionRecording, id=rec_id,
+        website_new__account=request.account)
 
     static_root = Path(_s.BASE_DIR) / 'core' / 'static' / 'js'
     try:
@@ -1711,7 +1712,7 @@ def portal_recording_download(request, rec_id):
                 f'{safe_page}.html')
 
     body = render(request, 'admin_dashboard/recording_download.html', {
-        'client': request.client_profile,
+        'website': rec.website_new,
         'recording': rec,
         'rrweb_js': rrweb_js,
         'events_json': events_json,
@@ -1732,7 +1733,8 @@ def portal_recording_replay(request, rec_id):
     from reporting.models import SessionRecording
 
     rec = get_object_or_404(
-        SessionRecording, id=rec_id, client=request.client_profile)
+        SessionRecording, id=rec_id,
+        website_new__account=request.account)
 
     events = rec.get_all_events()
     first_event_type = (events[0].get('type')
@@ -1763,7 +1765,7 @@ def portal_annual_report_download(request, report_id):
     from .models import AnnualReport
     report = get_object_or_404(
         AnnualReport, id=report_id,
-        client=request.client_profile,
+        website_new__account=request.account,
         status__in=['ready', 'sent'],
     )
     abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
@@ -1784,10 +1786,12 @@ def portal_security(request):
     """
     from reporting.models import VulnerabilityScan
 
-    profile = request.client_profile
+    flt = ({'website_new': _active_project(request)}
+           if getattr(request, 'website', None)
+           else {'client': request.client_profile})
     scans = list(
         VulnerabilityScan.objects
-        .filter(client=profile, status='complete')
+        .filter(**flt, status='complete')
         .order_by('-completed_at')
     )
     latest = scans[0] if scans else None
@@ -1824,7 +1828,7 @@ def portal_scan_download(request, scan_id):
 
     scan = get_object_or_404(
         VulnerabilityScan,
-        id=scan_id, client=request.client_profile, status='complete',
+        id=scan_id, website_new__account=request.account, status='complete',
     )
     if not scan.pdf_path:
         raise Http404('Report not generated yet.')
@@ -1849,7 +1853,8 @@ def portal_report_download(request, report_id):
     from reporting.models import MonthlyReport
 
     report = get_object_or_404(
-        MonthlyReport, id=report_id, client=request.client_profile)
+        MonthlyReport, id=report_id,
+        website_new__account=request.account)
     abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
     if not report.pdf_path or not os.path.exists(abs_path):
         raise Http404('Report file not found.')
