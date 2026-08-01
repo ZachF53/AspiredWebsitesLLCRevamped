@@ -8829,15 +8829,29 @@ def dmarc_dashboard(request):
       - Manual upload form (paste a .zip / .gz / .xml from an
         email attachment — useful before the IMAP poller is wired)
     """
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     from django.db.models import Count, Sum
+    from django.utils import timezone as dj_tz
 
     from reporting.models import DmarcRecord, DmarcReport
 
-    cutoff_date = date.today() - timedelta(days=30)
+    # Window is adjustable via ?days= so a backfill of older reports is
+    # actually visible. With the window hard-coded to 30 days, ingesting
+    # an older report succeeded but rendered nothing — indistinguishable
+    # from the ingest being broken.
+    try:
+        days = int(request.GET.get('days', 30))
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 365))
 
-    qs = DmarcReport.objects.filter(period_end__gte=cutoff_date)
+    # tz-aware cutoff. period_end is a UTC datetime; comparing it to a
+    # naive date() triggered a naive-datetime warning and put the window
+    # boundary a few hours off the intended point.
+    cutoff = dj_tz.now() - timedelta(days=days)
+
+    qs = DmarcReport.objects.filter(period_end__gte=cutoff)
 
     # Totals across the 30-day window.
     totals = qs.aggregate(
@@ -8858,7 +8872,10 @@ def dmarc_dashboard(request):
     # high-volume domains.
     by_day = {}
     for r in qs:
-        d = r.period_end.date()
+        # localtime() so bucket keys match the localdate() strip below —
+        # period_end is UTC, the strip was server-local, and the two
+        # disagreed for reports landing near midnight.
+        d = dj_tz.localtime(r.period_end).date()
         bucket = by_day.setdefault(
             d, {'date': d, 'pass': 0, 'fail': 0, 'total': 0})
         bucket['pass'] += r.dmarc_pass
@@ -8866,9 +8883,13 @@ def dmarc_dashboard(request):
         bucket['total'] += r.total_messages
 
     # Build a 30-day strip so missing-day bars render as gaps.
+    # Cap the bar count — a 365-day window would render an unreadable
+    # 365-column chart.
+    trend_days = min(days, 90)
     trend = []
-    for i in range(30, -1, -1):
-        d = date.today() - timedelta(days=i)
+    today = dj_tz.localdate()
+    for i in range(trend_days - 1, -1, -1):
+        d = today - timedelta(days=i)
         bucket = by_day.get(d, {'date': d, 'pass': 0, 'fail': 0, 'total': 0})
         total = bucket['total'] or 1  # avoid /0 for empty days
         # Portable date label — %-m/%-d works on Linux/Mac but not
@@ -8912,7 +8933,7 @@ def dmarc_dashboard(request):
     # ── Top failing source IPs (in the 30-day window) ──
     failing = (
         DmarcRecord.objects
-        .filter(report__period_end__gte=cutoff_date)
+        .filter(report__period_end__gte=cutoff)
         .filter(dkim_aligned__in=('fail', 'none'),
                 spf_aligned__in=('fail', 'none'))
         .values('source_ip')
@@ -8922,7 +8943,12 @@ def dmarc_dashboard(request):
     top_failing = list(failing)
 
     # ── Recent reports table ──
-    recent_reports = list(qs.order_by('-received_at')[:25])
+    # Deliberately NOT window-filtered. This table answers "did anything
+    # land at all?", so it must show the newest reports even when they
+    # fall outside the selected window (e.g. right after a backfill of
+    # older reports).
+    recent_reports = list(
+        DmarcReport.objects.order_by('-received_at')[:25])
 
     return render(request, 'admin_dashboard/dmarc.html', _admin_context(
         active='dmarc',
@@ -8932,6 +8958,12 @@ def dmarc_dashboard(request):
         pass_rate=pass_rate,
         total_reports=totals['total_reports'] or 0,
         trend=trend,
+        trend_days=trend_days,
+        window_days=days,
+        # Lets the template tell "nothing ever ingested" apart from
+        # "nothing in the selected window" — two very different problems
+        # that used to render the same empty state.
+        has_any_reports=bool(recent_reports),
         reporters=reporters,
         top_failing=top_failing,
         recent_reports=recent_reports,

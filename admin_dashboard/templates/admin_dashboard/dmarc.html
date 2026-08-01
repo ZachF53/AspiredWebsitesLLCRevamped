@@ -10,11 +10,23 @@
             <span class="eyebrow">Email Auth</span>
             <h1 class="admin-page-title">DMARC Aggregate Reports</h1>
             <p class="admin-page-sub">
-                Last 30 days · {{ total_reports }} report{{ total_reports|pluralize }} ingested ·
+                Last {{ window_days }} days · {{ total_reports }} report{{ total_reports|pluralize }} ingested ·
                 {{ total_msgs }} messages reported by providers.
             </p>
         </div>
         <div>
+            {% comment %}
+                Window switcher. The window used to be hard-coded to 30
+                days, which meant a backfill of older reports ingested
+                fine but rendered an empty page — looking identical to a
+                broken ingest.
+            {% endcomment %}
+            <span class="dmarc-window-switch">
+                <a href="?days=7" class="btn-secondary btn-sm{% if window_days == 7 %} is-active{% endif %}">7d</a>
+                <a href="?days=30" class="btn-secondary btn-sm{% if window_days == 30 %} is-active{% endif %}">30d</a>
+                <a href="?days=90" class="btn-secondary btn-sm{% if window_days == 90 %} is-active{% endif %}">90d</a>
+                <a href="?days=365" class="btn-secondary btn-sm{% if window_days == 365 %} is-active{% endif %}">1y</a>
+            </span>
             <a href="https://dmarcian.com/dmarc-xml/" target="_blank" rel="noopener" class="btn-secondary btn-sm">DMARC docs ↗</a>
         </div>
     </div>
@@ -65,11 +77,13 @@
     {% endcomment %}
     <section class="admin-card dmarc-trend-card">
         <div class="admin-card__header">
-            <h2 class="admin-card__title">Pass/fail trend — last 31 days</h2>
+            <h2 class="admin-card__title">Pass/fail trend — last {{ trend_days }} days</h2>
         </div>
         <div class="admin-card__body">
-            {% if total_reports == 0 %}
+            {% if total_reports == 0 and not has_any_reports %}
                 <p class="muted">No reports ingested yet. Upload one below, or wait ~24 hours after publishing your DMARC <code>rua=</code> address for the first reports to arrive.</p>
+            {% elif total_reports == 0 %}
+                <p class="muted">No reports in the last {{ window_days }} days — but older reports exist (see the table below). Try a <a href="?days=365">wider window</a>.</p>
             {% else %}
                 <div class="dmarc-trend">
                     {% for day in trend %}

@@ -1041,8 +1041,16 @@ def ingest_dmarc_imap_task():
         logger.exception('ingest_dmarc_imap task failed')
         return 'failed'
     output = buf.getvalue().strip()
-    # One-line summary line is plenty for the Celery log.
-    last = output.splitlines()[-1] if output else ''
+    lines = output.splitlines()
+    # One-line summary is plenty for the Celery log — EXCEPT when the
+    # command warned. A silently-empty mailbox previously surfaced as
+    # 'succeeded: Done. ingested=0 …', which reads like a quiet day
+    # rather than a broken config. Promote the warning into the result.
+    warnings = [ln for ln in lines if 'WARNING' in ln]
+    last = lines[-1] if lines else ''
+    if warnings:
+        logger.warning('ingest_dmarc_imap: %s', ' | '.join(warnings))
+        return f'{last} [{len(warnings)} warning(s)] {warnings[0]}'[:500]
     return last or 'ok'
 
 

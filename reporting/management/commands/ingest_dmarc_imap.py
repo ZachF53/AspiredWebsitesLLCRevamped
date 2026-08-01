@@ -10,16 +10,27 @@ Required env vars:
     DMARC_IMAP_HOST       = imap.gmail.com
     DMARC_IMAP_USER       = zacherylong@aspiredwebsites.com
     DMARC_IMAP_PASS       = (Gmail App Password — NOT the account password)
-    DMARC_IMAP_FOLDER     = INBOX (or a label you filtered DMARC reports into)
+    DMARC_IMAP_FOLDER     = [Gmail]/All Mail
 
 Gmail App Password setup:
     Google Account → Security → 2-Step Verification → App passwords
     → Generate one for "Mail / Other" and paste into DMARC_IMAP_PASS.
 
-Recommended Gmail filter to keep your INBOX clean:
-    From: contains "dmarc" OR subject contains "Report Domain"
-    → Skip Inbox, Apply label "dmarc-reports"
-    Then set DMARC_IMAP_FOLDER=dmarc-reports.
+On DMARC_IMAP_FOLDER:
+    Prefer ``[Gmail]/All Mail``. It sees every message regardless of
+    label, archive state, or how you filed it, so the poller can't be
+    starved by a filter that was never created or a label that was
+    renamed. Re-ingest is free — ingest_dmarc_xml() de-dups on
+    report_id — so the wider scan costs nothing but a few IMAP bytes.
+
+    A label (e.g. ``dmarc-reports``) also works, but ONLY if a Gmail
+    filter actually applies it. A label that exists but is empty makes
+    this command a silent no-op — that exact misconfiguration kept the
+    dashboard blank for two months. Note that Gmail filters are not
+    retroactive; mail that arrived before the filter existed keeps
+    whatever labels it had.
+
+    Mailbox names containing spaces are handled — see _imap_quote().
 
 Usage:
     python manage.py ingest_dmarc_imap                 # process unread, mark seen
@@ -38,6 +49,7 @@ import logging
 import re
 import sys
 from datetime import datetime, timedelta
+from email.header import decode_header, make_header
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -99,7 +111,7 @@ class Command(BaseCommand):
         try:
             mbox = imaplib.IMAP4_SSL(host)
             mbox.login(user, pwd)
-            mbox.select(folder)
+            mbox.select(_imap_quote(folder))
         except Exception as exc:  # noqa: BLE001
             self.stderr.write(self.style.ERROR(
                 f'IMAP login / select failed: {exc}'))
@@ -118,6 +130,20 @@ class Command(BaseCommand):
         self.stdout.write(
             f'  → {len(msg_ids)} messages match window.')
 
+        # An empty folder is the failure mode that hid this job's
+        # breakage for two months: creds valid, folder selectable,
+        # 0 messages, exit 0, "task succeeded". Say it loudly instead.
+        if not msg_ids:
+            warning = (
+                f'0 messages in folder "{folder}" since {since_imap}. '
+                f'If DMARC reports ARE arriving in this mailbox, the '
+                f'folder is wrong — a Gmail label only receives mail '
+                f'when a filter applies it, and filters are not '
+                f'retroactive. Set DMARC_IMAP_FOLDER="[Gmail]/All Mail" '
+                f'to scan everything.')
+            logger.warning('DMARC ingest: %s', warning)
+            self.stderr.write(self.style.WARNING(f'WARNING: {warning}'))
+
         ingested = duplicates = skipped = failures = 0
         for msg_id in msg_ids:
             status, msg_data = mbox.fetch(msg_id, '(RFC822)')
@@ -131,8 +157,13 @@ class Command(BaseCommand):
                 failures += 1
                 continue
 
-            subject = msg.get('Subject', '')
-            sender = msg.get('From', '')
+            # RFC 2047-decode before matching. Microsoft sends the
+            # subject as a base64 encoded-word
+            # (``=?utf-8?B?UmVwb3J0IERvbWFpbjog…``), which the raw
+            # header value never matches — those reports survived only
+            # because "dmarc" happens to appear in their From address.
+            subject = _decode_mime_header(msg.get('Subject', ''))
+            sender = _decode_mime_header(msg.get('From', ''))
             # Quick heuristic — DMARC reports usually have one of
             # these subject signals. Skip everything else without
             # walking the attachments (saves IMAP bytes).
@@ -190,10 +221,58 @@ class Command(BaseCommand):
                     logger.exception('failed to flag %s', msg_id)
 
         mbox.logout()
+
+        # Messages were present but none of them yielded a report —
+        # every one was filtered out by the subject/sender heuristic or
+        # failed to unwrap. Also worth a warning: it means the mailbox
+        # is being read but the matching logic has drifted.
+        if msg_ids and not (ingested + duplicates):
+            logger.warning(
+                'DMARC ingest: scanned %d message(s) in "%s" but ingested '
+                'nothing (skipped=%d failures=%d). Sender/subject matching '
+                'or attachment unwrapping may have drifted.',
+                len(msg_ids), folder, skipped, failures)
+            self.stderr.write(self.style.WARNING(
+                f'WARNING: scanned {len(msg_ids)} message(s) but ingested '
+                f'nothing (skipped={skipped} failures={failures}).'))
+
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS(
             f'Done. ingested={ingested} duplicates={duplicates} '
             f'skipped={skipped} failures={failures}'))
+
+
+def _decode_mime_header(raw):
+    """Decode an RFC 2047 encoded-word header to plain text.
+
+    ``email.message.Message.get()`` returns the header verbatim, so a
+    base64-encoded Subject arrives as ``=?utf-8?B?…?=`` and no
+    plain-text regex will ever match it. Falls back to the raw value
+    if the header is malformed — matching on something is better than
+    dropping the message.
+    """
+    if not raw:
+        return ''
+    try:
+        return str(make_header(decode_header(raw)))
+    except Exception:  # noqa: BLE001
+        return raw
+
+
+def _imap_quote(folder):
+    """Quote a mailbox name for SELECT.
+
+    imaplib does NOT quote arguments — it joins them with spaces and
+    sends them raw. So a mailbox whose name contains a space (Gmail's
+    ``[Gmail]/All Mail``, ``[Gmail]/Sent Mail``) is parsed by the
+    server as two arguments and the command fails with
+    ``BAD Could not parse command``.
+
+    Quoting unconditionally is valid IMAP for every name, including
+    plain ``INBOX``, so there's no need to special-case.
+    """
+    escaped = folder.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 # DMARC aggregate-report senders all use one of these signals in the
