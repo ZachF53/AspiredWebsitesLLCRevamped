@@ -63,7 +63,8 @@ def run_cold_sender_task():
         f'considered={counts["considered"]} '
         f'generated={counts["generated"]} '
         f'skipped_cap={counts["skipped_cap"]} '
-        f'skipped_ai={counts["skipped_ai"]}'
+        f'skipped_ai={counts["skipped_ai"]} '
+        f'rejected_copy={counts.get("rejected_copy", 0)}'
         + (f' reason={counts["reason"]}' if counts['reason'] else '')
     )
 

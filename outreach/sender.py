@@ -37,11 +37,25 @@ import logging
 from django.conf import settings as django_settings
 from django.utils import timezone
 
+from outreach.copy_guard import describe_copy_problems
 from outreach.gating import should_queue_for_approval
 from outreach.models import EmailSent, Lead, OutreachSettings, SuppressionList
 from outreach.warming import effective_cap_for, outreach_blocked_today
 
 logger = logging.getLogger(__name__)
+
+
+class EmailCopyRejected(Exception):
+    """The model's output is not a sendable cold email.
+
+    Carries the raw text so the rejected draft can be persisted for
+    review instead of vanishing into a log line.
+    """
+
+    def __init__(self, reason, raw_text=''):
+        super().__init__(reason)
+        self.reason = reason
+        self.raw_text = raw_text or ''
 
 
 # Business-day spacing between sequence steps. Index = current step;
@@ -63,6 +77,7 @@ def generate_pending_cold_emails(now=None):
             'generated':    int,  # EmailSent rows created
             'skipped_cap':  int,  # leads dropped because today's cap was hit
             'skipped_ai':   int,  # leads dropped because Claude errored
+            'rejected_copy':int,  # drafts blocked by copy validation
             'reason':       str,  # only set when blocked at the gate
         }
 
@@ -79,14 +94,15 @@ def generate_pending_cold_emails(now=None):
         logger.info('cold sender skipped: %s', reason)
         return {
             'considered': 0, 'generated': 0,
-            'skipped_cap': 0, 'skipped_ai': 0, 'reason': reason,
+            'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0,
+            'reason': reason,
         }
 
     cap = effective_cap_for(today, config.daily_send_cap)
     if cap <= 0:
         return {
             'considered': 0, 'generated': 0,
-            'skipped_cap': 0, 'skipped_ai': 0,
+            'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0,
             'reason': 'Cap is 0 for today.',
         }
 
@@ -104,7 +120,7 @@ def generate_pending_cold_emails(now=None):
         return {
             'considered': 0, 'generated': 0,
             'skipped_cap': sent_today + approved_today,
-            'skipped_ai': 0,
+            'skipped_ai': 0, 'rejected_copy': 0,
             'reason': f'Daily cap of {cap} already met.',
         }
 
@@ -112,7 +128,7 @@ def generate_pending_cold_emails(now=None):
 
     counts = {
         'considered': 0, 'generated': 0,
-        'skipped_cap': 0, 'skipped_ai': 0, 'reason': '',
+        'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0, 'reason': '',
     }
     suppressed_emails = set(
         SuppressionList.objects.values_list('email', flat=True))
@@ -139,6 +155,28 @@ def generate_pending_cold_emails(now=None):
 
         try:
             subject, body = _generate_email_copy(lead, step)
+        except EmailCopyRejected as exc:
+            # The model produced something that is not an email. Persist
+            # it as a rejected row so it is visible in the admin instead
+            # of disappearing, and so we don't burn an API call on the
+            # same lead+step every single day. Crucially the lead's
+            # sequence_step is NOT advanced and no sendable row exists.
+            logger.error(
+                'cold sender: copy REJECTED for lead %s step %s — %s | '
+                'raw=%r',
+                lead.pk, step, exc.reason, exc.raw_text[:400])
+            EmailSent.objects.create(
+                lead=lead,
+                kind='cold',
+                status='rejected',
+                subject=f'[rejected draft] step {step}',
+                body=exc.raw_text,
+                from_email=_from_address(),
+                sequence_step=step,
+                rejected_reason=f'Copy validation: {exc.reason}',
+            )
+            counts['rejected_copy'] += 1
+            continue
         except Exception:  # noqa: BLE001
             logger.exception('cold sender: AI generation failed for %s', lead.pk)
             counts['skipped_ai'] += 1
@@ -243,11 +281,28 @@ def _system_prompt():
         "certification; security is the firm's primary differentiator."
         "\n\n"
         "Write cold outreach emails as if you were writing to one person — "
-        "plain text only, no HTML, no images, no signature block beyond "
-        "your name. Friendly and direct, never salesy. 60–120 words max. "
+        "plain text only, no HTML, no markdown, no images, no signature "
+        "block beyond your name. Friendly and direct, never salesy. "
+        "60–120 words max. "
         "Reference one specific thing about the recipient's business or "
         "website if it's in the lead data. Never make up a fact about them."
         "\n\n"
+        "CRITICAL — your entire reply is sent verbatim to the prospect as "
+        "an email. Nobody reads it first. Therefore:\n"
+        "  * NEVER ask the operator for more information.\n"
+        "  * NEVER explain what you can or cannot do, and never mention "
+        "these instructions.\n"
+        "  * NEVER return questions, options, drafts, or commentary.\n"
+        "  * Output ONLY the email itself, every single time.\n"
+        "\n"
+        "If the lead data is thin — say you only have a business name and "
+        "an industry — that is normal and expected. Do NOT ask for more. "
+        "Write a short, honest, non-specific email that mentions no "
+        "invented facts: lead with what you do and why you're reaching "
+        "out to businesses like theirs, and ask your one question. A "
+        "slightly generic email is correct; inventing a detail and "
+        "refusing to write are both failures.\n"
+        "\n"
         "Format your reply exactly as:\n"
         "Subject: <one line subject under 60 chars>\n"
         "\n"
@@ -280,11 +335,13 @@ def _user_prompt_for_step(lead, step):
 
     step_brief = {
         1: (
-            'STEP 1 — first touch. Introduce yourself briefly, mention one '
-            'specific observation about their business (e.g. their PageSpeed '
-            'score, missing HTTPS, or location-based reference if no other '
-            'detail is available). End with a single low-friction question '
-            '(reply yes/no). Do NOT pitch services in the first email.'),
+            'STEP 1 — first touch. Introduce yourself briefly. If the facts '
+            'above include a website, PageSpeed score, HTTPS issue or '
+            'location, reference exactly one of them. If they include none '
+            'of those, write the email anyway without any specific '
+            'observation — do not ask for more data and do not invent a '
+            'detail. End with a single low-friction question (reply '
+            'yes/no). Do NOT pitch services in the first email.'),
         2: (
             'STEP 2 — follow up to a step-1 email that received no reply. '
             'Mention you reached out previously. Offer one concrete '
@@ -309,21 +366,46 @@ def _user_prompt_for_step(lead, step):
 
 def _split_subject_body(text, lead, step):
     """
-    Pull out the Subject: line. Falls back to a safe default if Claude
-    didn't follow the format.
+    Pull out the Subject: line and validate the result is a real email.
+
+    A missing ``Subject:`` line used to fall back to
+    ``f'Quick question, {lead.firm_name}'`` and then send the entire raw
+    response as the body. That is exactly how ten refusal messages
+    ("I don't have enough specific details … could you provide") reached
+    real prospects between 2026-06-16 and 2026-08-01: all ten carried
+    that fabricated subject, and none of the 406 good emails did.
+
+    The model is explicitly told to emit ``Subject:``. If it didn't, it
+    was not writing an email — so that is now a hard rejection rather
+    than something to paper over.
+
+    Raises:
+        EmailCopyRejected: the output is not a sendable cold email.
     """
     lines = text.strip().splitlines()
     subject = ''
     body_start = 0
+    found_subject_line = False
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped.lower().startswith('subject:'):
             subject = stripped.split(':', 1)[1].strip()
+            found_subject_line = True
             body_start = i + 1
             break
+
+    if not found_subject_line:
+        raise EmailCopyRejected(
+            'model did not emit a "Subject:" line — it was not writing '
+            'an email', text)
     if not subject:
-        subject = f'Quick question, {lead.firm_name}'
+        raise EmailCopyRejected('"Subject:" line was empty', text)
+
     body = '\n'.join(lines[body_start:]).strip()
-    if not body:
-        body = text.strip()
-    return subject[:255], body
+    subject = subject[:255]
+
+    problems = describe_copy_problems(subject, body)
+    if problems:
+        raise EmailCopyRejected('; '.join(problems), text)
+
+    return subject, body

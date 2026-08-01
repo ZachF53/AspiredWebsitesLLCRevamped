@@ -27,6 +27,7 @@ from django.core.mail import EmailMessage
 from django.db.models import F
 from django.utils import timezone
 
+from outreach.copy_guard import describe_copy_problems
 from outreach.models import EmailSent, Lead, OutreachSettings, SuppressionList
 
 logger = logging.getLogger(__name__)
@@ -40,13 +41,14 @@ def dispatch_approved_batch():
             'sent':       int,  # successfully handed to SendGrid
             'failed':     int,  # SMTP raised; row left as 'approved'
             'suppressed': int,  # lead on suppression list — auto-rejected
+            'blocked':    int,  # copy failed validation — auto-rejected
         }
 
     Idempotent across runs: only picks ``approved`` rows; a SendGrid
     accept flips status to ``sent`` atomically so a concurrent run
     can't double-dispatch.
     """
-    counts = {'sent': 0, 'failed': 0, 'suppressed': 0}
+    counts = {'sent': 0, 'failed': 0, 'suppressed': 0, 'blocked': 0}
 
     suppressed_emails = set(
         SuppressionList.objects.values_list('email', flat=True))
@@ -67,6 +69,23 @@ def dispatch_approved_batch():
             email.rejected_reason = 'Lead is on the suppression list.'
             email.save(update_fields=['status', 'rejected_reason'])
             counts['suppressed'] += 1
+            continue
+
+        # Last line of defense before SMTP. The generator validates copy
+        # too, but this catches anything approved before that validation
+        # existed, hand-edited in the admin, or produced by a future code
+        # path that forgets to check. Ten refusal messages reached real
+        # prospects because nothing looked at the body on the way out.
+        problems = describe_copy_problems(email.subject, email.body)
+        if problems:
+            email.status = 'rejected'
+            email.rejected_reason = (
+                'Blocked by copy validation: ' + '; '.join(problems))[:500]
+            email.save(update_fields=['status', 'rejected_reason'])
+            logger.error(
+                'dispatch BLOCKED EmailSent %s to %s — %s',
+                email.pk, email.lead.email, '; '.join(problems))
+            counts['blocked'] += 1
             continue
 
         message_id = _generate_message_id()
