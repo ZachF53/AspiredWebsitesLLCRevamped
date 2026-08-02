@@ -241,6 +241,151 @@ class PublicCssBundleTests(TestCase):
         self.assertNotIn('css/main.css', html)
 
 
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com')
+class Phase2ServicePageTests(TestCase):
+    """
+    Phase 2 service pages. Each must satisfy the same definition of
+    done as the Phase 1 pages: indexable, one canonical, one H1,
+    Service schema referencing the single org by @id, breadcrumbs,
+    and no second Organization node (D8).
+    """
+
+    PAGES = [
+        '/services/seo/law-firm-seo/',
+        '/services/web-design/law-firm-web-design/',
+    ]
+
+    def _blocks(self, path):
+        html = self.client.get(path).content.decode()
+        return [json.loads(m) for m in re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            html, re.S)]
+
+    def test_pages_render(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 200)
+
+    def test_indexable_with_single_canonical(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertEqual(html.count('rel="canonical"'), 1)
+                self.assertIn(
+                    f'<link rel="canonical" '
+                    f'href="https://aspiredwebsites.com{path}">', html)
+                self.assertNotIn('noindex', html)
+
+    def test_exactly_one_h1(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertEqual(len(re.findall(r'<h1[^>]*>', html)), 1)
+
+    def test_service_schema_references_org_by_id(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                service = next(b for b in self._blocks(path)
+                               if b.get('@type') == 'Service')
+                self.assertEqual(
+                    service['provider'],
+                    {'@id': 'https://aspiredwebsites.com/#organization'})
+
+    def test_no_second_organization_node(self):
+        """D8 — one business entity sitewide, even on new pages."""
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                orgs = 0
+                for block in self._blocks(path):
+                    for node in block.get('@graph', [block]):
+                        if node.get('@type') in ('Organization',
+                                                 'ProfessionalService',
+                                                 'LocalBusiness'):
+                            orgs += 1
+                self.assertEqual(orgs, 1)
+
+    def test_faq_schema_questions_appear_on_page(self):
+        """
+        §8 permits FAQPage schema only where the FAQs are visible.
+        Guard against the schema and the page drifting apart.
+        """
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                faq = next(b for b in self._blocks(path)
+                           if b.get('@type') == 'FAQPage')
+                for item in faq['mainEntity']:
+                    # Strip the smart punctuation the template renders
+                    # as HTML entities before comparing.
+                    stem = item['name'].split('?')[0][:24].replace("'", '')
+                    self.assertIn(stem, html.replace('&rsquo;', ''))
+
+    def test_breadcrumbs_present(self):
+        crumbs = next(b for b in self._blocks('/services/seo/law-firm-seo/')
+                      if b.get('@type') == 'BreadcrumbList')
+        names = [i['name'] for i in crumbs['itemListElement']]
+        self.assertEqual(names, ['Home', 'Services', 'SEO', 'Law Firm SEO'])
+
+    def test_pages_are_in_the_sitemap(self):
+        """
+        Path-only assertion on purpose: django.contrib.sitemaps builds
+        <loc> from the REQUEST host, not SITE_BASE_URL, so under test
+        these render as http://testserver/... . The host is correct in
+        production because www now 301s to non-www before the sitemap
+        is ever served.
+        """
+        xml = self.client.get('/sitemap.xml').content.decode()
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                self.assertIn(f'<loc>http://testserver{path}</loc>', xml)
+
+    def test_hub_pages_link_down_to_children(self):
+        """§8 internal-link clusters must be wired both ways."""
+        seo_hub = self.client.get('/services/seo/').content.decode()
+        self.assertIn('/services/seo/law-firm-seo/', seo_hub)
+
+        design_hub = self.client.get(
+            '/services/web-design/').content.decode()
+        self.assertIn(
+            '/services/web-design/law-firm-web-design/', design_hub)
+
+        law_hub = self.client.get('/for-law-firms/').content.decode()
+        self.assertIn('/services/seo/law-firm-seo/', law_hub)
+        self.assertIn(
+            '/services/web-design/law-firm-web-design/', law_hub)
+
+    def test_no_ranking_guarantees_anywhere(self):
+        """
+        §15: 'No guaranteed-rankings promises, ever.' The SEO pages are
+        where that rule is easiest to violate, so assert it directly.
+
+        Matches only AFFIRMATIVE promises. Bare 'guarantee first page'
+        would fire on the FAQ question "Do you guarantee first page
+        rankings?" — whose answer is "No" — so the phrasing here is
+        deliberately narrow enough to distinguish a promise from a
+        disclaimer.
+        """
+        promises = (
+            'we guarantee first page', 'we guarantee a ranking',
+            'we guarantee rankings', 'we guarantee top',
+            'guaranteed rankings', 'guaranteed first page',
+            'guaranteed first-page', 'guaranteed top 3',
+            'ranking guaranteed',
+        )
+        for path in self.PAGES + ['/services/seo/']:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode().lower()
+                for phrase in promises:
+                    self.assertNotIn(phrase, html)
+
+    def test_seo_pages_state_the_no_guarantee_position(self):
+        """The disclaimer must be present, not merely the absence of a promise."""
+        html = self.client.get(
+            '/services/seo/law-firm-seo/').content.decode().lower()
+        self.assertIn('no ranking guarantees', html)
+        self.assertIn('nobody controls', html)
+
+
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):
         body = self.client.get('/robots.txt').content.decode()

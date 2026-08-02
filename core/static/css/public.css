@@ -577,6 +577,28 @@ p {
     }
 }
 
+/* Trailing note under a section — the "if this isn't you, go here
+   instead" line that routes visitors to the right page. Used heavily
+   by the Phase 2 service pages to wire internal-link clusters (§8)
+   without interrupting the reading flow. */
+.section-note {
+    margin-top: var(--space-4);
+    text-align: center;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+}
+
+.section-note a {
+    color: var(--color-orange);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.section-note a:hover,
+.section-note a:focus-visible {
+    color: var(--color-text);
+}
+
 /* ── 6b. Grouped Services submenu (Phase 2) ──────────────────
    The submenu container is now a <div> holding several <ul> groups,
    because a flat list reached 9 items. Two consequences to handle:

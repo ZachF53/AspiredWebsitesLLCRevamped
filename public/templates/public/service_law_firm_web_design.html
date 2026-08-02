@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Law Firm Web Design | Custom Attorney Websites | Aspired{% endblock %}
+
+{% block meta_description %}Custom law firm web design and attorney website design — hand-coded, security-first, built around practice-area architecture that ranks. No templates, no vendor lock-in. You own every file.{% endblock %}
+
+{% block og_title %}Custom Law Firm Web Design — Aspired Websites{% endblock %}
+{% block og_description %}Attorney websites engineered for credibility and client acquisition. Hand-coded by a CISSP-certified engineer. You own the code.{% endblock %}
+
+{% comment %}
+Structure follows Master Plan section 7.3 exactly: H1, business
+outcomes first (not code), why generic law-firm sites fail,
+practice-area architecture, security professionally framed,
+performance to conversions, SEO foundation, case study, purchasing
+FAQ, CTA.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Law Firm Web Design",
+    "name": "Custom Law Firm Web Design",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "audience": {
+        "@type": "Audience",
+        "audienceType": "Law firms and solo attorneys"
+    },
+    "description": "Custom, hand-coded law firm websites and attorney website design. Practice-area architecture, security-hardened intake, sub-2-second load times, and full code ownership. No templates and no vendor lock-in.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "How much does a law firm website cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Custom builds run $2,500 to $4,500 depending on how many practice-area pages you need. Additional practice-area pages beyond the initial build are $150 to $200 each. Hosting is $150 per year. There is no monthly licence fee, because you own the site."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I own my law firm website?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, completely. Source code, content, domain and hosting are all yours. If you leave, you take every file with you and the site keeps working. This is the clearest difference between a custom build and a vendor-hosted legal marketing platform."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does a law firm website take to build?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "About six weeks for a standard build: discovery, structure, design, content, review, and launch. Firms with many practice areas or content that still needs writing take longer. You always know which stage you are in."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can you move my site off FindLaw or another vendor platform?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. We rebuild the site, migrate the content you own, and set up redirects so existing rankings and links carry across. The part to check first is your contract and who holds the domain registration."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do you write the content for attorney websites?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "We write the structure, the page framework and the calls to action, and we will draft practice-area copy for your review. Substantive legal descriptions should be reviewed by the attorney whose name is on them, both for accuracy and for bar advertising compliance."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Does a law firm website need to comply with bar advertising rules?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, and the rules vary by state — they typically cover disclaimers, claims about results, and how testimonials may be used. We build the site so required disclaimers and disclosures are easy to place and maintain. Confirming what your state bar requires is the attorney's call, not ours."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── 1. Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Law Firm Web Design</span>
+            <h1>Custom Web Design for <span class="accent">Law Firms</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Attorney website design built around one job: turning someone with a
+                legal problem into someone who calls your firm. Hand-coded, fast,
+                security-hardened, and structured so each practice area can actually
+                rank. No templates. No vendor lock-in. You own every file.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">$2,500&ndash;$4,500 &middot; ~6 weeks &middot; You own the code, the content, and the domain</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── 2. Business outcomes first ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What You Actually Get</span>
+            <h2>Three Business Outcomes. Not A List Of Features.</h2>
+            <p>Nobody buys a website. Firms buy credibility, cases, and time back.</p>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Credibility In Ten Seconds</h3>
+                <p>Prospects compare three or four firms before calling one. A site that looks considered and loads instantly says your practice is run the same way. A dated template says the opposite before a word is read.</p>
+            </div>
+
+            <div class="value-tile value-tile--featured">
+                <h3>More Of The Right Inquiries</h3>
+                <p>Practice-area architecture means the person searching for your specific service lands on a page about that service &mdash; not a homepage they have to decode. Better match, better inquiry, fewer calls you have to turn away.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Nothing To Manage</h3>
+                <p>No plugin updates, no theme conflicts, no 2am &ldquo;the site is down.&rdquo; A hand-coded static-first site has almost nothing to break, and maintenance is our job, not your paralegal&rsquo;s.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── 3. Why generic law firm sites fail ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Problem</span>
+            <h2>Why Most Attorney Websites Underperform</h2>
+            <p>Not because they&rsquo;re ugly. Because of four structural decisions made before anyone picked a colour.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Every Firm Uses The Same Template</h3>
+                <p>The stock photo of the courthouse steps. The scales of justice. The same three-column layout your competitor down the street bought from the same vendor. Prospects can&rsquo;t tell you apart &mdash; so they choose on price or proximity instead.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Practice Areas Are A List, Not Pages</h3>
+                <p>Eight specialties on one page means you can rank for roughly none of them. This is the single most common and most expensive structural mistake on law firm sites, and it&rsquo;s invisible until you look at where your traffic isn&rsquo;t coming from.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>You Don&rsquo;t Own It</h3>
+                <p>Vendor-hosted legal platforms keep the code, and sometimes the domain. Stop paying and the site vanishes &mdash; along with the rankings you spent years earning. You were renting, and the rent goes up.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>The Phone Number Is The Only CTA</h3>
+                <p>People researching a lawyer at 11pm are not ready to call. Without a low-friction way to start &mdash; a short intake form, a case question, a callback request &mdash; you lose everyone who isn&rsquo;t ready to talk to a human immediately.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Already on a vendor platform and weighing the switch? The
+            <a href="{% url 'public:law_firms' %}">law firm hub</a> covers contract exit,
+            content migration, and domain ownership in detail.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── 4. Practice area architecture ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Structural Fix</span>
+            <h2>Every Practice Area Gets Its Own Page</h2>
+            <p>This is the decision that determines whether the site ever earns its cost back.</p>
+        </div>
+
+        <div class="callout">
+            <p>
+                A page can be the best answer to one question. Someone searching
+                <em>&ldquo;estate planning attorney&rdquo;</em> and someone searching
+                <em>&ldquo;personal injury lawyer&rdquo;</em> need different pages &mdash;
+                and a combined list page loses to whoever wrote a real page about the
+                one thing.
+            </p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>What Each Page Contains</h3>
+                <p>What the process looks like, what it typically costs, how long it takes, what makes your firm the right choice for that specific problem, and a clear next step. Substantive enough to be genuinely useful &mdash; which is also what makes it rank.</p>
+            </article>
+
+            <article class="card">
+                <h3>How They Work Together</h3>
+                <p>Cross-linked so authority flows between them, with the hub page routing prospects to the right one. Six real practice-area pages means six entry points into the firm instead of one.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Additional practice-area pages beyond the initial build are
+            $150&ndash;$200 each &mdash; see <a href="{% url 'public:pricing' %}">pricing</a>.
+            Ranking them is ongoing work: that&rsquo;s
+            <a href="{% url 'public:service_law_firm_seo' %}">law firm SEO</a>.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── 5. Security, professionally framed ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Security</span>
+            <h2>Your Intake Form Carries Privileged Facts</h2>
+            <p>Built by a CISSP-certified engineer with a Master&rsquo;s in cybersecurity. Stated plainly, without the scare tactics.</p>
+        </div>
+
+        <div class="cards">
+            <article class="card">
+                <h3>Where The Risk Actually Is</h3>
+                <p>Someone describing their legal problem in a contact form before any engagement letter exists. That message deserves the same care as anything else in the file &mdash; encrypted in transit, validated server-side, never sitting in a URL or an analytics event.</p>
+            </article>
+
+            <article class="card">
+                <h3>What We Build In</h3>
+                <p>HTTPS with HSTS, a strict Content Security Policy, hardened headers, server-side validation, rate limiting on public forms, and no exposed admin surface. Contact submissions route straight to you rather than pooling on the server.</p>
+            </article>
+
+            <article class="card">
+                <h3>What We Won&rsquo;t Claim</h3>
+                <p>That security improves your rankings. It doesn&rsquo;t, beyond HTTPS being a minor signal. It matters because a breach touching client intake is a professional-responsibility problem &mdash; not a marketing one.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── 6 + 7. Performance and SEO foundation ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Performance &amp; Search</span>
+            <h2>Fast Sites Convert. Slow Sites Leak Cases.</h2>
+            <p>Every build ships on the same technical foundation.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Speed You Can Verify</h3>
+                <p>
+                    Hand-coded markup, no page-builder bloat, images in modern formats,
+                    compressed delivery. Our own site loads in about 1.5 seconds on
+                    mobile &mdash; you can check that yourself with any speed tool right
+                    now. We hold client builds to the same standard rather than asking
+                    you to take it on faith.
+                </p>
+            </article>
+            <article class="card card--accent-left">
+                <h3>The SEO Foundation, Built In</h3>
+                <p>
+                    Clean semantic HTML, one H1 per page, logical heading hierarchy,
+                    schema markup, canonical tags, an accurate sitemap, and descriptive
+                    URLs. This is the groundwork every build ships with &mdash; not an
+                    upsell. Ongoing ranking work is
+                    <a href="{% url 'public:service_law_firm_seo' %}">law firm SEO</a>.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── 8. Proof ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Proof</span>
+            <h2>Built For A Real Firm</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Denis Law Group</h3>
+                <p>A custom-built law firm website: practice-area architecture, security-hardened intake, mobile-first, and fully owned by the client. Built from scratch rather than migrated off a template.</p>
+                <p><a href="{% url 'public:portfolio' %}">See the work &rarr;</a></p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>How We Report Results</h3>
+                <p>Denis Law Group was a new practice launch, so there is no &ldquo;before&rdquo; traffic to compare against &mdash; and we won&rsquo;t invent one. For firms replacing an existing site we capture speed, indexed pages, rankings and lead volume before launch, then re-measure at 30 and 90 days.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── 9. Purchasing FAQ ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Before You Commit</span>
+            <h2>Law Firm Website Design Questions</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>How much does a law firm website cost?</h3>
+                <p>$2,500&ndash;$4,500 depending on how many practice-area pages you need. Extra practice-area pages are $150&ndash;$200 each. Hosting is $150/year. No monthly licence fee &mdash; you own it.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I own my website?</h3>
+                <p>Completely. Source code, content, domain, hosting. If you leave, you take every file and the site keeps working. That&rsquo;s the clearest difference between this and a vendor platform.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does it take?</h3>
+                <p>About six weeks: discovery, structure, design, content, review, launch. Firms with many practice areas or unwritten content take longer. You always know which stage you&rsquo;re in.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can you move me off FindLaw or another vendor?</h3>
+                <p>Yes. We rebuild, migrate the content you own, and redirect so rankings and links carry over. Check your contract and who holds the domain registration first &mdash; that&rsquo;s where switches get stuck.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do you write the content?</h3>
+                <p>We write the structure, framework and CTAs, and draft practice-area copy for your review. Substantive legal descriptions should be reviewed by the attorney whose name is on them &mdash; for accuracy and for bar compliance.</p>
+            </article>
+
+            <article class="card">
+                <h3>What about bar advertising rules?</h3>
+                <p>They vary by state and typically cover disclaimers, results claims, and testimonial use. We build so required disclaimers are easy to place and maintain. Confirming your state&rsquo;s requirements is your call, not ours &mdash; we&rsquo;re not giving legal advice.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── 10. CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Let&rsquo;s Talk About Your Firm&rsquo;s Website</h2>
+            <p>
+                A straight conversation about what your practice needs, what it costs,
+                and how long it takes. No pressure, no jargon, and an honest answer if a
+                rebuild isn&rsquo;t what you need right now.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:service_law_firm_seo' %}">See Law Firm SEO</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

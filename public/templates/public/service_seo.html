@@ -244,6 +244,38 @@ rather than re-declaring it (Master Plan D8).
 
 <hr class="section-divider" aria-hidden="true">
 
+{% comment %}
+Hub → child links. Master Plan §8 requires internal-link clusters, and
+§6.1 requires one page to own one intent: this hub owns generic
+"SEO services" (90,500/mo) and must route specialist intent down to
+the pages that own it, rather than competing with them.
+{% endcomment %}
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Specialist SEO</span>
+            <h2>In This Section</h2>
+            <p>If you fit one of these more specifically, start there instead &mdash; the detail is deeper.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3><a href="{% url 'public:service_law_firm_seo' %}">Law Firm SEO</a></h3>
+                <p>Attorney SEO built around practice-area architecture, local search, and reporting measured in signed cases. The most competitive vertical in search, handled honestly &mdash; no ranking guarantees.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3><a href="{% url 'public:service_web_design' %}">Custom Web Design</a></h3>
+                <p>SEO on a broken foundation is money set on fire. If your current site can&rsquo;t support proper structure, speed, or clean markup, the build comes first.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
 {# ───────── Final CTA ───────── #}
 <section class="section">
     <div class="container">

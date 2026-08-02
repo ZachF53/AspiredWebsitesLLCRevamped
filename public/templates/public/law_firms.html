@@ -246,6 +246,36 @@
 
 <hr class="section-divider" aria-hidden="true">
 
+{% comment %}
+Hub → specialist links. D4 makes this page the law-firm vertical hub
+that owns the FindLaw switching conversation, while the two pages
+below own the commercial search intent — "heavy cross-linking" is
+D4's explicit requirement, and §8 needs the cluster wired both ways.
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Go Deeper</span>
+            <h2>Where To Next</h2>
+            <p>This page covers whether to switch. These two cover the work itself.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3><a href="{% url 'public:service_law_firm_web_design' %}">Law Firm Web Design</a></h3>
+                <p>What a custom attorney website actually involves &mdash; practice-area architecture, security-hardened intake, ownership, timeline, and what it costs.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3><a href="{% url 'public:service_law_firm_seo' %}">Law Firm SEO</a></h3>
+                <p>Getting found once the site exists. Technical SEO, practice-area pages, local search, and honest reporting &mdash; with no ranking guarantees.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">
     <div class="container">

@@ -177,6 +177,51 @@ def service_seo(request):
     })
 
 
+def service_law_firm_seo(request):
+    """
+    /services/seo/law-firm-seo/ — the highest-value page on the site.
+
+    Owns `law firm seo` (4,400/mo) + `attorney seo` (3,600/mo) at
+    $31-165 top-of-page bids. Per section 6.1 this page owns the
+    law-firm SEO intent exclusively; /services/seo/local-seo/ must
+    EXCLUDE those terms, and `lawyer marketing` (1,300/mo) is assigned
+    here rather than to the law-firm design page.
+    """
+    return render(request, 'public/service_law_firm_seo.html', {
+        'active_nav': 'services',
+        'active_service': 'law_firm_seo',
+        'breadcrumbs': [
+            ('Services', '/services/seo/'),
+            ('SEO', '/services/seo/'),
+            ('Law Firm SEO', None),
+        ],
+    })
+
+
+def service_law_firm_web_design(request):
+    """
+    /services/web-design/law-firm-web-design/ — section 7.3's spec page.
+
+    Owns `law firm web design` (2,400) + `attorney website design`
+    (1,900) + `lawyer website design` (1,900) + `legal web design`
+    (480) + `law firm website` (390). Structure follows section 7.3:
+    business outcomes first, code last.
+
+    Distinct from /for-law-firms/ per D4 — that page is the vertical
+    hub and owns the FindLaw switching conversation; this page owns
+    the commercial search intent.
+    """
+    return render(request, 'public/service_law_firm_web_design.html', {
+        'active_nav': 'services',
+        'active_service': 'law_firm_web_design',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('Web Design', '/services/web-design/'),
+            ('Law Firm Web Design', None),
+        ],
+    })
+
+
 def pricing(request):
     from billing.pricing_models import AddonPricing, ServiceTier
     return render(request, 'public/pricing.html', {

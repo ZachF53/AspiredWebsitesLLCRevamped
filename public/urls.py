@@ -15,6 +15,18 @@ urlpatterns = [
     path('services/digital-marketing/', views.service_digital_marketing,
          name='service_digital_marketing'),
     path('services/seo/', views.service_seo, name='service_seo'),
+
+    # ── Phase 2 service pages ──────────────────────────────────────
+    # Ordered here by measured commercial value (Keyword Planner,
+    # 2026-08-02). law-firm-seo is the highest-value page on the site:
+    # 8,000 searches/mo at $31-165 top-of-page bids, because the
+    # lifetime value is an SEO retainer rather than a one-off build.
+    # See .claude/improvements/KEYWORD_RESEARCH_FINDINGS.md.
+    path('services/seo/law-firm-seo/', views.service_law_firm_seo,
+         name='service_law_firm_seo'),
+    path('services/web-design/law-firm-web-design/',
+         views.service_law_firm_web_design,
+         name='service_law_firm_web_design'),
     path('contact/', views.contact, name='contact'),
     path('contact/thanks/', views.contact_thanks, name='contact_thanks'),
     path('about/', views.about, name='about'),

@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Law Firm SEO Services | Attorney SEO | Aspired{% endblock %}
+
+{% block meta_description %}Law firm SEO built by a CISSP-certified engineer. Technical SEO, practice-area architecture, and local search for attorneys who want cases — not vanity rankings. No guarantees, no lock-in.{% endblock %}
+
+{% block og_title %}Law Firm SEO Services — Aspired Websites{% endblock %}
+{% block og_description %}SEO for law firms that measures signed cases, not keyword screenshots. Built by a CISSP-certified engineer. Month-to-month.{% endblock %}
+
+{% comment %}
+Page-specific schema only. The organisation entity, canonical, og:url
+and og:image all come from base.html (Master Plan D8).
+
+FAQPage is included because the questions below are genuinely visible
+on the page — section 8 permits FAQ schema only in that case.
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Law Firm SEO",
+    "name": "Law Firm SEO Services",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "audience": {
+        "@type": "Audience",
+        "audienceType": "Law firms and solo attorneys"
+    },
+    "description": "Search engine optimization for law firms and attorneys. Technical SEO, practice-area site architecture, local search and Google Business Profile, content built around case-driving questions, and reporting measured in signed cases."
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "How long does law firm SEO take to work?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Expect three to six months before movement is meaningful, and closer to twelve for competitive practice areas in a major metro. Technical fixes can show up in weeks. Anyone promising first-page rankings in 30 days is either targeting keywords nobody searches or is not being straight with you."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do you guarantee first page rankings?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No, and neither should anyone else. Nobody controls Google's index. What we guarantee is the work: the technical foundation, the architecture, the content, and honest monthly reporting on what moved and what did not."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I have to sign a long-term contract?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. SEO is month-to-month with 30 days notice. Long lock-ins exist to protect the agency during the months when nothing is happening. We would rather earn the next month."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do you work with law firms outside Georgia and Texas?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. SEO work is remote by nature. Our home markets are Atlanta and Middle Georgia, and we have clients in San Antonio, but the work does not require us to be in your city."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can you do SEO on a website you did not build?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Usually. We audit first. If the platform is fighting us — a page builder that cannot output clean markup, or a vendor-locked site you do not own the code to — we will tell you before you spend money on content that the platform will waste."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What does law firm SEO cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "SEO is part of our monthly maintenance plans, which run from $299 to $1,199 per month depending on scope. There is no separate setup fee. Full breakdown on the pricing page."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Law Firm SEO</span>
+            <h1>Law Firm SEO That Brings You <span class="accent">Cases, Not Compliments</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Most attorney SEO gets sold on rankings. Rankings don&rsquo;t pay
+                salaries &mdash; signed cases do. We build the technical foundation,
+                the practice-area architecture, and the local presence that put your
+                firm in front of people who are ready to call a lawyer today.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+            <p class="hero__meta">Month-to-month &middot; No ranking guarantees, ever &middot; You own everything we build</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── The problem ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why Most Attorney SEO Fails</span>
+            <h2>You&rsquo;ve Probably Paid For SEO Before. Here&rsquo;s Why It Didn&rsquo;t Work.</h2>
+            <p>Legal is one of the most competitive verticals in search. It is also one of the most heavily marketed-to, which means most firms have already been burned once.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>You Ranked For Words Nobody Searches</h3>
+                <p>A report showing you at #1 for &ldquo;experienced litigation counsel metro area&rdquo; is worthless if twelve people a year type it. Real law firm SEO starts with what your prospects actually search &mdash; usually something far blunter, like &ldquo;car accident lawyer near me.&rdquo;</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Your Site Was One Page Pretending To Be Ten</h3>
+                <p>A single &ldquo;Practice Areas&rdquo; page listing eight specialties cannot rank for eight specialties. Google needs a substantive page per area of law. Most firm sites have a list where they need an architecture.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>You Were Locked Into The Platform</h3>
+                <p>Vendor-built legal sites are often technically frozen &mdash; you can&rsquo;t change the markup, the page structure, or the load speed, because you don&rsquo;t own the code. You were paying for SEO on a foundation that couldn&rsquo;t be optimized.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Nobody Measured Signed Cases</h3>
+                <p>Impressions went up. Traffic went up. Did the phone ring with cases you actually wanted? If your reporting never answered that, you were being measured on the wrong thing.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What's included ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What We Actually Do</span>
+            <h2>The Six Parts Of Law Firm Search Engine Optimization</h2>
+            <p>Every engagement starts with the technical audit, because content on a broken foundation is money set on fire.</p>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Technical SEO</h3>
+                <p>Crawlability, indexation, site speed, mobile rendering, schema, canonicals, redirects. The unglamorous layer that decides whether anything else you do can work. We start here every time.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Practice-Area Architecture</h3>
+                <p>One substantive page per area of law, each targeting how clients describe that problem, cross-linked so authority flows between them. This is the single biggest structural lever in attorney SEO.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Local SEO &amp; Google Business Profile</h3>
+                <p>Most legal searches are local and many never leave the map pack. Profile configuration, categories, service areas, citation consistency, and review flow. See <a href="{% url 'public:service_seo' %}">our SEO services</a> for the general version.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Content Built On Real Questions</h3>
+                <p>The questions prospects ask before they call: what a case is worth, how long it takes, what happens first. Written to be genuinely useful, because that is what earns the click and the trust.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Authority &amp; Citations</h3>
+                <p>Bar directories, legal-specific citations, and earned links from real publications. No bought link packages &mdash; in a vertical Google scrutinizes this heavily, that is a liability, not a shortcut.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Reporting You Can Read</h3>
+                <p>Monthly, in plain English: what moved, what didn&rsquo;t, what we&rsquo;re changing, and how many inquiries came from organic search. No dashboard designed to look busy.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Practice area architecture ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Structural Fix</span>
+            <h2>Why Practice-Area Pages Decide Everything</h2>
+            <p>If you change one thing about your firm&rsquo;s site this year, make it this.</p>
+        </div>
+
+        <div class="callout">
+            <p>
+                A page can rank for one intent. A prospect searching
+                <em>&ldquo;divorce lawyer&rdquo;</em> and a prospect searching
+                <em>&ldquo;DUI attorney&rdquo;</em> are two different people with two
+                different problems &mdash; and one combined Practice Areas page cannot be
+                the best answer for both. Google will pick a competitor who wrote a whole
+                page about the one thing.
+            </p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>What This Looks Like In Practice</h3>
+                <p>Each area of law gets its own URL and its own substantive page: what the process looks like, what it costs, how long it takes, what makes your firm the right call for that specific problem. Internally linked so the strongest pages lift the newer ones.</p>
+            </article>
+
+            <article class="card">
+                <h3>Why It Compounds</h3>
+                <p>Each page is a separate entry point. A firm with six real practice-area pages has six chances to be found instead of one. That is also why it takes months rather than weeks &mdash; you are building an asset, not flipping a switch.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Building the pages is web design work; ranking them is SEO work. If your site
+            can&rsquo;t support this structure, start with
+            <a href="{% url 'public:service_law_firm_web_design' %}">custom law firm web design</a>
+            instead &mdash; then layer SEO on a foundation that can actually hold it.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Honesty section ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Answers</span>
+            <h2>What SEO Can And Can&rsquo;t Do For A Law Firm</h2>
+            <p>We would rather lose the sale than win it on a promise we can&rsquo;t keep.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What It Can Do</h3>
+                <ul class="bullet-list">
+                    <li>Put your firm in front of people actively searching for your practice areas</li>
+                    <li>Win the local map pack for the geography you actually serve</li>
+                    <li>Compound &mdash; the work you pay for this year still earns next year</li>
+                    <li>Reduce what you spend per case compared to paid ads over time</li>
+                    <li>Build an asset you own, not rented ad placement</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What It Can&rsquo;t Do</h3>
+                <ul class="bullet-list">
+                    <li>Guarantee a ranking. Nobody controls Google&rsquo;s index &mdash; run from anyone who says otherwise</li>
+                    <li>Work overnight. Three to six months minimum, longer in competitive metros</li>
+                    <li>Fix a firm that doesn&rsquo;t return calls. SEO delivers the inquiry; conversion is on you</li>
+                    <li>Beat a national firm&rsquo;s ad budget on the broadest head terms</li>
+                    <li>Make a bad website convert. Traffic to a site nobody trusts is wasted spend</li>
+                </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Security angle ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Who You&rsquo;re Working With</span>
+            <h2>SEO Run By A Security Engineer</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Why That Matters Here</h3>
+                <p>Law firm websites handle privileged intake. Contact forms carry facts about a legal problem before anyone has signed an engagement letter. A CISSP with a Master&rsquo;s in cybersecurity treats that data the way it should be treated &mdash; encrypted in transit, validated server-side, never exposed in URLs or analytics.</p>
+            </article>
+
+            <article class="card">
+                <h3>The Honest Version</h3>
+                <p>Security is not a ranking factor, and we won&rsquo;t pretend it is. HTTPS is a tiny signal; the rest is table stakes Google expects. It matters because a breach involving client intake is a bar complaint waiting to happen &mdash; not because it moves you up a page.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            More on the background and credentials on the
+            <a href="{% url 'public:about' %}">about page</a>.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Before You Call</span>
+            <h2>Law Firm SEO Questions, Answered Plainly</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>How long does law firm SEO take to work?</h3>
+                <p>Three to six months before movement is meaningful, closer to twelve for competitive practice areas in a major metro. Technical fixes can show up in weeks. Anyone promising page one in 30 days is targeting keywords nobody searches.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do you guarantee first page rankings?</h3>
+                <p>No, and neither should anyone else. We guarantee the work: the technical foundation, the architecture, the content, and honest monthly reporting on what moved and what didn&rsquo;t.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I have to sign a long-term contract?</h3>
+                <p>No. Month-to-month with 30 days notice. Long lock-ins exist to protect the agency during the months when nothing is happening. We&rsquo;d rather earn the next month.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do you work with firms outside Georgia and Texas?</h3>
+                <p>Yes. SEO is remote by nature. Our home markets are Atlanta and Middle Georgia, and we have clients in San Antonio &mdash; but the work doesn&rsquo;t require us to be in your city.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can you do SEO on a site you didn&rsquo;t build?</h3>
+                <p>Usually &mdash; we audit first. If the platform is fighting us, or you don&rsquo;t own the code, we&rsquo;ll tell you before you spend money on content the platform will waste.</p>
+            </article>
+
+            <article class="card">
+                <h3>What does it cost?</h3>
+                <p>SEO is part of our monthly maintenance plans, $299&ndash;$1,199/month depending on scope. No separate setup fee. Full breakdown on <a href="{% url 'public:pricing' %}">pricing</a>.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Let&rsquo;s Look At Your Firm&rsquo;s Search Presence</h2>
+            <p>
+                A free audit and a straight conversation about what&rsquo;s realistic for
+                your practice areas and your market. If SEO isn&rsquo;t the right spend for
+                you right now, we&rsquo;ll say so.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:law_firms' %}">See Our Law Firm Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
