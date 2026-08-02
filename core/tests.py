@@ -304,6 +304,82 @@ class PublicCssBundleTests(TestCase):
         self.assertIn('css/public.css', html)
         self.assertNotIn('css/main.css', html)
 
+    def test_js_applied_classes_survive_the_split(self):
+        """
+        Regression: /design/schedule/ shipped unstyled to production.
+
+        schedule_call.js builds the booking calendar with innerHTML
+        strings, so its .cal__* classes appear in no template. The
+        generator only scanned three hardcoded JS files and only looked
+        for classList/className calls, so all 27 calendar rules were
+        dropped and the calendar rendered as a wall of plain text.
+
+        This asserts the general property rather than that one page:
+        for every JS file referenced by a public template, any class it
+        mentions that main.css actually styles must also be present in
+        public.css.
+        """
+        import os
+        import re as _re
+
+        from django.conf import settings as _settings
+
+        css_dir = os.path.join(_settings.BASE_DIR, 'core', 'static', 'css')
+        js_dir = os.path.join(_settings.BASE_DIR, 'core', 'static', 'js')
+        with open(os.path.join(css_dir, 'main.css'), encoding='utf-8') as fh:
+            main_css = fh.read()
+        with open(os.path.join(css_dir, 'public.css'), encoding='utf-8') as fh:
+            public_css = fh.read()
+
+        # Class names main.css actually defines a rule for.
+        styled = set(_re.findall(r'\.(-?[A-Za-z_][A-Za-z0-9_-]*)\s*[,{:]',
+                                 main_css))
+
+        # Only JS the PUBLIC templates actually load. Admin-only files
+        # such as deploy.js legitimately style classes the public
+        # bundle should not carry.
+        from core.management.commands.build_public_css import (
+            PUBLIC_EXTRA_TEMPLATES, PUBLIC_TEMPLATE_ROOTS, _JS_REF_RE,
+        )
+        public_js = set()
+        template_paths = []
+        for parts in PUBLIC_TEMPLATE_ROOTS:
+            root = os.path.join(_settings.BASE_DIR, *parts)
+            for dirpath, _dirs, filenames in os.walk(root):
+                template_paths += [os.path.join(dirpath, f)
+                                   for f in filenames if f.endswith('.html')]
+        for parts in PUBLIC_EXTRA_TEMPLATES:
+            path = os.path.join(_settings.BASE_DIR, *parts)
+            if os.path.exists(path):
+                template_paths.append(path)
+        for path in template_paths:
+            with open(path, encoding='utf-8', errors='ignore') as fh:
+                public_js.update(_JS_REF_RE.findall(fh.read()))
+
+        missing = []
+        for name in sorted(public_js):
+            if not name.endswith('.js') or name.endswith('.min.js'):
+                continue
+            if not os.path.exists(os.path.join(js_dir, name)):
+                continue
+            with open(os.path.join(js_dir, name),
+                      encoding='utf-8', errors='ignore') as fh:
+                js = fh.read()
+            # Classes named inside class="..." in JS-built markup —
+            # the exact pattern that broke.
+            mentioned = set()
+            for match in _re.finditer(r'class=\\?["\']([^"\'\\]*)', js):
+                mentioned.update(match.group(1).split())
+            for cls in mentioned & styled:
+                if f'.{cls}' not in public_css:
+                    missing.append(f'{name}: .{cls}')
+
+        self.assertEqual(
+            missing, [],
+            'Classes applied by public JS are styled in main.css but '
+            'absent from public.css — they will render unstyled:\n  '
+            + '\n  '.join(missing))
+
 
 @override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
                    PRODUCTION_HOST='testserver')

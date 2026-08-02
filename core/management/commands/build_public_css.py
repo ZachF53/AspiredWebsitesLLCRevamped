@@ -61,9 +61,22 @@ PUBLIC_EXTRA_TEMPLATES = [
     ('clients', 'templates', 'clients', 'contract_sign.html'),
     ('clients', 'templates', 'clients', 'contract_signed.html'),
 ]
-# JS loaded by the public base template — classes it toggles at runtime
-# never appear in the HTML source, so scan these too.
-PUBLIC_JS = ['main.js', 'input_masks.js', 'aspired-tracker.js']
+# JS files are discovered from the templates, NOT hardcoded.
+#
+# This list used to be three filenames, and that shipped a real bug:
+# schedule_call.js builds the /design/schedule/ calendar DOM at
+# runtime, so its .cal__* classes appear in no template, were never
+# scanned, and all 27 rules were dropped from the bundle. The booking
+# calendar rendered unstyled on production.
+#
+# Hardcoding was the root cause, so the fix is to stop hardcoding:
+# every `js/<name>.js` referenced by a public template gets scanned,
+# which means adding a new script to a page is automatically covered.
+# aspired-tracker.js is listed explicitly only because it is loaded
+# inside an {% if %} and could otherwise be missed if that block ever
+# moves.
+ALWAYS_SCAN_JS = ['aspired-tracker.js']
+_JS_REF_RE = re.compile(r'js/([A-Za-z0-9_.-]+\.js)')
 
 HEADER = """/* ============================================================
    public.css — GENERATED FILE. DO NOT EDIT BY HAND.
@@ -119,10 +132,20 @@ def collect_public_classes() -> set[str]:
         path = os.path.join(settings.BASE_DIR, *parts)
         if os.path.exists(path):
             paths.append(path)
-    for name in PUBLIC_JS:
-        path = os.path.join(CSS_DIR, '..', 'js', name)
-        if os.path.exists(path):
-            paths.append(os.path.normpath(path))
+
+    # Discover every js/<name>.js referenced by those templates, then
+    # scan those files too — classes applied at runtime never appear in
+    # the HTML source. See ALWAYS_SCAN_JS for why this is derived
+    # rather than listed.
+    js_names = set(ALWAYS_SCAN_JS)
+    for path in list(paths):
+        with open(path, encoding='utf-8', errors='ignore') as handle:
+            js_names.update(_JS_REF_RE.findall(handle.read()))
+    js_dir = os.path.normpath(os.path.join(CSS_DIR, '..', 'js'))
+    for name in sorted(js_names):
+        js_path = os.path.join(js_dir, name)
+        if os.path.exists(js_path):
+            paths.append(js_path)
 
     for path in paths:
         with open(path, encoding='utf-8', errors='ignore') as handle:
@@ -133,7 +156,22 @@ def collect_public_classes() -> set[str]:
             for match in re.finditer(r"class\s*=\s*'([^']*)'", text):
                 used |= _tokenise_classes(match.group(1))
         else:
-            # JS: classList.add('x'), className = 'x y', querySelector('.x')
+            # JS. Targeted patterns first — classList.add('x'),
+            # className = 'x y', querySelector('.x') — then a broad
+            # sweep of every string literal.
+            #
+            # The broad sweep exists because schedule_call.js builds the
+            # booking calendar with innerHTML strings like
+            # '<div class="cal__grid">'. The targeted patterns never see
+            # those, so .cal__grid, .cal__weekday, .cal__nav and friends
+            # were dropped and the calendar shipped unstyled. Any DOM
+            # built by string concatenation has the same problem.
+            #
+            # This over-keeps: an unrelated quoted word that happens to
+            # match a class name pulls that rule in. That is the correct
+            # trade — an unused rule costs bytes, a missing one breaks
+            # the page, and this file has already broken a page once by
+            # being too clever.
             for match in re.finditer(
                     r"""classList\.\w+\(\s*['"]([^'"]+)""", text):
                 used |= _tokenise_classes(match.group(1))
@@ -143,6 +181,14 @@ def collect_public_classes() -> set[str]:
             for match in re.finditer(
                     r"""querySelector(?:All)?\(\s*['"]([^'"]+)""", text):
                 used |= set(_CLASS_RE.findall(match.group(1)))
+            # class="..." appearing inside any JS string (innerHTML,
+            # template literals, string concatenation).
+            for match in re.finditer(r"""class=\\?["']([^"'\\]*)""", text):
+                used |= _tokenise_classes(match.group(1))
+            # Every quoted / backticked string literal, tokenised.
+            for match in re.finditer(r"""(['"`])((?:(?!\1)[^\\]|\\.){0,400})\1""",
+                                     text):
+                used |= _tokenise_classes(match.group(2))
     return used
 
 
