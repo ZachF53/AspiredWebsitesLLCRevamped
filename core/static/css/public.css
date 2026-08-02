@@ -1732,8 +1732,13 @@ textarea.form-control {
 
 /* Responsive overrides for page utilities */
 @media (min-width: 720px) {
+    /* minmax(0, 1fr) rather than 1fr so a long price label or a
+       full-width CTA can't push a column past the container — this
+       absorbs the intent of the old global pricing rule, but scoped
+       to tablet and up. Below 720px the base `1fr` applies and cards
+       stack one per row. */
     .cards.cards--2col {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .bullet-list {
         grid-template-columns: repeat(2, 1fr);
@@ -4217,11 +4222,19 @@ button.htmx-request {
     padding-top: calc(var(--space-4) + 8px);
 }
 
-/* Pricing card columns must be equal-width regardless of content
-   length, so the badge always centers visually. */
-.cards.cards--2col {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+/* NOTE: a `.cards.cards--2col { grid-template-columns: repeat(2,
+   minmax(0, 1fr)) }` rule used to live here, to keep pricing cards
+   equal-width so the "Most Popular" badge centred.
+
+   It was written as a global selector at top level with no media
+   query, and it appears later in the file than the mobile rule in
+   §16b — so it beat `grid-template-columns: 1fr` and forced EVERY
+   two-column card grid on the site to stay 2-up at 360px. Cards were
+   rendering side by side on phones sitewide.
+
+   The equal-width intent was real, so it moved into the ≥720px block
+   in §16b (minmax(0, 1fr) rather than 1fr) where it belongs. Pricing
+   keeps the behaviour; phones get one card per row. */
 
 /* Fix 6 BUG B — Hosting card spans the container as a horizontal
    banner: title + price + CTA on the left, feature bullets on the
