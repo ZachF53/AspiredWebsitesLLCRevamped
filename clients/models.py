@@ -1403,11 +1403,21 @@ class CaseStudy(TimestampedModel):
     )
     live_url = models.URLField(
         blank=True, help_text='The published client site, if public.')
-    # Placeholder visual until real screenshots exist (§5.5 wants
-    # descriptive image filenames, so gradients beat a stock photo).
+    screenshot = models.ImageField(
+        upload_to='portfolio/', blank=True,
+        help_text='Screenshot of the live site, 16:10 to match the card. '
+                  'Captured by `capture_case_study_screenshots`; falls '
+                  'back to card_gradient when empty.',
+    )
+    # The gradient is no longer the only option, but it stays as the
+    # fallback: a client site can go offline, get redesigned by someone
+    # else, or simply not be public, and a coloured card is a better
+    # answer than a broken image or a stale screenshot of work that is
+    # no longer ours.
     card_gradient = models.CharField(
         max_length=40, blank=True, default='gradient-blue',
-        help_text='CSS class for the card visual, e.g. gradient-blue.',
+        help_text='CSS class for the card visual, e.g. gradient-blue. '
+                  'Used when no screenshot is set.',
     )
 
     challenge = models.TextField(blank=True)

@@ -211,7 +211,7 @@ service-area shape honestly rather than implying a storefront.
         <div class="cards cards--2col">
             {% for study in studies %}
                 <article class="card card--with-visual">
-                    <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
+                    {% include "core/_case_study_visual.html" with study=study %}
                     <div class="card__body">
                         {% if study.business_type %}
                             <span class="pill-tag">{{ study.business_type }}{% if study.location %} &middot; {{ study.location }}{% endif %}</span>

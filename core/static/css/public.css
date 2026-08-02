@@ -1622,6 +1622,58 @@ textarea.form-control {
     pointer-events: none;
 }
 
+/* Real screenshot in the visual slot (core/_case_study_visual.html).
+   The image is the client's actual work, so it is shown as captured —
+   the orange radial wash above exists to give a flat gradient some
+   depth, and tinting a screenshot with it would misrepresent their
+   colours. */
+.card__visual--shot {
+    overflow: hidden;
+    background: var(--color-bg-deep);
+}
+
+.card__visual--shot::after {
+    content: none;
+}
+
+.card__visual--shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* Anchored to the top: the header and hero are the recognisable
+       part of any homepage, and they are what survives being shrunk to
+       card width. */
+    object-fit: cover;
+    object-position: top center;
+}
+
+/* Full-width screenshot band on a case-study detail page. Framed like
+   a browser window would be — border and radius — so it reads as a
+   picture of a site rather than as this page's own hero image. */
+.case-study-shot__frame {
+    margin: 0;
+    max-width: 960px;
+    margin-inline: auto;
+}
+
+.case-study-shot__frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.case-study-shot__frame figcaption {
+    margin-top: var(--space-2);
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    /* A long URL must not push the page sideways on a phone. */
+    overflow-wrap: anywhere;
+}
+
 .card--with-visual.card--teal .card__visual::after {
     background: radial-gradient(circle at 70% 30%, rgba(13, 148, 136, 0.18), transparent 60%);
 }

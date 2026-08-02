@@ -1,0 +1,24 @@
+{% comment %}
+The visual slot on a case-study card. Expects a CaseStudy as `study`.
+
+Screenshot when there is one, gradient when there isn't. The fallback
+is not decoration for its own sake — a client site can go offline, be
+redesigned by someone else, or never have been public, and a coloured
+card is a better answer than a broken image or a picture of work that
+is no longer ours.
+
+width/height are the real intrinsic dimensions (1200x750, the 16:10 the
+capture command enforces to match .card--with-visual .card__visual), so
+the browser reserves the right box before the image arrives and the
+card does not shift. loading="lazy" because these sit below the fold on
+every page that uses them.
+{% endcomment %}
+{% if study.screenshot %}
+    <div class="card__visual card__visual--shot">
+        <img src="{{ study.screenshot.url }}"
+             alt="Homepage of {{ study.title }}, built by Aspired Websites"
+             width="1200" height="750" loading="lazy" decoding="async">
+    </div>
+{% else %}
+    <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
+{% endif %}

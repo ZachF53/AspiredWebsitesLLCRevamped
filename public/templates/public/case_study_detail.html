@@ -62,6 +62,39 @@ Organisation entity, canonical and og:image come from base.html (D8).
     </div>
 </section>
 
+{% comment %}
+The screenshot gets its own band under the hero rather than sitting in
+the copy — on the page devoted to one project, the work itself deserves
+to be the first thing below the fold.
+
+No gradient fallback here. On a card the visual slot is part of a fixed
+grid and an empty box would break the layout; a full-width band with
+nothing in it is just wasted screen, so the section is simply omitted.
+
+Not lazy-loaded: at this size and position it is very likely the LCP
+element, and deferring it would cost the §5.2 budget the thing it is
+measuring.
+{% endcomment %}
+{% if study.screenshot %}
+<section class="section case-study-shot">
+    <div class="container">
+        <figure class="case-study-shot__frame">
+            <img src="{{ study.screenshot.url }}"
+                 alt="Homepage of {{ study.title }}, built by Aspired Websites"
+                 width="1200" height="750" decoding="async">
+            {% if study.live_url %}
+                <figcaption>
+                    Captured from the live site &mdash;
+                    <a href="{{ study.live_url }}" target="_blank" rel="noopener">{{ study.live_url }}</a>
+                </figcaption>
+            {% endif %}
+        </figure>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
 {# ───────── Metrics — only if real ones exist ───────── #}

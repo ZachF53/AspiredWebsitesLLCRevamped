@@ -875,6 +875,108 @@ class NonProductionHostTests(TestCase):
         self.assertNotIn('aspired-tracker.js', staging)
 
 
+@override_settings(PRODUCTION_HOST='testserver')
+class CaseStudyScreenshotTests(TestCase):
+    """
+    Real screenshots of client sites in the portfolio card visual
+    (core/_case_study_visual.html), captured by
+    `capture_case_study_screenshots`.
+
+    The gradient stays as the fallback on purpose — a client site can
+    go offline or be redesigned by someone else, and a coloured card
+    beats a broken image or a picture of work that is no longer ours.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_case_studies', verbosity=0)
+
+    def _attach_screenshot(self, study):
+        """A real (tiny) WebP so ImageField validation is satisfied."""
+        import io as _io
+
+        from django.core.files.base import ContentFile
+        from PIL import Image
+        buf = _io.BytesIO()
+        Image.new('RGB', (1200, 750), '#123456').save(buf, 'WEBP')
+        study.screenshot.save(f'{study.slug}-test.webp',
+                              ContentFile(buf.getvalue()), save=True)
+        self.addCleanup(study.screenshot.delete, save=False)
+        return study
+
+    def _first_published(self):
+        from clients.models import CaseStudy
+        return CaseStudy.objects.filter(is_published=True).first()
+
+    def test_card_shows_the_screenshot_when_present(self):
+        study = self._attach_screenshot(self._first_published())
+        html = self.client.get('/portfolio/').content.decode()
+        self.assertIn('card__visual--shot', html)
+        self.assertIn(study.screenshot.url, html)
+
+    def test_card_falls_back_to_the_gradient_without_one(self):
+        """No screenshot must degrade, never render a broken <img>."""
+        from clients.models import CaseStudy
+        CaseStudy.objects.filter(is_published=True).update(screenshot='')
+        html = self.client.get('/portfolio/').content.decode()
+        self.assertNotIn('card__visual--shot', html)
+        self.assertIn('card__visual gradient', html)
+
+    def test_screenshots_carry_intrinsic_dimensions(self):
+        """
+        width/height reserve the box before the image loads. Without
+        them four cards' worth of images reflow the page as they
+        arrive, which is exactly the layout shift the §5.2 budget
+        measures.
+        """
+        self._attach_screenshot(self._first_published())
+        html = self.client.get('/portfolio/').content.decode()
+        img = re.search(r'<img[^>]*card[^>]*>', html) or re.search(
+            r'<img[^>]*/media/portfolio/[^>]*>', html)
+        self.assertIsNotNone(img, 'no portfolio screenshot <img> rendered')
+        self.assertIn('width="1200"', img.group(0))
+        self.assertIn('height="750"', img.group(0))
+
+    def test_card_screenshots_are_lazy_but_the_detail_hero_is_not(self):
+        """
+        Cards sit below the fold, so lazy is free. The detail page's
+        band is very likely the LCP element — deferring that one would
+        cost the budget the thing it measures.
+        """
+        study = self._attach_screenshot(self._first_published())
+        card = self.client.get('/portfolio/').content.decode()
+        card_img = re.search(r'<img[^>]*/media/portfolio/[^>]*>', card).group(0)
+        self.assertIn('loading="lazy"', card_img)
+
+        detail = self.client.get(study.get_absolute_url()).content.decode()
+        hero_img = re.search(
+            r'<img[^>]*/media/portfolio/[^>]*>', detail).group(0)
+        self.assertNotIn('loading="lazy"', hero_img)
+
+    def test_alt_text_is_descriptive(self):
+        """§5.4 — an empty alt on meaningful content is an a11y defect."""
+        study = self._attach_screenshot(self._first_published())
+        html = self.client.get('/portfolio/').content.decode()
+        img = re.search(r'<img[^>]*/media/portfolio/[^>]*>', html).group(0)
+        self.assertNotIn('alt=""', img)
+        self.assertIn(study.title, img)
+
+    def test_capture_command_exists_and_is_safe_to_call_blind(self):
+        """
+        Guards the wiring, not the network: with no published study
+        carrying a live_url there is nothing to capture, and the
+        command must say so rather than launch a browser.
+        """
+        from io import StringIO
+
+        from django.core.management import CommandError
+
+        from clients.models import CaseStudy
+        CaseStudy.objects.update(live_url='')
+        with self.assertRaises(CommandError):
+            call_command('capture_case_study_screenshots', stdout=StringIO())
+
+
 @override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
                    PRODUCTION_HOST='testserver')
 class CaseStudyTests(TestCase):

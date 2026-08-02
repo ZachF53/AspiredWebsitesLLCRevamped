@@ -39,7 +39,7 @@
         <div class="cards cards--2col">
             {% for study in case_studies %}
                 <article class="card card--with-visual">
-                    <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
+                    {% include "core/_case_study_visual.html" with study=study %}
                     <div class="card__body">
                         {% if study.business_type or study.location %}
                             <span class="pill-tag">{{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}</span>
