@@ -1,31 +1,35 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Custom Web Design Services — Hand-Coded Websites That Convert | Aspired Websites{% endblock %}
+{% block title %}Custom Web Design &amp; Development | Aspired Websites{% endblock %}
 
 {% block meta_description %}Custom web design for law firms and small businesses in Texas & Georgia. Hand-coded, security-hardened, mobile-perfect websites that convert visitors into clients. No templates, no page builders, no monthly lock-in.{% endblock %}
 
-{% block extra_head %}
-<meta property="og:title" content="Custom Web Design Services — Aspired Websites">
-<meta property="og:description" content="Hand-coded, security-hardened websites that turn visitors into clients. Built by a CISSP-certified engineer for law firms and small businesses in TX & GA.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://aspiredwebsites.com/services/web-design/">
-<link rel="canonical" href="https://aspiredwebsites.com/services/web-design/">
+{% block og_title %}Custom Web Design Services — Aspired Websites{% endblock %}
+{% block og_description %}Hand-coded, security-hardened websites that turn visitors into clients. Built by a CISSP-certified engineer for law firms and small businesses.{% endblock %}
 
+{% comment %}
+Canonical, og:url, og:image and the site-wide organisation entity all
+come from base.html now. This block adds only what is specific to this
+page: the Service node, which references the one organisation by @id
+rather than re-declaring it (Master Plan D8).
+{% endcomment %}
+{% block extra_head %}
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
     "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
     "serviceType": "Custom Web Design",
-    "provider": {
-        "@type": "Organization",
-        "name": "Aspired Websites LLC",
-        "url": "https://aspiredwebsites.com/",
-        "telephone": "+1-210-896-2536",
-        "email": "zacherylong@aspiredwebsites.com",
-        "areaServed": ["Texas", "Georgia"]
-    },
-    "areaServed": ["Texas", "Georgia"],
+    "name": "Custom Web Design & Development",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
     "description": "Custom, hand-coded, security-hardened websites for law firms and small businesses. No templates, no page builders, no monthly lock-in.",
     "offers": {
         "@type": "Offer",
@@ -42,7 +46,7 @@
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Custom Web Design</span>
-            <h1>Websites That Earn Their <span class="accent">Place On The Internet</span>.</h1>
+            <h1>Custom Web Design &amp; Development for <span class="accent">Small Businesses</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
             <p class="hero__lead">
                 Every website we build is hand-coded from scratch around your business

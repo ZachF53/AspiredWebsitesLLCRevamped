@@ -1275,6 +1275,72 @@ textarea.form-control {
     opacity: 0.7;
 }
 
+/* NAP block — must render as a readable postal address, not italic
+   browser-default <address>. Master Plan §1.1. */
+.footer-nap {
+    font-style: normal;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    margin-block: var(--space-2);
+}
+
+.footer-nap__name {
+    display: block;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.footer-hours {
+    opacity: 0.75;
+}
+
+/* ── Breadcrumbs (Master Plan §7.3) ─────────────────────────── */
+.breadcrumbs {
+    padding-block: var(--space-2);
+    font-size: 0.8125rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.breadcrumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.breadcrumbs li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-muted);
+}
+
+/* Separator drawn in CSS so it never lands in the accessibility tree
+   or in Google's rendered breadcrumb text. */
+.breadcrumbs li + li::before {
+    content: "/";
+    opacity: 0.4;
+}
+
+.breadcrumbs a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover,
+.breadcrumbs a:focus-visible {
+    color: var(--color-orange);
+    text-decoration: underline;
+}
+
+.breadcrumbs [aria-current="page"] {
+    color: var(--color-text);
+}
+
 .footer-bottom {
     border-top: 1px solid var(--color-border);
     padding-block: var(--space-3);

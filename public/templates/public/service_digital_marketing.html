@@ -1,31 +1,35 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Digital Marketing & Social Media Management for Small Business | Aspired Websites{% endblock %}
+{% block title %}Digital Marketing Services | Aspired Websites{% endblock %}
 
 {% block meta_description %}Social media management, paid ads, and content marketing for law firms and small businesses in Texas & Georgia. Real strategy, real posts, real ROI — managed monthly. No long-term contracts.{% endblock %}
 
-{% block extra_head %}
-<meta property="og:title" content="Digital Marketing & Social Media Services — Aspired Websites">
-<meta property="og:description" content="Get found, get followers, get clients. Managed monthly content + paid ad strategy for law firms and small businesses in TX & GA.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://aspiredwebsites.com/services/digital-marketing/">
-<link rel="canonical" href="https://aspiredwebsites.com/services/digital-marketing/">
+{% block og_title %}Digital Marketing & Social Media Services — Aspired Websites{% endblock %}
+{% block og_description %}Get found, get followers, get clients. Managed monthly content + paid ad strategy for law firms and small businesses.{% endblock %}
 
+{% comment %}
+Canonical, og:url, og:image and the site-wide organisation entity all
+come from base.html now. This block adds only what is specific to this
+page: the Service node, which references the one organisation by @id
+rather than re-declaring it (Master Plan D8).
+{% endcomment %}
+{% block extra_head %}
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
     "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
     "serviceType": "Digital Marketing and Social Media Management",
-    "provider": {
-        "@type": "Organization",
-        "name": "Aspired Websites LLC",
-        "url": "https://aspiredwebsites.com/",
-        "telephone": "+1-210-896-2536",
-        "email": "zacherylong@aspiredwebsites.com",
-        "areaServed": ["Texas", "Georgia"]
-    },
-    "areaServed": ["Texas", "Georgia"],
+    "name": "Digital Marketing & Social Media Management",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
     "description": "Managed digital marketing and social media services for law firms and small businesses. Content strategy, scheduled posts, paid ads, and monthly performance reporting.",
     "offers": {
         "@type": "Offer",
@@ -42,7 +46,7 @@
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Digital Marketing &amp; Social Media</span>
-            <h1>Get Found. Get Followers. <span class="accent">Get Clients</span>.</h1>
+            <h1>Digital Marketing That Supports a Website That <span class="accent">Already Works</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
             <p class="hero__lead">
                 Most small businesses don't have a marketing problem. They have a

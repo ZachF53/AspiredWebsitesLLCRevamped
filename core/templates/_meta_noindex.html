@@ -1,0 +1,19 @@
+{% comment %}
+Drop-in noindex directive for private, token-gated, transactional, or
+duplicate-prone pages.
+
+Use it from any template that extends base.html:
+
+    {% templatetag openblock %} block robots {% templatetag closeblock %}{% templatetag openblock %} include "_meta_noindex.html" {% templatetag closeblock %}{% templatetag openblock %} endblock {% templatetag closeblock %}
+    {% templatetag openblock %} block canonical {% templatetag closeblock %}{% templatetag openblock %} endblock {% templatetag closeblock %}
+
+Blank the canonical block too: a self-referencing canonical on a
+noindex page sends Google two contradictory signals about a URL that
+should simply stay out of the index.
+
+Master Plan §8 is explicit that robots.txt is not a substitute for
+noindex — a URL blocked in robots.txt can still be indexed from an
+external link, and Google cannot see the noindex if it is not allowed
+to crawl the page. So these pages stay crawlable and carry the tag.
+{% endcomment %}
+<meta name="robots" content="noindex, nofollow">

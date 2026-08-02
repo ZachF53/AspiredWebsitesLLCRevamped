@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
 {% block title %}Thanks — payment received{% endblock %}
 
 {% block content %}

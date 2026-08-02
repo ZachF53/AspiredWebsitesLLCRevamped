@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
 {% block title %}Bad Request — Aspired Websites{% endblock %}
 
 {% block content %}

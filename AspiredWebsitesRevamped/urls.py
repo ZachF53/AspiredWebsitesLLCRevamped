@@ -17,7 +17,23 @@ from reporting.views import nps_response
 
 
 def robots_txt(request):
-    """Bare-bones robots.txt — allow crawl + point at sitemap."""
+    """
+    robots.txt — allow the marketing site, keep app surfaces out.
+
+    Master Plan §8: robots.txt must allow CSS/JS/images, declare the
+    sitemap, and block client-portal/billing/login paths — but it is
+    never a substitute for ``noindex``. A URL disallowed here can still
+    be indexed from an external link, and Google cannot see a noindex
+    tag on a page it is not allowed to crawl.
+
+    So the split is deliberate:
+      - Disallow  → application surfaces with nothing to index and real
+                    crawl cost (dashboards, APIs, token-gated flows).
+      - noindex   → pages that must stay crawlable so the directive is
+                    actually read (/login/, /audit/results/, thanks and
+                    password-reset pages). See core/templates/
+                    _meta_noindex.html.
+    """
     body = (
         "User-agent: *\n"
         "Allow: /\n"
@@ -30,6 +46,10 @@ def robots_txt(request):
         "Disallow: /maintenance/\n"
         "Disallow: /api/\n"
         "Disallow: /sendgrid/\n"
+        "Disallow: /ref/\n"
+        "Disallow: /proposals/\n"
+        "Disallow: /intelligence/\n"
+        "Disallow: /nps/\n"
         "\n"
         "Sitemap: https://aspiredwebsites.com/sitemap.xml\n"
     )

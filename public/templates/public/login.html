@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
 {% block title %}Sign In — Aspired Websites{% endblock %}
 
 {% block content %}

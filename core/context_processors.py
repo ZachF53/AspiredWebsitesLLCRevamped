@@ -23,6 +23,27 @@ def static_version(request):
     return {'STATIC_VERSION': getattr(settings, 'STATIC_VERSION', '1')}
 
 
+def canonical(request):
+    """
+    Expose ``CANONICAL_URL`` and ``SITE_BASE_URL`` for the self-referencing
+    canonical link, og:url, and absolute schema URLs.
+
+    Built from ``settings.SITE_BASE_URL`` + ``request.path`` rather than
+    ``request.build_absolute_uri()`` on purpose. The site answers on both
+    ``www`` and non-``www``; a canonical derived from the request would
+    happily declare ``https://www.…`` as canonical when reached that way,
+    which is exactly the duplicate-content split the canonical exists to
+    resolve. Master Plan §8 requires one host, and `SITE_BASE_URL` is it.
+
+    ``request.path`` also drops the query string, so
+    ``/audit/results/?url=…`` canonicalises to ``/audit/results/``.
+    """
+    base = getattr(settings, 'SITE_BASE_URL',
+                   'https://aspiredwebsites.com').rstrip('/')
+    path = getattr(request, 'path', '/') or '/'
+    return {'SITE_BASE_URL': base, 'CANONICAL_URL': f'{base}{path}'}
+
+
 def site_verification(request):
     """
     Expose the Google Search Console + Bing Webmaster ownership tokens

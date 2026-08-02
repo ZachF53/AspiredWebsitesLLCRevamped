@@ -142,6 +142,9 @@ TEMPLATES = [
                 # GSC / Bing ownership <meta> tokens (blank = renders
                 # nothing). Master Plan Phase 0 §10.
                 'core.context_processors.site_verification',
+                # CANONICAL_URL + SITE_BASE_URL for the self-referencing
+                # canonical, og:url and schema. Master Plan §8.
+                'core.context_processors.canonical',
                 # Operator-facing system alerts banner on /admin-dashboard/
                 'core.context_processors.system_alerts',
                 # SetupTodo pending count for the portal sidebar badge.

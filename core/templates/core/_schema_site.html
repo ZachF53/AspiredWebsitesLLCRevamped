@@ -1,0 +1,97 @@
+{% load static %}{% comment %}
+Site-wide structured data. Master Plan §8 + D8: exactly ONE business
+entity for the whole site, identified by @id so every other node
+(Service, Person, Breadcrumb) references it instead of re-declaring a
+second organisation.
+
+Facts here are the §1 master record verbatim and must not drift:
+Atlanta address of record, one phone, one email, 24/7 availability.
+Service areas are areaServed — never separate LocalBusiness entities.
+
+Rendered on every page via base.html. Repeating the same @id across
+pages is correct: it is one node described consistently, not many.
+{% endcomment %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "ProfessionalService",
+      "@id": "{{ SITE_BASE_URL }}/#organization",
+      "name": "Aspired Websites LLC",
+      "alternateName": "Aspired Websites",
+      "url": "{{ SITE_BASE_URL }}/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "{{ SITE_BASE_URL }}{% static 'images/logo.png' %}"
+      },
+      "image": "{{ SITE_BASE_URL }}{% static 'images/og-default.png' %}",
+      "description": "Custom-coded, security-first websites and SEO for law firms and small businesses.",
+      "telephone": "+1-210-896-2536",
+      "email": "zacherylong@aspiredwebsites.com",
+      "priceRange": "$$",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "8735 Dunwoody Place, Ste R",
+        "addressLocality": "Atlanta",
+        "addressRegion": "GA",
+        "postalCode": "30350",
+        "addressCountry": "US"
+      },
+      "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+      ],
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": [
+            "Monday", "Tuesday", "Wednesday", "Thursday",
+            "Friday", "Saturday", "Sunday"
+          ],
+          "opens": "00:00",
+          "closes": "23:59"
+        }
+      ],
+      "founder": { "@id": "{{ SITE_BASE_URL }}/#zachery-long" },
+      "knowsAbout": [
+        "Custom web design",
+        "Web development",
+        "Law firm web design",
+        "Local SEO",
+        "Website security"
+      ]
+    },
+    {
+      "@type": "Person",
+      "@id": "{{ SITE_BASE_URL }}/#zachery-long",
+      "name": "Zachery Long",
+      "jobTitle": "Founder & Lead Developer",
+      "worksFor": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+      "url": "{{ SITE_BASE_URL }}/about/",
+      "hasCredential": [
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "CISSP"
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "degree",
+          "name": "M.S. Cybersecurity"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "{{ SITE_BASE_URL }}/#website",
+      "url": "{{ SITE_BASE_URL }}/",
+      "name": "Aspired Websites",
+      "publisher": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+      "inLanguage": "en-US"
+    }
+  ]
+}
+</script>

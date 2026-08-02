@@ -1,0 +1,5259 @@
+/* ============================================================
+   public.css — GENERATED FILE. DO NOT EDIT BY HAND.
+
+   Public-site subset of main.css, produced by:
+       python manage.py build_public_css
+
+   Edit main.css and re-run the command. `manage.py
+   build_public_css --check` (and the core test suite) will fail if
+   this file is stale.
+   ============================================================ */
+/* ============================================================
+   Aspired Websites LLC — main.css
+   Premium layered dark system. Mobile-first. Pure CSS.
+   ============================================================ */
+
+/* ── 1. Tokens ──────────────────────────────────────────────── */
+:root {
+    /* Surfaces */
+    --color-bg-deep: #070614;
+    --color-bg-raised: #0F172A;
+
+    /* Brand — orange */
+    --color-orange: #E8650A;
+    --color-orange-dark: #C45508;
+    --color-orange-light: #FF7B1E;
+    --color-gold: var(--color-orange);
+
+    /* Brand — teal (secondary accent) */
+    --color-teal: #0D9488;
+    --color-teal-dark: #0F766E;
+    --color-teal-light: #14B8A6;
+
+    /* Glows (for card shadow halos and accent tints) */
+    --color-orange-glow: rgba(232, 101, 10, 0.15);
+    --color-teal-glow: rgba(13, 148, 136, 0.15);
+
+    /* Text */
+    --color-text: #FFFFFF;
+    --color-text-muted: #94A3B8;
+
+    /* Borders */
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-strong: rgba(255, 255, 255, 0.14);
+
+    /* Status */
+    --color-success: #4ADE80;
+    --color-danger: #F87171;
+
+    /* Typography — system stack now; @font-face for Inter/Playfair
+       can be dropped in later under core/static/fonts/ without
+       touching any selector. */
+    --font-serif: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    --font-base: var(--font-sans);
+
+    /* Spacing */
+    --space-1: 0.5rem;
+    --space-2: 1rem;
+    --space-3: 1.5rem;
+    --space-4: 2rem;
+    --space-5: 3rem;
+    --space-6: 4rem;
+    --space-7: 6rem;
+    --space-8: 8rem;
+
+    /* Radii */
+    --radius-sm: 4px;
+    --radius: 8px;
+    --radius-lg: 16px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+
+    /* Layout */
+    --container: 1200px;
+    --container-narrow: 900px;
+
+    /* Motion */
+    --transition: 200ms ease;
+    --transition-slow: 350ms ease;
+}
+
+/* ── 2. Reset ───────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    background-color: var(--color-bg-deep);
+}
+
+body, h1, h2, h3, h4, h5, h6, p, ul, ol, figure, blockquote, dl, dd {
+    margin: 0;
+}
+
+ul, ol {
+    padding: 0;
+    list-style: none;
+}
+
+img, picture, svg {
+    max-width: 100%;
+    display: block;
+}
+
+a {
+    color: var(--color-orange);
+    text-decoration: none;
+    transition: color var(--transition);
+}
+
+a:hover {
+    color: var(--color-orange-light);
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+}
+
+input, textarea, select {
+    font: inherit;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-orange);
+    outline-offset: 2px;
+}
+
+/* ── 3. Base typography ─────────────────────────────────────── */
+body {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--color-text);
+    background-color: var(--color-bg-deep);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 {
+    line-height: 1.2;
+    color: var(--color-text);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.25rem); }
+h2 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
+h3 { font-size: clamp(1.25rem, 2.5vw, 1.5rem); }
+h4 { font-size: 1.125rem; }
+
+p {
+    margin-bottom: var(--space-2);
+}
+
+.lead {
+    font-size: 1.125rem;
+    color: var(--color-text-muted);
+}
+
+/* ── 4. Layout utilities ────────────────────────────────────── */
+.container {
+    width: 100%;
+    max-width: var(--container);
+    margin-inline: auto;
+    padding-inline: var(--space-3);
+}
+
+.container--narrow {
+    max-width: var(--container-narrow);
+}
+
+.section {
+    padding-block: var(--space-6);
+    background-color: var(--color-bg-deep);
+    position: relative;
+}
+
+.section--alt {
+    background-color: var(--color-bg-raised);
+}
+
+.text-center { text-align: center; }
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-2);
+    z-index: 1000;
+}
+
+.skip-link:focus {
+    top: 0;
+    color: var(--color-text);
+}
+
+/* ── 4b. Accent utilities (sparkle decoration, pure CSS) ───── */
+.accent-line {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-orange), transparent);
+    display: block;
+    margin: 0 auto;
+    border: 0;
+}
+
+/* ── 4c. Section dividers — gradient lines between sections ─ */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(232, 101, 10, 0.3),
+        transparent
+    );
+    margin: 0;
+    border: 0;
+}
+
+.section-divider--teal {
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(13, 148, 136, 0.3),
+        transparent
+    );
+}
+
+/* ── 4d. Section heading pattern (teal label, white h2, muted p) ── */
+.section-header {
+    text-align: center;
+    max-width: 720px;
+    margin: 0 auto var(--space-5);
+}
+
+.eyebrow,
+.section-header .eyebrow {
+    display: inline-block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-teal);
+    font-weight: 700;
+    margin-bottom: var(--space-2);
+}
+
+.section-header h2 {
+    margin-bottom: var(--space-2);
+}
+
+.section-header p {
+    color: var(--color-text-muted);
+    font-size: 1.0625rem;
+    margin-top: var(--space-2);
+}
+
+/* ── 5. Buttons ─────────────────────────────────────────────── */
+.btn,
+.btn-primary,
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    line-height: 1.2;
+    transition: background-color var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+
+.btn--primary,
+.btn-primary {
+    background: var(--color-orange);
+    color: #FFFFFF;
+    border-color: var(--color-orange);
+    box-shadow: 0 0 24px rgba(232, 101, 10, 0.3);
+}
+
+.btn--primary:hover,
+.btn-primary:hover {
+    background: var(--color-orange-light);
+    border-color: var(--color-orange-light);
+    color: #FFFFFF;
+    box-shadow: 0 0 40px rgba(232, 101, 10, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn--outline,
+.btn--outline-light,
+.btn-secondary {
+    background: transparent;
+    color: var(--color-orange);
+    border-color: rgba(232, 101, 10, 0.4);
+}
+
+.btn--outline:hover,
+.btn--outline-light:hover,
+.btn-secondary:hover {
+    border-color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.08);
+    color: var(--color-orange-light);
+    box-shadow: 0 0 24px rgba(232, 101, 10, 0.15);
+}
+
+.btn--lg,
+.btn-lg {
+    padding: 18px 40px;
+    font-size: 1.0625rem;
+}
+
+.btn--block,
+.btn-block {
+    width: 100%;
+}
+
+/* ── 6. Header / Navigation (frosted glass) ─────────────────── */
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(7, 6, 20, 0.85);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-border);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .site-header {
+        background: var(--color-bg-deep);
+    }
+}
+
+.nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: var(--space-2);
+}
+
+.logo {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.logo:hover {
+    opacity: 0.85;
+}
+
+.logo-img {
+    height: 40px;
+    width: auto;
+    display: block;
+}
+
+.site-footer .logo-img {
+    height: 48px;
+}
+
+.nav-toggle {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+}
+
+.nav-toggle:hover {
+    background-color: var(--color-bg-raised);
+}
+
+.nav-toggle span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background-color: var(--color-text);
+    border-radius: 1px;
+    transition: transform var(--transition), opacity var(--transition);
+}
+
+.nav-toggle[aria-expanded="true"] span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.nav-toggle[aria-expanded="true"] span:nth-child(2) {
+    opacity: 0;
+}
+
+.nav-toggle[aria-expanded="true"] span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+.nav-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(7, 6, 20, 0.95);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow);
+    padding: var(--space-2);
+}
+
+.nav-menu.is-open {
+    display: block;
+}
+
+.nav-menu ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.nav-link {
+    display: block;
+    padding: var(--space-2);
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border-radius: var(--radius-sm);
+    border-bottom: 2px solid transparent;
+}
+
+.nav-link:hover {
+    color: var(--color-orange);
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.nav-link.is-active {
+    color: var(--color-orange);
+}
+
+@media (min-width: 1024px) {
+    .nav-link.is-active {
+        border-radius: 0;
+        border-bottom-color: var(--color-orange);
+    }
+}
+
+.nav-link--cta {
+    background: var(--color-orange);
+    color: #FFFFFF;
+    text-align: center;
+    margin-top: var(--space-1);
+    box-shadow: 0 0 24px rgba(232, 101, 10, 0.3);
+    border-bottom: 1px solid transparent;
+}
+
+.nav-link--cta:hover {
+    background: var(--color-orange-light);
+    color: #FFFFFF;
+    box-shadow: 0 0 40px rgba(232, 101, 10, 0.5);
+}
+
+/* ── Nav dropdown — Services submenu ─────────────────────────
+   Mobile (default, stacked nav): submenu is shown inline, always
+   expanded. The Services button still acts as a toggle in case the
+   user wants to collapse it. On desktop (≥1024px) the submenu
+   becomes an absolutely-positioned floating panel that opens on
+   hover or keyboard focus. */
+.nav-item--has-children {
+    position: relative;
+}
+.nav-link--toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    padding: var(--space-2);
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border-radius: var(--radius-sm);
+}
+.nav-link--toggle:hover,
+.nav-link--toggle.is-active {
+    color: var(--color-orange);
+}
+.nav-caret {
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+    opacity: 0.7;
+}
+.nav-link--toggle[aria-expanded="true"] .nav-caret {
+    transform: rotate(180deg);
+}
+/* Specificity bump — `.nav-menu ul { display: flex }` further up
+   the file would otherwise force this open. `.nav-menu .nav-submenu`
+   is (0,2,0) which beats `.nav-menu ul` (0,1,1) — wait, the same.
+   We override by SOURCE ORDER (this rule comes later) AND specificity
+   parity. Belt-and-suspenders: also reset flex-direction so the items
+   stack vertically when shown, not in a wrapping row. */
+.nav-menu .nav-submenu {
+    list-style: none;
+    padding: 0 0 0 var(--space-2);
+    margin: 0;
+    display: none;
+    flex-direction: column;
+}
+.nav-menu .nav-submenu.is-open,
+.nav-link--toggle[aria-expanded="true"] + .nav-submenu {
+    display: block;
+}
+.nav-sublink {
+    display: block;
+    padding: 8px var(--space-2);
+    color: var(--color-text-muted, #94A3B8);
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+}
+.nav-sublink:hover {
+    color: var(--color-orange);
+    background-color: rgba(255, 255, 255, 0.04);
+}
+.nav-sublink.is-active {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+    .nav-menu .nav-submenu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 260px;
+        background: var(--color-bg-deep, #0F172A);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 8px;
+        padding: 8px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        z-index: 50;
+        margin-top: 4px;
+    }
+    /* Open on hover OR explicit toggle (keyboard / click) */
+    .nav-item--has-children:hover .nav-menu .nav-submenu,
+    .nav-item--has-children:focus-within .nav-menu .nav-submenu,
+    .nav-menu .nav-item--has-children:hover .nav-submenu,
+    .nav-menu .nav-item--has-children:focus-within .nav-submenu {
+        display: block;
+    }
+    .nav-sublink {
+        padding: 10px 14px;
+    }
+    .nav-sublink:hover {
+        background-color: rgba(232, 101, 10, 0.08);
+    }
+}
+
+/* ── 7. Hero — cinematic, serif headline ────────────────────── */
+.hero {
+    background-color: var(--color-bg-deep);
+    color: var(--color-text);
+    padding-block: var(--space-7);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232, 101, 10, 0.10) 0%, transparent 70%),
+        radial-gradient(circle at 85% 80%, rgba(13, 148, 136, 0.06), transparent 50%);
+    pointer-events: none;
+}
+
+.hero__inner {
+    position: relative;
+    max-width: 820px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.hero h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+}
+
+.hero h1 .accent {
+    color: var(--color-orange);
+    font-style: italic;
+}
+
+.hero__divider {
+    margin-block: var(--space-3) var(--space-4);
+}
+
+.hero__lead {
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--color-text-muted);
+    margin: 0 auto var(--space-4);
+    max-width: 600px;
+    line-height: 1.6;
+}
+
+.hero__ctas {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.hero__meta {
+    margin-top: var(--space-5);
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+
+/* ── 8. Premium layered card system ─────────────────────────── */
+/*
+   .card and .testimonial use the orange glow by default.
+   .value-tile and .portfolio-item use the teal glow for
+   per-section tonal variety. Featured value-tile overrides
+   back to orange so its "Differentiator" badge reads coherent.
+*/
+
+.cards {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.card {
+    background: var(--color-bg-raised);
+    border: 1px solid rgba(232, 101, 10, 0.2);
+    border-radius: 16px;
+    padding: var(--space-4);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(232, 101, 10, 0.06);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.15),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(232, 101, 10, 0.12);
+}
+
+.card--teal {
+    border-color: rgba(13, 148, 136, 0.2);
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(13, 148, 136, 0.06);
+}
+
+.card--teal:hover {
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.15),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(13, 148, 136, 0.12);
+}
+
+.card__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background-color: rgba(232, 101, 10, 0.12);
+    color: var(--color-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-3);
+    border: 1px solid rgba(232, 101, 10, 0.2);
+}
+
+.card--teal .card__icon {
+    background-color: rgba(13, 148, 136, 0.12);
+    color: var(--color-teal-light);
+    border-color: rgba(13, 148, 136, 0.2);
+}
+
+.card__icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.card h3 {
+    margin-bottom: var(--space-2);
+    color: var(--color-text);
+}
+
+.card p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.card__link {
+    font-weight: 700;
+    font-size: 0.9375rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--color-orange);
+}
+
+.card__link::after {
+    content: '→';
+    transition: transform var(--transition);
+}
+
+.card__link:hover {
+    color: var(--color-orange-light);
+}
+
+.card__link:hover::after {
+    transform: translateX(3px);
+}
+
+/* ── 9. Value tiles — teal by default, featured = orange ───── */
+.value-tiles {
+    display: grid;
+    gap: var(--space-3);
+}
+
+/* Force exactly 3 columns on desktop (the default responsive grid
+   later in this file forces 2 cols at tablet and 4 cols at desktop,
+   which on 6 tiles produces a lopsided 4 + 2). Used by the service
+   pages so 6 tiles read as a clean 3 × 2 at every breakpoint above
+   tablet. Selector specificity is .value-tiles.value-tiles--3col
+   (0,2,0) so it beats the later `.value-tiles` (0,1,0) breakpoints
+   regardless of source order. !important is a sledgehammer here —
+   we don't need it. */
+@media (min-width: 768px) {
+    .value-tiles.value-tiles--3col {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Centered button row under a pricing / tile grid. Adds the
+   breathing room between the cards above and the CTAs below that
+   the un-styled version was missing. Used at the bottom of the
+   pricing-teaser sections on every service page. */
+.section-cta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.value-tile {
+    text-align: left;
+    padding: var(--space-3);
+    border-radius: 16px;
+    background: var(--color-bg-raised);
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    position: relative;
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(13, 148, 136, 0.06);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.value-tile:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.15),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(13, 148, 136, 0.12);
+}
+
+.value-tile__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background-color: rgba(13, 148, 136, 0.12);
+    color: var(--color-teal-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-2);
+    border: 1px solid rgba(13, 148, 136, 0.2);
+}
+
+.value-tile__icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.value-tile h3 {
+    font-size: 1.125rem;
+    margin-bottom: var(--space-1);
+    color: var(--color-text);
+}
+
+.value-tile p {
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Featured tile — orange-themed override (matches its badge) */
+.value-tile--featured {
+    border-color: rgba(232, 101, 10, 0.35);
+    background-image: linear-gradient(180deg, rgba(232, 101, 10, 0.06) 0%, transparent 60%);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.12),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(232, 101, 10, 0.10);
+}
+
+.value-tile--featured:hover {
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.25),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(232, 101, 10, 0.16);
+}
+
+.value-tile--featured .value-tile__icon {
+    background-color: var(--color-orange);
+    color: #FFFFFF;
+    border-color: var(--color-orange);
+}
+
+.value-tile__badge {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    background-color: var(--color-orange);
+    color: #FFFFFF;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: 0 0 12px rgba(232, 101, 10, 0.4);
+}
+
+/* ── 10. Steps (How It Works) ──────────────────────────────── */
+.steps {
+    display: grid;
+    gap: var(--space-4);
+    counter-reset: step;
+}
+
+.step {
+    text-align: center;
+    position: relative;
+}
+
+.step__num {
+    counter-increment: step;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--color-orange);
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: var(--space-2);
+    box-shadow: 0 0 32px rgba(232, 101, 10, 0.35);
+    border: 1px solid rgba(232, 101, 10, 0.4);
+}
+
+.step__num::before {
+    content: counter(step);
+}
+
+.step h3 {
+    margin-bottom: var(--space-1);
+    color: var(--color-text);
+}
+
+.step p {
+    color: var(--color-text-muted);
+    max-width: 320px;
+    margin-inline: auto;
+}
+
+/* ── 11. Testimonials — orange premium card ────────────────── */
+.testimonials {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.testimonial {
+    background: var(--color-bg-raised);
+    border: 1px solid rgba(232, 101, 10, 0.2);
+    border-radius: 16px;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(232, 101, 10, 0.06);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.testimonial:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.15),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(232, 101, 10, 0.12);
+}
+
+.testimonial__stars {
+    display: flex;
+    gap: 2px;
+    color: var(--color-orange);
+}
+
+.testimonial__stars svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.testimonial__quote {
+    font-size: 1rem;
+    color: var(--color-text);
+    line-height: 1.65;
+    margin: 0;
+}
+
+.testimonial__author {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-2);
+    margin-top: auto;
+}
+
+.testimonial__name {
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.testimonial__title {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+/* ── 12. Portfolio strip — teal premium card ───────────────── */
+.portfolio-strip {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.portfolio-item {
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--color-bg-raised);
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(13, 148, 136, 0.06);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.portfolio-item:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 0 0 1px rgba(13, 148, 136, 0.15),
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(13, 148, 136, 0.12);
+}
+
+.portfolio-item__visual {
+    aspect-ratio: 16 / 10;
+    background: linear-gradient(135deg, var(--color-bg-deep) 0%, #1E293B 100%);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: 1.125rem;
+    padding: var(--space-3);
+    text-align: center;
+    border-bottom: 1px solid rgba(13, 148, 136, 0.15);
+}
+
+.portfolio-item__visual::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 70% 30%, rgba(232, 101, 10, 0.25), transparent 60%),
+        radial-gradient(circle at 30% 70%, rgba(13, 148, 136, 0.18), transparent 60%);
+}
+
+.portfolio-item__visual span {
+    position: relative;
+    z-index: 1;
+}
+
+.portfolio-item__body {
+    padding: var(--space-3);
+}
+
+.portfolio-item__type {
+    font-size: 0.75rem;
+    color: var(--color-teal-light);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: var(--space-1);
+}
+
+.portfolio-item__title {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.portfolio-item__desc {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* ── 12b. Card inversion: deep cards on raised sections ───── */
+.section--alt .card,
+.section--alt .testimonial,
+.section--alt .portfolio-item,
+.section--alt .value-tile {
+    background-color: var(--color-bg-deep);
+}
+
+.section--alt .value-tile--featured {
+    background-color: var(--color-bg-deep);
+    background-image: linear-gradient(180deg, rgba(232, 101, 10, 0.06) 0%, transparent 60%);
+}
+
+/* ── 13. CTA blocks ────────────────────────────────────────── */
+.cta-block {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    padding-block: var(--space-7);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.cta-block--deep {
+    background: var(--color-bg-deep);
+}
+
+.cta-block::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 60% 40% at 50% 50%, rgba(232, 101, 10, 0.16), transparent 70%),
+        radial-gradient(circle at 20% 50%, rgba(13, 148, 136, 0.08), transparent 50%);
+    pointer-events: none;
+}
+
+.cta-block__inner {
+    position: relative;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.cta-block h2 {
+    color: var(--color-text);
+    font-family: var(--font-serif);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-size: clamp(1.875rem, 4.5vw, 3rem);
+    margin-bottom: var(--space-2);
+}
+
+.cta-block p {
+    color: var(--color-text-muted);
+    font-size: 1.0625rem;
+    margin-bottom: var(--space-4);
+}
+
+/* ── 14. Forms ─────────────────────────────────────────────── */
+.form {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.form-group label {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--color-text);
+}
+
+.form-group .required {
+    color: var(--color-orange);
+}
+
+.form-control {
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background-color: var(--color-bg-raised);
+    color: var(--color-text);
+    font-size: 1rem;
+    width: 100%;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-control::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.7;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    box-shadow: 0 0 0 3px rgba(232, 101, 10, 0.2);
+}
+
+.form-control:invalid:not(:placeholder-shown) {
+    border-color: var(--color-danger);
+}
+
+textarea.form-control {
+    min-height: 140px;
+    resize: vertical;
+}
+
+.form-help {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+/* ── 15. Footer ────────────────────────────────────────────── */
+.site-footer {
+    background-color: var(--color-bg-deep);
+    color: var(--color-text-muted);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.site-footer a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    color: var(--color-orange);
+}
+
+.footer-grid {
+    display: grid;
+    gap: var(--space-4);
+    padding-bottom: var(--space-5);
+}
+
+.footer-col h4 {
+    color: var(--color-text);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: var(--space-2);
+}
+
+.footer-col ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.footer-col li {
+    font-size: 0.9375rem;
+}
+
+.footer-brand p {
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.footer-locations {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+}
+
+/* NAP block — must render as a readable postal address, not italic
+   browser-default <address>. Master Plan §1.1. */
+.footer-nap {
+    font-style: normal;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    margin-block: var(--space-2);
+}
+
+.footer-nap__name {
+    display: block;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.footer-hours {
+    opacity: 0.75;
+}
+
+/* ── Breadcrumbs (Master Plan §7.3) ─────────────────────────── */
+.breadcrumbs {
+    padding-block: var(--space-2);
+    font-size: 0.8125rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.breadcrumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.breadcrumbs li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-muted);
+}
+
+/* Separator drawn in CSS so it never lands in the accessibility tree
+   or in Google's rendered breadcrumb text. */
+.breadcrumbs li + li::before {
+    content: "/";
+    opacity: 0.4;
+}
+
+.breadcrumbs a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover,
+.breadcrumbs a:focus-visible {
+    color: var(--color-orange);
+    text-decoration: underline;
+}
+
+.breadcrumbs [aria-current="page"] {
+    color: var(--color-text);
+}
+
+.footer-bottom {
+    border-top: 1px solid var(--color-border);
+    padding-block: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: center;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+}
+
+/* ── 16. Misc ───────────────────────────────────────────────── */
+.muted { color: var(--color-text-muted); }
+
+.mt-4 { margin-top: var(--space-4); }
+
+.coming-soon {
+    text-align: center;
+    padding-block: var(--space-7);
+}
+
+.coming-soon .badge {
+    display: inline-block;
+    background-color: rgba(13, 148, 136, 0.15);
+    color: var(--color-teal-light);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: var(--space-3);
+    border: 1px solid rgba(13, 148, 136, 0.25);
+}
+
+/* ── 16b. Page utilities — cards with visuals, lists, tables ── */
+
+/* Card grid variant: 2 columns instead of 3 */
+.cards.cards--2col {
+    grid-template-columns: 1fr;
+}
+
+/* Card modifier: thin teal ribbon on the left edge */
+.card--accent-left {
+    position: relative;
+    overflow: hidden;
+}
+
+.card--accent-left::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--color-teal);
+}
+
+/* Card modifier: image/gradient visual at top + body below */
+.card--with-visual {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.card--with-visual .card__visual {
+    aspect-ratio: 16 / 10;
+    border-bottom: 1px solid rgba(232, 101, 10, 0.15);
+    position: relative;
+}
+
+.card--with-visual.card--teal .card__visual {
+    border-bottom-color: rgba(13, 148, 136, 0.15);
+}
+
+.card--with-visual .card__visual::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 70% 30%, rgba(232, 101, 10, 0.18), transparent 60%);
+    pointer-events: none;
+}
+
+.card--with-visual.card--teal .card__visual::after {
+    background: radial-gradient(circle at 70% 30%, rgba(13, 148, 136, 0.18), transparent 60%);
+}
+
+.card--with-visual .card__body {
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
+}
+
+.card--with-visual .card__body > .btn-secondary,
+.card--with-visual .card__body > .btn-primary {
+    margin-top: auto;
+    align-self: flex-start;
+}
+
+/* Small pill label (used above titles in cards) */
+.pill-tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-orange);
+    font-weight: 700;
+    margin-bottom: var(--space-1);
+}
+
+.card--teal .pill-tag {
+    color: var(--color-teal-light);
+}
+
+/* Pull-quote inside a card */
+
+.card--teal .card__quote {
+    border-left-color: var(--color-teal);
+}
+
+/* Bullet list — two columns on tablet+, orange diamond markers */
+.bullet-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bullet-list__item {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    line-height: 1.6;
+}
+
+.bullet-list__icon {
+    color: var(--color-orange);
+    font-size: 1rem;
+    line-height: 1.5;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.bullet-list__text {
+    color: var(--color-text);
+}
+
+/* Comparison table */
+.compare-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-deep);
+    box-shadow: var(--shadow);
+}
+
+.compare-table {
+    width: 100%;
+    min-width: 600px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.compare-table th,
+.compare-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    font-size: 0.9375rem;
+}
+
+.compare-table tr:last-child th,
+.compare-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.compare-table thead th {
+    background: var(--color-bg-raised);
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+}
+
+.compare-table thead th:last-child {
+    color: var(--color-orange);
+}
+
+.compare-table tbody th {
+    color: var(--color-text);
+    font-weight: 700;
+    background: transparent;
+}
+
+.compare-table tbody td:nth-child(2) {
+    color: var(--color-text-muted);
+}
+
+.compare-table tbody td:last-child,
+.compare-table thead th:last-child {
+    border-left: 2px solid var(--color-orange);
+    background: rgba(232, 101, 10, 0.06);
+}
+
+.compare-table tbody td:last-child {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.compare-icon--no {
+    color: #EF4444;
+    font-weight: 700;
+    margin-right: 0.375rem;
+}
+
+.compare-icon--yes {
+    color: #10B981;
+    font-weight: 700;
+    margin-right: 0.375rem;
+}
+
+/* Gradient utilities for card visuals / image placeholders */
+.gradient-blue   { background: linear-gradient(135deg, #1E3A5F 0%, var(--color-bg-deep) 100%); }
+
+.gradient-rust   { background: linear-gradient(135deg, #3D1A00 0%, var(--color-bg-deep) 100%); }
+.gradient-purple { background: linear-gradient(135deg, #1A1A3D 0%, var(--color-bg-deep) 100%); }
+.gradient-forest { background: linear-gradient(135deg, #0F2D1A 0%, var(--color-bg-deep) 100%); }
+
+/* Responsive overrides for page utilities */
+@media (min-width: 720px) {
+    .cards.cards--2col {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .bullet-list {
+        grid-template-columns: repeat(2, 1fr);
+        column-gap: var(--space-4);
+    }
+}
+
+/* ── 16c. Pricing / plan utilities ─────────────────────────── */
+
+/* Pricing card layout */
+.card--pricing {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.card--pricing > .btn-primary,
+.card--pricing > .btn-secondary {
+    margin-top: auto;
+    width: 100%;
+}
+
+.card--pricing .feature-list {
+    flex: 1;
+}
+
+.card__title {
+    font-size: 1.5rem;
+    color: var(--color-text);
+    margin: 0;
+}
+
+/* Featured pricing card — stronger orange glow */
+.card--featured {
+    border-color: rgba(232, 101, 10, 0.5);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.2),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 80px rgba(232, 101, 10, 0.18);
+}
+
+.card--featured:hover {
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.35),
+        0 12px 48px rgba(0, 0, 0, 0.55),
+        0 0 100px rgba(232, 101, 10, 0.25);
+}
+
+/* "Most Popular" pill badge straddling the top of a card */
+.card__badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-orange);
+    color: #FFFFFF;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.375rem 0.875rem;
+    border-radius: 999px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    box-shadow: 0 0 16px rgba(232, 101, 10, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    white-space: nowrap;
+}
+
+/* Timeline pill (e.g. "Launches in 3 weeks") */
+.card__timeline-badge {
+    display: inline-block;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-teal-light);
+    font-weight: 700;
+    padding: 0.3125rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(13, 148, 136, 0.12);
+    border: 1px solid rgba(13, 148, 136, 0.25);
+    margin-bottom: var(--space-2);
+    align-self: flex-start;
+}
+
+.card--featured .card__timeline-badge {
+    color: var(--color-orange-light);
+    background: rgba(232, 101, 10, 0.12);
+    border-color: rgba(232, 101, 10, 0.3);
+}
+
+/* Price block — serif numeral, raised $ glyph, muted /mo suffix.
+   Clamp ceiling sized to fit the worst-case "$1,199/month" string
+   inside a 3-column grid card (~340px content width on a 1280px
+   viewport). overflow-wrap is the safety net for any future price
+   we add. */
+.card__price {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 4.5vw, 3rem);
+    font-weight: 700;
+    color: var(--color-orange);
+    line-height: 1.05;
+    margin-block: var(--space-2);
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    max-width: 100%;
+}
+
+.card__price-meta {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-3);
+}
+
+/* Checklist used inside pricing cards */
+.feature-list {
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.feature-list li {
+    display: flex;
+    gap: 0.625rem;
+    align-items: flex-start;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--color-text);
+}
+
+.feature-list li::before {
+    content: '✓';
+    color: var(--color-orange);
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 1.5;
+}
+
+.card--teal .feature-list li::before {
+    color: var(--color-teal-light);
+}
+
+/* Pricing note (between/below card sections) */
+.pricing-note {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-top: var(--space-4);
+}
+
+/* Callout — emphasized box for important inline notes */
+.callout {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    background: rgba(232, 101, 10, 0.05);
+    color: var(--color-text);
+    text-align: center;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+}
+
+.callout strong {
+    color: var(--color-orange);
+}
+
+/* Hero guarantee badge (orange pill below subhead) */
+.badge-guarantee {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(232, 101, 10, 0.12);
+    color: var(--color-orange-light);
+    padding: 0.625rem 1.125rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border: 1px solid rgba(232, 101, 10, 0.3);
+    margin-top: var(--space-2);
+}
+
+.badge-guarantee__icon {
+    color: var(--color-orange);
+    font-weight: 700;
+}
+
+/* Three-column feature row (Hosting section) */
+
+/* ── 16d. Contact page utilities ────────────────────────────── */
+
+.contact-grid {
+    display: grid;
+    gap: var(--space-3);
+}
+
+@media (min-width: 900px) {
+    .contact-grid {
+        grid-template-columns: 1.4fr 1fr;
+        gap: var(--space-4);
+        align-items: start;
+    }
+    /* --stack modifier overrides the side-by-side grid and keeps both
+       cards on the same column. Used by /design/schedule/ so Step 1
+       (pick a time) sits on its own row and Step 2 (project form)
+       appears below it — instead of the form being a long scroll
+       parallel to the calendar. */
+    .contact-grid--stack {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Contact section: keep both cards on raised bg so deep inputs contrast */
+.section--alt .contact-grid > .card {
+    background-color: var(--color-bg-raised);
+}
+
+/* Form labels — teal, small, uppercase, letter-spaced (per spec) */
+.contact-form .form-group label {
+    color: var(--color-teal-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 0.375rem;
+}
+
+/* Form inputs — deep bg so they stand out against the raised card */
+.contact-form .form-control {
+    background-color: var(--color-bg-deep);
+}
+
+.contact-form select.form-control {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
+                      linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 2.5rem;
+}
+
+/* Form errors */
+.form-error {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius);
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--color-danger);
+    font-size: 0.9375rem;
+    margin-bottom: var(--space-3);
+}
+
+.form-error ul {
+    margin: 0;
+    padding-left: var(--space-2);
+    list-style: disc;
+}
+
+.form-field-error {
+    color: var(--color-danger);
+    font-size: 0.8125rem;
+    margin-top: 0.375rem;
+    line-height: 1.4;
+}
+
+.contact-form .form-control[aria-invalid="true"] {
+    border-color: var(--color-danger);
+}
+
+/* Card-level eyebrow + title (used in the form card) */
+.card > .eyebrow {
+    margin-bottom: var(--space-1);
+}
+
+.card > .card__title {
+    margin-bottom: var(--space-3);
+}
+
+/* Right-column contact info list */
+.contact-list {
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.contact-list__item {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.contact-list__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(13, 148, 136, 0.12);
+    color: var(--color-teal-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+}
+
+.contact-list__icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.contact-list__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.contact-list__label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+.contact-list__value,
+a.contact-list__value {
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    word-break: break-word;
+}
+
+a.contact-list__value:hover {
+    color: var(--color-orange);
+}
+
+/* Hairline dividers inside the contact-info card */
+.contact-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: var(--space-3) 0;
+    border: 0;
+}
+
+.contact-promise {
+    text-align: center;
+    color: var(--color-text);
+    font-weight: 600;
+    margin: 0;
+}
+
+.contact-cta-prompt {
+    color: var(--color-text-muted);
+    font-size: 0.9375rem;
+    text-align: center;
+    margin: 0 0 var(--space-2);
+}
+
+.contact-fine-print {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    margin: 0;
+    line-height: 1.55;
+}
+
+.contact-fine-print a {
+    color: var(--color-text-muted);
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.2);
+}
+
+.contact-fine-print a:hover {
+    color: var(--color-orange);
+}
+
+/* Thank-you page */
+.thanks-page {
+    text-align: center;
+    padding-block: var(--space-7);
+}
+
+.thanks-page__card {
+    max-width: 540px;
+    margin: 0 auto;
+    padding: var(--space-5);
+    background: var(--color-bg-raised);
+    border: 1px solid rgba(232, 101, 10, 0.25);
+    border-radius: 16px;
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.08),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 80px rgba(232, 101, 10, 0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.thanks-page__card h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 5vw, 3rem);
+    margin: 0;
+}
+
+.thanks-page__card .lead {
+    margin: 0;
+}
+
+.success-checkmark {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--color-orange);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-2);
+    box-shadow: 0 0 32px rgba(232, 101, 10, 0.4);
+    border: 1px solid rgba(232, 101, 10, 0.4);
+}
+
+.success-checkmark svg {
+    width: 36px;
+    height: 36px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.thanks-page__hint {
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 var(--space-3);
+    font-size: 0.9375rem;
+}
+
+.thanks-page__hint a {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+
+/* ── 16e. About page utilities ──────────────────────────────── */
+
+.bio-grid {
+    display: grid;
+    gap: var(--space-4);
+}
+
+@media (min-width: 900px) {
+    .bio-grid {
+        grid-template-columns: 320px 1fr;
+        gap: var(--space-5);
+        align-items: start;
+    }
+}
+
+.bio-photo {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-orange) 0%, var(--color-teal) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-3);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 0 48px rgba(232, 101, 10, 0.3),
+        0 0 80px rgba(13, 148, 136, 0.2);
+}
+
+.bio-photo__initials {
+    font-family: var(--font-serif);
+    font-size: 4rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.bio-name {
+    font-family: var(--font-serif);
+    font-size: 1.75rem;
+    color: var(--color-text);
+    margin: 0;
+    text-align: center;
+    letter-spacing: -0.01em;
+}
+
+.bio-title {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-3);
+    text-align: center;
+    font-size: 0.9375rem;
+}
+
+.credential-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.credential-pill {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(232, 101, 10, 0.12);
+    color: var(--color-orange-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(232, 101, 10, 0.25);
+    letter-spacing: 0.02em;
+}
+
+.credential-pill--teal {
+    background: rgba(13, 148, 136, 0.12);
+    color: var(--color-teal-light);
+    border-color: rgba(13, 148, 136, 0.25);
+}
+
+.bio-prose p {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+}
+
+.bio-prose p:last-child {
+    margin-bottom: 0;
+}
+
+.bio-prose p:first-child::first-letter {
+    font-family: var(--font-serif);
+    font-size: 3.25rem;
+    font-weight: 700;
+    color: var(--color-orange);
+    float: left;
+    line-height: 0.9;
+    padding-right: 0.5rem;
+    padding-top: 0.3rem;
+}
+
+/* ── 16f. Audit tool utilities ──────────────────────────────── */
+
+/* Audit form — single-input card, centered */
+.audit-form-card {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.audit-form-card .form-group label {
+    color: var(--color-teal-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.audit-form-card .form-control {
+    background-color: var(--color-bg-deep);
+    font-size: 1.0625rem;
+    padding: 0.875rem 1rem;
+}
+
+.audit-form-card .audit-note {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    margin: var(--space-3) 0 0;
+    line-height: 1.55;
+}
+
+/* Don't invert the audit card inside .section--alt — keep raised so the
+   deep input bg contrasts cleanly. */
+.section--alt .card.audit-form-card,
+.section--alt .card.audit-results-summary {
+    background-color: var(--color-bg-raised);
+}
+
+/* Audit results — URL display */
+.audit-results-url {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0.5rem 0.875rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    display: inline-block;
+    word-break: break-all;
+    max-width: 100%;
+}
+
+/* Score grid — 2x2 mobile, 1x4 desktop */
+.score-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 720px) {
+    .score-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.score-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: var(--space-3);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    box-shadow:
+        0 0 0 1px rgba(232, 101, 10, 0.05),
+        0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.section--alt .score-card {
+    background-color: var(--color-bg-deep);
+}
+
+.score-card__label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+    margin: 0;
+}
+
+/* SVG score circle — color via class, progress via SVG attr (no inline style → CSP safe) */
+.score-circle {
+    width: 110px;
+    height: 110px;
+}
+
+.score-circle__bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 8;
+}
+
+.score-circle__fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 800ms ease;
+}
+
+.score-card--good .score-circle__fill { stroke: var(--color-success); }
+.score-card--ok   .score-circle__fill { stroke: var(--color-orange); }
+.score-card--bad  .score-circle__fill { stroke: var(--color-danger); }
+
+.score-circle__text {
+    font-family: var(--font-serif);
+    font-size: 30px;
+    font-weight: 700;
+    fill: var(--color-text);
+}
+
+.score-card--good .score-circle__text { fill: var(--color-success); }
+.score-card--ok   .score-circle__text { fill: var(--color-orange); }
+.score-card--bad  .score-circle__text { fill: var(--color-danger); }
+
+.score-card--good { border-color: rgba(74, 222, 128, 0.25); }
+.score-card--ok   { border-color: rgba(232, 101, 10, 0.25); }
+.score-card--bad  { border-color: rgba(248, 113, 113, 0.3); }
+
+/* Impact badge on issue cards */
+
+/* ── Audit results — overall summary line ──────────────────── */
+.audit-summary-line {
+    text-align: center;
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    line-height: 1.4;
+    font-weight: 700;
+    margin: 0 0 var(--space-4);
+}
+
+.audit-summary-line--strong     { color: #10B981; }
+.audit-summary-line--needs-work { color: #E8650A; }
+.audit-summary-line--critical   { color: #EF4444; }
+
+/* ── Audit results — 4-card grid (2x2 desktop, stacked mobile) ── */
+.audit-results-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+    .audit-results-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.audit-result-card {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.audit-result-card--strong     { border-color: #10B981; }
+.audit-result-card--needs-work { border-color: #E8650A; }
+.audit-result-card--critical   { border-color: #EF4444; }
+
+.audit-result-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.audit-result-card__category {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.audit-result-badge {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+}
+
+.audit-result-badge--strong {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.audit-result-badge--needs-work {
+    background: rgba(232, 101, 10, 0.14);
+    color: var(--color-orange-light);
+    border: 1px solid rgba(232, 101, 10, 0.4);
+}
+
+.audit-result-badge--critical {
+    background: rgba(239, 68, 68, 0.14);
+    color: #EF4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.audit-result-card__score {
+    font-family: var(--font-serif);
+    font-size: 3.25rem;
+    font-weight: 700;
+    line-height: 1;
+    margin: 0 0 var(--space-2);
+}
+
+.audit-result-card--strong     .audit-result-card__score { color: #10B981; }
+.audit-result-card--needs-work .audit-result-card__score { color: #E8650A; }
+.audit-result-card--critical   .audit-result-card__score { color: #EF4444; }
+
+.audit-result-card__score-max {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+}
+
+.audit-result-card__impact {
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* "All clear" line — score >= 90 */
+.audit-result-clear {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: var(--space-3) 0 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    color: #10B981;
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.audit-result-clear__icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: #10B981;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Issue list — score < 90 */
+.audit-result-issues {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3) 0 0;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.audit-result-issue {
+    display: flex;
+    gap: 0.625rem;
+    align-items: flex-start;
+}
+
+.audit-result-issue__bullet {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    margin-top: 0.4rem;
+    border-radius: 50%;
+    background: var(--color-orange);
+}
+
+.audit-result-issue__text {
+    display: block;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+}
+
+.audit-result-issue__text strong {
+    color: var(--color-text);
+    font-weight: 700;
+}
+
+.audit-result-issue__desc {
+    display: block;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+}
+
+/* Email capture form on results page */
+.audit-email-form {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.audit-email-form .form-control {
+    flex: 1;
+    min-width: 200px;
+    background-color: var(--color-bg-deep);
+}
+
+.audit-email-form .btn-primary {
+    flex-shrink: 0;
+}
+
+.audit-email-confirmation {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius);
+    background: rgba(74, 222, 128, 0.08);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: var(--color-success);
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Submit button loading state (used by audit form, reusable elsewhere) */
+
+@keyframes btn-spin {
+    to { transform: rotate(360deg); }
+}
+
+.btn-primary.is-loading,
+.btn-secondary.is-loading {
+    cursor: progress;
+    opacity: 0.85;
+}
+
+.btn-primary[disabled],
+.btn-secondary[disabled],
+.btn-primary.is-loading,
+.btn-secondary.is-loading {
+    pointer-events: none;
+}
+
+.audit-note--running {
+    color: var(--color-orange-light);
+    font-weight: 600;
+}
+
+/* AI review section */
+.ai-review {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.ai-review .card {
+    text-align: left;
+}
+
+.ai-review-body p {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    color: var(--color-text);
+    margin: 0 0 var(--space-3);
+}
+
+.ai-review-body p:last-child {
+    margin-bottom: 0;
+}
+
+.ai-review-attribution {
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    text-align: right;
+    font-style: italic;
+}
+
+/* AI loading state — replaced by partial response */
+.ai-loading {
+    text-align: center;
+    padding: var(--space-4) var(--space-3);
+}
+
+.ai-loading__spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 2px solid rgba(13, 148, 136, 0.25);
+    border-top-color: var(--color-teal-light);
+    border-radius: 50%;
+    margin-bottom: var(--space-2);
+    animation: btn-spin 0.9s linear infinite;
+}
+
+.ai-loading__text {
+    color: var(--color-text-muted);
+    font-size: 0.9375rem;
+    margin: 0;
+}
+
+/* Login page — centered card on deep bg */
+.login-page {
+    padding-block: var(--space-7);
+}
+
+.login-card {
+    max-width: 440px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.login-card__logo {
+    display: block;
+    text-align: center;
+    margin: 0 0 var(--space-3);
+}
+
+.login-card__logo img {
+    height: 56px;
+    width: auto;
+    display: inline-block;
+}
+
+.login-card__title {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    margin: 0 0 var(--space-1);
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+}
+
+.login-card__subtitle {
+    margin: 0 0 var(--space-3);
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+}
+
+/* Contract deposit / pay-in-full chooser (public, CSP-safe — no inline styles) */
+.contract-pay-form {
+    text-align: left;
+    margin-top: var(--space-4);
+}
+.pay-option {
+    display: block;
+    border: 1px solid var(--color-border, #d8dee5);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+.pay-option__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+}
+.pay-option__desc {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+.contract-pay-form .btn-block {
+    margin-top: var(--space-4);
+}
+
+/* Add-card page — breathing room above the heading */
+.portal-billing {
+    padding-top: var(--space-4);
+}
+.portal-billing h1 {
+    margin-top: 0;
+    margin-bottom: var(--space-4);
+}
+
+.login-form {
+    text-align: left;
+    margin-top: var(--space-2);
+}
+
+.login-form .form-group label {
+    color: var(--color-teal-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 0.375rem;
+}
+
+.login-form .form-control {
+    background-color: var(--color-bg-deep);
+}
+
+.login-helper {
+    margin: var(--space-3) 0 0;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    line-height: 1.55;
+}
+
+.login-forgot-row {
+    text-align: right;
+    margin: calc(var(--space-2) * -0.5) 0 var(--space-2);
+}
+
+.login-forgot-link {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+.login-forgot-link:hover {
+    color: var(--color-orange);
+}
+
+/* ── Contract signing page ─────────────────────────────────── */
+.contract-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+.contract-scroll {
+    max-height: 460px;
+    overflow-y: auto;
+    margin: var(--space-3) 0;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+}
+
+.contract-scroll:focus-visible {
+    outline: 2px solid var(--color-orange);
+    outline-offset: 2px;
+}
+
+.contract-sign-form {
+    margin-top: var(--space-3);
+}
+
+.contract-agree {
+    display: flex;
+    gap: 0.625rem;
+    align-items: flex-start;
+    margin: var(--space-2) 0;
+    font-size: 0.9375rem;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.contract-agree input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+.contract-scroll-hint {
+    font-size: 0.8125rem;
+    color: var(--color-orange-light);
+    margin: 0 0 var(--space-2);
+}
+
+.contract-check {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-3);
+    border-radius: 50%;
+    background: rgba(232, 101, 10, 0.14);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.contract-check svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: var(--color-orange);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Graceful fallback when AI review can't run (dev key missing, API error) */
+.ai-review-fallback {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.9375rem;
+    padding: var(--space-3);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius);
+    border: 1px dashed var(--color-border);
+}
+
+/* ── 16g. Admin dashboard ──────────────────────────────────── */
+
+/* Top nav bar — full width, sticky */
+
+.admin-nav__link.is-active {
+    color: var(--color-orange);
+    background-color: rgba(232, 101, 10, 0.08);
+}
+
+/* Small button variant — used in admin nav + table action cells */
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    border-radius: var(--radius-sm);
+}
+
+/* Main content area — see sidebar block below for the active rules.
+   The old .admin-header / .admin-nav / .admin-user selectors above are
+   orphaned (no template uses them) but kept so older snapshots still
+   degrade cleanly. */
+
+.admin-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.admin-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.admin-page-title {
+    font-family: var(--font-serif);
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    color: var(--color-text);
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+/* Stat card grid (Dashboard home) */
+
+/* Sections + activity lists */
+
+/* Pipeline strip */
+
+/* Status / temperature / score badges (reused across table + detail) */
+
+/* Lead filter bar */
+
+.lead-filter-bar .form-control {
+    background-color: var(--color-bg-deep);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    width: auto;
+    min-width: 130px;
+}
+
+/* Lead table */
+
+/* Color-coded left border by temperature */
+
+/* Pagination strip */
+
+/* Empty / fallback state */
+
+/* Lead detail layout */
+
+.admin-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: var(--space-3);
+}
+
+.admin-card__title {
+    margin: 0 0 var(--space-2);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+/* Inline editor (used for HTMX status update on lead detail) */
+
+/* Add-note form (HTMX) */
+
+/* Subtle highlight for a freshly-added note (HTMX response) */
+
+@keyframes note-flash {
+    0%   { background-color: rgba(232, 101, 10, 0.18); }
+    100% { background-color: transparent; }
+}
+
+/* Stacked activity lists on lead detail */
+
+/* Add-lead form layout */
+
+.lead-add-form .form-group label {
+    color: var(--color-teal-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 0.375rem;
+}
+
+.lead-add-form .form-control {
+    background-color: var(--color-bg-deep);
+}
+
+.required {
+    color: var(--color-orange);
+    font-weight: 700;
+    margin-left: 0.125rem;
+}
+
+/* ── Kanban board ─────────────────────────────────────────── */
+
+/* Container needs to break out of admin-container's max-width-ish constraints
+   for the horizontal scroll experience to feel right. */
+
+/* Won / Lost tinting per spec */
+
+/* Card */
+
+/* ── HTMX loading state ───────────────────────────────────── */
+/* HTMX adds .htmx-request to the triggering element during a request. */
+
+/* Danger button modifier (pairs with .btn-secondary) */
+.btn-danger {
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.4);
+}
+
+.btn-danger:hover {
+    color: var(--color-danger);
+    background: rgba(248, 113, 113, 0.08);
+    border-color: var(--color-danger);
+}
+
+/* ── Needs You queue ──────────────────────────────────────── */
+
+/* Section grouping inside the Needs You page — "New intakes" +
+   "Email replies" both render as sections of cards. */
+
+/* Intake-review card — slimmer than the email-reply card; orange
+   left-border so the section reads as the priority block above the
+   email-reply queue. */
+
+/* Admin client-detail Project Progress section — stage chips row +
+   quick-move form. Read-only display only; the form below the chips
+   does the actual transitions. */
+
+/* ── Portal subscriptions page ─────────────────────────────────── */
+
+/* Recurring-service card (nicer layout: name+price left, badge right) */
+
+/* Card on the payment methods list. */
+
+/* Add-card modal. */
+
+#add-card-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: #E8650A;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+#add-card-submit:disabled { opacity: 0.7; cursor: wait; }
+
+/* Reply classification badge */
+
+/* Email thread blocks */
+
+/* Reply composer */
+
+/* ── Outreach Settings ────────────────────────────────────── */
+
+/* Multi-column form row — used on settings (city / state / zip) and
+   anywhere else we want fields side-by-side on desktop, stacked on
+   mobile. The form-group--N modifier sets the flex basis. */
+
+.form-row > .form-group { flex: 1 1 100%; }
+
+.form-error {
+    color: var(--color-danger);
+    font-size: 0.82rem;
+    margin: 4px 0 0;
+}
+
+/* Trust-level segmented control — pure CSS, driven by hidden radios */
+
+/* Selected segment — one rule per level */
+
+/* Keyboard focus ring on the visible segment when its hidden radio is focused */
+
+/* Descriptions — hide all, reveal the one matching the checked radio */
+
+/* Outreach Active toggle switch — pure CSS, driven by hidden checkbox */
+
+/* Warning — shown only when the toggle is ON */
+
+/* ── Scraper page ─────────────────────────────────────────── */
+.scrape-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.scrape-form .form-group label {
+    color: var(--color-teal-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 0.375rem;
+}
+
+.scrape-form .form-control {
+    background-color: var(--color-bg-deep);
+}
+
+.scrape-form__note {
+    font-size: 0.8125rem;
+    margin: 0;
+    text-align: center;
+}
+
+/* Result panel */
+
+/* ── 17. Responsive — tablet (≥ 720px) ─────────────────────── */
+@media (min-width: 720px) {
+    .hero__ctas {
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .cards {
+        /* minmax(0, 1fr) so columns can shrink under their intrinsic
+           size — otherwise long pricing labels ("$1,199/month") or
+           full-width CTA buttons push the grid past the container,
+           which spills both the leftmost and rightmost cards past
+           the viewport (horizontal scroll). */
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .value-tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .steps {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-3);
+    }
+
+    .testimonials {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .portfolio-strip {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .footer-grid {
+        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    }
+
+    .footer-bottom {
+        flex-direction: row;
+        justify-content: space-between;
+        text-align: left;
+    }
+}
+
+/* ── 18. Responsive — desktop (≥ 1024px) ───────────────────── */
+@media (min-width: 1024px) {
+    .nav-toggle {
+        display: none;
+    }
+
+    .nav-menu {
+        display: block;
+        position: static;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+    }
+
+    .nav-menu ul {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-1);
+    }
+
+    .nav-link {
+        padding: 0.625rem 0.875rem;
+        font-size: 0.9375rem;
+    }
+
+    .nav-link--cta {
+        margin-top: 0;
+        margin-left: var(--space-1);
+        padding: 0.625rem 1.25rem;
+    }
+
+    .hero {
+        padding-block: var(--space-8);
+    }
+
+    .value-tiles {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .testimonials {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .portfolio-strip {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* ══ 20. Client portal ══════════════════════════════════════ */
+
+/* Slimmer scrollbar so it doesn't dominate the 248px column. */
+
+/* Sidebar notice shown only in intake-only mode — when the client
+   is still in `pending_intake`. Tells them why every other portal
+   link is missing, so the sidebar doesn't feel broken. */
+
+.portal-nav__link.is-active {
+    background: rgba(232, 101, 10, 0.14);
+    color: var(--color-orange-light);
+}
+
+/* Phase C4 — per-subscription payment-method picker on the
+   subscription card. JS-less change submits via onchange; noscript
+   fallback shows a Save button. */
+
+/* Phase C — active-website header bar on portal pages. Renders
+   only when the account has more than one Website. Uses portal
+   dark-theme tokens (admin theme tokens would be wrong here). */
+
+/* Stat cards */
+
+/* Horizontal stepper */
+
+/* Activity feed */
+
+/* Quick actions */
+
+/* Definition list */
+
+/* Status pills */
+.status-pill {
+    display: inline-block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.status-pill--stage,
+.status-pill--current,
+.status-pill--in_progress,
+.status-pill--sent,
+.status-pill--open,
+.status-pill--priority-medium {
+    background: rgba(232, 101, 10, 0.14);
+    color: var(--color-orange-light);
+    border-color: rgba(232, 101, 10, 0.3);
+}
+
+.status-pill--complete,
+.status-pill--completed,
+.status-pill--paid,
+.status-pill--resolved {
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.status-pill--out_of_scope,
+.status-pill--priority-high {
+    background: rgba(248, 113, 113, 0.12);
+    color: var(--color-danger);
+    border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* Vertical timeline */
+
+/* Generic record list */
+
+/* Intake form */
+
+/* Clickable step buttons in the progress chip — render as plain
+   text + checkmark with an underline-on-hover affordance. No browser
+   button chrome. Locked steps render as <span class="...--locked"> */
+
+/* Section subhead inside intake — visual break above the split-out
+   social-profile inputs without using a full <h2>. */
+
+/* Conditional reveals on the intake form — controlled by intake_form.js
+   via the `is-revealed` class. Hidden by default so a flash of the
+   "Other registrar" field never appears for clients whose answer is
+   not "Other". */
+
+/* ── Intake wizard ──
+   The form is JS-driven (intake_form.js): exactly one section is
+   visible at a time, navigation lives in a sticky bottom bar. The
+   `[data-wizard]` attribute on the <form> opts the form into wizard
+   mode — when JS isn't loaded (very rare these days), all sections
+   stay visible so the form is still usable. */
+
+/* Required-asterisk colour. */
+
+/* Yes/No radio row for Step 2 (photos). */
+
+/* Step 6 review cards — read-only summary of each prior step with
+   an Edit button that jumps the wizard back to the matching step.
+   Tighter padding than .portal-section so 5 cards stack visibly
+   without scrolling forever. */
+
+/* Read-only photo thumbnail grid for the Step 6 review card.
+   Smaller than the Step 2 .intake-photo-grid (no delete button,
+   no labels) — these are at-a-glance previews; click to open full
+   size in a new tab. */
+
+/* Inline opt-out checkbox shown under a field that it modifies
+   (e.g. the "I don't have a logo yet" toggle under the Logo upload).
+   Sits flush under the field with a smaller font weight so it reads
+   as secondary to the primary input above it. */
+
+/* Intake-specific spacing — the global .form-group is intentionally tight
+   (used in dense admin forms) but the intake is a long, scrolling client-
+   facing form where every field deserves breathing room. Scope these
+   overrides to .intake-form so other forms keep their compact layout.
+   Tall textareas make the previous 1.5rem gap feel cramped in textarea
+   blocks (Step 3/4) compared to short text-input blocks (Step 1); 2rem
+   gives every field the same generous visual rhythm regardless of input
+   height. */
+.intake-form .form-group {
+    gap: 0.625rem;            /* label → hint → input vertical rhythm */
+    margin-bottom: 2rem;      /* breathing room between fields */
+}
+.intake-form .form-group label {
+    margin-bottom: 0.25rem;   /* extra nudge under the bold label */
+}
+.intake-form .form-group .form-hint {
+    margin: 0 0 0.25rem 0;    /* tuck the hint up under the label */
+}
+
+/* Section subhead (the "Social profiles" header inside step 5) — give
+   it the same generous breathing room as the gap between fields so
+   the layout feels consistent end-to-end. */
+
+/* Last field in a section shouldn't double up on space with the next
+   section's own padding. */
+.intake-form .form-group:last-of-type {
+    margin-bottom: 0.5rem;
+}
+
+/* Intake step 2 — photo uploader gallery. */
+
+/* Invoice table */
+
+/* Small button modifier */
+.btn-sm {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+/* ── Maintenance handoff plan picker ───────────────────────── */
+.maintenance-plans {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1fr;
+    margin-top: var(--space-4);
+}
+
+@media (min-width: 860px) {
+    .maintenance-plans {
+        grid-template-columns: repeat(3, 1fr);
+        align-items: start;
+    }
+}
+
+.plan-card {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.plan-card--popular {
+    border-color: var(--color-orange);
+}
+
+.plan-card__badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-orange);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.plan-card__name {
+    font-size: 1.375rem;
+    margin: 0;
+}
+
+.plan-card__price {
+    font-family: var(--font-serif);
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0.25rem 0 var(--space-2);
+    color: var(--color-orange-light);
+}
+
+.plan-card__price span {
+    font-size: 1rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans, Arial, sans-serif);
+}
+
+.plan-features {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-grow: 1;
+}
+
+.plan-features li {
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    padding-left: 1.4rem;
+    position: relative;
+}
+
+.plan-features li::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    color: var(--color-orange);
+    font-weight: 700;
+}
+
+.maintenance-note {
+    text-align: center;
+    margin-top: var(--space-3);
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+/* ══ 22. Admin pricing manager ══════════════════════════════ */
+
+/* Pricing edit form */
+
+/* ══ 24. Deployment dashboard ═══════════════════════════════ */
+
+/* Deploy-type cards */
+
+.deploy-card .btn-primary {
+    align-self: flex-start;
+}
+
+.deploy-client-picker .form-control { flex: 1; min-width: 160px; }
+
+/* Sections + tables */
+
+/* Input section — dark card, orange border */
+
+.deploy-prefill .form-control { flex: 1; min-width: 200px; }
+
+.deploy-field__pw .form-control { flex: 1; }
+
+/* Collapsible steps */
+
+/* Terminal-style command block */
+
+/* Note / warning boxes */
+
+/* History log form */
+
+/* ══ 26. Vault — encrypted credential manager ═══════════════ */
+
+/* PIN gate (setup / enter / locked) */
+
+.vault-pw-wrap .form-control { flex: 1; }
+
+/* Header / session */
+
+.vault-search .form-control { flex: 1; min-width: 200px; max-width: 360px; }
+
+.vault-newvault__form .form-control { min-width: 260px; }
+
+/* Vault grid (home) */
+
+/* One-time info banner — e.g. auto-provisioned credentials secured. */
+
+/* Expiry overlay */
+
+/* The [hidden] attribute must win over the display:flex above — otherwise
+   the overlay shows on top of a perfectly valid session. */
+
+/* Credential groups + cards */
+
+@keyframes vault-countdown {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+/* Credential form */
+
+/* Access log */
+
+/* ══ 27. Portal credentials vault (client PIN gate) ═════════ */
+
+/* ══ 28. Site changelog — admin + client portal ═════════════ */
+
+/* Change-type badge — colour-coded per type */
+
+/* .cl-badge--other uses the muted base */
+
+/* Admin — list table */
+
+/* Admin — add/edit form */
+
+/* Admin — deploy.sh bulk import */
+
+/* Portal — Activity Log */
+
+.cl-month-filter .form-control { min-width: 170px; }
+
+/* Portal — new-activity dot on the sidebar nav item */
+
+/* ══ 29. Phase 5a — uptime, GBP, keywords, conversions ══════ */
+
+.admin-card__head .admin-card__title { margin-bottom: 0; }
+
+/* Status dot */
+
+/* Uptime widget (admin client detail) */
+
+/* Tool links (admin client detail) */
+
+/* Uptime % colour bands */
+
+/* Admin response-time chart */
+
+/* Portal 6-month bar chart */
+
+/* Portal response-time sparkline */
+
+/* Uptime row (portal project page) */
+
+/* Keyword rank badge */
+
+/* Keyword trend indicator */
+
+/* Month-over-month delta */
+
+/* 3-up stat grid (portal SEO conversions) */
+
+/* Portal SEO page */
+
+/* Tracker snippet generator */
+
+/* ══ 30. Phase 5b — reports, NPS, blog, chatbot ═════════════ */
+
+/* Report / blog status badges */
+
+/* NPS score chips */
+
+/* Freshness score */
+
+/* Blog review */
+
+/* Chatbot conversation transcript */
+
+/* NPS public landing page */
+
+.nps-form .form-control { margin-bottom: var(--space-2); }
+
+/* ══ 31. Phase 6a — SSH terminal + TOTP ═════════════════════ */
+
+/* TOTP setup / verify */
+
+/* Step blocks on the combined PIN + TOTP unlock page */
+
+/* Branded TOTP setup heading */
+
+/* Manual-entry block on the TOTP setup page */
+
+/* Recovery codes — show-once page + settings regen block */
+
+/* Settings page cards — admin dark theme */
+
+/* Recovery code text input — wider letter-spacing for readability */
+
+/* One-time upgrade notice on the unlock page */
+
+/* SSH fields in the credential form */
+
+/* ── SSH terminal — full-screen page ── */
+
+#session-timer {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: var(--color-orange-light);
+}
+
+/* ── 31b. Legacy-client onboarding board ───────────────────── */
+
+/* Modal */
+
+/* ── 31c. Droplet dashboard ─────────────────────────────────── */
+
+.droplet-table__actions .btn-sm {
+    margin-right: 0.2rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
+}
+.droplet-table__actions .btn-sm:last-child { margin-right: 0; }
+
+/* Linked-website cell — limit width AND wrap on whole words instead
+   of per-word so 'Food Trucks of San Antonio' doesn't stack 4 lines
+   tall. Reserves enough room that the actions column stays visible. */
+
+/* Form */
+
+/* Destroy modal-style card */
+
+/* Metrics page */
+
+/* ── 31d. Vulnerability scans ─────────────────────────────── */
+
+/* ── 31e. Vulnerability scans (Part 2) ────────────────────── */
+/* Every surface explicitly uses --color-bg-raised / --color-text /
+   --color-border. No --color-surface, no white fallbacks. */
+
+/* Scan type pill (table cells + scan_detail header) */
+
+@keyframes scan-pulse {
+    0%, 100% { background: transparent; }
+    50%      { background: rgba(13, 148, 136, 0.06); }
+}
+
+/* Severity row border (extend droplet-row colours with red/orange/green/
+   teal/muted that the scan rows use) */
+
+/* ── Run-New-Scan modal ──────────────────────────────────── */
+
+/* ── Scan detail page ────────────────────────────────────── */
+
+/* Banner used for scan-launch confirmations + error states */
+
+/* Tools-used block */
+
+/* Findings groups (collapsible per-severity) */
+
+/* Individual finding card */
+
+/* Client list — last scan column */
+
+/* Scan-in-progress banner above the Security Scans card */
+
+@keyframes scan-progress-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+}
+
+/* Client detail — Security Scans card */
+
+/* ── 31f. Scan PDF buttons + auto-send toggle (admin, dark) ── */
+
+/* ── 31g. Portal security page (light theme — matches portal) ── */
+
+/* ── 31h. Client edit form + inline quick-edit (admin dark) ─ */
+
+/* Inline quick-edit on the client detail page */
+
+/* ── 31i. Tester-account markers (list / detail / onboarding) ── */
+
+/* Onboarding card variants for tester clients */
+
+/* ── 31j. AI Ops Agent (Phase 6d) — full-screen split panel ── */
+
+/* Top bar — mirrors .term-bar style for visual consistency */
+
+/* ── Chat panel ──────────────────────────────────────────── */
+
+/* Command execution block (agent-suggested, auto-run) */
+
+/* Safety gate card */
+
+/* Typing indicator */
+
+@keyframes ops-bounce {
+    0%, 80%, 100% { opacity: 0.35; transform: scale(0.85); }
+    40%           { opacity: 1;    transform: scale(1.15); }
+}
+
+/* Input area */
+
+/* ── Right side panel ──────────────────────────────────── */
+
+/* ── Session replay page ─────────────────────────────── */
+
+/* Vault credential AI Ops button — teal accent so it reads as
+   distinct from the orange Connect button without screaming. */
+
+/* ── 31k. Phase 7 — Business Intelligence dashboard ─────── */
+
+/* MRR trend chart — CSS bars only, no JS */
+
+/* Health score number (big colored numeral) */
+
+@keyframes bi-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+/* Mini per-axis bars (Payment / Engagement / NPS / Uptime / Support) */
+
+/* Daily Focus card — orange left border */
+
+/* ── 32. Reduced motion ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 2 — Referrals · Proposals · Case Studies
+   Admin dark theme only. No white fallbacks; use --color-bg-raised etc.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Referral admin row — copy button next to read-only URL input */
+
+/* Portal referral page */
+
+/* Proposal status badges — dark theme palette */
+
+/* Proposal action buttons row */
+
+/* Proposal new form — case study picker */
+
+/* admin-form helpers shared by proposal_new + case_study_form */
+
+/* admin-dl — definition list used on the proposal detail page */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 3 — Website Intelligence & Upsell Engine
+   Admin dark theme only. Dark tokens for every surface.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Suggestion type chips (admin table + detail) ── */
+
+/* ── Suggestion status pills (admin + portal share these tokens) ── */
+
+/* Reusable in suggestion detail "raw AI" pre block. */
+
+/* ── Client portal — recommendations list ── */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7 Part 5 — Competitor Content Gap Tracker
+   Admin dark theme only. No white fallbacks anywhere.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Competitor list on client detail */
+
+/* Gap report — overall assessment block */
+
+/* Gap cards on detail page */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Admin Sidebar Layout (Phase 7 — nav overhaul)
+   Fixed left sidebar (240px desktop / 280px slide-in mobile). Replaces
+   the legacy .admin-header top nav. Dark tokens throughout.
+   ───────────────────────────────────────────────────────────────────────── */
+
+#admin-sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: #070614;
+    border-right: 1px solid var(--color-border);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow-y: auto;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-text);
+}
+
+#admin-sidebar::-webkit-scrollbar { width: 6px; }
+#admin-sidebar::-webkit-scrollbar-track { background: transparent; }
+#admin-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08); border-radius: 3px;
+}
+#admin-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+/* Override .admin-main here — was minimal padding in the legacy
+   top-nav layout, now needs to dodge the sidebar. */
+
+/* Embed mode (?embed=1) — page rendered chromeless inside an iframe.
+   Reclaim the sidebar offset and trim padding so the tool fills it. */
+
+/* The detail-page page-header is redundant inside an embedded tool. */
+.admin-body--embed .admin-page-header { margin-top: 0; }
+
+/* ── Logo block at top of sidebar ── */
+
+#sidebar-close {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    line-height: 1;
+}
+#sidebar-close:hover {
+    color: var(--color-text);
+    background: rgba(255,255,255,0.04);
+}
+
+/* ── Nav list ── */
+
+/* Scoped to the admin sidebar so we don't bleed into the public
+   site nav (which also uses a `.nav-link` class but with totally
+   different colors + sizing). The unscoped rules used to clobber
+   .nav-link--cta on the public Client Login button. */
+#admin-sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    border-radius: 6px;
+    color: #94A3B8;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    border-left: 3px solid transparent;
+    /* Keep the 3px indicator from shifting text — compensate padding. */
+    padding-left: 13px;
+}
+#admin-sidebar .nav-link:hover {
+    color: #FFFFFF;
+    background: #1E293B;
+}
+#admin-sidebar .nav-link.active {
+    color: var(--color-orange);
+    background: #1A1A2E;
+    border-left-color: var(--color-orange);
+}
+
+/* ── Availability windows page ─────────────────────────────────────
+   Clean per-day rows for /admin-dashboard/schedule/availability/.
+   Each window is one horizontal line: time → time, timezone, save,
+   then the disable/delete cluster. Wraps to two lines only when the
+   viewport is narrow. */
+.admin-card--accent {
+    border-left: 4px solid var(--color-orange, #E8650A);
+}
+.avail-empty__title { margin-top: 0; }
+.avail-empty__desc { margin-bottom: 1rem; }
+.avail-empty__cta { margin-top: .5rem; }
+
+.avail-week {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+.avail-day {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    align-items: start;
+    gap: 1rem;
+    padding: .85rem 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+.avail-day:last-child { border-bottom: none; }
+.avail-day__name {
+    font-weight: 600;
+    color: #E2E8F0;
+    padding-top: .5rem;
+}
+.avail-day--closed .avail-day__name { color: #64748B; font-weight: 500; }
+.avail-day__windows {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.avail-window {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+.avail-window--off { opacity: 0.55; }
+.avail-window__edit {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+.avail-window__actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.avail-input {
+    min-width: 0;
+}
+.avail-input--time {
+    width: 13rem;
+    padding-top: .55rem;
+    padding-bottom: .55rem;
+    font-size: 15px;
+}
+.avail-arrow {
+    color: #94A3B8;
+    font-weight: 600;
+    padding: 0 .35rem;
+    font-size: 1.05rem;
+}
+/* Native time-picker clock indicator. Chromium/Edge default is dark
+   grey on dark backgrounds — invert it to white so it reads cleanly. */
+.avail-input--time::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+    cursor: pointer;
+    opacity: 0.95;
+}
+.avail-input--time::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+.avail-closed {
+    color: #64748B;
+    font-style: italic;
+    padding-top: .55rem;
+    display: inline-block;
+}
+.avail-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.avail-pill--off {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94A3B8;
+}
+
+/* "Delete" deserves to be subordinate to Save / Disable.
+   Treat as a destructive link, not a chunky button. */
+.btn-link {
+    background: transparent;
+    border: none;
+    color: #F87171;
+    padding: 4px 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.btn-link:hover {
+    color: #FCA5A5;
+    background: rgba(248, 113, 113, 0.08);
+}
+.avail-delete { /* no extra rules — keeps a single class to target later */ }
+
+/* Add-window form — one row of labeled fields, all inline. */
+.avail-add {
+    display: flex;
+    align-items: flex-end;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+.avail-add__field {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    min-width: 0;
+}
+.avail-add__label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94A3B8;
+    font-weight: 600;
+}
+.avail-add__submit {
+    padding-bottom: 1px;
+}
+.avail-add__hint {
+    margin-top: .9rem;
+    font-size: .85rem;
+}
+
+@media (max-width: 720px) {
+    .avail-day {
+        grid-template-columns: 1fr;
+        gap: .35rem;
+    }
+    .avail-day__name { padding-top: 0; }
+    .avail-window { padding-left: .25rem; }
+    .avail-input--time { width: 100%; }
+}
+
+/* Sub-nav links shown beneath a top-level admin sidebar item when its
+   section is active (e.g. Schedule → Google Calendar / Availability /
+   Booked calls). Mirrors .nav-link sizing but smaller + indented. */
+#admin-sidebar .nav-sublink {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 16px 5px 36px;
+    margin: 0 8px;
+    border-radius: 6px;
+    color: #64748B;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+#admin-sidebar .nav-sublink:hover {
+    color: #FFFFFF;
+    background: #1E293B;
+}
+#admin-sidebar .nav-sublink.active {
+    color: var(--color-orange);
+}
+
+/* ── Bottom block (user + sign out) ── */
+
+/* ── Mobile overlay + hamburger ── */
+#sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 998;
+}
+
+#hamburger-btn {
+    display: none;
+    position: fixed;
+    top: 12px; left: 12px;
+    z-index: 999;
+    width: 40px; height: 40px;
+    background: #0F172A;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 10px 8px;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+#hamburger-btn span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 2px;
+    transition: background 0.15s ease;
+}
+#hamburger-btn:hover span { background: var(--color-orange); }
+
+/* ── Mobile: hide sidebar by default, hamburger visible ── */
+@media (max-width: 768px) {
+    #admin-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        width: 280px;
+        min-width: 280px;
+    }
+    
+    
+    #hamburger-btn { display: flex; }
+    #sidebar-close { display: inline-flex;
+                     align-items: center;
+                     justify-content: center; }
+}
+
+@media (min-width: 769px) {
+    #hamburger-btn,
+    #sidebar-overlay,
+    #sidebar-close { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Public site fixes (Phase 7 round 2)
+   - service-card CTA pinned to bottom (homepage)
+   - pricing "Most Popular" badge positioning
+   - hosting section as a centered horizontal banner
+   - public Admin nav link (staff-only)
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Fix 3 — Pin .card__link to the bottom of each homepage service card
+   regardless of how much text sits above it. Uses flex-column +
+   space-between which only kicks in for cards with the eyebrow link. */
+.cards .card {
+    display: flex;
+    flex-direction: column;
+}
+.cards .card > .card__link {
+    margin-top: auto;
+    align-self: flex-start;
+    padding-top: var(--space-2);
+}
+
+/* Fix 6 BUG A — Pricing "Most Popular" badge sits ON the card, not in
+   the gutter between cards. Card establishes positioning context;
+   badge anchors to the card's top edge and centers via translateX. */
+.card--pricing {
+    position: relative;
+    overflow: visible;
+}
+.card--pricing .card__badge {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    white-space: nowrap;
+}
+/* Featured cards need extra top padding so the badge doesn't bump
+   the title block. */
+.card--pricing.card--featured {
+    padding-top: calc(var(--space-4) + 8px);
+}
+
+/* Pricing card columns must be equal-width regardless of content
+   length, so the badge always centers visually. */
+.cards.cards--2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Fix 6 BUG B — Hosting card spans the container as a horizontal
+   banner: title + price + CTA on the left, feature bullets on the
+   right. Centered on the page since it doesn't share the row with
+   anything else. */
+.hosting-banner {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2fr;
+    gap: var(--space-5);
+    align-items: center;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-5);
+}
+.hosting-banner__lead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.hosting-banner__lead .card__title {
+    margin: 0;
+    font-size: 1.5rem;
+}
+.hosting-banner__lead .card__price {
+    margin: 0;
+}
+.hosting-banner__lead .btn-secondary {
+    align-self: flex-start;
+    margin-top: var(--space-2);
+}
+.hosting-banner__features {
+    margin: 0;
+    /* Looser spacing here than the pricing cards — the banner has
+       fewer bullets and more horizontal room, so spacing it out
+       reads as a real checklist instead of a tight block. */
+    gap: 0.875rem;
+}
+.hosting-banner__features li {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+    .hosting-banner {
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+        text-align: left;
+    }
+}
+
+/* Fix 1 — Admin link for staff users in the public nav.
+   Muted, small, no button styling — sits beside Client Login without
+   competing for attention. */
+.nav-link--admin {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.nav-link--admin:hover {
+    color: var(--color-orange);
+    opacity: 1;
+    background: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Lead delete (single + bulk) + admin flash messages
+   ───────────────────────────────────────────────────────────────────────── */
+
+.admin-messages {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 18px;
+}
+.admin-message {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    color: var(--color-text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+.admin-message--success {
+    border-left-color: var(--color-success);
+    background: rgba(74, 222, 128, 0.06);
+}
+.admin-message--warning {
+    border-left-color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.06);
+}
+.admin-message--error {
+    border-left-color: var(--color-danger);
+    background: rgba(248, 113, 113, 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Legal pages — Privacy Policy + Terms of Service
+   Centered max 800px, Georgia serif body, orange section headings.
+   .hero--compact dials the hero down so it doesn't dominate a
+   doc-heavy page.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.hero--compact { padding-block: var(--space-5); }
+.hero--compact h1 { font-size: clamp(2.25rem, 5vw, 3.25rem); }
+
+.legal-doc {
+    max-width: 800px;
+    margin: 0 auto;
+    color: var(--color-text);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.0625rem;
+    line-height: 1.75;
+}
+
+.legal-doc h2 {
+    font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+    color: var(--color-orange);
+    font-size: 1.375rem;
+    font-weight: 700;
+    margin-top: var(--space-5);
+    margin-bottom: var(--space-2);
+    letter-spacing: -0.005em;
+}
+.legal-doc h2:first-of-type { margin-top: var(--space-3); }
+
+.legal-doc h3 {
+    font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+    color: var(--color-text);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    margin-top: var(--space-3);
+    margin-bottom: var(--space-1);
+}
+
+.legal-doc p { margin-bottom: var(--space-2); }
+
+.legal-doc ul {
+    margin: 0 0 var(--space-3) 0;
+    padding-left: 1.4em;
+}
+.legal-doc ul li {
+    margin-bottom: 0.5rem;
+}
+
+.legal-doc strong { color: var(--color-text); font-weight: 700; }
+
+.legal-doc a {
+    color: var(--color-orange);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.legal-doc a:hover { color: var(--color-orange-light); }
+
+.legal-doc__effective {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-bg-raised);
+    color: var(--color-text-muted);
+    font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: var(--space-4);
+}
+
+.legal-doc__address {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-orange);
+    border-radius: 8px;
+    font-style: normal;
+}
+
+/* Footer legal-link row */
+.footer-legal {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.8125rem;
+}
+.footer-legal a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color var(--transition), border-color var(--transition);
+}
+.footer-legal a:hover {
+    color: var(--color-orange);
+    border-bottom-color: var(--color-orange);
+}
+.footer-legal span { opacity: 0.5; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tier 1 analytics — admin conversion dashboard + portal Visitor Analytics
+   Dark tokens throughout for the admin views; portal cards use shared
+   stat-card tokens.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Stat-card colour bands (admin + portal share the modifiers). */
+
+/* ── Conversion funnel ── */
+
+/* ── Scroll-depth distribution bars ── */
+
+/* ── Click heatmap grid ── */
+
+/* ── Portal Visitor Analytics ── */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tier 2 — Session recording (rrweb) admin + portal styling
+   Dark tokens. The replay stage gives the rrweb-player iframe a white
+   surface (rrweb expects to render the original page on light bg).
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* The replay container — give the player a white-ish backdrop and a
+   max width so embedded site frames look natural. */
+
+/* Stat-card warning state used in the portal "Expiring < 7 days" tile. */
+
+/* Portal retention notice — orange info box at top of recordings page. */
+
+/* Tighter admin-table action cell when buttons stack mostly icon-only. */
+.admin-table__actions .btn-sm + .btn-sm {
+    margin-left: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Click activity heatmap (replaces the old 10x10 grid) + replayer stage
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── rrweb Replayer stage + simple controls ── */
+
+/* rrweb injects .replayer-wrapper at the captured viewport size
+   (e.g. 1920x1080). We scale it down via transform so it always
+   fits the stage width. recording_replay.js sets transform + the
+   stage height; transform-origin must be top-left here so the
+   scale shrinks from the corner, not from the wrapper's centre. */
+
+/* The rrweb Replayer creates a .replayer-mouse div for the cursor
+   but the standalone bundle ships no default styling, so it's an
+   invisible 0×0 element. Draw an arrow cursor as an inline SVG
+   data URI (CSP allows data: in img-src). .active is the mousedown
+   state — tint orange so clicks pop visually. */
+
+/* The mouse-tail canvas rrweb draws for the trail (mouseTail option
+   in recording_replay.js) — keep it above page content but below
+   the cursor SVG so the cursor is always on top of its own trail. */
+
+/* ── Replay diagnostics strip (admin + portal) ── */
+
+/* ──────────────────────────────────────────────────────────────────
+   Onboarding / account-setup page — full-screen, no chrome.
+   Standalone templates (does NOT extend the public base.html). Uses
+   the `.setup-*` prefix to avoid colliding with the unrelated admin
+   widget that owns the `.onboarding-card` class earlier in this file.
+   Colour palette mirrors the admin dark theme so the setup page
+   visually reads as "inside the system" rather than a marketing page.
+   ────────────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────────────
+   Public payment page — /pay/<token>/  +  /pay/<token>/success/
+   Standalone (no portal nav), dark theme. Mirrors .setup-* but
+   prefixed `.pay-*` so the two pages stay independently style-able.
+   ────────────────────────────────────────────────────────────────── */
+.pay-body {
+    background: #070614;
+    color: #F8FAFC;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.pay-logo {
+    margin-bottom: 28px;
+    text-align: center;
+}
+.pay-logo img { height: 44px; width: auto; }
+.pay-card {
+    background: #0F172A;
+    border: 1px solid #1E293B;
+    border-radius: 16px;
+    padding: 40px 40px 36px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+.pay-card--info, .pay-card--success { text-align: center; }
+.pay-card__head { margin-bottom: 24px; }
+.pay-card__eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #E8650A;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+}
+.pay-card__title {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: #F8FAFC;
+    letter-spacing: -0.02em;
+}
+.pay-card__title--success {
+    font-size: 24px;
+    margin: 12px 0 12px;
+}
+.pay-card__sub {
+    color: #94A3B8;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.pay-lines {
+    width: 100%;
+    margin: 0 0 24px;
+    border-collapse: collapse;
+    color: #F8FAFC;
+    font-size: 14px;
+}
+.pay-lines td {
+    padding: 10px 0;
+    border-bottom: 1px solid #1E293B;
+}
+.pay-lines__desc {
+    color: #94A3B8;
+}
+.pay-lines__amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #F8FAFC;
+}
+.pay-lines__total td {
+    border-bottom: none;
+    padding-top: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+.pay-lines__total .pay-lines__desc { color: #F8FAFC; }
+
+.pay-form-wrap {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #1E293B;
+}
+#payment-element { margin-bottom: 16px; }
+.pay-message {
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.pay-submit {
+    display: block;
+    width: 100%;
+    background: #E8650A;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.pay-submit:hover:not(:disabled) { background: #d4580a; }
+.pay-submit:disabled { opacity: 0.7; cursor: wait; }
+.pay-submit--success { background: #0D9488; margin-top: 8px; }
+.pay-submit--success:hover:not(:disabled) { background: #0B7E73; }
+
+.pay-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #FFFFFF;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: paySpin 0.7s linear infinite;
+}
+@keyframes paySpin { to { transform: rotate(360deg); } }
+
+.pay-secure {
+    color: #64748B;
+    font-size: 11px;
+    text-align: center;
+    margin: 14px 0 0;
+}
+.pay-footer {
+    margin-top: 24px;
+    color: #64748B;
+    font-size: 12px;
+    text-align: center;
+}
+.pay-footer a { color: #E8650A; text-decoration: none; }
+
+.pay-success-mark { margin: 0 auto 16px; line-height: 0; }
+.pay-success-cta-help { color: #94A3B8; font-size: 14px; margin: 14px 0 12px; }
+.pay-success-redirect {
+    margin: 14px 0 0;
+    font-size: 12px;
+    color: #64748B;
+}
+
+@media (max-width: 560px) {
+    .pay-card { padding: 28px 22px 26px; }
+    .pay-card__title { font-size: 30px; }
+}
+
+/* ============================================================
+   Maintenance upsell + signup pages (Phase 3)
+   ============================================================ */
+
+/* ── Maintenance upsell card on /portal/subscriptions/ ── */
+
+/* ── /portal/maintenance/ tier comparison page ── */
+
+/* ── /portal/maintenance/start/<slug>/ confirm page ── */
+
+/* ── /portal/maintenance/success/ ── */
+
+/* ── Subscriptions page — per-card actions row ── */
+
+/* ============================================================
+   Domain registration + DNS management
+   ============================================================ */
+
+/* ── Domain list ── */
+
+/* Empty-state when client has no domains yet */
+
+/* ── Domain search ── */
+
+/* ── Search results ── */
+
+/* ── Register confirm page ── */
+
+/* ── Detail page ── */
+
+/* ── Danger / cancel zone ── */
+
+/* ── DNS edit table ── */
+
+/* ── Namecheap sandbox/live mode UI (admin) ── */
+
+/* ── Client portal sandbox-mode banner ── */
+
+/* ── Admin .admin-stat-row + helpers (used on domains list) ── */
+
+/* ── Admin form inputs — applies to BOTH .admin-form-stack and
+   the lighter .admin-action-form (used for one-off action panels
+   on detail pages and the HTMX check-availability widget). ── */
+
+.admin-form-stack .muted,
+.admin-action-form .muted {
+    font-size: 0.78rem; text-transform: none;
+    letter-spacing: 0; font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* When the action form needs a button BESIDE the input (like the
+   HTMX check-availability widget) instead of below it. */
+
+/* ═══════════════════════════════════════════════════════════════════
+   Phase C — Account + Website admin styles.
+
+   Loaded from main.css (not inline <style>) because the site's CSP
+   is `style-src 'self'` — inline blocks are silently dropped by
+   the browser. Same reason the Phase C modal JS lives in
+   /static/js/website_detail.js, not inline.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Website detail layout ────────────────────────────────────── */
+
+.website-detail .admin-card { margin-bottom: 1.25rem; }
+
+/* === Website detail redesign: at-a-glance summary + 2-col grid ===
+   Summary strip puts the build's key state above the fold; the grid
+   collapses the long card stack into responsive columns so admins
+   scroll far less. Cards reflow to one column under ~360px each. */
+
+.wd-summary__value .muted { font-weight: 400; }
+
+.website-detail .wd-grid > .admin-card { margin-bottom: 0; }
+
+/* The contract table uses the wide leads-list .lead-table component,
+   which forces min-width:1100px and overflows the card. Inside a
+   detail card it should just fit the column width. */
+.website-detail .admin-card__body .lead-table { min-width: 0; }
+.website-detail .admin-card__body .lead-table th,
+.website-detail .admin-card__body .lead-table td { padding: 0.5rem 0.6rem; }
+
+/* === Project Progress — collapsible (collapsed by default when Live) === */
+
+.wd-progress__summary .admin-card__title { margin: 0; }
+
+/* === Inline "advanced" accordion (e.g. Stripe IDs in a card) === */
+
+/* === Conversion tracker (inline) === */
+
+.wd-snippet .btn-secondary { flex: none; }
+
+/* === Monitoring accordion === */
+
+/* Stacked: every field/control fills the card width under its label. */
+.website-detail .form-row--inline .form-control,
+.website-detail .form-row--inline .form-row__field { width: 100%; }
+
+.website-detail .form-row__field-with-link .form-control { flex: 1; }
+
+/* ── Stage controls + stepper variants ────────────────────────── */
+
+/* Completed (green-tinted) + upcoming (muted) variants on the stepper —
+   the existing .admin-stage-bar only knew is-current. */
+
+/* ── Back-a-phase button — red outline, transparent fill, hover
+   flips to red fill + white text (per user spec) ───────────────── */
+
+/* ── Danger card framing (move-account section) ──────────────── */
+
+/* Solid-red SUBMIT button — distinct class so it doesn't fight the
+   subtle .btn-danger outline already defined above. */
+
+/* ── Confirmation modal (vanilla, no framework) ──────────────── */
+
+/* Delete-account modal extras — impact list, expected-name display,
+   external-state warning block, button disabled state. */
+
+/* When the type-to-unlock button is locked, dim it so the disabled
+   state is obvious — browsers' default disabled styling is invisible
+   on the solid-red background. */
+
+/* ── Account detail (single-page editor) ─────────────────────── */
+
+/* Mirrors the website-detail form-row layout but scoped to the
+   account-detail container so the global .form-row / .checkbox-row
+   used elsewhere in the project keeps its existing layout. */
+
+.account-detail .admin-card { margin-bottom: 1.25rem; }
+
+/* ── Subscriptions — per-sub payment-method dropdown ─────────── */
+
+/* ── Portal site-bar (multi-website accounts only) ───────────── */
+
+/* ── Vault group-by toggle + per-credential site tag ─────────── */
+
+.vault-viewby__opt.is-active {
+    background: var(--color-orange-soft, rgba(232, 101, 10, .15));
+    color: var(--color-orange-light, #E8650A);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Chooser page (multi-website account login chooser).
+   Uses the same theme tokens as the portal + admin so the page
+   reads as part of the app rather than a one-off black page.
+   A subtle radial orange wash near the top echoes the brand glow
+   that the rest of the dark-theme pages already use.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Header — centred logo + greeting ──────────────────────────── */
+
+/* ── Section labels ───────────────────────────────────────────── */
+
+/* ── Website cards — orange-glow + lift on hover ─────────────── */
+
+/* ── Account-wide quick links ────────────────────────────────── */
+
+/* ── Logout footer ───────────────────────────────────────────── */
+
+/* ── Lead detail — scraper-data + score-breakdown accordion ──────── */
+
+/* Score breakdown rows — flexbox row layout. Each row is 3 flex
+   siblings: label (fixed basis) | value (1fr with min-width: 0 so
+   long URLs wrap) | pts (fixed width). Class prefix .score-row was
+   chosen specifically to avoid any cached .lead-debug__rule rules
+   in a stuck browser. */
+
+/* Brave Search API monthly-usage banner on /admin-dashboard/leads/.
+   States: default (orange brand), --warn (>=80%, amber), --over
+   (>=100%, red). Track + fill use plain divs so no JS / no CSP
+   surprises. */
+
+/* AI Usage widget on admin home — headline cost + per-model table. */
+
+/* ── DMARC dashboard ────────────────────────────────────────────── */
+
+/* ── Outreach approvals queue ──────────────────────────────────────── */
+
+.approval-card .admin-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+/* ── Scrape jobs ────────────────────────────────────────────────────── */
+.status-pill--success {
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+.status-pill--muted {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
+}
+/* Compact button variant — for dense table action clusters. Half the
+   padding of .btn-sm, smaller font, still tap-friendly on touch. */
+
+/* Scrape-jobs table action cell — keep every button on one row.
+   Forms are inline-block siblings, not flex children, so the row
+   degrades to a horizontal scroll bar rather than wrapping. */
+
+/* ── Enrichment status page ────────────────────────────────────────── */
+
+/* ── Briefs landing + blank builder ────────────────────────────────── */
+
+.brief-card > .btn-primary {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+}
+
+/* The builder is a full-bleed split — escape the normal admin-container
+   padding so the preview can be wide enough to read code blocks. */
+
+/* ── Onboarding wizard ─────────────────────────────────────────────── */
+.onboarding-shell {
+    max-width: 760px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+.ob-card {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 2rem;
+    color: var(--color-text);
+}
+.ob-card + .ob-card { margin-top: 1.5rem; }
+.ob-title {
+    font-size: 1.75rem;
+    margin: 0 0 1rem;
+    color: var(--color-text);
+}
+.ob-intro {
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+}
+.ob-section-list {
+    color: var(--color-text-muted);
+    margin: 1rem 0 1.25rem 1.2rem;
+    line-height: 1.7;
+}
+.ob-warning {
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--color-text);
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin: 1.25rem 0;
+    line-height: 1.5;
+}
+.ob-warning strong { color: var(--color-danger); }
+.ob-start-form { margin-top: 1.5rem; }
+
+/* Breadcrumbs */
+.ob-breadcrumbs {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+.ob-breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+}
+.ob-breadcrumb--current {
+    color: var(--color-orange);
+    border-color: rgba(232, 101, 10, 0.4);
+    background: rgba(232, 101, 10, 0.08);
+}
+.ob-breadcrumb--done {
+    color: var(--color-success);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+/* Progress */
+.ob-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    margin-bottom: 0.4rem;
+}
+.ob-progress__fill {
+    height: 100%;
+    /* Default 0 — the real width is set by JS from data-percent (an
+       inline style="width:%" is blocked by the page's strict CSP, which
+       would otherwise leave this block div at full container width). */
+    width: 0;
+    background: linear-gradient(90deg, var(--color-orange), var(--color-orange-light));
+    transition: width 0.3s ease;
+}
+.ob-progress__caption {
+    margin: 0 0 1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+/* Section header */
+.ob-section-title {
+    font-size: 1.1rem;
+    margin: 1rem 0 0.5rem;
+    color: var(--color-text);
+}
+.ob-section-intro {
+    color: var(--color-text-muted);
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+
+/* Questions */
+.ob-question {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.ob-question__label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: var(--color-text);
+}
+.ob-required {
+    color: var(--color-danger);
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-left: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ob-question__help {
+    margin: 0 0 0.5rem;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.ob-question__input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.92rem;
+}
+.ob-question__input:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.ob-question__input:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    background: rgba(0, 0, 0, 0.4);
+}
+/* Native <select> dark-mode. The closed control is themed above, but
+   the popup option list and the control's own background fall back to
+   the OS light palette (the gray dropdown). Force a solid dark
+   background + custom chevron so the open dropdown matches the theme. */
+select.ob-question__input {
+    background-color: var(--color-bg-raised);
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    padding-right: 2.1rem;
+}
+select.ob-question__input:focus {
+    background-color: var(--color-bg-raised);
+}
+.ob-question__input option {
+    background-color: var(--color-bg-raised);
+    color: var(--color-text);
+}
+/* Clickable section breadcrumbs (jump between onboarding sections). */
+.ob-breadcrumb__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.ob-breadcrumb__link:hover .ob-breadcrumb__label {
+    text-decoration: underline;
+}
+
+/* ── Admin: onboarding-question manager ── */
+
+.btn-link {
+    background: none;
+    border: 0;
+    color: var(--color-orange);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+.ob-question__skip {
+    background: none;
+    border: 0;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-top: 0.4rem;
+    padding: 0.2rem 0;
+}
+.ob-question__skip:hover { color: var(--color-orange); }
+.ob-question__skip[aria-pressed="true"] {
+    color: var(--color-warning, var(--color-orange));
+}
+.ob-question__saved {
+    display: inline-block;
+    margin-top: 0.4rem;
+    color: var(--color-success);
+    font-size: 0.75rem;
+}
+/* Respect the [hidden] attribute — a class display rule otherwise beats
+   the UA [hidden]{display:none}, so "✓ saved" would show on page load
+   instead of only flashing after an actual save. */
+.ob-question__saved[hidden] { display: none; }
+
+/* ── Client credentials: sections + add form ── */
+
+/* Footer nav */
+.ob-step-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+}
+
+/* ── Setup To-Do widget ───────────────────────────────────────────── */
+
+.todo-modal__title {
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+    color: var(--color-text);
+}
+.todo-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.todo-item {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.todo-item__main { flex: 1; min-width: 0; }
+.todo-item__title { color: var(--color-text); }
+.todo-item__desc {
+    margin: 0.25rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+.todo-item--done {
+    opacity: 0.7;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.9rem;
+}
+.todo-item__when { font-size: 0.75rem; }
+.todo-completed { margin-top: 1.25rem; }
+.todo-completed summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    list-style: none;
+}
+.todo-completed[open] summary { margin-bottom: 0.5rem; }
+.todo-completed summary::-webkit-details-marker { display: none; }
+.todo-list--done { gap: 0.25rem; margin-top: 0.5rem; }
+.todo-modal__empty {
+    text-align: center;
+    padding: 1.5rem 0;
+}
+
+/* ── Checkout (Stripe Elements) ───────────────────────────────────── */
+.checkout-shell {
+    max-width: 1080px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+    color: var(--color-text);
+}
+.checkout-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 2rem;
+}
+@media (max-width: 880px) {
+    .checkout-grid { grid-template-columns: 1fr; }
+}
+.checkout-summary {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    align-self: start;
+    position: sticky;
+    top: 1.5rem;
+}
+.checkout-summary__title { margin: 0 0 0.25rem; font-size: 1.2rem; }
+.checkout-summary__price { margin: 0 0 0.5rem; font-size: 1.5rem; color: var(--color-orange); }
+.checkout-summary__tagline { color: var(--color-text-muted); margin: 0 0 1rem; }
+.checkout-features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+.checkout-divider {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin: 1rem 0;
+}
+.checkout-totals { font-size: 0.9rem; }
+.checkout-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--color-text);
+    font-weight: 600;
+}
+.checkout-total-note { font-size: 0.75rem; margin: 0.4rem 0 0; }
+.checkout-upsell {
+    display: flex;
+    gap: 0.6rem;
+    background: rgba(232, 101, 10, 0.08);
+    border: 1px solid rgba(232, 101, 10, 0.35);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-top: 1rem;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.checkout-form {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.75rem;
+}
+.checkout-form__title {
+    margin: 0 0 1.25rem;
+    font-size: 1.25rem;
+}
+.checkout-form .form-group {
+    margin: 0 0 1rem;
+}
+.checkout-form label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+    color: var(--color-text);
+}
+.checkout-form input[type="email"] {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+#payment-element, #address-element {
+    background: rgba(0, 0, 0, 0.18);
+    padding: 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.checkout-submit {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+/* Button processing state — inline spinner so a click gives instant
+   feedback while we talk to Stripe. */
+
+button.is-loading { cursor: progress; opacity: 0.85; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Live form-validation indicators (set-password screen). Green check
+   when a rule/match is satisfied, red ✕ until then. Driven by JS adding
+   the .valid / .ok class — no inline styles (CSP_PUBLIC is strict). */
+.pw-rules {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.85rem;
+}
+.pw-rules li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    line-height: 1.85;
+    color: var(--color-text-muted, #94A3B8);
+}
+.pw-rules li::before {
+    content: '\2715'; /* ✕ */
+    display: inline-block;
+    width: 1.1em;
+    text-align: center;
+    font-weight: 700;
+    color: #F87171;
+}
+.pw-rules li.valid { color: var(--color-text, #fff); }
+.pw-rules li.valid::before { content: '\2713'; color: #34D399; } /* ✓ */
+
+.match-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    margin: 0.35rem 0 0;
+    color: #F87171;
+}
+.match-hint::before {
+    content: '\2715';
+    font-weight: 700;
+    color: #F87171;
+}
+.match-hint.ok { color: #34D399; }
+.match-hint.ok::before { content: '\2713'; color: #34D399; }
+.ob-pin-note { font-size: 0.8rem; }
+
+/* Portal: per-service sub-nav link (intake under its service group). */
+
+/* Portal: dashboard "finish setting up" callout. */
+
+.checkout-secure {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.8rem;
+}
+.checkout-error {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: var(--color-danger);
+    padding: 0.65rem 0.85rem;
+    border-radius: 6px;
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+}
+.checkout-success {
+    text-align: center;
+    padding: 3rem 1rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.checkout-success__lead {
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin: 1rem 0;
+}
+
+/* ── Schedule-a-Call page (matches contact-grid layout) ──────────── */
+.schedule-slots__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.schedule-submit { width: 100%; }
+
+/* ── Calendar booking widget (/design/schedule/) ──────────────────
+   Month grid + per-day slot strip. Light theme, lives inside the
+   .card on the schedule page. */
+
+/* ── Addon opt-in fieldset (used on schedule + reusable elsewhere) ─ */
+.addon-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin: 0;
+}
+.addon-fieldset__legend {
+    padding: 0 0.5rem;
+    font-weight: 700;
+    color: var(--color-orange);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.addon-fieldset__hint {
+    margin: 0 0 0.85rem;
+}
+.addon-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+@media (min-width: 600px) {
+    .addon-grid { grid-template-columns: 1fr 1fr; }
+}
+.addon-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms;
+}
+.addon-option:hover {
+    border-color: var(--color-orange);
+    background: rgba(232, 101, 10, 0.08);
+}
+.addon-option__check {
+    margin-top: 0.18rem;
+    accent-color: var(--color-orange);
+}
+.addon-option__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.addon-option__title {
+    font-weight: 700;
+    color: var(--color-text);
+    font-size: 0.92rem;
+}
+.addon-option__meta {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.addon-option__discount {
+    color: var(--color-orange);
+    font-weight: 600;
+}
+.addon-option__tagline {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+.addon-group + .addon-group {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+.addon-group__title {
+    margin: 0 0 0.2rem;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    font-weight: 700;
+}
+.addon-group__sub {
+    margin: 0 0 0.7rem;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+/* ── System alerts ───────────────────────────────────────────────── */
+
+/* ── Phase D5 — per-service portal cards ────────────────────────── */
+
+/* Accessible off-screen hiding — used by the contact-form honeypot
+   (the project's strict 'style-src self' CSP blocks inline styles, so
+   an inline `position:absolute;left:-9999px` no-ops and the honeypot
+   leaks onto the page). */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* ── Contact-triage chips on /admin-dashboard/leads/ ─────────────── */
+
+/* ── Sent emails dashboard ────────────────────────────────────────── */
+
+/* ── Redis monitor ─────────────────────────────────────────────────── */
+
+/* ── Clients list (Phase C — multi-site expandable rows) ─────────── */
+
+.scrape-job-form .form-help {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+}

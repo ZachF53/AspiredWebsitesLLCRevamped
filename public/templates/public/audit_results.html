@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
 {% block title %}Audit Results for {{ audit_url }} — Aspired Websites{% endblock %}
 
 {% block content %}

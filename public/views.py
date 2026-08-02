@@ -148,6 +148,10 @@ def service_web_design(request):
     return render(request, 'public/service_web_design.html', {
         'active_nav': 'services',
         'active_service': 'web_design',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('Custom Web Design', None),
+        ],
     })
 
 
@@ -155,6 +159,10 @@ def service_digital_marketing(request):
     return render(request, 'public/service_digital_marketing.html', {
         'active_nav': 'services',
         'active_service': 'digital_marketing',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('Digital Marketing', None),
+        ],
     })
 
 
@@ -162,6 +170,10 @@ def service_seo(request):
     return render(request, 'public/service_seo.html', {
         'active_nav': 'services',
         'active_service': 'seo',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('SEO', None),
+        ],
     })
 
 

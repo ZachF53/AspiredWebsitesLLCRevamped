@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
 {% block title %}Checkout — {{ tier.name }} — Aspired Websites{% endblock %}
 
 {% block extra_head %}

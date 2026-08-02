@@ -1,0 +1,50 @@
+{% comment %}
+Visible breadcrumbs + BreadcrumbList schema (Master Plan §7.3, §8).
+
+Driven by a `breadcrumbs` context list of (label, url_path) pairs,
+NOT including Home (added here) and NOT including the current page's
+own link — the trail's last item is the current page and is rendered
+unlinked, which is what both users and Google expect.
+
+    context['breadcrumbs'] = [
+        ('Services', '/services/web-design/'),
+        ('Custom Web Design', None),
+    ]
+
+Renders nothing at all when `breadcrumbs` is absent, so top-level
+pages (home, /about/, /contact/) stay clean.
+{% endcomment %}
+{% if breadcrumbs %}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+    <div class="container">
+        <ol>
+            <li><a href="/">Home</a></li>
+            {% for label, path in breadcrumbs %}
+                <li{% if not path %} aria-current="page"{% endif %}>
+                    {% if path %}<a href="{{ path }}">{{ label }}</a>{% else %}{{ label }}{% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+    </div>
+</nav>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "{{ SITE_BASE_URL }}/"
+    }{% for label, path in breadcrumbs %},
+    {
+      "@type": "ListItem",
+      "position": {{ forloop.counter|add:1 }},
+      "name": "{{ label|escapejs }}"{% if path %},
+      "item": "{{ SITE_BASE_URL }}{{ path }}"{% endif %}
+    }{% endfor %}
+  ]
+}
+</script>
+{% endif %}
