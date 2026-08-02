@@ -247,6 +247,69 @@
 <hr class="section-divider" aria-hidden="true">
 
 {% comment %}
+Switching FAQ — §7.3 requires exactly this block on the law-firm hub:
+contract exit, content migration, domain ownership, downtime,
+timeline.
+
+Worth being clear about what this is FOR. The keyword data says
+"findlaw alternative" has zero measurable search volume, so this
+content will not bring attorneys in. It is a CONVERSION asset: it
+answers the questions that stop a firm already talking to us from
+signing. Keep it, but do not treat it as a ranking target —
+KEYWORD_RESEARCH_FINDINGS.md §5.
+{% endcomment %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Switching</span>
+            <h2>What Actually Happens When You Leave</h2>
+            <p>The five questions every firm asks before making the move &mdash; answered before you have to ask them.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Am I locked into a contract?</h3>
+                <p>Check the term and the notice period on your current agreement first &mdash; many are annual with 30 to 60 days notice. You don&rsquo;t have to wait to start: we can build in parallel and cut over the day you&rsquo;re free, so you lose nothing but the overlap.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Who owns my domain?</h3>
+                <p><strong>Check this today, before anything else.</strong> It&rsquo;s where switches get stuck. If your vendor holds the registration, request a transfer early &mdash; it can take days. Your domain is where your entire search history lives; you should hold it in your own name, and with us you always do.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Can I take my content?</h3>
+                <p>Content you wrote or paid to have written is normally yours &mdash; check your agreement. We migrate what you own and rewrite what we can&rsquo;t take. Practice-area pages that already rank are assets, so we carry them across rather than starting from zero.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Will my site go down?</h3>
+                <p>No. The new site is built and tested on a staging URL while your current one stays live. The switch is a DNS change at the end &mdash; minutes, not days, and scheduled when you choose.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Will I lose my Google rankings?</h3>
+                <p>Not if the migration is done properly, and this is the part most rebuilds get wrong. We inventory every existing URL and map each one to its closest equivalent with a single permanent redirect, so links and rankings follow you. We also record your traffic and rankings before launch, so any change is measurable rather than arguable.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>How long does the whole thing take?</h3>
+                <p>About six weeks to build, plus a week up front for the URL mapping. Most of the calendar is content and review, not code &mdash; and you always know which stage you&rsquo;re in.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Still weighing it up? <a href="{% url 'public:contact' %}">Book a call</a>
+            and we&rsquo;ll look at your current contract and domain setup with you
+            &mdash; no obligation, and we&rsquo;ll tell you if staying put is the
+            better move.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
 Hub → specialist links. D4 makes this page the law-firm vertical hub
 that owns the FindLaw switching conversation, while the two pages
 below own the commercial search intent — "heavy cross-linking" is

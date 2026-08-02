@@ -2,6 +2,85 @@
 
 {% block title %}Custom Website Pricing | Aspired Websites{% endblock %}
 
+{% comment %}
+FAQPage schema for the objection FAQ further down. §8 permits it only
+where the FAQs are genuinely visible on-page, which they are.
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "Do I own my website?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Completely — the source code, the content, the domain and the data. If you leave, you take every file and the site keeps working."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is there a contract?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Month-to-month with 30 days notice. No annual lock-in and no exit fee."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does a website build take?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "About six weeks: discovery, structure, design, content, review and launch. More practice areas or unwritten content extends it."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is hosting included?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Hosting is $150 per year, billed separately from the build. Every client gets their own isolated server rather than shared hosting."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is SEO included?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The foundation is included: clean semantic markup, schema, sitemap, heading structure and fast load times. Ongoing ranking work is a separate monthly service. We never promise rankings."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What happens if I stop paying for maintenance?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The website keeps working. Maintenance covers updates, monitoring, backups and support — not the right to keep your own site online."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What counts as out of scope?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Two major revisions are included in a build. Anything beyond that, or work outside the agreed scope, is $85 per hour, quoted and approved before it starts."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do you take payment up front?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "A 50% deposit starts the project and the balance is due before launch. Paying in full up front is also an option."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
 {% block content %}
 
 {# ───────── Hero ───────── #}
@@ -163,6 +242,132 @@
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 {% endif %}
+
+{% comment %}
+Ownership block — Master Plan §7.3 calls this "the cleanest
+anti-FindLaw contrast" and requires it on the pricing page. It is the
+one argument no vendor-platform competitor can answer, so it gets its
+own section rather than a bullet inside a plan card.
+{% endcomment %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Ownership</span>
+            <h2>Your Website Should Belong to You</h2>
+            <p>The most expensive thing about a cheap website is usually not being able to leave it.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What You Own</h3>
+                <ul class="bullet-list">
+                    <li><strong>The source code.</strong> Every file. Yours to take, host anywhere, or hand to another developer.</li>
+                    <li><strong>The content.</strong> Copy, images, structure &mdash; including anything we wrote for you.</li>
+                    <li><strong>The domain.</strong> Registered in your name. We never hold a client&rsquo;s domain.</li>
+                    <li><strong>The data.</strong> Form submissions go to you, not into a platform you rent access to.</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What Happens If You Leave</h3>
+                <ul class="bullet-list">
+                    <li><strong>The site keeps working.</strong> Cancelling maintenance stops updates and support &mdash; not your website.</li>
+                    <li><strong>You take everything.</strong> We hand over the files and help you move them.</li>
+                    <li><strong>30 days notice.</strong> Month-to-month, no annual contract, no exit fee.</li>
+                    <li><strong>No hostage negotiation.</strong> Leaving is a support ticket, not a dispute.</li>
+                </ul>
+            </article>
+        </div>
+
+        <p class="section-note">
+            This is the clearest difference between a custom build and a
+            vendor-hosted platform. If you&rsquo;re currently on one, the
+            <a href="{% url 'public:law_firms' %}">law firm page</a> covers how
+            switching actually works.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+Objection FAQ — §7.3 lists these questions explicitly and states the
+goal: "kill every objection before the call." FAQPage schema is
+included because the answers are visible on the page (§8).
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Before You Call</span>
+            <h2>Every Question People Ask About Pricing</h2>
+            <p>If something isn&rsquo;t answered here, ask &mdash; we&rsquo;ll add it.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Do I own my website?</h3>
+                <p>Completely &mdash; code, content, domain and data. See the ownership section above.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is there a contract?</h3>
+                <p>Month-to-month with 30 days notice. No annual lock-in, ever. Long contracts exist to protect agencies during quiet months; we&rsquo;d rather earn the next one.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can I move the site later?</h3>
+                <p>Yes. It&rsquo;s standard code on standard hosting &mdash; any competent developer can take it over. We&rsquo;ll help with the handover.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does a build take?</h3>
+                <p>About six weeks: discovery, structure, design, content, review, launch. More practice areas or unwritten content extends it. You always know which stage you&rsquo;re in.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is hosting included?</h3>
+                <p>Hosting is $150/year, billed separately from the build. Every client gets their own isolated server &mdash; never shared hosting.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can you redesign my current site?</h3>
+                <p>Yes, and it&rsquo;s a distinct job &mdash; the URL mapping matters more than the design. See <a href="{% url 'public:service_website_redesign' %}">website redesign</a>.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do you write the content?</h3>
+                <p>Yes. We draft it and you edit &mdash; content is the stage that stalls most projects, so we don&rsquo;t wait on a blank page. Legal copy should be reviewed by the attorney whose name is on it.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is SEO included?</h3>
+                <p>The foundation is: clean markup, schema, sitemap, headings, fast load. Ongoing ranking work is separate &mdash; see <a href="{% url 'public:service_seo' %}">SEO services</a>. We never promise rankings.</p>
+            </article>
+
+            <article class="card">
+                <h3>Will you maintain a site you didn&rsquo;t build?</h3>
+                <p>Sometimes. We audit first. If the platform can&rsquo;t be maintained safely, or you don&rsquo;t own the code, we&rsquo;ll say so rather than take the money.</p>
+            </article>
+
+            <article class="card">
+                <h3>What if I stop paying maintenance?</h3>
+                <p>The site keeps working. Maintenance buys updates, monitoring, backups and support &mdash; not the right to keep your own website online.</p>
+            </article>
+
+            <article class="card">
+                <h3>What counts as out of scope?</h3>
+                <p>Two major revisions are included in a build. Beyond that, or work outside the agreed scope, is $85/hour &mdash; quoted and approved before anything starts. No surprise invoices.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do you take payment up front?</h3>
+                <p>50% deposit to start, balance before launch. You can also pay in full up front if you prefer.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
 
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">

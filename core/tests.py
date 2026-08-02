@@ -714,6 +714,77 @@ class InsightsTests(TestCase):
 
 
 @override_settings(PRODUCTION_HOST='testserver')
+class ConversionBlockTests(TestCase):
+    """
+    The §7.3 conversion blocks: ownership, objection FAQ, FindLaw
+    switching FAQ, credential verification, and fit.
+    """
+
+    def test_pricing_has_ownership_block(self):
+        html = self.client.get('/pricing/').content.decode()
+        self.assertIn('Your Website Should Belong to You', html)
+        for claim in ('source code', 'domain', '30 days notice'):
+            self.assertIn(claim, html)
+
+    def test_pricing_objection_faq_covers_the_required_questions(self):
+        html = self.client.get('/pricing/').content.decode()
+        for question in ('Do I own my website?',
+                         'Is there a contract?',
+                         'Can I move the site later?',
+                         'How long does a build take?',
+                         'Is hosting included?',
+                         'Do you write the content?',
+                         'Is SEO included?',
+                         'What counts as out of scope?'):
+            with self.subTest(question=question):
+                self.assertIn(question, html)
+
+    def test_pricing_faq_schema_matches_visible_questions(self):
+        """§8 allows FAQPage schema only where the FAQs are visible."""
+        html = self.client.get('/pricing/').content.decode()
+        faq = next(json.loads(m) for m in re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            html, re.S) if '"FAQPage"' in m)
+        plain = html.replace('&rsquo;', "'").replace('&mdash;', '—')
+        for item in faq['mainEntity']:
+            with self.subTest(q=item['name']):
+                self.assertIn(item['name'].split('?')[0][:22], plain)
+
+    def test_law_firms_has_switching_faq(self):
+        html = self.client.get('/for-law-firms/').content.decode()
+        for topic in ('locked into a contract', 'owns my domain',
+                      'take my content', 'site go down',
+                      'lose my Google rankings'):
+            with self.subTest(topic=topic):
+                self.assertIn(topic, html)
+
+    def test_about_links_credentials_to_verification(self):
+        """§11 — an unverifiable credential claim is worth less than none."""
+        html = self.client.get('/about/').content.decode()
+        self.assertIn('isc2.org', html)
+        self.assertIn('CISSP', html)
+
+    def test_about_says_who_it_is_not_for(self):
+        html = self.client.get('/about/').content.decode()
+        self.assertIn('Who This Is For', html)
+        self.assertIn('builder is genuinely better value', html)
+
+    def test_security_claims_stay_honest(self):
+        """
+        §15 forbids implying security itself boosts rankings. The about
+        and law-firm-seo pages both make security arguments, so assert
+        neither crosses that line.
+        """
+        for path in ('/about/', '/services/seo/law-firm-seo/'):
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode().lower()
+                for claim in ('security improves your ranking',
+                              'security boosts your ranking',
+                              'secure sites rank higher'):
+                    self.assertNotIn(claim, html)
+
+
+@override_settings(PRODUCTION_HOST='testserver')
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):
         body = self.client.get('/robots.txt').content.decode()

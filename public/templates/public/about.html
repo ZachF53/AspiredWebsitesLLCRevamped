@@ -78,6 +78,98 @@
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
+{% comment %}
+Credentials linked to verification — §11 lists this as an explicit
+E-E-A-T fix: "link CISSP to the (ISC)² verification directory and the
+M.S. to the institution". An unverifiable credential claim is worth
+less than no claim, because the reader has no way to check it.
+
+[ZACH] The (ISC)² member-verification link points at the public
+directory. If you have a direct verification URL or a credential ID
+you're willing to publish, swap it in — a direct link is stronger
+than "go look me up".
+{% endcomment %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Credentials</span>
+            <h2>Verify Any Of This Yourself</h2>
+            <p>Anyone can put letters after their name on a website. Here&rsquo;s where to check.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>CISSP &mdash; (ISC)&sup2;</h3>
+                <p>Certified Information Systems Security Professional. It requires five years of paid security experience across multiple domains, a supervised exam, an endorsement from an existing member, and ongoing continuing education to keep.</p>
+                <p><a href="https://www.isc2.org/register-for-exam/verify-a-certification" target="_blank" rel="noopener">Verify a certification with (ISC)&sup2; &rarr;</a></p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>M.S. Cybersecurity</h3>
+                <p>A master&rsquo;s degree in cybersecurity &mdash; the academic side of the same discipline: cryptography, secure architecture, risk, and incident response.</p>
+                <p>Degree verification is available through the issuing institution on request.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            What this actually means for you: security decisions get made during
+            the build rather than bolted on afterwards. It does <em>not</em> mean
+            your rankings improve because of it &mdash; that&rsquo;s not how
+            search works, and we won&rsquo;t pretend otherwise.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{% comment %}
+Who this is and isn't for — §7.3 requires "who Aspired works best with
+(and who it doesn't)". Saying who you're wrong for is the cheapest
+credibility signal available and it filters out bad-fit enquiries
+before they cost anyone a call.
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Fit</span>
+            <h2>Who This Is For &mdash; And Who It Isn&rsquo;t</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>We&rsquo;re A Good Fit If</h3>
+                <ul class="bullet-list">
+                    <li>You&rsquo;re a law firm or a small business where one client is worth more than the build</li>
+                    <li>You want to own the site outright rather than rent it</li>
+                    <li>Your website has a job to do &mdash; intake, bookings, being found</li>
+                    <li>You&rsquo;d rather hear &ldquo;you don&rsquo;t need that&rdquo; than be upsold</li>
+                    <li>You value being able to reach the person who actually built it</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>We&rsquo;re Probably Not If</h3>
+                <ul class="bullet-list">
+                    <li>You need a single page with your hours &mdash; a $16/month builder is genuinely better value</li>
+                    <li>You need it live next week; a proper build takes about six weeks</li>
+                    <li>You want guaranteed rankings &mdash; nobody can honestly promise those</li>
+                    <li>You want the cheapest possible option; we&rsquo;re not it</li>
+                    <li>You need a large in-house team on retainer &mdash; that&rsquo;s an agency, not us</li>
+                </ul>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Not sure which side you&rsquo;re on? <a href="{% url 'public:contact' %}">Ask</a>
+            &mdash; we&rsquo;ll tell you honestly, including when the answer costs us
+            the work. See also <a href="{% url 'public:insights' %}">our insights</a>,
+            where the pricing article says the same thing at length.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">
     <div class="container">
