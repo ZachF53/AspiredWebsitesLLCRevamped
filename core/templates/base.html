@@ -7,6 +7,16 @@
     <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses in Texas and Georgia.' }}{% endblock %}">
     <meta name="theme-color" content="#1A1A1A">
 
+    {% comment %}
+    Search-console ownership verification (Master Plan Phase 0, §10).
+    Both tokens come from settings via core.context_processors.
+    site_verification and default to '', so nothing renders until the
+    GSC / Bing properties actually exist. Token-only meta tags: no
+    third-party request and no CSP change.
+    {% endcomment %}
+    {% if GOOGLE_SITE_VERIFICATION %}<meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}">{% endif %}
+    {% if BING_SITE_VERIFICATION %}<meta name="msvalidate.01" content="{{ BING_SITE_VERIFICATION }}">{% endif %}
+
     <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Aspired Websites' }}{% endblock %}">
     <meta property="og:description" content="{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses.' }}">
     <meta property="og:type" content="website">

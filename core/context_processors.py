@@ -23,6 +23,24 @@ def static_version(request):
     return {'STATIC_VERSION': getattr(settings, 'STATIC_VERSION', '1')}
 
 
+def site_verification(request):
+    """
+    Expose the Google Search Console + Bing Webmaster ownership tokens
+    so `base.html` can render their verification <meta> tags.
+
+    Both default to '' (see settings), and the template renders nothing
+    when a token is blank — so this is a no-op until the properties are
+    actually created. Token-only meta tags: no third-party request, no
+    script, no CSP change.
+    """
+    return {
+        'GOOGLE_SITE_VERIFICATION': getattr(
+            settings, 'GOOGLE_SITE_VERIFICATION', ''),
+        'BING_SITE_VERIFICATION': getattr(
+            settings, 'BING_SITE_VERIFICATION', ''),
+    }
+
+
 def system_alerts(request):
     """
     Expose ``system_alerts_unresolved`` (int count) to every template

@@ -139,6 +139,9 @@ TEMPLATES = [
                 # Exposes STATIC_VERSION (git short SHA) for cache-busting
                 # static asset URLs in base templates.
                 'core.context_processors.static_version',
+                # GSC / Bing ownership <meta> tokens (blank = renders
+                # nothing). Master Plan Phase 0 §10.
+                'core.context_processors.site_verification',
                 # Operator-facing system alerts banner on /admin-dashboard/
                 'core.context_processors.system_alerts',
                 # SetupTodo pending count for the portal sidebar badge.
@@ -407,6 +410,17 @@ GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
 # under it via the operator's Google token. Blank = provisioning is skipped
 # (logged, never errors).
 GA4_ACCOUNT_ID = env('GA4_ACCOUNT_ID', '')
+
+# ── Search-console ownership verification (Master Plan Phase 0, §10) ────────
+# Token-only values — paste just the token, NOT the whole <meta> tag:
+#   Google Search Console → Add property → HTML tag → copy the
+#     content="..." value into GOOGLE_SITE_VERIFICATION
+#   Bing Webmaster Tools  → Add site → Option 1 (meta tag) → copy the
+#     content="..." value into BING_SITE_VERIFICATION
+# Blank (the default) renders nothing at all, so this is inert until the
+# properties actually exist. Rendered site-wide by core/templates/base.html.
+GOOGLE_SITE_VERIFICATION = env('GOOGLE_SITE_VERIFICATION', '')
+BING_SITE_VERIFICATION = env('BING_SITE_VERIFICATION', '')
 
 
 # ── Brave Search API ────────────────────────────────────────────────────────
