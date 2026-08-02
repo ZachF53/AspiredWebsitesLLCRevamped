@@ -1675,10 +1675,6 @@ textarea.form-control {
 /* Gradient utilities for card visuals / image placeholders */
 .gradient-blue   { background: linear-gradient(135deg, #1E3A5F 0%, var(--color-bg-deep) 100%); }
 
-.gradient-rust   { background: linear-gradient(135deg, #3D1A00 0%, var(--color-bg-deep) 100%); }
-.gradient-purple { background: linear-gradient(135deg, #1A1A3D 0%, var(--color-bg-deep) 100%); }
-.gradient-forest { background: linear-gradient(135deg, #0F2D1A 0%, var(--color-bg-deep) 100%); }
-
 /* Responsive overrides for page utilities */
 @media (min-width: 720px) {
     .cards.cards--2col {

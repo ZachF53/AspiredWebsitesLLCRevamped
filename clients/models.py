@@ -1387,6 +1387,29 @@ class CaseStudy(TimestampedModel):
     business_type = models.CharField(max_length=100, blank=True)
     location = models.CharField(max_length=100, blank=True)
 
+    # ── Public case-study page (Master Plan §11) ────────────────────
+    # Every portfolio project needs its own indexable URL; they used to
+    # collapse into one flat /portfolio/ page, which meant four
+    # projects competing to be described by a single URL.
+    slug = models.SlugField(
+        max_length=140, unique=True, null=True, blank=True,
+        help_text='URL segment for /portfolio/<slug>/. Leave blank to '
+                  'auto-generate from the title.',
+    )
+    summary = models.CharField(
+        max_length=300, blank=True,
+        help_text='One-line description used on the portfolio card and '
+                  'as the meta description.',
+    )
+    live_url = models.URLField(
+        blank=True, help_text='The published client site, if public.')
+    # Placeholder visual until real screenshots exist (§5.5 wants
+    # descriptive image filenames, so gradients beat a stock photo).
+    card_gradient = models.CharField(
+        max_length=40, blank=True, default='gradient-blue',
+        help_text='CSS class for the card visual, e.g. gradient-blue.',
+    )
+
     challenge = models.TextField(blank=True)
     solution = models.TextField(blank=True)
     results = models.TextField(blank=True)
@@ -1413,6 +1436,23 @@ class CaseStudy(TimestampedModel):
 
     def __str__(self):
         return self.title[:60]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+            base = slugify(self.title)[:130] or 'case-study'
+            slug, n = base, 2
+            while CaseStudy.objects.filter(slug=slug).exclude(
+                    pk=self.pk).exists():
+                slug = f'{base}-{n}'
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('public:case_study_detail',
+                       kwargs={'slug': self.slug})
 
     def metrics(self):
         """Iterable of populated (label, value) tuples — convenience for

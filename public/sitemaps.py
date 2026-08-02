@@ -104,10 +104,35 @@ class LegalSitemap(_StaticPageMixin, Sitemap):
         return reverse(item)
 
 
+class CaseStudySitemap(Sitemap):
+    """
+    Published case studies (Master Plan §11).
+
+    Model-driven rather than a static list, so publishing a study in
+    the admin puts it in the sitemap without a deploy. Only published
+    rows are included — the detail view 404s on anything else, and a
+    sitemap must contain only canonical, indexable, HTTP-200 URLs (§8).
+    """
+    priority = 0.8
+    changefreq = 'yearly'
+
+    def items(self):
+        from clients.models import CaseStudy
+        return CaseStudy.objects.filter(
+            is_published=True).exclude(slug='').exclude(slug=None)
+
+    def location(self, item):
+        return item.get_absolute_url()
+
+    def lastmod(self, item):
+        return item.updated_at
+
+
 SITEMAPS = {
     'core':       CoreSitemap,
     'services':   ServiceSitemap,
     'funnels':    StrongIntentSitemap,
     'secondary':  SecondarySitemap,
+    'casestudies': CaseStudySitemap,
     'legal':      LegalSitemap,
 }

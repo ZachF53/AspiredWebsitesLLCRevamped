@@ -133,14 +133,45 @@ def law_firms(request):
 
 
 def portfolio(request):
+    """
+    Portfolio index — now driven by published CaseStudy rows.
+
+    Previously four hardcoded cards. Master Plan §11 requires each
+    project to have its own indexable URL, which needs them to be data
+    rather than markup. Seeded by `manage.py seed_case_studies`.
+    """
+    from clients.models import CaseStudy
     return render(request, 'public/portfolio.html', {
         'active_nav': 'portfolio',
+        'case_studies': CaseStudy.objects.filter(
+            is_published=True).order_by('-published_at', '-created_at'),
         'meta_title': 'Portfolio — Aspired Websites',
         'meta_description': (
             'Recent work by Aspired Websites: Denis Law Group, '
             'Food Trucks of San Antonio, Moonieful Designs, and '
             'Burgland Technologies. Hand-coded, mobile-first.'
         ),
+    })
+
+
+def case_study_detail(request, slug):
+    """
+    /portfolio/<slug>/ — one indexable page per project (§11).
+
+    Only published studies are reachable; an unpublished one 404s
+    rather than 403s, so an unannounced project stays genuinely
+    invisible.
+    """
+    from django.shortcuts import get_object_or_404
+    from clients.models import CaseStudy
+    study = get_object_or_404(CaseStudy, slug=slug, is_published=True)
+    return render(request, 'public/case_study_detail.html', {
+        'active_nav': 'portfolio',
+        'study': study,
+        'breadcrumbs': [
+            ('Portfolio', '/portfolio/'),
+            (study.title, None),
+        ],
     })
 
 

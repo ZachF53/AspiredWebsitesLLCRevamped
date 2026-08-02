@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ study.title }} Case Study | Aspired Websites{% endblock %}
+
+{% block meta_description %}{% if study.summary %}{{ study.summary }}{% else %}How Aspired Websites built {{ study.title }} — a custom, hand-coded, security-hardened website.{% endif %}{% endblock %}
+
+{% block og_title %}{{ study.title }} — Case Study{% endblock %}
+{% block og_description %}{{ study.summary|default:"A custom website build by Aspired Websites." }}{% endblock %}
+
+{% comment %}
+Master Plan §11 structure: Client → Industry → Problem → Strategy →
+Development → Security → Performance → Results → Testimonial → CTA.
+
+Results are rendered ONLY where they exist. §15 forbids fabricated
+results, statistics and testimonials, so every block below is
+conditional rather than templated with placeholder numbers. A study
+with no metrics simply shows no metrics — and, for a new build, says
+plainly why there is no before/after to show.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": "{{ CANONICAL_URL }}#case-study",
+    "headline": "{{ study.title|escapejs }} — Case Study",
+    "url": "{{ CANONICAL_URL }}",
+    "author": { "@id": "{{ SITE_BASE_URL }}/#zachery-long" },
+    "publisher": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "about": { "@id": "{{ SITE_BASE_URL }}/#organization" }{% if study.published_at %},
+    "datePublished": "{{ study.published_at|date:'c' }}"{% endif %}{% if study.updated_at %},
+    "dateModified": "{{ study.updated_at|date:'c' }}"{% endif %}{% if study.summary %},
+    "description": "{{ study.summary|escapejs }}"{% endif %}
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Case Study</span>
+            <h1>{{ study.title }}</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            {% if study.summary %}<p class="hero__lead">{{ study.summary }}</p>{% endif %}
+            {% if study.business_type or study.location %}
+                <p class="hero__meta">
+                    {{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}
+                </p>
+            {% endif %}
+            {% if study.live_url %}
+                <div class="hero__ctas">
+                    <a class="btn-secondary btn-lg" href="{{ study.live_url }}" target="_blank" rel="noopener">Visit the live site</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Metrics — only if real ones exist ───────── #}
+{% if study.metrics %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Results</span>
+            <h2>By The Numbers</h2>
+        </div>
+        <div class="value-tiles value-tiles--3col">
+            {% for label, value in study.metrics %}
+                <div class="value-tile">
+                    <h3>{{ value }}</h3>
+                    <p>{{ label }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{# ───────── Challenge / Solution / Results ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cards cards--2col">
+            {% if study.challenge %}
+                <article class="card card--accent-left">
+                    <h2>The Challenge</h2>
+                    {{ study.challenge|linebreaks }}
+                </article>
+            {% endif %}
+
+            {% if study.solution %}
+                <article class="card card--accent-left">
+                    <h2>What We Built</h2>
+                    {{ study.solution|linebreaks }}
+                </article>
+            {% endif %}
+        </div>
+
+        {% if study.results %}
+            <div class="callout">
+                <h2>The Outcome</h2>
+                {{ study.results|linebreaks }}
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+{# ───────── Testimonial — only if real ───────── #}
+{% if study.testimonial_quote %}
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">In Their Words</span>
+            <h2>What The Client Said</h2>
+        </div>
+        <figure class="card pull-quote">
+            <blockquote><p>{{ study.testimonial_quote }}</p></blockquote>
+            {% if study.testimonial_name %}
+                <figcaption>&mdash; {{ study.testimonial_name }}</figcaption>
+            {% endif %}
+        </figure>
+    </div>
+</section>
+{% endif %}
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Want Something Like This?</h2>
+            <p>
+                Every build starts with a straight conversation about what your
+                business actually needs the site to do.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See More Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

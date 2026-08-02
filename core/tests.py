@@ -520,6 +520,101 @@ class NonProductionHostTests(TestCase):
         self.assertNotIn('aspired-tracker.js', staging)
 
 
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
+class CaseStudyTests(TestCase):
+    """
+    Per-project case-study pages (Master Plan §11).
+
+    The rule this guards hardest: §15 forbids fabricated results,
+    statistics and testimonials. Denis Law Group was a NEW build with
+    no "before" traffic, so it must ship with zero metrics and zero
+    testimonial rather than placeholder numbers.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_case_studies')
+
+    def test_seed_is_idempotent(self):
+        from clients.models import CaseStudy
+        before = CaseStudy.objects.count()
+        call_command('seed_case_studies')
+        self.assertEqual(CaseStudy.objects.count(), before)
+
+    def test_each_study_has_its_own_indexable_url(self):
+        from clients.models import CaseStudy
+        for study in CaseStudy.objects.filter(is_published=True):
+            with self.subTest(slug=study.slug):
+                resp = self.client.get(study.get_absolute_url())
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode()
+                self.assertEqual(html.count('rel="canonical"'), 1)
+                self.assertNotIn('noindex', html)
+
+    def test_portfolio_links_to_every_study(self):
+        from clients.models import CaseStudy
+        html = self.client.get('/portfolio/').content.decode()
+        for study in CaseStudy.objects.filter(is_published=True):
+            with self.subTest(slug=study.slug):
+                self.assertIn(study.get_absolute_url(), html)
+
+    def test_unpublished_study_404s(self):
+        from clients.models import CaseStudy
+        study = CaseStudy.objects.first()
+        study.is_published = False
+        study.save()
+        self.assertEqual(
+            self.client.get(study.get_absolute_url()).status_code, 404)
+
+    def test_studies_are_in_the_sitemap(self):
+        xml = self.client.get('/sitemap.xml').content.decode()
+        self.assertIn('/portfolio/denis-law-group/', xml)
+
+    def test_denis_law_group_publishes_no_invented_metrics(self):
+        """
+        §15. It was a new practice launch — there is no before/after to
+        report, so the page must show no metrics and no testimonial
+        rather than plausible-looking placeholders.
+        """
+        from clients.models import CaseStudy
+        study = CaseStudy.objects.get(slug='denis-law-group')
+        self.assertEqual(study.metrics(), [])
+        self.assertEqual(study.testimonial_quote, '')
+
+        html = self.client.get(study.get_absolute_url()).content.decode()
+        self.assertNotIn('By The Numbers', html)
+        self.assertNotIn('What The Client Said', html)
+        # And it should say why, rather than staying silent about it.
+        self.assertIn('no &quot;before&quot; traffic', html.replace(
+            '“', '&quot;').replace('”', '&quot;'))
+
+    def test_no_study_ships_a_placeholder_metric(self):
+        from clients.models import CaseStudy
+        for study in CaseStudy.objects.all():
+            for label, value in study.metrics():
+                with self.subTest(slug=study.slug, label=label):
+                    self.assertNotIn('%', str(value).replace('%', '')
+                                     or 'ok')
+                    self.assertNotIn('TBD', str(value))
+                    self.assertNotIn('XX', str(value))
+
+    def test_slug_autogenerates_and_stays_unique(self):
+        from clients.models import CaseStudy
+        a = CaseStudy.objects.create(title='Acme Roofing Co')
+        b = CaseStudy.objects.create(title='Acme Roofing Co')
+        self.assertEqual(a.slug, 'acme-roofing-co')
+        self.assertEqual(b.slug, 'acme-roofing-co-2')
+
+    def test_breadcrumbs_on_case_study(self):
+        html = self.client.get('/portfolio/denis-law-group/').content.decode()
+        block = next(m for m in re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            html, re.S) if 'BreadcrumbList' in m)
+        names = [i['name'] for i in json.loads(block)['itemListElement']]
+        self.assertEqual(names, ['Home', 'Portfolio', 'Denis Law Group'])
+
+
 @override_settings(PRODUCTION_HOST='testserver')
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):

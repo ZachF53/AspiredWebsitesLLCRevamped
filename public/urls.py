@@ -9,6 +9,9 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('for-law-firms/', views.law_firms, name='law_firms'),
     path('portfolio/', views.portfolio, name='portfolio'),
+    # Master Plan §11 — every project gets its own indexable URL.
+    path('portfolio/<slug:slug>/', views.case_study_detail,
+         name='case_study_detail'),
     path('pricing/', views.pricing, name='pricing'),
     path('services/web-design/', views.service_web_design,
          name='service_web_design'),
