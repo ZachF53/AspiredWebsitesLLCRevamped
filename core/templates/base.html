@@ -116,12 +116,42 @@
                                 Services
                                 <span class="nav-caret" aria-hidden="true">&#9662;</span>
                             </button>
-                            <ul class="nav-submenu" id="services-submenu" role="menu">
-                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
-                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'digital_marketing' %}is-active{% endif %}" href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social</a></li>
-                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'seo' %}is-active{% endif %}" href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
-                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
-                            </ul>
+                            {% comment %}
+                            Grouped submenu. A flat list hit 9 items once the
+                            Phase 2 service pages landed, which is past the
+                            point a dropdown stays scannable. Grouping by
+                            discipline also mirrors the URL hierarchy
+                            (/services/web-design/* and /services/seo/*), so
+                            the nav teaches the site structure.
+
+                            Each group is its own <ul> with an aria-labelledby
+                            heading, so screen readers announce "Web Design,
+                            list, 4 items" rather than one undifferentiated
+                            run of nine links.
+                            {% endcomment %}
+                            <div class="nav-submenu nav-submenu--grouped" id="services-submenu">
+                                <div class="nav-submenu__group">
+                                    <p class="nav-submenu__heading" id="nav-grp-design">Web Design</p>
+                                    <ul role="menu" aria-labelledby="nav-grp-design">
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
+                                    </ul>
+                                </div>
+
+                                <div class="nav-submenu__group">
+                                    <p class="nav-submenu__heading" id="nav-grp-seo">SEO</p>
+                                    <ul role="menu" aria-labelledby="nav-grp-seo">
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'seo' %}is-active{% endif %}" href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
+                                    </ul>
+                                </div>
+
+                                <div class="nav-submenu__group">
+                                    <p class="nav-submenu__heading" id="nav-grp-more">More</p>
+                                    <ul role="menu" aria-labelledby="nav-grp-more">
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'digital_marketing' %}is-active{% endif %}" href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social</a></li>
+                                    </ul>
+                                </div>
+                            </div>
                         </li>
                         <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
                         <li><a class="nav-link {% if active_nav == 'pricing' %}is-active{% endif %}" href="{% url 'public:pricing' %}">Pricing</a></li>
