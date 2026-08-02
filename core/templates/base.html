@@ -23,7 +23,17 @@
     {% templatetag openblock %} block robots {% templatetag closeblock %}
     with a noindex meta — see core/templates/_meta_noindex.html.
     {% endcomment %}
-    {% block robots %}{% endblock %}
+    {% comment %}
+    Non-production hosts are noindexed sitewide.
+    staging.aspiredwebsites.com has real DNS, a real certificate and
+    returns 200s, so without this it is a fully crawlable duplicate of
+    production — and Phase 1 made that worse by adding a
+    self-referencing canonical, so staging was actively asserting
+    itself as canonical. Gated on settings.PRODUCTION_HOST rather than
+    SITE_BASE_URL, because staging's SITE_BASE_URL is (correctly) its
+    own domain.
+    {% endcomment %}
+    {% block robots %}{% if not IS_PRODUCTION_HOST %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
 
     {% comment %}
     Self-referencing canonical (Master Plan §8). CANONICAL_URL is built
@@ -32,7 +42,7 @@
     request arrived on www, and always drops the query string. Pages
     that must not self-canonicalise override the block with nothing.
     {% endcomment %}
-    {% block canonical %}<link rel="canonical" href="{{ CANONICAL_URL }}">{% endblock %}
+    {% block canonical %}{% if IS_PRODUCTION_HOST %}<link rel="canonical" href="{{ CANONICAL_URL }}">{% endif %}{% endblock %}
 
     <meta property="og:site_name" content="Aspired Websites">
     <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Aspired Websites' }}{% endblock %}">
@@ -276,7 +286,24 @@
        staging traffic into production's analytics. So only load it
        when we ARE the canonical host.
     {% endcomment %}
-    {% if IS_CANONICAL_HOST %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
+    {% if IS_PRODUCTION_HOST %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
+    {% comment %}
+    Google Analytics 4 for the marketing site.
+
+    Renders only when GOOGLE_ANALYTICS_ID is set, which is prod's .env
+    only — staging and local dev leave it blank and emit no tag, so test
+    traffic never reaches the property.
+
+    Google's own snippet is an inline <script>; ours is external so the
+    public CSP keeps script-src free of 'unsafe-inline'. The measurement
+    id rides in on data-ga-id. See core/static/js/analytics.js.
+
+    Note this is base.html, so it covers every page that extends it —
+    including login, password reset, the audit tool, and the contract
+    sign/pay pages. That is deliberate (approved 2026-08-02), but it does
+    mean token-bearing URLs are reported to GA as page_path.
+    {% endcomment %}
+    {% if GOOGLE_ANALYTICS_ID %}<script src="{% static 'js/analytics.js' %}?v={{ STATIC_VERSION }}" data-ga-id="{{ GOOGLE_ANALYTICS_ID }}" defer></script>{% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

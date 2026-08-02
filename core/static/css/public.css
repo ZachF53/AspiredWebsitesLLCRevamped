@@ -608,13 +608,53 @@ p {
    2. The container is no longer a <ul>, so the display:none/block
       toggle rules above still apply (they match .nav-submenu by
       class, not element) — no change needed there. */
+/* Everything here sets alignment explicitly rather than inheriting.
+   The desktop nav centres its top-level links, and that cascaded into
+   the panel — headings rendered left, links rendered centred, so
+   nothing shared a left edge and each column looked ragged. A menu
+   panel is a list, not a centred layout: it is left-aligned at every
+   breakpoint, and one shared padding value keeps heading and link
+   text on the exact same vertical line. */
+.nav-menu .nav-submenu--grouped {
+    --nav-panel-pad: 12px;
+    text-align: left;
+}
+
 .nav-menu .nav-submenu--grouped ul {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     list-style: none;
     margin: 0;
     padding: 0;
-    gap: 0;
+    gap: 1px;
+}
+
+.nav-menu .nav-submenu--grouped li {
+    display: block;
+    width: 100%;
+    text-align: left;
+}
+
+.nav-menu .nav-submenu--grouped .nav-sublink {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px var(--nav-panel-pad);
+    line-height: 1.35;
+    border-radius: 6px;
+    /* Long labels ("Small Business Web Design") wrap rather than
+       forcing the panel wider; the left edge stays true either way. */
+    white-space: normal;
+}
+
+/* Active item: a left accent bar, not a filled block. The filled box
+   was heavier than every other item and dragged the eye off the
+   column it belonged to. */
+.nav-menu .nav-submenu--grouped .nav-sublink.is-active {
+    background: rgba(232, 101, 10, 0.10);
+    box-shadow: inset 2px 0 0 var(--color-orange);
+    color: var(--color-orange);
 }
 
 .nav-submenu__group + .nav-submenu__group {
@@ -625,26 +665,32 @@ p {
 
 /* Group label. Deliberately not a heading element — it labels a menu,
    and injecting h4s into the header would corrupt the page's heading
-   outline (§5.4 requires a logical H2/H3 hierarchy per page). */
+   outline (§5.4 requires a logical H2/H3 hierarchy per page).
+   Shares --nav-panel-pad with the links so the text aligns exactly. */
 .nav-submenu__heading {
-    margin: 0 0 4px;
-    padding: 0 var(--space-2);
+    margin: 0 0 6px;
+    padding: 0 var(--nav-panel-pad);
+    text-align: left;
     font-size: 0.6875rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--color-accent, #14B8A8);
-    opacity: 0.85;
 }
 
 @media (min-width: 1024px) {
-    /* Side-by-side columns on desktop so nine links stay one glance. */
+    /* Side-by-side columns so nine links stay one glance. Columns are
+       wide enough that two-word labels don't wrap mid-phrase, and the
+       panel is right-anchored so it can't overflow the viewport. */
     .nav-menu .nav-submenu--grouped {
         display: none;
-        grid-template-columns: repeat(3, minmax(190px, 1fr));
-        gap: var(--space-3);
-        min-width: 620px;
-        padding: var(--space-3);
+        grid-template-columns: repeat(3, minmax(210px, auto));
+        gap: var(--space-2) var(--space-4);
+        width: max-content;
+        max-width: min(92vw, 780px);
+        padding: var(--space-3) var(--space-2);
+        left: auto;
+        right: 0;
     }
     .nav-item--has-children:hover .nav-submenu--grouped,
     .nav-item--has-children:focus-within .nav-submenu--grouped,
@@ -653,15 +699,14 @@ p {
     .nav-link--toggle[aria-expanded="true"] + .nav-submenu--grouped {
         display: grid;
     }
-    /* Columns sit beside each other — drop the stacked separator. */
+    /* Columns sit beside each other — drop the stacked separator and
+       give each its own hairline on the left instead. */
     .nav-submenu__group + .nav-submenu__group {
         margin-top: 0;
         padding-top: 0;
+        padding-left: var(--space-3);
         border-top: 0;
-    }
-    .nav-submenu__heading {
-        padding: 0 14px;
-        margin-bottom: 6px;
+        border-left: 1px solid rgba(148, 163, 184, 0.12);
     }
 }
 

@@ -10,18 +10,41 @@ Content-Security-Policy and Permissions-Policy. CSP is relaxed for
 /admin/ paths because Django admin uses inline styles and scripts.
 """
 
+# Google Analytics 4 hosts, factored out because two policies need them.
+#
+# gtag.js is served from googletagmanager.com, then beacons out to the
+# regional analytics endpoints (region1.google-analytics.com and friends),
+# which is why the connect-src entries are wildcarded — GA picks the region
+# at runtime and pinning one would silently drop hits from other geographies.
+# The img-src entry covers gtag's fallback pixel on browsers where the
+# fetch/sendBeacon path is unavailable.
+#
+# Deliberately NOT a blanket https: — these three names are the entire GA
+# surface, and keeping the list explicit means an injected script still
+# cannot exfiltrate to an arbitrary host.
+GA_SCRIPT_SRC = 'https://www.googletagmanager.com'
+GA_CONNECT_SRC = ('https://*.google-analytics.com '
+                  'https://*.analytics.google.com '
+                  'https://www.googletagmanager.com')
+GA_IMG_SRC = 'https://*.google-analytics.com'
+
 # Restrictive default CSP for the public site and client portal.
-# - Scripts: 'self' plus unpkg.com (HTMX is loaded from there).
+# - Scripts: 'self' plus googletagmanager.com (GA4 — see base.html).
 # - Styles: 'self' only — no style="..." attributes in our templates.
 # - Images: 'self' plus data: URIs (small inline SVGs/icons).
 # - Forms post only to 'self'. No <iframe> framing allowed anywhere.
+#
+# The GA allowances widen this policy for the client portal too, which
+# carries no GA tag. Accepted on purpose: one policy is far easier to
+# reason about than a near-duplicate that differs by three hostnames, and
+# permitting a host nothing loads from grants no capability by itself.
 CSP_PUBLIC = (
     "default-src 'self'; "
-    "script-src 'self'; "
+    f"script-src 'self' {GA_SCRIPT_SRC}; "
     "style-src 'self'; "
-    "img-src 'self' data:; "
+    f"img-src 'self' data: {GA_IMG_SRC}; "
     "font-src 'self'; "
-    "connect-src 'self'; "
+    f"connect-src 'self' {GA_CONNECT_SRC}; "
     "frame-ancestors 'none'; "
     "form-action 'self'; "
     "base-uri 'self'; "
@@ -51,13 +74,16 @@ CSP_TERMINAL = (
 # Per spec the wallets are off, so Apple/Google/Link payment hooks are
 # not enabled — but the Element still iframes a hooks subdomain for
 # its own UI so we permit the broader stripe.com space.
+# GA is allowed here too: the payment and contract pages extend base.html,
+# so they carry the gtag — without these the tag is blocked on exactly the
+# pages whose conversions matter most. img-src already permits https:.
 CSP_PAYMENT = (
     "default-src 'self'; "
-    "script-src 'self' https://js.stripe.com; "
+    f"script-src 'self' https://js.stripe.com {GA_SCRIPT_SRC}; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: https:; "
     "font-src 'self' data:; "
-    "connect-src 'self' https://api.stripe.com; "
+    f"connect-src 'self' https://api.stripe.com {GA_CONNECT_SRC}; "
     "frame-src https://js.stripe.com https://hooks.stripe.com; "
     "frame-ancestors 'none'; "
     "form-action 'self' https://js.stripe.com; "

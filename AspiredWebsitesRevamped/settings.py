@@ -142,6 +142,9 @@ TEMPLATES = [
                 # GSC / Bing ownership <meta> tokens (blank = renders
                 # nothing). Master Plan Phase 0 §10.
                 'core.context_processors.site_verification',
+                # GA4 measurement id for the marketing site's own gtag
+                # (blank = renders nothing).
+                'core.context_processors.analytics',
                 # CANONICAL_URL + SITE_BASE_URL for the self-referencing
                 # canonical, og:url and schema. Master Plan §8.
                 'core.context_processors.canonical',
@@ -424,6 +427,39 @@ GA4_ACCOUNT_ID = env('GA4_ACCOUNT_ID', '')
 # properties actually exist. Rendered site-wide by core/templates/base.html.
 GOOGLE_SITE_VERIFICATION = env('GOOGLE_SITE_VERIFICATION', '')
 BING_SITE_VERIFICATION = env('BING_SITE_VERIFICATION', '')
+
+# ── Google Analytics 4 — the agency's OWN marketing-site property ────────────
+# Measurement id only ("G-XXXXXXXXXX"), NOT the whole gtag snippet. This is
+# public by design (it ships in page source), so it lives in .env for
+# per-environment control rather than for secrecy.
+#
+# LEAVE THIS UNSET ON STAGING AND IN LOCAL DEV. Blank renders no tag at all,
+# which is the only thing keeping test traffic out of the real property —
+# there is no host check behind it. Set it in prod's .env only.
+#
+# Distinct from GA4_ACCOUNT_ID above: that one provisions GA properties for
+# CLIENT sites. This is the tag on aspiredwebsites.com itself.
+GOOGLE_ANALYTICS_ID = env('GOOGLE_ANALYTICS_ID', '')
+
+# ── The one production host ─────────────────────────────────────────────────
+# Distinct from SITE_BASE_URL, which is per-environment (staging's is
+# https://staging.aspiredwebsites.com, and that is correct — staging should
+# not canonicalise to production). This is the single public host, and it
+# governs two things that must NOT vary by environment:
+#
+#   1. Indexing. staging.aspiredwebsites.com has real DNS, a real
+#      certificate and returns 200s, so without this it is a fully
+#      crawlable duplicate of production. Any host that is not this one
+#      serves noindex + a blanket-disallow robots.txt.
+#   2. The dogfooded conversion tracker. That script hardcodes absolute
+#      https://aspiredwebsites.com API endpoints because it is installed on
+#      CLIENT sites on other domains and has to phone home. It is only safe
+#      to load where those calls are same-origin — anywhere else the CSP
+#      blocks them and staging traffic tries to report into production.
+#
+# Defaulted rather than required so neither behaviour depends on someone
+# remembering to set an env var on a new server.
+PRODUCTION_HOST = env('PRODUCTION_HOST', 'aspiredwebsites.com')
 
 
 # ── Brave Search API ────────────────────────────────────────────────────────

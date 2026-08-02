@@ -34,6 +34,16 @@ def robots_txt(request):
                     password-reset pages). See core/templates/
                     _meta_noindex.html.
     """
+    # Non-production hosts (staging) disallow everything. Staging has
+    # public DNS and a valid certificate, so an "Allow: /" there invites
+    # Google to index a full duplicate of the production site. Paired
+    # with the sitewide noindex in base.html: robots.txt keeps crawlers
+    # out, and the meta tag handles anything already discovered.
+    if request.get_host().split(':', 1)[0].lower() != getattr(
+            settings, 'PRODUCTION_HOST', 'aspiredwebsites.com').lower():
+        return HttpResponse(
+            "User-agent: *\nDisallow: /\n", content_type='text/plain')
+
     body = (
         "User-agent: *\n"
         "Allow: /\n"

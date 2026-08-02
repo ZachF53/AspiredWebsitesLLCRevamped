@@ -42,25 +42,28 @@ def canonical(request):
                    'https://aspiredwebsites.com').rstrip('/')
     path = getattr(request, 'path', '/') or '/'
 
-    # Is this request being served by the canonical production host?
+    # Is this the one public production host?
     #
-    # Used to gate the dogfooded conversion tracker. That script is
-    # built for CLIENT sites on other domains, so it hardcodes
-    # absolute https://aspiredwebsites.com API endpoints — correct for
-    # its real job. But when we run it on our own staging host those
-    # calls become cross-origin, the public CSP (connect-src 'self')
-    # blocks them, and every staging page logs console errors while
-    # silently trying to report into production's analytics.
+    # Deliberately NOT derived from SITE_BASE_URL. Staging sets
+    # SITE_BASE_URL to its own domain (correctly — staging must not
+    # canonicalise to production), so deriving from it would make
+    # staging "canonical" for itself and defeat both checks this
+    # drives: sitewide noindex on non-production hosts, and the
+    # dogfooded tracker. See settings.PRODUCTION_HOST.
+    production_host = getattr(
+        settings, 'PRODUCTION_HOST', 'aspiredwebsites.com').lower()
     try:
-        canonical_host = base.split('//', 1)[-1].split('/', 1)[0].lower()
-        is_canonical = request.get_host().lower() == canonical_host
+        # Strip any :port before comparing — runserver and the health
+        # check both hit the app with one.
+        host = request.get_host().split(':', 1)[0].lower()
     except Exception:
-        is_canonical = False
+        host = ''
+    is_production = host == production_host
 
     return {
         'SITE_BASE_URL': base,
         'CANONICAL_URL': f'{base}{path}',
-        'IS_CANONICAL_HOST': is_canonical,
+        'IS_PRODUCTION_HOST': is_production,
     }
 
 
@@ -79,6 +82,24 @@ def site_verification(request):
             settings, 'GOOGLE_SITE_VERIFICATION', ''),
         'BING_SITE_VERIFICATION': getattr(
             settings, 'BING_SITE_VERIFICATION', ''),
+    }
+
+
+def analytics(request):
+    """
+    Expose ``GOOGLE_ANALYTICS_ID`` so `base.html` can load gtag.js.
+
+    Defaults to '' (see settings), and the template renders nothing when
+    it is blank — which is what keeps GA off staging and local dev, since
+    only prod's `.env` sets the value.
+
+    Unlike the verification tokens this DOES load third-party script and
+    send beacons, so `core.middleware` allows the Google hosts in the
+    public and payment CSPs.
+    """
+    return {
+        'GOOGLE_ANALYTICS_ID': getattr(
+            settings, 'GOOGLE_ANALYTICS_ID', ''),
     }
 
 

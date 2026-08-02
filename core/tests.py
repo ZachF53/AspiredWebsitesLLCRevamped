@@ -59,7 +59,54 @@ class SiteVerificationMetaTests(TestCase):
         self.assertIn('&quot;&gt;&lt;script&gt;', html)
 
 
-@override_settings(SITE_BASE_URL='https://aspiredwebsites.com')
+class GoogleAnalyticsTagTests(TestCase):
+    """
+    GA4 gtag on the marketing site.
+
+    Two guarantees matter here. First, a blank id renders nothing — that
+    is the only thing keeping staging and local traffic out of the real
+    property, so it is worth a test rather than trusting the template.
+    Second, the tag stays EXTERNAL: an inline <script> would force
+    'unsafe-inline' into the public CSP and cost us most of its value.
+    """
+
+    def test_no_tag_when_id_unset(self):
+        with override_settings(GOOGLE_ANALYTICS_ID=''):
+            html = self.client.get(reverse('public:home')).content.decode()
+        self.assertNotIn('analytics.js', html)
+        self.assertNotIn('data-ga-id', html)
+
+    def test_tag_renders_when_id_set(self):
+        with override_settings(GOOGLE_ANALYTICS_ID='G-TESTID1234'):
+            html = self.client.get(reverse('public:home')).content.decode()
+        self.assertIn('data-ga-id="G-TESTID1234"', html)
+        self.assertIn('js/analytics.js', html)
+
+    def test_no_inline_gtag_snippet(self):
+        """The config block must live in the external file, not the page."""
+        with override_settings(GOOGLE_ANALYTICS_ID='G-TESTID1234'):
+            html = self.client.get(reverse('public:home')).content.decode()
+        self.assertNotIn('gtag(', html)
+        self.assertNotIn('googletagmanager.com', html)
+
+    def test_id_is_html_escaped(self):
+        with override_settings(GOOGLE_ANALYTICS_ID='a"><script>x</script>'):
+            html = self.client.get(reverse('public:home')).content.decode()
+        self.assertNotIn('<script>x</script>', html)
+
+    def test_public_csp_allows_ga_hosts(self):
+        """The tag is useless if the policy serving it blocks the hosts."""
+        resp = self.client.get(reverse('public:home'))
+        csp = resp['Content-Security-Policy']
+        self.assertIn(
+            "script-src 'self' https://www.googletagmanager.com", csp)
+        self.assertIn('https://*.google-analytics.com', csp)
+        # Adding GA must not have smuggled inline execution back in.
+        self.assertNotIn("'unsafe-inline'", csp)
+
+
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
 class CanonicalTests(TestCase):
     """
     Self-referencing canonical + og:url (Master Plan §8).
@@ -76,9 +123,23 @@ class CanonicalTests(TestCase):
             html)
 
     @override_settings(ALLOWED_HOSTS=['www.aspiredwebsites.com',
-                                      'aspiredwebsites.com', 'testserver'])
-    def test_canonical_ignores_www_host(self):
-        """Reached via www, the page still canonicalises to non-www."""
+                                      'aspiredwebsites.com', 'testserver'],
+                      PRODUCTION_HOST='www.aspiredwebsites.com')
+    def test_canonical_ignores_request_host(self):
+        """
+        The canonical is built from SITE_BASE_URL, never from the host
+        that served the request.
+
+        PRODUCTION_HOST is set to the www variant here only so the page
+        still renders a canonical at all — otherwise the non-production
+        noindex path (correctly) suppresses it and there is nothing to
+        assert. What is being tested is the derivation: served from
+        www, the tag must still say non-www.
+
+        In production this scenario no longer reaches Django at all —
+        nginx 301s www before it gets here — but the derivation is what
+        stops any future alias host from canonicalising to itself.
+        """
         html = self.client.get(
             '/pricing/', HTTP_HOST='www.aspiredwebsites.com').content.decode()
         self.assertIn(
@@ -119,6 +180,7 @@ class CanonicalTests(TestCase):
                 self.assertEqual(html.count('property="og:url"'), 1)
 
 
+@override_settings(PRODUCTION_HOST='testserver')
 class NoindexTests(TestCase):
     """Private and duplicate-prone pages must carry noindex, no canonical."""
 
@@ -149,6 +211,7 @@ class NoindexTests(TestCase):
         self.assertIn('noindex', html)
 
 
+@override_settings(PRODUCTION_HOST='testserver')
 class StructuredDataTests(TestCase):
     """
     One business entity for the whole site (Master Plan D8).
@@ -222,6 +285,7 @@ class StructuredDataTests(TestCase):
         self.assertNotIn('BreadcrumbList', html)
 
 
+@override_settings(PRODUCTION_HOST='testserver')
 class PublicCssBundleTests(TestCase):
     """
     public.css is generated from main.css and committed. If someone
@@ -241,7 +305,8 @@ class PublicCssBundleTests(TestCase):
         self.assertNotIn('css/main.css', html)
 
 
-@override_settings(SITE_BASE_URL='https://aspiredwebsites.com')
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
 class Phase2ServicePageTests(TestCase):
     """
     Phase 2 service pages. Each must satisfy the same definition of
@@ -389,32 +454,73 @@ class Phase2ServicePageTests(TestCase):
         self.assertIn('nobody controls', html)
 
 
-@override_settings(SITE_BASE_URL='https://aspiredwebsites.com')
-class DogfoodTrackerHostGateTests(TestCase):
+@override_settings(PRODUCTION_HOST='aspiredwebsites.com',
+                   ALLOWED_HOSTS=['aspiredwebsites.com',
+                                  'staging.aspiredwebsites.com'])
+class NonProductionHostTests(TestCase):
     """
-    The conversion tracker is only loaded on the canonical host.
+    Staging must never be indexable, and must never run the tracker.
 
-    The script hardcodes absolute https://aspiredwebsites.com API
-    endpoints — correct, because it is built to run on CLIENT sites on
-    other domains. But that means on staging those calls are
-    cross-origin, the public CSP (connect-src 'self') blocks them, and
-    we log console errors while trying to post staging traffic into
-    production analytics.
+    staging.aspiredwebsites.com has public DNS, a valid certificate and
+    returns 200s. Phase 1 made the risk worse by adding a
+    self-referencing canonical — staging was asserting itself as
+    canonical for content that duplicates production.
+
+    Gated on PRODUCTION_HOST, not SITE_BASE_URL: staging correctly sets
+    SITE_BASE_URL to its own domain, so deriving from it would make
+    staging "canonical for itself" and defeat the whole check.
     """
 
-    @override_settings(ALLOWED_HOSTS=['aspiredwebsites.com'])
-    def test_tracker_loads_on_canonical_host(self):
-        html = self.client.get(
-            '/', HTTP_HOST='aspiredwebsites.com').content.decode()
-        self.assertIn('aspired-tracker.js', html)
+    PROD = {'HTTP_HOST': 'aspiredwebsites.com'}
+    STAGING = {'HTTP_HOST': 'staging.aspiredwebsites.com'}
 
-    @override_settings(ALLOWED_HOSTS=['staging.aspiredwebsites.com'])
-    def test_tracker_absent_on_staging(self):
-        html = self.client.get(
-            '/', HTTP_HOST='staging.aspiredwebsites.com').content.decode()
-        self.assertNotIn('aspired-tracker.js', html)
+    def test_staging_is_noindex_sitewide(self):
+        for path in ('/', '/pricing/', '/services/seo/law-firm-seo/'):
+            with self.subTest(path=path):
+                html = self.client.get(path, **self.STAGING).content.decode()
+                self.assertIn('name="robots" content="noindex, nofollow"',
+                              html)
+
+    def test_production_is_not_noindex(self):
+        for path in ('/', '/pricing/', '/services/seo/law-firm-seo/'):
+            with self.subTest(path=path):
+                html = self.client.get(path, **self.PROD).content.decode()
+                self.assertNotIn('noindex', html)
+
+    def test_staging_emits_no_canonical(self):
+        """A noindex page must not also claim to be canonical."""
+        html = self.client.get('/', **self.STAGING).content.decode()
+        self.assertNotIn('rel="canonical"', html)
+
+    def test_production_emits_canonical(self):
+        html = self.client.get('/', **self.PROD).content.decode()
+        self.assertIn('rel="canonical"', html)
+
+    def test_staging_robots_txt_disallows_everything(self):
+        body = self.client.get('/robots.txt', **self.STAGING).content.decode()
+        self.assertIn('Disallow: /', body)
+        self.assertNotIn('Allow: /', body)
+        self.assertNotIn('Sitemap:', body)
+
+    def test_production_robots_txt_allows_and_declares_sitemap(self):
+        body = self.client.get('/robots.txt', **self.PROD).content.decode()
+        self.assertIn('Allow: /', body)
+        self.assertIn('Sitemap: https://aspiredwebsites.com/sitemap.xml', body)
+
+    def test_tracker_loads_only_on_production(self):
+        """
+        The tracker JS hardcodes absolute https://aspiredwebsites.com
+        endpoints — correct, since it runs on CLIENT sites on other
+        domains. Off production those calls are cross-origin, the CSP
+        blocks them, and staging traffic tries to report into prod.
+        """
+        prod = self.client.get('/', **self.PROD).content.decode()
+        staging = self.client.get('/', **self.STAGING).content.decode()
+        self.assertIn('aspired-tracker.js', prod)
+        self.assertNotIn('aspired-tracker.js', staging)
 
 
+@override_settings(PRODUCTION_HOST='testserver')
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):
         body = self.client.get('/robots.txt').content.decode()
