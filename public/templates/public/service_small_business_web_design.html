@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Small Business Web Design | Custom Sites | Aspired{% endblock %}
+
+{% block meta_description %}Small business web design that's hand-coded, fast and yours to keep. Website design for small business without templates, page builders, or a monthly fee that never ends. From $2,500.{% endblock %}
+
+{% block og_title %}Small Business Web Design — Aspired Websites{% endblock %}
+{% block og_description %}A custom website for your small business, built from scratch and owned by you. No templates, no lock-in, no endless monthly fee.{% endblock %}
+
+{% comment %}
+Owns `small business web design` (3,600/mo) plus the "website design
+for small business" / "web design services for small business"
+variants, which are the same intent and are therefore covered in body
+copy rather than on separate pages (§6.1 forbids keyword-variant
+twins).
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Small Business Web Design",
+    "name": "Small Business Web Design",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "audience": {
+        "@type": "Audience",
+        "audienceType": "Small business owners"
+    },
+    "description": "Custom, hand-coded website design for small businesses. Built from scratch around your offers and your customers, fast on mobile, security-hardened, and fully owned by you. No templates, no page builders, no monthly licence fee.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "How much does a small business website cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Custom builds start at $2,500 and run to $4,500 depending on how many pages and features you need. Hosting is $150 per year. Maintenance is optional and starts at $299 per month. There is no monthly licence fee for the site itself, because you own it."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is a custom website worth it versus Wix or Squarespace?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "If you need a simple brochure page and nothing more, a builder is honestly fine and cheaper. Custom is worth it when the website has a job to do — booking, intake, ranking for competitive terms, or looking materially better than every competitor using the same three templates. We will tell you which situation you are in."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does a small business website take?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Around six weeks: discovery, structure, design, content, review, launch. The stage that usually slips is content, so we draft copy for you rather than waiting on it."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I own the website?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Source code, content, domain and hosting are yours. If you leave, you take every file and the site keeps working. No platform holds it hostage."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What happens if I stop paying for maintenance?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The website keeps working. Maintenance covers updates, monitoring, backups and support — not the right to keep your own site online. Cancel with 30 days notice and you keep everything."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Small Business Web Design</span>
+            <h1>Small Business Web Design <span class="accent">Built To Earn Its Keep</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Website design for small businesses that need the site to actually do
+                something &mdash; bring in calls, take bookings, make you look like the
+                obvious choice. Hand-coded from scratch, fast on a phone, and yours to
+                keep. No templates. No monthly fee that never ends.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">From $2,500 &middot; ~6 weeks &middot; You own the code, content and domain</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── The honest comparison ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Honest Version</span>
+            <h2>Do You Actually Need A Custom Website?</h2>
+            <p>Sometimes the answer is no. We&rsquo;d rather say so than sell you something you don&rsquo;t need.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>A Builder Is Probably Fine If&hellip;</h3>
+                <ul class="bullet-list">
+                    <li>You need a single page with your hours and phone number</li>
+                    <li>Nobody finds you through search and that&rsquo;s okay</li>
+                    <li>Your budget is genuinely a few hundred dollars</li>
+                    <li>You&rsquo;re testing whether the business works at all</li>
+                </ul>
+                <p>Wix and Squarespace are good products. Use one, spend the money elsewhere, and come back when the site needs to do more.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Custom Pays For Itself If&hellip;</h3>
+                <ul class="bullet-list">
+                    <li>You compete on search and every competitor uses the same template</li>
+                    <li>The site needs to take bookings, intake, or payments properly</li>
+                    <li>One customer is worth more than the build cost</li>
+                    <li>Speed matters &mdash; you&rsquo;re losing mobile visitors before they see anything</li>
+                    <li>You want to own it instead of renting it forever</li>
+                </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What you get ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What&rsquo;s Included</span>
+            <h2>Every Small Business Website We Build</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Hand-Coded</h3>
+                <p>Every line written by an engineer. No WordPress, no page builder, no theme that breaks the next time it auto-updates. Fewer moving parts means fewer things that can go wrong at 2am.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Fast On A Phone</h3>
+                <p>Most of your visitors are on mobile data, not office wifi. Optimised images, lean code, compressed delivery. Our own site loads in about 1.5 seconds on mobile &mdash; check it yourself.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Built To Convert</h3>
+                <p>A clear next step on every page. Click-to-call that works, forms that don&rsquo;t ask for nine fields, and a path from &ldquo;I&rsquo;m interested&rdquo; to &ldquo;I&rsquo;m a customer&rdquo; that doesn&rsquo;t make people think.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Security-Hardened</h3>
+                <p>Built by a CISSP-certified engineer. HTTPS, security headers, server-side validation, rate-limited forms, no exposed admin. Standard on every build, not an upsell.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>SEO Foundation</h3>
+                <p>Clean semantic markup, schema, sitemap, proper headings and descriptive URLs so search engines can read the site. Ongoing ranking work is <a href="{% url 'public:service_local_seo' %}">local SEO</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>You Own It</h3>
+                <p>Code, content, domain, hosting. Leave whenever you want and take every file. No platform holding your business hostage.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Process ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>Six Weeks, And You Always Know Where You Are</h2>
+        </div>
+
+        <div class="cards">
+            <article class="card">
+                <span class="eyebrow">Weeks 1&ndash;2</span>
+                <h3>Discovery &amp; Structure</h3>
+                <p>What the business does, who buys, what the site has to achieve. We map the pages and the path through them before anyone designs anything.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 3&ndash;4</span>
+                <h3>Design &amp; Content</h3>
+                <p>We design it and draft the copy. Content is where most projects stall, so we write first and you edit &mdash; rather than waiting on a blank page.</p>
+            </article>
+
+            <article class="card">
+                <span class="eyebrow">Weeks 5&ndash;6</span>
+                <h3>Review &amp; Launch</h3>
+                <p>You review on a staging link, we handle two rounds of revisions, then launch with two weeks of free support afterwards.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Before You Commit</span>
+            <h2>Small Business Website Questions</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>How much does it cost?</h3>
+                <p>$2,500&ndash;$4,500 depending on pages and features. Hosting $150/year. Maintenance optional from $299/month. No licence fee for the site &mdash; you own it.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is custom worth it over Wix or Squarespace?</h3>
+                <p>If you need a brochure page, a builder is fine and cheaper. Custom is worth it when the site has a job to do. We&rsquo;ll tell you which situation you&rsquo;re in.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does it take?</h3>
+                <p>About six weeks. The stage that usually slips is content &mdash; so we draft it rather than waiting on you.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I own the website?</h3>
+                <p>Yes. Code, content, domain, hosting. Leave and take every file &mdash; the site keeps working.</p>
+            </article>
+
+            <article class="card">
+                <h3>What if I stop paying maintenance?</h3>
+                <p>The site keeps working. Maintenance buys updates, monitoring, backups and support &mdash; not the right to keep your own site online.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can you redesign my existing site?</h3>
+                <p>Yes &mdash; that&rsquo;s a slightly different job. See <a href="{% url 'public:service_website_redesign' %}">website redesign</a>.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Let&rsquo;s Talk About Your Business</h2>
+            <p>
+                A straight conversation about what your site needs to do, what that
+                costs, and whether custom is even the right call for you right now.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See Our Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

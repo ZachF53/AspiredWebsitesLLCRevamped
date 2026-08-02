@@ -41,7 +41,27 @@ def canonical(request):
     base = getattr(settings, 'SITE_BASE_URL',
                    'https://aspiredwebsites.com').rstrip('/')
     path = getattr(request, 'path', '/') or '/'
-    return {'SITE_BASE_URL': base, 'CANONICAL_URL': f'{base}{path}'}
+
+    # Is this request being served by the canonical production host?
+    #
+    # Used to gate the dogfooded conversion tracker. That script is
+    # built for CLIENT sites on other domains, so it hardcodes
+    # absolute https://aspiredwebsites.com API endpoints — correct for
+    # its real job. But when we run it on our own staging host those
+    # calls become cross-origin, the public CSP (connect-src 'self')
+    # blocks them, and every staging page logs console errors while
+    # silently trying to report into production's analytics.
+    try:
+        canonical_host = base.split('//', 1)[-1].split('/', 1)[0].lower()
+        is_canonical = request.get_host().lower() == canonical_host
+    except Exception:
+        is_canonical = False
+
+    return {
+        'SITE_BASE_URL': base,
+        'CANONICAL_URL': f'{base}{path}',
+        'IS_CANONICAL_HOST': is_canonical,
+    }
 
 
 def site_verification(request):

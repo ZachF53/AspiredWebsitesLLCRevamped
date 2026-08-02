@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Website Redesign Services | Rebuild Done Right | Aspired{% endblock %}
+
+{% block meta_description %}Website redesign that keeps the rankings you've already earned. Redirect mapping, content migration and a rebuild that's faster and yours to own — without the traffic drop most redesigns cause.{% endblock %}
+
+{% block og_title %}Website Redesign Services — Aspired Websites{% endblock %}
+{% block og_description %}Most redesigns lose traffic. This one doesn't: full redirect mapping, content migration and measured before/after.{% endblock %}
+
+{% comment %}
+Owns `website redesign` (3,600/mo, LOW competition) — the cleanest
+intent in the Phase 2 set.
+
+The angle is the one thing competitors consistently get wrong: a
+redesign that drops rankings. That's a genuine differentiator we can
+demonstrate rather than assert, because we do the redirect and
+baseline work on our own site (Phase 0/1) and can describe it
+concretely.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Website Redesign",
+    "name": "Website Redesign Services",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "description": "Website redesign and rebuild with search equity preserved: full URL inventory, page-to-page redirect mapping, content migration, performance rebuild, and before/after measurement at 30 and 90 days.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "Will a website redesign hurt my Google rankings?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "It can, and that is the most common way redesigns go wrong. Rankings drop when URLs change without redirects, when content that was ranking gets cut, or when the new site is slower than the old one. All three are avoidable. We inventory every existing URL, map each one to its closest equivalent with a single permanent redirect, and record baseline traffic before launch so any change is visible rather than guessed at."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How much does a website redesign cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The same as a new build: $2,500 to $4,500 depending on size. A redesign is not cheaper than building fresh — migrating content and preserving search equity is real work, and skipping it is what causes the traffic drop."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can I keep my existing content?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, and usually you should. Pages that already earn traffic are assets. We identify which ones are working and carry them across rather than rewriting everything for the sake of it."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I have to change my domain or hosting?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. Keeping your domain is strongly preferred — it is where your search history lives. Hosting can move to us or stay where it is. If your current platform holds the domain registration, that is the first thing to sort out, and we will tell you how."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does a redesign take?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "About six weeks for a standard site, plus a week up front for the URL inventory and redirect map. Larger sites with hundreds of pages take longer, mostly in the mapping."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Website Redesign</span>
+            <h1>A Website Redesign That <span class="accent">Doesn&rsquo;t Cost You Traffic</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Most redesigns lose rankings. Not because the new site is worse &mdash;
+                because nobody mapped the old URLs, and everything you&rsquo;d earned
+                pointed at 404s. We do that work first, then rebuild.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+            </div>
+            <p class="hero__meta">$2,500&ndash;$4,500 &middot; ~6 weeks + mapping &middot; Baseline measured before launch</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Why redesigns fail ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Risk Nobody Mentions</span>
+            <h2>Why Most Website Redesigns Lose Traffic</h2>
+            <p>Four failure modes, all preventable, all common.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>The URLs Changed And Nothing Redirected</h3>
+                <p>Your old <em>/services/roof-repair</em> became <em>/what-we-do</em>. Every link pointing at the old address now hits a 404, and years of accumulated authority evaporates. This is the single biggest cause of post-redesign traffic loss.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Pages That Were Working Got Deleted</h3>
+                <p>A blog post from 2021 quietly brought in a third of your organic traffic. Nobody checked before the rebuild cut it for looking dated. You can&rsquo;t protect what you never measured.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>The New Site Is Prettier And Slower</h3>
+                <p>Big hero videos, five webfonts, a slider nobody uses. It looks better in a screenshot and loses visitors on mobile data. Speed is a ranking factor and a conversion factor.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Nobody Recorded A Baseline</h3>
+                <p>Traffic drops after launch. Was it the redesign, seasonality, or an algorithm update? Without before-numbers, nobody can tell &mdash; so nobody can fix it.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Process ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How We Do It</span>
+            <h2>Mapping First. Rebuild Second.</h2>
+            <p>The first week of a redesign shouldn&rsquo;t involve any design.</p>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>1. Full URL Inventory</h3>
+                <p>Every page currently on the site, from the sitemap, Search Console and a crawl. You cannot redirect what you haven&rsquo;t found, and there are always more pages than anyone expects.</p>
+            </div>
+
+            <div class="value-tile value-tile--featured">
+                <h3>2. Redirect Map</h3>
+                <p>Each old URL mapped to its closest equivalent &mdash; one permanent redirect, no chains, no blanket redirect to the homepage. Pages with no real equivalent get an honest 404 rather than a misleading hop.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>3. Baseline Recorded</h3>
+                <p>Traffic, rankings, indexed pages and load speed captured before anything changes, so the effect of the redesign is measurable instead of arguable.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>4. Content Triage</h3>
+                <p>Which pages earn traffic, which convert, which are dead weight. Winners carry across. The rest get merged or dropped deliberately, not by accident.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>5. Rebuild</h3>
+                <p>Hand-coded, fast, security-hardened, mobile-first &mdash; the same build standard as any <a href="{% url 'public:service_web_design' %}">custom web design</a> project.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>6. Re-measure At 30 And 90 Days</h3>
+                <p>We check the redirects resolved, coverage held, and speed improved &mdash; then compare against the baseline. If something slipped, we find it while it&rsquo;s still fixable.</p>
+            </div>
+        </div>
+
+        <p class="section-note">
+            This is the same process we ran on our own site &mdash; URL inventory,
+            redirect map, baseline, rebuild, re-measure. Mobile load time went from
+            4.1 seconds to 1.5. We didn&rsquo;t guess at that; we measured it before
+            and after.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── When to redesign ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Is It Time?</span>
+            <h2>When A Redesign Is Worth It &mdash; And When It Isn&rsquo;t</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Worth It When</h3>
+                <ul class="bullet-list">
+                    <li>The site is slow on mobile and you&rsquo;re losing people before they read anything</li>
+                    <li>You don&rsquo;t own it, or can&rsquo;t change it without paying the vendor</li>
+                    <li>It doesn&rsquo;t work properly on a phone</li>
+                    <li>The structure can&rsquo;t support the pages you need to rank</li>
+                    <li>It looks like it was built a decade ago, because it was</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Probably Not Yet When</h3>
+                <ul class="bullet-list">
+                    <li>You just don&rsquo;t like the colours &mdash; that&rsquo;s a restyle, not a rebuild</li>
+                    <li>Traffic is fine and the site converts</li>
+                    <li>The real problem is that nobody can find you &mdash; that&rsquo;s <a href="{% url 'public:service_local_seo' %}">SEO</a>, not design</li>
+                    <li>You rebuilt it last year and nothing has actually changed since</li>
+                </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Website Redesign Questions</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Will a redesign hurt my rankings?</h3>
+                <p>It can &mdash; that&rsquo;s the most common failure. It happens when URLs change without redirects, ranking content gets cut, or the new site is slower. All three are avoidable, and avoiding them is most of what we do first.</p>
+            </article>
+
+            <article class="card">
+                <h3>How much does a redesign cost?</h3>
+                <p>Same as a new build: $2,500&ndash;$4,500. A redesign isn&rsquo;t cheaper &mdash; migrating content and preserving search equity is real work, and skipping it is what causes the drop.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can I keep my existing content?</h3>
+                <p>Yes, and usually you should. Pages that already earn traffic are assets. We find which ones work and carry them across instead of rewriting for the sake of it.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I have to change domain or hosting?</h3>
+                <p>No. Keeping your domain is strongly preferred &mdash; that&rsquo;s where your search history lives. If your current platform holds the registration, sorting that out is step one.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does it take?</h3>
+                <p>About six weeks, plus a week up front for the URL inventory and redirect map. Sites with hundreds of pages take longer, mostly in the mapping.</p>
+            </article>
+
+            <article class="card">
+                <h3>What if I&rsquo;m locked into a contract?</h3>
+                <p>Check the term, the notice period, and who holds the domain. We can build in parallel and cut over when you&rsquo;re free. For law firms specifically, see <a href="{% url 'public:law_firms' %}">for law firms</a>.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Find Out What Your Current Site Is Costing You</h2>
+            <p>
+                The free audit checks speed, mobile, and technical SEO in about 60
+                seconds. Then we&rsquo;ll tell you honestly whether you need a rebuild
+                or just a few fixes.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get My Free Audit</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -222,6 +222,60 @@ def service_law_firm_web_design(request):
     })
 
 
+def service_local_seo(request):
+    """
+    /services/seo/local-seo/ — biggest raw volume in the SEO cluster
+    (`local seo` 14,800 + `local seo services` 8,100).
+
+    Per section 6.1 this page must EXCLUDE law-firm SEO terms; those
+    belong to /services/seo/law-firm-seo/. Crowded, agency-dominated
+    SERP — the honest framing is the differentiator here.
+    """
+    return render(request, 'public/service_local_seo.html', {
+        'active_nav': 'services',
+        'active_service': 'local_seo',
+        'breadcrumbs': [
+            ('Services', '/services/seo/'),
+            ('SEO', '/services/seo/'),
+            ('Local SEO', None),
+        ],
+    })
+
+
+def service_small_business_web_design(request):
+    """
+    /services/web-design/small-business-web-design/ — 3,600/mo on
+    `small business web design`, LOW competition. On-brand and
+    winnable.
+    """
+    return render(
+        request, 'public/service_small_business_web_design.html', {
+            'active_nav': 'services',
+            'active_service': 'small_business_web_design',
+            'breadcrumbs': [
+                ('Services', '/services/web-design/'),
+                ('Web Design', '/services/web-design/'),
+                ('Small Business Web Design', None),
+            ],
+        })
+
+
+def service_website_redesign(request):
+    """
+    /services/web-design/website-redesign/ — 3,600/mo, LOW
+    competition, clean intent. The easiest win in the Phase 2 set.
+    """
+    return render(request, 'public/service_website_redesign.html', {
+        'active_nav': 'services',
+        'active_service': 'website_redesign',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('Web Design', '/services/web-design/'),
+            ('Website Redesign', None),
+        ],
+    })
+
+
 def pricing(request):
     from billing.pricing_models import AddonPricing, ServiceTier
     return render(request, 'public/pricing.html', {

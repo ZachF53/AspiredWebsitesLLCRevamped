@@ -54,6 +54,9 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
         # ── Phase 2 ──
         'public:service_law_firm_seo',
         'public:service_law_firm_web_design',
+        'public:service_local_seo',
+        'public:service_small_business_web_design',
+        'public:service_website_redesign',
     ]
 
 

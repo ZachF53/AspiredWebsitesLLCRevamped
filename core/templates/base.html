@@ -135,6 +135,8 @@
                                     <ul role="menu" aria-labelledby="nav-grp-design">
                                         <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
                                         <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'law_firm_web_design' %}is-active{% endif %}" href="{% url 'public:service_law_firm_web_design' %}">Law Firm Web Design</a></li>
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'small_business_web_design' %}is-active{% endif %}" href="{% url 'public:service_small_business_web_design' %}">Small Business Web Design</a></li>
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'website_redesign' %}is-active{% endif %}" href="{% url 'public:service_website_redesign' %}">Website Redesign</a></li>
                                     </ul>
                                 </div>
 
@@ -143,6 +145,7 @@
                                     <ul role="menu" aria-labelledby="nav-grp-seo">
                                         <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'seo' %}is-active{% endif %}" href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
                                         <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'law_firm_seo' %}is-active{% endif %}" href="{% url 'public:service_law_firm_seo' %}">Law Firm SEO</a></li>
+                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'local_seo' %}is-active{% endif %}" href="{% url 'public:service_local_seo' %}">Local SEO</a></li>
                                     </ul>
                                 </div>
 
@@ -257,12 +260,23 @@
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
     {% comment %}
     First-party conversion tracker, dogfooded on our own site.
-    Loaded from {% templatetag openblock %} static {% templatetag closeblock %} — NOT a hardcoded
-    https://aspiredwebsites.com URL. The absolute URL meant staging
-    loaded prod's script and reported staging traffic into prod's
-    analytics, polluting real client-facing numbers.
+
+    Two separate problems, both fixed:
+
+    1. The <script src> used to be a hardcoded
+       https://aspiredwebsites.com URL, so staging loaded PROD's copy
+       of the script. Now served via {% templatetag openblock %} static {% templatetag closeblock %}.
+
+    2. The script's own API endpoints are absolute
+       (https://aspiredwebsites.com/api/...) and must stay that way —
+       it is designed to run on CLIENT sites on other domains and has
+       to phone home. But that means on any non-canonical host the
+       calls are cross-origin, the public CSP (connect-src 'self')
+       blocks them, and we log console errors while trying to report
+       staging traffic into production's analytics. So only load it
+       when we ARE the canonical host.
     {% endcomment %}
-    <script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>
+    {% if IS_CANONICAL_HOST %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

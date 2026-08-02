@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Local SEO Services | Get Found Nearby | Aspired{% endblock %}
+
+{% block meta_description %}Local SEO services that get your business into the map pack — Google Business Profile, citations, reviews and location pages. Month-to-month, no ranking guarantees, reporting you can actually read.{% endblock %}
+
+{% block og_title %}Local SEO Services — Aspired Websites{% endblock %}
+{% block og_description %}Win the map pack for the area you actually serve. Google Business Profile, citations, reviews and local pages — month-to-month.{% endblock %}
+
+{% comment %}
+§6.1: this page owns generic local-SEO intent and must NOT compete
+for law-firm SEO terms — those belong to /services/seo/law-firm-seo/.
+Attorneys are routed there via the section-note near the bottom
+rather than being targeted here.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Local SEO",
+    "name": "Local SEO Services",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "description": "Local search engine optimization for small businesses: Google Business Profile configuration, citation consistency, review workflow, local landing pages, and monthly reporting measured in calls and inquiries."
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "What is local SEO?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Local SEO is the work that gets your business to appear when someone nearby searches for what you sell — particularly in the map pack, the three-business block that sits above the normal results. It is a different discipline from national SEO because proximity, your Google Business Profile, and citation consistency matter more than raw content volume."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does local SEO take?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Faster than national SEO. Google Business Profile fixes can shift map-pack visibility within weeks. Citation cleanup and review flow compound over two to three months. Competitive categories in a big metro take longer."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I need a physical address for local SEO?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Not necessarily. If you visit customers rather than hosting them, you configure Google Business Profile as a service-area business — your address stays hidden and you declare the areas you cover. Never use a virtual office or mailbox as a storefront address; Google suspends listings for it."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do reviews affect local rankings?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, both the volume and the recency of reviews influence local visibility, and they influence whether anyone calls you even more. We set up a repeatable request process after successful jobs. We never incentivise reviews or condition the request on someone being happy — that violates Google's policies and it is obvious to readers."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What does local SEO cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Local SEO is part of our monthly maintenance plans, $299 to $1,199 per month depending on scope. No separate setup fee and no annual contract."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Local SEO</span>
+            <h1>Local SEO That Gets You <span class="accent">Found Nearby</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Most people looking for a local business never scroll past the map.
+                Local SEO is the work that puts you in it &mdash; Google Business
+                Profile, consistent listings, real reviews, and pages built for the
+                area you actually serve.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+            <p class="hero__meta">Month-to-month &middot; No ranking guarantees &middot; Reporting in plain English</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── The map pack ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why Local Is Different</span>
+            <h2>The Map Pack Is The Whole Game</h2>
+            <p>Local search doesn&rsquo;t work like national search, and treating it the same is why most local SEO underdelivers.</p>
+        </div>
+
+        <div class="callout">
+            <p>
+                When someone searches for a service near them, Google shows three
+                businesses in a map block above the normal results. Most people pick
+                one of those three. You can rank fourth organically and still be
+                invisible &mdash; which is why local SEO is a different discipline,
+                not a smaller version of the same one.
+            </p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Proximity You Can&rsquo;t Buy</h3>
+                <p>Google weighs how close you are to the searcher. You can&rsquo;t change your location, but you can make sure you show up for every area you genuinely serve &mdash; and stop competing for areas you don&rsquo;t.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Consistency Beats Volume</h3>
+                <p>Your name, address and phone number have to match everywhere they appear. One old suite number on a directory nobody reads still muddies the signal. Cleanup is unglamorous and it moves the needle.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Reviews Are Ranking And Conversion</h3>
+                <p>Volume and recency affect visibility. They affect whether anyone calls you even more. A steady trickle of recent, detailed reviews beats forty five-star ratings from three years ago.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Your Profile Is A Landing Page</h3>
+                <p>Categories, services, hours, photos, Q&amp;A, posts. Most businesses fill in the name and address and stop. A fully-built profile outranks a half-built one from a bigger company more often than you&rsquo;d think.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What's included ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What We Do</span>
+            <h2>The Five Parts Of Local Search Engine Optimization</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Google Business Profile</h3>
+                <p>Correct primary category, honest secondary categories, full service list, real photos, service areas, and Q&amp;A seeded with questions customers actually ask. The single highest-leverage local asset you own.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Citation Cleanup</h3>
+                <p>Bing Places, Apple Business Connect, Facebook, Yelp, BBB, industry directories &mdash; one consistent listing each. Quality over quantity. No junk directory packages, which do nothing and sometimes hurt.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Review Workflow</h3>
+                <p>A repeatable request after every successful job, so reviews arrive steadily instead of in one suspicious burst. Never incentivised, never conditioned on sentiment &mdash; both violate Google&rsquo;s policies and readers can tell.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>On-Site Local Signals</h3>
+                <p>Consistent NAP in the footer, LocalBusiness schema, an accurate contact page, and genuinely useful location pages where the demand justifies one. Never thin, spun city pages &mdash; those get discounted.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Local Content</h3>
+                <p>Pages answering what local customers actually search: what you charge, which areas you cover, how fast you can get there. Useful first, optimised second.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Reporting That Names Numbers</h3>
+                <p>Map-pack positions, profile views, calls, direction requests, and inquiries from organic search. Monthly, in plain English, with what we&rsquo;re changing next.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Honesty ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Answers</span>
+            <h2>What Local SEO Can And Can&rsquo;t Do</h2>
+            <p>Local SEO is a crowded, heavily-sold market. Here is the version without the pitch.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What It Can Do</h3>
+                <ul class="bullet-list">
+                    <li>Get you into the map pack for the areas you genuinely serve</li>
+                    <li>Move faster than national SEO &mdash; weeks, not quarters, for profile work</li>
+                    <li>Turn your Google profile into a second front door</li>
+                    <li>Build review flow that keeps working after you stop paying us</li>
+                    <li>Cost less per customer than paid ads over time</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What It Can&rsquo;t Do</h3>
+                <ul class="bullet-list">
+                    <li>Guarantee a map-pack position. Nobody controls Google&rsquo;s index</li>
+                    <li>Overcome proximity. You will not consistently rank in a suburb 40 miles away</li>
+                    <li>Fix a one-star reputation. We can&rsquo;t bury real reviews and won&rsquo;t try</li>
+                    <li>Work at a fake address. Virtual offices get listings suspended</li>
+                    <li>Replace answering your phone. The lead still has to reach a human</li>
+                </ul>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Running a law firm? Legal is competitive enough to need its own approach &mdash;
+            see <a href="{% url 'public:service_law_firm_seo' %}">law firm SEO</a> instead.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Local SEO, Answered</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>What is local SEO?</h3>
+                <p>The work that gets your business shown when someone nearby searches for what you sell &mdash; especially in the map pack above the normal results. Proximity, your profile and listing consistency matter more here than raw content volume.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does it take?</h3>
+                <p>Faster than national SEO. Profile fixes can shift map visibility in weeks; citations and reviews compound over two to three months. Competitive categories in big metros take longer.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I need a physical address?</h3>
+                <p>Not necessarily. If you go to customers, configure Google Business Profile as a service-area business &mdash; address hidden, service areas declared. Never use a virtual office as a storefront; Google suspends listings for it.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do reviews affect rankings?</h3>
+                <p>Yes &mdash; volume and recency both. And they affect whether anyone calls even more. We set up a repeatable request after successful jobs, never incentivised and never conditioned on sentiment.</p>
+            </article>
+
+            <article class="card">
+                <h3>What does it cost?</h3>
+                <p>Part of our monthly maintenance plans, $299&ndash;$1,199/month depending on scope. No setup fee, no annual contract. Full breakdown on <a href="{% url 'public:pricing' %}">pricing</a>.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can you work on a site you didn&rsquo;t build?</h3>
+                <p>Usually. We audit first. If the platform can&rsquo;t output clean markup or you don&rsquo;t own the code, we&rsquo;ll tell you before you spend money the platform will waste.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Find Out Where You Actually Rank Locally</h2>
+            <p>
+                A free audit and a straight conversation about what&rsquo;s realistic
+                in your category and your area. If local SEO isn&rsquo;t your best next
+                spend, we&rsquo;ll tell you that instead.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:service_seo' %}">See All SEO Services</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -253,6 +253,9 @@ class Phase2ServicePageTests(TestCase):
     PAGES = [
         '/services/seo/law-firm-seo/',
         '/services/web-design/law-firm-web-design/',
+        '/services/seo/local-seo/',
+        '/services/web-design/small-business-web-design/',
+        '/services/web-design/website-redesign/',
     ]
 
     def _blocks(self, path):
@@ -384,6 +387,32 @@ class Phase2ServicePageTests(TestCase):
             '/services/seo/law-firm-seo/').content.decode().lower()
         self.assertIn('no ranking guarantees', html)
         self.assertIn('nobody controls', html)
+
+
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com')
+class DogfoodTrackerHostGateTests(TestCase):
+    """
+    The conversion tracker is only loaded on the canonical host.
+
+    The script hardcodes absolute https://aspiredwebsites.com API
+    endpoints — correct, because it is built to run on CLIENT sites on
+    other domains. But that means on staging those calls are
+    cross-origin, the public CSP (connect-src 'self') blocks them, and
+    we log console errors while trying to post staging traffic into
+    production analytics.
+    """
+
+    @override_settings(ALLOWED_HOSTS=['aspiredwebsites.com'])
+    def test_tracker_loads_on_canonical_host(self):
+        html = self.client.get(
+            '/', HTTP_HOST='aspiredwebsites.com').content.decode()
+        self.assertIn('aspired-tracker.js', html)
+
+    @override_settings(ALLOWED_HOSTS=['staging.aspiredwebsites.com'])
+    def test_tracker_absent_on_staging(self):
+        html = self.client.get(
+            '/', HTTP_HOST='staging.aspiredwebsites.com').content.decode()
+        self.assertNotIn('aspired-tracker.js', html)
 
 
 class RobotsTxtTests(TestCase):
