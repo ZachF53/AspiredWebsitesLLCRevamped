@@ -1,0 +1,12 @@
+{% comment %}
+Pricing-card price block. Expects a ServiceTier as `tier`.
+
+Rendered from tier.price_parts rather than tier.get_price_display so the
+currency glyph and the billing interval get their own (much smaller)
+type sizes. As one flat string at the card's 3rem numeral size,
+"$1,199/month" overflowed a 3-up card and wrapped mid-number.
+
+Whitespace between the spans is deliberately suppressed — a newline
+here would render as a space after the "$".
+{% endcomment %}
+{% with p=tier.price_parts %}<div class="card__price">{% if p.currency %}<span class="card__price-currency">{{ p.currency }}</span>{% endif %}{{ p.amount }}{% if p.unit %}<span class="card__price-unit">{{ p.unit }}</span>{% endif %}</div>{% endwith %}

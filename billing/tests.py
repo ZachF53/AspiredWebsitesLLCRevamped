@@ -1039,3 +1039,57 @@ class SeedStripeCustomersCommandTests(TestCase):
             mock_create.assert_not_called()
         cp.refresh_from_db()
         self.assertEqual(cp.stripe_customer_id, '')
+
+
+class PricePartsTests(TestCase):
+    """
+    ServiceTier.price_parts — splits the display string so a pricing
+    card can typeset the currency and interval smaller than the numeral.
+
+    The regression: "$1,199/month" rendered as one flat string at the
+    card's 3rem size overflowed a 3-up card and wrapped mid-number,
+    printing "$1,199/mont" on one line and "h" on the next.
+    """
+
+    def _tier(self, **kw):
+        from billing.pricing_models import ServiceTier
+        defaults = dict(
+            category='maintenance', name='T', slug='t',
+            price=Decimal('1199'), is_recurring=True,
+            billing_interval='month',
+        )
+        defaults.update(kw)
+        return ServiceTier(**defaults)
+
+    def test_splits_currency_amount_and_interval(self):
+        self.assertEqual(
+            self._tier().price_parts,
+            {'currency': '$', 'amount': '1,199', 'unit': '/month'})
+
+    def test_one_time_price_has_no_interval(self):
+        parts = self._tier(
+            price=Decimal('2500'), is_recurring=False,
+            billing_interval='').price_parts
+        self.assertEqual(parts,
+                         {'currency': '$', 'amount': '2,500', 'unit': ''})
+
+    def test_free_text_override_falls_through_whole(self):
+        """A hand-written price_display must still render verbatim."""
+        parts = self._tier(price_display='Custom').price_parts
+        self.assertEqual(parts,
+                         {'currency': '', 'amount': 'Custom', 'unit': ''})
+        ranged = self._tier(price_display='From $2,500').price_parts
+        self.assertEqual(ranged['amount'], 'From $2,500')
+        self.assertEqual(ranged['currency'], '')
+
+    def test_parts_recombine_to_the_display_string(self):
+        """Whatever the split, no character may be lost or invented."""
+        for kw in ({}, {'is_recurring': False, 'billing_interval': ''},
+                   {'billing_interval': 'year'},
+                   {'price_display': '$150/yr'},
+                   {'price_display': 'Custom'}):
+            with self.subTest(kw=kw):
+                tier = self._tier(**kw)
+                p = tier.price_parts
+                self.assertEqual(p['currency'] + p['amount'] + p['unit'],
+                                 tier.get_price_display())

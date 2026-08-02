@@ -4,6 +4,8 @@ pricing tier, feature bullet, and Stripe Price ID. Managed from the admin
 dashboard at /admin-dashboard/pricing/.
 """
 
+import re
+
 from django.db import models
 
 from core.models import TimestampedModel
@@ -80,6 +82,34 @@ class ServiceTier(TimestampedModel):
             interval = self.billing_interval or 'mo'
             return f'${self.price:,.0f}/{interval}'
         return f'${self.price:,.0f}'
+
+    @property
+    def price_parts(self):
+        """
+        get_price_display() split for typesetting on a pricing card:
+        ``{'currency': '$', 'amount': '1,199', 'unit': '/month'}``.
+
+        The marketing cards set the numeral at ~3rem. Rendered as one
+        flat string, "$1,199/month" is wider than a card in a 3-up grid
+        and wrapped mid-number ("$1,199/mont" + "h"). Splitting it lets
+        the template drop the currency and interval into
+        .card__price-currency / .card__price-unit, which are already
+        sized down — so the line fits with room to spare.
+
+        Anything that isn't the ``$N/interval`` shape (a hand-written
+        price_display like "Custom" or "From $2,500") falls through with
+        the whole string in ``amount``, so it still renders correctly —
+        just without the small-caps treatment.
+        """
+        raw = self.get_price_display()
+        match = re.match(r'^\s*(\$)([\d,]+(?:\.\d+)?)(/\S+)?\s*$', raw)
+        if not match:
+            return {'currency': '', 'amount': raw, 'unit': ''}
+        return {
+            'currency': match.group(1),
+            'amount': match.group(2),
+            'unit': match.group(3) or '',
+        }
 
     @classmethod
     def get_active(cls, category):

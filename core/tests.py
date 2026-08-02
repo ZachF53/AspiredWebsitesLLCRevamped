@@ -279,8 +279,19 @@ class SchedulerCanonicalTests(TestCase):
                 self.assertNotIn('noindex', resp.content.decode())
 
 
+@override_settings(PRODUCTION_HOST='testserver')
 class NoindexTests(TestCase):
-    """Private and duplicate-prone pages must carry noindex, no canonical."""
+    """
+    Private and duplicate-prone pages must carry noindex, no canonical.
+
+    PRODUCTION_HOST is pinned to the test host on purpose. Without it
+    every page under `testserver` inherits the sitewide non-production
+    noindex from base.html, which makes all three tests here vacuous —
+    the "private pages are noindex" assertions would pass even if the
+    per-page directives were deleted, and the indexable-pages test would
+    fail on correctly-configured pages. Pinning it means these test the
+    per-page directives, which is what they are for.
+    """
 
     NOINDEX_PATHS = ['/login/', '/password-reset/', '/contact/thanks/']
 
@@ -477,6 +488,73 @@ class PublicCssBundleTests(TestCase):
             'Classes applied by public JS are styled in main.css but '
             'absent from public.css — they will render unstyled:\n  '
             + '\n  '.join(missing))
+
+
+@override_settings(PRODUCTION_HOST='testserver')
+class BulletListMarkerTests(TestCase):
+    """
+    Regression: .bullet-list sets `list-style: none` because it was
+    written for a <li class="bullet-list__item"> wrapper carrying its
+    own icon span. Every list on the Phase 2/3 pages used a plain
+    <li> instead, so the native marker was suppressed and no
+    replacement was drawn — they shipped as unbulleted sentences.
+
+    Both forms must produce a visible marker.
+    """
+
+    def _css(self, name):
+        import os
+
+        from django.conf import settings as _settings
+        path = os.path.join(_settings.BASE_DIR, 'core', 'static', 'css', name)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def test_bare_list_items_get_a_marker_in_both_bundles(self):
+        for bundle in ('main.css', 'public.css'):
+            with self.subTest(bundle=bundle):
+                css = self._css(bundle)
+                self.assertIn('.bullet-list > li:not(.bullet-list__item)', css)
+                self.assertIn(
+                    '.bullet-list > li:not(.bullet-list__item)::before', css)
+
+    def test_marker_is_the_brand_orange(self):
+        css = self._css('main.css')
+        rule = css.split(
+            '.bullet-list > li:not(.bullet-list__item)::before')[1]
+        self.assertIn('var(--color-orange)', rule.split('}')[0])
+
+    def test_every_public_bullet_list_item_can_render_a_marker(self):
+        """
+        A <li> is styled either by the icon wrapper or by the ::before
+        rule. Anything else renders bare — so no template may use a
+        third form.
+        """
+        import os
+        import re as _re
+
+        from django.conf import settings as _settings
+
+        bad = []
+        for root, _dirs, files in os.walk(_settings.BASE_DIR):
+            if 'myvenv' in root or '.git' in root:
+                continue
+            for name in files:
+                if not name.endswith('.html'):
+                    continue
+                path = os.path.join(root, name)
+                with open(path, encoding='utf-8', errors='ignore') as fh:
+                    html = fh.read()
+                for block in _re.findall(
+                        r'<ul class="bullet-list">(.*?)</ul>', html, _re.S):
+                    for li in _re.findall(r'<li([^>]*)>', block):
+                        # Either bare (::before covers it) or the icon
+                        # wrapper. A different class on the <li> would
+                        # match neither.
+                        cls = _re.search(r'class="([^"]*)"', li)
+                        if cls and 'bullet-list__item' not in cls.group(1):
+                            bad.append(f'{name}: <li{li}>')
+        self.assertEqual(bad, [], 'Unstyleable bullet-list items: %s' % bad)
 
 
 @override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
@@ -1050,6 +1128,27 @@ class ConversionBlockTests(TestCase):
         for item in faq['mainEntity']:
             with self.subTest(q=item['name']):
                 self.assertIn(item['name'].split('?')[0][:22], plain)
+
+    def test_pricing_card_splits_the_price_into_sized_parts(self):
+        """
+        The $1,199 maintenance tier is the widest price on the site. It
+        must reach the page as three spans, not one flat string —
+        rendered flat at the card's 3rem numeral size it overflowed a
+        3-up card and broke mid-number ("$1,199/mont" + "h").
+        """
+        from decimal import Decimal
+
+        from billing.pricing_models import ServiceTier
+        ServiceTier.objects.create(
+            category='maintenance', name='Dominant', slug='dominant-test',
+            price=Decimal('1199'), is_recurring=True,
+            billing_interval='month', is_active=True)
+        html = self.client.get('/pricing/').content.decode()
+        self.assertIn(
+            '<div class="card__price">'
+            '<span class="card__price-currency">$</span>1,199'
+            '<span class="card__price-unit">/month</span></div>',
+            html)
 
     def test_law_firms_has_switching_faq(self):
         html = self.client.get('/for-law-firms/').content.decode()

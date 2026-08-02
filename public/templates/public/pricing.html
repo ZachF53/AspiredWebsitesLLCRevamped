@@ -116,7 +116,7 @@ where the FAQs are genuinely visible on-page, which they are.
                     {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
                     {% if tier.timeline_weeks %}<span class="card__timeline-badge">Launches in {{ tier.timeline_weeks }} weeks</span>{% endif %}
                     <h3 class="card__title">{{ tier.name }}</h3>
-                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    {% include "core/_price.html" with tier=tier %}
                     <p class="card__price-meta">50% upfront &middot; 50% on delivery</p>
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
@@ -151,7 +151,7 @@ where the FAQs are genuinely visible on-page, which they are.
                 <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
                     {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
                     <h3 class="card__title">{{ tier.name }}</h3>
-                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    {% include "core/_price.html" with tier=tier %}
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                         <li class="feature-list__hosting-opt">Optional hosting move-over — $50 off first year</li>
@@ -192,7 +192,7 @@ where the FAQs are genuinely visible on-page, which they are.
                 <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
                     {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
                     <h3 class="card__title">{{ tier.name }}</h3>
-                    <div class="card__price">{{ tier.get_price_display }}</div>
+                    {% include "core/_price.html" with tier=tier %}
                     <ul class="feature-list">
                         {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                         {% if tier.max_channels %}<li>{{ tier.max_channels }} channels of your choice</li>{% endif %}
@@ -230,7 +230,7 @@ where the FAQs are genuinely visible on-page, which they are.
         <article class="hosting-banner card card--teal">
             <div class="hosting-banner__lead">
                 <h3 class="card__title">{{ hosting.name }}</h3>
-                <div class="card__price">{{ hosting.get_price_display }}</div>
+                {% include "core/_price.html" with tier=hosting %}
                 <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
             </div>
             <ul class="feature-list hosting-banner__features">

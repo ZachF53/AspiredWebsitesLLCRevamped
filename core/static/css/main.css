@@ -1740,6 +1740,32 @@ textarea.form-control {
     color: var(--color-text);
 }
 
+/* Bare <li> — no .bullet-list__item / __icon wrapper.
+   `list-style: none` above kills the native marker, and without the
+   icon span these rendered as unbulleted sentences, which is what the
+   list markup was there to avoid. Draw the marker instead so both
+   forms look the same and the templates can stay plain <li>. */
+.bullet-list > li:not(.bullet-list__item) {
+    position: relative;
+    padding-left: 1.5rem;
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+.bullet-list > li:not(.bullet-list__item)::before {
+    content: "";
+    position: absolute;
+    left: 0.3rem;
+    /* 0.62em from the top centres the dot on the first line's
+       x-height at line-height 1.6 — not on the whole <li>, which
+       would drift down on any item that wraps. */
+    top: 0.62em;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    background: var(--color-orange);
+}
+
 /* Comparison table */
 .compare-table-wrapper {
     overflow-x: auto;
@@ -1838,6 +1864,14 @@ textarea.form-control {
         grid-template-columns: repeat(2, 1fr);
         column-gap: var(--space-4);
     }
+    /* ...but not inside a card. The two-column split was written for
+       a full-width list (/for-law-firms/). Nested in a card that is
+       itself half the container, each column is ~230px, so every
+       bullet wraps to three lines and the list stops scanning as a
+       list. One per row inside a card. */
+    .card .bullet-list {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ── 16c. Pricing / plan utilities ─────────────────────────── */
@@ -1923,10 +1957,16 @@ textarea.form-control {
 }
 
 /* Price block — serif numeral, raised $ glyph, muted /mo suffix.
-   Clamp ceiling sized to fit the worst-case "$1,199/month" string
-   inside a 3-column grid card (~340px content width on a 1280px
-   viewport). overflow-wrap is the safety net for any future price
-   we add. */
+   Rendered from core/_price.html, which splits the display string so
+   the currency and interval sit in their own small spans. That is what
+   makes the worst case ("$1,199/month") fit a 3-up card: only "1,199"
+   is set at the full clamp size.
+
+   word-break: keep-all — an earlier `overflow-wrap: anywhere` here was
+   meant as a safety net for future prices, but it let the browser
+   break inside the number itself, rendering "$1,199/mont" + "h". A
+   price is a single atomic token; it must never split. If one ever
+   genuinely does not fit, the clamp floor should come down instead. */
 .card__price {
     font-family: var(--font-serif);
     font-size: clamp(2rem, 4.5vw, 3rem);
@@ -1935,8 +1975,9 @@ textarea.form-control {
     line-height: 1.05;
     margin-block: var(--space-2);
     letter-spacing: -0.02em;
-    overflow-wrap: anywhere;
-    word-break: normal;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    hyphens: none;
     max-width: 100%;
 }
 
@@ -1955,6 +1996,9 @@ textarea.form-control {
     margin-left: 0.25rem;
     vertical-align: baseline;
     letter-spacing: 0;
+    /* The interval may drop to its own line if the card is very
+       narrow, but "/month" itself never splits. */
+    white-space: nowrap;
 }
 
 .card__price-meta {
