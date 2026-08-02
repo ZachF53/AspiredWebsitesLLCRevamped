@@ -595,6 +595,61 @@ p {
     }
 }
 
+/* ── Article body (/insights/) ───────────────────────────────
+   Long-form prose, so it gets a measure cap rather than the full
+   container width — ~68 characters is the readable range and the
+   default container is far wider than that. Styles target raw
+   elements because the body is author-written HTML, not markup we
+   can add classes to. */
+.article-body {
+    max-width: 68ch;
+    margin-inline: auto;
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    color: var(--color-text);
+}
+
+.article-body > * + * {
+    margin-top: var(--space-3);
+}
+
+.article-body h2 {
+    margin-top: var(--space-5);
+    font-size: 1.5rem;
+    line-height: 1.3;
+}
+
+.article-body h3 {
+    margin-top: var(--space-4);
+    font-size: 1.15rem;
+    color: var(--color-accent);
+}
+
+.article-body ul,
+.article-body ol {
+    padding-left: 1.35rem;
+}
+
+.article-body li + li {
+    margin-top: 0.5rem;
+}
+
+.article-body strong {
+    color: var(--color-text);
+    font-weight: 700;
+}
+
+.article-body a {
+    color: var(--color-orange);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.article-body a:hover,
+.article-body a:focus-visible {
+    color: var(--color-text);
+}
+
 /* Trailing note under a section — the "if this isn't you, go here
    instead" line that routes visitors to the right page. Used heavily
    by the Phase 2 service pages to wire internal-link clusters (§8)

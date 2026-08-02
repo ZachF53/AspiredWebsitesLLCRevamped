@@ -615,6 +615,104 @@ class CaseStudyTests(TestCase):
         self.assertEqual(names, ['Home', 'Portfolio', 'Denis Law Group'])
 
 
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
+class InsightsTests(TestCase):
+    """/insights/ — the blog (Master Plan §12)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_insights')
+
+    def test_index_and_articles_render(self):
+        from public.models import Article
+        self.assertEqual(self.client.get('/insights/').status_code, 200)
+        for article in Article.objects.filter(status='published'):
+            with self.subTest(slug=article.slug):
+                self.assertEqual(
+                    self.client.get(article.get_absolute_url()).status_code,
+                    200)
+
+    def test_seed_is_idempotent(self):
+        from public.models import Article
+        before = Article.objects.count()
+        call_command('seed_insights')
+        self.assertEqual(Article.objects.count(), before)
+
+    def test_draft_articles_are_invisible(self):
+        from public.models import Article
+        article = Article.objects.first()
+        article.status = 'draft'
+        article.save()
+        self.assertEqual(
+            self.client.get(article.get_absolute_url()).status_code, 404)
+        self.assertNotIn(
+            article.get_absolute_url(),
+            self.client.get('/insights/').content.decode())
+
+    def test_articles_have_named_authorship(self):
+        """§11 lists named authorship on every article as an E-E-A-T fix."""
+        from public.models import Article
+        for article in Article.objects.filter(status='published'):
+            with self.subTest(slug=article.slug):
+                html = self.client.get(
+                    article.get_absolute_url()).content.decode()
+                self.assertIn(article.author_name, html)
+                block = next(m for m in re.findall(
+                    r'<script type="application/ld\+json">(.*?)</script>',
+                    html, re.S) if '"Article"' in m)
+                data = json.loads(block)
+                self.assertEqual(
+                    data['author'],
+                    {'@id': 'https://aspiredwebsites.com/#zachery-long'})
+                self.assertIn('datePublished', data)
+
+    def test_every_article_links_to_its_commercial_page(self):
+        """§12: supporting articles must link back to their money page."""
+        from public.models import Article
+        for article in Article.objects.filter(status='published'):
+            with self.subTest(slug=article.slug):
+                self.assertTrue(article.related_url)
+                html = self.client.get(
+                    article.get_absolute_url()).content.decode()
+                self.assertIn(article.related_url, html)
+
+    def test_articles_use_h2_not_a_second_h1(self):
+        """The title is the page's only H1 (§5.4)."""
+        from public.models import Article
+        for article in Article.objects.filter(status='published'):
+            with self.subTest(slug=article.slug):
+                html = self.client.get(
+                    article.get_absolute_url()).content.decode()
+                self.assertEqual(len(re.findall(r'<h1[^>]*>', html)), 1)
+
+    def test_articles_are_in_the_sitemap(self):
+        xml = self.client.get('/sitemap.xml').content.decode()
+        self.assertIn('/insights/how-much-does-a-custom-website-cost/', xml)
+
+    def test_no_ranking_guarantee_in_articles(self):
+        from public.models import Article
+        for article in Article.objects.filter(status='published'):
+            with self.subTest(slug=article.slug):
+                body = article.body.lower()
+                for phrase in ('we guarantee', 'guaranteed ranking',
+                               'guaranteed first page'):
+                    self.assertNotIn(phrase, body)
+
+    def test_slug_autogenerates(self):
+        from public.models import Article
+        a = Article.objects.create(title='A Test Post', summary='x', body='y')
+        self.assertEqual(a.slug, 'a-test-post')
+
+    def test_publishing_sets_published_at(self):
+        from public.models import Article
+        a = Article.objects.create(title='Timing Test', summary='x', body='y')
+        self.assertIsNone(a.published_at)
+        a.status = 'published'
+        a.save()
+        self.assertIsNotNone(a.published_at)
+
+
 @override_settings(PRODUCTION_HOST='testserver')
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Insights — Web Design &amp; SEO, Explained | Aspired{% endblock %}
+
+{% block meta_description %}Straight answers on what a website actually costs, custom versus WordPress, and why your business isn't showing up on Google — written by a CISSP-certified engineer who builds them.{% endblock %}
+
+{% block og_title %}Insights — Aspired Websites{% endblock %}
+{% block og_description %}What websites cost, custom vs templates, and getting found on Google. No filler, no quota posts.{% endblock %}
+
+{% comment %}
+Master Plan §12. The index deliberately shows the summary rather than
+a truncated body: the summary doubles as the meta description, so
+writing it well is enforced by it being the only thing on the card.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block content %}
+
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Insights</span>
+            <h1>Straight Answers About <span class="accent">Websites And Search</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                What things actually cost, what actually works, and what
+                agencies usually leave out. Written by the engineer who builds
+                the sites &mdash; not a content farm hitting a quota.
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section section--alt">
+    <div class="container">
+        <div class="cards cards--2col">
+            {% for article in articles %}
+                <article class="card card--accent-left">
+                    {% if article.published_at %}
+                        <span class="eyebrow">
+                            <time datetime="{{ article.published_at|date:'Y-m-d' }}">{{ article.published_at|date:'F Y' }}</time>
+                        </span>
+                    {% endif %}
+                    <h2><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h2>
+                    <p>{{ article.summary }}</p>
+                    <p><a href="{{ article.get_absolute_url }}">Read it &rarr;</a></p>
+                </article>
+            {% empty %}
+                <article class="card">
+                    <h2>First articles publishing soon</h2>
+                    <p>
+                        We&rsquo;d rather skip a slot than publish filler. In the
+                        meantime, the <a href="{% url 'public:pricing' %}">pricing page</a>
+                        answers most of what people ask first.
+                    </p>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Got A Question We Haven&rsquo;t Answered?</h2>
+            <p>Ask it directly. We answer within 24 hours, and there&rsquo;s no pitch attached.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

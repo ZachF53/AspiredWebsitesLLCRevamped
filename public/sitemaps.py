@@ -128,11 +128,29 @@ class CaseStudySitemap(Sitemap):
         return item.updated_at
 
 
+class ArticleSitemap(Sitemap):
+    """Published /insights/ articles (§12). Model-driven — publishing
+    in the admin puts a post in the sitemap without a deploy."""
+    priority = 0.6
+    changefreq = 'monthly'
+
+    def items(self):
+        from public.models import Article
+        return Article.objects.filter(status='published')
+
+    def location(self, item):
+        return item.get_absolute_url()
+
+    def lastmod(self, item):
+        return item.updated_at
+
+
 SITEMAPS = {
     'core':       CoreSitemap,
     'services':   ServiceSitemap,
     'funnels':    StrongIntentSitemap,
     'secondary':  SecondarySitemap,
     'casestudies': CaseStudySitemap,
+    'insights':   ArticleSitemap,
     'legal':      LegalSitemap,
 }

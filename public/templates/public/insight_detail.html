@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ article.title }} | Aspired Websites{% endblock %}
+
+{% block meta_description %}{{ article.summary }}{% endblock %}
+
+{% block og_title %}{{ article.title }}{% endblock %}
+{% block og_description %}{{ article.summary }}{% endblock %}
+
+{% comment %}
+Article schema with named authorship — §11 lists "named authorship and
+bio on every article" as an explicit E-E-A-T fix, and the author is a
+real Person node already declared sitewide, referenced by @id rather
+than duplicated.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": "{{ CANONICAL_URL }}#article",
+    "headline": "{{ article.title|escapejs }}",
+    "description": "{{ article.summary|escapejs }}",
+    "url": "{{ CANONICAL_URL }}",
+    "author": { "@id": "{{ SITE_BASE_URL }}/#zachery-long" },
+    "publisher": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "mainEntityOfPage": "{{ CANONICAL_URL }}"{% if article.published_at %},
+    "datePublished": "{{ article.published_at|date:'c' }}"{% endif %},
+    "dateModified": "{{ article.updated_at|date:'c' }}"
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Insights</span>
+            <h1>{{ article.title }}</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">{{ article.summary }}</p>
+            <p class="hero__meta">
+                By {{ article.author_name }}{% if article.author_title %}, {{ article.author_title }}{% endif %}
+                {% if article.published_at %}
+                    &middot; <time datetime="{{ article.published_at|date:'Y-m-d' }}">{{ article.published_at|date:'F j, Y' }}</time>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <div class="article-body">
+            {{ article.body|safe }}
+        </div>
+
+        {% if article.related_url %}
+            {% comment %}
+            §12 requires every supporting article to link back to the
+            commercial page it exists to support — this is the
+            article's half of the internal-link cluster.
+            {% endcomment %}
+            <p class="section-note">
+                <a href="{{ article.related_url }}">{{ article.related_label|default:"See how we can help &rarr;" }}</a>
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+<section class="section section--alt">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Questions About Your Own Site?</h2>
+            <p>
+                Book a call and get a straight answer &mdash; including
+                &ldquo;you don&rsquo;t need us for this&rdquo; when that&rsquo;s
+                the truth.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:insights' %}">More Insights</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

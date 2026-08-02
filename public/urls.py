@@ -13,6 +13,11 @@ urlpatterns = [
     path('portfolio/<slug:slug>/', views.case_study_detail,
          name='case_study_detail'),
     path('pricing/', views.pricing, name='pricing'),
+
+    # ── /insights/ — the blog (Master Plan §12) ────────────────────
+    path('insights/', views.insights_index, name='insights'),
+    path('insights/<slug:slug>/', views.insight_detail,
+         name='insight_detail'),
     path('services/web-design/', views.service_web_design,
          name='service_web_design'),
     path('services/digital-marketing/', views.service_digital_marketing,

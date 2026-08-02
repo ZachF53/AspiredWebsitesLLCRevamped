@@ -208,6 +208,42 @@ def service_seo(request):
     })
 
 
+def insights_index(request):
+    """
+    /insights/ — the blog index (Master Plan §12).
+
+    Only published articles. Draft posts are invisible rather than
+    login-gated: an unfinished article should not exist publicly at
+    all, in any form.
+    """
+    from .models import Article
+    return render(request, 'public/insights_index.html', {
+        'active_nav': 'insights',
+        'articles': Article.objects.filter(status='published'),
+        'meta_title': 'Insights',
+        'meta_description': (
+            'Straight answers on what websites cost, why custom beats '
+            'templates, and how to get found on Google — written by a '
+            'CISSP-certified engineer who builds them.'
+        ),
+    })
+
+
+def insight_detail(request, slug):
+    """/insights/<slug>/ — one article."""
+    from django.shortcuts import get_object_or_404
+    from .models import Article
+    article = get_object_or_404(Article, slug=slug, status='published')
+    return render(request, 'public/insight_detail.html', {
+        'active_nav': 'insights',
+        'article': article,
+        'breadcrumbs': [
+            ('Insights', '/insights/'),
+            (article.title, None),
+        ],
+    })
+
+
 def service_law_firm_seo(request):
     """
     /services/seo/law-firm-seo/ — the highest-value page on the site.
