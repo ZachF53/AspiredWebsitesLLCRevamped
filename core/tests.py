@@ -397,6 +397,9 @@ class Phase2ServicePageTests(TestCase):
         '/services/seo/local-seo/',
         '/services/web-design/small-business-web-design/',
         '/services/web-design/website-redesign/',
+        # ── Phase 3 ──
+        '/services/web-design/custom-web-development/',
+        '/locations/san-antonio/',
     ]
 
     def _blocks(self, path):
@@ -451,13 +454,20 @@ class Phase2ServicePageTests(TestCase):
     def test_faq_schema_questions_appear_on_page(self):
         """
         §8 permits FAQPage schema only where the FAQs are visible.
-        Guard against the schema and the page drifting apart.
+
+        Note the direction of the rule: FAQ schema is not *required*
+        on every page — the location page has no FAQ section and
+        correctly emits none. What is asserted is the conditional: if
+        a page ships FAQPage schema, every question in it must appear
+        in the visible copy.
         """
         for path in self.PAGES:
             with self.subTest(path=path):
                 html = self.client.get(path).content.decode()
-                faq = next(b for b in self._blocks(path)
-                           if b.get('@type') == 'FAQPage')
+                faq = next((b for b in self._blocks(path)
+                            if b.get('@type') == 'FAQPage'), None)
+                if faq is None:
+                    continue
                 for item in faq['mainEntity']:
                     # Strip the smart punctuation the template renders
                     # as HTML entities before comparing.
@@ -787,6 +797,123 @@ class InsightsTests(TestCase):
         a.status = 'published'
         a.save()
         self.assertIsNotNone(a.published_at)
+
+
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
+class SanAntonioLocationPageTests(TestCase):
+    """
+    The one location page (D5) — and the one most at risk of breaking
+    §15, which forbids fake offices and thin city pages.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_case_studies')
+
+    def test_page_renders_and_is_indexable(self):
+        html = self.client.get('/locations/san-antonio/').content.decode()
+        self.assertEqual(html.count('rel="canonical"'), 1)
+        self.assertNotIn('noindex', html)
+
+    def test_states_plainly_there_is_no_san_antonio_office(self):
+        """
+        §15: no fake offices. The stronger requirement is that the page
+        SAYS so rather than merely avoiding the claim — a prospect
+        searching a city term is often looking for someone local and
+        should find out how we work before the pitch, not after.
+        """
+        html = self.client.get('/locations/san-antonio/').content.decode()
+        self.assertIn('Have a San Antonio Office', html)
+        self.assertIn('based in Georgia', html)
+
+    def test_does_not_declare_a_second_business_entity(self):
+        """
+        D8 — one business entity sitewide. A location page is the
+        classic place a second LocalBusiness gets invented.
+        """
+        html = self.client.get('/locations/san-antonio/').content.decode()
+        blocks = [json.loads(m) for m in re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            html, re.S)]
+        orgs = 0
+        for block in blocks:
+            for node in block.get('@graph', [block]):
+                if node.get('@type') in ('Organization', 'ProfessionalService',
+                                         'LocalBusiness'):
+                    orgs += 1
+        self.assertEqual(orgs, 1)
+
+    def test_no_postal_address_claimed_for_san_antonio(self):
+        """The only address on the page must be the Atlanta record."""
+        html = self.client.get('/locations/san-antonio/').content.decode()
+        self.assertNotIn('San Antonio, TX 7', html)   # any SA ZIP
+        self.assertIn('Atlanta, GA 30350', html)      # footer master record
+
+    def test_carries_real_san_antonio_proof(self):
+        """
+        What stops this being a thin city page is three genuine SA
+        clients, pulled from the database rather than hardcoded.
+        """
+        from clients.models import CaseStudy
+        sa = CaseStudy.objects.filter(is_published=True,
+                                      location__icontains='San Antonio')
+        self.assertGreaterEqual(sa.count(), 3)
+
+        html = self.client.get('/locations/san-antonio/').content.decode()
+        for study in sa:
+            with self.subTest(slug=study.slug):
+                self.assertIn(study.get_absolute_url(), html)
+
+    def test_sa_case_studies_link_back_to_the_location_page(self):
+        """§8 — the cluster is wired both ways."""
+        html = self.client.get(
+            '/portfolio/denis-law-group/').content.decode()
+        self.assertIn('/locations/san-antonio/', html)
+
+    def test_no_atlanta_or_warner_robins_location_page(self):
+        """D5 resolved to ONE location page. Guard against drift."""
+        for path in ('/locations/atlanta/', '/locations/warner-robins/',
+                     '/locations/'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 404)
+
+
+@override_settings(PRODUCTION_HOST='testserver')
+class CustomWebDevPageTests(TestCase):
+    """
+    Keyword positioning for /custom-web-development/.
+
+    The trap this guards: "hand coded" is the brand story but gets 10
+    searches/mo, while "custom" gets ~3,780. Leading with the former
+    would feel on-brand and cost the head term.
+    """
+
+    PATH = '/services/web-design/custom-web-development/'
+
+    def test_h1_leads_with_custom_not_hand_coded(self):
+        html = self.client.get(self.PATH).content.decode()
+        h1 = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.S).group(1).lower()
+        self.assertIn('custom', h1)
+        self.assertNotIn('hand coded', h1)
+        self.assertNotIn('hand-coded', h1)
+
+    def test_title_and_meta_carry_the_head_terms(self):
+        html = self.client.get(self.PATH).content.decode()
+        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1).lower()
+        self.assertIn('custom web development', title)
+        desc = re.search(
+            r'<meta name="description" content="([^"]*)', html).group(1).lower()
+        self.assertIn('custom', desc)
+
+    def test_still_makes_the_wordpress_comparison(self):
+        """The differentiator belongs in the body, not the H1."""
+        html = self.client.get(self.PATH).content.decode().lower()
+        self.assertIn('wordpress', html)
+
+    def test_admits_when_custom_is_the_wrong_choice(self):
+        html = self.client.get(self.PATH).content.decode().lower()
+        self.assertIn('isn&rsquo;t worth it', html)
 
 
 @override_settings(PRODUCTION_HOST='testserver')

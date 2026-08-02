@@ -208,6 +208,56 @@ def service_seo(request):
     })
 
 
+def service_custom_web_development(request):
+    """
+    /services/web-design/custom-web-development/ — ~3,780/mo across
+    `custom website design` (1,900), `custom web development` (1,000)
+    and `custom web design` (880).
+
+    Leads with "custom", never "hand coded" — that phrase is the brand
+    story but only 10 searches/mo, so it belongs in the body copy
+    rather than the H1 (KEYWORD_RESEARCH_FINDINGS.md §2.1).
+
+    §6.1: the homepage owns generic `web design` / `web design
+    company`; this page owns the "custom" qualifier specifically.
+    """
+    return render(
+        request, 'public/service_custom_web_development.html', {
+            'active_nav': 'services',
+            'active_service': 'custom_web_development',
+            'breadcrumbs': [
+                ('Services', '/services/web-design/'),
+                ('Web Design', '/services/web-design/'),
+                ('Custom Web Development', None),
+            ],
+        })
+
+
+def location_san_antonio(request):
+    """
+    /locations/san-antonio/ — the one location page (D5).
+
+    2,860/mo explicit demand, 14x the build threshold, and the only
+    city the homepage cannot credibly serve because the homepage is
+    Atlanta-branded.
+
+    Served 100% remotely — there is no San Antonio office and the page
+    says so outright (§15: no fake offices). What makes it substantive
+    rather than a thin city page is that three of our four case
+    studies are genuinely San Antonio clients.
+    """
+    from clients.models import CaseStudy
+    return render(request, 'public/location_san_antonio.html', {
+        'active_nav': '',
+        'sa_studies': CaseStudy.objects.filter(
+            is_published=True, location__icontains='San Antonio'
+        ).order_by('-published_at'),
+        'breadcrumbs': [
+            ('San Antonio Web Design', None),
+        ],
+    })
+
+
 def insights_index(request):
     """
     /insights/ — the blog index (Master Plan §12).

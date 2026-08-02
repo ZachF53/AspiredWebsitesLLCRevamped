@@ -43,6 +43,16 @@ urlpatterns = [
     path('services/web-design/website-redesign/',
          views.service_website_redesign,
          name='service_website_redesign'),
+
+    # ── Phase 3 ────────────────────────────────────────────────────
+    path('services/web-design/custom-web-development/',
+         views.service_custom_web_development,
+         name='service_custom_web_development'),
+    # D5: San Antonio is the ONLY location page. 2,860/mo explicit
+    # demand and three real clients there. No /locations/ index — with
+    # one child it would be exactly the thin page §15 forbids.
+    path('locations/san-antonio/', views.location_san_antonio,
+         name='location_san_antonio'),
     path('contact/', views.contact, name='contact'),
     path('contact/thanks/', views.contact_thanks, name='contact_thanks'),
     path('about/', views.about, name='about'),

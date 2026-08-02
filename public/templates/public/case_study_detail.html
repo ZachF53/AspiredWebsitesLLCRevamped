@@ -135,6 +135,25 @@ Organisation entity, canonical and og:image come from base.html (D8).
 
 <hr class="section-divider" aria-hidden="true">
 
+{% comment %}
+Geographic cluster link. Three of the four case studies are San
+Antonio clients, so an SA study should route the reader to the SA
+page — that page's whole claim to substance is this proof, and §8
+wants the cluster wired both ways.
+{% endcomment %}
+{% if 'San Antonio' in study.location %}
+    <section class="section section--alt">
+        <div class="container">
+            <p class="section-note">
+                This was a San Antonio project. See more of
+                <a href="{% url 'public:location_san_antonio' %}">our San Antonio work</a>.
+            </p>
+        </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+{% endif %}
+
 {# ───────── CTA ───────── #}
 <section class="section">
     <div class="container">

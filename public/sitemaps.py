@@ -57,6 +57,9 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
         'public:service_local_seo',
         'public:service_small_business_web_design',
         'public:service_website_redesign',
+        # ── Phase 3 ──
+        'public:service_custom_web_development',
+        'public:location_san_antonio',
     ]
 
 

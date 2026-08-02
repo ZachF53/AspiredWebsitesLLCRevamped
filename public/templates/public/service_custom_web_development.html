@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Custom Web Development | Custom Website Design | Aspired{% endblock %}
+
+{% block meta_description %}Custom web development and custom website design — every line written for your business, not adapted from a theme. Own the code, ship in six weeks, no platform lock-in. From $2,500.{% endblock %}
+
+{% block og_title %}Custom Web Development — Aspired Websites{% endblock %}
+{% block og_description %}Custom websites written from scratch, not assembled from a theme. You own every file. From $2,500.{% endblock %}
+
+{% comment %}
+Owns the "custom" qualifier: `custom website design` (1,900/mo),
+`custom web development` (1,000), `custom web design` (880).
+
+Deliberately does NOT lead with "hand coded" — that phrase is the
+brand story but gets 10 searches/mo. It belongs in the body where it
+explains the differentiator, not in the H1 where it would cost us the
+head term (KEYWORD_RESEARCH_FINDINGS.md §2.1).
+
+§6.1 boundaries: the homepage owns generic `web design` / `web design
+company`; small-business-web-design owns `small business web design`;
+this page owns "custom" specifically.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Custom Web Development",
+    "name": "Custom Web Development & Website Design",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Atlanta" },
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "State", "name": "Georgia" },
+        { "@type": "City", "name": "San Antonio" }
+    ],
+    "description": "Custom web development and custom website design built from scratch for your business — no themes, no page builders, no platform licence. Full code ownership, security-hardened, and fast on mobile.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "What is custom web development?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Custom web development means the site is written for your business rather than adapted from a pre-built theme. The structure, the pages and the functionality are decided by what your business needs, instead of by what a template happens to support."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is custom web development better than WordPress?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Not automatically. WordPress is a good fit when you need constant self-service publishing and dozens of contributors. Custom wins when speed matters, when you want fewer moving parts to break or patch, and when the site has to do something specific rather than something generic. The honest test is whether your site has a job beyond existing."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How much does custom web development cost?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Between $2,500 and $4,500 for most projects, depending on page count and functionality. Hosting is $150 per year. There is no monthly platform licence, because you own the code outright."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Do I own the code for a custom website?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes — the source code, the content, the domain and the data. Any competent developer can take the project over, because it is standard HTML, CSS and JavaScript on standard hosting rather than a proprietary system."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How long does a custom website take to build?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "About six weeks: discovery, structure, design, content, review and launch. Content is the stage that most often slips, so we draft it rather than waiting on a blank page."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can a custom site be updated without a developer?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, for the parts that genuinely change. We wire an editable interface to whatever you actually need to update — services, staff, posts — and leave the rest static, because static pages cannot break and do not need patching."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Custom Web Development</span>
+            <h1>Custom Web Development, <span class="accent">Written For Your Business</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Custom website design means the code is written around what your
+                business actually does &mdash; not bent to fit whatever a theme
+                happened to support. Fewer moving parts, nothing to patch every
+                Tuesday, and you own every file.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">From $2,500 &middot; ~6 weeks &middot; You own the code, content and domain</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── What custom actually means ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Definitions</span>
+            <h2>What &ldquo;Custom&rdquo; Actually Means</h2>
+            <p>The word gets used loosely enough to be meaningless. Here&rsquo;s the version that matters to you.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What It Isn&rsquo;t</h3>
+                <p>Buying a $59 theme and changing the colours. Installing a page builder and dragging blocks around. Both are legitimate ways to get a website &mdash; neither is custom development, and you should not pay custom prices for either.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What It Is</h3>
+                <p>Every page structured around a decision someone made about your business. The markup, the styling and the behaviour written for this site and no other. Nothing loaded because a theme author assumed you might want it one day.</p>
+            </article>
+        </div>
+
+        <div class="callout">
+            <p>
+                The practical test: <strong>can the site do the specific thing your
+                business needs?</strong> A template can only do what it was built to
+                do. If your answer is &ldquo;we work around it,&rdquo; you are paying
+                for that workaround in conversions every month.
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Custom vs WordPress ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">The Real Comparison</span>
+            <h2>Custom Development vs WordPress</h2>
+            <p>We build custom. We&rsquo;ll still tell you when WordPress is the better answer.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>WordPress Is The Better Choice If</h3>
+                <ul class="bullet-list">
+                    <li>You publish constantly and several people need to write</li>
+                    <li>You need a specific plugin ecosystem &mdash; complex e-commerce, memberships, courses</li>
+                    <li>Your team already knows it and switching costs more than it saves</li>
+                    <li>You need it live in days rather than weeks</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Custom Is The Better Choice If</h3>
+                <ul class="bullet-list">
+                    <li>Speed matters &mdash; no theme overhead, no plugin stack to load</li>
+                    <li>You&rsquo;re tired of updates, incompatibilities and things silently breaking</li>
+                    <li>You want a smaller attack surface: no admin login, no plugin CVEs</li>
+                    <li>The site has a specific job a generic template can&rsquo;t do</li>
+                    <li>You want to own the code rather than depend on a plugin author</li>
+                </ul>
+            </article>
+        </div>
+
+        <p class="section-note">
+            The full version of this comparison, including the cost side, is in
+            <a href="{% url 'public:insights' %}">our insights</a>.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── What you get ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What&rsquo;s Included</span>
+            <h2>Every Custom Build Ships With This</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Hand-Written Code</h3>
+                <p>HTML, CSS and JavaScript written by an engineer for this site specifically. No theme to fight, no builder output to un-pick later, no dependency that stops being maintained.</p>
+            </div>
+
+            <div class="value-tile value-tile--featured">
+                <h3>Speed As A Default</h3>
+                <p>Nothing loads that isn&rsquo;t used. This site runs about 1.5 seconds to largest contentful paint on mobile &mdash; measured, not claimed, and you can verify it with any speed tool right now.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>A Smaller Attack Surface</h3>
+                <p>No admin login to brute-force and no plugin stack accumulating vulnerabilities. Built by a CISSP-certified engineer with security headers, a strict content security policy and server-side validation as standard.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Editable Where It Matters</h3>
+                <p>The parts that genuinely change get an editing interface. The parts that don&rsquo;t stay static &mdash; static pages can&rsquo;t break and never need patching.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Structured To Rank</h3>
+                <p>Semantic markup, one H1 per page, schema, canonical tags and a real sitemap. The foundation ships with the build; ongoing work is <a href="{% url 'public:service_seo' %}">SEO</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Yours, Completely</h3>
+                <p>Source code, content, domain, hosting. Standard technology on standard hosting, so any developer can pick it up. No proprietary system holding you in place.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Honest limits ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Answers</span>
+            <h2>Where Custom Development Isn&rsquo;t Worth It</h2>
+            <p>We&rsquo;d rather lose the project than sell you something you don&rsquo;t need.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>You need one page</h3>
+                <p>Hours, phone number, a photo. A $16/month builder does that well and we&rsquo;d be charging you for craftsmanship nobody will notice. Spend the difference on something that grows the business.</p>
+            </article>
+
+            <article class="card">
+                <h3>You need it next week</h3>
+                <p>A proper build takes about six weeks, and most of that is content and review rather than code. If the deadline is real, a template now beats custom later.</p>
+            </article>
+
+            <article class="card">
+                <h3>Your problem isn&rsquo;t the website</h3>
+                <p>If nobody can find you, a rebuild won&rsquo;t fix that on its own &mdash; that&rsquo;s <a href="{% url 'public:service_local_seo' %}">SEO</a>. If the site converts fine, leave it alone.</p>
+            </article>
+
+            <article class="card">
+                <h3>You want cheapest</h3>
+                <p>We&rsquo;re not the cheapest and won&rsquo;t pretend to be. If price is the deciding factor, a freelancer on a template is a legitimate answer.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Custom Web Development, Answered</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>What is custom web development?</h3>
+                <p>The site is written for your business rather than adapted from a theme. Structure, pages and functionality follow what the business needs, not what a template supports.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is it better than WordPress?</h3>
+                <p>Not automatically. WordPress wins for constant multi-author publishing and plugin ecosystems. Custom wins on speed, fewer moving parts, and doing something specific. See the comparison above.</p>
+            </article>
+
+            <article class="card">
+                <h3>How much does it cost?</h3>
+                <p>$2,500&ndash;$4,500 depending on pages and functionality. Hosting $150/year. No monthly platform licence &mdash; you own the code. Full breakdown on <a href="{% url 'public:pricing' %}">pricing</a>.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I own the code?</h3>
+                <p>Yes &mdash; code, content, domain and data. Standard technology on standard hosting, so any developer can take it over.</p>
+            </article>
+
+            <article class="card">
+                <h3>How long does it take?</h3>
+                <p>About six weeks. Content is the stage that slips, so we draft it rather than waiting on you.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can I update it myself?</h3>
+                <p>Yes, for what genuinely changes &mdash; services, staff, posts. The rest stays static, because static pages can&rsquo;t break and never need patching.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Tell Us What The Site Has To Do</h2>
+            <p>
+                A straight conversation about what you need built, what it costs, and
+                whether custom is the right call &mdash; including when it isn&rsquo;t.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:portfolio' %}">See Our Work</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

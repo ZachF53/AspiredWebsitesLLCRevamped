@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Web Design San Antonio | Custom Websites | Aspired{% endblock %}
+
+{% block meta_description %}Custom web design for San Antonio businesses — three SA clients built and counting, including a law firm and a citywide food truck directory. Hand-coded, security-first, you own the code.{% endblock %}
+
+{% block og_title %}San Antonio Web Design — Aspired Websites{% endblock %}
+{% block og_description %}Custom websites for San Antonio businesses. Three SA clients built. Hand-coded, security-first, and you own every file.{% endblock %}
+
+{% comment %}
+D5: the ONE location page. 2,860/mo explicit demand (`web design san
+antonio` 2,400 + `san antonio web designer` 320 + `web design company
+san antonio` 140) — 14x the build threshold, and the only city the
+homepage cannot credibly serve because the homepage is Atlanta-branded.
+
+Two hard constraints, both from §15:
+
+  1. NO FAKE OFFICE. There is no San Antonio address and the page says
+     so in the hero rather than burying it. The 210 phone number is a
+     genuine San Antonio area code, so it is stated as fact, not
+     implied as a location.
+  2. NOT A THIN CITY PAGE. What makes this substantive is that three
+     of our four case studies are real San Antonio clients — pulled
+     live from the database rather than hardcoded, so the page cannot
+     drift out of sync with the portfolio.
+
+Schema is a Service with San Antonio as areaServed. Deliberately NOT
+a second LocalBusiness node — D8 permits exactly one business entity
+sitewide, and inventing a San Antonio one is the precise thing §15
+forbids.
+
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Web Design",
+    "name": "Web Design for San Antonio Businesses",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": { "@type": "City", "name": "San Antonio" },
+    "description": "Custom, hand-coded web design and development for businesses in San Antonio, Texas. Delivered remotely from Georgia, with existing San Antonio clients across legal, food and events, and creative services.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">San Antonio</span>
+            <h1>Web Design for <span class="accent">San Antonio</span> Businesses</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Custom, hand-coded websites for San Antonio businesses that need the
+                site to actually bring in work. Three SA clients built so far &mdash;
+                a law firm, a citywide food truck directory, and a design studio.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">
+                From $2,500 &middot; <a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+The honesty section goes SECOND, not buried at the bottom. A prospect
+searching "web design san antonio" is often looking for someone local;
+they should find out how we actually work before they read the pitch,
+not after.
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Up</span>
+            <h2>We Don&rsquo;t Have a San Antonio Office</h2>
+            <p>You&rsquo;ll find agencies claiming addresses they don&rsquo;t occupy. Here&rsquo;s our actual setup.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>How This Actually Works</h3>
+                <p>
+                    We&rsquo;re based in Georgia and work with San Antonio clients
+                    remotely &mdash; calls, screen shares, and a staging link you can
+                    review from anywhere. Our <strong>(210)</strong> number is a real
+                    San Antonio line, not a redirect trick, and it&rsquo;s where you
+                    reach us.
+                </p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Whether That Matters</h3>
+                <p>
+                    For a website build, it usually doesn&rsquo;t &mdash; the work is
+                    calls, drafts and reviews either way. If you specifically want
+                    someone who can sit in your office, hire locally, and we&rsquo;ll
+                    say so on the call rather than talk you out of it.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Real SA proof ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Proof</span>
+            <h2>What We&rsquo;ve Built in San Antonio</h2>
+            <p>Not a stock photo of the Riverwalk &mdash; actual clients you can go and look at.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            {% for study in sa_studies %}
+                <article class="card card--with-visual">
+                    <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
+                    <div class="card__body">
+                        {% if study.business_type %}
+                            <span class="pill-tag">{{ study.business_type }} &middot; San Antonio</span>
+                        {% endif %}
+                        <h3><a href="{{ study.get_absolute_url }}">{{ study.title }}</a></h3>
+                        {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
+                        <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>
+                    </div>
+                </article>
+            {% empty %}
+                <article class="card">
+                    <div class="card__body">
+                        <h3>Case studies publishing shortly</h3>
+                        <p>Our San Antonio project write-ups are being published. <a href="{% url 'public:contact' %}">Ask us</a> and we&rsquo;ll walk you through the relevant work directly.</p>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+
+        <p class="section-note">
+            Three different industries, one standard of build. See
+            <a href="{% url 'public:portfolio' %}">the full portfolio</a>.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── What SA businesses get ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What You Get</span>
+            <h2>The Same Build, Wherever You Are</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Custom, Not Templated</h3>
+                <p>Written for your business rather than adapted from a theme &mdash; so it doesn&rsquo;t look like the three competitors who bought the same one. See <a href="{% url 'public:service_custom_web_development' %}">custom web development</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Fast On A Phone</h3>
+                <p>Most local searches happen on mobile data, not office wifi. Our own site loads in about 1.5 seconds on mobile &mdash; measured, and you can check it yourself.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Built To Be Found Locally</h3>
+                <p>Clean structure, schema, and the on-site groundwork local search depends on. Ongoing map-pack work is <a href="{% url 'public:service_local_seo' %}">local SEO</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Security-Hardened</h3>
+                <p>Built by a CISSP-certified engineer. HTTPS, security headers, server-side validation, rate-limited forms. Standard on every build.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>You Own It</h3>
+                <p>Code, content, domain, hosting. Leave whenever and take every file &mdash; the site keeps working.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>A Real Person Answers</h3>
+                <p>You talk to the engineer who built it, not an account manager relaying messages. We answer within 24 hours, seven days a week.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Who we work with in SA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Who We Work With</span>
+            <h2>San Antonio Businesses We&rsquo;re a Good Fit For</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Law Firms</h3>
+                <p>Our highest-value vertical, and our first San Antonio client. Practice-area architecture, security-hardened intake, and full ownership &mdash; see <a href="{% url 'public:service_law_firm_web_design' %}">law firm web design</a>.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Local Service Businesses</h3>
+                <p>Where one customer is worth more than the build, and being findable on a phone is the whole game. See <a href="{% url 'public:service_small_business_web_design' %}">small business web design</a>.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Food, Events &amp; Hospitality</h3>
+                <p>We built a citywide food truck directory here &mdash; mobile-first, fast on patchy data, and structured to keep growing as listings are added.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Anyone Stuck On A Platform</h3>
+                <p>If you don&rsquo;t own your site or can&rsquo;t change it, moving is a specific job with specific risks. See <a href="{% url 'public:service_website_redesign' %}">website redesign</a>.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Let&rsquo;s Talk About Your San Antonio Business</h2>
+            <p>
+                Call <a href="tel:+12108962536">(210) 896-2536</a> or book a time.
+                We answer within 24 hours &mdash; and we&rsquo;ll tell you honestly
+                if you&rsquo;d be better served by someone local.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
