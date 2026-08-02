@@ -145,6 +145,10 @@ TEMPLATES = [
                 # GA4 measurement id for the marketing site's own gtag
                 # (blank = renders nothing).
                 'core.context_processors.analytics',
+                # Server-queued conversion events (contact submit, audit
+                # run, audit email capture) drained onto the next full
+                # render. Master Plan §10 / MEASUREMENT_SPEC §5.
+                'core.context_processors.analytics_events',
                 # CANONICAL_URL + SITE_BASE_URL for the self-referencing
                 # canonical, og:url and schema. Master Plan §8.
                 'core.context_processors.canonical',

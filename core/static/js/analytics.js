@@ -32,7 +32,28 @@
     window.gtag = gtag;
 
     gtag('js', new Date());
-    gtag('config', id);
+
+    // allow_google_signals: false — Google Signals adds a second beacon
+    // to https://www.google.com/g/collect (cross-device + demographics,
+    // and the data Google uses for ads personalisation). Our connect-src
+    // allows *.google-analytics.com and *.analytics.google.com but NOT
+    // google.com, so that request was already being refused by the CSP:
+    // it never delivered anything, it just logged a CSP violation to the
+    // console on every single page view.
+    //
+    // Turning it off at the source makes it fail cleanly instead of
+    // loudly. Core measurement is untouched — pageviews and every §5
+    // conversion go to www.google-analytics.com/g/collect, which is
+    // allowed and verified working.
+    //
+    // The alternative was widening connect-src to include google.com.
+    // Not taken: it buys demographic reporting at the cost of a broader
+    // policy and of sending visitor data to an ads endpoint, which sits
+    // badly with the security-first positioning. To reverse it, delete
+    // this flag AND add https://www.google.com to connect-src in
+    // core/middleware.py — one without the other just restores the
+    // blocked request and the console noise.
+    gtag('config', id, { allow_google_signals: false });
 
     var lib = document.createElement('script');
     lib.async = true;

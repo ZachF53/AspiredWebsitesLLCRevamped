@@ -103,6 +103,25 @@ def analytics(request):
     }
 
 
+def analytics_events(request):
+    """
+    Drain the server-queued conversion events onto this render.
+
+    Pops (see core.analytics), so an event is emitted exactly once even
+    if the visitor refreshes the thanks page or navigates back to it.
+
+    Skipped for HTMX partial responses. A partial does not extend
+    base.html, so it has nowhere to render the payload — draining the
+    queue there would throw the conversion away. /audit/results/ is the
+    live example: it loads the AI review over HTMX moments after the
+    page that carries the audit_request event.
+    """
+    if request.headers.get('HX-Request'):
+        return {'ANALYTICS_EVENTS': []}
+    from core.analytics import pop_events
+    return {'ANALYTICS_EVENTS': pop_events(request)}
+
+
 def system_alerts(request):
     """
     Expose ``system_alerts_unresolved`` (int count) to every template

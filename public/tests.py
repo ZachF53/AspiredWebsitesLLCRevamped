@@ -252,3 +252,169 @@ class LoginPageTests(TestCase):
         # _post_login_redirect should reject the off-host next via
         # url_has_allowed_host_and_scheme.
         self.assertNotIn('evil.example', r['Location'])
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Conversion events — Master Plan §10 / MEASUREMENT_SPEC §5
+# ──────────────────────────────────────────────────────────────────────
+
+@override_settings(GOOGLE_ANALYTICS_ID='G-TESTID1234')
+class ConversionEventQueueTests(TestCase):
+    """
+    The three conversions that are only true server-side.
+
+    They all use POST-redirect-GET, so the event is queued on the
+    session by the view and drained by the NEXT full render. A
+    client-side submit listener could not tell a real Lead from a
+    silently-binned spam submission, which is the whole reason this
+    layer exists.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _payload(self, **overrides):
+        from public.views import _signed_form_timestamp
+        body = {
+            'name': 'Jane Tester',
+            'business_name': 'Tester LLC',
+            'business_type': 'Law Firm',
+            'phone': '210-555-0100',
+            'email': 'jane@tester.example',
+            'source': 'Google Search',
+            'message': 'We need a new website.',
+            'form_timestamp': _signed_form_timestamp(),
+        }
+        body.update(overrides)
+        return body
+
+    def _events(self, html):
+        """
+        Parse the json_script payload the page renders.
+
+        json_script escapes <, > and & as unicode sequences so the block
+        cannot break out of its <script> tag; json.loads decodes those
+        natively, so nothing needs unescaping here.
+        """
+        import json as _json
+        import re as _re
+        m = _re.search(
+            r'<script id="analytics-events" type="application/json">'
+            r'(.*?)</script>', html, _re.S)
+        return _json.loads(m.group(1)) if m else []
+
+    @patch('public.views._form_age_seconds')
+    def test_contact_submit_emits_on_the_thanks_page(self, mock_age):
+        mock_age.return_value = (10, True)
+        r = self.client.post(reverse('public:contact'),
+                             data=self._payload(), follow=True)
+        events = self._events(r.content.decode())
+        names = [e['name'] for e in events]
+        self.assertIn('contact_form_submit', names)
+        params = next(e['params'] for e in events
+                      if e['name'] == 'contact_form_submit')
+        self.assertEqual(params['business_type'], 'Law Firm')
+        self.assertEqual(params['heard_about'], 'Google Search')
+
+    @patch('public.views._form_age_seconds')
+    def test_event_is_emitted_exactly_once(self, mock_age):
+        """A refresh of the thanks page must not double-count a lead."""
+        mock_age.return_value = (10, True)
+        first = self.client.post(reverse('public:contact'),
+                                 data=self._payload(), follow=True)
+        self.assertTrue(self._events(first.content.decode()))
+        again = self.client.get(reverse('public:contact_thanks'))
+        self.assertEqual(self._events(again.content.decode()), [])
+
+    @patch('public.views._form_age_seconds')
+    def test_spam_submission_queues_nothing(self, mock_age):
+        """
+        The honeypot path renders the same thanks page so the bot gets
+        no signal — but it creates no Lead, so it must count as no
+        conversion. This is the assertion that keeps GA4's lead number
+        equal to the CRM's.
+        """
+        mock_age.return_value = (10, True)
+        r = self.client.post(
+            reverse('public:contact'),
+            data=self._payload(website_url='http://spam.example'),
+            follow=True)
+        self.assertEqual(self._events(r.content.decode()), [])
+
+    @patch('public.views._form_age_seconds')
+    def test_contact_event_carries_no_pii(self, mock_age):
+        mock_age.return_value = (10, True)
+        r = self.client.post(reverse('public:contact'),
+                             data=self._payload(), follow=True)
+        raw = r.content.decode()
+        block = raw.split('id="analytics-events"')[1].split('</script>')[0]
+        for pii in ('jane@tester.example', 'Jane Tester', '210-555-0100',
+                    '2105550100'):
+            with self.subTest(pii=pii):
+                self.assertNotIn(pii, block)
+
+    @patch('public.views._run_pagespeed_audit')
+    def test_audit_run_emits_domain_only(self, mock_audit):
+        mock_audit.return_value = {
+            'scores': {'performance': 50, 'seo': 60,
+                       'best_practices': 70, 'accessibility': 80},
+            'issues_by_category': {},
+        }
+        r = self.client.post(reverse('public:audit'),
+                             data={'url': 'https://www.Example.com/some/page'},
+                             follow=True)
+        events = self._events(r.content.decode())
+        ev = next(e for e in events if e['name'] == 'audit_request')
+        # Hostname only, lowercased, www stripped — never the path,
+        # which is where a stray identifier would ride along.
+        self.assertEqual(ev['params']['audited_domain'], 'example.com')
+
+
+class AnalyticsPIIGuardTests(TestCase):
+    """
+    core.analytics refuses PII rather than trusting every call site to
+    remember §5.3. A future event added in a hurry should fail loudly
+    in tests, not leak a visitor's email into GA4.
+    """
+
+    def _request(self):
+        from django.contrib.sessions.backends.db import SessionStore
+        from django.test import RequestFactory
+        req = RequestFactory().get('/')
+        req.session = SessionStore()
+        return req
+
+    def test_email_param_is_refused(self):
+        from core.analytics import PIIInEventError, queue_event
+        with self.assertRaises(PIIInEventError):
+            queue_event(self._request(), 'x', who='jane@tester.example')
+
+    def test_phone_param_is_refused(self):
+        from core.analytics import PIIInEventError, queue_event
+        with self.assertRaises(PIIInEventError):
+            queue_event(self._request(), 'x', who='210-896-2536')
+
+    def test_ordinary_values_pass(self):
+        from core.analytics import pop_events, queue_event
+        req = self._request()
+        queue_event(req, 'booking_click', page_path='/pricing/',
+                    cta_location='hero')
+        self.assertEqual(
+            pop_events(req),
+            [{'name': 'booking_click',
+              'params': {'page_path': '/pricing/',
+                         'cta_location': 'hero'}}])
+
+    def test_queue_is_capped(self):
+        from core.analytics import MAX_QUEUED, pop_events, queue_event
+        req = self._request()
+        for _ in range(MAX_QUEUED + 5):
+            queue_event(req, 'scroll_90', page_path='/')
+        self.assertEqual(len(pop_events(req)), MAX_QUEUED)
+
+    def test_pop_clears_the_queue(self):
+        from core.analytics import pop_events, queue_event
+        req = self._request()
+        queue_event(req, 'e', page_path='/')
+        self.assertEqual(len(pop_events(req)), 1)
+        self.assertEqual(pop_events(req), [])

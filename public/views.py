@@ -10,8 +10,23 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
+from core.analytics import queue_event
+
 from .forms import AuditEmailForm, AuditForm, ContactForm
 from .models import AuditLead
+
+
+def _domain_of(url):
+    """
+    Bare hostname for an analytics param — 'example.com', never the
+    full URL. A path can carry a query string, and a query string is
+    exactly where a stray identifier would end up in GA4 (§5.3).
+    """
+    try:
+        host = urlparse(url if '://' in url else f'http://{url}').hostname
+    except ValueError:
+        return ''
+    return (host or '').lower().removeprefix('www.')
 
 
 PAGESPEED_API_URL = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
@@ -577,6 +592,18 @@ def contact(request):
                     pass
             _send_lead_auto_reply(lead)
             _send_lead_internal_notification(lead)
+            # §10 conversion. Queued only here — past every spam layer
+            # and after the Lead row exists — so the count in GA4 is
+            # real leads, not submissions. _silently_pretend_success
+            # renders the same thanks page for bots and queues nothing.
+            # Category fields only: name, email and phone are PII and
+            # core.analytics refuses them.
+            queue_event(
+                request, 'contact_form_submit',
+                business_type=form.cleaned_data.get('business_type', ''),
+                heard_about=form.cleaned_data.get('source', ''),
+                page_path=request.path,
+            )
             # Count a successful submit against the IP cap too — three
             # legit submissions in an hour is plenty.
             cache.set(cache_key, per_ip_count + 1, 3600)
@@ -693,6 +720,15 @@ def audit(request):
                 request.session.pop('audit_email_submitted', None)
                 # Drop any AI review cached from a previous audit run.
                 request.session.pop('audit_ai_review', None)
+                # §10 conversion — the audit actually ran and produced
+                # scores. A failed PageSpeed call takes the except
+                # branch above and queues nothing. The audited domain
+                # is a business domain, not visitor PII (§5.3).
+                queue_event(
+                    request, 'audit_request',
+                    audited_domain=_domain_of(url),
+                    page_path=request.path,
+                )
                 return redirect('public:audit_results')
     else:
         form = AuditForm()
@@ -738,6 +774,14 @@ def audit_results(request):
                 email_form.cleaned_data['email'],
             )
             request.session['audit_email_submitted'] = True
+            # §10 conversion — this one creates a contactable AuditLead,
+            # so it is the audit funnel's real finish line. The visitor's
+            # email is deliberately NOT a param (§5.3); only the domain
+            # they audited, which is a business, not a person.
+            queue_event(
+                request, 'audit_email_capture',
+                audited_domain=_domain_of(audit_url),
+            )
             return redirect('public:audit_results')
 
     def status_for(s):

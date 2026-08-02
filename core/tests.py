@@ -105,6 +105,83 @@ class GoogleAnalyticsTagTests(TestCase):
         self.assertNotIn("'unsafe-inline'", csp)
 
 
+class ConversionEventWiringTests(TestCase):
+    """
+    The client half of §10's event spec: events.js and the CSP it has
+    to live inside.
+    """
+
+    def _js(self, name):
+        import os
+
+        from django.conf import settings as _settings
+        path = os.path.join(_settings.BASE_DIR, 'core', 'static', 'js', name)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def test_events_script_loads_on_public_pages(self):
+        html = self.client.get(reverse('public:home')).content.decode()
+        self.assertIn('js/events.js', html)
+
+    def test_events_script_loads_even_without_a_ga_id(self):
+        """
+        Unlike analytics.js this is NOT gated on GOOGLE_ANALYTICS_ID.
+        Every emit no-ops without gtag, and loading it on staging means
+        a broken selector shows up there rather than only in prod.
+        """
+        with override_settings(GOOGLE_ANALYTICS_ID=''):
+            html = self.client.get(reverse('public:home')).content.decode()
+        self.assertIn('js/events.js', html)
+        self.assertNotIn('js/analytics.js', html)
+
+    def test_event_payload_block_is_present_and_inert(self):
+        resp = self.client.get(reverse('public:home'))
+        html = resp.content.decode()
+        self.assertIn(
+            '<script id="analytics-events" type="application/json">', html)
+        # A data block, not executable script — so it needs no nonce and
+        # script-src must still be free of 'unsafe-inline'.
+        self.assertNotIn("'unsafe-inline'", resp['Content-Security-Policy'])
+
+    def test_no_inline_event_handlers(self):
+        """
+        onclick= attributes would be blocked by the CSP and silently
+        lose the conversion. All wiring must be delegated from the
+        external file.
+        """
+        for path in ('/', '/pricing/', '/portfolio/', '/contact/'):
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertNotIn('onclick=', html)
+
+    def test_google_signals_stays_off_while_csp_excludes_google_com(self):
+        """
+        Paired invariant. GA4's Google Signals beacon goes to
+        www.google.com/g/collect, which connect-src does not allow — it
+        logged a CSP violation on every page view and delivered nothing.
+
+        Either the flag is off, or google.com is allowed. Never neither:
+        that combination is the broken state this asserts against.
+        """
+        from core.middleware import CSP_PUBLIC
+        js = self._js('analytics.js')
+        signals_off = 'allow_google_signals: false' in js
+        google_allowed = 'https://www.google.com' in CSP_PUBLIC.split(
+            'connect-src')[1].split(';')[0]
+        self.assertTrue(
+            signals_off or google_allowed,
+            'Google Signals is enabled but connect-src does not allow '
+            'www.google.com — the beacon will be CSP-blocked on every '
+            'page view. Either keep allow_google_signals: false or add '
+            'the host to CSP_PUBLIC.')
+
+    def test_core_ga_endpoint_is_allowed(self):
+        """The beacon that carries the conversions must not be blocked."""
+        from core.middleware import CSP_PUBLIC
+        connect = CSP_PUBLIC.split('connect-src')[1].split(';')[0]
+        self.assertIn('google-analytics.com', connect)
+
+
 @override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
                    PRODUCTION_HOST='testserver')
 class CanonicalTests(TestCase):

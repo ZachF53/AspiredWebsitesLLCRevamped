@@ -321,6 +321,25 @@
     mean token-bearing URLs are reported to GA as page_path.
     {% endcomment %}
     {% if GOOGLE_ANALYTICS_ID %}<script src="{% static 'js/analytics.js' %}?v={{ STATIC_VERSION }}" data-ga-id="{{ GOOGLE_ANALYTICS_ID }}" defer></script>{% endif %}
+    {% comment %}
+    Conversion events (Master Plan §10, MEASUREMENT_SPEC §5).
+
+    The JSON block carries conversions the SERVER confirmed — a real
+    Lead row, a completed audit — queued by core.analytics and drained
+    once by the analytics_events context processor. `json_script` is a
+    data block, not executable script, so it does not need a CSP nonce
+    and script-src stays 'self' + googletagmanager.
+
+    events.js loads unconditionally, not behind GOOGLE_ANALYTICS_ID.
+    Both scripts are `defer`, so they run in document order and gtag
+    exists by the time this one does; where the id is blank (staging,
+    local) every emit is a no-op. Loading it everywhere means the
+    listeners are exercised in dev instead of only ever running in
+    production, which is where a silent selector typo would otherwise
+    hide.
+    {% endcomment %}
+    {{ ANALYTICS_EVENTS|json_script:"analytics-events" }}
+    <script src="{% static 'js/events.js' %}?v={{ STATIC_VERSION }}" defer></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
