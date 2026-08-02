@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Web Design Warner Robins GA | Aspired Websites{% endblock %}
+
+{% block meta_description %}Custom web design in Warner Robins, Georgia — we&rsquo;re actually based here. Hand-coded, security-hardened sites for Middle Georgia businesses, and you own every file.{% endblock %}
+
+{% block og_title %}Warner Robins Web Design — Aspired Websites{% endblock %}
+{% block og_description %}Custom web design in Warner Robins, GA. Locally based, hand-coded, security-first, and you own the code.{% endblock %}
+
+{% comment %}
+Revised D5 (Aug 2026). Originally rejected on volume — ~10/mo explicit
+demand, well under the 50/mo floor — and on volume alone that was
+right. It is built anyway for a reason volume does not capture:
+
+This is the ONLY page on the site where "we are local to you" is
+literally true. The ProfessionalService schema and the footer NAP both
+resolve to Warner Robins, GA. Every other location page has to open by
+explaining that we are somewhere else.
+
+That makes this the anchor for the Google Business Profile work, which
+is the highest-value item still open: a service-area GBP needs a
+consistent, crawlable page whose city matches the profile's city and
+the site's schema. Without it the profile points at a homepage that
+says nothing about Warner Robins.
+
+So the honest framing of this page: it is a credibility and local-signal
+asset, not a traffic play. Nobody should expect meaningful organic
+volume from ~10 searches a month, and the plan should not later be read
+as if we did.
+
+§15 still binds. There are no Warner Robins case studies, and the page
+does not imply any — the proof section links to real work and says
+plainly where those clients are.
+
+Schema is a Service with areaServed covering the Middle Georgia towns
+actually served, provider pointing at the one sitewide organisation by
+@id. No second LocalBusiness node (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Web Design",
+    "name": "Web Design for Warner Robins and Middle Georgia",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        { "@type": "City", "name": "Warner Robins" },
+        { "@type": "City", "name": "Macon" },
+        { "@type": "City", "name": "Perry" },
+        { "@type": "City", "name": "Centerville" },
+        { "@type": "AdministrativeArea", "name": "Houston County, Georgia" }
+    ],
+    "description": "Custom, hand-coded web design and development for businesses in Warner Robins, Macon and Middle Georgia. Locally based, security-first, with full client ownership of the code.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Warner Robins, Georgia</span>
+            <h1>Web Design in <span class="accent">Warner Robins</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                We&rsquo;re not a national agency with a Georgia landing page &mdash;
+                this is where we actually work. Custom, hand-coded websites for
+                Warner Robins, Macon and Middle Georgia businesses.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">
+                From $2,500 &middot; <a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+On every other location page this slot is the "we're not local"
+disclosure. Here it is the opposite, so it leads — it is the single
+thing this page has that the others don't. It also states the
+service-area shape honestly rather than implying a storefront.
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Actually Local</span>
+            <h2>Based Here, Not Just Targeting Here</h2>
+            <p>The difference matters more than the marketing usually admits.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>You Can Meet Us</h3>
+                <p>
+                    Warner Robins is home. Coffee in Houston County, a sit-down
+                    in Macon, or a drive out to Perry &mdash; that&rsquo;s a
+                    normal week, not a special arrangement. Most of the build
+                    still happens over calls and a staging link, because
+                    that&rsquo;s what works, but in person is genuinely on the
+                    table.
+                </p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>We Work From Here, Not From A Storefront</h3>
+                <p>
+                    There&rsquo;s no walk-in office and we&rsquo;re not going to
+                    invent one. Like most one-engineer studios we run as a
+                    service-area business &mdash; we come to you, or we work
+                    remotely, whichever suits the project.
+                </p>
+                {% comment %}
+                The only number on the site is a 210 area code, which on
+                this page in particular reads as "they're in Texas" —
+                the one impression it cannot afford. Explaining it is
+                better than hiding it, and far better than buying a
+                second number to look local.
+                {% endcomment %}
+                <p>
+                    One thing worth explaining: our number is a
+                    <strong>210</strong> area code. That&rsquo;s a San Antonio
+                    line from our largest client base, not a hint that
+                    we&rsquo;re in Texas. It rings the same person, here in
+                    Warner Robins.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Why local matters for a small GA business ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Middle Georgia</span>
+            <h2>What a Local Business Actually Needs</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>To Be Found On A Phone, Nearby</h3>
+                <p>
+                    Most people looking for a local business search on a phone
+                    and pick from what Google shows first. That means a fast
+                    site, correct business details, and a Google profile that
+                    matches them &mdash; see <a href="{% url 'public:service_local_seo' %}">local SEO</a>.
+                </p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>To Look Like A Real Operation</h3>
+                <p>
+                    Robins Air Force Base anchors a lot of the local economy, and
+                    plenty of businesses here sell to people who compare two or
+                    three options before calling. A site that loads slowly or
+                    looks like a 2012 template loses that comparison.
+                </p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Not To Be Locked In</h3>
+                <p>
+                    Some local agencies keep the site on their platform, so
+                    leaving means starting over. Ours is standard code on
+                    standard hosting &mdash; you own it and any developer can
+                    pick it up. See <a href="{% url 'public:pricing' %}">pricing</a>.
+                </p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Not To Overspend</h3>
+                <p>
+                    If you need one page with your hours and a phone number,
+                    say so and we&rsquo;ll tell you a $16/month builder is the
+                    better buy. Custom is worth it when the site has a job to do.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Proof ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Proof</span>
+            <h2>Work You Can Go And Look At</h2>
+            <p>Live sites, not mockups.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            {% for study in studies %}
+                <article class="card card--with-visual">
+                    <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
+                    <div class="card__body">
+                        {% if study.business_type %}
+                            <span class="pill-tag">{{ study.business_type }}{% if study.location %} &middot; {{ study.location }}{% endif %}</span>
+                        {% endif %}
+                        <h3><a href="{{ study.get_absolute_url }}">{{ study.title }}</a></h3>
+                        {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
+                        <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>
+                    </div>
+                </article>
+            {% empty %}
+                <article class="card">
+                    <div class="card__body">
+                        <h3>Case studies publishing shortly</h3>
+                        <p>Our project write-ups are being published. <a href="{% url 'public:contact' %}">Ask us</a> and we&rsquo;ll walk you through the relevant work directly.</p>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+
+        {% comment %}
+        Same §15 line as the Atlanta page. Being based here does not
+        mean we have built here, and the page must not blur the two.
+        {% endcomment %}
+        {% if not has_local_study %}
+            <p class="section-note">
+                Straight answer: <strong>most of our client work so far has been
+                outside Middle Georgia</strong>, and we&rsquo;d rather say that than
+                dress up a local project list we don&rsquo;t have. The builds above
+                are real and live &mdash; see
+                <a href="{% url 'public:portfolio' %}">the full portfolio</a>.
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Georgia cross-link ───────── #}
+<section class="section">
+    <div class="container">
+        <p class="section-note">
+            Up the interstate? We work with
+            <a href="{% url 'public:location_atlanta' %}">Atlanta businesses</a> too
+            &mdash; about 100 miles, and close enough to drive when a project needs
+            it. Outside Georgia, most of our clients are in
+            <a href="{% url 'public:location_san_antonio' %}">San Antonio</a>.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Let&rsquo;s Talk About Your Business</h2>
+            <p>
+                Call <a href="tel:+12108962536">(210) 896-2536</a> or book a time.
+                We answer within 24 hours &mdash; and if a website isn&rsquo;t what
+                you need right now, we&rsquo;ll say so.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Book a Free Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

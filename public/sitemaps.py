@@ -60,6 +60,8 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
         # ── Phase 3 ──
         'public:service_custom_web_development',
         'public:location_san_antonio',
+        'public:location_atlanta',
+        'public:location_warner_robins',
     ]
 
 

@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Custom Web Design in Atlanta | Aspired Websites{% endblock %}
+{% comment %}
+Title carries the service, not a city — revised D5, Aug 2026.
+
+It used to read "Custom Web Design in Atlanta". Two things broke that.
+The Atlanta address in the footer and schema was a registered-agent
+suite and was removed, so the page asserted a city its own markup no
+longer claimed. And /locations/atlanta/ now exists to own that intent;
+leaving it here would put the homepage in direct competition with it,
+which is the cannibalisation §6.1 exists to prevent.
+
+The H1 is unchanged (D9).
+{% endcomment %}
+{% block title %}Custom Web Design for Law Firms & Small Business | Aspired{% endblock %}
 
 {% block content %}
 

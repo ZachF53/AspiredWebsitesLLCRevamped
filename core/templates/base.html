@@ -238,6 +238,20 @@
                         <li><a href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
                         <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
                         <li><a href="{% url 'public:audit' %}">Free SEO Audit</a></li>
+                    </ul>
+                </div>
+
+                {% comment %}
+                Locations get their own footer column now that there are
+                three. Sitewide footer links are the main internal path
+                to these pages — they are deliberately not in the main
+                nav, which is organised by service, not geography.
+                {% endcomment %}
+                <div class="footer-col">
+                    <h4>Locations</h4>
+                    <ul>
+                        <li><a href="{% url 'public:location_warner_robins' %}">Warner Robins Web Design</a></li>
+                        <li><a href="{% url 'public:location_atlanta' %}">Atlanta Web Design</a></li>
                         <li><a href="{% url 'public:location_san_antonio' %}">San Antonio Web Design</a></li>
                     </ul>
                 </div>

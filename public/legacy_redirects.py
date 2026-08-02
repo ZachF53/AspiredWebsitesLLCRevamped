@@ -37,10 +37,20 @@ LEGACY_REDIRECTS = [
     ('services/san-antonio-seo', 'public:location_san_antonio'),
 
     # ── Georgia service pages ───────────────────────────────────────
-    # No Georgia landing pages exist yet, so these point at the
-    # national service hubs. Revisit when Georgia pages are built.
-    ('services/georgia-seo', 'public:service_seo'),
-    ('services/web-design-georgia', 'public:service_web_design'),
+    # Repointed Aug 2026, now that Georgia pages exist (revised D5).
+    # These were landing on national hubs, which is a weak match for a
+    # geo-scoped URL — the closer the target's topic and geography, the
+    # more of the old signal survives the hop.
+    #   georgia-seo        → local SEO, which is what a place-scoped SEO
+    #                        page actually was; the national hub was the
+    #                        best available match before, not a good one
+    #   web-design-georgia → the Atlanta page, the Georgia web-design
+    #                        page with real demand behind it
+    #   georgia-marketing  → unchanged; there is no Georgia marketing
+    #                        page and inventing one to catch a redirect
+    #                        would be backwards
+    ('services/georgia-seo', 'public:service_local_seo'),
+    ('services/web-design-georgia', 'public:location_atlanta'),
     ('services/georgia-marketing', 'public:service_digital_marketing'),
 
     # ── Old WordPress blog ──────────────────────────────────────────

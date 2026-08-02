@@ -48,11 +48,23 @@ urlpatterns = [
     path('services/web-design/custom-web-development/',
          views.service_custom_web_development,
          name='service_custom_web_development'),
-    # D5: San Antonio is the ONLY location page. 2,860/mo explicit
-    # demand and three real clients there. No /locations/ index — with
-    # one child it would be exactly the thin page §15 forbids.
+    # Location pages — D5, revised Aug 2026. Three now, not one:
+    #   san-antonio   2,860/mo · three real clients there
+    #   atlanta       2,160/mo · unblocked once the registered-agent
+    #                 address left the schema and the homepage title
+    #                 stopped competing for the term
+    #   warner-robins ~10/mo · built for local signal, not traffic —
+    #                 the only city where the site's own NAP and schema
+    #                 say we are actually located, so it is the page a
+    #                 service-area GBP can point at
+    # Still no /locations/ index — a hub listing three links, with
+    # nothing to say of its own, is the thin page §15 forbids.
     path('locations/san-antonio/', views.location_san_antonio,
          name='location_san_antonio'),
+    path('locations/atlanta/', views.location_atlanta,
+         name='location_atlanta'),
+    path('locations/warner-robins/', views.location_warner_robins,
+         name='location_warner_robins'),
     path('contact/', views.contact, name='contact'),
     path('contact/thanks/', views.contact_thanks, name='contact_thanks'),
     path('about/', views.about, name='about'),

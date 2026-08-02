@@ -276,10 +276,20 @@ class LegacyRedirectTests(TestCase):
                 self.assertEqual(resp.status_code, 301)
                 self.assertEqual(resp['Location'], '/locations/san-antonio/')
 
-    def test_georgia_pages_redirect_to_service_hubs(self):
+    def test_georgia_pages_redirect_to_their_closest_match(self):
+        """
+        Repointed Aug 2026 (revised D5). These used to land on national
+        hubs because no Georgia page existed; a geo-scoped URL landing
+        on a national hub keeps less of the old signal than one landing
+        on a page with the same topic AND geography.
+
+        georgia-marketing stays on the hub deliberately — there is no
+        Georgia marketing page, and creating one just to catch a
+        redirect would be the tail wagging the dog.
+        """
         cases = {
-            '/services/georgia-seo': '/services/seo/',
-            '/services/web-design-georgia': '/services/web-design/',
+            '/services/georgia-seo': '/services/seo/local-seo/',
+            '/services/web-design-georgia': '/locations/atlanta/',
             '/services/georgia-marketing': '/services/digital-marketing/',
         }
         for old, target in cases.items():
@@ -1135,12 +1145,180 @@ class SanAntonioLocationPageTests(TestCase):
             '/portfolio/denis-law-group/').content.decode()
         self.assertIn('/locations/san-antonio/', html)
 
-    def test_no_atlanta_or_warner_robins_location_page(self):
-        """D5 resolved to ONE location page. Guard against drift."""
-        for path in ('/locations/atlanta/', '/locations/warner-robins/',
-                     '/locations/'):
+    def test_still_no_locations_index(self):
+        """
+        D5 grew to three location pages (Aug 2026), but a /locations/
+        hub is still refused. Three links and nothing of its own to say
+        is exactly the thin page §15 forbids.
+        """
+        self.assertEqual(self.client.get('/locations/').status_code, 404)
+
+
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
+class GeorgiaLocationPageTests(TestCase):
+    """
+    The Georgia pages (revised D5, Aug 2026).
+
+    Both are held to the same bar as San Antonio: no invented office,
+    no implied local clients, one business entity sitewide. The Atlanta
+    page is the riskier of the two — it has real demand (2,160/mo) and
+    zero Atlanta case studies, which is the exact shape §15 warns about
+    — so most of these assertions point at it.
+    """
+
+    PAGES = ['/locations/atlanta/', '/locations/warner-robins/']
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_case_studies', verbosity=0)
+
+    def test_pages_render_with_one_h1_and_a_canonical(self):
+        for path in self.PAGES:
             with self.subTest(path=path):
-                self.assertEqual(self.client.get(path).status_code, 404)
+                html = self.client.get(path).content.decode()
+                self.assertEqual(len(re.findall(r'<h1[^>]*>', html)), 1)
+                self.assertEqual(
+                    len(re.findall(r'<link rel="canonical"', html)), 1)
+
+    def test_no_street_address_is_reintroduced(self):
+        """
+        The registered-agent suite was deliberately removed from the
+        site. A city page is the most tempting place for it to creep
+        back, so assert it does not.
+        """
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertNotIn('8735 Dunwoody', html)
+                self.assertNotIn('Dunwoody Place', html)
+
+    def test_atlanta_page_states_it_has_no_atlanta_office(self):
+        html = self.client.get('/locations/atlanta/').content.decode()
+        self.assertIn('Georgia-Based, Not Atlanta-Based', html)
+        self.assertIn('Warner Robins', html)
+
+    def test_atlanta_page_admits_it_has_no_atlanta_clients(self):
+        """
+        §15's thin-city-page line. With no Atlanta case studies the
+        page must say so outright — and must stop saying so by itself
+        once an Atlanta client is published, rather than needing a
+        template edit.
+        """
+        from clients.models import CaseStudy
+        self.assertFalse(
+            CaseStudy.objects.filter(is_published=True,
+                                     location__icontains='Atlanta').exists(),
+            'Seed data now has an Atlanta client — this test guards the '
+            'no-clients-yet copy and should be updated with the page.')
+        html = self.client.get('/locations/atlanta/').content.decode()
+        self.assertIn('No Atlanta clients yet', html)
+
+    def test_warner_robins_page_claims_local_because_it_is_true(self):
+        """
+        The one page where "we are local" is literally true — the
+        sitewide schema and footer NAP both resolve here.
+        """
+        html = self.client.get('/locations/warner-robins/').content.decode()
+        self.assertIn('Based Here, Not Just Targeting Here', html)
+        self.assertIn('Warner Robins', html)
+
+    def test_warner_robins_does_not_claim_a_storefront(self):
+        html = self.client.get('/locations/warner-robins/').content.decode()
+        self.assertIn('no walk-in office', html)
+
+    def test_service_schema_references_the_one_org_and_adds_no_second(self):
+        """D8 — one business entity sitewide, always."""
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                blocks = re.findall(
+                    r'<script type="application/ld\+json">(.*?)</script>',
+                    html, re.S)
+                service = next(json.loads(b) for b in blocks
+                               if '"Service"' in b)
+                self.assertEqual(
+                    service['provider']['@id'],
+                    'https://aspiredwebsites.com/#organization')
+                # No page may mint a second LocalBusiness/ProfessionalService.
+                for block in blocks:
+                    data = json.loads(block)
+                    nodes = data.get('@graph') or [data]
+                    for node in nodes:
+                        if node.get('@type') == 'ProfessionalService':
+                            self.assertEqual(
+                                node.get('@id'),
+                                'https://aspiredwebsites.com/#organization')
+                        self.assertNotEqual(node.get('@type'), 'LocalBusiness')
+
+    def test_georgia_pages_cross_link(self):
+        """§8 — the Georgia cluster is wired both ways."""
+        atl = self.client.get('/locations/atlanta/').content.decode()
+        self.assertIn('/locations/warner-robins/', atl)
+        wr = self.client.get('/locations/warner-robins/').content.decode()
+        self.assertIn('/locations/atlanta/', wr)
+
+    def test_pages_are_in_the_sitemap(self):
+        xml = self.client.get('/sitemap.xml').content.decode()
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                self.assertIn(path, xml)
+
+    def test_no_ranking_guarantee(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                low = self.client.get(path).content.decode().lower()
+                for phrase in ('guarantee you rank', 'guaranteed rankings',
+                               'we guarantee first page'):
+                    self.assertNotIn(phrase, low)
+
+
+@override_settings(PRODUCTION_HOST='testserver')
+class CityIntentOwnershipTests(TestCase):
+    """
+    §6.1 — one page owns one intent.
+
+    /locations/atlanta/ owns Atlanta. Before it existed, three other
+    pages carried "Atlanta" in their titles; leaving them there would
+    manufacture the cannibalisation §6.1 exists to prevent. The
+    homepage's title also contradicted its own schema, which resolves
+    to Warner Robins after the registered-agent address was removed.
+    """
+
+    def test_only_the_atlanta_page_targets_atlanta_in_its_title(self):
+        offenders = []
+        for path in ('/', '/services/seo/', '/contact/',
+                     '/services/web-design/', '/pricing/', '/about/'):
+            html = self.client.get(path).content.decode()
+            title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+            if 'atlanta' in title.lower():
+                offenders.append(f'{path} → {title}')
+        self.assertEqual(
+            offenders, [],
+            'These titles compete with /locations/atlanta/ for city '
+            'intent: %s' % offenders)
+
+    def test_the_atlanta_page_does_target_atlanta(self):
+        html = self.client.get('/locations/atlanta/').content.decode()
+        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+        self.assertIn('Atlanta', title)
+
+    def test_homepage_title_still_carries_the_service(self):
+        """Dropping the city must not cost the head term."""
+        html = self.client.get('/').content.decode()
+        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+        self.assertIn('Custom Web Design', title)
+        self.assertLessEqual(len(title), 65, f'Title too long: {title}')
+
+    def test_homepage_h1_is_unchanged(self):
+        """D9 — the retitle is a <title> change only."""
+        html = self.client.get('/').content.decode()
+        h1 = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.S).group(1)
+        # The H1 wraps its last words in a <span class="accent">, so
+        # compare the text content rather than the raw markup.
+        text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', h1)).strip()
+        self.assertEqual(
+            text, 'Custom Web Design Built to Work as Hard as You Do')
 
 
 @override_settings(PRODUCTION_HOST='testserver')

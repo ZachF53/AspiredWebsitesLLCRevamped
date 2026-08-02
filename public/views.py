@@ -5,6 +5,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -269,6 +270,73 @@ def location_san_antonio(request):
         ).order_by('-published_at'),
         'breadcrumbs': [
             ('San Antonio Web Design', None),
+        ],
+    })
+
+
+def _published_studies(limit=4):
+    """Published case studies, newest first — shared by the location pages."""
+    from clients.models import CaseStudy
+    return CaseStudy.objects.filter(
+        is_published=True).order_by('-published_at')[:limit]
+
+
+def location_atlanta(request):
+    """
+    /locations/atlanta/ — revised D5, Aug 2026.
+
+    D5 originally said no Atlanta page because "the homepage already
+    owns Atlanta intent (title/H1/schema)". Two thirds of that is gone:
+    the Atlanta address was a registered-agent suite and was removed
+    from the footer and schema, and the homepage title has since been
+    retargeted to the service. 2,160/mo of explicit demand was left
+    with nothing pointed at it.
+
+    §15 bites harder here than on San Antonio, because there are no
+    Atlanta case studies to lean on. What the page has instead is true:
+    Aspired is a Georgia company ~100 miles down I-75, so "we can be
+    there" is a fact rather than a claim. `has_atlanta_study` drives an
+    explicit "no Atlanta clients yet" note — the page states the gap
+    rather than implying local work that does not exist, and it will
+    stop saying so on its own once an Atlanta client is published.
+    """
+    from clients.models import CaseStudy
+    return render(request, 'public/location_atlanta.html', {
+        'active_nav': '',
+        'studies': _published_studies(),
+        'has_atlanta_study': CaseStudy.objects.filter(
+            is_published=True, location__icontains='Atlanta').exists(),
+        'breadcrumbs': [
+            ('Atlanta Web Design', None),
+        ],
+    })
+
+
+def location_warner_robins(request):
+    """
+    /locations/warner-robins/ — revised D5, Aug 2026.
+
+    Rejected originally on volume (~10/mo explicit, under the 50/mo
+    floor) and on volume alone that was correct. Built anyway because
+    it is the only page on the site where "we are local to you" is
+    literally true: the ProfessionalService schema and footer NAP both
+    resolve to Warner Robins.
+
+    That makes it the anchor the Google Business Profile work needs — a
+    service-area GBP wants a crawlable page whose city matches the
+    profile and the site's schema. It is a credibility and local-signal
+    asset, not a traffic play, and should not be judged on sessions.
+    """
+    from clients.models import CaseStudy
+    local = Q(location__icontains='Warner Robins') | Q(
+        location__icontains='Macon') | Q(location__icontains='GA')
+    return render(request, 'public/location_warner_robins.html', {
+        'active_nav': '',
+        'studies': _published_studies(),
+        'has_local_study': CaseStudy.objects.filter(
+            local, is_published=True).exists(),
+        'breadcrumbs': [
+            ('Warner Robins Web Design', None),
         ],
     })
 
