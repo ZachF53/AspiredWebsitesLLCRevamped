@@ -348,11 +348,17 @@ class StructuredDataTests(TestCase):
                    if n['@type'] == 'ProfessionalService')
         self.assertEqual(org['telephone'], '+1-210-896-2536')
         self.assertEqual(org['email'], 'zacherylong@aspiredwebsites.com')
-        self.assertEqual(org['address']['addressLocality'], 'Atlanta')
-        self.assertEqual(org['address']['postalCode'], '30350')
+        self.assertEqual(org['address']['addressLocality'], 'Warner Robins')
+        self.assertEqual(org['address']['addressRegion'], 'GA')
+        # Service-area business: city/state only. A streetAddress here
+        # would be the registered-agent suite, asserting a staffed office
+        # that does not exist. See base.html's NAP block.
+        self.assertNotIn('streetAddress', org['address'])
+        self.assertNotIn('postalCode', org['address'])
         served = {a['name'] for a in org['areaServed']}
         self.assertEqual(
-            served, {'Atlanta', 'Warner Robins', 'Georgia', 'San Antonio'})
+            served,
+            {'Warner Robins', 'Macon', 'Atlanta', 'Georgia', 'San Antonio'})
 
     def test_service_pages_reference_the_org_by_id_not_a_copy(self):
         for path in ('/services/web-design/', '/services/seo/',
@@ -1021,10 +1027,15 @@ class SanAntonioLocationPageTests(TestCase):
         self.assertEqual(orgs, 1)
 
     def test_no_postal_address_claimed_for_san_antonio(self):
-        """The only address on the page must be the Atlanta record."""
+        """
+        A location page must not fabricate a local office. The footer
+        carries the operating city (Warner Robins, GA) and nothing else —
+        no street address anywhere, in either metro.
+        """
         html = self.client.get('/locations/san-antonio/').content.decode()
         self.assertNotIn('San Antonio, TX 7', html)   # any SA ZIP
-        self.assertIn('Atlanta, GA 30350', html)      # footer master record
+        self.assertIn('Warner Robins, GA', html)      # footer master record
+        self.assertNotIn('8735 Dunwoody', html)       # registered agent
 
     def test_carries_real_san_antonio_proof(self):
         """
