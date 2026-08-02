@@ -181,6 +181,104 @@ class CanonicalTests(TestCase):
 
 
 @override_settings(PRODUCTION_HOST='testserver')
+class LegacyRedirectTests(TestCase):
+    """
+    301s for the old WordPress URLs (public/legacy_redirects.py).
+
+    Search Console had 17 dead URLs from the previous build. These are
+    the ones with real ranking signal — the San Antonio and Georgia
+    service pages especially, which is why the site ranks for San
+    Antonio terms on generic pages today.
+    """
+
+    def test_san_antonio_pages_redirect_permanently(self):
+        for old in ('/services/san-antonio-web-design',
+                    '/services/san-antonio-seo'):
+            with self.subTest(old=old):
+                resp = self.client.get(old)
+                self.assertEqual(resp.status_code, 301)
+                self.assertEqual(resp['Location'], '/locations/san-antonio/')
+
+    def test_georgia_pages_redirect_to_service_hubs(self):
+        cases = {
+            '/services/georgia-seo': '/services/seo/',
+            '/services/web-design-georgia': '/services/web-design/',
+            '/services/georgia-marketing': '/services/digital-marketing/',
+        }
+        for old, target in cases.items():
+            with self.subTest(old=old):
+                resp = self.client.get(old)
+                self.assertEqual(resp.status_code, 301)
+                self.assertEqual(resp['Location'], target)
+
+    def test_trailing_slash_variant_redirects_in_one_hop(self):
+        """
+        Google recorded most of these unslashed. Both forms must hit the
+        target directly — letting APPEND_SLASH handle it would make a
+        301 chain, which dilutes the signal the redirect exists to pass.
+        """
+        for old in ('/services/san-antonio-seo',
+                    '/services/san-antonio-seo/'):
+            with self.subTest(old=old):
+                resp = self.client.get(old)
+                self.assertEqual(resp.status_code, 301)
+                self.assertEqual(resp['Location'], '/locations/san-antonio/')
+
+    def test_legacy_blog_posts_redirect_to_topical_pages(self):
+        resp = self.client.get('/blog/what-is-seo')
+        self.assertEqual(resp.status_code, 301)
+        self.assertEqual(resp['Location'], '/services/seo/')
+
+    def test_renamed_privacy_policy_redirects(self):
+        resp = self.client.get('/our-privacy-policy')
+        self.assertEqual(resp.status_code, 301)
+        self.assertEqual(resp['Location'], '/privacy-policy/')
+
+    def test_unknown_legacy_url_still_404s(self):
+        """No catch-all. An unmapped old URL must 404, not guess."""
+        for path in ('/blog/some-post-that-never-existed',
+                     '/services/nonexistent-city-seo',
+                     '/wp-login.php'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_live_routes_are_not_shadowed(self):
+        """The legacy patterns must not intercept any real page."""
+        for path in ('/services/seo/', '/services/web-design/',
+                     '/privacy-policy/', '/'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 200)
+
+
+@override_settings(PRODUCTION_HOST='testserver',
+                   SITE_BASE_URL='https://aspiredwebsites.com')
+class SchedulerCanonicalTests(TestCase):
+    """
+    Four URLs render one calendar. Search Console indexed three of them
+    as separate pages, so they all canonicalise to /design/schedule/ —
+    the variant carried in the sitemap.
+    """
+
+    EXPECTED = ('<link rel="canonical" '
+                'href="https://aspiredwebsites.com/design/schedule/">')
+
+    def test_all_variants_canonicalise_to_design_schedule(self):
+        for path in ('/schedule/', '/design/schedule/',
+                     '/social/schedule/', '/seo/schedule/'):
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertIn(self.EXPECTED, html)
+                self.assertEqual(html.count('rel="canonical"'), 1)
+
+    def test_variants_remain_crawlable(self):
+        """Consolidating the signal must not deindex the variants."""
+        for path in ('/social/schedule/', '/seo/schedule/'):
+            with self.subTest(path=path):
+                resp = self.client.get(path)
+                self.assertEqual(resp.status_code, 200)
+                self.assertNotIn('noindex', resp.content.decode())
+
+
 class NoindexTests(TestCase):
     """Private and duplicate-prone pages must carry noindex, no canonical."""
 

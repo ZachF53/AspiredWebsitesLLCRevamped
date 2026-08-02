@@ -12,6 +12,7 @@ from clients.views import (
     proposal_view_tracking, referral_click,
 )
 from outreach.sendgrid_webhook import receive as sendgrid_events
+from public.legacy_redirects import legacy_redirect_patterns
 from public.sitemaps import SITEMAPS
 from reporting.views import nps_response
 
@@ -127,6 +128,11 @@ urlpatterns = [
 
     path('', include('public.urls', namespace='public')),
 ]
+
+# 301s for the old WordPress URLs (see public/legacy_redirects.py).
+# Appended last so a legacy path can never shadow a live route — if a
+# real page ever occupies one of these paths, the real page wins.
+urlpatterns += legacy_redirect_patterns()
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

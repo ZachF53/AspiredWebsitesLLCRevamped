@@ -595,6 +595,45 @@ p {
     }
 }
 
+/* ── Mobile touch targets ────────────────────────────────────
+   Footer links measured 20-22px tall on a 390px viewport. That is
+   below WCAG 2.5.8's 24x24 minimum and well below the 44x44 both
+   Apple and Google recommend — and two of those links are the phone
+   number and email address, which are the primary conversion actions
+   on a phone. Missing a tel: link because it is 20px tall is a lost
+   call.
+
+   Padding rather than min-height so the whole padded box is tappable,
+   not just the text. The footer gets taller on mobile; that is the
+   correct trade and normal for a footer. Desktop is untouched — the
+   pointer is precise there and the tight spacing reads better. */
+@media (max-width: 719px) {
+    .site-footer li a,
+    .footer-legal a {
+        display: inline-block;
+        padding-block: 11px;
+        line-height: 22px;
+    }
+
+    /* Breadcrumbs sit at 13px, which is small for a touch target and
+       for reading. Bump both the text and the tappable area. */
+    .breadcrumbs {
+        font-size: 0.875rem;
+    }
+
+    .breadcrumbs a {
+        display: inline-block;
+        padding-block: 8px;
+    }
+
+    /* Nav submenu group labels are 11px uppercase. Fine as a desktop
+       mega-menu label, tight on a phone where the menu is the primary
+       navigation. */
+    .nav-submenu__heading {
+        font-size: 0.75rem;
+    }
+}
+
 /* ── Article body (/insights/) ───────────────────────────────
    Long-form prose, so it gets a measure cap rather than the full
    container width — ~68 characters is the readable range and the

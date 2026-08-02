@@ -3,6 +3,18 @@
 
 {% block title %}{{ service_config.meta_title|default:"Schedule a Call" }} — Aspired Websites{% endblock %}
 
+{% comment %}
+One calendar, four URLs: /schedule/, /design/schedule/, /social/schedule/
+and /seo/schedule/ all render this template, differing only in form copy.
+The inherited self-referencing canonical made each one canonical to
+itself, so Search Console indexed three near-identical pages (Aug 2026).
+
+Point them all at /design/schedule/ — the variant carried in
+public/sitemaps.py — so the ranking signal consolidates on one URL. The
+other three stay crawlable and reachable; they simply stop competing.
+{% endcomment %}
+{% block canonical %}{% if IS_PRODUCTION_HOST %}<link rel="canonical" href="{{ SITE_BASE_URL }}{% url 'scheduler:design_schedule' %}">{% endif %}{% endblock %}
+
 {% block content %}
 
 {# ───────── Hero ───────── #}
