@@ -199,16 +199,32 @@
             <h2>Sites We've Built for Legal</h2>
         </div>
 
+        {% comment %}
+        Driven by the CaseStudy table rather than hardcoded, so the
+        screenshot appears and the copy cannot drift from the case
+        study it links to. Filtered on business_type so this section
+        only ever shows legal work — a non-legal client appearing under
+        "Sites We've Built for Legal" would be a false claim.
+        {% endcomment %}
         <div class="cards cards--2col">
-            <article class="card card--with-visual">
-                <div class="card__visual gradient-blue" aria-hidden="true"></div>
-                <div class="card__body">
-                    <span class="pill-tag">Law Firm &middot; San Antonio, TX</span>
-                    <h3>Denis Law Group</h3>
-                    <p>A clean, conversion-focused site built for a growing law firm. Mobile-first, fast, and optimized for local search in San Antonio.</p>
-                    <a class="btn-secondary" href="https://denislawgroup.com/" target="_blank" rel="noopener">View Site</a>
-                </div>
-            </article>
+            {% for study in legal_studies %}
+                <article class="card card--with-visual">
+                    {% include "core/_case_study_visual.html" with study=study %}
+                    <div class="card__body">
+                        <span class="pill-tag">{{ study.business_type }}{% if study.location %} &middot; {{ study.location }}{% endif %}</span>
+                        <h3>{{ study.title }}</h3>
+                        {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
+                        <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>
+                    </div>
+                </article>
+            {% empty %}
+                <article class="card">
+                    <div class="card__body">
+                        <h3>Case studies publishing shortly</h3>
+                        <p>Our law firm project write-ups are being published. <a href="{% url 'public:contact' %}">Ask us</a> and we&rsquo;ll walk you through the relevant work directly.</p>
+                    </div>
+                </article>
+            {% endfor %}
         </div>
     </div>
 </section>

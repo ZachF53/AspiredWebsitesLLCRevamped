@@ -8882,33 +8882,69 @@ def dmarc_dashboard(request):
         bucket['fail'] += r.dmarc_fail
         bucket['total'] += r.total_messages
 
-    # Build a 30-day strip so missing-day bars render as gaps.
-    # Cap the bar count — a 365-day window would render an unreadable
-    # 365-column chart.
-    trend_days = min(days, 90)
+    # Build the strip, grouping days into buckets so the column count
+    # stays readable at any window.
+    #
+    # It used to be `min(days, 90)` daily columns. At the 1-year window
+    # that is 90 columns which, at the 18px minimum each, is ~2000px —
+    # wider than the card, so the chart overflowed the page. Grouping
+    # keeps roughly 30-52 columns whatever the window:
+    #
+    #   ≤ 45 days   → one column per day
+    #   ≤ 120 days  → one per week   (90d  → ~13 columns)
+    #   otherwise   → one per month  (365d → 12 columns)
+    if days <= 45:
+        group_days, group_label = 1, 'day'
+    elif days <= 120:
+        group_days, group_label = 7, 'week'
+    else:
+        group_days, group_label = 30, 'month'
+
+    trend_days = days
+    n_buckets = max(1, -(-days // group_days))   # ceil
     trend = []
     today = dj_tz.localdate()
-    for i in range(trend_days - 1, -1, -1):
-        d = today - timedelta(days=i)
-        bucket = by_day.get(d, {'date': d, 'pass': 0, 'fail': 0, 'total': 0})
-        total = bucket['total'] or 1  # avoid /0 for empty days
-        # Portable date label — %-m/%-d works on Linux/Mac but not
-        # Windows. Build it via .month / .day so dev on Windows
-        # doesn't 500 the page.
-        date_short = (f'{bucket["date"].month}/{bucket["date"].day}'
-                      if hasattr(bucket['date'], 'month')
-                      else str(bucket['date']))
+
+    for b in range(n_buckets - 1, -1, -1):
+        end = today - timedelta(days=b * group_days)
+        start = end - timedelta(days=group_days - 1)
+        agg = {'pass': 0, 'fail': 0, 'total': 0}
+        for offset in range(group_days):
+            d = start + timedelta(days=offset)
+            day = by_day.get(d)
+            if day:
+                agg['pass'] += day['pass']
+                agg['fail'] += day['fail']
+                agg['total'] += day['total']
+        # Portable label — %-m/%-d works on Linux/Mac but not Windows,
+        # so build it from .month / .day and don't 500 dev boxes.
+        label = f'{end.month}/{end.day}'
         trend.append({
-            'date': bucket['date'],
-            'date_short': date_short,
-            'pass': bucket['pass'],
-            'fail': bucket['fail'],
-            'total': bucket['total'],
-            'pass_pct': round(100 * bucket['pass'] / total)
-                if bucket['total'] else 0,
-            'fail_pct': round(100 * bucket['fail'] / total)
-                if bucket['total'] else 0,
+            'date': end,
+            'start': start,
+            'date_short': label,
+            'pass': agg['pass'],
+            'fail': agg['fail'],
+            'total': agg['total'],
         })
+
+    # Bar height is proportional to VOLUME, measured against the
+    # busiest bucket — which is what the chart always claimed to show
+    # and never did. Previously each bar was a 100%-stacked pass/fail
+    # split, so a day with 4 messages looked exactly like a day with
+    # 400 and the shape of the traffic was invisible.
+    #
+    # The pass/fail split within a bar is now expressed with flex-grow
+    # rather than percentage heights (see the template), so it needs no
+    # percentage to resolve against and cannot collapse.
+    busiest = max((t['total'] for t in trend), default=0) or 1
+    for t in trend:
+        if t['total']:
+            # Floor at 4% so a genuinely quiet bucket is still a
+            # visible mark rather than indistinguishable from a gap.
+            t['height_pct'] = max(4, round(100 * t['total'] / busiest))
+        else:
+            t['height_pct'] = 0
 
     # ── Reporters breakdown ──
     by_org = (qs.values('org_name')
@@ -8959,6 +8995,9 @@ def dmarc_dashboard(request):
         total_reports=totals['total_reports'] or 0,
         trend=trend,
         trend_days=trend_days,
+        # 'day' | 'week' | 'month' — the template says which, so a
+        # 12-bar year chart cannot be mistaken for 12 days.
+        trend_group=group_label,
         window_days=days,
         # Lets the template tell "nothing ever ingested" apart from
         # "nothing in the selected window" — two very different problems

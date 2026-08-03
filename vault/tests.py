@@ -1,6 +1,7 @@
 """Tests for the vault — credentials, signals, vault-level TOTP, terminal."""
 
 import os
+from datetime import timedelta
 
 import pyotp
 from django.contrib.auth import get_user_model
@@ -577,3 +578,124 @@ class ConsumerImportTests(TestCase):
         from vault import consumers, routing
         self.assertTrue(hasattr(consumers, 'SSHTerminalConsumer'))
         self.assertEqual(len(routing.websocket_urlpatterns), 1)
+
+
+# ── AI Ops sessions: kill + idle auto-close ────────────────────────────────
+
+class OpsSessionLifecycleTests(TestCase):
+    """
+    Sessions that were never closed sat at "LIVE" forever.
+
+    The only way to end one was ops_end_session, which can close only
+    the session bound to the caller's own Django session — so a closed
+    tab, a crashed browser or a gunicorn restart left the row open
+    permanently. The list had entries showing live two months on.
+    """
+
+    def setUp(self):
+        from vault.models import OpsSession
+        self.OpsSession = OpsSession
+        self.staff = User.objects.create_user(
+            username='opsstaff', password='op', is_staff=True)
+        self.client.login(username='opsstaff', password='op')
+        profile = _client('Ops Co')
+        self.cred = VaultCredential.objects.create(
+            vault=profile.vault, label='Ops Box', category='server',
+            is_ssh_credential=True)
+
+    def _session(self, *, started_ago_min=0, activity_ago_min=None):
+        s = self.OpsSession.objects.create(credential=self.cred)
+        now = timezone.now()
+        # started_at is auto_now_add, so rewrite it with an update().
+        self.OpsSession.objects.filter(pk=s.pk).update(
+            started_at=now - timedelta(minutes=started_ago_min),
+            last_activity_at=(None if activity_ago_min is None
+                              else now - timedelta(minutes=activity_ago_min)))
+        s.refresh_from_db()
+        return s
+
+    def test_idle_session_is_closed(self):
+        s = self._session(started_ago_min=200, activity_ago_min=90)
+        self.assertEqual(self.OpsSession.close_idle(), 1)
+        s.refresh_from_db()
+        self.assertIsNotNone(s.ended_at)
+        self.assertEqual(s.end_reason, self.OpsSession.END_IDLE)
+
+    def test_active_session_is_left_alone(self):
+        s = self._session(started_ago_min=200, activity_ago_min=5)
+        self.assertEqual(self.OpsSession.close_idle(), 0)
+        s.refresh_from_db()
+        self.assertIsNone(s.ended_at)
+
+    def test_idle_close_backdates_to_last_activity(self):
+        """
+        A session abandoned in May and reaped in August did not run for
+        three months. An audit log that claims it did is worse than one
+        that says nothing, so ended_at is the last activity, not now.
+        """
+        s = self._session(started_ago_min=200, activity_ago_min=120)
+        self.OpsSession.close_idle()
+        s.refresh_from_db()
+        # 200 min session, last active at the 80-minute mark.
+        self.assertAlmostEqual(s.duration_seconds, 80 * 60, delta=90)
+        self.assertLess(s.ended_at, timezone.now() - timedelta(minutes=100))
+
+    def test_session_with_no_activity_falls_back_to_started_at(self):
+        s = self._session(started_ago_min=300, activity_ago_min=None)
+        self.assertEqual(self.OpsSession.close_idle(), 1)
+        s.refresh_from_db()
+        self.assertEqual(s.end_reason, self.OpsSession.END_IDLE)
+        self.assertAlmostEqual(s.duration_seconds, 0, delta=90)
+
+    def test_close_is_idempotent(self):
+        """A double-click on Kill must not rewrite history."""
+        s = self._session(started_ago_min=10, activity_ago_min=1)
+        self.assertTrue(s.close(reason=self.OpsSession.END_KILLED))
+        first_ended, first_reason = s.ended_at, s.end_reason
+        self.assertFalse(s.close(reason=self.OpsSession.END_IDLE))
+        s.refresh_from_db()
+        self.assertEqual(s.ended_at, first_ended)
+        self.assertEqual(s.end_reason, first_reason)
+
+    def test_kill_endpoint_closes_any_session(self):
+        """Not just the one bound to the caller's Django session."""
+        s = self._session(started_ago_min=30, activity_ago_min=1)
+        resp = self.client.post(
+            reverse('vault:ops_session_kill', args=[s.id]))
+        self.assertEqual(resp.status_code, 302)
+        s.refresh_from_db()
+        self.assertIsNotNone(s.ended_at)
+        self.assertEqual(s.end_reason, self.OpsSession.END_KILLED)
+
+    def test_kill_endpoint_rejects_get(self):
+        """It mutates the audit trail — a prefetch must not fire it."""
+        s = self._session(started_ago_min=30, activity_ago_min=1)
+        resp = self.client.get(
+            reverse('vault:ops_session_kill', args=[s.id]))
+        self.assertEqual(resp.status_code, 405)
+        s.refresh_from_db()
+        self.assertIsNone(s.ended_at)
+
+    def test_kill_requires_staff(self):
+        s = self._session(started_ago_min=30, activity_ago_min=1)
+        self.client.logout()
+        resp = self.client.post(
+            reverse('vault:ops_session_kill', args=[s.id]))
+        self.assertIn(resp.status_code, (302, 403))
+        s.refresh_from_db()
+        self.assertIsNone(s.ended_at)
+
+    def test_sessions_list_sweeps_on_read(self):
+        """
+        Staging runs with celerybeat stopped on purpose, so the reaping
+        must not depend on a worker being up.
+        """
+        s = self._session(started_ago_min=200, activity_ago_min=90)
+        self.client.get(reverse('vault:ops_sessions_list'))
+        s.refresh_from_db()
+        self.assertEqual(s.end_reason, self.OpsSession.END_IDLE)
+
+    def test_celery_task_delegates_to_the_same_code(self):
+        from vault.tasks import close_idle_ops_sessions
+        self._session(started_ago_min=200, activity_ago_min=90)
+        self.assertEqual(close_idle_ops_sessions(), 1)

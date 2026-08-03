@@ -10,6 +10,7 @@ import csv
 import logging
 from datetime import datetime, timedelta
 
+from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1318,8 +1319,10 @@ def ops_chat(request, cred_id):
     ops_session.conversation = conversation
     ops_session.total_tokens_used = (
         (ops_session.total_tokens_used or 0) + tokens_used)
+    ops_session.last_activity_at = dj_timezone.now()
     ops_session.save(update_fields=[
-        'conversation', 'total_tokens_used', 'updated_at'])
+        'conversation', 'total_tokens_used', 'last_activity_at',
+        'updated_at'])
 
     return JsonResponse({
         'agent_message': agent_message,
@@ -1422,9 +1425,10 @@ def ops_execute(request, cred_id):
         })
         ops_session.dangerous_commands_approved = approved
 
+    ops_session.last_activity_at = dj_timezone.now()
     ops_session.save(update_fields=[
         'commands_executed', 'dangerous_commands_approved',
-        'updated_at'])
+        'last_activity_at', 'updated_at'])
 
     return JsonResponse({
         'output': full_output,
@@ -1474,8 +1478,10 @@ def ops_deny(request, cred_id):
         'is_system': True,
     })
     ops_session.conversation = conv
+    ops_session.last_activity_at = dj_timezone.now()
     ops_session.save(update_fields=[
-        'dangerous_commands_denied', 'conversation', 'updated_at'])
+        'dangerous_commands_denied', 'conversation', 'last_activity_at',
+        'updated_at'])
     return JsonResponse({'denied': True})
 
 
@@ -1492,22 +1498,46 @@ def ops_end_session(request, cred_id):
     if ops_session is None:
         return JsonResponse({'ended': True})
 
-    if ops_session.ended_at is None:
-        ops_session.ended_at = dj_timezone.now()
-        ops_session.duration_seconds = int(
-            (ops_session.ended_at - ops_session.started_at)
-            .total_seconds())
-        ops_session.save(update_fields=[
-            'ended_at', 'duration_seconds', 'updated_at'])
+    # Shared with the kill button and the idle reaper so the three
+    # paths cannot disagree about what "closed" means.
+    from .models import OpsSession
+    ops_session.close(reason=OpsSession.END_NORMAL)
 
     request.session.pop(f'ops_session_{cred.id}', None)
     return JsonResponse({'ended': True})
 
 
 @admin_required
+@require_POST
+def ops_session_kill(request, session_id):
+    """
+    Force-close one session from the sessions list.
+
+    Distinct from ops_end_session, which can only close the session
+    bound to the caller's own Django session — useless for a row left
+    open by a closed tab, a crashed browser or a gunicorn restart,
+    which is how every stale row on that page got there.
+    """
+    from .models import OpsSession
+    session = get_object_or_404(OpsSession, id=session_id)
+    session.close(reason=OpsSession.END_KILLED)
+    # Drop the pointer too, so re-opening the agent for that credential
+    # starts a fresh session instead of resurrecting this one.
+    request.session.pop(f'ops_session_{session.credential_id}', None)
+    messages.success(
+        request, f'Session on {session.credential.label} closed.')
+    return redirect('vault:ops_sessions_list')
+
+
+@admin_required
 def ops_sessions_list(request):
     """Read-only list of every AI Ops session, newest first."""
     from .models import OpsSession
+    # Reap idle sessions on read as well as on the Celery schedule.
+    # Staging deliberately runs with celerybeat stopped, and this page
+    # is the one place the staleness is actually visible — so it should
+    # not depend on a worker being up to be correct.
+    OpsSession.close_idle()
     sessions = (OpsSession.objects
                 .select_related('credential', 'client')
                 .order_by('-started_at')[:200])

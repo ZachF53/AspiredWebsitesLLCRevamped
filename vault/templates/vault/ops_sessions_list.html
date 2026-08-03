@@ -38,7 +38,23 @@
                                 {% else %}<span class="droplet-muted">—</span>{% endif %}
                             </td>
                             <td><time datetime="{{ s.started_at }}">{{ s.started_at|date:"Y-m-d H:i" }}</time></td>
-                            <td>{% if s.duration_seconds %}{{ s.duration_seconds }}s{% elif not s.ended_at %}<span class="scan-status scan-status--running">live</span>{% else %}—{% endif %}</td>
+                            {% comment %}
+                            end_reason is shown next to the duration so
+                            a closed session says HOW it closed. An
+                            audit log where "the operator finished" and
+                            "we reaped it after an hour of silence"
+                            look identical is misleading.
+                            {% endcomment %}
+                            <td>
+                                {% if not s.ended_at %}
+                                    <span class="scan-status scan-status--running">live</span>
+                                {% else %}
+                                    {# `is not None`, not truthiness — a session reaped at its last activity has a legitimate 0s duration and must not fall through to a dash. #}
+                                    {% if s.duration_seconds is not None %}{{ s.duration_seconds }}s{% else %}&mdash;{% endif %}
+                                    {% if s.end_reason == 'idle_timeout' %}<span class="scan-pill" title="Auto-closed after 1 hour with no activity">idle</span>
+                                    {% elif s.end_reason == 'killed' %}<span class="scan-pill" title="Force-closed from this page">killed</span>{% endif %}
+                                {% endif %}
+                            </td>
                             <td>{{ s.conversation|length }}</td>
                             <td>{{ s.commands_executed|length }}</td>
                             <td>
@@ -48,6 +64,19 @@
                             <td>{{ s.total_tokens_used }}</td>
                             <td class="droplet-table__actions">
                                 <a class="btn-secondary btn-sm" href="{% url 'vault:ops_session_replay' s.id %}">View Replay</a>
+                                {% comment %}
+                                Kill is a POST form, not a link — it
+                                mutates the audit trail, so it must not
+                                fire from a prefetch or a crawler. Only
+                                offered while the session is open.
+                                {% endcomment %}
+                                {% if not s.ended_at %}
+                                    <form method="post" action="{% url 'vault:ops_session_kill' s.id %}" class="ops-kill-form">
+                                        {% csrf_token %}
+                                        {# .btn-danger is a modifier — it needs .btn-secondary for the button shape #}
+                                        <button type="submit" class="btn-secondary btn-danger btn-sm">Kill</button>
+                                    </form>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

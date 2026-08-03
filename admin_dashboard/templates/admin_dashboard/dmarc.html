@@ -70,14 +70,25 @@
     </div>
 
     {% comment %}
-        31-day trend bar chart. Pure CSS — each day is a vertical
-        bar where green = pass, red = fail, height proportional to
-        total messages. Empty days render as 1px slivers so the
-        gaps are visible but don't dominate.
+        Trend bar chart. Each column is one bucket (a day, week or
+        month depending on the window — the view groups so the column
+        count stays readable instead of overflowing at 1y). Bar height
+        is proportional to message volume against the busiest bucket;
+        within a bar, green = pass and red = fail.
+
+        The split uses flex-grow, NOT percentage heights. Percentages
+        here have to resolve against the track's height, and when that
+        height came from flex the browser treated them as auto and
+        every bar collapsed to its 1px minimum — the chart rendered as
+        an empty box. flex-grow needs nothing to resolve against.
+        The track keeps a definite px height in CSS for the same
+        reason: it is what `height: N%` on the bar resolves against.
     {% endcomment %}
     <section class="admin-card dmarc-trend-card">
         <div class="admin-card__header">
-            <h2 class="admin-card__title">Pass/fail trend — last {{ trend_days }} days</h2>
+            <h2 class="admin-card__title">
+                Pass/fail trend — last {{ trend_days }} days{% if trend_group != 'day' %} (by {{ trend_group }}){% endif %}
+            </h2>
         </div>
         <div class="admin-card__body">
             {% if total_reports == 0 and not has_any_reports %}
@@ -87,11 +98,13 @@
             {% else %}
                 <div class="dmarc-trend">
                     {% for day in trend %}
-                        <div class="dmarc-trend__col" title="{{ day.date|date:'Y-m-d' }}: {{ day.pass }} pass / {{ day.fail }} fail ({{ day.total }} msgs)">
-                            <div class="dmarc-trend__bar">
+                        <div class="dmarc-trend__col" title="{% if trend_group == 'day' %}{{ day.date|date:'Y-m-d' }}{% else %}{{ day.start|date:'Y-m-d' }} to {{ day.date|date:'Y-m-d' }}{% endif %}: {{ day.pass }} pass / {{ day.fail }} fail ({{ day.total }} msgs)">
+                            <div class="dmarc-trend__track">
                                 {% if day.total > 0 %}
-                                    <div class="dmarc-trend__pass" style="height: {{ day.pass_pct }}%"></div>
-                                    <div class="dmarc-trend__fail" style="height: {{ day.fail_pct }}%"></div>
+                                    <div class="dmarc-trend__bar" style="height: {{ day.height_pct }}%">
+                                        <div class="dmarc-trend__pass" style="flex-grow: {{ day.pass }}"></div>
+                                        <div class="dmarc-trend__fail" style="flex-grow: {{ day.fail }}"></div>
+                                    </div>
                                 {% else %}
                                     <div class="dmarc-trend__empty"></div>
                                 {% endif %}

@@ -196,3 +196,98 @@ class AssistantViewTests(TestCase):
         self.assertIsNotNone(log)
         # Should be False since the test client isn't 'fully_paid'.
         self.assertFalse(log.success)
+
+
+# ── DMARC trend chart ───────────────────────────────────────────────────────
+
+class DmarcTrendChartTests(TestCase):
+    """
+    Two bugs, both visible as "the graph shows nothing" or "the 1-year
+    view overflows the page":
+
+      1. Bars were sized with `height: N%` inline, which CSP dropped —
+         and even once allowed, the percentage had nothing definite to
+         resolve against, so every bar collapsed to its 1px minimum.
+         Height is now driven off a definite-height track, and the
+         pass/fail split uses flex-grow instead of percentages.
+      2. The window was capped at `min(days, 90)` DAILY columns. 90
+         columns at an 18px minimum is ~2000px — wider than the card.
+         Long windows are now grouped into weeks or months.
+    """
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from reporting.models import DmarcReport
+        self.staff = User.objects.create_user(
+            username='dstaff', password='dp', is_staff=True, is_superuser=True)
+        self.client.login(username='dstaff', password='dp')
+        now = timezone.now()
+        for i in range(0, 300, 3):
+            day = now - timedelta(days=i)
+            DmarcReport.objects.create(
+                org_name='google.com', report_id=f'test-{i}',
+                period_start=day - timedelta(days=1), period_end=day,
+                policy_domain='aspiredwebsites.com',
+                total_messages=10 + i, dmarc_pass=9 + i, dmarc_fail=1)
+
+    def _trend(self, days):
+        resp = self.client.get(f'/admin-dashboard/dmarc/?days={days}')
+        self.assertEqual(resp.status_code, 200)
+        return resp.context['trend'], resp.context['trend_group']
+
+    def test_short_window_stays_daily(self):
+        trend, group = self._trend(30)
+        self.assertEqual(group, 'day')
+        self.assertEqual(len(trend), 30)
+
+    def test_long_windows_are_grouped_to_stay_narrow(self):
+        """The actual regression: 365 days must not be 90 columns."""
+        for days, expected_group in ((90, 'week'), (365, 'month')):
+            with self.subTest(days=days):
+                trend, group = self._trend(days)
+                self.assertEqual(group, expected_group)
+                self.assertLessEqual(
+                    len(trend), 52,
+                    f'{len(trend)} columns at {days}d will overflow the card')
+
+    def test_bar_height_tracks_volume_not_pass_rate(self):
+        """
+        The chart always claimed height was proportional to messages
+        and never was — it was a 100% stacked split, so a 4-message day
+        looked exactly like a 400-message day.
+        """
+        trend, _ = self._trend(90)
+        populated = [t for t in trend if t['total']]
+        self.assertTrue(populated)
+        busiest = max(populated, key=lambda t: t['total'])
+        self.assertEqual(busiest['height_pct'], 100)
+        # More than one distinct height, i.e. the shape carries meaning.
+        self.assertGreater(len({t['height_pct'] for t in populated}), 1)
+
+    def test_empty_buckets_have_zero_height(self):
+        trend, _ = self._trend(30)
+        for t in trend:
+            if not t['total']:
+                self.assertEqual(t['height_pct'], 0)
+
+    def test_quiet_buckets_stay_visible(self):
+        """A real but small bucket must not be indistinguishable from a gap."""
+        trend, _ = self._trend(365)
+        for t in trend:
+            if t['total']:
+                self.assertGreaterEqual(t['height_pct'], 4)
+
+    def test_no_percentage_height_attributes_on_segments(self):
+        """
+        The pass/fail split must use flex-grow. A percentage height
+        here is what collapsed the chart in the first place.
+        """
+        html = self.client.get(
+            '/admin-dashboard/dmarc/?days=30').content.decode()
+        self.assertIn('dmarc-trend__pass', html)
+        self.assertIn('flex-grow:', html)
+        segment = html.split('dmarc-trend__pass')[1][:60]
+        self.assertNotIn('height:', segment)

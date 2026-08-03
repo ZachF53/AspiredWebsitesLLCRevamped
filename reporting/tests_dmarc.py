@@ -69,7 +69,14 @@ class DmarcDashboardTests(TestCase):
         r = self._get('?days=365')
         self.assertEqual(r.context['total_reports'], 1)
         self.assertEqual(r.context['window_days'], 365)
-        self.assertEqual(len(r.context['trend']), 90)  # bar cap
+        # Was `== 90` ("bar cap"). That cap WAS the bug: 90 daily
+        # columns at an 18px minimum is ~2000px, wider than the card,
+        # so the 1-year view pushed the page sideways. Long windows are
+        # now grouped into months instead of truncated into days.
+        self.assertEqual(r.context['trend_group'], 'month')
+        self.assertLessEqual(
+            len(r.context['trend']), 52,
+            'too many columns — the chart will overflow its card')
 
     def test_bad_and_extreme_days_params(self):
         for qs, expect in [('?days=abc', 30), ('?days=-5', 1),

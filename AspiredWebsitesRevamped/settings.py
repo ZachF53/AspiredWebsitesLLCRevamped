@@ -578,6 +578,15 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_client_uptime',
         'schedule': crontab(minute='*/5'),          # every 5 minutes
     },
+    # Reap AI Ops sessions abandoned without an explicit End (closed
+    # tab, browser crash, gunicorn restart). Every 15 minutes against a
+    # 60-minute idle threshold, so a session is closed within about an
+    # hour and a quarter of its last activity. The sessions list also
+    # sweeps on read, so this still works with celerybeat stopped.
+    'close-idle-ops-sessions': {
+        'task': 'vault.tasks.close_idle_ops_sessions',
+        'schedule': crontab(minute='*/15'),
+    },
     'check-gbp-sync': {
         'task': 'reporting.tasks.check_gbp_sync',
         'schedule': crontab(hour=9, minute=0, day_of_week=1),   # Mon 9am

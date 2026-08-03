@@ -42,6 +42,11 @@ urlpatterns = [
          views.ops_end_session, name='ops_end'),
     path('ops/sessions/',
          views.ops_sessions_list, name='ops_sessions_list'),
+    # Force-close a session from the list. POST-only: it mutates the
+    # audit trail, so it must not be reachable by a prefetching browser
+    # or a crawler following links.
+    path('ops/sessions/<uuid:session_id>/kill/',
+         views.ops_session_kill, name='ops_session_kill'),
     path('ops/sessions/<uuid:session_id>/',
          views.ops_session_replay, name='ops_session_replay'),
 ]

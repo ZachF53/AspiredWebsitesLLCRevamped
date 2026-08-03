@@ -397,6 +397,27 @@ class OpsSession(TimestampedModel):
     ended_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(null=True, blank=True)
 
+    # How the session ended. This is an audit log, so "the operator
+    # closed it", "an admin killed it from the list" and "it was reaped
+    # for going quiet" are three different facts and must not all look
+    # like a clean exit.
+    END_NORMAL = 'normal'
+    END_KILLED = 'killed'
+    END_IDLE = 'idle_timeout'
+    END_REASONS = [
+        (END_NORMAL, 'Ended by operator'),
+        (END_KILLED, 'Killed from the sessions list'),
+        (END_IDLE, 'Auto-closed after inactivity'),
+    ]
+    end_reason = models.CharField(
+        max_length=20, choices=END_REASONS, blank=True,
+        help_text='Blank while the session is still open.')
+
+    # Last time anything actually happened — a chat turn, a command, an
+    # approve/deny. `updated_at` would drift on any unrelated save, so
+    # idle detection gets its own column it can trust.
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+
     # Full conversation history: list of
     #   {role: 'user'|'assistant', content: str, timestamp: iso,
     #    is_system?: bool}
@@ -431,3 +452,63 @@ class OpsSession(TimestampedModel):
     def __str__(self):
         return (f'{self.credential.label} — '
                 f"{self.started_at.strftime('%Y-%m-%d %H:%M')}")
+
+    # Sessions go quiet without ever being closed — the operator shuts
+    # the tab, the browser crashes, a deploy restarts gunicorn — and
+    # the old end-session endpoint could only close the session bound
+    # to the *current* Django session. Anything else stayed "LIVE"
+    # forever; the list had rows still showing live two months on.
+    IDLE_TIMEOUT_MINUTES = 60
+
+    @property
+    def is_live(self):
+        return self.ended_at is None
+
+    def touch(self, save=True):
+        """Record activity. Called on every chat turn and command."""
+        from django.utils import timezone as _tz
+        self.last_activity_at = _tz.now()
+        if save:
+            self.save(update_fields=['last_activity_at', 'updated_at'])
+
+    def close(self, reason=END_NORMAL, when=None):
+        """
+        Stamp ended_at/duration/end_reason. Idempotent — a session that
+        is already closed keeps its original timestamps, so a double
+        click on Kill cannot rewrite history.
+        """
+        from django.utils import timezone as _tz
+        if self.ended_at is not None:
+            return False
+        self.ended_at = when or _tz.now()
+        self.end_reason = reason
+        self.duration_seconds = max(
+            0, int((self.ended_at - self.started_at).total_seconds()))
+        self.save(update_fields=[
+            'ended_at', 'end_reason', 'duration_seconds', 'updated_at'])
+        return True
+
+    @classmethod
+    def close_idle(cls, minutes=None):
+        """
+        Close every open session whose last activity is older than the
+        timeout. Returns the number closed.
+
+        ended_at is backdated to the last activity, NOT to now. A
+        session abandoned in May and reaped in August did not run for
+        three months, and an audit log that says it did is worse than
+        one that says nothing. Sessions that never recorded any
+        activity fall back to started_at.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone as _tz
+        minutes = minutes or cls.IDLE_TIMEOUT_MINUTES
+        cutoff = _tz.now() - timedelta(minutes=minutes)
+        closed = 0
+        for session in cls.objects.filter(ended_at__isnull=True):
+            last = session.last_activity_at or session.started_at
+            if last <= cutoff:
+                if session.close(reason=cls.END_IDLE, when=last):
+                    closed += 1
+        return closed

@@ -103,8 +103,17 @@ def _score_tier(score):
 
 
 def home(request):
+    # The "Recent Builds" strip was four hardcoded cards with
+    # placeholder visuals and copy that had drifted from the database —
+    # it described Denis Law Group as a "personal-injury practice" when
+    # the firm actually does family law and adoption. Driving it from
+    # the same CaseStudy rows as /portfolio/ fixes the wrong detail,
+    # brings in the real screenshots, and means it cannot drift again.
+    from clients.models import CaseStudy
     return render(request, 'public/home.html', {
         'active_nav': 'home',
+        'studies': CaseStudy.objects.filter(
+            is_published=True).order_by('-published_at')[:4],
         'meta_title': 'Custom Websites for Law Firms and Small Businesses',
         'meta_description': (
             'Aspired Websites builds hand-coded, security-hardened websites '
@@ -135,8 +144,17 @@ def law_firms(request):
             return f'${low:,.0f}'
         return f'${low:,.0f}–${high:,.0f}'
 
+    # Legal work only — this section is headed "Sites We've Built for
+    # Legal", so a non-legal client appearing under it would be a false
+    # claim. Was a hardcoded Denis Law Group card with a gradient
+    # placeholder; now it carries the real screenshot and cannot drift
+    # from the case study it links to.
+    from clients.models import CaseStudy
     return render(request, 'public/law_firms.html', {
         'active_nav': 'law_firms',
+        'legal_studies': CaseStudy.objects.filter(
+            is_published=True, business_type__icontains='law'
+        ).order_by('-published_at'),
         'meta_title': 'Custom Websites for Law Firms',
         'meta_description': (
             'Hand-coded, security-hardened websites built specifically '

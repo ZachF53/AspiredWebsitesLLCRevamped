@@ -130,6 +130,32 @@ CSP_ADMIN = (
     "object-src 'none'"
 )
 
+# /admin-dashboard/ — CSP_PUBLIC with inline STYLES allowed.
+#
+# Why this exists: the admin dashboard was falling through to
+# CSP_PUBLIC, whose `style-src 'self'` blocks the `style=` attribute.
+# 266 inline styles across ~30 admin templates were being silently
+# dropped, including every data-driven bar in the DMARC trend, the
+# Redis monitor, the intelligence score bars, the conversion funnel
+# and the leads table — which is why those charts rendered as empty
+# boxes. Confirmed in the browser: an element with `style="height:
+# 100%"` computed to 1px, with "Applying inline style violates the
+# following Content Security Policy directive" in the console.
+#
+# The trade-off, stated plainly: `script-src` stays 'self'. That is
+# the directive doing the real work against XSS, and it is untouched.
+# What is relaxed is style-src, on a surface that is login-gated and
+# staff-only (@admin_required). Rewriting 266 attributes into utility
+# classes would be a large refactor that new code would quietly
+# reintroduce anyway — the height of a bar is genuinely per-datum, and
+# CSS cannot express it without either inline styles or a class per
+# percentage point.
+#
+# Derived from CSP_PUBLIC by string replacement rather than retyped,
+# so the two cannot drift apart when a directive changes.
+CSP_ADMIN_DASHBOARD = CSP_PUBLIC.replace(
+    "style-src 'self'; ", "style-src 'self' 'unsafe-inline'; ")
+
 # Disable browser features we never use.
 PERMISSIONS_POLICY = (
     "accelerometer=(), "
@@ -188,6 +214,11 @@ class SecurityHeadersMiddleware:
             # replay/) — relaxed so the rrweb replay iframe can render the
             # captured site's CSS, fonts, and images.
             response['Content-Security-Policy'] = CSP_REPLAY
+        elif path.startswith('/admin-dashboard/'):
+            # Last of the /admin-dashboard/ branches on purpose — the
+            # vault terminal and the recording replay above are more
+            # specific and must keep their own policies.
+            response['Content-Security-Policy'] = CSP_ADMIN_DASHBOARD
         else:
             response['Content-Security-Policy'] = CSP_PUBLIC
 

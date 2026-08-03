@@ -1298,6 +1298,30 @@ p {
         radial-gradient(circle at 30% 70%, rgba(13, 148, 136, 0.18), transparent 60%);
 }
 
+/* Real screenshot in the homepage strip. Same reasoning as the
+   portfolio cards: the tinted wash exists to give a flat gradient
+   depth, and laying it over a client's site would misrepresent their
+   colours. The name-plate padding/centring is dropped too — the
+   image is the content now. */
+.portfolio-item__visual--shot {
+    padding: 0;
+    display: block;
+    overflow: hidden;
+    background: var(--color-bg-deep);
+}
+
+.portfolio-item__visual--shot::after {
+    content: none;
+}
+
+.portfolio-item__visual--shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+}
+
 .portfolio-item__visual span {
     position: relative;
     z-index: 1;
@@ -15243,34 +15267,56 @@ button.htmx-request {
     display: flex;
     align-items: flex-end;
     gap: 4px;
-    height: 140px;
     padding: 0.5rem 0 0;
+    /* Height lives on __track now, not here. The old `height: 140px`
+       combined with `align-items: flex-end` meant the columns were
+       never stretched, so the bars inside had no height for a
+       percentage to resolve against and every one collapsed to its
+       1px minimum — the chart rendered as an empty box. */
 }
 .dmarc-trend__col {
-    flex: 1 0 0;
+    flex: 1 1 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 18px;
+    /* min-width: 0, not 18px. A fixed minimum could not shrink, so a
+       long window pushed the chart wider than its card and the page
+       scrolled sideways. The view also groups days into weeks/months
+       to keep the count sane; this is the belt to that's braces. */
+    min-width: 0;
     cursor: help;
 }
-.dmarc-trend__bar {
-    flex: 1;
+/* The track is the full-height slot a bar sits in. Its height is a
+   definite px value on purpose: that is what `height: N%` on the bar
+   resolves against, and a flex-derived height does not work for that. */
+.dmarc-trend__track {
+    height: 130px;
     width: 80%;
     display: flex;
-    flex-direction: column-reverse;  /* pass on top, fail on bottom */
+    align-items: flex-end;
     background: rgba(255, 255, 255, 0.03);
+    border-radius: 3px 3px 0 0;
+}
+
+.dmarc-trend__bar {
+    width: 100%;
+    display: flex;
+    flex-direction: column-reverse;  /* pass on top, fail on bottom */
     border-radius: 3px 3px 0 0;
     overflow: hidden;
 }
-.dmarc-trend__pass {
-    background: #10b981;
-    min-height: 1px;
-}
+.dmarc-trend__pass,
 .dmarc-trend__fail {
-    background: #ef4444;
+    /* flex-basis 0 so the inline flex-grow values (raw pass/fail
+       message counts) decide the split exactly. min-height keeps a
+       single failing message from vanishing entirely. */
+    flex-basis: 0;
+    flex-shrink: 0;
     min-height: 1px;
+    width: 100%;
 }
+.dmarc-trend__pass { background: #10b981; }
+.dmarc-trend__fail { background: #ef4444; }
 .dmarc-trend__empty {
     width: 100%;
     height: 2px;
@@ -16899,13 +16945,28 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 }
 .redis-two-col {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* minmax(0, 1fr), not 1fr. `1fr` is shorthand for minmax(auto, 1fr),
+       and an `auto` minimum refuses to shrink below the content's
+       min-content width — so the wide tables inside pushed both
+       columns out and the whole page scrolled sideways instead of the
+       tables scrolling inside their own .lead-table-wrapper. Same
+       failure as the pricing grid. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
     margin-top: 1rem;
 }
 @media (max-width: 1100px) {
     .redis-two-col { grid-template-columns: 1fr; }
 }
+/* Kill button on the AI Ops sessions list. It has to be a <form> so
+   the action is a POST, but a block-level form would drop it onto its
+   own line under "View Replay" — inline-block keeps the actions cell
+   reading as one row of buttons. */
+.ops-kill-form {
+    display: inline-block;
+    margin: 0 0 0 0.35rem;
+}
+
 .redis-row-long {
     background: rgba(248, 113, 113, 0.06);
 }

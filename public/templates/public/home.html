@@ -213,43 +213,43 @@ The H1 is unchanged (D9).
             <h2>Recent Builds</h2>
         </div>
 
+        {% comment %}
+        Driven by the CaseStudy table, same source as /portfolio/.
+
+        This used to be four hardcoded cards with placeholder visuals.
+        Two problems with that: the visuals were name plates rather than
+        the work, and the copy had drifted from reality — it called
+        Denis Law Group a "personal-injury practice" when the firm does
+        family law and adoption. Hardcoded proof about real clients goes
+        stale silently, which is the failure mode §15 cares about most.
+        {% endcomment %}
         <div class="portfolio-strip">
-            {# TODO: Swap placeholder visuals for real project thumbnails #}
-            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
-                <div class="portfolio-item__visual"><span>Denis Law Group</span></div>
-                <div class="portfolio-item__body">
-                    <div class="portfolio-item__type">Law Firm</div>
-                    <div class="portfolio-item__title">Denis Law Group</div>
-                    <p class="portfolio-item__desc">Full website rebuild for a personal-injury practice in San Antonio.</p>
-                </div>
-            </a>
-
-            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
-                <div class="portfolio-item__visual"><span>Food Trucks of SA</span></div>
-                <div class="portfolio-item__body">
-                    <div class="portfolio-item__type">Local Directory</div>
-                    <div class="portfolio-item__title">Food Trucks of SA</div>
-                    <p class="portfolio-item__desc">A searchable directory of San Antonio food trucks — designed for the lunch-rush phone tap.</p>
-                </div>
-            </a>
-
-            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
-                <div class="portfolio-item__visual"><span>Moonieful Designs</span></div>
-                <div class="portfolio-item__body">
-                    <div class="portfolio-item__type">Creative Studio</div>
-                    <div class="portfolio-item__title">Moonieful Designs</div>
-                    <p class="portfolio-item__desc">Portfolio site for a San Antonio creative studio. Quiet, fast, and focused on the work.</p>
-                </div>
-            </a>
-
-            <a class="portfolio-item" href="{% url 'public:portfolio' %}">
-                <div class="portfolio-item__visual"><span>Burgland Tech</span></div>
-                <div class="portfolio-item__body">
-                    <div class="portfolio-item__type">Technology Services</div>
-                    <div class="portfolio-item__title">Burgland Tech</div>
-                    <p class="portfolio-item__desc">B2B technology services site with lead capture and case-study layouts.</p>
-                </div>
-            </a>
+            {% for study in studies %}
+                <a class="portfolio-item" href="{{ study.get_absolute_url }}">
+                    {% if study.screenshot %}
+                        <div class="portfolio-item__visual portfolio-item__visual--shot">
+                            <img src="{{ study.screenshot.url }}"
+                                 alt="Homepage of {{ study.title }}, built by Aspired Websites"
+                                 width="1200" height="750" loading="lazy" decoding="async">
+                        </div>
+                    {% else %}
+                        <div class="portfolio-item__visual"><span>{{ study.title }}</span></div>
+                    {% endif %}
+                    <div class="portfolio-item__body">
+                        {% if study.business_type %}<div class="portfolio-item__type">{{ study.business_type }}</div>{% endif %}
+                        <div class="portfolio-item__title">{{ study.title }}</div>
+                        {% if study.summary %}<p class="portfolio-item__desc">{{ study.summary }}</p>{% endif %}
+                    </div>
+                </a>
+            {% empty %}
+                <a class="portfolio-item" href="{% url 'public:portfolio' %}">
+                    <div class="portfolio-item__visual"><span>Recent work</span></div>
+                    <div class="portfolio-item__body">
+                        <div class="portfolio-item__title">See the portfolio</div>
+                        <p class="portfolio-item__desc">Project write-ups are publishing shortly.</p>
+                    </div>
+                </a>
+            {% endfor %}
         </div>
     </div>
 </section>

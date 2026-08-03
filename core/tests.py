@@ -105,6 +105,64 @@ class GoogleAnalyticsTagTests(TestCase):
         self.assertNotIn("'unsafe-inline'", csp)
 
 
+class AdminDashboardCspTests(TestCase):
+    """
+    /admin-dashboard/ needs inline STYLES; it must not gain inline
+    scripts.
+
+    The bug: the dashboard fell through to CSP_PUBLIC, whose
+    `style-src 'self'` silently drops every `style=` attribute. 266 of
+    them across ~30 templates were dead, which is why the DMARC trend,
+    the Redis chart, the intelligence score bars, the conversion funnel
+    and the leads bar all rendered as empty boxes. Verified in a
+    browser: `style="height: 100%"` computed to 1px.
+    """
+
+    def _csp(self, path):
+        return self.client.get(path)['Content-Security-Policy']
+
+    def test_admin_dashboard_allows_inline_styles(self):
+        csp = self._csp('/admin-dashboard/')
+        style = csp.split('style-src')[1].split(';')[0]
+        self.assertIn("'unsafe-inline'", style)
+
+    def test_admin_dashboard_still_blocks_inline_scripts(self):
+        """
+        The relaxation is style-only. script-src is the directive
+        actually holding back XSS and must stay strict.
+        """
+        csp = self._csp('/admin-dashboard/')
+        script = csp.split('script-src')[1].split(';')[0]
+        self.assertNotIn("'unsafe-inline'", script)
+        self.assertNotIn("'unsafe-eval'", script)
+
+    def test_public_pages_keep_the_strict_style_policy(self):
+        """The relaxation must not leak onto the marketing site."""
+        for path in ('/', '/pricing/', '/portfolio/'):
+            with self.subTest(path=path):
+                csp = self._csp(path)
+                style = csp.split('style-src')[1].split(';')[0]
+                self.assertNotIn("'unsafe-inline'", style)
+
+    def test_other_admin_dashboard_policies_still_win(self):
+        """
+        The vault terminal and the recording replay are matched before
+        the generic /admin-dashboard/ branch and keep their own
+        policies. Guards the ordering of the middleware's elif chain.
+        """
+        from core.middleware import (
+            CSP_ADMIN_DASHBOARD, CSP_PUBLIC, CSP_REPLAY, CSP_TERMINAL,
+        )
+        self.assertNotEqual(CSP_TERMINAL, CSP_ADMIN_DASHBOARD)
+        self.assertNotEqual(CSP_REPLAY, CSP_ADMIN_DASHBOARD)
+        # Derived from CSP_PUBLIC so the two cannot drift apart.
+        self.assertEqual(
+            CSP_ADMIN_DASHBOARD,
+            CSP_PUBLIC.replace("style-src 'self'; ",
+                               "style-src 'self' 'unsafe-inline'; "))
+
+
+@override_settings(PRODUCTION_HOST='testserver')
 class ConversionEventWiringTests(TestCase):
     """
     The client half of §10's event spec: events.js and the CSP it has
@@ -960,6 +1018,39 @@ class CaseStudyScreenshotTests(TestCase):
         img = re.search(r'<img[^>]*/media/portfolio/[^>]*>', html).group(0)
         self.assertNotIn('alt=""', img)
         self.assertIn(study.title, img)
+
+    def test_homepage_strip_is_database_driven(self):
+        """
+        The homepage "Recent Builds" strip was four hardcoded cards. It
+        described Denis Law Group as a "personal-injury practice" — the
+        firm does family law and adoption — because hardcoded proof
+        about a real client goes stale silently. Driving it from the
+        same rows as /portfolio/ is what stops that recurring.
+        """
+        from clients.models import CaseStudy
+        html = self.client.get('/').content.decode()
+        self.assertNotIn('personal-injury', html)
+        for study in CaseStudy.objects.filter(is_published=True)[:4]:
+            with self.subTest(slug=study.slug):
+                # Links to the case study, not a generic /portfolio/.
+                self.assertIn(study.get_absolute_url(), html)
+                self.assertIn(study.title, html)
+
+    def test_law_firms_proof_section_only_shows_legal_clients(self):
+        """
+        The section is headed "Sites We've Built for Legal" — a
+        non-legal client under it would be a false claim.
+        """
+        html = self.client.get('/for-law-firms/').content.decode()
+        self.assertNotIn('Food Trucks of San Antonio', html)
+        self.assertIn('Denis Law Group', html)
+
+    def test_no_placeholder_visuals_remain_where_a_screenshot_exists(self):
+        study = self._attach_screenshot(self._first_published())
+        for path in ('/', '/portfolio/'):
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertIn(study.screenshot.url, html)
 
     def test_capture_command_exists_and_is_safe_to_call_blind(self):
         """

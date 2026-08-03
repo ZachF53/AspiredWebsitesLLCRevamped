@@ -1266,6 +1266,30 @@ p {
         radial-gradient(circle at 30% 70%, rgba(13, 148, 136, 0.18), transparent 60%);
 }
 
+/* Real screenshot in the homepage strip. Same reasoning as the
+   portfolio cards: the tinted wash exists to give a flat gradient
+   depth, and laying it over a client's site would misrepresent their
+   colours. The name-plate padding/centring is dropped too — the
+   image is the content now. */
+.portfolio-item__visual--shot {
+    padding: 0;
+    display: block;
+    overflow: hidden;
+    background: var(--color-bg-deep);
+}
+
+.portfolio-item__visual--shot::after {
+    content: none;
+}
+
+.portfolio-item__visual--shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+}
+
 .portfolio-item__visual span {
     position: relative;
     z-index: 1;
@@ -4991,6 +5015,10 @@ button.htmx-request {
 
 /* ── DMARC dashboard ────────────────────────────────────────────── */
 
+/* The track is the full-height slot a bar sits in. Its height is a
+   definite px value on purpose: that is what `height: N%` on the bar
+   resolves against, and a flex-derived height does not work for that. */
+
 /* ── Outreach approvals queue ──────────────────────────────────────── */
 
 .approval-card .admin-card__header {
@@ -5796,6 +5824,11 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 /* ── Sent emails dashboard ────────────────────────────────────────── */
 
 /* ── Redis monitor ─────────────────────────────────────────────────── */
+
+/* Kill button on the AI Ops sessions list. It has to be a <form> so
+   the action is a POST, but a block-level form would drop it onto its
+   own line under "View Replay" — inline-block keeps the actions cell
+   reading as one row of buttons. */
 
 /* ── Clients list (Phase C — multi-site expandable rows) ─────────── */
 
