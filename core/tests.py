@@ -1662,3 +1662,78 @@ class RobotsTxtTests(TestCase):
         for path in ('/login/', '/contact/thanks/', '/audit/results/'):
             self.assertNotIn(f'<loc>https://aspiredwebsites.com{path}</loc>',
                              xml)
+
+
+@override_settings(PRODUCTION_HOST='testserver')
+class AccessibilityStructureTests(TestCase):
+    """
+    §5.4 — the structural half of accessibility, which a Lighthouse
+    score does not catch.
+
+    The hand audit found the site already had a skip link, landmarks,
+    labelled fields, alt text everywhere, visible focus, and a
+    correctly-wired mega-menu (aria-expanded toggles, Escape closes).
+    The one real defect was heading levels: the footer used <h4> right
+    after page sections ending at <h2>, so every page skipped a level.
+    Screen-reader users navigate by heading, and a skipped level reads
+    as missing content.
+    """
+
+    PAGES = ['/', '/pricing/', '/contact/', '/portfolio/', '/about/',
+             '/audit/', '/insights/', '/for-law-firms/',
+             '/locations/atlanta/', '/locations/warner-robins/',
+             '/services/seo/law-firm-seo/', '/design/schedule/']
+
+    def _levels(self, html):
+        return [int(m) for m in re.findall(r'<h([1-6])[\s>]', html)]
+
+    def test_no_heading_level_is_skipped(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                levels = self._levels(
+                    self.client.get(path).content.decode())
+                jumps = [f'h{a}->h{b}'
+                         for a, b in zip(levels, levels[1:]) if b - a > 1]
+                self.assertEqual(jumps, [], f'{path} skips: {jumps}')
+
+    def test_exactly_one_h1_per_page(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                levels = self._levels(
+                    self.client.get(path).content.decode())
+                self.assertEqual(levels.count(1), 1)
+
+    def test_every_page_has_a_skip_link_and_main_landmark(self):
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertIn('class="skip-link"', html)
+                self.assertIn('href="#main"', html)
+                self.assertIn('id="main"', html)
+
+    def test_menu_toggles_declare_their_state(self):
+        """
+        WCAG 4.1.2 — a control that expands something must say whether
+        it is expanded. Both the mobile hamburger and the Services
+        mega-menu toggle carry aria-expanded + aria-controls.
+        """
+        html = self.client.get('/').content.decode()
+        for control in ('class="nav-toggle"', 'nav-link--toggle'):
+            with self.subTest(control=control):
+                idx = html.index(control)
+                window = html[idx:idx + 400]
+                self.assertIn('aria-expanded', window)
+                self.assertIn('aria-controls', window)
+
+    def test_html_declares_a_language(self):
+        html = self.client.get('/').content.decode()
+        self.assertIn('<html lang="en">', html)
+
+    def test_no_positive_tabindex(self):
+        """A positive tabindex overrides natural order and strands users."""
+        for path in self.PAGES:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                bad = [t for t in re.findall(r'tabindex="(-?\d+)"', html)
+                       if int(t) > 0]
+                self.assertEqual(bad, [])

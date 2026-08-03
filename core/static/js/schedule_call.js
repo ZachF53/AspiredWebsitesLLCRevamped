@@ -29,8 +29,12 @@
     var pickedBtn = null;       // the highlighted time button
 
     function getCsrf() {
-        var m = document.cookie.match(/csrftoken=([^;]+)/);
-        return m ? m[1] : '';
+        // From the DOM, not document.cookie: CSRF_COOKIE_HTTPONLY is
+        // True, so the cookie is deliberately invisible to JS. Reading
+        // the cookie returned '' every time, which is why /schedule/
+        // hold/ and /confirm/ had to be @csrf_exempt to work at all.
+        var field = document.querySelector('[name=csrfmiddlewaretoken]');
+        return field ? field.value : '';
     }
 
     function showError(msg) {

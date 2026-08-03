@@ -24,6 +24,19 @@ HEARD_ABOUT_CHOICES = [
     ('Other', 'Other'),
 ]
 
+# What the visitor is actually after. Ordered by what we most want to
+# win (D10 — law firms first, builds over retainers is NOT the order;
+# the retainer is worth more) and phrased the way a business owner would
+# describe their problem, not the way we name our service pages.
+SERVICE_INTEREST_CHOICES = [
+    ('New Website', 'A new website'),
+    ('Website Redesign', 'Rebuilding / replacing my current site'),
+    ('SEO', 'Getting found on Google (SEO)'),
+    ('Maintenance', 'Ongoing maintenance & support'),
+    ('Social Media', 'Social media management'),
+    ('Not Sure', "Not sure yet — I'd like advice"),
+]
+
 
 class ContactForm(forms.Form):
     """
@@ -37,8 +50,9 @@ class ContactForm(forms.Form):
       business_type → Lead.business_type
       phone         → Lead.phone
       email         → Lead.email
-      source        → Lead.tags  (how they heard about us)
-      message       → Lead.inquiry_text
+      source           → Lead.tags  (how they heard about us)
+      service_interest → Lead.service_interest  (what they need)
+      message          → Lead.inquiry_text
     """
 
     name = forms.CharField(
@@ -99,6 +113,12 @@ class ContactForm(forms.Form):
     def clean_email(self):
         return (self.cleaned_data.get('email') or '').strip().lower()
 
+    service_interest = forms.ChoiceField(
+        label='What do you need?',
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
     source = forms.ChoiceField(
         label='How did you hear about us?',
         required=False,
@@ -131,6 +151,9 @@ class ContactForm(forms.Form):
         self.fields['source'].choices = (
             [('', '— Optional —')] + HEARD_ABOUT_CHOICES
         )
+        self.fields['service_interest'].choices = (
+            [('', '— Optional —')] + SERVICE_INTEREST_CHOICES
+        )
 
     def save_as_lead(self, ip_address=None, referral_code=''):
         """Map cleaned form data to a Lead row and return it."""
@@ -142,6 +165,7 @@ class ContactForm(forms.Form):
             phone=cleaned['phone'],
             email=cleaned['email'],
             inquiry_text=cleaned['message'],
+            service_interest=cleaned.get('service_interest', ''),
             tags=cleaned.get('source', ''),
             source='contact_form',
             status='new',

@@ -418,3 +418,89 @@ class AnalyticsPIIGuardTests(TestCase):
         queue_event(req, 'e', page_path='/')
         self.assertEqual(len(pop_events(req)), 1)
         self.assertEqual(pop_events(req), [])
+
+
+class ServiceInterestFieldTests(TestCase):
+    """
+    `service_interest` — asked directly rather than inferred from the
+    free-text message.
+
+    It closes the one documented deviation in MEASUREMENT_SPEC §5 (the
+    event spec called for this param from the start; the form had no
+    field for it) and gives lead triage a real signal: a build enquiry
+    and an SEO retainer enquiry get answered very differently.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _payload(self, **overrides):
+        from public.views import _signed_form_timestamp
+        body = {
+            'name': 'Sam Seeker',
+            'business_name': 'Seeker LLC',
+            'business_type': 'Law Firm',
+            'phone': '210-555-0199',
+            'email': 'sam@seeker.example',
+            'service_interest': 'SEO',
+            'source': 'Google Search',
+            'message': 'We need to rank better.',
+            'form_timestamp': _signed_form_timestamp(),
+        }
+        body.update(overrides)
+        return body
+
+    @patch('public.views._form_age_seconds')
+    def test_service_interest_lands_on_the_lead(self, mock_age):
+        from outreach.models import Lead
+        mock_age.return_value = (10, True)
+        self.client.post(reverse('public:contact'), data=self._payload())
+        lead = Lead.objects.get(email='sam@seeker.example')
+        self.assertEqual(lead.service_interest, 'SEO')
+
+    @patch('public.views._form_age_seconds')
+    def test_it_is_optional(self, mock_age):
+        """
+        A required field here would cost more submissions than the
+        answer is worth.
+        """
+        from outreach.models import Lead
+        mock_age.return_value = (10, True)
+        r = self.client.post(reverse('public:contact'),
+                             data=self._payload(service_interest=''))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(
+            Lead.objects.get(email='sam@seeker.example').service_interest, '')
+
+    @patch('public.views._form_age_seconds')
+    def test_it_reaches_the_conversion_event(self, mock_age):
+        import json as _json
+        import re as _re
+        mock_age.return_value = (10, True)
+        r = self.client.post(reverse('public:contact'),
+                             data=self._payload(), follow=True)
+        m = _re.search(
+            r'<script id="analytics-events" type="application/json">'
+            r'(.*?)</script>', r.content.decode(), _re.S)
+        events = _json.loads(m.group(1))
+        params = next(e['params'] for e in events
+                      if e['name'] == 'contact_form_submit')
+        self.assertEqual(params['service_interest'], 'SEO')
+
+    @patch('public.views._form_age_seconds')
+    def test_an_invented_value_is_rejected(self, mock_age):
+        """It is a ChoiceField — arbitrary POST data must not persist."""
+        from outreach.models import Lead
+        mock_age.return_value = (10, True)
+        self.client.post(reverse('public:contact'),
+                         data=self._payload(service_interest='<script>x'))
+        self.assertFalse(
+            Lead.objects.filter(email='sam@seeker.example').exists())
+
+    @patch('public.views._form_age_seconds')
+    def test_the_admin_notification_says_what_they_need(self, mock_age):
+        mock_age.return_value = (10, True)
+        self.client.post(reverse('public:contact'), data=self._payload())
+        bodies = ' '.join(m.body for m in mail.outbox)
+        self.assertIn('Needs:', bodies)
+        self.assertIn('SEO', bodies)

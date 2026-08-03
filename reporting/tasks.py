@@ -554,10 +554,44 @@ def generate_monthly_report(client_id, report_month_str):
     for day in uptime_chart:
         day['bar_h'] = round((day['avg_response_ms'] or 0) / peak * 100)
 
+    # ── Google Business Profile (tier ≥ Growth) ──
+    # GBPSyncCheck and GbpPerformanceSnapshot rows have been accumulating
+    # since Phase 5a, but none of it reached the PDF the client actually
+    # receives — so Growth and Dominant clients were paying for "Google
+    # Business Profile management" and seeing no evidence of it.
+    #
+    # Tier-gated: an Essentials client has not bought this, and showing
+    # them an empty GBP section reads as "we did nothing for you" rather
+    # than "you are not on this plan".
+    from .models import GbpPerformanceSnapshot, GBPSyncCheck
+    has_gbp = client.has_gbp_features()
+    gbp_performance = None
+    nap_drift = []
+    if has_gbp:
+        gbp_performance = GbpPerformanceSnapshot.objects.filter(
+            client=client, snapshot_month=month_start).first()
+        # Unresolved mismatches only. A drift that was found AND fixed
+        # during the month is work done, not an outstanding problem, and
+        # listing it as a warning would misrepresent the month.
+        nap_drift = list(GBPSyncCheck.objects.filter(
+            client=client, is_mismatch=True, resolved=False,
+            checked_at__date__lt=month_end,
+        ).order_by('field_name'))
+
     context = {
         'client': client,
         'report_month': report_month,
         'next_month': month_end,
+        'has_gbp_features': has_gbp,
+        'gbp_performance': gbp_performance,
+        'nap_drift': nap_drift,
+        # Sum of the actions a searcher took straight from the listing —
+        # the number that answers "did the profile earn anything".
+        'gbp_total_actions': (
+            (gbp_performance.call_clicks
+             + gbp_performance.direction_requests
+             + gbp_performance.website_clicks)
+            if gbp_performance else 0),
         'uptime_pct': uptime_pct,
         'avg_response_ms': avg_ms,
         'form_submissions': form_subs,

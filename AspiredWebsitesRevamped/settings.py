@@ -415,6 +415,15 @@ GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
 # Places API — powers the Google Maps lead scraper. See CLAUDE.md →
 # External APIs & Costs.
 GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
+# Direct "write a review" link for our own Google Business Profile.
+# Get it from the GBP dashboard → Ask for reviews → copy link; it looks
+# like https://g.page/r/XXXXXXXXXXXX/review.
+#
+# Blank until the GBP exists. The NPS flow reads this and, when it is
+# blank, stops ASKING promoters for a review — the page previously said
+# "would you mind leaving us a Google review?" and then rendered no
+# button, which is a worse experience than not asking at all.
+GOOGLE_REVIEW_URL = env('GOOGLE_REVIEW_URL', '')
 # GA4 auto-provisioning — the agency's Google Analytics *account* id (digits
 # only, from GA Admin → Account Settings). New client properties are created
 # under it via the operator's Google token. Blank = provisioning is skipped
@@ -586,6 +595,15 @@ CELERY_BEAT_SCHEDULE = {
     'close-idle-ops-sessions': {
         'task': 'vault.tasks.close_idle_ops_sessions',
         'schedule': crontab(minute='*/15'),
+    },
+    # Weekly — notice when a portfolio screenshot has gone stale or a
+    # showcased client site stops responding. Does not re-capture (that
+    # needs a browser the servers don't have); it raises a system alert
+    # so the portfolio can't quietly rot into showing work that no
+    # longer exists.
+    'check-portfolio-screenshots': {
+        'task': 'clients.tasks.check_portfolio_screenshots',
+        'schedule': crontab(hour=6, minute=30, day_of_week=1),   # Mon 6:30am
     },
     'check-gbp-sync': {
         'task': 'reporting.tasks.check_gbp_sync',

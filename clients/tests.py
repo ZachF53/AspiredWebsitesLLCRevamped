@@ -573,6 +573,170 @@ class ContractSignFlowTests(TestCase):
         self.assertNotContains(r, 'name="signed_name"')
 
 
+
+class ContractSignAuditIntegrityTests(TestCase):
+    """
+    The parts of signing that carry legal and financial weight, and had
+    no coverage: replay protection on an already-signed contract, and
+    the branch that decides whether work is allowed to start.
+
+    Business rules #1 and #2 both hang off this view — the site is owned
+    by Aspired until final payment, and no project goes active before a
+    deposit. A build contract must therefore land the client in
+    `awaiting_deposit`, and a signature must be immutable once given.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from clients.models import Contract
+        u = User.objects.create_user(
+            username='auditsigner', password='x', email='as@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Audit LLC', contact_name='Ada Auditor')
+        cls.contract = Contract.objects.create(
+            client=cls.profile,
+            package='website-essential',
+            build_price=Decimal('2500'),
+            deposit_amount=Decimal('1250'),
+            contract_text='<h1>Audit Contract</h1>',
+        )
+        cls.sign_url = reverse('clients:contract_sign',
+                               args=[cls.contract.contract_token])
+
+    def _sign(self, name='Ada Auditor', **extra):
+        from unittest.mock import patch
+        with patch('billing.stripe_helpers.issue_deposit_invoice'), \
+             patch('clients.views.render_contract_pdf', return_value=''), \
+             patch('clients.views.send_contract_signed_email'):
+            return self.client.post(
+                self.sign_url,
+                data={'signed_name': name, 'agree': 'on'}, **extra)
+
+    def test_resigning_cannot_overwrite_the_original_signature(self):
+        """
+        A replayed POST — a refresh, a double submit, or someone
+        re-posting the form — must not rewrite who signed, when, or
+        from where. That record is the evidence the signature rests on.
+        """
+        self._sign(name='First Signer', REMOTE_ADDR='10.0.0.1')
+        self.contract.refresh_from_db()
+        original = (self.contract.signed_name, self.contract.signed_at,
+                    self.contract.signed_ip,
+                    self.contract.signed_content_hash)
+
+        self._sign(name='Impostor', REMOTE_ADDR='10.9.9.9')
+        self.contract.refresh_from_db()
+        self.assertEqual(
+            (self.contract.signed_name, self.contract.signed_at,
+             self.contract.signed_ip, self.contract.signed_content_hash),
+            original,
+            'a second POST rewrote the signing record')
+
+    def test_tampering_with_contract_text_breaks_the_hash(self):
+        """
+        The hash exists to prove tampering. If the stored text changes
+        after signing, re-hashing must NO LONGER match — that mismatch
+        is the detection, so assert it actually detects.
+        """
+        import hashlib
+        self._sign()
+        self.contract.refresh_from_db()
+        stored_hash = self.contract.signed_content_hash
+
+        self.contract.contract_text = '<h1>Altered After Signing</h1>'
+        self.contract.save(update_fields=['contract_text', 'updated_at'])
+        rehashed = hashlib.sha256(
+            self.contract.contract_text.encode('utf-8')).hexdigest()
+        self.assertNotEqual(
+            rehashed, stored_hash,
+            'tampering with contract_text went undetected')
+
+    def test_build_contract_puts_the_client_in_awaiting_deposit(self):
+        """Business rule #2 — no work starts before a deposit."""
+        resp = self._sign()
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.payment_status, 'awaiting_deposit')
+        self.assertEqual(self.profile.stage, 'intake')
+        # And hands off to the payment step rather than a thank-you page.
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('pay', resp['Location'])
+
+    def test_unknown_token_is_404_not_a_blank_contract(self):
+        import uuid
+        r = self.client.get(
+            reverse('clients:contract_sign', args=[uuid.uuid4()]))
+        self.assertEqual(r.status_code, 404)
+
+    def test_signed_name_is_escaped_on_the_page(self):
+        """
+        signed_name is free text from an unauthenticated visitor and is
+        rendered back. It must not be able to inject markup.
+        """
+        self._sign(name='<script>alert(1)</script>')
+        r = self.client.get(self.sign_url)
+        self.assertNotContains(r, '<script>alert(1)</script>')
+
+
+class ContractServiceBranchTests(TestCase):
+    """
+    A maintenance- or social-only contract must NOT flip the client into
+    a build's payment workflow — there is no deposit to await, and
+    marking one would stall the account in a state nothing clears.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from clients.models import Contract, ContractService
+        u = User.objects.create_user(
+            username='maintsigner', password='x', email='ms@example.com')
+        cls.profile = ClientProfile.objects.create(
+            user=u, firm_name='Maint LLC', contact_name='Mo Maint')
+        cls.contract = Contract.objects.create(
+            client=cls.profile,
+            contract_text='<h1>Maintenance Only</h1>',
+        )
+        ContractService.objects.create(
+            contract=cls.contract, service_type='maintenance',
+            tier_name='Essentials', price=Decimal('299'))
+        cls.sign_url = reverse('clients:contract_sign',
+                               args=[cls.contract.contract_token])
+
+    def test_includes_build_is_false_for_a_services_only_contract(self):
+        self.assertFalse(self.contract.includes_build)
+
+    def test_maintenance_only_contract_does_not_await_a_deposit(self):
+        from unittest.mock import patch
+        before = self.profile.payment_status
+        with patch('clients.views.render_contract_pdf', return_value=''), \
+             patch('clients.views.send_contract_signed_email') as mail:
+            resp = self.client.post(self.sign_url, data={
+                'signed_name': 'Mo Maint', 'agree': 'on'})
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.payment_status, before)
+        # Confirmation email is the whole follow-up for this branch.
+        mail.assert_called_once()
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn('pay', resp['Location'])
+
+    def test_legacy_contract_with_no_service_rows_is_still_a_build(self):
+        """
+        Contracts predating multi-service support have no rows and must
+        fall back to `package`, or an old build would silently stop
+        collecting its deposit.
+        """
+        from decimal import Decimal
+
+        from clients.models import Contract
+        legacy = Contract.objects.create(
+            client=self.profile, package='website-essential',
+            build_price=Decimal('2500'), contract_text='<p>Legacy</p>')
+        self.assertTrue(legacy.includes_build)
+
+
 class RenderContractPdfFallbackTests(TestCase):
     """WeasyPrint failure (e.g. on Windows) falls back to .html so the
     signed record is still persisted on disk."""
@@ -1403,3 +1567,82 @@ class IntelligenceRespondTests(TestCase):
         # Untouched — not their suggestion.
         self.assertEqual(self.s.status, 'sent_to_client')
         self.assertIsNone(self.s.client_responded_at)
+
+
+class PortfolioScreenshotCheckTests(TestCase):
+    """
+    Screenshots are point-in-time. Without a watcher the portfolio
+    quietly rots — showing a redesigned site, or worse, linking a
+    prospect to a client site that is down as proof of our work.
+    """
+
+    def setUp(self):
+        from clients.models import CaseStudy
+        CaseStudy.objects.all().delete()
+        self.study = CaseStudy.objects.create(
+            title='Live Client', slug='live-client', is_published=True,
+            live_url='https://example.com/', published_at=timezone.now())
+
+    def _run(self, status_code=200, raise_exc=False, **kw):
+        from unittest.mock import MagicMock, patch
+
+        from clients.tasks import check_portfolio_screenshots
+        import requests as _requests
+
+        def _fake_get(*a, **k):
+            if raise_exc:
+                raise _requests.ConnectionError('refused')
+            m = MagicMock()
+            m.status_code = status_code
+            return m
+
+        with patch('requests.get', side_effect=_fake_get):
+            return check_portfolio_screenshots(**kw)
+
+    def test_healthy_site_raises_nothing(self):
+        from core.models import SystemAlert
+        before = SystemAlert.objects.count()
+        result = self._run(200)
+        self.assertIn('0 dead', result)
+        self.assertEqual(SystemAlert.objects.count(), before)
+
+    def test_dead_client_site_raises_a_warning(self):
+        """
+        The serious case: /portfolio/ is linking a prospect to a broken
+        page as evidence of our work.
+        """
+        from core.models import SystemAlert
+        result = self._run(503)
+        self.assertIn('1 dead', result)
+        alert = SystemAlert.objects.filter(source='clients.portfolio').first()
+        self.assertIsNotNone(alert)
+        self.assertEqual(alert.severity, 'warning')
+        self.assertIn('Live Client', alert.detail)
+
+    def test_unreachable_site_counts_as_dead(self):
+        result = self._run(raise_exc=True)
+        self.assertIn('1 dead', result)
+
+    def test_old_screenshot_is_flagged_stale(self):
+        import io as _io
+
+        from django.core.files.base import ContentFile
+        from PIL import Image
+
+        from clients.models import CaseStudy
+        buf = _io.BytesIO()
+        Image.new('RGB', (12, 8), '#123456').save(buf, 'WEBP')
+        self.study.screenshot.save('live-client-test.webp',
+                                   ContentFile(buf.getvalue()), save=True)
+        self.addCleanup(self.study.screenshot.delete, save=False)
+        # Backdate past the staleness window.
+        CaseStudy.objects.filter(pk=self.study.pk).update(
+            updated_at=timezone.now() - timedelta(days=400))
+
+        result = self._run(200, stale_after_days=180)
+        self.assertIn('1 stale', result)
+
+    def test_a_study_with_no_screenshot_is_not_called_stale(self):
+        """No screenshot is a gradient fallback, not a rotting one."""
+        result = self._run(200)
+        self.assertIn('0 stale', result)

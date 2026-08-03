@@ -799,3 +799,71 @@ def expire_old_proposals():
     )
     n = qs.update(status='expired', updated_at=timezone.now())
     return f'Expired {n} proposal(s).'
+
+
+@shared_task
+def check_portfolio_screenshots(stale_after_days=180):
+    """
+    Weekly — flag portfolio screenshots that have gone stale or whose
+    client site has stopped responding.
+
+    Deliberately does NOT re-capture. Capturing needs Playwright and a
+    Chromium install, which the servers do not have (and should not —
+    it is ~400MB for a job that runs four times a year). Capture stays
+    a workstation command; this is the part that notices it is due.
+
+    Two failure modes, and the second is the serious one:
+
+      * Stale — the screenshot is older than `stale_after_days`. A
+        client may have redesigned since; the portfolio would be
+        showing work that is no longer what is live.
+      * Dead — the client's site no longer returns 200. The portfolio
+        is then linking a prospect to a broken page as proof of our
+        work, which is worse than showing nothing.
+    """
+    import requests
+
+    from clients.models import CaseStudy
+    from core.system_alerts import record_alert
+
+    cutoff = timezone.now() - timedelta(days=stale_after_days)
+    stale, dead = [], []
+
+    for study in CaseStudy.objects.filter(
+            is_published=True).exclude(live_url=''):
+        try:
+            resp = requests.get(
+                study.live_url, timeout=20, allow_redirects=True,
+                headers={'User-Agent': 'AspiredWebsites-PortfolioCheck/1.0'})
+            if resp.status_code != 200:
+                dead.append(f'{study.title} → HTTP {resp.status_code}')
+        except requests.RequestException as exc:
+            dead.append(f'{study.title} → {type(exc).__name__}')
+
+        if not study.screenshot:
+            continue
+        # updated_at is the closest thing to "when the image was last
+        # written" without adding a column for it; the capture command
+        # saves the field, which touches the row.
+        if study.updated_at and study.updated_at < cutoff:
+            stale.append(study.slug)
+
+    if dead:
+        record_alert(
+            'warning', 'clients.portfolio',
+            f'{len(dead)} portfolio client site(s) not returning 200',
+            detail=('These are linked from /portfolio/ as proof of our '
+                    'work:\n' + '\n'.join(dead)))
+    if stale:
+        record_alert(
+            'info', 'clients.portfolio',
+            f'{len(stale)} portfolio screenshot(s) older than '
+            f'{stale_after_days} days',
+            detail=('Re-capture on a workstation:\n'
+                    '  python manage.py capture_case_study_screenshots '
+                    '--force\n'
+                    'then copy media/portfolio/ up and run '
+                    'attach_case_study_screenshots.\n\n'
+                    'Stale: ' + ', '.join(stale)))
+
+    return f'portfolio check — {len(dead)} dead, {len(stale)} stale'

@@ -13,7 +13,7 @@ import json
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -267,3 +267,77 @@ class WebDevInquiryProvisioningTests(TestCase):
         self.assertFalse(
             Website.objects.filter(
                 account__user__email='soc@example.com').exists())
+
+
+class SchedulerCsrfProtectionTests(TestCase):
+    """
+    /schedule/hold/ and /schedule/confirm/ were @csrf_exempt.
+
+    They never needed to be. Unlike the Stripe/SendGrid/sync webhooks
+    (signature-verified) and the cross-origin tracker endpoints, these
+    are same-origin — only schedule_call.js on our own booking page
+    calls them.
+
+    The exemption existed because the JS read the token from
+    document.cookie, and CSRF_COOKIE_HTTPONLY is True — so it read ''
+    every time, and the only way the endpoints worked was by not
+    checking. The token is now rendered into the page and read from the
+    DOM, so protection can actually be enforced.
+    """
+
+    def setUp(self):
+        # enforce_csrf_checks — the default test client skips CSRF
+        # entirely, which would make this whole class pass vacuously.
+        self.csrf_client = Client(enforce_csrf_checks=True)
+
+    def _slot(self):
+        return (timezone.now() + _dt.timedelta(days=3)).replace(
+            hour=15, minute=0, second=0, microsecond=0)
+
+    def test_booking_page_renders_a_csrf_token(self):
+        """The JS has nothing to send without this."""
+        html = self.csrf_client.get('/design/schedule/').content.decode()
+        self.assertIn('name="csrfmiddlewaretoken"', html)
+
+    def test_hold_without_a_token_is_rejected(self):
+        from scheduler.models import ScheduledCall
+        resp = self.csrf_client.post(
+            '/schedule/hold/',
+            data=json.dumps({'starts_at': self._slot().isoformat()}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(ScheduledCall.objects.count(), 0)
+
+    def test_hold_with_a_valid_token_succeeds(self):
+        """The revenue path must still work with protection on."""
+        from scheduler.models import ScheduledCall
+        page = self.csrf_client.get('/design/schedule/')
+        token = page.cookies['csrftoken'].value
+        resp = self.csrf_client.post(
+            '/schedule/hold/',
+            data=json.dumps({'starts_at': self._slot().isoformat()}),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(resp.status_code, 200, resp.content[:200])
+        self.assertEqual(ScheduledCall.objects.filter(status='held').count(), 1)
+
+    def test_confirm_without_a_token_is_rejected(self):
+        resp = self.csrf_client.post(
+            '/schedule/confirm/',
+            data=json.dumps({'call_id': 'x'}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_the_endpoints_are_not_csrf_exempt(self):
+        """
+        Guards the decorator itself — a future edit re-adding
+        @csrf_exempt would make every assertion above pass while the
+        protection is gone.
+        """
+        from scheduler import views
+        for name in ('hold_slot', 'confirm_slot'):
+            with self.subTest(view=name):
+                view = getattr(views, name)
+                self.assertFalse(
+                    getattr(view, 'csrf_exempt', False),
+                    f'{name} is @csrf_exempt again')

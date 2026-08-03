@@ -431,7 +431,17 @@ class NPSTests(TestCase):
         send_nps_surveys()
         self.assertEqual(NPSSurvey.objects.count(), 0)
 
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
     def test_response_records_score_and_branches(self):
+        """
+        Promoter path, with a review URL configured.
+
+        This used to assert the review prompt appeared unconditionally
+        — but GOOGLE_REVIEW_URL did not exist as a setting, so the page
+        asked for a review and rendered no button. The ask is now gated
+        on being able to honour it, so the test has to configure it.
+        See NpsReviewRequestTests for the unconfigured case.
+        """
         cp = _client('Resp Co')
         survey = NPSSurvey.objects.create(client=cp)
         url = reverse('nps_response', args=[survey.survey_token, 9])
@@ -806,3 +816,206 @@ class GA4ProvisionTests(TestCase):
             r = provision_ga4_for_website(self.website)
         self.assertIsNone(r)
         mpost.assert_not_called()
+
+
+class MonthlyReportGbpSectionTests(TestCase):
+    """
+    GBP data reaching the PDF the client actually receives.
+
+    GBPSyncCheck and GbpPerformanceSnapshot rows had been accumulating
+    since Phase 5a without ever appearing in the report — so Growth and
+    Dominant clients were paying for "Google Business Profile
+    management" and getting no evidence of it.
+
+    Tier gating is the part worth testing hardest: an Essentials client
+    must see NO GBP section at all, because an empty one reads as "we
+    did nothing for you" rather than "you're not on this plan".
+    """
+
+    def _client(self, username, package):
+        u = User.objects.create_user(
+            username=username, password='x', email=f'{username}@example.com')
+        return ClientProfile.objects.create(
+            user=u, firm_name=f'{username} Co', package=package)
+
+    def _render(self, client):
+        """
+        Generate the report and return (html, context).
+
+        generate_monthly_report does `from django.template.loader import
+        render_to_string` INSIDE the function, so the name is looked up
+        on the source module at call time — patching
+        reporting.tasks.render_to_string would miss it entirely.
+        """
+        from datetime import date
+        from unittest.mock import patch
+
+        import django.template.loader as loader
+
+        from reporting.tasks import generate_monthly_report
+        month = date.today().replace(day=1)
+        captured = {}
+        real = loader.render_to_string
+
+        def _capture(template_name, ctx=None, *a, **kw):
+            html = real(template_name, ctx, *a, **kw)
+            if template_name == 'reporting/monthly_report.html':
+                captured['html'], captured['ctx'] = html, ctx
+            return html
+
+        with patch.object(loader, 'render_to_string', _capture):
+            generate_monthly_report(str(client.id), month.isoformat())
+        return captured.get('html', ''), captured.get('ctx', {})
+
+    def _snapshot(self, client):
+        from datetime import date
+
+        from reporting.models import GbpPerformanceSnapshot
+        return GbpPerformanceSnapshot.objects.create(
+            client=client, snapshot_month=date.today().replace(day=1),
+            profile_views_search=420, profile_views_maps=310,
+            call_clicks=17, direction_requests=9, website_clicks=44)
+
+    def test_growth_client_sees_the_gbp_section(self):
+        c = self._client('growthco', 'maintenance_growth')
+        self._snapshot(c)
+        html, ctx = self._render(c)
+        self.assertTrue(ctx['has_gbp_features'])
+        self.assertIn('Your Google Listing', html)
+        self.assertIn('420', html)          # search views
+        self.assertEqual(ctx['gbp_total_actions'], 17 + 9 + 44)
+
+    def test_essentials_client_sees_no_gbp_section_at_all(self):
+        c = self._client('essentialsco', 'maintenance_essentials')
+        self._snapshot(c)   # data exists, but they haven't bought the tier
+        html, ctx = self._render(c)
+        self.assertFalse(ctx['has_gbp_features'])
+        self.assertNotIn('Your Google Listing', html)
+
+    def test_growth_client_with_no_gbp_data_gets_an_honest_message(self):
+        """Not an empty table, and not a fabricated zero-row."""
+        c = self._client('growthnodata', 'maintenance_growth')
+        html, ctx = self._render(c)
+        self.assertIn('Your Google Listing', html)
+        self.assertIsNone(ctx['gbp_performance'])
+        self.assertIn('No performance data for this month yet', html)
+
+    def test_unresolved_nap_drift_is_listed(self):
+        from reporting.models import GBPSyncCheck
+        c = self._client('driftco', 'maintenance_growth')
+        GBPSyncCheck.objects.create(
+            client=c, field_name='phone', is_mismatch=True, resolved=False,
+            website_value='(210) 555-0100', gbp_value='(210) 555-9999')
+        html, ctx = self._render(c)
+        self.assertEqual(len(ctx['nap_drift']), 1)
+        self.assertIn('(210) 555-9999', html)
+
+    def test_resolved_drift_is_not_reported_as_outstanding(self):
+        """
+        A mismatch found AND fixed during the month is work done, not an
+        open problem — listing it as a warning misrepresents the month.
+        """
+        from reporting.models import GBPSyncCheck
+        c = self._client('fixedco', 'maintenance_growth')
+        GBPSyncCheck.objects.create(
+            client=c, field_name='hours', is_mismatch=True, resolved=True,
+            website_value='9-5', gbp_value='10-4')
+        html, ctx = self._render(c)
+        self.assertEqual(ctx['nap_drift'], [])
+        self.assertIn('No drift detected', html)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class NpsReviewRequestTests(TestCase):
+    """
+    The promoter path used to record the string 'review_requested' and
+    send nothing. The thank-you page asked for a Google review, then
+    rendered the button only when settings.GOOGLE_REVIEW_URL was set —
+    and that setting did not exist, so every promoter was asked for a
+    review and given no way to leave one.
+    """
+
+    def setUp(self):
+        from django.core import mail
+
+        from reporting.models import NPSSurvey
+        mail.outbox = []
+        u = User.objects.create_user(
+            username='npsclient', password='x', email='promoter@example.com')
+        self.profile = ClientProfile.objects.create(
+            user=u, firm_name='Promoter Co', contact_name='Pat Promoter')
+        self.survey = NPSSurvey.objects.create(client=self.profile)
+        self.url = reverse('nps_response', args=[self.survey.survey_token, 10])
+
+    def _respond(self, score=10):
+        self.url = reverse('nps_response', args=[self.survey.survey_token, score])
+        self.client.get(self.url)               # records the score
+        return self.client.post(self.url, data={'feedback': 'great work'})
+
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
+    def test_promoter_gets_an_emailed_review_link(self):
+        from django.core import mail
+        self._respond(10)
+        self.survey.refresh_from_db()
+        self.assertEqual(self.survey.response_action_taken, 'review_requested')
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertIn('https://g.page/r/TESTID/review', body)
+        self.assertIn('Pat', body)
+        self.assertEqual(mail.outbox[0].to, ['promoter@example.com'])
+
+    @override_settings(GOOGLE_REVIEW_URL='')
+    def test_no_review_url_means_no_ask_at_all(self):
+        """
+        Not configured yet (no GBP). We must neither email nor ask on
+        the page — an ask we cannot honour is worse than silence.
+        """
+        from django.core import mail
+        resp = self._respond(10)
+        self.survey.refresh_from_db()
+        self.assertEqual(self.survey.response_action_taken,
+                         'review_url_not_configured')
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertNotContains(resp, 'Leave a Google Review')
+        self.assertNotContains(resp, 'leaving us a Google review')
+
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
+    def test_page_shows_the_button_when_configured(self):
+        resp = self._respond(10)
+        self.assertContains(resp, 'Leave a Google Review')
+        self.assertContains(resp, 'https://g.page/r/TESTID/review')
+
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
+    def test_detractor_is_never_asked_for_a_review(self):
+        from django.core import mail
+        self._respond(3)
+        self.survey.refresh_from_db()
+        self.assertEqual(self.survey.response_action_taken,
+                         'needs_you_created')
+        # The only mail is the internal alert — never a review request.
+        for message in mail.outbox:
+            self.assertNotIn('leaving us a review', message.subject.lower())
+
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
+    def test_passive_is_not_asked_either(self):
+        from django.core import mail
+        self._respond(8)
+        self.survey.refresh_from_db()
+        self.assertEqual(self.survey.response_action_taken, '')
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(GOOGLE_REVIEW_URL='https://g.page/r/TESTID/review')
+    def test_a_failed_send_does_not_500_the_page(self):
+        """
+        The client is looking at the page. A mail-server problem must
+        degrade to a recorded failure, not an error screen after they
+        just gave us a 10.
+        """
+        from unittest.mock import patch
+        with patch('reporting.views._send_review_request',
+                   side_effect=RuntimeError('smtp down')):
+            resp = self._respond(9)
+        self.assertEqual(resp.status_code, 200)
+        self.survey.refresh_from_db()
+        self.assertEqual(self.survey.response_action_taken,
+                         'review_email_failed')

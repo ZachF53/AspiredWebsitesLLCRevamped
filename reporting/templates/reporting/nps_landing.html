@@ -14,13 +14,25 @@
             <p class="nps-muted">This survey link is invalid or has expired.</p>
         {% elif submitted %}
             <div class="nps-icon" aria-hidden="true">&#9733;</div>
+            {% comment %}
+            Only ask for the review when there is somewhere to leave it.
+            This block used to ask unconditionally and render the button
+            only if google_review_url was set — and that setting did not
+            exist, so every promoter was asked for a review and given no
+            way to leave one. Asking and then not delivering is worse
+            than not asking.
+            {% endcomment %}
             {% if band == 'promoter' %}
                 <h1>We're so glad to hear that!</h1>
-                <p>Thank you for the {{ survey.score }}/10. Would you mind
-                   leaving us a Google review? It helps more than you know.</p>
                 {% if google_review_url %}
+                    <p>Thank you for the {{ survey.score }}/10. Would you mind
+                       leaving us a Google review? It helps more than you know.</p>
                     <a class="btn-primary btn-block" href="{{ google_review_url }}"
                        target="_blank" rel="noopener">Leave a Google Review</a>
+                {% else %}
+                    <p>Thank you for the {{ survey.score }}/10 &mdash; that
+                       genuinely means a lot. If anything ever needs attention,
+                       just reply to our email and it goes straight to Zachery.</p>
                 {% endif %}
             {% elif band == 'passive' %}
                 <h1>Thank you for the feedback</h1>

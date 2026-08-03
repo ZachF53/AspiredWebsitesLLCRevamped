@@ -1463,7 +1463,11 @@ textarea.form-control {
     padding-bottom: var(--space-5);
 }
 
-.footer-col h4 {
+/* h3, not h4 — the footer used <h4> directly after page sections
+   that end at <h2>, which skips a level. Screen-reader users navigate
+   by heading, and a skipped level reads as missing content. Size is
+   set here, so the tag change is invisible sighted-side. */
+.footer-col h3 {
     color: var(--color-text);
     font-size: 0.75rem;
     text-transform: uppercase;

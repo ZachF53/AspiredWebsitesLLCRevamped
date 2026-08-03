@@ -188,6 +188,75 @@
   </div>
   {% endif %}
 
+  {% comment %}
+    Google Business Profile — Growth tier and above only.
+
+    Gated on has_gbp_features, not on whether data exists. An Essentials
+    client has not bought GBP management, and showing them an empty
+    section reads as "we did nothing for you" rather than "you are not
+    on this plan".
+
+    Within the section the two halves degrade separately: a Growth
+    client whose profile is not connected yet still sees the NAP
+    consistency result, and vice versa.
+  {% endcomment %}
+  {% if has_gbp_features %}
+  <div class="sheet">
+    <div class="eyebrow">Google Business Profile</div>
+    <h1 class="h-section">Your Google Listing</h1>
+
+    {% if gbp_performance %}
+      <p class="muted">
+        How people found and used your listing this month &mdash;
+        <strong>{{ gbp_total_actions }}</strong> direct action{{ gbp_total_actions|pluralize }}
+        taken straight from it.
+      </p>
+      <table>
+        <thead><tr><th>Metric</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td>Views on Google Search</td><td>{{ gbp_performance.profile_views_search }}</td></tr>
+          <tr><td>Views on Google Maps</td><td>{{ gbp_performance.profile_views_maps }}</td></tr>
+          <tr><td>Calls from the listing</td><td>{{ gbp_performance.call_clicks }}</td></tr>
+          <tr><td>Direction requests</td><td>{{ gbp_performance.direction_requests }}</td></tr>
+          <tr><td>Website clicks from the listing</td><td>{{ gbp_performance.website_clicks }}</td></tr>
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">
+        No performance data for this month yet. This fills in once your
+        Google Business Profile is connected and Google has reported a
+        full month of activity.
+      </p>
+    {% endif %}
+
+    <h2 style="margin-top:22px">Listing Accuracy</h2>
+    {% if nap_drift %}
+      <p class="muted">
+        Your website and your Google listing disagree on the following.
+        Mismatches like these are a known drag on local ranking, and
+        we&rsquo;re on them.
+      </p>
+      <table>
+        <thead><tr><th>Field</th><th>On your website</th><th>On Google</th></tr></thead>
+        <tbody>
+          {% for drift in nap_drift %}
+            <tr>
+              <td>{{ drift.get_field_name_display }}</td>
+              <td>{{ drift.website_value|default:"—" }}</td>
+              <td>{{ drift.gbp_value|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">
+        No drift detected &mdash; your name, address, phone and hours
+        match between your website and your Google listing.
+      </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="sheet">
     <div class="eyebrow">Maintenance</div>
     <h1 class="h-section">Work Completed This Month</h1>

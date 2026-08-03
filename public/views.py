@@ -686,6 +686,12 @@ def contact(request):
             # core.analytics refuses them.
             queue_event(
                 request, 'contact_form_submit',
+                # service_interest was specified in MEASUREMENT_SPEC §5
+                # from the start; the form had no field for it, so it
+                # shipped as a documented deviation. The field exists
+                # now, so the event carries what the spec asked for.
+                service_interest=form.cleaned_data.get(
+                    'service_interest', ''),
                 business_type=form.cleaned_data.get('business_type', ''),
                 heard_about=form.cleaned_data.get('source', ''),
                 page_path=request.path,
@@ -751,6 +757,7 @@ def _send_lead_internal_notification(lead):
         f'Name:          {lead.attorney_name}\n'
         f'Business:      {lead.firm_name}\n'
         f'Business type: {lead.business_type}\n'
+        f'Needs:         {lead.service_interest or "Not specified"}\n'
         f'Phone:         {lead.phone}\n'
         f'Email:         {lead.email}\n'
         f'Heard about:   {lead.tags or "Not specified"}\n'

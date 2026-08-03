@@ -7,7 +7,7 @@ import logging
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
@@ -146,6 +146,13 @@ SERVICE_CONFIG = {
 }
 
 
+# ensure_csrf_cookie so the CSRF cookie exists for schedule_call.js to
+# read. The booking POSTs are pure fetch() with no Django form on the
+# page, so nothing else would set it — which is why hold/confirm were
+# @csrf_exempt: the JS sent an EMPTY X-CSRFToken and the only way the
+# endpoints worked was by not checking. Setting the cookie here is what
+# makes real CSRF protection possible on those two endpoints.
+@ensure_csrf_cookie
 def schedule_page(request, service='web_design'):
     """Universal schedule page — same calendar widget, service-specific
     copy + form fields. Three URLs map here:
@@ -216,7 +223,13 @@ def slots_api(request):
     })
 
 
-@csrf_exempt
+# CSRF protection ON. This was @csrf_exempt, which it never needed:
+# unlike the Stripe/SendGrid/sync webhooks (signature-verified) and the
+# cross-origin tracker endpoints, this is same-origin — it is only ever
+# called by schedule_call.js on our own booking page, and that already
+# sends X-CSRFToken. The exemption was attack surface with nothing
+# behind it: a third-party page could make a visitor's browser hold
+# slots, and 15/h per IP only bounds the abuse rather than stopping it.
 @require_POST
 @ratelimit(key='ip', rate='15/h', method='POST', block=True)
 def hold_slot(request):
@@ -262,7 +275,7 @@ def hold_slot(request):
     return JsonResponse({'ok': True, 'call_id': str(call.id)})
 
 
-@csrf_exempt
+# Same as hold_slot — same-origin, and the caller already sends the token.
 @require_POST
 @ratelimit(key='ip', rate='15/h', method='POST', block=True)
 def confirm_slot(request):

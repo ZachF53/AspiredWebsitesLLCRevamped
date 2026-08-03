@@ -51,6 +51,14 @@ other three stay crawlable and reachable; they simply stop competing.
                 <h2 class="card__title">Tell us about your project</h2>
 
                 <form id="schedule-form" class="form" novalidate>
+                    {% comment %}
+                    The booking POSTs are fetch() calls, not a form
+                    submit, but the token has to reach the page somehow:
+                    CSRF_COOKIE_HTTPONLY is True, so document.cookie can
+                    never see it. schedule_call.js reads this hidden
+                    input instead.
+                    {% endcomment %}
+                    {% csrf_token %}
 
                     <div class="form-group">
                         <label for="s-name">Your name <span class="required" aria-hidden="true">*</span></label>
@@ -121,12 +129,13 @@ other three stay crawlable and reachable; they simply stop competing.
                             </p>
                             {% for group in addon_groups %}
                                 <div class="addon-group">
-                                    <h4 class="addon-group__title">
+                                    {# h3, not h4 — these sit under the section h2, and skipping a level breaks heading navigation for screen readers. #}
+                                    <h3 class="addon-group__title">
                                         {% if group.grouper == 'maintenance' %}Monthly maintenance plans
                                         {% elif group.grouper == 'social_media' %}Social media plans
                                         {% else %}{{ group.grouper|title }}
                                         {% endif %}
-                                    </h4>
+                                    </h3>
                                     <p class="addon-group__sub">
                                         {% if group.grouper == 'maintenance' %}
                                             We keep your site sharp &mdash; updates, backups, monitoring.

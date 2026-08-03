@@ -130,6 +130,16 @@ class Lead(models.Model):
     # contact form (see CLAUDE.md → Data Model Decisions).
     tags = models.CharField(max_length=500, blank=True)
 
+    # What the visitor says they need — asked directly on the contact
+    # form rather than inferred from the free-text message. Drives lead
+    # triage (a build enquiry and an SEO retainer enquiry are answered
+    # very differently) and is the `service_interest` param the §10
+    # event spec asks for on contact_form_submit.
+    #
+    # Free text, not choices, because the form's option list will move
+    # as services change and old rows must keep meaning what they said.
+    service_interest = models.CharField(max_length=100, blank=True)
+
     # Visitor-supplied free text (contact form message, audit-tool email
     # capture notes, etc). Distinct from `notes` which is internal-only.
     inquiry_text = models.TextField(blank=True)

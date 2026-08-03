@@ -422,10 +422,66 @@ def _nps_band(score):
     return 'detractor'
 
 
+def _send_review_request(survey, review_url):
+    """
+    Email a promoter the direct review link.
+
+    Plain text, personal, one link. This goes to a client who has just
+    scored us 9 or 10 — the whole job is to make acting on that take one
+    tap, while the goodwill is fresh.
+    """
+    import logging
+
+    from django.core.mail import send_mail
+    logging.getLogger(__name__).info(
+        'Sending NPS review request to client %s', survey.client_id)
+
+    client = survey.client
+    name = (client.contact_name or client.firm_name or 'there').split()[0]
+    send_mail(
+        subject='Would you mind leaving us a review?',
+        message=(
+            f'Hi {name},\n\n'
+            f'Thanks for the {survey.score}/10 — that genuinely means a '
+            f'lot.\n\n'
+            f'If you have a spare minute, a short Google review helps other '
+            f'business owners find us more than almost anything else we '
+            f'do:\n\n'
+            f'{review_url}\n\n'
+            f'No pressure at all, and thanks either way.\n\n'
+            f'— Zachery Long\n'
+            f'Aspired Websites LLC\n'
+            f'210-896-2536\n'
+        ),
+        from_email=settings.EMAIL_FROM_CONTACT,
+        recipient_list=[client.user.email],
+        fail_silently=False,
+    )
+
+
 def _nps_take_action(survey):
     """Run the band-specific follow-up; return the response_action_taken value."""
     band = _nps_band(survey.score)
     if band == 'promoter':
+        # CLAUDE.md's onboarding flow (step 10) specifies a SendGrid
+        # review request for high scorers. Previously this branch only
+        # recorded the string and sent nothing — the ask existed solely
+        # as a button on the thank-you page, which a client sees once
+        # and often while on a phone.
+        #
+        # No URL means no ask. Emailing "please review us" without a
+        # link is worse than staying quiet, and inventing a link is not
+        # an option.
+        review_url = getattr(settings, 'GOOGLE_REVIEW_URL', '')
+        if not review_url:
+            return 'review_url_not_configured'
+        try:
+            _send_review_request(survey, review_url)
+        except Exception:  # noqa: BLE001 — a failed send must not 500
+            import logging
+            logging.getLogger(__name__).exception(
+                'NPS review request failed for %s', survey.client_id)
+            return 'review_email_failed'
         return 'review_requested'
     if band == 'detractor':
         from .tasks import send_admin_alert

@@ -89,6 +89,18 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
                     </div>
 
+                    {% comment %}
+                    Optional on purpose. It sharpens lead triage and
+                    fills the service_interest param the §10 event spec
+                    asks for, but a required field here would cost more
+                    submissions than the answer is worth.
+                    {% endcomment %}
+                    <div class="form-group">
+                        <label for="{{ form.service_interest.id_for_label }}">What do you need?</label>
+                        {{ form.service_interest }}
+                        {% if form.service_interest.errors %}<div class="form-field-error">{{ form.service_interest.errors|join:" " }}</div>{% endif %}
+                    </div>
+
                     <div class="form-group">
                         <label for="{{ form.source.id_for_label }}">How did you hear about us?</label>
                         {{ form.source }}
