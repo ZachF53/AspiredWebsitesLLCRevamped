@@ -867,3 +867,66 @@ def check_portfolio_screenshots(stale_after_days=180):
                     'Stale: ' + ', '.join(stale)))
 
     return f'portfolio check — {len(dead)} dead, {len(stale)} stale'
+
+
+@shared_task
+def check_unconnected_social_channels(grace_hours=24):
+    """
+    Daily — alert when a client is being BILLED for social management
+    but their channels have no OAuth token, so nothing can be posted.
+
+    The launch plan framed this as a client-facing "connect your
+    channels" banner. That is misaimed: `social.views.connect_page` is
+    @admin_required, so the client cannot connect anything even if
+    prompted. Connecting is operator work, which makes this an operator
+    alert — the client's only visible symptom is silence.
+
+    Scope, and why each bound is here:
+      * status='active' only. A plan awaiting payment or already
+        cancelled is not owed any posting.
+      * WIRED platforms only. A channel on a platform with no OAuth
+        integration built yet cannot be connected by anyone, so
+        flagging it is noise the operator can do nothing about.
+      * grace_hours after the plan starts. A plan bought ten minutes
+        ago is not yet a problem, and alerting immediately would train
+        the alert to be ignored.
+    """
+    from clients.service_models import SocialChannel
+    from core.system_alerts import record_alert
+    from social.views import WIRED_PLATFORMS
+
+    cutoff = timezone.now() - timedelta(hours=grace_hours)
+    offenders = {}
+
+    channels = (SocialChannel.objects
+                .filter(plan__status='active',
+                        platform__in=WIRED_PLATFORMS)
+                .select_related('plan', 'plan__account'))
+
+    for channel in channels:
+        plan = channel.plan
+        started = plan.started_at or plan.created_at
+        if started and started > cutoff:
+            continue    # still inside the grace window
+        token = getattr(channel, 'token', None)
+        if token is not None and token.access_token_encrypted:
+            continue    # connected
+        name = getattr(plan.account, 'name', None) or str(plan.account_id)
+        offenders.setdefault(name, []).append(
+            f'{channel.get_platform_display()}'
+            f'{" @" + channel.handle if channel.handle else ""}')
+
+    if offenders:
+        lines = [f'  {name}: {", ".join(ch)}'
+                 for name, ch in sorted(offenders.items())]
+        record_alert(
+            'warning', 'social.oauth',
+            f'{len(offenders)} paying social client(s) have unconnected '
+            f'channels',
+            detail=('These plans are active and billing, but the channels '
+                    'have no OAuth token — nothing can be posted for '
+                    'them:\n' + '\n'.join(lines) +
+                    '\n\nConnect at /admin-dashboard/social/.'))
+
+    return (f'social oauth check — {len(offenders)} client(s) with '
+            f'unconnected channels')

@@ -1646,3 +1646,91 @@ class PortfolioScreenshotCheckTests(TestCase):
         """No screenshot is a gradient fallback, not a rotting one."""
         result = self._run(200)
         self.assertIn('0 stale', result)
+
+
+class UnconnectedSocialChannelAlertTests(TestCase):
+    """
+    A client billing for social management whose channels have no OAuth
+    token cannot be posted for — and the only symptom they see is
+    silence.
+
+    The launch plan framed this as a client-facing banner. That is
+    misaimed: social.views.connect_page is @admin_required, so the
+    client cannot connect anything even if asked. It is operator work,
+    so it is an operator alert.
+    """
+
+    _seq = 0
+
+    def _plan(self, name, *, status='active', started_days_ago=5):
+        from clients.models import Account
+        from clients.service_models import SocialMediaPlan
+        # Account.user is a required OneToOne, and a ClientProfile save
+        # auto-creates an Account via signals — so build the user and
+        # let/make the Account directly rather than fighting the signal.
+        type(self)._seq += 1
+        u = User.objects.create_user(
+            username=f'socacct{type(self)._seq}', password='x',
+            email=f'socacct{type(self)._seq}@example.com')
+        acct, _ = Account.objects.get_or_create(
+            user=u, defaults={'name': name})
+        acct.name = name
+        acct.save(update_fields=['name'])
+        plan = SocialMediaPlan.objects.create(
+            account=acct, tier_slug='social-basic', status=status)
+        SocialMediaPlan.objects.filter(pk=plan.pk).update(
+            started_at=timezone.now() - timedelta(days=started_days_ago))
+        plan.refresh_from_db()
+        return plan
+
+    def _channel(self, plan, platform='facebook', connected=False):
+        from clients.service_models import SocialChannel
+        ch = SocialChannel.objects.create(
+            plan=plan, platform=platform, handle='acme')
+        if connected:
+            from social.models import SocialToken
+            SocialToken.objects.create(
+                channel=ch, access_token_encrypted='enc::token')
+        return ch
+
+    def _run(self, **kw):
+        from clients.tasks import check_unconnected_social_channels
+        return check_unconnected_social_channels(**kw)
+
+    def test_active_plan_with_no_token_alerts(self):
+        from core.models import SystemAlert
+        self._channel(self._plan('Unconnected Co'))
+        result = self._run()
+        self.assertIn('1 client', result)
+        alert = SystemAlert.objects.filter(source='social.oauth').first()
+        self.assertIsNotNone(alert)
+        self.assertIn('Unconnected Co', alert.detail)
+
+    def test_connected_channel_does_not_alert(self):
+        self._channel(self._plan('Connected Co'), connected=True)
+        self.assertIn('0 client', self._run())
+
+    def test_plan_awaiting_payment_is_not_owed_posting(self):
+        self._channel(self._plan('Unpaid Co', status='awaiting_payment'))
+        self.assertIn('0 client', self._run())
+
+    def test_cancelled_plan_is_ignored(self):
+        self._channel(self._plan('Gone Co', status='cancelled'))
+        self.assertIn('0 client', self._run())
+
+    def test_brand_new_plan_is_inside_the_grace_window(self):
+        """
+        Alerting ten minutes after purchase would train the alert to be
+        ignored.
+        """
+        self._channel(self._plan('Fresh Co', started_days_ago=0))
+        self.assertIn('0 client', self._run(grace_hours=24))
+
+    def test_platform_with_no_oauth_integration_is_not_flagged(self):
+        """
+        Flagging a channel nobody can connect is noise the operator can
+        do nothing about.
+        """
+        plan = self._plan('Tiktok Co')
+        self._channel(plan, platform='tiktok')
+        self.assertIn('0 client', self._run())

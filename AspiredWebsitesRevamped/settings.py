@@ -596,6 +596,13 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'vault.tasks.close_idle_ops_sessions',
         'schedule': crontab(minute='*/15'),
     },
+    # Daily — a client billing for social management whose channels have
+    # no OAuth token cannot be posted for, and the only symptom they see
+    # is silence. Operator alert, because connecting is operator work.
+    'check-unconnected-social-channels': {
+        'task': 'clients.tasks.check_unconnected_social_channels',
+        'schedule': crontab(hour=8, minute=15),
+    },
     # Weekly — notice when a portfolio screenshot has gone stale or a
     # showcased client site stops responding. Does not re-capture (that
     # needs a browser the servers don't have); it raises a system alert
