@@ -4,7 +4,7 @@
 {% block title %}Leads — Admin — Aspired Websites{% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/leads_bulk.js' %}" defer></script>
+    <script src="{% static 'js/leads_bulk.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
 
 {% block content %}

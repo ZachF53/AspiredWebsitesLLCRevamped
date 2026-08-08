@@ -709,6 +709,6 @@
     blocked. Same reason all the styling for this page now lives in
     main.css instead of an inline <style> tag.
 {% endcomment %}
-<script src="{% static 'js/website_detail.js' %}" defer></script>
+<script src="{% static 'js/website_detail.js' %}?v={{ STATIC_VERSION }}" defer></script>
 
 {% endblock %}

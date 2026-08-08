@@ -4,7 +4,7 @@
 {% block title %}{{ website.name }} — Conversions{% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/click_overlay.js' %}" defer></script>
+    <script src="{% static 'js/click_overlay.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
 
 {% block content %}

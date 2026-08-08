@@ -4669,6 +4669,24 @@ button.htmx-request {
    in recording_replay.js) — keep it above page content but below
    the cursor SVG so the cursor is always on top of its own trail. */
 
+/* Buttons + speed live on their own row under the seek bar. */
+
+/* ── Seek bar ──
+   The outer element is a tall, invisible hit area so the bar is easy
+   to grab; the visible track is a thin strip centred inside it.
+   Pointer events are handled in recording_replay.js. */
+
+/* rrweb is fast-forwarding an idle gap — the bar will lurch, so make
+   that read as deliberate rather than as a glitch. */
+
+/* Zero-duration recording (a bounce with no interaction) — nothing to
+   seek through. */
+
+/* ── Visitor device (replay header + recordings table) ── */
+
+/* Device split stat — several short labels, so it needs to wrap and
+   sit smaller than the single big numbers beside it. */
+
 /* ── Replay diagnostics strip (admin + portal) ── */
 
 /* ──────────────────────────────────────────────────────────────────

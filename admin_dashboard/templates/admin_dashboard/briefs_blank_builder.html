@@ -4,7 +4,7 @@
 {% block title %}Blank Brief Builder — Admin{% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/briefs_builder.js' %}" defer></script>
+    <script src="{% static 'js/briefs_builder.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
 
 {% block content %}

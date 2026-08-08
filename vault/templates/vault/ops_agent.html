@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI Ops — {{ credential.label }}</title>
     <meta name="robots" content="noindex,nofollow">
-    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
 </head>
 <body class="ops-body">
 <div class="ops-agent"
@@ -132,6 +132,6 @@
     </main>
 </div>
 
-<script src="{% static 'js/ops-agent.js' %}" defer></script>
+<script src="{% static 'js/ops-agent.js' %}?v={{ STATIC_VERSION }}" defer></script>
 </body>
 </html>

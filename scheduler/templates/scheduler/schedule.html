@@ -182,5 +182,5 @@ other three stay crawlable and reachable; they simply stop competing.
 {% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/schedule_call.js' %}" defer></script>
+    <script src="{% static 'js/schedule_call.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

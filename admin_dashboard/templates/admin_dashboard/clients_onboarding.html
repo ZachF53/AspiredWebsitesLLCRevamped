@@ -126,5 +126,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/onboarding.js' %}" defer></script>
+<script src="{% static 'js/onboarding.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

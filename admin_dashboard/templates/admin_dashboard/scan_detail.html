@@ -176,5 +176,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/scans.js' %}" defer></script>
+<script src="{% static 'js/scans.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

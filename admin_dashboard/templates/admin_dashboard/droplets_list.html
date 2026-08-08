@@ -102,10 +102,10 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/droplets.js' %}" defer></script>
+<script src="{% static 'js/droplets.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% comment %}
     External per CSP (script-src 'self'). Wires the "Link to Website"
     buttons on unlinked rows to the modal above.
 {% endcomment %}
-<script src="{% static 'js/droplet_link.js' %}" defer></script>
+<script src="{% static 'js/droplet_link.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

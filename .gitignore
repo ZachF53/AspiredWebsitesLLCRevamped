@@ -5,9 +5,11 @@
 
 # ── AI & CLAUDE ─────────────────────────────────────────────
 CLAUDE.md
+AGENTS.md
 .claude/
 claude.json
 .cursorrules
+AGENTS.md.backup
 
 # ── ENVIRONMENT & SECRETS ───────────────────────────────────
 .env

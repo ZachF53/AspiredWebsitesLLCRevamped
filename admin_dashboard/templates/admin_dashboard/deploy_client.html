@@ -51,5 +51,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/deploy.js' %}" defer></script>
+<script src="{% static 'js/deploy.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

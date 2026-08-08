@@ -122,5 +122,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    <script src="{% static 'js/checkout.js' %}" defer></script>
+    <script src="{% static 'js/checkout.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
