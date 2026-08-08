@@ -43,8 +43,10 @@ class Command(BaseCommand):
         except (ClientProfile.DoesNotExist, ValidationError, ValueError):
             raise CommandError(f'No client found with id {client_id!r}.')
 
+        from clients.website_helpers import primary_website
         entry = SiteChangelogEntry.objects.create(
             client=client,
+            website_new=primary_website(client),
             change_type='deployment',
             title=options['title'],
             description=options['description'],

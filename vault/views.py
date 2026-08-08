@@ -1127,10 +1127,13 @@ def ops_agent(request, cred_id):
             id=sid, ended_at__isnull=True).first()
 
     if ops_session is None:
+        from clients.website_helpers import primary_website
         context_snapshot = get_server_context(cred, vault_key)
+        cred_client = getattr(cred.vault, 'client', None)
         ops_session = OpsSession.objects.create(
             credential=cred,
-            client=getattr(cred.vault, 'client', None),
+            client=cred_client,
+            website_new=primary_website(cred_client),
             context_snapshot=context_snapshot,
         )
         request.session[sess_key] = str(ops_session.id)

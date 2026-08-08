@@ -96,11 +96,8 @@ def _hash_ip(request):
 def _primary_website(client):
     """The client's primary (oldest) Website, or None — used to stamp the
     per-website FK on ingested analytics during the Phase-D teardown."""
-    try:
-        acct = client.migrated_account
-    except Exception:
-        return None
-    return acct.websites.order_by('created_at').first() if acct else None
+    from clients.website_helpers import primary_website
+    return primary_website(client)
 
 
 @cors_post
@@ -351,11 +348,19 @@ def track_recording(request):
     except (TypeError, ValueError):
         vp_w = vp_h = None
 
+    # Every read path for recordings — the admin recordings list, the
+    # website_detail count, and the portal replay/download views — filters
+    # on `website_new`. A row written without it is invisible everywhere,
+    # so stamp it here exactly like track_batch does for PageSession and
+    # ConversionEvent.
+    site = _primary_website(client)
+
     try:
         rec, _created = SessionRecording.objects.get_or_create(
             client=client,
             session_id=session_id,
             defaults={
+                'website_new': site,
                 'page_url': str(data.get('page_url') or '')[:2000],
                 'page_title': str(data.get('page_title') or '')[:200],
                 'viewport_width': vp_w,
@@ -365,6 +370,12 @@ def track_recording(request):
         )
     except Exception:  # noqa: BLE001
         return _ok()
+
+    # Repair an in-flight session that was opened by an older build (or
+    # before the account had a Website) — later chunks land on the same
+    # row, so this is the only chance to attach it.
+    if rec.website_new_id is None and site is not None:
+        rec.website_new = site
 
     chunks = list(rec.recording_chunks or [])
     chunks.append(events)

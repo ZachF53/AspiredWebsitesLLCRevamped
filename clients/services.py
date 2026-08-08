@@ -68,8 +68,10 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
     profile.stage = new_stage
     profile.save(update_fields=['stage', 'updated_at'])
 
+    from clients.website_helpers import primary_website
     log = ProjectStageLog.objects.create(
         client=profile,
+        website_new=primary_website(profile),
         from_stage=from_stage,
         to_stage=new_stage,
         note=note or '',

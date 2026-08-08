@@ -168,8 +168,10 @@ def handle_project_complete(bundle):
     profile._from_sync = True
     profile.save()
 
+    from clients.website_helpers import primary_website
     ProjectStageLog.objects.create(
         client=profile,
+        website_new=primary_website(profile),
         from_stage=old_stage,
         to_stage='live',
         note='Project handed off from Moonieful.',

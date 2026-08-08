@@ -402,6 +402,7 @@ def _create_ssh_vault_credential(client, droplet_ip, private_key):
     """
     # Local import — avoids loading vault models at app start, sidesteps any
     # billing → vault import-time cycle.
+    from clients.website_helpers import primary_website
     from vault.crypto import derive_server_key, encrypt_value, make_hint
     from vault.models import ClientVault, VaultCredential
 
@@ -411,6 +412,7 @@ def _create_ssh_vault_credential(client, droplet_ip, private_key):
 
     cred = VaultCredential.objects.create(
         vault=vault,
+        website_new=primary_website(client),
         category='server',
         label=label,
         is_ssh_credential=True,

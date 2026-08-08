@@ -169,8 +169,10 @@ def calculate_client_health(client):
     churn_risk = (health_status == 'critical') or (payment == 0)
 
     from clients.models import ClientHealthScore
+    from clients.website_helpers import primary_website
     return ClientHealthScore(
         client=client,
+        website_new=primary_website(client),
         score=score,
         payment_score=payment,
         engagement_score=engagement,

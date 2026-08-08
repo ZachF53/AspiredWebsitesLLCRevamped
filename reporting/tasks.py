@@ -36,17 +36,21 @@ def send_admin_alert(subject, message):
 
 # ── Part 1: Uptime monitoring ───────────────────────────────────────────────
 
-@shared_task
 def _primary_website(client):
     """The client's primary (oldest) Website, or None. Used to stamp the
     per-website FK on uptime rows during the Phase-D teardown."""
-    try:
-        acct = client.migrated_account
-    except Exception:
-        return None
-    return acct.websites.order_by('created_at').first() if acct else None
+    from clients.website_helpers import primary_website
+    return primary_website(client)
 
 
+# NOTE: `@shared_task` belongs on the beat-scheduled task below, not on the
+# helper above. A helper inserted between the decorator and this function
+# (commit 3370806) silently stole it, leaving
+# `reporting.tasks.check_client_uptime` unregistered with Celery — the
+# every-5-minute beat entry in settings.CELERY_BEAT_SCHEDULE failed with
+# NotRegistered and uptime monitoring recorded nothing from 2026-06-14
+# until this was fixed. Keep the decorator adjacent to its task.
+@shared_task
 def check_client_uptime():
     """Ping every active, launched client site. Scheduled every 5 minutes."""
     import requests
@@ -195,9 +199,14 @@ def check_gbp_sync():
         if client.stage != 'live':
             continue
 
+        # The GBP admin views filter these rows by website_new — resolve
+        # once per client and stamp every row written below.
+        site = _primary_website(client)
+
         if not _gbp_is_connected(client):
             GBPSyncCheck.objects.create(
                 client=client,
+                website_new=site,
                 field_name='website',
                 website_value=GBP_NOT_CONNECTED,
                 gbp_value='Connect GBP via /admin-dashboard/gbp/connect/',
@@ -218,6 +227,7 @@ def check_gbp_sync():
                 'check_gbp_sync: fetch_location failed for %s', client.pk)
             GBPSyncCheck.objects.create(
                 client=client,
+                website_new=site,
                 field_name='website',
                 website_value='(error)',
                 gbp_value='GBP API error — see logs',
@@ -248,6 +258,7 @@ def check_gbp_sync():
                 _normalise(web_val) != _normalise(gbp_val))
             GBPSyncCheck.objects.create(
                 client=client,
+                website_new=site,
                 field_name=field_name,
                 website_value=web_val,
                 gbp_value=gbp_val,
@@ -962,6 +973,7 @@ def check_scan_schedule():
 
         scan = VulnerabilityScan.objects.create(
             client=client,
+            website_new=_primary_website(client),
             target_url=target_url,
             target_ip=client.do_droplet_ip,
             scan_type='full',

@@ -2172,6 +2172,7 @@ def client_toggle_session_recording(request, client_id):
 def gbp_flag(request, client_id, check_id):
     """Flag a GBP mismatch for fixing — logs an internal changelog note."""
     from clients.models import SiteChangelogEntry
+    from clients.website_helpers import primary_website
     from reporting.models import GBPSyncCheck
 
     check = get_object_or_404(GBPSyncCheck, id=check_id, client_id=client_id)
@@ -2179,6 +2180,7 @@ def gbp_flag(request, client_id, check_id):
     check.save(update_fields=['flagged_for_fix', 'updated_at'])
     SiteChangelogEntry.objects.create(
         client=check.client,
+        website_new=check.website_new or primary_website(check.client),
         change_type='other',
         title=f'GBP mismatch flagged: {check.get_field_name_display()}',
         description=(f'Website: {check.website_value}\n'
@@ -3744,8 +3746,10 @@ def run_scan(request):
         return HttpResponseBadRequest(
             'Client has no live URL or Droplet IP to scan.')
 
+    from clients.website_helpers import primary_website
     scan = VulnerabilityScan.objects.create(
         client=client,
+        website_new=primary_website(client),
         target_url=target_url,
         target_ip=target_ip,
         scan_type=scan_type,
@@ -4505,8 +4509,11 @@ def case_study_new(request):
 
         is_published = request.POST.get('is_published') == 'on'
 
+        from clients.website_helpers import primary_website
         cs = CaseStudy.objects.create(
             client=client,
+            # Stays None for a marketing case study with no client attached.
+            website_new=primary_website(client),
             title=(request.POST.get('title') or '').strip()[:300],
             business_type=(request.POST.get('business_type')
                            or (client.business_type if client else '')
@@ -5615,8 +5622,10 @@ def gap_create_suggestion(request, report_id, gap_index):
         )
     )
 
+    from clients.website_helpers import primary_website
     suggestion = IntelligenceSuggestion.objects.create(
         client=report.client,
+        website_new=report.website_new or primary_website(report.client),
         suggestion_type='competitor',
         title=(gap.get('suggested_page_title')
                or gap.get('title') or 'Competitor gap')[:300],
@@ -6099,8 +6108,13 @@ def new_invoice(request):
                 # OnboardingInvoice row (snapshot of what's being
                 # billed — line items render on our /pay/ page and
                 # on the PDF receipt).
+                # `autocreate_account_and_website` already fired on the
+                # ClientProfile post_save above, so the primary Website
+                # exists by now.
+                from clients.website_helpers import primary_website
                 invoice = OnboardingInvoice.objects.create(
                     client=profile,
+                    website_new=primary_website(profile),
                     line_items=[
                         {'description': it['description'],
                          'amount': str(it['amount'])}
@@ -6495,8 +6509,10 @@ def send_onboarding(request):
 
                 # Zero-amount paid invoice so the downstream gate
                 # treats this client identically to a paid client.
+                from clients.website_helpers import primary_website
                 OnboardingInvoice.objects.create(
                     client=profile,
+                    website_new=primary_website(profile),
                     line_items=[],
                     total_amount=_Decimal('0'),
                     status='paid',
@@ -8567,6 +8583,9 @@ def website_change_stage(request, website_id):
     if legacy_cp is not None:
         legacy_log = ProjectStageLog.objects.create(
             client=legacy_cp,
+            # `website` is the site being transitioned — no need to fall
+            # back to the account's primary site here.
+            website_new=website,
             from_stage=from_stage,
             to_stage=new_stage,
             note=note,

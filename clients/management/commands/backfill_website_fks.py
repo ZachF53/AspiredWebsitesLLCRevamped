@@ -62,8 +62,20 @@ class Command(BaseCommand):
                 (f for f in model._meta.get_fields()
                  if f.name == 'client' and getattr(f, 'related_model', None)
                  and f.related_model.__name__ == 'ClientProfile'), None)
+            # Vault models reach ClientProfile one hop out, through
+            # ClientVault (`vault.client`) rather than a direct `client`
+            # FK — VaultCredential is the one that matters. Resolve the
+            # owning ClientProfile per row instead of skipping the model.
+            via_vault = False
             if client_field is None:
-                continue
+                vault_field = next(
+                    (f for f in model._meta.get_fields()
+                     if f.name == 'vault'
+                     and getattr(f, 'related_model', None)
+                     and f.related_model.__name__ == 'ClientVault'), None)
+                if vault_field is None:
+                    continue
+                via_vault = True
             # Account FK may be named account_new (legacy-coexist models) or
             # account (newer models like PaymentRecord/plans). Same for
             # website_new vs website. Verify each points at the right model.
@@ -79,10 +91,17 @@ class Command(BaseCommand):
                 continue
 
             label = f'{model._meta.app_label}.{model.__name__}'
-            qs = model.objects.filter(client__isnull=False)
+            if via_vault:
+                qs = (model.objects
+                      .filter(vault__client__isnull=False)
+                      .select_related('vault'))
+            else:
+                qs = model.objects.filter(client__isnull=False)
             fixed_w = fixed_a = skipped = 0
             for row in qs.iterator():
-                acct = acct_by_cp.get(row.client_id)
+                cp_id = (row.vault.client_id if via_vault
+                         else row.client_id)
+                acct = acct_by_cp.get(cp_id)
                 if acct is None:
                     skipped += 1
                     continue

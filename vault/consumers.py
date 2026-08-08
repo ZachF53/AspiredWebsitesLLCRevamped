@@ -205,14 +205,17 @@ class SSHTerminalConsumer(WebsocketConsumer):
     # ── Helpers ────────────────────────────────────────────────────────────
 
     def _create_session_log(self):
+        from clients.website_helpers import primary_website
         from vault.models import SSHSessionLog
         client_ip = None
         if self.scope.get('client'):
             client_ip = self.scope['client'][0]
+        cred_client = self.credential.vault.client
         try:
             self.session_log = SSHSessionLog.objects.create(
                 credential=self.credential,
-                client=self.credential.vault.client,
+                client=cred_client,
+                website_new=primary_website(cred_client),
                 totp_verified=True,
                 ip_address=client_ip,
             )

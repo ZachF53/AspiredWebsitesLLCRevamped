@@ -50,9 +50,11 @@ def _queue_stage_change(sender, instance, created, **kwargs):
         'from_stage': old_stage,
         'to_stage': instance.stage,
     }
+    from clients.website_helpers import primary_website
     SyncJob.objects.create(
         target='moonieful',
         client=instance,
+        website_new=primary_website(instance),
         moonieful_client_id=instance.moonieful_client_id,
         event_type='stage_changed',
         payload=snapshot,

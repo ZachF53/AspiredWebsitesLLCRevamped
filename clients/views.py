@@ -898,9 +898,12 @@ def _on_intake_submitted(profile, project):
     # detail). SiteChangelogEntry import is local so a missing model
     # never breaks intake submission.
     try:
+        from clients.website_helpers import primary_website
+
         from .models import SiteChangelogEntry
         SiteChangelogEntry.objects.create(
             client=profile,
+            website_new=primary_website(profile),
             change_type='other',
             title='Intake form submitted',
             description=(

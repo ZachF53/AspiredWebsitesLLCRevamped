@@ -23,6 +23,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
+from clients.website_helpers import primary_website
+
 logger = logging.getLogger(__name__)
 
 
@@ -214,8 +216,13 @@ def run_intelligence_for_client(client_id):
     else:
         status = 'complete'
 
+    # The intelligence admin pages are per-website — stamp both the report
+    # and every suggestion hanging off it, or they render as empty.
+    site = primary_website(client)
+
     report = IntelligenceReport.objects.create(
         client=client,
+        website_new=site,
         report_month=report_month,
         data_snapshot=result.get('data_snapshot', {}) or {},
         overall_assessment=result.get('overall_assessment', '') or '',
@@ -236,6 +243,7 @@ def run_intelligence_for_client(client_id):
             fee = 0
         IntelligenceSuggestion.objects.create(
             client=client,
+            website_new=site,
             report=report,
             suggestion_type=s_type,
             title=(s.get('title') or '')[:300],
@@ -434,11 +442,15 @@ def run_competitor_gap_analysis(client_id):
         return (f'Already ran for {client.firm_name} this month '
                 f'({report_month.isoformat()}).')
 
+    # Gap-report pages filter by website_new — stamp every exit path,
+    # including the early no-competitors / no-URL rows.
+    site = primary_website(client)
+
     competitors = list(
         ClientCompetitor.objects.filter(client=client)[:3])
     if not competitors:
         CompetitorGapReport.objects.create(
-            client=client, report_month=report_month,
+            client=client, website_new=site, report_month=report_month,
             status='no_competitors',
         )
         return f'{client.firm_name}: no competitors set.'
@@ -447,14 +459,14 @@ def run_competitor_gap_analysis(client_id):
     client_url = client.website or ''
     if not client_url:
         CompetitorGapReport.objects.create(
-            client=client, report_month=report_month,
+            client=client, website_new=site, report_month=report_month,
             status='failed',
             overall_assessment='Client has no live URL set.',
         )
         return (f'{client.firm_name}: skipped — no live URL.')
 
     report = CompetitorGapReport.objects.create(
-        client=client, report_month=report_month,
+        client=client, website_new=site, report_month=report_month,
         status='generating',
     )
 

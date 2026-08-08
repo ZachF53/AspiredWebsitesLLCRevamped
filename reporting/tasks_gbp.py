@@ -132,6 +132,7 @@ def check_gbp_nap_task():
     Replaces the stub `reporting.tasks.check_gbp_sync` for GBP-eligible
     clients — that one still runs for legacy / non-eligible cases.
     """
+    from clients.website_helpers import primary_website
     from reporting.google_gbp import fetch_location
     from reporting.models import GBPSyncCheck
 
@@ -164,11 +165,14 @@ def check_gbp_nap_task():
             ('address', (client.address or '').strip(), gbp_address),
             ('website', (client.website or '').strip(), gbp_website),
         ]
+        # Admin GBP views filter on website_new — resolve once per client.
+        site = primary_website(client)
         for field_name, web_val, gbp_val in fields:
             mismatch = bool(web_val) and bool(gbp_val) and (
                 _norm(web_val) != _norm(gbp_val))
             GBPSyncCheck.objects.create(
                 client=client,
+                website_new=site,
                 field_name=field_name,
                 website_value=web_val,
                 gbp_value=gbp_val,
