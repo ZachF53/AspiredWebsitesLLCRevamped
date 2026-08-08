@@ -101,6 +101,142 @@ class TrackEndpointTests(TestCase):
         self.assertEqual(len(event.ip_hash), 64)  # sha-256 hex digest
 
 
+# ── User-Agent parsing + session-recording ingest ───────────────────────────
+
+UA_IPHONE = ('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) '
+             'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 '
+             'Mobile/15E148 Safari/604.1')
+UA_WIN_CHROME = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                 'AppleWebKit/537.36 (KHTML, like Gecko) '
+                 'Chrome/126.0.0.0 Safari/537.36')
+
+
+class UserAgentParserTests(TestCase):
+    """The parser is hand-rolled, so pin the cases that actually differ.
+
+    Edge/Opera/Samsung all advertise Chrome and Chrome advertises Safari,
+    so token order is the whole game — these guard against a reordering
+    that would silently relabel most real traffic as 'Chrome'.
+    """
+
+    def _parse(self, ua):
+        from reporting.useragent import parse_user_agent
+        return parse_user_agent(ua)
+
+    def test_iphone_is_mobile_safari(self):
+        got = self._parse(UA_IPHONE)
+        self.assertEqual(got['device_type'], 'mobile')
+        self.assertEqual(got['browser'], 'Safari 17')
+        self.assertEqual(got['os'], 'iOS 17')
+
+    def test_ipad_is_tablet_not_mobile(self):
+        got = self._parse(
+            'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) '
+            'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 '
+            'Mobile/15E148 Safari/604.1')
+        self.assertEqual(got['device_type'], 'tablet')
+
+    def test_android_without_mobile_token_is_tablet(self):
+        phone = self._parse(
+            'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36')
+        tablet = self._parse(
+            'Mozilla/5.0 (Linux; Android 13; SM-X710) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
+        self.assertEqual(phone['device_type'], 'mobile')
+        self.assertEqual(tablet['device_type'], 'tablet')
+
+    def test_edge_not_reported_as_chrome(self):
+        got = self._parse(UA_WIN_CHROME + ' Edg/126.0.0.0')
+        self.assertEqual(got['browser'], 'Edge 126')
+
+    def test_chrome_not_reported_as_safari(self):
+        self.assertEqual(self._parse(UA_WIN_CHROME)['browser'], 'Chrome 126')
+
+    def test_samsung_internet_beats_chrome(self):
+        got = self._parse(
+            'Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 '
+            'Chrome/115.0.0.0 Mobile Safari/537.36')
+        self.assertEqual(got['browser'], 'Samsung Internet 23')
+
+    def test_crawler_flagged_as_bot(self):
+        got = self._parse(
+            'Mozilla/5.0 (compatible; Googlebot/2.1; '
+            '+http://www.google.com/bot.html)')
+        self.assertEqual(got['device_type'], 'bot')
+
+    def test_empty_ua_is_unknown_not_a_guess(self):
+        got = self._parse('')
+        self.assertEqual(got['device_type'], 'unknown')
+        self.assertEqual(got['browser'], '')
+        self.assertEqual(got['os'], '')
+
+
+class SessionRecordingIngestTests(TestCase):
+    """`track_recording` must stamp website_new and the visitor device.
+
+    Both were missing at one point: recordings landed on disk but every
+    admin/portal read path filters on website_new, so 506 rows were
+    invisible in the UI with no error anywhere.
+    """
+
+    def setUp(self):
+        self.cp = _client('Rec Co', session_recording_enabled=True)
+        self.url = reverse('reporting:track_recording')
+
+    def _post(self, ua=UA_IPHONE, session_id='sess-1', **over):
+        payload = {
+            'client_id': str(self.cp.id),
+            'session_id': session_id,
+            'page_url': 'https://example.com/',
+            'events': [{'type': 4, 'timestamp': 1}],
+            'viewport': {'width': 390, 'height': 844},
+        }
+        payload.update(over)
+        return self.client.post(
+            self.url, data=json.dumps(payload),
+            content_type='application/json', HTTP_USER_AGENT=ua)
+
+    def _rec(self):
+        from reporting.models import SessionRecording
+        return SessionRecording.objects.get()
+
+    def test_recording_is_attached_to_a_website(self):
+        self.assertEqual(self._post().status_code, 200)
+        site = self.cp.migrated_account.websites.order_by('created_at').first()
+        self.assertIsNotNone(self._rec().website_new)
+        self.assertEqual(self._rec().website_new, site)
+
+    def test_device_captured_from_request_user_agent(self):
+        self._post()
+        rec = self._rec()
+        self.assertEqual(rec.device_type, 'mobile')
+        self.assertEqual(rec.browser, 'Safari 17')
+        self.assertEqual(rec.os, 'iOS 17')
+        self.assertEqual(rec.user_agent, UA_IPHONE)
+
+    def test_later_chunk_fills_device_left_unknown(self):
+        """A session opened before this shipped keeps the same row."""
+        self._post(ua='')
+        self.assertEqual(self._rec().device_type, 'unknown')
+        self._post(ua=UA_WIN_CHROME)
+        rec = self._rec()
+        self.assertEqual(rec.device_type, 'desktop')
+        self.assertEqual(rec.browser, 'Chrome 126')
+
+    def test_device_display_never_shows_a_bare_unknown(self):
+        self._post(ua='')
+        self.assertEqual(self._rec().device_display, 'Unknown device')
+
+    def test_recording_disabled_client_writes_nothing(self):
+        from reporting.models import SessionRecording
+        self.cp.session_recording_enabled = False
+        self.cp.save(update_fields=['session_recording_enabled'])
+        self.assertEqual(self._post().status_code, 200)
+        self.assertEqual(SessionRecording.objects.count(), 0)
+
+
 # ── Part 1: uptime monitoring ───────────────────────────────────────────────
 
 class UptimeTaskTests(TestCase):

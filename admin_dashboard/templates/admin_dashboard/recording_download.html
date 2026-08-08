@@ -14,6 +14,32 @@
                     box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
         .controls { display: flex; gap: 8px; align-items: center;
                     margin-top: 12px; }
+        /* Seek bar — tall invisible hit area, thin visible track. */
+        .scrub { position: relative; height: 20px; margin: 14px 2px 0;
+                 cursor: pointer; touch-action: none;
+                 display: flex; align-items: center; }
+        .scrub-track { position: relative; width: 100%; height: 5px;
+                       border-radius: 3px; background: #334155;
+                       transition: height 0.12s ease; }
+        .scrub:hover .scrub-track,
+        .scrub.dragging .scrub-track { height: 8px; }
+        .scrub-played { position: absolute; top: 0; left: 0; bottom: 0;
+                        width: 0; border-radius: 3px; background: #E8650A; }
+        .scrub-handle { position: absolute; top: 50%; left: 0;
+                        width: 13px; height: 13px;
+                        margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+                        background: #E8650A; border: 2px solid #fff;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+                        transform: scale(0);
+                        transition: transform 0.12s ease;
+                        pointer-events: none; }
+        .scrub:hover .scrub-handle,
+        .scrub.dragging .scrub-handle { transform: scale(1); }
+        .scrub.disabled { cursor: default; opacity: 0.45; }
+        .scrub.disabled .scrub-handle { display: none; }
+        .scrub-time { color: #94A3B8; font-size: 13px;
+                      font-variant-numeric: tabular-nums; }
+        .scrub-time b { color: #fff; font-weight: 500; }
         .controls button, .controls select {
             background: #1E293B; color: #fff;
             border: 1px solid #334155; padding: 6px 12px;
@@ -59,10 +85,19 @@
         Duration: {{ recording.duration_display }}
     </p>
     <div id="replayer"></div>
+    <div id="scrub" class="scrub" role="slider" tabindex="0"
+         aria-label="Seek through the recording"
+         aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="scrub-track">
+            <div class="scrub-played" id="scrub-played"></div>
+            <div class="scrub-handle" id="scrub-handle"></div>
+        </div>
+    </div>
     <div class="controls">
         <button type="button" id="play-btn">▶ Play</button>
         <button type="button" id="pause-btn">⏸ Pause</button>
         <button type="button" id="restart-btn">↺ Restart</button>
+        <span class="scrub-time"><b id="time-current">0:00</b> / <span id="time-total">0:00</span></span>
         <label>
             Speed:
             <select id="speed-select">
@@ -127,19 +162,148 @@
                     strokeStyle: '#E8650A'
                 }
             });
+            var playing = false;
+            function doPlay(at) {
+                try {
+                    if (typeof at === 'number') { replayer.play(at); }
+                    else { replayer.play(); }
+                    playing = true;
+                } catch (e) {}
+            }
+            function doPause(at) {
+                try {
+                    if (typeof at === 'number') { replayer.pause(at); }
+                    else { replayer.pause(); }
+                    playing = false;
+                } catch (e) {}
+            }
+
             document.getElementById('play-btn')
-                .addEventListener('click', function () { replayer.play(); });
+                .addEventListener('click', function () { doPlay(); });
             document.getElementById('pause-btn')
-                .addEventListener('click', function () { replayer.pause(); });
+                .addEventListener('click', function () { doPause(); });
             document.getElementById('restart-btn')
-                .addEventListener('click', function () { replayer.play(0); });
+                .addEventListener('click', function () { doPlay(0); });
             document.getElementById('speed-select')
                 .addEventListener('change', function () {
                     replayer.setConfig({
                         speed: parseFloat(this.value) || 1
                     });
                 });
-            replayer.play();
+
+            // ── Seek bar ──
+            // Same behaviour as the hosted replay page: pressing pauses
+            // and scrubs under the pointer, releasing resumes only if we
+            // were playing. Seeks are coalesced to one per frame so a
+            // drag doesn't ask rrweb to rebuild the DOM on every move.
+            var scrub = document.getElementById('scrub');
+            var played = document.getElementById('scrub-played');
+            var handle = document.getElementById('scrub-handle');
+            var curEl = document.getElementById('time-current');
+            var totEl = document.getElementById('time-total');
+            var total = 0;
+            try { total = Math.max(0, (replayer.getMetaData() || {}).totalTime || 0); }
+            catch (e) { total = 0; }
+
+            function fmt(ms) {
+                var t = Math.max(0, Math.round((ms || 0) / 1000));
+                var m = Math.floor(t / 60), s = t % 60;
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+            function paint(t) {
+                var pct = total > 0 ? Math.max(0, Math.min(1, t / total)) : 0;
+                played.style.width = (pct * 100) + '%';
+                handle.style.left = (pct * 100) + '%';
+                curEl.textContent = fmt(t);
+                scrub.setAttribute('aria-valuenow', String(Math.round(t / 1000)));
+            }
+            totEl.textContent = fmt(total);
+            scrub.setAttribute('aria-valuemax', String(Math.round(total / 1000)));
+            paint(0);
+
+            if (total > 0) {
+                var dragging = false, resumeAfter = false;
+                var pending = null, queued = false;
+
+                function timeAt(clientX) {
+                    var r = scrub.getBoundingClientRect();
+                    if (r.width <= 0) { return 0; }
+                    return Math.max(0, Math.min(1,
+                        (clientX - r.left) / r.width)) * total;
+                }
+                function queueSeek(t) {
+                    pending = t;
+                    paint(t);
+                    if (queued) { return; }
+                    queued = true;
+                    requestAnimationFrame(function () {
+                        queued = false;
+                        if (pending === null) { return; }
+                        var target = pending; pending = null;
+                        doPause(target);
+                    });
+                }
+                scrub.addEventListener('pointerdown', function (e) {
+                    e.preventDefault();
+                    dragging = true;
+                    resumeAfter = playing;
+                    scrub.classList.add('dragging');
+                    try { scrub.setPointerCapture(e.pointerId); } catch (err) {}
+                    queueSeek(timeAt(e.clientX));
+                });
+                scrub.addEventListener('pointermove', function (e) {
+                    if (!dragging) { return; }
+                    e.preventDefault();
+                    queueSeek(timeAt(e.clientX));
+                });
+                function endDrag(e) {
+                    if (!dragging) { return; }
+                    dragging = false;
+                    scrub.classList.remove('dragging');
+                    try { scrub.releasePointerCapture(e.pointerId); } catch (err) {}
+                    var t = timeAt(e.clientX);
+                    pending = null;
+                    paint(t);
+                    if (resumeAfter) { doPlay(t); } else { doPause(t); }
+                }
+                scrub.addEventListener('pointerup', endDrag);
+                scrub.addEventListener('pointercancel', endDrag);
+                scrub.addEventListener('keydown', function (e) {
+                    var step = 0;
+                    if (e.key === 'ArrowLeft') { step = -5000; }
+                    else if (e.key === 'ArrowRight') { step = 5000; }
+                    else if (e.key === 'PageDown') { step = -30000; }
+                    else if (e.key === 'PageUp') { step = 30000; }
+                    else if (e.key === 'Home') { step = -Infinity; }
+                    else if (e.key === 'End') { step = Infinity; }
+                    else { return; }
+                    e.preventDefault();
+                    var now = 0;
+                    try { now = replayer.getCurrentTime(); } catch (err) {}
+                    var t = Math.max(0, Math.min(total, now + step));
+                    paint(t);
+                    if (playing) { doPlay(t); } else { doPause(t); }
+                });
+                (function tick() {
+                    if (!dragging && playing) {
+                        try {
+                            paint(Math.min(total, replayer.getCurrentTime()));
+                        } catch (e) {}
+                    }
+                    requestAnimationFrame(tick);
+                })();
+                try {
+                    replayer.on('finish', function () {
+                        paint(total); playing = false;
+                    });
+                } catch (e) {}
+            } else {
+                scrub.classList.add('disabled');
+                scrub.setAttribute('aria-disabled', 'true');
+                scrub.removeAttribute('tabindex');
+            }
+
+            doPlay();
         })();
     </script>
 </body>

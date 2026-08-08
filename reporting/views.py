@@ -355,6 +355,13 @@ def track_recording(request):
     # ConversionEvent.
     site = _primary_website(client)
 
+    # Visitor device, read off the request's own User-Agent. Doing this
+    # server-side means the tracker snippet on the client's site stays
+    # unchanged and no extra bytes ride along in the beacon.
+    from .useragent import parse_user_agent
+    ua_raw = (request.META.get('HTTP_USER_AGENT') or '')[:400]
+    ua = parse_user_agent(ua_raw)
+
     try:
         rec, _created = SessionRecording.objects.get_or_create(
             client=client,
@@ -365,11 +372,23 @@ def track_recording(request):
                 'page_title': str(data.get('page_title') or '')[:200],
                 'viewport_width': vp_w,
                 'viewport_height': vp_h,
+                'device_type': ua['device_type'],
+                'browser': ua['browser'],
+                'os': ua['os'],
+                'user_agent': ua_raw,
                 'status': 'recording',
             },
         )
     except Exception:  # noqa: BLE001
         return _ok()
+
+    # A session opened before this shipped keeps receiving chunks on the
+    # same row — fill the device in on the first chunk that carries a UA.
+    if rec.device_type == 'unknown' and ua['device_type'] != 'unknown':
+        rec.device_type = ua['device_type']
+        rec.browser = ua['browser']
+        rec.os = ua['os']
+        rec.user_agent = ua_raw
 
     # Repair an in-flight session that was opened by an older build (or
     # before the account had a Website) — later chunks land on the same

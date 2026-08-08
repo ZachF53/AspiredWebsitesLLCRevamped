@@ -13,6 +13,11 @@
                 · {{ recording.duration_display }}
                 · Recorded {{ recording.created_at|date:"M j, Y H:i" }}
             </p>
+            <p class="muted replayer-device">
+                <span class="replayer-device__icon">{{ recording.device_icon }}</span>
+                {{ recording.device_display }}
+                · Viewport {{ recording.viewport_display }}
+            </p>
             <p class="muted text-sm replayer-diag">
                 Events: {{ event_count }}
                 · FullSnapshot:
@@ -29,19 +34,33 @@
     <div id="replayer" class="replayer-stage"></div>
 
     <div class="replayer-controls">
-        <button type="button" id="play-btn" class="btn-secondary btn-sm">▶ Play</button>
-        <button type="button" id="pause-btn" class="btn-secondary btn-sm">⏸ Pause</button>
-        <button type="button" id="restart-btn" class="btn-secondary btn-sm">↺ Restart</button>
-        <label class="replayer-speed">
-            Speed:
-            <select id="speed-select">
-                <option value="0.5">0.5x</option>
-                <option value="1" selected>1x</option>
-                <option value="2">2x</option>
-                <option value="4">4x</option>
-                <option value="8">8x</option>
-            </select>
-        </label>
+        <div id="replayer-scrub" class="replayer-scrub"
+             role="slider" tabindex="0"
+             aria-label="Seek through the recording"
+             aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+            <div class="replayer-scrub__track">
+                <div class="replayer-scrub__played"></div>
+                <div class="replayer-scrub__handle"></div>
+            </div>
+        </div>
+        <div class="replayer-controls__row">
+            <button type="button" id="play-btn" class="btn-secondary btn-sm">▶ Play</button>
+            <button type="button" id="pause-btn" class="btn-secondary btn-sm">⏸ Pause</button>
+            <button type="button" id="restart-btn" class="btn-secondary btn-sm">↺ Restart</button>
+            <span class="replayer-time">
+                <span id="time-current">0:00</span> / <span id="time-total">0:00</span>
+            </span>
+            <label class="replayer-speed">
+                Speed:
+                <select id="speed-select">
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                    <option value="8">8x</option>
+                </select>
+            </label>
+        </div>
     </div>
 </div>
 {{ events_json|json_script:"recording-events" }}

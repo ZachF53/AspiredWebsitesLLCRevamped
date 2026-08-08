@@ -8,6 +8,9 @@
  *   {{ events_json|json_script:"recording-events" }}
  *   buttons:  #play-btn  #pause-btn  #restart-btn
  *   select:   #speed-select  with value="0.5|1|2|4|8"
+ *   scrubber: #replayer-scrub (role=slider) containing
+ *             .replayer-scrub__played and .replayer-scrub__handle,
+ *             plus #time-current / #time-total readouts
  */
 (function () {
     'use strict';
@@ -166,10 +169,40 @@
         }
         tryFit();
 
-        // Wire the simple custom controls.
-        wire('play-btn', function () { replayer.play(); });
-        wire('pause-btn', function () { replayer.pause(); });
-        wire('restart-btn', function () { replayer.play(0); });
+        // ── TRANSPORT STATE ──
+        // rrweb has no "am I playing" getter we can rely on across
+        // versions, so we track it ourselves and keep it in sync via
+        // the replayer's own event emitter below.
+        var playing = false;
+
+        function setPlaying(v) {
+            playing = v;
+            if (stage) {
+                stage.classList.toggle('is-playing', v);
+            }
+        }
+
+        function doPlay(at) {
+            try {
+                if (typeof at === 'number') { replayer.play(at); }
+                else { replayer.play(); }
+                setPlaying(true);
+            } catch (e) { /* ignore */ }
+        }
+
+        function doPause(at) {
+            try {
+                // pause(offset) seeks to that offset and renders the
+                // frame there; pause() with no argument just stops.
+                if (typeof at === 'number') { replayer.pause(at); }
+                else { replayer.pause(); }
+                setPlaying(false);
+            } catch (e) { /* ignore */ }
+        }
+
+        wire('play-btn', function () { doPlay(); });
+        wire('pause-btn', function () { doPause(); });
+        wire('restart-btn', function () { doPlay(0); });
 
         var speedSelect = document.getElementById('speed-select');
         if (speedSelect) {
@@ -179,8 +212,186 @@
             });
         }
 
+        initScrubber(replayer, stage, {
+            isPlaying: function () { return playing; },
+            play: doPlay,
+            pause: doPause,
+            // Playback ran off the end — clear the flag without asking
+            // rrweb to seek anywhere.
+            markStopped: function () { setPlaying(false); }
+        });
+
         // Auto-play. The custom controls work fine if user pauses.
-        try { replayer.play(); } catch (e) { /* ignore */ }
+        doPlay();
+    }
+
+    /*
+     * YouTube-style seek bar.
+     *
+     * Drag semantics: pressing the track pauses playback and scrubs
+     * frame-by-frame under the pointer; releasing resumes only if we
+     * were playing when the drag started. Seeks are coalesced onto one
+     * animation frame — a raw pointermove stream would ask rrweb to
+     * rebuild the DOM dozens of times a second and stutter badly on
+     * long recordings.
+     */
+    function initScrubber(replayer, stage, transport) {
+        var scrub = document.getElementById('replayer-scrub');
+        if (!scrub) { return; }
+
+        var played = scrub.querySelector('.replayer-scrub__played');
+        var handle = scrub.querySelector('.replayer-scrub__handle');
+        var curEl = document.getElementById('time-current');
+        var totEl = document.getElementById('time-total');
+
+        var total = 0;
+        try {
+            var meta = replayer.getMetaData() || {};
+            total = Math.max(0, meta.totalTime || 0);
+        } catch (e) { total = 0; }
+
+        if (totEl) { totEl.textContent = formatTime(total); }
+        scrub.setAttribute('aria-valuemax', String(Math.round(total / 1000)));
+
+        // A bounced session (Meta + FullSnapshot only) has no duration
+        // — there is nothing to seek through, so say so rather than
+        // leaving a dead control the user will try to drag.
+        if (total <= 0) {
+            scrub.classList.add('is-disabled');
+            scrub.setAttribute('aria-disabled', 'true');
+            scrub.removeAttribute('tabindex');
+            paint(0);
+            return;
+        }
+
+        var dragging = false;
+        var resumeAfterDrag = false;
+        var pendingSeek = null;
+        var seekQueued = false;
+
+        function paint(t) {
+            var pct = total > 0 ? Math.max(0, Math.min(1, t / total)) : 0;
+            var css = (pct * 100) + '%';
+            if (played) { played.style.width = css; }
+            if (handle) { handle.style.left = css; }
+            if (curEl) { curEl.textContent = formatTime(t); }
+            scrub.setAttribute('aria-valuenow', String(Math.round(t / 1000)));
+            scrub.setAttribute('aria-valuetext', formatTime(t) + ' of ' +
+                formatTime(total));
+        }
+
+        function timeFromEvent(clientX) {
+            var rect = scrub.getBoundingClientRect();
+            if (rect.width <= 0) { return 0; }
+            var pct = (clientX - rect.left) / rect.width;
+            return Math.max(0, Math.min(1, pct)) * total;
+        }
+
+        // Coalesce drag seeks to one per animation frame.
+        function queueSeek(t) {
+            pendingSeek = t;
+            paint(t);                    // move the bar immediately
+            if (seekQueued) { return; }
+            seekQueued = true;
+            requestAnimationFrame(function () {
+                seekQueued = false;
+                if (pendingSeek === null) { return; }
+                var target = pendingSeek;
+                pendingSeek = null;
+                transport.pause(target);  // render the frame at `target`
+            });
+        }
+
+        scrub.addEventListener('pointerdown', function (e) {
+            if (scrub.classList.contains('is-disabled')) { return; }
+            e.preventDefault();
+            dragging = true;
+            resumeAfterDrag = transport.isPlaying();
+            scrub.classList.add('is-dragging');
+            try { scrub.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
+            queueSeek(timeFromEvent(e.clientX));
+        });
+
+        scrub.addEventListener('pointermove', function (e) {
+            if (!dragging) { return; }
+            e.preventDefault();
+            queueSeek(timeFromEvent(e.clientX));
+        });
+
+        function endDrag(e) {
+            if (!dragging) { return; }
+            dragging = false;
+            scrub.classList.remove('is-dragging');
+            try { scrub.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
+            var t = timeFromEvent(e.clientX);
+            pendingSeek = null;
+            paint(t);
+            if (resumeAfterDrag) { transport.play(t); }
+            else { transport.pause(t); }
+        }
+        scrub.addEventListener('pointerup', endDrag);
+        scrub.addEventListener('pointercancel', endDrag);
+
+        // Keyboard seeking — arrows step 5s, page keys 30s.
+        scrub.addEventListener('keydown', function (e) {
+            var step = 0;
+            switch (e.key) {
+                case 'ArrowLeft':  step = -5000; break;
+                case 'ArrowRight': step = 5000; break;
+                case 'PageDown':   step = -30000; break;
+                case 'PageUp':     step = 30000; break;
+                case 'Home':       step = -Infinity; break;
+                case 'End':        step = Infinity; break;
+                default: return;
+            }
+            e.preventDefault();
+            var now = currentTime();
+            var t = Math.max(0, Math.min(total, now + step));
+            paint(t);
+            if (transport.isPlaying()) { transport.play(t); }
+            else { transport.pause(t); }
+        });
+
+        function currentTime() {
+            try {
+                return Math.max(0, Math.min(total, replayer.getCurrentTime()));
+            } catch (e) { return 0; }
+        }
+
+        // Follow playback. rAF rather than setInterval so the bar stays
+        // glued to the frame rate and pauses with the tab.
+        function tick() {
+            if (!dragging && transport.isPlaying()) {
+                paint(currentTime());
+            }
+            requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+
+        // rrweb fast-forwards through idle gaps (skipInactive), which
+        // makes the bar lurch. Flag it so the jump reads as intentional.
+        try {
+            replayer.on('skip-start', function () {
+                scrub.classList.add('is-skipping');
+            });
+            replayer.on('skip-end', function () {
+                scrub.classList.remove('is-skipping');
+            });
+            replayer.on('finish', function () {
+                scrub.classList.remove('is-skipping');
+                paint(total);
+                transport.markStopped();
+            });
+        } catch (e) { /* older rrweb without on() — ignore */ }
+
+        paint(0);
+    }
+
+    function formatTime(ms) {
+        var total = Math.max(0, Math.round((ms || 0) / 1000));
+        var m = Math.floor(total / 60);
+        var s = total % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
     }
 
     function wire(id, handler) {

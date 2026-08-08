@@ -31,8 +31,8 @@
             <span class="admin-stat__value">{{ oldest_days }} day{{ oldest_days|pluralize }}</span>
         </div>
         <div class="admin-stat">
-            <span class="admin-stat__label">Retention</span>
-            <span class="admin-stat__value">30 days</span>
+            <span class="admin-stat__label">Devices</span>
+            <span class="admin-stat__value admin-stat__value--sm">{{ device_summary }}</span>
         </div>
     </div>
 
@@ -54,6 +54,14 @@
                     <option value="120" {% if filter_min_duration == '120' %}selected{% endif %}>&gt; 2 min</option>
                 </select>
             </label>
+            <label>Device
+                <select name="device">
+                    <option value="">All devices</option>
+                    {% for value, label in device_choices %}
+                        <option value="{{ value }}" {% if filter_device == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
             <button type="submit" class="btn-secondary btn-sm">Filter</button>
         </form>
         {% if total_recordings %}
@@ -72,6 +80,7 @@
                     <tr>
                         <th>Date / time</th>
                         <th>Page</th>
+                        <th>Device</th>
                         <th class="num">Duration</th>
                         <th class="num">Size</th>
                         <th>Expires in</th>
@@ -86,6 +95,15 @@
                             <td>
                                 <a href="{{ r.page_url }}" target="_blank" rel="noopener"
                                    class="muted">{{ r.page_url|truncatechars:55 }}</a>
+                            </td>
+                            <td>
+                                <span class="device-cell" title="{{ r.user_agent|default:'User-Agent not recorded' }}">
+                                    <span class="device-cell__icon">{{ r.device_icon }}</span>
+                                    <span class="device-cell__text">
+                                        {{ r.device_display }}
+                                        <small class="muted">{{ r.viewport_display }}</small>
+                                    </span>
+                                </span>
                             </td>
                             <td class="num">{{ r.duration_display }}</td>
                             <td class="num">{{ r.size_display }}</td>

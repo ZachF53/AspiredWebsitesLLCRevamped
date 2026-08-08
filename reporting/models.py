@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from clients.models import ClientProfile
 from core.models import TimestampedModel
+from reporting.useragent import DEVICE_CHOICES, DEVICE_ICONS
 
 
 class GBPSyncCheck(TimestampedModel):
@@ -645,6 +646,20 @@ class SessionRecording(TimestampedModel):
     viewport_height = models.IntegerField(null=True, blank=True)
     duration_seconds = models.IntegerField(null=True, blank=True)
 
+    # ── Visitor device ──
+    # Derived server-side from the User-Agent on the ingest request, so
+    # the tracker snippet on the client's site needs no change and no
+    # extra bytes go over the wire. Rows written before this existed
+    # stay 'unknown' — the UA was never stored, so there is nothing to
+    # backfill from.
+    device_type = models.CharField(
+        max_length=10, choices=DEVICE_CHOICES, default='unknown',
+        db_index=True,
+    )
+    browser = models.CharField(max_length=60, blank=True)
+    os = models.CharField(max_length=60, blank=True)
+    user_agent = models.CharField(max_length=400, blank=True)
+
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, default='recording')
 
@@ -700,6 +715,28 @@ class SessionRecording(TimestampedModel):
         if s < 60:
             return f'{s}s'
         return f'{s // 60}m {s % 60}s'
+
+    @property
+    def device_icon(self):
+        return DEVICE_ICONS.get(self.device_type, '·')
+
+    @property
+    def device_display(self):
+        """e.g. 'Mobile · Safari 17 · iOS 17' — trims whatever is blank."""
+        if self.device_type == 'unknown' and not self.browser:
+            return 'Unknown device'
+        parts = [self.get_device_type_display()]
+        if self.browser:
+            parts.append(self.browser)
+        if self.os:
+            parts.append(self.os)
+        return ' · '.join(parts)
+
+    @property
+    def viewport_display(self):
+        if self.viewport_width and self.viewport_height:
+            return f'{self.viewport_width}×{self.viewport_height}'
+        return '—'
 
     def get_all_events(self):
         """All rrweb events merged from every chunk, in order."""

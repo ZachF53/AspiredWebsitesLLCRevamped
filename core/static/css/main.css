@@ -12428,13 +12428,98 @@ button.htmx-request {
 }
 
 .replayer-controls {
-    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
     padding: 10px 12px;
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);
     border-radius: 8px;
     margin-bottom: 14px;
 }
+/* Buttons + speed live on their own row under the seek bar. */
+.replayer-controls__row {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+
+/* ── Seek bar ──
+   The outer element is a tall, invisible hit area so the bar is easy
+   to grab; the visible track is a thin strip centred inside it.
+   Pointer events are handled in recording_replay.js. */
+.replayer-scrub {
+    position: relative;
+    height: 20px;
+    margin: 2px 2px 10px;
+    cursor: pointer;
+    touch-action: none;          /* we own the drag gesture */
+    display: flex;
+    align-items: center;
+}
+.replayer-scrub:focus-visible {
+    outline: 2px solid var(--color-primary, #E8650A);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+.replayer-scrub__track {
+    position: relative;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--color-border);
+    transition: height 0.12s ease;
+}
+.replayer-scrub:hover .replayer-scrub__track,
+.replayer-scrub.is-dragging .replayer-scrub__track {
+    height: 8px;
+}
+.replayer-scrub__played {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 0;
+    border-radius: 3px;
+    background: var(--color-primary, #E8650A);
+}
+.replayer-scrub__handle {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 13px; height: 13px;
+    margin: -6.5px 0 0 -6.5px;
+    border-radius: 50%;
+    background: var(--color-primary, #E8650A);
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    /* Hidden until hover/drag, YouTube-style. */
+    transform: scale(0);
+    transition: transform 0.12s ease;
+    pointer-events: none;
+}
+.replayer-scrub:hover .replayer-scrub__handle,
+.replayer-scrub:focus-visible .replayer-scrub__handle,
+.replayer-scrub.is-dragging .replayer-scrub__handle {
+    transform: scale(1);
+}
+/* rrweb is fast-forwarding an idle gap — the bar will lurch, so make
+   that read as deliberate rather than as a glitch. */
+.replayer-scrub.is-skipping .replayer-scrub__played {
+    background: repeating-linear-gradient(
+        135deg,
+        var(--color-primary, #E8650A) 0 6px,
+        rgba(232, 101, 10, 0.55) 6px 12px
+    );
+}
+/* Zero-duration recording (a bounce with no interaction) — nothing to
+   seek through. */
+.replayer-scrub.is-disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+.replayer-scrub.is-disabled .replayer-scrub__handle { display: none; }
+
+.replayer-time {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    margin-left: 2px;
+}
+.replayer-time #time-current { color: var(--color-text); }
 .replayer-speed {
     display: inline-flex; gap: 6px; align-items: center;
     color: var(--color-text-muted);
@@ -12446,6 +12531,31 @@ button.htmx-request {
     color: var(--color-text);
     padding: 4px 8px; border-radius: 6px;
     font: inherit;
+}
+
+
+/* ── Visitor device (replay header + recordings table) ── */
+.replayer-device {
+    margin-top: 4px;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+}
+.replayer-device__icon { font-size: 15px; line-height: 1; }
+
+.device-cell {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    white-space: nowrap;
+}
+.device-cell__icon { font-size: 14px; line-height: 1; }
+.device-cell__text { display: inline-flex; flex-direction: column; }
+.device-cell__text small { font-size: 11px; }
+
+/* Device split stat — several short labels, so it needs to wrap and
+   sit smaller than the single big numbers beside it. */
+.admin-stat__value--sm {
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: normal;
 }
 
 

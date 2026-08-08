@@ -5723,6 +5723,7 @@ def recordings_list(request, website_id):
     # Filters.
     page_filter = (request.GET.get('page') or '').strip()
     min_dur = (request.GET.get('min_duration') or '').strip()
+    device_filter = (request.GET.get('device') or '').strip()
     if page_filter:
         qs = qs.filter(page_url__icontains=page_filter)
     if min_dur:
@@ -5730,6 +5731,12 @@ def recordings_list(request, website_id):
             qs = qs.filter(duration_seconds__gte=int(min_dur))
         except (TypeError, ValueError):
             pass
+    # Ignore an unknown device slug rather than returning zero rows.
+    valid_devices = {c for c, _ in SessionRecording.device_type.field.choices}
+    if device_filter in valid_devices:
+        qs = qs.filter(device_type=device_filter)
+    else:
+        device_filter = ''
 
     # Storage stats — never filtered, always full picture.
     stats = SessionRecording.objects.filter(website_new=website).aggregate(
@@ -5751,6 +5758,21 @@ def recordings_list(request, website_id):
         .values_list('page_url', flat=True)
         .distinct().order_by('page_url')[:30])
 
+    # Device split across all recordings for this site (unfiltered, so
+    # the headline number doesn't move when a filter is applied).
+    device_counts = {
+        row['device_type']: row['n']
+        for row in (SessionRecording.objects
+                    .filter(website_new=website)
+                    .values('device_type')
+                    .annotate(n=Count('id')))
+    }
+    device_labels = dict(SessionRecording.device_type.field.choices)
+    device_summary = ' · '.join(
+        f'{device_labels.get(k, k)} {v}'
+        for k, v in sorted(device_counts.items(), key=lambda kv: -kv[1])
+    ) or '—'
+
     return render(
         request,
         'admin_dashboard/recordings_list.html',
@@ -5762,8 +5784,11 @@ def recordings_list(request, website_id):
             total_size_mb=total_size_mb,
             oldest_days=oldest_days,
             pages_seen=pages_seen,
+            device_choices=SessionRecording.device_type.field.choices,
+            device_summary=device_summary,
             filter_page=page_filter,
             filter_min_duration=min_dur,
+            filter_device=device_filter,
         ),
     )
 
