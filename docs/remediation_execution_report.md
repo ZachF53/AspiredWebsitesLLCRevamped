@@ -58,6 +58,74 @@ roadmap gates each behind deploying and observing the previous wave — which
 cannot happen locally. The brand releases attached to those waves that did
 not depend on a deploy were completed early where they were independent.
 
+## Deployment record — production, 2026-08-16
+
+Deployed to production (`aspiredwebsites-prod`, 161.35.108.209) on explicit
+owner authorisation, after staging.
+
+**Backup first.** `pg_dump -Fc aspired_prod` to
+`/root/db-backups/aspired_prod-20260816-210046.dump` (32M), verified
+restorable with `pg_restore --list` (836 objects). Rollback path below.
+
+Sequence: `git pull` (c7c4bc4 → b31fe4a, clean tree, no local edits),
+`pip install -r requirements.txt`, `check` (0 issues), `migrate` (0052,
+0053, 0054 — additive columns only), `collectstatic` (0 changed, 195
+unmodified), supervisor restart of all four programs. Daphne was restarted
+deliberately because `asgi.py` changed in the settings split; that drops
+any open SSH-terminal session.
+
+Note: the parity audit cannot run *before* migrating, because it selects
+`payment_verified_at`. Migrate first, then audit.
+
+### Verified live
+
+- 11 public pages return 200 over HTTPS (HTTP correctly 301s).
+- `/portal/` 302s anonymous visitors to `/login/` — the reworked
+  `client_required` gate behaving correctly.
+- Denis page renders "What We Improved" and "maintained and improved", with
+  no build claim.
+- About shows "Based in Georgia"; Terms shows "State of Georgia"; the
+  law-firm bar-verification claim is gone (0 occurrences); the booking form
+  carries `method="post"`.
+- `remediate_case_studies --apply` corrected the Denis row; re-run reports
+  "already correct".
+- `verify_website_payment whitehead-wellness --apply` recorded the owner
+  attestation. No PaymentRecord was fabricated.
+
+### Production parity state after deployment
+
+**0 errors.** Remaining, all requiring an owner decision rather than code:
+
+- `website-fully-paid-without-ledger-evidence`: **10 sites**. Whitehead is
+  now cleared; the other ten live sites are also marked `fully_paid` with
+  nothing in the ledger behind them (Anita Vople, Aspired AI, Aspired N8N,
+  Bermea Wedding, Burgland, Food Trucks, Moonieful, Rachael Drayton Blog,
+  Rachael Link Tree, SSG Education). They are all already `live`, so the
+  launch gate does not affect them — this is a bookkeeping observation, not
+  an outage. Each needs the same one-line attestation, or a real payment
+  record, before its billing history can be considered complete.
+- `multi-website-manual-review`: 2 accounts (Rachael, Aspired Websites LLC).
+- `website-field-conflict`: 2.
+
+### Rollback
+
+```bash
+# code
+cd /var/www/aspired/app && sudo -u aspired git reset --hard c7c4bc4
+sudo -u aspired /var/www/aspired/venv/bin/python manage.py migrate clients 0051
+supervisorctl restart aspiredwebsites aspiredwebsites-celery \
+    aspiredwebsites-celerybeat aspiredwebsites-daphne
+
+# data (full restore — only if the migration itself is at fault)
+sudo -u postgres pg_restore -d aspired_prod --clean --if-exists \
+    /root/db-backups/aspired_prod-20260816-210046.dump
+```
+
+Migrations 0052–0054 only add nullable columns, so reversing them loses the
+Denis `engagement_type`/`platform` values and the Whitehead attestation but
+nothing else. The corrected Denis prose survives a migration rollback
+because it lives in existing columns.
+
 ## Deployment record — staging, 2026-08-16
 
 Deployed to **staging only** (`aspired-staging`, 167.99.154.2). Production
