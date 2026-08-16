@@ -92,7 +92,31 @@ Note: the parity audit cannot run *before* migrating, because it selects
 - `verify_website_payment whitehead-wellness --apply` recorded the owner
   attestation. No PaymentRecord was fabricated.
 
-### Production parity state after deployment
+### Production parity state — FINAL
+
+**0 errors, 0 warnings, 0 operational items. Strict gate exit 0, twice,
+with a zero-write backfill pass between them.**
+
+Resolved on 2026-08-16 after the initial deployment:
+
+- **11 sites marked `fully_paid` with no ledger evidence.** Owner confirmed
+  all are previous clients, paid in full, same status as Whitehead Wellness.
+  Each carries a named attestation (`payment_verified_by = 'Zachery Long'`).
+  `PaymentRecord.objects.count()` is still **0** — nothing was fabricated.
+  The ledger honestly records that no Stripe payment exists for these
+  legacy clients; the attestation records that a human confirmed payment.
+- **3 field conflicts** (Whitehead `payment_status`/`revision_count`,
+  Moonieful `package`) resolved to canonical per owner decision, with the
+  chosen value copied onto the legacy row so nothing is lost at drop time.
+- **2 multi-website accounts** (Rachael Drayton, Aspired Websites LLC)
+  signed off. Verified first: 0 mis-filed rows and 0 unallocated rows
+  across every model on those accounts — every legacy row resolves through
+  its own project FK, so nothing was allocated by guesswork.
+
+`refactor_to_accounts` wrote once (filling genuine gaps on one website, its
+first run against production) and then wrote nothing on the next pass.
+
+### Production parity state immediately after deployment
 
 **0 errors.** Remaining, all requiring an owner decision rather than code:
 
