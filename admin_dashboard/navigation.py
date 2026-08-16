@@ -1,7 +1,7 @@
 """
 Admin sidebar navigation, defined as data.
 
-The sidebar was ~200 lines of hand-written markup: 41 links, each repeating
+The sidebar was ~200 lines of hand-written markup: 43 links, each repeating
 the same anchor structure and each carrying its own bespoke
 `{% if '...' in request.path %}active{% endif %}` test. Two consequences
 followed from that, both visible in the markup this replaces:
@@ -14,29 +14,46 @@ followed from that, both visible in the markup this replaces:
   assistant and Google Business Profile.
 
 Defining it here makes the nav countable, testable and regroupable, and the
-active-state rule is written once instead of 41 times.
+active-state rule is written once instead of 43 times.
 
 Grouping follows the owner's actual workflows rather than the apps the
 code happens to live in — the operator is one person moving through *find
 work -> deliver it -> get paid -> grow the account*, and the sidebar should
 read in that order.
 
-Each item is (label, url_name, match_prefix, badge_context_key).
-`match_prefix` decides the active state; when None the item is active only
-on an exact path match, which is what "Dashboard" needs so it does not
-light up on every child page.
+An item is just a label and a url name. The path it highlights on is
+resolved from the URL conf, not written down beside it — hand-written
+prefixes drifted from the routes immediately: six of the first set were
+already wrong (`system_alerts` is `/alerts/`, not `/system-alerts/`; the
+scraping tools live under `/leads/`). A prefix that has to be kept in sync
+by hand is the same defect as the markup this module replaces.
+
+The current item is the one whose URL is the *longest* prefix of the
+request path. That handles nesting without any per-item exceptions:
+`/admin-dashboard/billing/new-invoice/` lights New Invoice rather than
+Billing, `/admin-dashboard/vault/ops/sessions/` lights Ops Sessions rather
+than Vault, and Dashboard (`/admin-dashboard/`, the shortest prefix of
+all) only wins on its own page.
 """
 
 from dataclasses import dataclass
+
+from django.urls import NoReverseMatch, reverse
 
 
 @dataclass(frozen=True)
 class NavItem:
     label: str
     url_name: str
-    match: str | None = None
     badge: str | None = None
-    exact: bool = False
+
+    @property
+    def path(self):
+        """The URL this item points at, or '' if it cannot be resolved."""
+        try:
+            return reverse(self.url_name)
+        except NoReverseMatch:
+            return ''
 
 
 @dataclass(frozen=True)
@@ -49,122 +66,73 @@ class NavGroup:
 NAVIGATION = (
     # Unlabelled first block: what the operator opens the admin to check.
     NavGroup(None, (
-        NavItem('Dashboard', 'admin_dashboard:home',
-                '/admin-dashboard/', exact=True),
-        NavItem('Needs You', 'admin_dashboard:needs_you',
-                '/admin-dashboard/needs-you/', badge='needs_you_count'),
+        NavItem('Dashboard', 'admin_dashboard:home'),
+        NavItem('Needs You', 'admin_dashboard:needs_you', badge='needs_you_count'),
         NavItem('Approvals', 'admin_dashboard:outreach_approvals',
-                '/admin-dashboard/outreach/approvals/',
                 badge='approvals_count'),
-        NavItem('Calls', 'admin_dashboard:schedule_calls',
-                '/admin-dashboard/schedule/calls/'),
+        NavItem('Calls', 'admin_dashboard:schedule_calls'),
     )),
 
     # Finding and winning work. Everything here happens before someone is
     # a client, which is why leads and scraping no longer sit under
     # "Clients".
     NavGroup('Pipeline', (
-        NavItem('Leads', 'admin_dashboard:leads_table',
-                '/admin-dashboard/leads/table/'),
-        NavItem('Lead Board', 'admin_dashboard:leads_kanban',
-                '/admin-dashboard/leads/kanban/'),
-        NavItem('Find Leads', 'admin_dashboard:scrape',
-                '/admin-dashboard/scrape/'),
-        NavItem('Scrape Jobs', 'admin_dashboard:scrape_jobs',
-                '/admin-dashboard/scrape-jobs/'),
-        NavItem('Enrichment', 'admin_dashboard:enrichment_status',
-                '/admin-dashboard/enrichment/'),
-        NavItem('Outreach Sent', 'admin_dashboard:outreach_sent',
-                '/admin-dashboard/outreach/sent/'),
-        NavItem('Proposals', 'admin_dashboard:proposals_list',
-                '/admin-dashboard/proposals/'),
-        NavItem('Referrals', 'admin_dashboard:referrals_list',
-                '/admin-dashboard/referrals/'),
+        NavItem('Leads', 'admin_dashboard:leads_table'),
+        NavItem('Lead Board', 'admin_dashboard:leads_kanban'),
+        NavItem('Find Leads', 'admin_dashboard:scrape'),
+        NavItem('Scrape Jobs', 'admin_dashboard:scrape_jobs'),
+        NavItem('Enrichment', 'admin_dashboard:enrichment_status'),
+        NavItem('Outreach Sent', 'admin_dashboard:outreach_sent'),
+        NavItem('Proposals', 'admin_dashboard:proposals_list'),
+        NavItem('Referrals', 'admin_dashboard:referrals_list'),
     )),
 
     # Delivering the work, in roughly the order a build moves.
     NavGroup('Delivery', (
-        NavItem('Accounts', 'admin_dashboard:accounts_list',
-                '/admin-dashboard/accounts/'),
-        NavItem('Websites', 'admin_dashboard:websites_list',
-                '/admin-dashboard/websites/'),
-        NavItem('Send Onboarding', 'admin_dashboard:send_onboarding',
-                '/admin-dashboard/billing/send-onboarding/'),
-        NavItem('Intake Questions', 'admin_dashboard:onboarding_questions',
-                '/admin-dashboard/onboarding-questions/'),
-        NavItem('Domains', 'admin_dashboard:admin_domain_list',
-                '/admin-dashboard/domains/'),
-        NavItem('Deploy', 'admin_dashboard:deploy_home',
-                '/admin-dashboard/deploy/'),
-        NavItem('Droplets', 'admin_dashboard:droplet_list',
-                '/admin-dashboard/droplets/'),
+        NavItem('Accounts', 'admin_dashboard:accounts_list'),
+        NavItem('Websites', 'admin_dashboard:websites_list'),
+        NavItem('Send Onboarding', 'admin_dashboard:send_onboarding'),
+        NavItem('Intake Questions', 'admin_dashboard:onboarding_questions'),
+        NavItem('Domains', 'admin_dashboard:admin_domain_list'),
+        NavItem('Deploy', 'admin_dashboard:deploy_home'),
+        NavItem('Droplets', 'admin_dashboard:droplet_list'),
     )),
 
     NavGroup('Money', (
-        NavItem('Billing', 'admin_dashboard:billing_list',
-                '/admin-dashboard/billing/'),
-        NavItem('New Invoice', 'admin_dashboard:new_invoice',
-                '/admin-dashboard/billing/new-invoice/'),
-        NavItem('Pricing', 'admin_dashboard:pricing_list',
-                '/admin-dashboard/pricing/'),
+        NavItem('Billing', 'admin_dashboard:billing_list'),
+        NavItem('New Invoice', 'admin_dashboard:new_invoice'),
+        NavItem('Pricing', 'admin_dashboard:pricing_list'),
     )),
 
     # Work that grows an existing account.
     NavGroup('Growth', (
-        NavItem('Intelligence', 'admin_dashboard:intelligence_dashboard',
-                '/admin-dashboard/intelligence/'),
-        NavItem('Competitor Gaps', 'admin_dashboard:competitor_gaps_list',
-                '/admin-dashboard/competitor-gaps/'),
-        NavItem('Blog', 'admin_dashboard:blog_list',
-                '/admin-dashboard/blog/'),
-        NavItem('Social', 'social:channels_list', '/social/'),
-        NavItem('Google Business', 'gbp:dashboard', '/gbp/'),
-        NavItem('Monthly Reports', 'admin_dashboard:reports_list',
-                '/admin-dashboard/reports/'),
-        NavItem('Annual Reports', 'admin_dashboard:annual_reports_list',
-                '/admin-dashboard/annual-reports/'),
-        NavItem('NPS', 'admin_dashboard:nps_list',
-                '/admin-dashboard/nps/'),
-        NavItem('Case Studies', 'admin_dashboard:case_studies_list',
-                '/admin-dashboard/case-studies/'),
-        NavItem('Changelog', 'admin_dashboard:changelog_list',
-                '/admin-dashboard/changelog/'),
+        NavItem('Intelligence', 'admin_dashboard:intelligence_dashboard'),
+        NavItem('Competitor Gaps', 'admin_dashboard:competitor_gaps_list'),
+        NavItem('Blog', 'admin_dashboard:blog_list'),
+        NavItem('Social', 'social:channels_list'),
+        NavItem('Google Business', 'gbp:dashboard'),
+        NavItem('Monthly Reports', 'admin_dashboard:reports_list'),
+        NavItem('Annual Reports', 'admin_dashboard:annual_reports_list'),
+        NavItem('NPS', 'admin_dashboard:nps_list'),
+        NavItem('Case Studies', 'admin_dashboard:case_studies_list'),
+        NavItem('Changelog', 'admin_dashboard:changelog_list'),
     )),
 
     # Running the business itself.
     NavGroup('System', (
-        NavItem('Alerts', 'admin_dashboard:system_alerts',
-                '/admin-dashboard/system-alerts/'),
-        NavItem('Security Scans', 'admin_dashboard:scans_list',
-                '/admin-dashboard/scans/'),
-        NavItem('Vault', 'vault:home', '/admin-dashboard/vault/'),
-        NavItem('Ops Sessions', 'vault:ops_sessions_list',
-                '/admin-dashboard/vault/ops-sessions/'),
-        NavItem('Redis', 'admin_dashboard:redis_monitor',
-                '/admin-dashboard/redis/'),
-        NavItem('DMARC', 'admin_dashboard:dmarc_dashboard',
-                '/admin-dashboard/dmarc/'),
-        NavItem('Availability', 'admin_dashboard:schedule_availability',
-                '/admin-dashboard/schedule/availability/'),
-        NavItem('Calendar Connect', 'admin_dashboard:schedule_connect',
-                '/admin-dashboard/schedule/connect/'),
-        NavItem('Briefs', 'admin_dashboard:briefs_home',
-                '/admin-dashboard/briefs/'),
-        NavItem('AI Assistant', 'admin_dashboard:ai_assistant',
-                '/admin-dashboard/ai-assistant/'),
-        NavItem('Settings', 'admin_dashboard:settings',
-                '/admin-dashboard/settings/'),
+        NavItem('Alerts', 'admin_dashboard:system_alerts'),
+        NavItem('Security Scans', 'admin_dashboard:scans_list'),
+        NavItem('Vault', 'vault:home'),
+        NavItem('Ops Sessions', 'vault:ops_sessions_list'),
+        NavItem('Redis', 'admin_dashboard:redis_monitor'),
+        NavItem('DMARC', 'admin_dashboard:dmarc_dashboard'),
+        NavItem('Availability', 'admin_dashboard:schedule_availability'),
+        NavItem('Calendar Connect', 'admin_dashboard:schedule_connect'),
+        NavItem('Briefs', 'admin_dashboard:briefs_home'),
+        NavItem('AI Assistant', 'admin_dashboard:ai_assistant'),
+        NavItem('Settings', 'admin_dashboard:settings'),
     )),
 )
-
-
-def is_active(item, path):
-    """Whether `item` should render as the current page."""
-    if not item.match:
-        return False
-    if item.exact:
-        return path == item.match
-    return item.match in path
 
 
 def all_items():
@@ -172,9 +140,32 @@ def all_items():
         yield from group.items
 
 
+def active_item(path):
+    """The item whose URL is the longest prefix of `path`, or None.
+
+    Longest-prefix rather than "first match" is what makes nesting work
+    without per-item exceptions — see the module docstring.
+    """
+    best = None
+    best_length = 0
+    for item in all_items():
+        item_path = item.path
+        if not item_path or not path.startswith(item_path):
+            continue
+        if len(item_path) > best_length:
+            best, best_length = item, len(item_path)
+    return best
+
+
+def is_active(item, path):
+    """Whether `item` should render as the current page."""
+    return active_item(path) is item
+
+
 def navigation(request):
     """Context processor: the sidebar, resolved for this request."""
     path = getattr(request, 'path', '') or ''
+    current = active_item(path)
     groups = []
     for group in NAVIGATION:
         groups.append({
@@ -184,7 +175,7 @@ def navigation(request):
                     'label': item.label,
                     'url_name': item.url_name,
                     'badge': item.badge,
-                    'active': is_active(item, path),
+                    'active': item is current,
                 }
                 for item in group.items
             ],

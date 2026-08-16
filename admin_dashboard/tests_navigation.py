@@ -64,17 +64,34 @@ class NavigationDefinitionTests(TestCase):
 
 class ActiveStateTests(TestCase):
 
+    def _item(self, label):
+        return next(i for i in all_items() if i.label == label)
+
     def test_dashboard_is_active_only_on_its_own_page(self):
-        dashboard = next(
-            i for i in all_items() if i.label == 'Dashboard')
+        dashboard = self._item('Dashboard')
         self.assertTrue(is_active(dashboard, '/admin-dashboard/'))
-        self.assertFalse(is_active(dashboard, '/admin-dashboard/leads/table/'))
+        self.assertFalse(is_active(dashboard, '/admin-dashboard/leads/'))
 
     def test_section_links_stay_active_on_child_pages(self):
-        accounts = next(i for i in all_items() if i.label == 'Accounts')
+        accounts = self._item('Accounts')
         self.assertTrue(is_active(accounts, '/admin-dashboard/accounts/'))
         self.assertTrue(
             is_active(accounts, '/admin-dashboard/accounts/abc-123/'))
+
+    def test_the_deeper_of_two_nested_links_wins(self):
+        """/billing/new-invoice/ must light New Invoice, not Billing.
+        The old markup needed hand-written exclusions for this."""
+        path = self._item('New Invoice').path
+        self.assertTrue(is_active(self._item('New Invoice'), path))
+        self.assertFalse(is_active(self._item('Billing'), path))
+
+    def test_match_paths_come_from_the_url_conf(self):
+        """Hand-written prefixes drifted from the routes; six of the
+        first set were already wrong."""
+        for item in all_items():
+            with self.subTest(item=item.label):
+                self.assertTrue(item.path.startswith('/'))
+                self.assertTrue(is_active(item, item.path))
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
