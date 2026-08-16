@@ -550,7 +550,14 @@ REDIS_URL = env('REDIS_URL', 'redis://localhost:6379/0')
 # state, well under DO's 65-client soft alert at 80%.
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        # Resilient wrapper around the stdlib RedisCache. This cache also
+        # backs django-ratelimit, and every public form is rate limited,
+        # so an unreachable Redis used to 500 the contact form, the audit,
+        # login and the scheduler. It now degrades to a per-process cache
+        # and raises a system alert instead of taking the site down.
+        # See core/cache_backend.py for why it falls back rather than
+        # failing open.
+        'BACKEND': 'core.cache_backend.ResilientRedisCache',
         'LOCATION': REDIS_URL,
     }
 }
