@@ -58,6 +58,52 @@ roadmap gates each behind deploying and observing the previous wave — which
 cannot happen locally. The brand releases attached to those waves that did
 not depend on a deploy were completed early where they were independent.
 
+## Deployment record — staging, 2026-08-16
+
+Deployed to **staging only** (`aspired-staging`, 167.99.154.2). Production
+was not touched: the deploy request did not name prod, and CLAUDE.md makes
+staging the default target.
+
+Commits on `main` (`c7c4bc4..499658e`), pushed:
+
+| Commit | Scope |
+|---|---|
+| `c86de1d` | settings split (development/test/production/rehearsal) |
+| `7caf0fa` | Account/Website parity gates, safe backfills, Wave 1 cutover |
+| `3b94151` | Denis Law Group correction + unsupported claim removals |
+| `c9861af` | scheduler POST/no-JS safety, pre-call cross-sells removed |
+| `499658e` | governing law, guarantee, location, DB-backed social tiers |
+
+Steps executed on staging: `git pull`, `pip install -r requirements.txt`,
+`migrate` (0052, 0053, 0054 applied), `collectstatic` (0 changed, 195
+unmodified), supervisor restart, then `aspiredwebsites-celerybeat` stopped
+again — the restart starts it and staging deliberately runs without it.
+
+### Results on staging
+
+- `remediate_case_studies --apply` corrected the Denis row (engagement_type,
+  platform, summary, challenge, solution, results). Re-run reports
+  "already correct" — idempotent.
+- Parity audit before backfills: **37 errors, 1 warning**. Staging carries
+  its own drifted data, which made it a live test of the deployed tooling.
+- After `refactor_to_accounts` + both backfills: **0 errors**. Second pass
+  wrote nothing (0 accounts, 0 websites, 0 dependent FKs).
+- One `website-field-conflict` remains and is correct behaviour: package
+  and payment_status genuinely disagree between the legacy and canonical
+  rows on a staging test record. It is reported for a decision, not
+  auto-resolved.
+- Smoke test: 11 key pages return 200. Denis page shows "What We Improved"
+  and "maintained and improved", with no build claim. About shows "Based in
+  Georgia". Terms shows "State of Georgia". Booking form carries
+  `method="post"`.
+
+### Not run — needs production
+
+`verify_website_payment whitehead-wellness` could not run: that Website
+exists only in production. Staging holds a single unrelated site. The
+command is deployed and ready; it needs an explicit production
+authorisation to execute.
+
 ## Delivered
 
 ### Brand Release 1A — Denis Law Group (P1)
