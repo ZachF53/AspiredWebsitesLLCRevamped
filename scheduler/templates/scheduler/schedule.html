@@ -50,13 +50,40 @@ other three stay crawlable and reachable; they simply stop competing.
                 <span class="eyebrow">Step 2</span>
                 <h2 class="card__title">Tell us about your project</h2>
 
-                <form id="schedule-form" class="form" novalidate>
+                {% if fallback_notice %}
+                    <div class="callout callout--warning" role="alert">
+                        <p>{{ fallback_notice }}</p>
+                        <p><a href="{% url 'public:contact' %}">Send us a message &rarr;</a></p>
+                    </div>
+                {% endif %}
+
+                <noscript>
+                    <div class="callout callout--warning">
+                        <p><strong>Choosing a time needs JavaScript.</strong> The calendar can&rsquo;t load, so this form can&rsquo;t book a slot right now.</p>
+                        <p>Please <a href="{% url 'public:contact' %}">send us a message</a> instead and we&rsquo;ll arrange a time by email.</p>
+                    </div>
+                </noscript>
+
+                <form id="schedule-form" class="form" method="post" action="" novalidate>
                     {% comment %}
                     The booking POSTs are fetch() calls, not a form
                     submit, but the token has to reach the page somehow:
                     CSRF_COOKIE_HTTPONLY is True, so document.cookie can
                     never see it. schedule_call.js reads this hidden
                     input instead.
+
+                    method="post" is load-bearing even though the happy
+                    path never uses it. A <form> with no method defaults
+                    to GET, so any submit that reaches the browser —
+                    JavaScript failing to load, a script error, Enter
+                    pressed in a text field before the handler binds —
+                    put the visitor's name, email, phone and project
+                    description into the URL. From there they reach
+                    server logs, the Referer header and analytics, which
+                    is not somewhere prospective-client details should
+                    ever be. POST keeps them in the request body, and
+                    the view answers that submit with a clear message
+                    rather than silently discarding it.
                     {% endcomment %}
                     {% csrf_token %}
 

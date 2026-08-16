@@ -38,6 +38,7 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
 
         from billing.pricing_models import ServiceTier
         from clients.account_models import Account, Website, _slugify_unique
+        from clients.account_setup import AccountSetupError, ensure_account
         from clients.models import ClientProfile
 
         User = get_user_model()
@@ -72,10 +73,15 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
                 contact_name=contact_name or '', phone=phone or '',
                 website=website or '', package=build_package or '')
 
-        account = (
-            Account.objects.filter(legacy_client_profile=profile).first()
-            or getattr(user, 'account', None))
-        if account is None:
+        # ensure_account resolves the row the signal should have made and
+        # materialises it if the signal failed, so a booking can never land
+        # on a profile with no Account behind it.
+        try:
+            account = ensure_account(profile)
+        except AccountSetupError:
+            logger.exception(
+                'scheduler: cannot resolve Account for profile %s',
+                profile.pk)
             return None
 
         web = account.websites.order_by('created_at').first()
@@ -112,9 +118,9 @@ SERVICE_CONFIG = {
         'h1_pre': 'Let’s talk about your ',
         'h1_accent': 'build',
         'h1_post': '.',
-        'lead': '30-minute kickoff call — pick a time that works for you.',
+        'lead': '30-minute strategy call — pick a time that works for you.',
         'show_build_type': True,
-        'show_addons': True,
+        'show_addons': False,
         'inquiry_label': 'What are you trying to build?',
         'website_label': 'Existing website (if any)',
         'meta_title': 'Schedule a Call — Web Design',
@@ -126,7 +132,7 @@ SERVICE_CONFIG = {
         'h1_post': '.',
         'lead': '30-minute strategy call — pick a time that works for you.',
         'show_build_type': False,
-        'show_addons': True,
+        'show_addons': False,
         'inquiry_label': 'Tell us about your current presence and what you want it to do for the business.',
         'website_label': 'Website (if any)',
         'meta_title': 'Schedule a Call — Social Media Strategy',
@@ -138,7 +144,7 @@ SERVICE_CONFIG = {
         'h1_post': '.',
         'lead': '30-minute SEO call — pick a time that works for you.',
         'show_build_type': False,
-        'show_addons': True,
+        'show_addons': False,
         'inquiry_label': 'What are you trying to rank for, and in which cities?',
         'website_label': 'Current website',
         'meta_title': 'Schedule a Call — SEO Strategy',
@@ -153,6 +159,7 @@ SERVICE_CONFIG = {
 # endpoints worked was by not checking. Setting the cookie here is what
 # makes real CSRF protection possible on those two endpoints.
 @ensure_csrf_cookie
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def schedule_page(request, service='web_design'):
     """Universal schedule page — same calendar widget, service-specific
     copy + form fields. Three URLs map here:
@@ -192,11 +199,30 @@ def schedule_page(request, service='web_design'):
                 'price': t.get_price_display(),
             })
 
+    # A POST here is the no-JavaScript fallback: the booking flow itself
+    # is fetch()-driven, so reaching this branch means the calendar never
+    # ran and no slot was ever selected. There is nothing to book.
+    #
+    # It is still answered deliberately rather than ignored. The form now
+    # declares method="post" precisely so this submit cannot become a GET
+    # that puts the visitor's name, email, phone and project description
+    # into the URL. Nothing is stored and no mail is sent from here — a
+    # booking without a chosen slot is not a booking, and inventing a
+    # lead-capture side effect would be a different product decision.
+    # The visitor is told plainly and pointed at a path that works.
+    fallback_notice = ''
+    if request.method == 'POST':
+        fallback_notice = (
+            'We could not load the calendar in your browser, so no time '
+            'was reserved. Nothing you typed was saved. Please send us a '
+            'message and we will arrange a time by email.')
+
     return render(request, 'scheduler/schedule.html', {
         'service': service,
         'service_config': config,
         'addons': addons,
         'build_tiers': build_tiers,
+        'fallback_notice': fallback_notice,
     })
 
 
