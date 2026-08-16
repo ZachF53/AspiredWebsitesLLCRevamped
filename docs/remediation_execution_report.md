@@ -36,27 +36,68 @@ at the end for owner/legal decision.
 | 3 | `seed_case_studies.py` docstring cites owner confirmation (2026-08-02) that Denis was a NEW practice launch; the handoff carries later owner direction that Aspired did not build it | 1 | Later direction wins; the approved fact-matrix row governs. Superseded note recorded in the seed |
 | 4 | 30-day money-back guarantee exists in `clients/contract_template.py` (§7, §10), not only in marketing | 1B/3 | Materially changes P2: the guarantee may be contractually real. Not removed unilaterally — blocked on owner/legal decision |
 
+## Cutover mechanics — how Waves 2-5 were approached
+
+The naive reading of "cut Wave N to Website ownership" is to edit every
+module in that wave. The survey said that is 68 runtime files and 169
+references in `admin_dashboard/views.py` alone, against a system that is
+live and taking payments.
+
+So the work was done at the seams instead, where a single change is
+verifiable and covers every call site:
+
+**Writes — closed.** `clients/canonical_stamping.py` guarantees at
+`pre_save` that any row written with a legacy owner also carries its
+canonical Account/Website FK. This covers Waves 2, 3, 4 and 5 in one
+place, including code not yet written. It refuses to guess on
+multi-website accounts, leaving the row null for the parity audit to
+report rather than silently mis-filing it.
+
+**Reads — bridged, not yet converted.** Three seams already prefer
+canonical and fall back to legacy:
+
+- `clients/views.py::_active_project` — the portal prefers
+  `request.website` over the legacy profile (Wave 2).
+- `clients/decorators.py::client_required` — admission is decided by
+  Account, and `request.client_profile` may be None (Wave 1).
+- `reporting/scope.py::scope_filter` — accepts either owner and builds
+  the right filter (Wave 5).
+
+What remains for Waves 2-5 is converting *callers* to pass canonical
+objects into those seams, and removing the fallbacks afterwards. That is
+mechanical but large, and the roadmap gates each wave behind deploying
+and observing the previous one, which cannot be compressed locally.
+
+`manage.py check_legacy_removal_readiness` reports the honest position:
+parity clean, zero rows would be orphaned, **57 runtime modules still read
+the legacy models**.
+
 ## Wave status
 
 | Wave | Status |
 |---|---|
 | 0 — foundation, isolation, fact gate | **Complete** |
-| 1 — Account identity (technical) | **Complete** |
-| 1 — Brand Release 1A | **Complete** |
-| 1 — Brand Release 1B | **Blocked** — every fact PENDING |
-| 2 — Brand 2A conversion/scheduler safety | **Complete** (technical lifecycle cutover not started) |
-| 3 — Whitehead reconciliation | **Complete**; rest of billing cutover not started |
-| 4 — Brand 2C social source of truth | **Complete**; sync/task cutover not started |
-| 5 — Brand 3 security/legal wording (removals) | **Partial**; reporting cutover not started |
-| 6 — legacy-runtime removal prep | Not started |
-| 7 — internal workflow and resilience | Not started |
+| 1 — Account identity (technical) | **Complete, deployed to production** |
+| 1 — Brand Release 1A | **Complete, deployed to production** |
+| 1 — Brand Release 1B | **Complete** — governing law, guarantee and location approved and shipped; entity address still PENDING |
+| 2 — Brand 2A conversion/scheduler safety | **Complete, deployed** |
+| 2 — delivery lifecycle cutover | **Writes complete; reads bridged, callers not converted** |
+| 3 — Whitehead + payment evidence | **Complete, deployed** |
+| 3 — billing/infra cutover | **Writes complete; reads bridged, callers not converted** |
+| 4 — Brand 2C social source of truth | **Complete, deployed** |
+| 4 — sync/tasks/social cutover | **Writes complete; reads bridged, callers not converted** |
+| 5 — Brand 3 security/legal wording | **Complete** (removals); evidence-backed rewrite still needs an owner evidence inventory |
+| 5 — reporting cutover | **Writes complete; `scope_filter` bridge in place, callers not converted** |
+| 6 — legacy-runtime removal | **Migration prepared and deliberately not armed; readiness command reports NOT READY** |
+| 7 — resilience | **Complete** — Redis degradation closed |
+| 7 — admin nav redesign, module splits, ops dashboards | **Not started** |
 
-Waves 2–6 each contain a *technical* Account/Website cutover (contracts,
-intake, delivery stages, Stripe/webhooks, domains, droplets, vault,
-Moonieful sync, reporting) that is not started. Those are large, and the
-roadmap gates each behind deploying and observing the previous wave — which
-cannot happen locally. The brand releases attached to those waves that did
-not depend on a deploy were completed early where they were independent.
+Every wave now has its write path closed and its read path bridged. What
+is genuinely outstanding is (a) converting callers to pass canonical
+objects, (b) removing the legacy fallbacks after each wave is observed in
+production, and (c) the Wave 7 workflow/UI items, which the roadmap
+explicitly sequences *after* the canonical model and public contracts are
+stable.
 
 ## Deployment record — production, 2026-08-16
 
