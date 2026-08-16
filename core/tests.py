@@ -1,9 +1,57 @@
 import json
+import os
 import re
 
+from django.conf import settings
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+
+
+class EnvironmentSettingsTests(TestCase):
+    """The normal test command must be isolated from the operator's .env."""
+
+    def test_test_runner_uses_isolated_services(self):
+        self.assertEqual(
+            os.environ.get('DJANGO_SETTINGS_MODULE'),
+            'AspiredWebsitesRevamped.settings_test',
+        )
+        self.assertFalse(settings.SECURE_SSL_REDIRECT)
+        self.assertFalse(settings.SESSION_COOKIE_SECURE)
+        self.assertFalse(settings.CSRF_COOKIE_SECURE)
+        self.assertEqual(
+            settings.DATABASES['default']['ENGINE'],
+            'django.db.backends.sqlite3',
+        )
+        self.assertEqual(
+            settings.CACHES['default']['BACKEND'],
+            'django.core.cache.backends.locmem.LocMemCache',
+        )
+        self.assertEqual(
+            settings.EMAIL_BACKEND,
+            'django.core.mail.backends.locmem.EmailBackend',
+        )
+
+    def test_plain_http_test_request_does_not_redirect_to_https(self):
+        response = self.client.get('/robots.txt')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('Location', response.headers)
+
+    def test_manage_py_selects_settings_by_command(self):
+        from manage import default_settings_module
+
+        self.assertEqual(
+            default_settings_module(['manage.py', 'test']),
+            'AspiredWebsitesRevamped.settings_test',
+        )
+        self.assertEqual(
+            default_settings_module(['manage.py', 'runserver']),
+            'AspiredWebsitesRevamped.settings_development',
+        )
+        self.assertEqual(
+            default_settings_module(['manage.py', 'migrate']),
+            'AspiredWebsitesRevamped.settings',
+        )
 
 
 class SiteVerificationMetaTests(TestCase):
@@ -1075,9 +1123,13 @@ class CaseStudyTests(TestCase):
     Per-project case-study pages (Master Plan §11).
 
     The rule this guards hardest: §15 forbids fabricated results,
-    statistics and testimonials. Denis Law Group was a NEW build with
-    no "before" traffic, so it must ship with zero metrics and zero
-    testimonial rather than placeholder numbers.
+    statistics and testimonials. No study has measured before/after
+    data, so each must ship with zero metrics and zero testimonial
+    rather than placeholder numbers.
+
+    Denis Law Group additionally must never be described as an Aspired
+    build: it is an existing WordPress site Aspired maintains and has
+    improved (approved fact, docs/brand_fact_matrix.md).
     """
 
     @classmethod
@@ -1121,9 +1173,10 @@ class CaseStudyTests(TestCase):
 
     def test_denis_law_group_publishes_no_invented_metrics(self):
         """
-        §15. It was a new practice launch — there is no before/after to
-        report, so the page must show no metrics and no testimonial
-        rather than plausible-looking placeholders.
+        §15. Aspired inherited this site rather than building it, and no
+        approved performance figure exists for it, so the page must show
+        no metrics and no testimonial rather than plausible-looking
+        placeholders.
         """
         from clients.models import CaseStudy
         study = CaseStudy.objects.get(slug='denis-law-group')
@@ -1133,9 +1186,91 @@ class CaseStudyTests(TestCase):
         html = self.client.get(study.get_absolute_url()).content.decode()
         self.assertNotIn('By The Numbers', html)
         self.assertNotIn('What The Client Said', html)
-        # And it should say why, rather than staying silent about it.
-        self.assertIn('no &quot;before&quot; traffic', html.replace(
-            '“', '&quot;').replace('”', '&quot;'))
+
+    def test_denis_law_group_is_never_described_as_an_aspired_build(self):
+        """
+        Approved fact: Aspired did NOT build the Denis Law Group site. It
+        is an existing WordPress site Aspired maintains and improves.
+        Claiming otherwise is a false public statement about a real
+        client, so it is guarded on every surface that renders the study.
+        """
+        from clients.models import CaseStudy
+
+        study = CaseStudy.objects.get(slug='denis-law-group')
+        self.assertEqual(study.engagement_type, 'maintained')
+
+        banned = (
+            'built from scratch', 'hand-coded', 'hand coded',
+            'no page builder', 'new practice launch',
+        )
+        blob = ' '.join([
+            study.summary, study.challenge, study.solution, study.results,
+        ]).lower()
+        for phrase in banned:
+            with self.subTest(phrase=phrase):
+                self.assertNotIn(phrase, blob)
+
+        for path in (study.get_absolute_url(), '/for-law-firms/'):
+            html = self.client.get(path).content.decode().lower()
+            with self.subTest(path=path):
+                self.assertNotIn('built from scratch', html)
+                # The generated alt text must not claim authorship.
+                self.assertNotIn(
+                    f'homepage of {study.title.lower()}, built by', html)
+
+    def test_engagement_type_drives_relationship_wording(self):
+        """Headings and alt text come from the engagement type, so a
+        maintenance study cannot render under a build heading."""
+        from clients.models import CaseStudy
+
+        study = CaseStudy.objects.get(slug='denis-law-group')
+        self.assertEqual(study.work_heading, 'What We Improved')
+        self.assertIn('maintained and improved', study.image_alt)
+
+        built = CaseStudy.objects.filter(engagement_type='built').first()
+        self.assertIsNotNone(built)
+        self.assertEqual(built.work_heading, 'What We Built')
+        self.assertIn('built by Aspired Websites', built.image_alt)
+
+    def test_unverified_engagement_type_stays_neutral(self):
+        """A study nobody has reviewed must not inherit a build claim."""
+        from clients.models import CaseStudy
+
+        study = CaseStudy.objects.create(
+            title='Unreviewed Client', slug='unreviewed-client')
+        self.assertEqual(study.engagement_type, '')
+        self.assertEqual(study.work_heading, 'What We Did')
+        self.assertNotIn('built by', study.image_alt)
+
+    def test_remediation_command_reports_before_it_writes(self):
+        """Production rows are corrected by a reviewed, idempotent
+        command with dry-run behavior — not by re-seeding."""
+        from io import StringIO
+
+        from clients.models import CaseStudy
+
+        CaseStudy.objects.filter(slug='denis-law-group').update(
+            summary='A custom site built from scratch by Aspired.',
+            engagement_type='built', platform='')
+
+        out = StringIO()
+        call_command('remediate_case_studies', stdout=out)
+        self.assertIn('denis-law-group', out.getvalue())
+        # Dry run must not have written anything.
+        self.assertEqual(
+            CaseStudy.objects.get(slug='denis-law-group').engagement_type,
+            'built')
+
+        call_command('remediate_case_studies', apply=True,
+                     stdout=StringIO())
+        fixed = CaseStudy.objects.get(slug='denis-law-group')
+        self.assertEqual(fixed.engagement_type, 'maintained')
+        self.assertNotIn('built from scratch', fixed.summary.lower())
+
+        # Idempotent: a second apply changes nothing further.
+        out = StringIO()
+        call_command('remediate_case_studies', apply=True, stdout=out)
+        self.assertIn('already correct', out.getvalue())
 
     def test_no_study_ships_a_placeholder_metric(self):
         from clients.models import CaseStudy

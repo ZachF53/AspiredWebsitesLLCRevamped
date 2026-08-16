@@ -16,7 +16,7 @@ every page that uses them.
 {% if study.screenshot %}
     <div class="card__visual card__visual--shot">
         <img src="{{ study.screenshot.url }}"
-             alt="Homepage of {{ study.title }}, built by Aspired Websites"
+             alt="{{ study.image_alt }}"
              width="1200" height="750" loading="lazy" decoding="async">
     </div>
 {% else %}

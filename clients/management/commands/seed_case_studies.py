@@ -13,10 +13,23 @@ IMPORTANT — no invented numbers. Master Plan §15 forbids fabricated
 results, statistics and testimonials. None of these four have
 measured before/after data:
 
-  * Denis Law Group was a NEW practice launch. There is no "before"
-    traffic to compare against, so the study runs on architecture and
-    decisions rather than a made-up percentage. Zach confirmed this
-    directly (2026-08-02).
+  * Denis Law Group — SUPERSEDED 2026-08-16. This entry previously
+    described a new practice launch that Aspired built from scratch,
+    citing owner confirmation of 2026-08-02. Later owner direction
+    (BRAND_REMEDIATION_HANDOFF.md, recorded APPROVED in
+    docs/brand_fact_matrix.md) establishes that Aspired did NOT build
+    the site: it is an existing WordPress site that Aspired maintains
+    and has improved. The build narrative was removed everywhere.
+
+    Do not reintroduce "built", "built from scratch", "hand-coded",
+    "no template", "no page builder", or "new practice launch" for this
+    study. The reported ~2-3 contacts per week is NOT published here —
+    its source, measurement window, baseline, attribution and client
+    approval are still unproven.
+
+Seeding a row is not a production fix. `--force` overwrites edits, and
+existing production rows keep their old copy until they are corrected
+explicitly — use `remediate_case_studies` (dry-run by default) for that.
 
 So every `metrics` slot is left empty and every `testimonial_quote` is
 blank until a real, attributable quote exists. The template renders
@@ -36,48 +49,40 @@ STUDIES = [
         'location': 'San Antonio, TX',
         'live_url': 'https://denislawgroup.com/',
         'card_gradient': 'gradient-blue',
+        'engagement_type': 'maintained',
+        'platform': 'WordPress',
         'summary': (
-            'A custom, security-hardened website for a growing law '
-            'practice — built from scratch, structured for local search, '
-            'and owned outright by the firm.'
+            'An existing WordPress website for a law practice, '
+            'maintained and improved by Aspired Websites.'
         ),
         'challenge': (
-            'A new practice needs a website that reads as established '
-            'from the first visit. Prospective clients compare several '
-            'firms before calling one, and most of that judgement '
-            'happens in the first few seconds — before anyone reads a '
-            'word about experience.\n\n'
-            'The site also had to be built so it could grow. A law firm '
-            'that adds a practice area should be able to add a page for '
-            'it, not rewrite the site.'
+            'The firm already had a WordPress website and needed it '
+            'looked after rather than replaced. Ongoing maintenance on a '
+            'live legal website has to keep the site available and '
+            'current without interrupting the enquiries it already '
+            'receives.'
         ),
         'solution': (
-            'A hand-coded site with no template and no page builder, '
-            'built mobile-first because that is where most legal '
-            'searches start.\n\n'
-            'The structure is the important part: practice areas are '
-            'built as their own pages rather than a single combined '
-            'list, so each one can be the best answer to its own '
-            'search and new areas slot in without restructuring.\n\n'
-            'Intake is treated as sensitive from the start — contact '
-            'submissions carry facts about a legal problem before any '
-            'engagement letter exists, so the form is validated '
-            'server-side, rate-limited, and delivered straight to the '
-            'firm rather than pooled on a server.'
+            'Aspired Websites took over ongoing maintenance of the '
+            'existing WordPress site and made targeted improvements to '
+            'it.\n\n'
+            'The specific improvements are not itemised here. Listing '
+            'them publicly requires confirming exactly which changes '
+            'Aspired made and may describe; see the Denis Law Group rows '
+            'in docs/brand_fact_matrix.md.'
         ),
         'results': (
-            'The firm owns every file: source code, content and domain. '
-            'There is no platform licence and nothing to renew for the '
-            'site to keep working.\n\n'
-            'An honest note on numbers: this was a new practice launch, '
-            'so there is no "before" traffic to compare against and we '
-            'will not invent one. For clients replacing an existing '
-            'site we capture speed, indexed pages, rankings and lead '
-            'volume before launch and re-measure at 30 and 90 days.'
+            'This is a maintenance and improvement engagement on a site '
+            'Aspired did not build, so there is no before-and-after '
+            'build comparison to report and none is claimed.\n\n'
+            'No performance figures are published for this engagement '
+            'until their source, measurement window, baseline and client '
+            'approval are documented.'
         ),
     },
     {
         'slug': 'food-trucks-of-san-antonio',
+        'engagement_type': 'built',
         'title': 'Food Trucks of San Antonio',
         'business_type': 'Food & Events',
         'location': 'San Antonio, TX',
@@ -111,6 +116,7 @@ STUDIES = [
     },
     {
         'slug': 'moonieful-designs',
+        'engagement_type': 'built',
         'title': 'Moonieful Designs',
         'business_type': 'Creative Studio',
         'location': 'San Antonio, TX',
@@ -142,6 +148,7 @@ STUDIES = [
     },
     {
         'slug': 'burgland-technologies',
+        'engagement_type': 'built',
         'title': 'Burgland Technologies',
         'business_type': 'Technology',
         'location': '',

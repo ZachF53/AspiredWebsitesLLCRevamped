@@ -80,7 +80,7 @@ measuring.
     <div class="container">
         <figure class="case-study-shot__frame">
             <img src="{{ study.screenshot.url }}"
-                 alt="Homepage of {{ study.title }}, built by Aspired Websites"
+                 alt="{{ study.image_alt }}"
                  width="1200" height="750" decoding="async">
             {% if study.live_url %}
                 <figcaption>
@@ -131,7 +131,7 @@ measuring.
 
             {% if study.solution %}
                 <article class="card card--accent-left">
-                    <h2>What We Built</h2>
+                    <h2>{{ study.work_heading }}</h2>
                     {{ study.solution|linebreaks }}
                 </article>
             {% endif %}

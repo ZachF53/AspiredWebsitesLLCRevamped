@@ -229,7 +229,7 @@ The H1 is unchanged (D9).
                     {% if study.screenshot %}
                         <div class="portfolio-item__visual portfolio-item__visual--shot">
                             <img src="{{ study.screenshot.url }}"
-                                 alt="Homepage of {{ study.title }}, built by Aspired Websites"
+                                 alt="{{ study.image_alt }}"
                                  width="1200" height="750" loading="lazy" decoding="async">
                         </div>
                     {% else %}

@@ -1387,6 +1387,39 @@ class CaseStudy(TimestampedModel):
     business_type = models.CharField(max_length=100, blank=True)
     location = models.CharField(max_length=100, blank=True)
 
+    # ── What Aspired actually did for this client ────────────────────
+    # The portfolio holds genuinely different relationships: sites we
+    # built, and sites somebody else built that we maintain and improve.
+    # Templates generate headings and image alt text from the study
+    # rather than hand-writing them per page, so without this field every
+    # study is described as "built by Aspired Websites" — which is false
+    # for a maintenance engagement and is the exact misrepresentation the
+    # Denis Law Group correction exists to fix.
+    #
+    # Blank is deliberately the default and means "not stated". A row
+    # that has never been reviewed must fall back to neutral wording
+    # rather than inherit a build claim nobody verified.
+    ENGAGEMENT_TYPE_CHOICES = [
+        ('built', 'Built by Aspired'),
+        ('redesigned', 'Redesigned by Aspired'),
+        ('maintained', 'Maintained and improved by Aspired'),
+        ('consulted', 'Consulting engagement'),
+    ]
+    engagement_type = models.CharField(
+        max_length=20, choices=ENGAGEMENT_TYPE_CHOICES, blank=True,
+        help_text=('What Aspired did for this client. Leave blank if it '
+                   'has not been verified — public copy then stays '
+                   'neutral instead of claiming a build.'),
+    )
+
+    # The platform the site runs on, when naming it is accurate and
+    # useful (e.g. an existing WordPress site we maintain). Described
+    # neutrally; never used to disparage the platform.
+    platform = models.CharField(
+        max_length=60, blank=True,
+        help_text='e.g. "WordPress". Blank when not relevant.',
+    )
+
     # ── Public case-study page (Master Plan §11) ────────────────────
     # Every portfolio project needs its own indexable URL; they used to
     # collapse into one flat /portfolio/ page, which meant four
@@ -1443,6 +1476,43 @@ class CaseStudy(TimestampedModel):
         ordering = ['-created_at']
         verbose_name = 'Case Study'
         verbose_name_plural = 'Case Studies'
+
+    # ── Relationship-aware public wording ────────────────────────────
+    # One place decides how a study describes itself, so a heading, an
+    # alt text and a proof block cannot drift apart.
+
+    @property
+    def work_heading(self):
+        """Heading for the narrative section of the case study."""
+        return {
+            'built': 'What We Built',
+            'redesigned': 'What We Redesigned',
+            'maintained': 'What We Improved',
+            'consulted': 'What We Advised',
+        }.get(self.engagement_type, 'What We Did')
+
+    @property
+    def relationship_label(self):
+        """Short badge describing Aspired's role, or '' when unverified."""
+        return dict(self.ENGAGEMENT_TYPE_CHOICES).get(
+            self.engagement_type, '')
+
+    @property
+    def image_alt(self):
+        """Alt text that states the real relationship.
+
+        Never says "built by Aspired Websites" for a site Aspired did not
+        build, and says nothing about authorship at all when the
+        engagement type has not been verified.
+        """
+        base = f'Homepage of {self.title}'
+        suffix = {
+            'built': ' — built by Aspired Websites',
+            'redesigned': ' — redesigned by Aspired Websites',
+            'maintained': ' — maintained and improved by Aspired Websites',
+            'consulted': '',
+        }.get(self.engagement_type, '')
+        return f'{base}{suffix}'
 
     def __str__(self):
         return self.title[:60]
