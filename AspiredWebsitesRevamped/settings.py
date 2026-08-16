@@ -158,6 +158,10 @@ TEMPLATES = [
                 # governing law, build guarantee). One source so the same
                 # answer appears on every page — see core/site_facts.py.
                 'core.site_facts.site_facts',
+                # Admin sidebar, defined as data in one module rather than
+                # 200 lines of repeated markup. See admin_dashboard/
+                # navigation.py.
+                'admin_dashboard.navigation.navigation',
                 # SetupTodo pending count for the portal sidebar badge.
                 'onboarding.context_processors.todo_count',
                 # Phase D4 — per-service portal sidebar nav.

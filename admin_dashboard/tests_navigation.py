@@ -1,0 +1,105 @@
+"""
+Admin sidebar navigation.
+
+The sidebar used to be ~200 lines of hand-written anchors. Nothing could
+check it, so a duplicate Calendar Connect link sat there unnoticed and
+lead-scraping tools were filed under "Clients". These tests hold the
+properties that markup could not.
+"""
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
+from django.urls import NoReverseMatch, reverse
+
+from admin_dashboard.navigation import NAVIGATION, all_items, is_active
+
+
+User = get_user_model()
+
+
+class NavigationDefinitionTests(TestCase):
+
+    def test_every_link_resolves(self):
+        """A typo in a url name renders the whole admin un-loadable,
+        because the sidebar is on every page."""
+        broken = []
+        for item in all_items():
+            try:
+                reverse(item.url_name)
+            except NoReverseMatch:
+                broken.append(f'{item.label} -> {item.url_name}')
+        self.assertEqual(broken, [])
+
+    def test_no_two_items_point_at_the_same_page(self):
+        """Calendar Connect was listed twice in the old markup."""
+        targets = {}
+        for item in all_items():
+            targets.setdefault(reverse(item.url_name), []).append(item.label)
+        duplicates = {
+            url: labels for url, labels in targets.items() if len(labels) > 1
+        }
+        self.assertEqual(duplicates, {})
+
+    def test_labels_are_unique(self):
+        labels = [item.label for item in all_items()]
+        self.assertEqual(len(labels), len(set(labels)))
+
+    def test_every_group_has_a_reasonable_size(self):
+        """A group that grows past a dozen items has become a drawer —
+        which is what "Content & Settings" had turned into."""
+        for group in NAVIGATION:
+            with self.subTest(group=group.label):
+                self.assertGreater(len(group.items), 0)
+                self.assertLessEqual(len(group.items), 12)
+
+    def test_prospecting_tools_are_not_filed_under_delivery(self):
+        """Leads and scraping happen before anyone is a client."""
+        by_group = {
+            g.label: {i.label for i in g.items} for g in NAVIGATION
+        }
+        self.assertIn('Leads', by_group['Pipeline'])
+        self.assertIn('Find Leads', by_group['Pipeline'])
+        self.assertNotIn('Leads', by_group['Delivery'])
+
+
+class ActiveStateTests(TestCase):
+
+    def test_dashboard_is_active_only_on_its_own_page(self):
+        dashboard = next(
+            i for i in all_items() if i.label == 'Dashboard')
+        self.assertTrue(is_active(dashboard, '/admin-dashboard/'))
+        self.assertFalse(is_active(dashboard, '/admin-dashboard/leads/table/'))
+
+    def test_section_links_stay_active_on_child_pages(self):
+        accounts = next(i for i in all_items() if i.label == 'Accounts')
+        self.assertTrue(is_active(accounts, '/admin-dashboard/accounts/'))
+        self.assertTrue(
+            is_active(accounts, '/admin-dashboard/accounts/abc-123/'))
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class NavigationRenderingTests(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='navstaff', email='navstaff@example.com',
+            password='test-pass-123', is_staff=True, is_superuser=True)
+        self.client.force_login(self.staff)
+
+    def test_sidebar_renders_every_item(self):
+        html = self.client.get('/admin-dashboard/').content.decode()
+        for item in all_items():
+            with self.subTest(item=item.label):
+                self.assertIn(f'>{item.label}</span>', html)
+
+    def test_group_labels_render(self):
+        html = self.client.get('/admin-dashboard/').content.decode()
+        for group in NAVIGATION:
+            if group.label:
+                with self.subTest(group=group.label):
+                    self.assertIn(group.label, html)
+
+    def test_current_page_is_marked_for_assistive_tech(self):
+        html = self.client.get('/admin-dashboard/').content.decode()
+        self.assertIn('aria-current="page"', html)
+        self.assertEqual(html.count('aria-current="page"'), 1)

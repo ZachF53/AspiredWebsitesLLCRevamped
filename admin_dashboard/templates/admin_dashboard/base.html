@@ -37,216 +37,31 @@
             </div>
 
             <div class="sidebar-nav">
-
-                {# ── MAIN ── #}
-                <a class="nav-link {% if request.path == '/admin-dashboard/' %}active{% endif %}"
-                   href="{% url 'admin_dashboard:home' %}">
-                    <span class="nav-link__text">Dashboard</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/outreach/approvals/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:outreach_approvals' %}">
-                    <span class="nav-link__text">Approvals</span>
-                    <span class="nav-badge {% if not approvals_count %}nav-badge--empty{% endif %}"
-                          aria-label="{{ approvals_count }} pending">{{ approvals_count }}</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/outreach/sent/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:outreach_sent' %}">
-                    <span class="nav-link__text">Sent</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/needs-you/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:needs_you' %}">
-                    <span class="nav-link__text">Needs You</span>
-                    <span id="needs-you-badge"
-                          class="nav-badge {% if not needs_you_count %}nav-badge--empty{% endif %}"
-                          aria-label="{{ needs_you_count }} pending">{{ needs_you_count }}</span>
-                </a>
-
-                {# ── CLIENTS ── #}
-                <div class="nav-group-label">Clients</div>
                 {% comment %}
-                    Phase C — new primary entry. Old All Clients link
-                    kept just below for the transition.
+                Rendered from admin_dashboard/navigation.py rather than
+                written out link by link. This block used to be ~200 lines
+                of near-identical anchors, each with its own hand-written
+                active-state test — which is how a duplicate Calendar
+                Connect link survived, and how lead scraping ended up
+                filed under "Clients".
                 {% endcomment %}
-                <a class="nav-link {% if '/admin-dashboard/accounts/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:accounts_list' %}">
-                    <span class="nav-link__text">Accounts</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/websites/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:websites_list' %}">
-                    <span class="nav-link__text">Websites</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/billing/' in request.path and 'new-invoice' not in request.path and 'send-onboarding' not in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:billing_list' %}">
-                    <span class="nav-link__text">Billing</span>
-                </a>
-                <a class="nav-link {% if 'new-invoice' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:new_invoice' %}">
-                    <span class="nav-link__text">+ Send Invoice</span>
-                </a>
-                <a class="nav-link {% if 'send-onboarding' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:send_onboarding' %}">
-                    <span class="nav-link__text">+ Send Onboarding</span>
-                </a>
-                <a class="nav-link {% if request.path == '/admin-dashboard/leads/' %}active{% endif %}"
-                   href="{% url 'admin_dashboard:leads_table' %}">
-                    <span class="nav-link__text">Leads</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/leads/kanban/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:leads_kanban' %}">
-                    <span class="nav-link__text">Kanban</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/leads/scrape/' in request.path and 'scrape-jobs' not in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:scrape' %}">
-                    <span class="nav-link__text">Scrape (one-off)</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/leads/scrape-jobs/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:scrape_jobs' %}">
-                    <span class="nav-link__text">Scrape Jobs</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/leads/enrichment/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:enrichment_status' %}">
-                    <span class="nav-link__text">Enrichment</span>
-                </a>
-
-                {# ── OUTREACH ── #}
-                <div class="nav-group-label">Outreach</div>
-                <a class="nav-link {% if '/admin-dashboard/proposals/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:proposals_list' %}">
-                    <span class="nav-link__text">Proposals</span>
-                    {% if active_proposals_count %}<span class="nav-badge">{{ active_proposals_count }}</span>{% endif %}
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/case-studies/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:case_studies_list' %}">
-                    <span class="nav-link__text">Case Studies</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/referrals/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:referrals_list' %}">
-                    <span class="nav-link__text">Referrals</span>
-                </a>
-
-                {# ── INTELLIGENCE ── #}
-                <div class="nav-group-label">Intelligence</div>
-                <a class="nav-link {% if request.path == '/admin-dashboard/intelligence/' or '/admin-dashboard/intelligence/suggestions/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:intelligence_dashboard' %}">
-                    <span class="nav-link__text">Intelligence</span>
-                    {% if critical_health_count or intel_pending_count %}<span class="nav-badge">{{ critical_health_count|add:intel_pending_count }}</span>{% endif %}
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/competitor-gaps/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:competitor_gaps_list' %}">
-                    <span class="nav-link__text">Competitor Gaps</span>
-                    {% if gap_high_count %}<span class="nav-badge">{{ gap_high_count }}</span>{% endif %}
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/annual-reports/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:annual_reports_list' %}">
-                    <span class="nav-link__text">Annual Reports</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/blog/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:blog_list' %}">
-                    <span class="nav-link__text">Blog Posts</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/nps/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:nps_list' %}">
-                    <span class="nav-link__text">NPS</span>
-                </a>
-
-                {# ── OPERATIONS ── #}
-                <div class="nav-group-label">Operations</div>
-                <a class="nav-link {% if '/admin-dashboard/deploy/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:deploy_home' %}">
-                    <span class="nav-link__text">Deploy</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/droplets/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:droplet_list' %}">
-                    <span class="nav-link__text">Droplets</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/schedule/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:schedule_connect' %}">
-                    <span class="nav-link__text">Schedule</span>
-                </a>
-                {% if '/admin-dashboard/schedule/' in request.path %}
-                    <a class="nav-sublink {% if '/schedule/connect/' in request.path %}active{% endif %}"
-                       href="{% url 'admin_dashboard:schedule_connect' %}">
-                        <span class="nav-link__text">Google Calendar</span>
-                    </a>
-                    <a class="nav-sublink {% if '/schedule/availability/' in request.path %}active{% endif %}"
-                       href="{% url 'admin_dashboard:schedule_availability' %}">
-                        <span class="nav-link__text">Availability</span>
-                    </a>
-                    <a class="nav-sublink {% if '/schedule/calls/' in request.path %}active{% endif %}"
-                       href="{% url 'admin_dashboard:schedule_calls' %}">
-                        <span class="nav-link__text">Booked calls</span>
-                    </a>
-                {% endif %}
-                <a class="nav-link {% if '/admin-dashboard/alerts/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:system_alerts' %}">
-                    <span class="nav-link__text">Alerts</span>
-                    {% if system_alerts_unresolved %}
-                        <span class="nav-badge">{{ system_alerts_unresolved }}</span>
-                    {% endif %}
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/dmarc/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:dmarc_dashboard' %}">
-                    <span class="nav-link__text">DMARC</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/redis/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:redis_monitor' %}">
-                    <span class="nav-link__text">Redis</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/vault/' in request.path and '/ops/' not in request.path %}active{% endif %}"
-                   href="{% url 'vault:home' %}">
-                    <span class="nav-link__text">Vault</span>
-                </a>
-                <a class="nav-link {% if '/ops/' in request.path %}active{% endif %}"
-                   href="{% url 'vault:ops_sessions_list' %}">
-                    <span class="nav-link__text">AI Ops</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/scans/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:scans_list' %}">
-                    <span class="nav-link__text">Scans</span>
-                </a>
-
-                {# ── CONTENT & SETTINGS ── #}
-                <div class="nav-group-label">Content &amp; Settings</div>
-                <a class="nav-link {% if '/admin-dashboard/changelog/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:changelog_list' %}">
-                    <span class="nav-link__text">Changelog</span>
-                </a>
-                <a class="nav-link {% if request.path == '/admin-dashboard/reports/' or '/admin-dashboard/reports/' in request.path and '/annual-' not in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:reports_list' %}">
-                    <span class="nav-link__text">Reports</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/pricing/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:pricing_list' %}">
-                    <span class="nav-link__text">Pricing</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/onboarding-questions/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:onboarding_questions' %}">
-                    <span class="nav-link__text">Onboarding Questions</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/domains/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:admin_domain_list' %}">
-                    <span class="nav-link__text">Domains</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/briefs/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:briefs_home' %}">
-                    <span class="nav-link__text">Briefs</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/ai-assistant/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:ai_assistant' %}">
-                    <span class="nav-link__text">AI Assistant</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/gbp/' in request.path %}active{% endif %}"
-                   href="{% url 'gbp:dashboard' %}">
-                    <span class="nav-link__text">GBP</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/social/' in request.path %}active{% endif %}"
-                   href="{% url 'social:channels_list' %}">
-                    <span class="nav-link__text">Social</span>
-                </a>
-                <a class="nav-link {% if '/admin-dashboard/settings/' in request.path %}active{% endif %}"
-                   href="{% url 'admin_dashboard:settings' %}">
-                    <span class="nav-link__text">Settings</span>
-                </a>
+                {% for group in admin_nav %}
+                    {% if group.label %}<div class="nav-group-label">{{ group.label }}</div>{% endif %}
+                    {% for item in group.items %}
+                        <a class="nav-link{% if item.active %} active{% endif %}"
+                           href="{% url item.url_name %}"{% if item.active %} aria-current="page"{% endif %}>
+                            <span class="nav-link__text">{{ item.label }}</span>
+                            {% if item.badge == 'needs_you_count' %}
+                                <span id="needs-you-badge"
+                                      class="nav-badge {% if not needs_you_count %}nav-badge--empty{% endif %}"
+                                      aria-label="{{ needs_you_count }} pending">{{ needs_you_count }}</span>
+                            {% elif item.badge == 'approvals_count' %}
+                                <span class="nav-badge {% if not approvals_count %}nav-badge--empty{% endif %}"
+                                      aria-label="{{ approvals_count }} pending">{{ approvals_count }}</span>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                {% endfor %}
             </div>
 
             <div class="sidebar-bottom">
