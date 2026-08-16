@@ -9,7 +9,10 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AspiredWebsitesRevamped.settings')
+os.environ.setdefault(
+    'DJANGO_SETTINGS_MODULE',
+    'AspiredWebsitesRevamped.settings_production',
+)
 
 # Initialise Django (loads apps) BEFORE importing anything that touches models.
 django_asgi_application = get_asgi_application()

@@ -5,7 +5,7 @@ from celery import Celery
 
 os.environ.setdefault(
     'DJANGO_SETTINGS_MODULE',
-    'AspiredWebsitesRevamped.settings',
+    'AspiredWebsitesRevamped.settings_production',
 )
 
 app = Celery('AspiredWebsitesRevamped')
