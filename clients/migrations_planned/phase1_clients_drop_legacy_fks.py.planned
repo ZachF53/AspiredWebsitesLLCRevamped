@@ -1,0 +1,43 @@
+"""
+PLANNED phase 1 for `clients` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('clients', '0054_website_payment_verification_note_and_more'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='annualreport', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='casestudy', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='clientcompetitor', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='clientdocument', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='clientdocument', name='project'),  # -> Project
+        migrations.RemoveField(model_name='clienthealthscore', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='competitorgapreport', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='contract', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='intakeresponse', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='intakeresponse', name='project'),  # -> Project
+        migrations.RemoveField(model_name='intelligencereport', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='intelligencesuggestion', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='onboardinginvoice', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='onboardingtoken', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='paymentrecord', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='projectstagelog', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='projectstagelog', name='project'),  # -> Project
+        migrations.RemoveField(model_name='referrallink', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='revisionrequest', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='revisionrequest', name='project'),  # -> Project
+        migrations.RemoveField(model_name='sitechangelogentry', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='supportticket', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='supportticket', name='project'),  # -> Project
+        migrations.RemoveField(model_name='uptimealert', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='uptimerecord', name='client'),  # -> ClientProfile
+    ]

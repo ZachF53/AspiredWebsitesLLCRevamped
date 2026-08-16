@@ -1,0 +1,31 @@
+"""
+PLANNED phase 1 for `reporting` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('reporting', '0014_sessionrecording_browser_and_more'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='blogpost', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='clientchatbot', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='contentfreshnessreport', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='conversionevent', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='gbpsynccheck', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='gbpperformancesnapshot', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='gbpreview', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='monthlyreport', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='npssurvey', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='pagesession', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='sessionrecording', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='trackedkeyword', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='vulnerabilityscan', name='client'),  # -> ClientProfile
+    ]

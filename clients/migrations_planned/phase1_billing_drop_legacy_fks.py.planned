@@ -1,0 +1,20 @@
+"""
+PLANNED phase 1 for `billing` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('billing', '0006_cancellationreason'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='miniinvoice', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='miniinvoice', name='project'),  # -> Project
+    ]

@@ -1,0 +1,21 @@
+"""
+PLANNED phase 1 for `vault` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('vault', '0010_opssession_end_reason_opssession_last_activity_at'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='clientvault', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='opssession', name='client'),  # -> ClientProfile
+        migrations.RemoveField(model_name='sshsessionlog', name='client'),  # -> ClientProfile
+    ]

@@ -1,0 +1,19 @@
+"""
+PLANNED phase 1 for `sync` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('sync', '0002_syncjob_account_new_syncjob_website_new'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='syncjob', name='client'),  # -> ClientProfile
+    ]

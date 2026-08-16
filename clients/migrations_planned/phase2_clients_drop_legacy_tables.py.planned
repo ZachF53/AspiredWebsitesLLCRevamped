@@ -1,0 +1,31 @@
+"""
+PLANNED phase 2 - drop the transitional links and the legacy tables.
+
+NOT in the migration graph. Run ONLY after every phase 1 migration
+has been applied in every app, otherwise their FK constraints still
+reference these tables.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('clients', '0054_website_payment_verification_note_and_more'),
+        # ('admin_dashboard', '<its phase 1 migration>'),
+        # ('billing', '<its phase 1 migration>'),
+        # ('domains', '<its phase 1 migration>'),
+        # ('reporting', '<its phase 1 migration>'),
+        # ('social', '<its phase 1 migration>'),
+        # ('sync', '<its phase 1 migration>'),
+        # ('vault', '<its phase 1 migration>'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='account', name='legacy_client_profile'),
+        migrations.RemoveField(model_name='website', name='legacy_project'),
+        migrations.RemoveField(model_name='project', name='client'),
+        migrations.DeleteModel(name='Project'),
+        migrations.DeleteModel(name='ClientProfile'),
+    ]

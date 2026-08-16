@@ -1,0 +1,19 @@
+"""
+PLANNED phase 1 for `domains` - drop legacy owner FK columns.
+
+NOT in the migration graph. Read clients/migrations_planned/README.md.
+Run every app's phase 1 before clients phase 2.
+"""
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('domains', '0004_domainregistration_account_new_and_more'),
+    ]
+
+    operations = [
+        migrations.RemoveField(model_name='domainregistration', name='client'),  # -> ClientProfile
+    ]
