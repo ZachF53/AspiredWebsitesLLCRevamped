@@ -33,7 +33,7 @@ rather than re-declaring it (Master Plan D8).
     "description": "Managed digital marketing and social media services for law firms and small businesses. Content strategy, scheduled posts, paid ads, and monthly performance reporting.",
     "offers": {
         "@type": "Offer",
-        "priceRange": "$399 - $999 / month"
+        "priceRange": "{{ social_price_range }}"
     }
 }
 </script>
@@ -81,7 +81,7 @@ rather than re-declaring it (Master Plan D8).
 
             <article class="card card--accent-left">
                 <h3>You Boost Posts And Hope</h3>
-                <p>You hit "Boost Post" because Facebook nagged you, then watched $50 evaporate with no leads. That's not advertising. That's donations to Meta.</p>
+                <p>Boosting a post because the platform prompted you is not a campaign. Without a defined audience, offer and follow-up, spend rarely turns into enquiries you can trace.</p>
             </article>
 
             <article class="card card--accent-left">
@@ -161,7 +161,7 @@ rather than re-declaring it (Master Plan D8).
 
             <article class="card">
                 <h3>Google Business Profile</h3>
-                <p>The free profile that decides whether you show up when someone in your area searches for what you do. Most businesses ignore it. We weaponize it.</p>
+                <p>The free profile that decides whether you show up when someone in your area searches for what you do. Most businesses leave it half-filled. We keep it complete, accurate and active.</p>
             </article>
 
             <article class="card">
@@ -198,28 +198,7 @@ rather than re-declaring it (Master Plan D8).
             <p>Month to month. Cancel any time. No annual contracts, no setup fees, no surprises.</p>
         </div>
 
-        <div class="cards cards--3col">
-            <article class="card">
-                <span class="eyebrow">Basic</span>
-                <h3>$399/mo</h3>
-                <p>One channel, scheduled content, monthly reporting. Best for businesses just getting consistent.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
-            </article>
-
-            <article class="card">
-                <span class="eyebrow">Standard</span>
-                <h3>$699/mo</h3>
-                <p>Two channels, scheduled content, light paid ad management, monthly reporting. Most popular tier.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
-            </article>
-
-            <article class="card">
-                <span class="eyebrow">Full Management</span>
-                <h3>$999/mo</h3>
-                <p>Three+ channels, full paid ad strategy + management, lead capture wired in, weekly check-ins.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
-            </article>
-        </div>
+        {% include "core/_social_tier_cards.html" with social=social %}
 
         <div class="section-cta">
             <a class="btn-primary btn-lg" href="{% url 'scheduler:social_schedule' %}">Get Started</a>

@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
 from core.analytics import queue_event
+from core.site_facts import LOCATION_PHRASE, LOCATION_STATEMENT
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
 from .models import AuditLead
@@ -158,8 +159,8 @@ def law_firms(request):
         'meta_title': 'Custom Websites for Law Firms',
         'meta_description': (
             'Hand-coded, security-hardened websites built specifically '
-            'for law firms. CISSP-certified, state bar compliant. '
-            'No FindLaw lock-in, no templates.'
+            'for law firms. CISSP-certified, built so your required bar '
+            'disclaimers are easy to maintain. No FindLaw lock-in.'
         ),
         'build_range': _price_range('website_build'),
         'maintenance_range': _price_range('maintenance'),
@@ -221,9 +222,24 @@ def service_web_design(request):
 
 
 def service_digital_marketing(request):
+    # Social plans render from the same active ServiceTier rows the
+    # pricing page uses. The template used to hardcode its own names,
+    # prices and channel counts, and they had drifted from the database.
+    from billing.pricing_models import ServiceTier
+
+    social = ServiceTier.get_active('social_media')
+    # The structured-data priceRange was the last hardcoded price on this
+    # page ("$399 - $999 / month"). Schema markup is still a public price
+    # claim, so it comes from the same rows as the cards.
+    prices = sorted(tier.price for tier in social)
+    price_range = (
+        f'${prices[0]:,.0f} - ${prices[-1]:,.0f} / month' if prices else '')
+
     return render(request, 'public/service_digital_marketing.html', {
         'active_nav': 'services',
         'active_service': 'digital_marketing',
+        'social': social,
+        'social_price_range': price_range,
         'breadcrumbs': [
             ('Services', '/services/web-design/'),
             ('Digital Marketing', None),
@@ -711,7 +727,7 @@ def contact(request):
         'meta_title': 'Contact — Aspired Websites',
         'meta_description': (
             'Get in touch about your project. Free consultation, no obligation. '
-            'Based in San Antonio and Atlanta.'
+            f'{LOCATION_STATEMENT}'
         ),
     })
 
@@ -782,7 +798,7 @@ def about(request):
         'meta_title': 'About Zachery Long — Aspired Websites',
         'meta_description': (
             'Aspired Websites is built by Zachery Long — CISSP-certified, '
-            'M.S. in Cybersecurity, based in San Antonio and Atlanta. '
+            f'M.S. in Cybersecurity, {LOCATION_PHRASE}. '
             'Direct access, no outsourcing, security-first.'
         ),
     })

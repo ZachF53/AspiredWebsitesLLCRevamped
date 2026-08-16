@@ -1,0 +1,38 @@
+{% comment %}
+Social-media plan cards rendered from active ServiceTier / TierFeature rows.
+
+Expects `social` — a queryset of social_media ServiceTiers.
+
+This partial exists because the digital-marketing service page used to
+hardcode its own plan names, prices and entitlements. They had drifted
+from the database: the page advertised one channel on Basic and two on
+Standard while the seeded tiers said two and three, and it promised paid
+ad management, lead capture and weekly check-ins that no TierFeature row
+contained. It also hardcoded $399/$699/$999, which CLAUDE.md forbids
+outright — pricing is database-authoritative.
+
+Pricing and the service page now render the same rows through this one
+partial, so an edit in the pricing admin changes both and neither page can
+quietly become a second source of truth. `optional_cta` lets the caller
+decide where the button points without duplicating the card markup.
+{% endcomment %}
+<div class="cards cards--3col">
+    {% for tier in social %}
+        <article class="card {% if tier.is_featured %}card--featured{% endif %}">
+            {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
+            <span class="eyebrow">{{ tier.name }}</span>
+            {% include "core/_price.html" with tier=tier %}
+            <ul class="feature-list">
+                {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                {% if tier.max_channels %}<li>{{ tier.max_channels }} channels of your choice</li>{% endif %}
+                {% if tier.reply_handling == 'none' %}<li>You handle replies &amp; DMs</li>
+                {% elif tier.reply_handling == 'triage' %}<li>Reply/DM triage &mdash; we flag, you respond</li>
+                {% elif tier.reply_handling == 'full' %}<li>Full reply &amp; DM management</li>
+                {% endif %}
+            </ul>
+            <a class="card__link" href="{% url 'public:pricing' %}">See what&rsquo;s included</a>
+        </article>
+    {% empty %}
+        <p>Plan details are being updated &mdash; <a href="{% url 'public:contact' %}">contact us</a> for current social media pricing.</p>
+    {% endfor %}
+</div>

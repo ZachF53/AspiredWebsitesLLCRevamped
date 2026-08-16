@@ -154,6 +154,10 @@ TEMPLATES = [
                 'core.context_processors.canonical',
                 # Operator-facing system alerts banner on /admin-dashboard/
                 'core.context_processors.system_alerts',
+                # Owner-approved statements of business fact (location,
+                # governing law, build guarantee). One source so the same
+                # answer appears on every page — see core/site_facts.py.
+                'core.site_facts.site_facts',
                 # SetupTodo pending count for the portal sidebar badge.
                 'onboarding.context_processors.todo_count',
                 # Phase D4 — per-service portal sidebar nav.
