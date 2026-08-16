@@ -6,14 +6,24 @@ Part of the Phase-D ClientProfile teardown: once every dependent row
 points at an Account/Website, the legacy `client`/`project` columns can
 be dropped without orphaning data.
 
-Mapping rule:
-  - account_new  = client.migrated_account
-  - website_new  = that account's PRIMARY website (oldest by created_at)
+Mapping rule for ``website_new``, in order:
 
-Multi-website accounts: historical client-level rows can't be split per
-site, so they attach to the primary website. Acceptable — this data is
-disposable (pre-launch clients) and going forward collection is
-per-website.
+  1. The row's own legacy ``project`` FK, resolved through
+     ``Project.migrated_website``. This is an exact answer, not a guess —
+     use it whenever the row has one.
+  2. The account's only Website, when it has exactly one.
+  3. Nothing. The row is left null and counted as ``ambiguous``.
+
+``account_new`` is always ``client.migrated_account``.
+
+Rule 3 is the important one. This command used to attach every unresolved
+row to the account's oldest Website, which quietly mis-files data on any
+account that owns more than one site — a Vance Mediation support ticket
+landing under Vance Family Law, permanently and invisibly. The cutover
+contract forbids that ("never silently attach legacy website-level rows to
+the oldest website when an account has more than one"). Ambiguous rows now
+stay null so the parity audit keeps reporting them, and an operator resolves
+them with an explicit mapping via ``repair_account_website_parity``.
 
 Idempotent + dry-run by default. Run with --apply to write.
 """
@@ -32,7 +42,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         apply = opts['apply']
-        from clients.account_models import Account
+        from clients.account_models import Account, Website
 
         # account by legacy ClientProfile id
         acct_by_cp = {
@@ -40,17 +50,29 @@ class Command(BaseCommand):
             for a in Account.objects.filter(
                 legacy_client_profile__isnull=False)
         }
-        # primary (oldest) website per account
-        primary_site = {}
+        # The unambiguous website per account: only accounts that own
+        # exactly one. Multi-website accounts are deliberately absent —
+        # their rows must be resolved by project FK or by hand.
+        sole_site = {}
+        multi_site_accounts = set()
         for a in Account.objects.all():
-            w = a.websites.order_by('created_at').first()
-            if w:
-                primary_site[a.id] = w
+            sites = list(a.websites.order_by('created_at')[:2])
+            if len(sites) == 1:
+                sole_site[a.id] = sites[0]
+            elif len(sites) > 1:
+                multi_site_accounts.add(a.id)
+
+        # legacy Project id -> canonical Website, for rule 1.
+        site_by_project = {
+            w.legacy_project_id: w
+            for w in Website.objects.filter(legacy_project__isnull=False)
+        }
 
         self.stdout.write(
             f'Accounts: {Account.objects.count()} | '
             f'CP->account map: {len(acct_by_cp)} | '
-            f'accounts with a website: {len(primary_site)}')
+            f'single-website accounts: {len(sole_site)} | '
+            f'multi-website accounts: {len(multi_site_accounts)}')
         self.stdout.write('DRY RUN - no writes\n' if not apply
                           else 'APPLYING changes\n')
 
@@ -90,6 +112,10 @@ class Command(BaseCommand):
             if not (acct_field or site_field):
                 continue
 
+            # A legacy `project` FK on the row is the exact answer for
+            # website_new — better than any account-level inference.
+            project_field = _fk('project', 'Project')
+
             label = f'{model._meta.app_label}.{model.__name__}'
             if via_vault:
                 qs = (model.objects
@@ -97,7 +123,7 @@ class Command(BaseCommand):
                       .select_related('vault'))
             else:
                 qs = model.objects.filter(client__isnull=False)
-            fixed_w = fixed_a = skipped = 0
+            fixed_w = fixed_a = skipped = ambiguous = 0
             for row in qs.iterator():
                 cp_id = (row.vault.client_id if via_vault
                          else row.client_id)
@@ -111,18 +137,30 @@ class Command(BaseCommand):
                     changed.append(acct_field)
                     fixed_a += 1
                 if site_field and getattr(row, site_field + '_id', None) is None:
-                    site = primary_site.get(acct.id)
+                    site = None
+                    if project_field:
+                        site = site_by_project.get(
+                            getattr(row, project_field + '_id', None))
+                    if site is None:
+                        site = sole_site.get(acct.id)
                     if site is not None:
                         setattr(row, site_field, site)
                         changed.append(site_field)
                         fixed_w += 1
+                    else:
+                        # Multi-website account and no project FK to
+                        # disambiguate. Leave it null on purpose.
+                        ambiguous += 1
                 if changed and apply:
                     row.save(update_fields=changed)
-            if fixed_w or fixed_a or skipped:
+            if fixed_w or fixed_a or skipped or ambiguous:
                 total += fixed_w + fixed_a
-                self.stdout.write(
-                    f'  {label}: website_new+={fixed_w} '
-                    f'account_new+={fixed_a} skipped(no account)={skipped}')
+                line = (f'  {label}: website_new+={fixed_w} '
+                        f'account_new+={fixed_a} '
+                        f'skipped(no account)={skipped}')
+                if ambiguous:
+                    line += f' AMBIGUOUS(needs manual mapping)={ambiguous}'
+                self.stdout.write(line)
 
         self.stdout.write(
             f'\nTotal field writes {"applied" if apply else "pending"}: '

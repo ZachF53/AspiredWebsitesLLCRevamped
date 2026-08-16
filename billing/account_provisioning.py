@@ -57,8 +57,8 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
     # resolves against; Account is the Phase-C login-level model (the
     # post_save signal usually creates it, but we get_or_create to be safe).
     try:
+        from clients.account_setup import ensure_account
         from clients.models import ClientProfile
-        from clients.account_models import Account
 
         cp = ClientProfile.objects.filter(user=user).first()
         if cp is None:
@@ -78,15 +78,12 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
             cp.stripe_customer_id = customer_id
             cp.save(update_fields=['stripe_customer_id'])
 
-        Account.objects.get_or_create(
-            user=user,
-            defaults={
-                'name': derived_name,
-                'status': 'active',
-                'stripe_customer_id': customer_id,
-                'legacy_client_profile': cp,
-            },
-        )
+        # The post_save signal normally creates the Account, but it
+        # swallows its own failures so a payment is never blocked by an
+        # Account write. ensure_account confirms the row is actually there
+        # and linked, and creates it if the signal fell over — otherwise
+        # this buyer is paid-up with a portal that resolves to nothing.
+        ensure_account(cp)
     except Exception:  # noqa: BLE001
         logger.exception(
             'provision: ClientProfile/Account create failed for %s',

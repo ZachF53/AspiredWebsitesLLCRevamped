@@ -385,6 +385,12 @@ def new_vault(request):
     profile = ClientProfile.objects.create(
         user=user, firm_name=name, business_type='',
     )
+    # Vault-only placeholders are Account-only by design (no Website), but
+    # they still need the Account row — the parity audit treats a profile
+    # without one as a structural error, and the account-level vault view
+    # resolves through it.
+    from clients.account_setup import ensure_account
+    ensure_account(profile)
     return redirect('vault:client_vault', client_id=profile.id)
 
 

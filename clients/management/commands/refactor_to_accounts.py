@@ -57,12 +57,29 @@ def _legacy_project_for(client):
         '-created_at').first()
 
 
+# Package codes that mean "we are building (or built) a site for them".
+# The maintenance_* and moonieful_referred codes are service entitlements,
+# not builds — see _client_has_website_data.
+_BUILD_PACKAGES = {'essential_build', 'premium_build'}
+
+
 def _client_has_website_data(client):
     """
     True if this legacy ClientProfile carries enough build state to
     justify creating a Website. Auxiliary vault-only profiles (no
     project, no URL, no droplet, default stage) return False — they
     become Account-only.
+
+    Subscription-only buyers are Account-only too.  Someone who bought
+    maintenance or social for a site we neither built nor host has no build
+    to represent: their entitlement is a MaintenancePlan / SocialMediaPlan
+    row carrying ``external_site_url``.  ``clients.signals`` already refuses
+    to autocreate a Website for them (``_skip_website_autocreate``) because a
+    build Website would surface build-only portal nav — My Project, Intake,
+    Revisions — that they can never complete.  This command has to apply the
+    same rule or it re-creates exactly the row the signal declined to make.
+    That is why ``maintenance_active`` is not evidence of a build, and why
+    only the two build packages count.
     """
     if client.projects.exists():
         return True
@@ -70,9 +87,9 @@ def _client_has_website_data(client):
         return True
     if (getattr(client, 'do_droplet_id', '') or '').strip():
         return True
-    if (client.package or '').strip():
+    if (client.package or '').strip() in _BUILD_PACKAGES:
         return True
-    if client.launch_date or client.maintenance_active:
+    if client.launch_date:
         return True
     if client.stage and client.stage != 'intake':
         return True
@@ -111,7 +128,13 @@ def _make_account_from_client(client):
         'onboarding_status': onboarding_status,
         'onboarding_complete': bool(client.onboarding_complete),
         'client_pin_hash': client.client_pin_hash or '',
-        'client_pin_salt': client.client_pin_salt or b'',
+        # Copied verbatim, NOT coerced to b''. `backfill_account_data`
+        # copies the profile's value across as-is, so coercing None to b''
+        # here made the two commands disagree forever: this one wrote b'',
+        # that one wrote None back, and every rehearsal pass reported nine
+        # phantom changes. A BinaryField with null=True has None as its
+        # empty value; b'' is a different value.
+        'client_pin_salt': client.client_pin_salt,
         'client_pin_set': bool(client.client_pin_set),
         'client_pin_failed_attempts': (
             client.client_pin_failed_attempts or 0),
@@ -121,6 +144,125 @@ def _make_account_from_client(client):
         'last_synced_at': client.last_synced_at,
         'sync_conflict_flagged': bool(client.sync_conflict_flagged),
     }
+
+
+def _apply_changed(instance, values):
+    """
+    Assign only the fields whose value actually differs and save those.
+
+    Blanket ``update_or_create`` / ``save()`` rewrites every column on every
+    run, which bumps ``updated_at`` (``auto_now``) even when nothing changed.
+    That is not cosmetic here: the Moonieful bridge decides whether an
+    inbound record is stale by comparing ``updated_at``, so a backfill that
+    touches every row makes every local record look newer than Miki's and
+    suppresses legitimate inbound updates. It also means a re-run can never
+    be proven to be a no-op.
+
+    Returns the list of field names written (empty when nothing changed).
+    """
+    changed = []
+    for name, value in values.items():
+        field = instance._meta.get_field(name)
+        if field.is_relation:
+            current = getattr(instance, f'{name}_id')
+            incoming = value.pk if value is not None else None
+        else:
+            current = getattr(instance, name)
+            incoming = value
+        if current != incoming:
+            changed.append(name)
+    if not changed:
+        return []
+    for name in changed:
+        setattr(instance, name, values[name])
+    instance.save(update_fields=changed + ['updated_at'])
+    return changed
+
+
+def _fill_missing(instance, values):
+    """Populate only the fields the canonical row has not got yet.
+
+    A backfill fills gaps. It must not overwrite a populated canonical value
+    with a legacy one, because ClientProfile stopped being the live store
+    the moment Websites became editable in the Account/Website admin.
+
+    The real-data rehearsal proved the cost of getting this wrong. Blanket
+    refresh from the legacy profile did this to a live, paying client:
+
+        url                  'whiteheadwellness.com' -> ''
+        package              'premium_build'         -> ''
+        payment_status       'fully_paid'            -> 'awaiting_deposit'
+        maintenance_active   True                    -> False
+        business_type        'Health and Wellness'   -> ''
+        do_droplet_name      'whitehead-wellness-prod' -> ''
+
+    — a launched site reverted to awaiting-deposit with its maintenance
+    subscription flag off and its URL erased. ``do_droplet_name`` was wiped
+    on nine sites outright, because the legacy profile has no such column
+    and the mapping passes ``''``.
+
+    "Not got yet" means None or empty string only. False and 0 are real
+    values a person chose; treating them as empty would flip
+    ``session_recording_enabled`` and reset ``revision_count`` from stale
+    legacy rows. Where both sides hold a real value and they disagree, that
+    is a conflict for a human, and the parity audit reports it as one.
+    """
+    changed = []
+    for name, value in values.items():
+        if value is None or value == '':
+            continue  # nothing to contribute
+        field = instance._meta.get_field(name)
+        current = (getattr(instance, f'{name}_id') if field.is_relation
+                   else getattr(instance, name))
+        if current is None or current == '':
+            setattr(instance, name, value)
+            changed.append(name)
+    if changed:
+        instance.save(update_fields=changed + ['updated_at'])
+    return changed
+
+
+def _existing_website_for(account, client, project):
+    """
+    Find the Website this legacy client's build already lives on, or None.
+
+    Ordinary idempotency (``account`` + ``legacy_project``) is not enough on
+    its own.  Since Phase C, ``clients.signals.autocreate_account_and_website``
+    materialises a Website as soon as the ClientProfile is created, and it
+    leaves ``legacy_project`` NULL because it never looks at Project rows.
+    Keying only on ``legacy_project`` misses that row, so this command used to
+    create a SECOND Website for every client the signal had already handled —
+    doubling the table and pushing the new row onto a ``-2`` slug.  The
+    rehearsal reproduced exactly that: 8 websites became 16.
+
+    Resolution order:
+      1. The Website already linked to this Project (a true re-run).
+      2. An unlinked Website on this Account with the same business name —
+         the signal-created row.  Adopt it.
+      3. This Account's only Website, if it is unlinked — same case, but the
+         firm name was edited after the signal fired.
+    Anything else returns None and a new Website is created.  Rules 2 and 3
+    both require ``legacy_project`` to be NULL, so a Website already claimed
+    by another Project is never stolen.
+    """
+    from clients.account_models import Website
+
+    if project is not None:
+        linked = Website.objects.filter(
+            account=account, legacy_project=project).first()
+        if linked is not None:
+            return linked
+
+    unlinked = Website.objects.filter(
+        account=account, legacy_project__isnull=True)
+
+    by_name = unlinked.filter(name=client.firm_name).first()
+    if by_name is not None:
+        return by_name
+
+    if account.websites.count() == 1:
+        return unlinked.first()
+    return None
 
 
 def _make_website_from_client(client, account, project):
@@ -253,50 +395,75 @@ def _repoint_dependents(client, account, website, *, dry_run, verbose):
     website_new on rows that still FK this legacy client. Idempotent —
     only writes if the value would actually change.
 
-    For website_new we use ``website`` (may be None for Account-only
-    legacy profiles); rows there get their website_new left null,
-    which is correct.
+    The account side is unambiguous: one legacy ClientProfile maps to one
+    Account, so those rows are updated in bulk.
+
+    The website side is not. This used to bulk-assign ``website`` — the one
+    Website this command had just built for the client — to every dependent
+    row. On an Account owning several sites that silently mis-files data:
+    the rehearsal caught a "Mediation site: intake form not emailing" ticket
+    landing under Vance Family Law, and nothing in the parity audit can spot
+    it afterwards, because a wrong-but-populated FK looks exactly like a
+    right one. Website assignment is therefore resolved per row:
+
+      1. the row's own legacy ``project`` FK, mapped through the Website
+         that adopted that Project;
+      2. the account's only Website, when it owns exactly one;
+      3. otherwise nothing — left null, counted as ambiguous, and resolved
+         by hand via ``repair_account_website_parity``.
+
+    Returns ``(written, ambiguous)`` counters.
     """
     from django.apps import apps
     counts = Counter()
+    ambiguous = Counter()
+
+    account_sites = list(account.websites.all())
+    sole_site = account_sites[0] if len(account_sites) == 1 else None
+    site_by_project = {
+        site.legacy_project_id: site
+        for site in account_sites if site.legacy_project_id
+    }
 
     for model_path, client_attr, account_attr, website_attr in (
             DEPENDENT_REPOINTS):
         model = apps.get_model(*model_path.split('.'))
         qs = model.objects.filter(**{client_attr: client})
 
-        # Filter to rows that still need backfilling — avoids writes on
-        # re-runs.
-        update_kwargs = {}
         if account_attr is not None:
-            update_kwargs[account_attr] = account
-        if website_attr is not None and website is not None:
-            update_kwargs[website_attr] = website
+            need_qs = qs.filter(**{f'{account_attr}__isnull': True})
+            n = need_qs.count()
+            if n:
+                if verbose:
+                    print(f'    {model_path}: {n} row(s) → '
+                          f'account={account.id}')
+                if not dry_run:
+                    need_qs.update(**{account_attr: account})
+                counts[model_path] += n
 
-        if not update_kwargs:
+        if website_attr is None:
             continue
 
-        # Build a Q-style filter for "any of the target fields is still
-        # null" so we don't churn already-backfilled rows.
-        need_qs = qs
-        if account_attr is not None:
-            need_qs = need_qs.filter(**{f'{account_attr}__isnull': True})
-        elif website_attr is not None and website is not None:
-            need_qs = need_qs.filter(**{f'{website_attr}__isnull': True})
+        has_project = any(
+            f.name == 'project' for f in model._meta.get_fields())
+        for row in qs.filter(
+                **{f'{website_attr}__isnull': True}).iterator():
+            target = None
+            if has_project and getattr(row, 'project_id', None):
+                target = site_by_project.get(row.project_id)
+            if target is None:
+                target = sole_site
+            if target is None:
+                ambiguous[model_path] += 1
+                continue
+            if verbose:
+                print(f'    {model_path} {row.pk} → website={target.id}')
+            if not dry_run:
+                model.objects.filter(pk=row.pk).update(
+                    **{website_attr: target})
+            counts[model_path] += 1
 
-        n = need_qs.count()
-        if n == 0:
-            continue
-
-        if verbose:
-            print(f'    {model_path}: {n} row(s) → '
-                  f'account={account.id if account_attr else "—"} '
-                  f'website={website.id if (website and website_attr) else "—"}')
-
-        if not dry_run:
-            need_qs.update(**update_kwargs)
-        counts[model_path] += n
-    return counts
+    return counts, ambiguous
 
 
 # ── Command ──────────────────────────────────────────────────────────────
@@ -338,6 +505,7 @@ class Command(BaseCommand):
         websites_refreshed = 0
         websites_skipped = 0
         total_repoints = Counter()
+        total_ambiguous = Counter()
 
         # One transaction per legacy client. Failures roll back that
         # client only — others keep going so a single bad row doesn't
@@ -367,14 +535,17 @@ class Command(BaseCommand):
                                 print(f'    Account → would CREATE')
                             account = None
                     else:
-                        account, was_created = (
-                            Account.objects.update_or_create(
-                                legacy_client_profile=client,
-                                defaults=acc_defaults,
-                            ))
-                        if was_created:
+                        account = Account.objects.filter(
+                            legacy_client_profile=client).first()
+                        if account is None:
+                            account = Account.objects.create(
+                                legacy_client_profile=client, **acc_defaults)
                             accounts_created += 1
-                        else:
+                        elif _fill_missing(account, acc_defaults):
+                            # Same rule as Websites: the portal settings page
+                            # writes Account directly, so a populated Account
+                            # field is not stale data to be corrected from the
+                            # legacy profile.
                             accounts_refreshed += 1
 
                     # ── Website (only if there's build data) ──
@@ -399,36 +570,20 @@ class Command(BaseCommand):
                         else:
                             ws_defaults = _make_website_from_client(
                                 client, account, project)
-                            # Idempotency key:
-                            #   - prefer (account, legacy_project) when
-                            #     a Project exists
-                            #   - else (account, name) so a project-less
-                            #     client doesn't get a duplicate row on
-                            #     re-runs.
-                            if project is not None:
-                                lookup = {
-                                    'account': account,
-                                    'legacy_project': project,
-                                }
-                            else:
-                                lookup = {
-                                    'account': account,
-                                    'name': client.firm_name,
-                                    'legacy_project__isnull': True,
-                                }
-                            existing_ws = Website.objects.filter(
-                                **lookup).first()
+                            existing_ws = _existing_website_for(
+                                account, client, project)
 
                             if existing_ws:
-                                websites_refreshed += 1
-                                if verbose:
-                                    print(
-                                        f'    Website exists → '
-                                        f'refreshing {existing_ws.id}')
-                                if not dry_run:
-                                    for k, v in ws_defaults.items():
-                                        setattr(existing_ws, k, v)
-                                    existing_ws.save()
+                                # Fill gaps only — never clobber a live
+                                # Website with stale legacy values.
+                                if dry_run:
+                                    websites_refreshed += 1
+                                elif _fill_missing(existing_ws, ws_defaults):
+                                    websites_refreshed += 1
+                                    if verbose:
+                                        print(
+                                            f'    Website {existing_ws.id} → '
+                                            f'gaps filled')
                                 website = existing_ws
                             else:
                                 websites_created += 1
@@ -442,12 +597,14 @@ class Command(BaseCommand):
 
                     # ── Dependent FK repoints ──
                     if account is not None:
-                        counts = _repoint_dependents(
+                        counts, ambiguous = _repoint_dependents(
                             client, account, website,
                             dry_run=dry_run, verbose=verbose,
                         )
                         for k, v in counts.items():
                             total_repoints[k] += v
+                        for k, v in ambiguous.items():
+                            total_ambiguous[k] += v
 
                     if dry_run and account is None:
                         # Account would be new — also need to roll
@@ -481,6 +638,14 @@ class Command(BaseCommand):
                 self.stdout.write(f'    {model_path}: {n}')
         else:
             self.stdout.write('  Dependent FKs: 0 rows needed updating.')
+
+        if total_ambiguous:
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING(
+                '  Left null — multi-website account, no project FK to '
+                'resolve them. Map with repair_account_website_parity:'))
+            for model_path, n in sorted(total_ambiguous.items()):
+                self.stdout.write(f'    {model_path}: {n}')
 
         if dry_run:
             self.stdout.write('')

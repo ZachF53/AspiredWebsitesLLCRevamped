@@ -31,11 +31,6 @@ from outreach.models import (
 )
 from outreach.pipeline import import_leads
 from outreach.scoring import score_lead
-from outreach.scraper import (
-    scrape_georgia_bar_sync,
-    scrape_google_maps_sync,
-    scrape_texas_bar_sync,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -627,6 +622,16 @@ def scrape(request):
     error = None
 
     if request.method == 'POST' and form.is_valid():
+        # Playwright imports native greenlet bindings.  Keep that optional,
+        # heavyweight dependency out of Django startup so checks, migrations,
+        # and unrelated admin pages work even when the browser runtime is not
+        # installed or available on this machine.
+        from outreach.scraper import (
+            scrape_georgia_bar_sync,
+            scrape_google_maps_sync,
+            scrape_texas_bar_sync,
+        )
+
         source = form.cleaned_data['source']
         niche = form.cleaned_data['niche'].strip()
         city = form.cleaned_data['city']
@@ -6130,12 +6135,17 @@ def new_invoice(request):
                     internal_notes=notes,
                 )
 
+                # `autocreate_account_and_website` fired on the
+                # ClientProfile post_save above, so the Account and the
+                # primary Website exist by now — unless it failed, which it
+                # does silently. Confirm before anything downstream hangs
+                # rows off this client.
+                from clients.account_setup import ensure_account
+                ensure_account(profile)
+
                 # OnboardingInvoice row (snapshot of what's being
                 # billed — line items render on our /pay/ page and
                 # on the PDF receipt).
-                # `autocreate_account_and_website` already fired on the
-                # ClientProfile post_save above, so the primary Website
-                # exists by now.
                 from clients.website_helpers import primary_website
                 invoice = OnboardingInvoice.objects.create(
                     client=profile,
@@ -6531,6 +6541,11 @@ def send_onboarding(request):
                     maintenance_active=False,
                     internal_notes=notes,
                 )
+
+                # Confirm the autocreate signal actually produced the
+                # Account before hanging an invoice + token off this client.
+                from clients.account_setup import ensure_account
+                ensure_account(profile)
 
                 # Zero-amount paid invoice so the downstream gate
                 # treats this client identically to a paid client.

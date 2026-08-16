@@ -18,6 +18,11 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .account_models import Account, Website, _slugify_unique
+from .account_setup import (
+    ACCOUNT_LEVEL_FIELDS,
+    account_name_for,
+    account_onboarding_status_for,
+)
 from .models import ClientProfile
 
 logger = logging.getLogger(__name__)
@@ -27,18 +32,12 @@ logger = logging.getLogger(__name__)
 # update during the Phase-D transition, so Account stays the live source
 # of truth even while some legacy code still writes the CP. One-way only
 # (Account.save never re-saves the CP), so there's no signal loop.
-_ACCOUNT_SYNC_FIELDS = [
-    'contact_name', 'phone', 'address', 'city', 'state', 'zip_code',
-    'status', 'is_tester', 'internal_notes', 'stripe_customer_id',
-    'preferred_contact_method', 'notify_on_stage_change',
-    'onboarding_complete',
-    'client_pin_hash', 'client_pin_salt', 'client_pin_set',
-    'client_pin_failed_attempts', 'client_pin_lockout_until',
-    'moonieful_client_id', 'synced_from_moonieful', 'last_synced_at',
-    'sync_conflict_flagged',
-    'comp_build_package', 'comp_maintenance_package', 'comp_social_tier',
-    'comp_notes',
-]
+#
+# Defined once in clients.account_setup — this list used to be copy-pasted
+# here, into both backfill commands, and into the parity validator. A field
+# added to one copy and missed in another reads as permanent drift the
+# audit can never clear.
+_ACCOUNT_SYNC_FIELDS = ACCOUNT_LEVEL_FIELDS
 
 
 def _sync_account_fields(cp):
@@ -55,9 +54,9 @@ def _sync_account_fields(cp):
                 and getattr(acc, f) != getattr(cp, f)):
             setattr(acc, f, getattr(cp, f))
             changed.append(f)
-    firm = getattr(cp, 'firm_name', '') or ''
-    if firm and acc.name != firm:
-        acc.name = firm
+    expected_name = account_name_for(cp)
+    if expected_name and acc.name != expected_name:
+        acc.name = expected_name
         changed.append('name')
     if changed:
         try:
@@ -86,6 +85,13 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
     so the `refactor_to_accounts` backfill can opt out by setting
     ``instance._skip_autocreate = True`` before save().
     """
+    # `raw=True` means a fixture is being loaded (loaddata / a restored
+    # snapshot). The fixture already contains the Account and Website rows,
+    # so running this would try to create a second Account for a user who
+    # is about to get theirs from the fixture — and Account.user is a
+    # OneToOne. Business logic must not fire while data is being restored.
+    if kwargs.get('raw'):
+        return
     if getattr(instance, '_skip_autocreate', False):
         return
     if not created:
@@ -115,7 +121,8 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
                     instance.preferred_contact_method or 'email'),
                 'notify_on_stage_change': bool(
                     instance.notify_on_stage_change),
-                'onboarding_status': 'pending_setup',
+                'onboarding_status': account_onboarding_status_for(
+                    instance),
                 'onboarding_complete': bool(instance.onboarding_complete),
                 'moonieful_client_id': instance.moonieful_client_id,
                 'synced_from_moonieful': bool(

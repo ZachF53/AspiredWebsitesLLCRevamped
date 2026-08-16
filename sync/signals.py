@@ -37,6 +37,8 @@ def _stash_old_stage(sender, instance, **kwargs):
 @receiver(post_save, sender=ClientProfile)
 def _queue_stage_change(sender, instance, created, **kwargs):
     """Queue an outbound SyncJob when a client's stage changes."""
+    if kwargs.get('raw'):
+        return  # fixture load — never push restored data at Moonieful
     if getattr(instance, '_from_sync', False):
         return  # change came from inbound sync — do not echo it back
     if created:

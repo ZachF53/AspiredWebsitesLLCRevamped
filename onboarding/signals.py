@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender='vault.VaultCredential')
 def auto_complete_matching_todo(sender, instance, created, **kwargs):
+    if kwargs.get('raw'):
+        return  # fixture load — don't complete todos from restored rows
     if not instance.credential_type or instance.credential_type == 'other':
         return
     try:

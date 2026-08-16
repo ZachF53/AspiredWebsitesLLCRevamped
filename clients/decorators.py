@@ -15,12 +15,20 @@ from .portal_resolvers import (
 
 def client_required(view_func):
     """
-    Gate a portal view: the user must be authenticated AND have a
-    ClientProfile. Anyone else is bounced to /login/ with a ?next= back here.
+    Gate a portal view: the user must be authenticated AND be a client —
+    which since cutover Wave 1 means holding an Account, a ClientProfile,
+    or both. Anyone else is bounced to /login/ with a ?next= back here.
+
+    Requiring a ClientProfile was correct only while every client had one.
+    Account is the canonical owner now, so a user with an Account and no
+    legacy profile is a client; rejecting them sent a legitimate customer
+    into a login loop with no error to explain it.
 
     On success the following are attached to the request:
 
-      request.client_profile  — legacy single profile (unchanged).
+      request.client_profile  — legacy single profile, or None once a
+                                client exists only as an Account. Views
+                                that still read it must tolerate None.
       request.account         — Account (Phase C resolver, derived
                                 from the profile during the transition).
       request.website         — Website the request is scoped to, or
@@ -55,14 +63,19 @@ def client_required(view_func):
         # not full portal access, so bounce it to a real login.
         if request.session.get('maintenance_flow_only'):
             return redirect_to_login(request.get_full_path())
+        # ── Wave 1 — Account is the gate ──
+        # Portal access is an account-level fact, so the Account decides
+        # admission and the legacy profile is only carried along for the
+        # views that still read it. A user with an Account but no profile
+        # (the shape every post-cutover signup will have) is let in; before
+        # this change they were bounced to the login page in a loop.
+        account = resolve_account_for_user(request.user)
         profile = ClientProfile.objects.filter(user=request.user).first()
-        if profile is None:
+        if account is None and profile is None:
             return redirect_to_login(request.get_full_path())
-        request.client_profile = profile
 
-        # ── Phase C — resolve Account + Website ──
-        # Account: 1:1 with User (after Phase B backfill).
-        request.account = resolve_account_for_user(request.user)
+        request.account = account
+        request.client_profile = profile
         # Website: from URL kwarg (when mounted under /portal/site/<slug>/),
         # else session, else the account's sole website if exactly one.
         # Per-website views consume `request.website`; account-wide views
@@ -72,8 +85,21 @@ def client_required(view_func):
         request.website = resolve_website(
             request, request.account, slug_from_url=slug_kwarg)
 
-        # Onboarding gate.
-        status = getattr(profile, 'onboarding_status', 'onboarding_complete')
+        # ── Onboarding gate ──
+        # Still driven by the legacy profile on purpose. The canonical
+        # split — account setup on Account, intake on Website — is Wave 2,
+        # and Account.onboarding_status is not yet trustworthy on rows the
+        # autocreate signal wrote before it recorded the real state. When
+        # there is no legacy profile at all, fall back to the Account,
+        # which is correct for anything created after this cutover.
+        if profile is not None:
+            status = getattr(
+                profile, 'onboarding_status', 'onboarding_complete')
+        elif account is not None and account.onboarding_status == (
+                'pending_setup'):
+            status = 'pending_setup'
+        else:
+            status = 'onboarding_complete'
 
         if status == 'pending_setup':
             # Shouldn't happen — the user shouldn't have a password until

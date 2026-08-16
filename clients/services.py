@@ -34,13 +34,16 @@ class GuardError(Exception):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def change_client_stage(profile, new_stage, *, set_by='AI assistant',
-                        note=''):
+                        note='', payment_verified=False):
     """Move the client's project to a new stage, log it, notify them.
 
     Guards:
       - Refuses an unknown stage (ValueError).
       - Refuses 'live' unless payment_status == 'fully_paid' (GuardError) —
         CLAUDE.md "Site ownership" + "Payment before work starts" rules.
+      - Refuses 'live' when that fully_paid claim has no ledger evidence
+        behind it, unless the caller passes payment_verified=True to
+        record that a human checked. See clients.payment_evidence.
 
     Returns:
       (ProjectStageLog, notified: bool) — notified is False if the
@@ -59,6 +62,20 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
             f'Cannot move {profile.firm_name} to "live" — final payment '
             f'has not cleared yet (payment_status='
             f'{profile.payment_status}).')
+
+    # `fully_paid` is a plain field any screen, webhook, or backfill can
+    # set. Before it releases the launch gate, something in the ledger has
+    # to corroborate it — otherwise we launch on the strength of a flag
+    # nobody checked. Payments taken outside Stripe are legitimate; they
+    # just have to be acknowledged deliberately via payment_verified.
+    if new_stage == 'live' and not payment_verified:
+        from clients.payment_evidence import (
+            is_fully_paid_without_evidence, unverified_payment_message)
+        from clients.website_helpers import primary_website
+
+        website = primary_website(profile)
+        if website is not None and is_fully_paid_without_evidence(website):
+            raise GuardError(unverified_payment_message(website))
 
     from_stage = profile.stage
     if from_stage == new_stage:
@@ -181,15 +198,20 @@ def add_revision(profile, description, *, is_major=True, source='ai_assistant'):
 # Mark live (final payment + launch)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def mark_live(profile, *, set_by='AI assistant'):
+def mark_live(profile, *, set_by='AI assistant', payment_verified=False):
     """Move the project to 'live'. Hard-gated on `payment_status ==
     'fully_paid'` — never mark live without final payment clearing.
+
+    `payment_verified=True` records that an operator confirmed a payment
+    the ledger cannot show (cheque, Zelle, bank transfer). It does not
+    fabricate a PaymentRecord; it only states that a human looked.
 
     Returns whatever change_client_stage returns.
     """
     return change_client_stage(
         profile, 'live',
-        set_by=set_by, note='Launched')
+        set_by=set_by, note='Launched',
+        payment_verified=payment_verified)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

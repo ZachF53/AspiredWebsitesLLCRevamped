@@ -16,22 +16,15 @@ Idempotent + dry-run by default. Run with --apply to write.
 
 from django.core.management.base import BaseCommand
 
+from clients.account_setup import ACCOUNT_LEVEL_FIELDS, account_name_for
+
 
 # Account-level fields that live on BOTH ClientProfile and Account.
 # (Per-build fields — stage, payment, revisions, etc. — are NOT here;
 # those belong to Website and were migrated separately.)
-ACCOUNT_FIELDS = [
-    'contact_name', 'phone', 'address', 'city', 'state', 'zip_code',
-    'status', 'is_tester', 'internal_notes', 'stripe_customer_id',
-    'preferred_contact_method', 'notify_on_stage_change',
-    'onboarding_complete',
-    'client_pin_hash', 'client_pin_salt', 'client_pin_set',
-    'client_pin_failed_attempts', 'client_pin_lockout_until',
-    'moonieful_client_id', 'synced_from_moonieful', 'last_synced_at',
-    'sync_conflict_flagged',
-    'comp_build_package', 'comp_maintenance_package', 'comp_social_tier',
-    'comp_notes',
-]
+# Single definition in clients.account_setup so this command, the
+# autocreate signal, and the parity validator cannot drift apart.
+ACCOUNT_FIELDS = ACCOUNT_LEVEL_FIELDS
 
 
 class Command(BaseCommand):
@@ -67,9 +60,9 @@ class Command(BaseCommand):
                     setattr(acc, f, cp_val)
                     changed.append(f)
             # Account.name mirrors the business/firm name.
-            firm = getattr(cp, 'firm_name', '') or ''
-            if firm and acc.name != firm:
-                acc.name = firm
+            expected_name = account_name_for(cp)
+            if expected_name and acc.name != expected_name:
+                acc.name = expected_name
                 changed.append('name')
             if changed:
                 total_changes += len(changed)

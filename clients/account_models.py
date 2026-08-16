@@ -184,6 +184,23 @@ class Account(TimestampedModel):
     comp_social_tier = models.CharField(max_length=30, blank=True)
     comp_notes = models.TextField(blank=True)
 
+    # ── Multi-website migration review ──
+    # An Account with more than one Website cannot have its legacy,
+    # client-level rows allocated by any automatic rule — the cutover
+    # contract forbids silently attaching them to the oldest Website. These
+    # two record that a human produced an explicit mapping and when. The
+    # parity audit warns until it is set, and warns again if a Website is
+    # added after the review (the mapping is then stale).
+    multi_website_reviewed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=('When an operator signed off the explicit legacy-row → '
+                   'Website mapping for this multi-website account.'),
+    )
+    multi_website_review_note = models.TextField(
+        blank=True,
+        help_text='What the mapping decided, and who decided it.',
+    )
+
     # ── Legacy ClientProfile reference — kept during Phase B/C so
     # the backfill is reversible. Dropped in Phase D.
     legacy_client_profile = models.OneToOneField(
@@ -328,6 +345,31 @@ class Website(TimestampedModel):
     )
     deposit_paid_at = models.DateTimeField(null=True, blank=True)
     final_paid_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Operator attestation that payment cleared outside the ledger ──
+    # Not every payment arrives through Stripe. A cheque, a bank transfer
+    # or Zelle leaves no PaymentRecord, no invoice and no timestamp, so
+    # `payment_status = 'fully_paid'` on such a build looks unsupported
+    # forever and the launch gate keeps challenging it.
+    #
+    # The fix is to record that a human checked — never to fabricate the
+    # transaction. Writing a PaymentRecord that no money movement backs
+    # would corrupt the billing ledger and every revenue figure drawn
+    # from it. These three fields say who confirmed it and when, which is
+    # auditable in a way an invented receipt is not.
+    payment_verified_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=('When an operator confirmed payment that the ledger '
+                   'cannot show (e.g. paid outside Stripe).'),
+    )
+    payment_verified_by = models.CharField(
+        max_length=120, blank=True,
+        help_text='Who confirmed it.',
+    )
+    payment_verification_note = models.TextField(
+        blank=True,
+        help_text='How the payment was made and how it was confirmed.',
+    )
 
     # ── Revisions (per-build, resettable) ──
     revision_count = models.PositiveIntegerField(default=0)
