@@ -34,10 +34,13 @@ def calculate_all_health_scores():
     Recalculate health for every active non-tester client. Returns the
     count of scores written (handy for monitoring the cron run).
     """
+    from clients.canonical_iteration import profiles_with_coverage_report
     from clients.health import calculate_client_health
-    from clients.models import ClientProfile
 
-    qs = ClientProfile.objects.filter(
+    # Reports any Account with no legacy profile instead of skipping it
+    # silently — see clients/canonical_iteration.py.
+    qs = profiles_with_coverage_report(
+        'calculate_all_health_scores',
         status='active',
         is_tester=False,
     )
@@ -271,11 +274,11 @@ def run_monthly_intelligence():
     client on the 15th of the month. Staggers calls 30 seconds apart
     so a busy month doesn't bunch-up against the Anthropic rate limit.
     """
-    from clients.models import ClientProfile
+    from clients.canonical_iteration import profiles_with_coverage_report
 
     clients = list(
-        ClientProfile.objects
-        .filter(status='active', is_tester=False)
+        profiles_with_coverage_report(
+            'run_monthly_intelligence', status='active', is_tester=False)
         .order_by('firm_name')
     )
     for i, client in enumerate(clients):
@@ -566,12 +569,12 @@ def run_monthly_competitor_gaps():
     bandwidth-bound, not API-bound, and we want to be polite to
     competitor sites.
     """
-    from clients.models import ClientProfile
+    from clients.canonical_iteration import profiles_with_coverage_report
 
     clients = list(
-        ClientProfile.objects
-        .filter(status='active', is_tester=False,
-                competitors__isnull=False)
+        profiles_with_coverage_report(
+            'run_monthly_competitor_gaps', status='active', is_tester=False,
+            competitors__isnull=False)
         .distinct()
         .order_by('firm_name')
     )
@@ -596,9 +599,11 @@ def check_annual_report_schedule():
 
     from clients.models import AnnualReport, ClientProfile
 
+    from clients.canonical_iteration import profiles_with_coverage_report
+
     today = date.today()
-    active = ClientProfile.objects.filter(
-        status='active', is_tester=False)
+    active = profiles_with_coverage_report(
+        'check_annual_report_schedule', status='active', is_tester=False)
 
     queued = 0
     for client in active:
