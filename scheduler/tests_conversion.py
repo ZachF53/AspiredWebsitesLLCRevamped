@@ -10,8 +10,11 @@ From the fresh-buyer review (`BRAND_REMEDIATION_HANDOFF.md`, P3 and P10):
     like a broken page;
   * recurring-plan cross-sells were shown before the prospect had had a
     first conversation;
-  * pre-sale copy called the meeting a "kickoff", which is post-sale
-    language.
+  * pre-sale copy called the meeting a "kickoff". That word is load
+    bearing elsewhere: the refund policy makes the deposit refundable
+    "until the kickoff call happens", meaning the post-payment project
+    start. The sales call is now the Strategy Call so the two cannot be
+    confused.
 """
 
 from django.test import TestCase, override_settings
@@ -91,15 +94,12 @@ class SchedulerConversionCopyTests(TestCase):
                 self.assertNotIn('addon-fieldset', html)
 
     def test_the_canonical_call_name_is_used(self):
-        """SUPERSEDED 2026-08-17. This previously asserted that "kickoff"
-        never appeared pre-sale, following the handoff's advice to reserve
-        it for paying customers. The owner has since named the sales call
-        the Kickoff Call, which is their decision to make; the test now
-        holds the canonical name instead of forbidding it.
+        """The sales call has one name everywhere: the Strategy Call.
 
-        The collision this creates with the refund policy's "until the
-        kickoff call happens" clause is recorded in
-        docs/brand_fact_matrix.md and is an owner/legal decision.
+        "Kickoff Call" was tried and withdrawn — the refund policy makes
+        the deposit refundable "until the kickoff call happens", meaning
+        the post-payment project start, so reusing the words for a free
+        pre-sale call implied the deposit was never refundable.
         """
         from core.site_facts import CALL_NAME
 
@@ -107,3 +107,13 @@ class SchedulerConversionCopyTests(TestCase):
             with self.subTest(path=path):
                 html = self.client.get(path).content.decode()
                 self.assertIn(CALL_NAME, html)
+
+    def test_kickoff_is_not_reused_for_the_sales_call(self):
+        """The refund policy's deposit window turns on "until the kickoff
+        call happens". If the free pre-sale call shared that name, the
+        clause would read as though the deposit is never refundable —
+        the kickoff would already have happened before payment."""
+        for path in self.PATHS:
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode().lower()
+                self.assertNotIn('kickoff call', html)

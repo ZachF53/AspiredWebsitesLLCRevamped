@@ -112,7 +112,7 @@ def send_schedule_confirmation_to_customer(call):
     text_body = (
         f"You're booked, {context['first_name']}.\n\n"
         f"When: {when_str}\n"
-        f"30-minute kickoff call · phone\n\n"
+        f"30-minute strategy call · phone\n\n"
         f"I'll call {context['phone'] or 'the number on file'} at that "
         f"time. If anything changes, just reply to this email and "
         f"we'll re-pick.\n\n"
@@ -185,10 +185,10 @@ def send_schedule_notification_to_admin(call):
         'inquiry': call.notes or '',
         'when_str': when_str,
         'lead_url': lead_url,
-        'preheader': f'New kickoff call · {when_str}',
+        'preheader': f'New strategy call · {when_str}',
     }
     text_body = (
-        f"New kickoff call booked.\n\n"
+        f"New strategy call booked.\n\n"
         f"When: {when_str}\n"
         f"Name: {call.customer_name or '—'}\n"
         f"Email: {call.customer_email or '—'}\n"
@@ -201,7 +201,7 @@ def send_schedule_notification_to_admin(call):
         f"Lead: {lead_url or '(no lead linked)'}\n"
     )
 
-    subject = (f'New kickoff call booked — {call.customer_name or "?"} '
+    subject = (f'New strategy call booked — {call.customer_name or "?"} '
                f'@ {when_str}')
 
     try:

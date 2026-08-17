@@ -16,7 +16,7 @@ Allowed statuses:
 | Atlanta, San Antonio, and nationwide are service areas, not all physical offices | APPROVED | Owner 2026-08-16: US-wide is accurate; the approved statement names no city but Georgia | IMPLEMENTED: removed the "Based in San Antonio and Atlanta" claims from About and two meta descriptions. Location pages already present both as service markets served from Georgia, not offices |
 | Legal registration name and mailing address | PENDING | Must be reconciled across footer, policies, invoices, contracts, and business records | Provide the exact legal entity name and public/legal mailing address |
 | Governing law and venue | APPROVED | Owner decision 2026-08-16: **Georgia**. Corroborated by both contract templates, which already said State of Georgia (§8, §12) | IMPLEMENTED: Terms switched from Texas/San Antonio to Georgia; refund page venue generalised to the State of Georgia. Outstanding: the specific **county** for venue (refund page had said Fulton; the operating base is elsewhere in Georgia) |
-| Canonical sales call | APPROVED | Owner 2026-08-17: **free, 30 minutes, called the "Kickoff Call"**, everything routes to `/design/schedule/` | IMPLEMENTED via `core.site_facts.CALL_*`. 29 booking CTAs repointed from `/contact/` to the scheduler; labels normalised; a 15-minute claim on the pricing page corrected. **See the kickoff collision note below.** |
+| Canonical sales call | APPROVED | Owner 2026-08-17: **free, 30 minutes**, everything routes to `/design/schedule/`. Named the **Strategy Call** — "Kickoff Call" was tried and withdrawn because it collided with a refund term (see below) | IMPLEMENTED via `core.site_facts.CALL_*`. 29 booking CTAs repointed from `/contact/` to the scheduler; labels, confirmation emails and the Google Calendar event title all normalised; a 15-minute claim on the pricing page corrected |
 | Typical delivery range | APPROVED | Owner 2026-08-17: **3 weeks Essential, 4 weeks Premium** — which is what `seed_pricing` already wrote to `ServiceTier.timeline_weeks`; the "about six weeks" copy was the outlier | IMPLEMENTED: all six-week claims removed across 10 templates and the proposal template |
 | Refund or guarantee policy | APPROVED | Owner decision 2026-08-16: **keep and advertise** the 30-day money-back guarantee. The contract already grants it: full refund of the build fee within 30 days of signing (§7/§10) | IMPLEMENTED: pricing badge retained; Terms and refund policy restated to match the contract, with the guarantee taking precedence over milestone treatment inside the 30-day window |
 | Recurring-service cancellation | PENDING | Business rules say month-to-month and also require 30 days' notice | Confirm effective cancellation timing and charges during the notice period |
@@ -31,26 +31,31 @@ Allowed statuses:
 | Founder portrait may be published | APPROVED | Owner supplied the asset and approved it 2026-08-16 | IMPLEMENTED: optimised to `core/static/images/founder-zachery-long.jpg` (400x500, 27KB) and placed in the About bio card, replacing the "ZL" initials placeholder. Carries alt text and is not aria-hidden |
 | Client result metrics may be published | PENDING | No blanket permission documented | Require evidence window and client approval per metric, not one global approval |
 
-## Kickoff collision — needs an owner decision
+## Kickoff collision — RESOLVED 2026-08-17
 
-Naming the pre-sale call the **Kickoff Call** collides with an existing
-refund term. `core/templates/core/refund_policy.html` says the deposit is:
+`core/templates/core/refund_policy.html` makes the deposit:
 
 > Refundable in full for 7 days from payment, OR until the kickoff call
 > happens, whichever comes first.
 
-That clause plainly means the post-payment project start. If "Kickoff
-Call" now also names the free sales call — which happens *before* anyone
-pays — the clause reads as though the deposit is never refundable, because
-the kickoff already happened.
+That clause means the post-payment project start. Naming the free pre-sale
+call the "Kickoff Call" would have made it read as though the deposit is
+never refundable, because that call happens before anyone pays.
 
-The refund text was **not** changed. Engineering can find the
-contradiction; it cannot pick the governing bargain. Options:
+Resolved by renaming the **sales** call rather than touching the refund
+term — a sales label is not worth muddying a refund clause, and changing
+the clause is a legal decision rather than a copy edit.
 
-1. Rename the post-sale event in the refund policy (e.g. "project start"),
-   leaving the refund window itself untouched.
-2. Rename the pre-sale call to something else.
-3. Confirm the current wording is acceptable as-is.
+The sales call is the **Strategy Call**. That was already the site's own
+dominant wording (24 of ~38 booking CTAs said it before normalisation), so
+it is the established term rather than a new coinage, and it tells the
+prospect what they get rather than what we want.
+
+"Kickoff" now means exactly one thing everywhere: the post-payment project
+start. It correctly remains in the refund policy, the Week 1 build step on
+the web-design page, the in-person build visit on the Atlanta page, and the
+proposal's "from kickoff to launch". A test asserts it never appears on a
+pre-sale scheduler page.
 
 ## Implementation notes (2026-08-16)
 

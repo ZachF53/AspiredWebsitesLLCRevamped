@@ -88,7 +88,7 @@ def push_event_for_call(call):
         return None
 
     body = {
-        'summary': f'Kickoff call — {call.customer_name or "(no name)"}',
+        'summary': f'Strategy call — {call.customer_name or "(no name)"}',
         'description': (
             f'Customer: {call.customer_name or ""}\n'
             f'Email: {call.customer_email or ""}\n\n'

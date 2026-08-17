@@ -64,11 +64,23 @@ DELIVERY_QUALIFIER = 'after kickoff, depending on scope and content readiness'
 # Call" and "Start Your Project", and roughly thirty Book/Schedule
 # buttons pointed at the contact form rather than the calendar — so a
 # visitor who wanted to pick a time landed on a message form instead.
-CALL_NAME = 'Kickoff Call'
+#
+# "Kickoff Call" was tried first and withdrawn: the refund policy makes
+# the deposit refundable "until the kickoff call happens", meaning the
+# post-payment project start. Using the same words for a free pre-sale
+# call would have read as though the deposit is never refundable, because
+# that call happens before anyone pays. A sales label is not worth
+# muddying a refund term.
+#
+# "Strategy Call" was already the site's own dominant wording — 24 of the
+# ~38 booking CTAs said it — so it is the established term rather than a
+# new coinage, it keeps "kickoff" free for the post-payment event, and it
+# tells the prospect what they get rather than what we want.
+CALL_NAME = 'Strategy Call'
 CALL_DURATION_MINUTES = 30
 CALL_IS_FREE = True
-CALL_CTA = 'Book a Free 30-Minute Kickoff Call'
-CALL_CTA_SHORT = 'Book a Kickoff Call'
+CALL_CTA = 'Book a Free 30-Minute Strategy Call'
+CALL_CTA_SHORT = 'Book a Strategy Call'
 # Every booking CTA resolves here. Named rather than hardcoded so the
 # canonical scheduler can move without another thirty-link sweep.
 CALL_URL_NAME = 'scheduler:design_schedule'
