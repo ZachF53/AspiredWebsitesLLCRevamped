@@ -13,12 +13,19 @@ Pricing itself stays database-authoritative: these views edit ServiceTier
 and TierFeature rows, they do not encode prices. See CLAUDE.md.
 """
 
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .decorators import admin_required
+from .context import (  # noqa: F401
+    _active_proposals_count,
+    _admin_context,
+    _critical_health_count,
+    _high_priority_gaps_count,
+    _intel_pending_count,
+)
 from .forms import ServiceTierForm
 
 

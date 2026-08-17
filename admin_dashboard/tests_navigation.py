@@ -158,3 +158,35 @@ class ViewModuleSplitTests(TestCase):
                        'admin_dashboard.views_onboarding_questions'):
             with self.subTest(module=module):
                 self.assertIsNotNone(importlib.import_module(module))
+
+    def test_no_extracted_module_has_an_undefined_name(self):
+        """The first extraction pass moved views that referenced
+        `_admin_context` without importing it. `manage.py check` passed —
+        a NameError inside a view body only fires when the view runs — so
+        the breakage surfaced as failing tests rather than a startup
+        error. pyflakes catches the whole class statically.
+        """
+        import glob
+        import subprocess
+        import sys
+
+        targets = sorted(
+            glob.glob('admin_dashboard/views*.py')
+            + ['admin_dashboard/context.py'])
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'pyflakes', *targets],
+                capture_output=True, text=True, timeout=120)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            self.skipTest('pyflakes not available')
+        if 'No module named' in result.stderr:
+            self.skipTest('pyflakes not installed')
+
+        undefined = [
+            line for line in result.stdout.splitlines()
+            if 'undefined name' in line
+        ]
+        self.assertEqual(undefined, [], (
+            'Extracted view modules reference names they do not import. '
+            'Import them from admin_dashboard.context (never from views.py '
+            '— that is a circular import).'))
