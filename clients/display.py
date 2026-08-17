@@ -27,7 +27,13 @@ def owner_label(row):
     then the legacy profile. Returns a placeholder rather than raising or
     returning None, because every caller is building a display string and
     a crash there is worse than a vague label.
+
+    ``row`` may also BE a Website or an Account -- several sweeps iterate
+    those and label them directly -- in which case it names itself.
     """
+    if _is_instance(row, 'Website') or _is_instance(row, 'Account'):
+        return getattr(row, 'name', '') or UNASSIGNED
+
     for attr in ('website_new', 'website'):
         site = _relation(row, attr)
         if site is not None:
@@ -58,7 +64,19 @@ def owner_account(row):
     Resolves through the site when the row is site-scoped, because most
     rows carry only ``website_new`` -- and the person to email, the
     billing relationship and the contact name are all account-level.
+
+    ``row`` may also BE an Account or a Website rather than something
+    owned by one. That case is not hypothetical: the onboarding reminder
+    sweeps iterate Accounts and Websites directly and hand them straight
+    to :func:`owner_recipient`. Without this branch every one of those
+    resolved to no owner, returned an empty address, and the reminder was
+    skipped -- for a client who had paid and was waiting to be let in.
     """
+    if _is_instance(row, 'Account'):
+        return row
+    if _is_instance(row, 'Website'):
+        return _safe(row, 'account')
+
     for attr in ('account_new', 'account'):
         account = _relation(row, attr)
         if account is not None:
@@ -109,6 +127,22 @@ def owner_recipient(row):
         return email, name
 
     return '', ''
+
+
+def _is_instance(row, model_name):
+    """True when ``row`` is an instance of ``clients.<model_name>``.
+
+    Imported lazily and guarded: this module is reached from model
+    ``__str__`` methods, which run during app loading and during error
+    handling, so it must never be the thing that raises.
+    """
+    try:
+        from clients import account_models
+
+        model = getattr(account_models, model_name, None)
+        return model is not None and isinstance(row, model)
+    except Exception:  # noqa: BLE001 -- registry not ready
+        return False
 
 
 def _relation(row, attr):

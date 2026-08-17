@@ -217,3 +217,76 @@ class EmailDisplayNameTests(SimpleTestCase):
 
         self.assertEqual(_display_name(_Bare()), '')
         self.assertEqual(_first_name(_Bare()), 'there')
+
+
+class RealInstancePassedDirectlyTests(TestCase):
+    """The resolvers are handed an Account or a Website *itself*, not a
+    row owned by one — the onboarding sweeps iterate those and pass them
+    straight in.
+
+    This gap survived every synthetic test above, because those build
+    stand-in rows and never a real Account. It was found on staging:
+    `owner_recipient(account)` returned ('', '') for an account whose user
+    had a perfectly good email, which would have silently skipped every
+    onboarding reminder for a client who had already paid.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+
+        from clients.models import ClientProfile
+
+        user = get_user_model().objects.create_user(
+            username='direct', password='x', email='direct@example.com')
+        self.profile = ClientProfile.objects.create(
+            user=user, firm_name='Direct Co', contact_name='Dana Direct')
+        self.account = self.profile.migrated_account
+        self.site = self.account.websites.first()
+
+    def test_an_account_names_itself(self):
+        from clients.display import owner_label
+
+        self.assertEqual(owner_label(self.account), 'Direct Co')
+
+    def test_a_website_names_itself(self):
+        from clients.display import owner_label
+
+        self.assertEqual(owner_label(self.site), self.site.name)
+
+    def test_an_account_resolves_its_own_recipient(self):
+        from clients.display import owner_recipient
+
+        email, name = owner_recipient(self.account)
+        self.assertEqual(email, 'direct@example.com')
+        self.assertEqual(name, 'Dana Direct')
+
+    def test_a_website_resolves_through_its_account(self):
+        from clients.display import owner_recipient
+
+        email, name = owner_recipient(self.site)
+        self.assertEqual(email, 'direct@example.com')
+        self.assertEqual(name, 'Dana Direct')
+
+    def test_owner_account_of_an_account_is_itself(self):
+        from clients.display import owner_account
+
+        self.assertEqual(owner_account(self.account), self.account)
+
+    def test_owner_account_of_a_website_is_its_account(self):
+        from clients.display import owner_account
+
+        self.assertEqual(owner_account(self.site), self.account)
+
+    def test_the_onboarding_helpers_resolve_a_real_account(self):
+        """The two that were actually broken."""
+        from clients.tasks import _recipient_email, _setup_first_name
+
+        self.assertEqual(
+            _recipient_email(self.account), 'direct@example.com')
+        self.assertEqual(_setup_first_name(self.account), 'Dana')
+
+    def test_the_onboarding_helpers_resolve_a_real_website(self):
+        from clients.tasks import _recipient_email, _setup_first_name
+
+        self.assertEqual(_recipient_email(self.site), 'direct@example.com')
+        self.assertEqual(_setup_first_name(self.site), 'Dana')
