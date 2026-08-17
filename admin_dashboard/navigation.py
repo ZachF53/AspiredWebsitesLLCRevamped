@@ -120,6 +120,7 @@ NAVIGATION = (
 
     # Running the business itself.
     NavGroup('System', (
+        NavItem('Data Health', 'admin_dashboard:data_health'),
         NavItem('Alerts', 'admin_dashboard:system_alerts'),
         NavItem('Security Scans', 'admin_dashboard:scans_list'),
         NavItem('Vault', 'vault:home'),

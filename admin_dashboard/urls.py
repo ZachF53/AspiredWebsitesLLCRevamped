@@ -482,6 +482,13 @@ urlpatterns = [
     path('ai-assistant/execute/', views.ai_assistant_execute,
          name='ai_assistant_execute'),
 
+    # Data Health — parity, payment evidence, sync health and cutover
+    # progress in one read-only page, so none of it needs an SSH session.
+    path('data-health/',
+         __import__('admin_dashboard.data_health_views',
+                    fromlist=['data_health']).data_health,
+         name='data_health'),
+
     # System Alerts — X3 error visibility
     path('alerts/',
          __import__('core.system_alerts_views',

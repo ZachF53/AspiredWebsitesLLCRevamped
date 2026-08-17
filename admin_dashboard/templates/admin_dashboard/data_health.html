@@ -1,0 +1,161 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Data Health — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations</span>
+            <h1 class="admin-page-title">Data Health</h1>
+            <p class="admin-page-sub">
+                Checks that otherwise only exist as commands on the server:
+                the Account/Website parity gate, payments with no ledger
+                evidence, Moonieful sync failures, and how far the cutover
+                has left to run.
+            </p>
+        </div>
+    </div>
+
+    {% if problems %}
+        <div class="callout callout--warning" role="status">
+            <p><strong>{{ problems }}</strong> item{{ problems|pluralize }} need{{ problems|pluralize:"s," }} attention.</p>
+        </div>
+    {% else %}
+        <div class="callout" role="status">
+            <p><strong>Everything is clean.</strong> No parity findings, no unverified payments, no sync failures, no open alerts.</p>
+        </div>
+    {% endif %}
+
+    {% comment %}
+    Parity — the gate that must pass before legacy tables can be dropped.
+    Operational items are listed separately because they do not block the
+    migration; they block the affected site from launching.
+    {% endcomment %}
+    <section class="admin-section">
+        <h2>Account / Website parity</h2>
+        <p class="admin-page-sub">
+            {{ parity.counts.legacy_client_profiles }} legacy profiles ·
+            {{ parity.counts.legacy_projects }} legacy projects ·
+            {{ parity.counts.accounts }} accounts ·
+            {{ parity.counts.websites }} websites
+        </p>
+
+        {% if parity.clean %}
+            <p>No findings. Errors {{ parity.errors }}, warnings {{ parity.warnings }}, operational {{ parity.operational }}.</p>
+        {% else %}
+            <table class="admin-table">
+                <thead>
+                    <tr><th>Severity</th><th>Finding</th><th>Count</th><th>Examples</th></tr>
+                </thead>
+                <tbody>
+                    {% for finding in parity.findings %}
+                        <tr>
+                            <td>{{ finding.severity|upper }}</td>
+                            <td><code>{{ finding.code }}</code></td>
+                            <td>{{ finding.count }}</td>
+                            <td>
+                                {% for example in finding.examples %}
+                                    <div><small>{{ example }}</small></div>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Payment evidence</h2>
+        <p class="admin-page-sub">
+            Sites marked <code>fully_paid</code>. That flag releases the
+            launch gate, so a site carrying it with nothing in the ledger
+            behind it needs a person to confirm the money actually arrived.
+        </p>
+        {% if payments.unverified_count %}
+            <p><strong>{{ payments.unverified_count }}</strong> unverified · {{ payments.verified_count }} verified.</p>
+            <table class="admin-table">
+                <thead><tr><th>Website</th><th>Account</th><th>Stage</th></tr></thead>
+                <tbody>
+                    {% for site in payments.unverified %}
+                        <tr>
+                            <td>{{ site.name }}</td>
+                            <td>{{ site.account.name }}</td>
+                            <td>{{ site.get_stage_display }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p><small>
+                Record a confirmation with
+                <code>manage.py verify_website_payment &lt;slug&gt; --by "Your Name" --apply</code>.
+                It never fabricates a PaymentRecord.
+            </small></p>
+        {% else %}
+            <p>All {{ payments.verified_count }} paid site{{ payments.verified_count|pluralize }} have ledger evidence or a recorded confirmation.</p>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Moonieful sync</h2>
+        {% if sync.failed_count or sync.stuck %}
+            <p>
+                <strong>{{ sync.failed_count }}</strong> failed ·
+                {{ sync.pending }} pending ·
+                {{ sync.stuck }} retrying three or more times
+            </p>
+            <table class="admin-table">
+                <thead><tr><th>Event</th><th>Target</th><th>Attempts</th><th>Last error</th></tr></thead>
+                <tbody>
+                    {% for job in sync.failed %}
+                        <tr>
+                            <td>{{ job.event_type }}</td>
+                            <td>{{ job.target }}</td>
+                            <td>{{ job.attempts }}</td>
+                            <td><small>{{ job.last_error|truncatechars:120 }}</small></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No failed jobs. {{ sync.pending }} pending.</p>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Cutover progress</h2>
+        <p class="admin-page-sub">
+            How much of the legacy model is still in play. Legacy tables
+            cannot be dropped while rows would be orphaned.
+        </p>
+        <ul>
+            <li>{{ legacy.accounts }} account{{ legacy.accounts|pluralize }}, of which {{ legacy.accounts_without_profile }} have no legacy profile</li>
+            <li>{{ legacy.legacy_profiles }} legacy profile{{ legacy.legacy_profiles|pluralize }} · {{ legacy.legacy_projects }} legacy project{{ legacy.legacy_projects|pluralize }}</li>
+            <li>
+                {% if legacy.orphan_rows %}
+                    <strong>{{ legacy.orphan_rows }}</strong> row{{ legacy.orphan_rows|pluralize }} would be orphaned by a drop today
+                {% else %}
+                    No rows would be orphaned by a drop
+                {% endif %}
+            </li>
+        </ul>
+    </section>
+
+    <section class="admin-section">
+        <h2>Open system alerts</h2>
+        {% if alerts.unresolved %}
+            <p><strong>{{ alerts.unresolved }}</strong> unresolved. <a href="{% url 'admin_dashboard:system_alerts' %}">See all &rarr;</a></p>
+            <ul>
+                {% for alert in alerts.recent %}
+                    <li><code>{{ alert.source }}</code> &mdash; {{ alert.message|truncatechars:120 }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>None open.</p>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}
