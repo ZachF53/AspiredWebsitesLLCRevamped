@@ -103,9 +103,31 @@ def send_branded(*, subject, template, context, recipient_list,
     msg.send(fail_silently=fail_silently)
 
 
+def _display_name(owner):
+    """Best-effort contact name for an Account, Website or legacy profile.
+
+    `firm_name` exists only on ClientProfile; the canonical models call it
+    `name`. Eleven call sites read `client.contact_name or
+    client.firm_name`, which happens to work on an Account only because
+    `contact_name` short-circuits it -- the moment an account has no
+    contact name, every one of them raises AttributeError while sending a
+    customer-facing email.
+    """
+    from clients.display import owner_label
+
+    contact = (getattr(owner, 'contact_name', '') or '').strip()
+    if contact:
+        return contact
+    label = owner_label(owner)
+    if label and label != '(unassigned)':
+        return label
+    return (getattr(owner, 'name', '')
+            or getattr(owner, 'firm_name', '') or '').strip()
+
+
 def _first_name(client):
     """Best-effort first name for personalising emails."""
-    raw = (client.contact_name or client.firm_name or '').strip()
+    raw = _display_name(client)
     return raw.split(' ')[0] if raw else 'there'
 
 
@@ -253,7 +275,7 @@ def send_maintenance_upsell_email(client, day):
     `day` is purely descriptive — drives subject + lead copy. Today
     supports 30 + 60; add more entries to `_UPSELL_COPY` to extend.
     """
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     first_name = _first_name(client)
     maintenance_url = 'https://aspiredwebsites.com/portal/maintenance/'
 
@@ -274,7 +296,7 @@ def send_maintenance_upsell_email(client, day):
         template='maintenance_upsell',
         context={
             'first_name': first_name,
-            'firm_name': client.firm_name,
+            'firm_name': _display_name(client),
             'name': name,
             'day': day,
             'lead': copy['lead'],
@@ -571,7 +593,7 @@ def send_intake_received_email(client):
 def send_contract_ready_email(contract, sign_url):
     """Email the client their contract signing link (staff-triggered)."""
     client = contract.client
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
         f'Your website build contract with Aspired Websites is ready to sign.\n\n'
@@ -596,7 +618,7 @@ def send_contract_ready_email(contract, sign_url):
 def send_contract_signed_email(contract):
     """Confirm to the client that their contract was signed."""
     client = contract.client
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
         f'Thanks — your website build contract with Aspired Websites is '
@@ -623,7 +645,7 @@ def send_contract_signed_email(contract):
 def send_final_invoice_email(client, contract, pay_url):
     """Email the client the remaining-balance (final 50%) invoice link,
     sent when the build reaches Pre-Launch. Best-effort."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     amount = ''
     try:
         amount = f'${contract.final_amount:,.2f}'
@@ -659,7 +681,7 @@ GMB_MANAGER_EMAIL = 'zacherylong@aspiredwebsites.com'
 def send_gmb_add_manager_email(client):
     """Client HAS a Google Business Profile — email them step-by-step
     instructions to add us as a Manager. Best-effort."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
         f'To let us manage your Google Business Profile (posts, reviews, and '
@@ -692,7 +714,7 @@ def send_gmb_add_manager_email(client):
 def send_gmb_create_email(client):
     """Client has NO Google Business Profile — email them step-by-step
     instructions to create one AND then add us as a Manager. Best-effort."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
         f'Let\'s get your business on Google Search & Maps. First create your '
@@ -732,7 +754,7 @@ def send_gmb_create_email(client):
 
 def send_welcome_email(client):
     """Sent once the deposit clears — client is active, intake unlocked."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     intake_url = 'https://aspiredwebsites.com/portal/intake/'
     login_url = 'https://aspiredwebsites.com/login/'
     text_body = (
@@ -761,7 +783,7 @@ def send_welcome_email(client):
 
 def send_intake_reminder_email(client, day):
     """Day-2 / Day-4 nudge (contract-flow) to finish the intake form."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     intake_url = 'https://aspiredwebsites.com/portal/intake/'
     text_body = (
         f'Hi {name},\n\n'
@@ -786,7 +808,7 @@ def send_intake_reminder_email(client, day):
 
 def send_payment_failed_email(client, day):
     """Payment-failure dunning email (Day 3 / 7 / 14)."""
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     invoices_url = 'https://aspiredwebsites.com/portal/invoices/'
     text_body = (
         f'Hi {name},\n\n'
@@ -816,7 +838,7 @@ def send_maintenance_handoff_email(client, handoff_url, followup_day=None):
     Maintenance handoff email for Moonieful-referred clients. `followup_day`
     is set (3/7/14) for the reminder follow-ups, None for the first send.
     """
-    name = client.contact_name or client.firm_name
+    name = _display_name(client)
     is_followup = bool(followup_day)
     if is_followup:
         subject = 'Reminder: set up your website maintenance plan'

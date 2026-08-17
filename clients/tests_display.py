@@ -15,8 +15,24 @@ from clients.display import UNASSIGNED, owner_label
 
 
 class _Row:
+    """Stand-in for a model row.
+
+    Sets the ``<attr>_id`` shadow Django gives every forward relation,
+    because that shadow is exactly how `owner_label` tells a real FK from
+    a same-named plain field — `ClientProfile.website` is a URL string,
+    not a Website.
+    """
+
+    RELATIONS = ('website_new', 'website', 'account_new', 'account',
+                 'client', 'project')
+
     def __init__(self, **kw):
         self.__dict__.update(kw)
+        for name in self.RELATIONS:
+            if name in kw:
+                value = kw[name]
+                self.__dict__[f'{name}_id'] = (
+                    id(value) if value is not None else None)
 
 
 class _Named:
@@ -64,6 +80,32 @@ class OwnerLabelTests(SimpleTestCase):
     def test_an_empty_name_falls_back_rather_than_rendering_blank(self):
         self.assertEqual(owner_label(_Row(website_new=_Named(''))),
                          UNASSIGNED)
+
+    def test_a_same_named_plain_field_is_not_mistaken_for_a_relation(self):
+        """ClientProfile.website is a URLField holding the live URL, not a
+        Website FK. Reading it as a relation handed back a `str`, and the
+        caller then asked that string for `.name` — which broke every
+        contract-ready email.
+
+        `owner_label` names the OWNER of a row, so a bare profile has no
+        owner and correctly returns the placeholder. What must never
+        happen is a crash, or the URL being passed off as a name.
+        """
+
+        class _LegacyProfile:
+            website = 'https://client.example'   # a URLField, not an FK
+            firm_name = 'Legacy Co'
+
+        label = owner_label(_LegacyProfile())
+        self.assertEqual(label, UNASSIGNED)
+        self.assertNotIn('client.example', label)
+
+    def test_a_row_owned_by_a_profile_with_a_url_still_names_the_client(self):
+        """The shape that actually broke: a Contract whose `client` is a
+        legacy profile carrying a URL in `website`."""
+        row = _Row(client=_Row(firm_name='Legacy Co',
+                               website='https://client.example'))
+        self.assertEqual(owner_label(row), 'Legacy Co')
 
     def test_a_broken_relation_does_not_raise(self):
         class _Exploding:
@@ -130,3 +172,48 @@ class ModelStrWithNullClientTests(TestCase):
 
         row = UptimeRecord.objects.create(is_up=False, status_code=500)
         self.assertEqual(str(row).startswith(UNASSIGNED), True)
+
+
+class EmailDisplayNameTests(SimpleTestCase):
+    """`clients.emails._display_name` is what resolves the name an email
+    is addressed to. It has to work for an Account, a Website and a legacy
+    profile, because all three reach it during the cutover."""
+
+    def test_an_account_contact_name_wins(self):
+        from clients.emails import _display_name
+
+        class _Account:
+            contact_name = 'Dana Vance'
+            name = 'Vance Family Law'
+
+        self.assertEqual(_display_name(_Account()), 'Dana Vance')
+
+    def test_an_account_with_no_contact_falls_back_to_its_name(self):
+        """`firm_name` does not exist on Account. Reading it raised
+        AttributeError mid-send the moment contact_name was blank."""
+        from clients.emails import _display_name
+
+        class _Account:
+            contact_name = ''
+            name = 'Vance Family Law'
+
+        self.assertEqual(_display_name(_Account()), 'Vance Family Law')
+
+    def test_a_legacy_profile_still_resolves(self):
+        from clients.emails import _display_name
+
+        class _Profile:
+            contact_name = ''
+            firm_name = 'Legacy Co'
+            website = 'https://client.example'
+
+        self.assertEqual(_display_name(_Profile()), 'Legacy Co')
+
+    def test_nothing_resolvable_returns_empty_not_a_crash(self):
+        from clients.emails import _display_name, _first_name
+
+        class _Bare:
+            pass
+
+        self.assertEqual(_display_name(_Bare()), '')
+        self.assertEqual(_first_name(_Bare()), 'there')

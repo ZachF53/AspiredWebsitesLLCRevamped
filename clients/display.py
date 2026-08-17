@@ -29,14 +29,14 @@ def owner_label(row):
     a crash there is worse than a vague label.
     """
     for attr in ('website_new', 'website'):
-        site = _safe(row, attr)
+        site = _relation(row, attr)
         if site is not None:
-            return site.name or UNASSIGNED
+            return getattr(site, 'name', '') or UNASSIGNED
 
     for attr in ('account_new', 'account'):
-        account = _safe(row, attr)
+        account = _relation(row, attr)
         if account is not None:
-            return account.name or UNASSIGNED
+            return getattr(account, 'name', '') or UNASSIGNED
 
     client = _safe(row, 'client')
     if client is not None:
@@ -60,14 +60,14 @@ def owner_account(row):
     billing relationship and the contact name are all account-level.
     """
     for attr in ('account_new', 'account'):
-        account = _safe(row, attr)
+        account = _relation(row, attr)
         if account is not None:
             return account
 
     for attr in ('website_new', 'website'):
-        site = _safe(row, attr)
+        site = _relation(row, attr)
         if site is not None:
-            account = _safe(site, 'account')
+            account = _relation(site, 'account')
             if account is not None:
                 return account
 
@@ -109,6 +109,23 @@ def owner_recipient(row):
         return email, name
 
     return '', ''
+
+
+def _relation(row, attr):
+    """``getattr(row, attr)`` only when ``attr`` is genuinely a relation.
+
+    The name alone is not enough to tell. ``ClientProfile.website`` is a
+    **URLField** — a plain string holding the client's live URL — while
+    ``PaymentRecord.website`` is a ForeignKey to Website. Matching on the
+    name meant a legacy profile handed back its URL string and the caller
+    then asked a `str` for `.name`.
+
+    Django gives every forward relation a shadow ``<attr>_id`` attribute
+    and gives plain fields nothing of the sort, so that is the test.
+    """
+    if not hasattr(row, f'{attr}_id'):
+        return None
+    return _safe(row, attr)
 
 
 def _safe(row, attr):

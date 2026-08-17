@@ -21,12 +21,35 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from clients.emails import send_maintenance_handoff_email
-from clients.models import ClientDocument, ClientProfile
+from clients.account_models import Account, Website
+from clients.models import ClientDocument
 from sync.handlers import HANDLERS
 from sync.models import SyncLog
 from sync.token_utils import generate_handoff_token, validate_handoff_token
 
 logger = logging.getLogger(__name__)
+
+
+def _account_for_token(subject_id):
+    """Resolve a handoff token's subject to an Account, or None.
+
+    Tokens live for 48 hours and the ones issued before this cutover carry
+    a legacy ClientProfile id, not an Account id. Both are accepted, so a
+    client who received a link yesterday is not met with "this link has
+    expired" through no fault of their own.
+
+    The legacy branch queries Account on its own ``legacy_client_profile``
+    column rather than importing ClientProfile, so this stays correct
+    without being a legacy read.
+    """
+    if not subject_id:
+        return None
+    account = Account.objects.filter(id=subject_id).first()
+    if account is not None:
+        return account
+    return Account.objects.filter(
+        legacy_client_profile_id=subject_id).first()
+
 
 TIMESTAMP_TOLERANCE = 300  # seconds — reject events older/newer than 5 minutes
 
@@ -170,7 +193,7 @@ def maintenance_start(request):
                       {'reason': 'missing'}, status=400)
 
     client_id = validate_handoff_token(token)
-    client = ClientProfile.objects.filter(id=client_id).first() if client_id else None
+    client = _account_for_token(client_id)
     if client is None:
         return render(request, 'sync/token_expired.html', {})
 
@@ -189,11 +212,13 @@ def _maintenance_post(request):
     # Case 1 — a new-link request submitted from the expired-token page.
     request_email = (request.POST.get('request_email') or '').strip().lower()
     if request_email:
-        client = ClientProfile.objects.filter(
+        # "Has not bought maintenance yet" is a per-site fact, so it is
+        # asked of the account's websites rather than of the account.
+        client = Account.objects.filter(
             user__email__iexact=request_email,
             synced_from_moonieful=True,
-            maintenance_active=False,
-        ).first()
+            websites__maintenance_active=False,
+        ).distinct().first()
         if client is not None:
             token = generate_handoff_token(str(client.id))
             url = f'{settings.SITE_BASE_URL}/maintenance/start/?token={token}'
@@ -205,7 +230,7 @@ def _maintenance_post(request):
     plan_slug = request.POST.get('plan', '')
     if not request.session.get('maintenance_flow_only') or not request.user.is_authenticated:
         return redirect(settings.LOGIN_URL)
-    client = ClientProfile.objects.filter(user=request.user).first()
+    client = Account.objects.filter(user=request.user).first()
     if client is None:
         return redirect(settings.LOGIN_URL)
 
