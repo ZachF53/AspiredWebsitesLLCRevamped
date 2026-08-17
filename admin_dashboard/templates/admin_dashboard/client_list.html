@@ -56,7 +56,7 @@
                     <summary class="client-list__summary">
                         <span class="client-list__col-name">
                             <span class="client-list__chev" aria-hidden="true">▸</span>
-                            <a href="{% url 'admin_dashboard:client_detail' c.id %}" class="lead-table__firm" onclick="event.stopPropagation();">{{ c.firm_name }}</a>
+                            <a href="{% url 'admin_dashboard:account_detail' c.id %}" class="lead-table__firm" onclick="event.stopPropagation();">{{ c.name }}</a>
                             {% if c.is_tester %}<span class="tester-badge">TESTER</span>{% endif %}
                         </span>
                         <span class="client-list__col-status">
@@ -101,7 +101,7 @@
                             {% endif %}
                         </span>
                         <span class="client-list__col-actions">
-                            <a class="btn-secondary btn-xs" href="{% url 'admin_dashboard:client_detail' c.id %}"
+                            <a class="btn-secondary btn-xs" href="{% url 'admin_dashboard:account_detail' c.id %}"
                                onclick="event.stopPropagation();">Open →</a>
                         </span>
                     </summary>

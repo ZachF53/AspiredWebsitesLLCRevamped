@@ -68,8 +68,10 @@ def home(request):
         needs_human=True, handled=False
     ).count()
     try:
-        from clients.models import ClientProfile as _ClientProfile
-        needs_you_count += _ClientProfile.objects.filter(
+        from clients.account_models import Website
+        # Per site: an intake is submitted for a website, so an account
+        # with two builds awaiting review is two items of work.
+        needs_you_count += Website.objects.filter(
             needs_admin_review_at__isnull=False,
             admin_reviewed_at__isnull=True,
         ).count()
@@ -643,9 +645,10 @@ def _pending_intake_reviews():
     `_on_intake_submitted` (clients/views.py); cleared by the Mark
     Reviewed button on this page.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     return (
-        ClientProfile.objects
+        Website.objects
+        .select_related('account')
         .filter(
             needs_admin_review_at__isnull=False,
             admin_reviewed_at__isnull=True,
@@ -688,8 +691,8 @@ def intake_review_mark_done(request, client_id):
     Clear the intake-review flag on a client and return the refreshed
     Needs You list partial (HTMX swap).
     """
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
+    from clients.account_models import Website
+    client = get_object_or_404(Website, id=client_id)
     if client.needs_admin_review_at and not client.admin_reviewed_at:
         client.admin_reviewed_at = timezone.now()
         client.save(update_fields=[
@@ -1008,152 +1011,133 @@ def client_list(request):
     """
     All clients — entry point to the per-client monitoring tools.
 
-    Phase C layout: each ClientProfile row is hydrated with its
-    migrated Account and that Account's Websites so the page can show
-    multi-website accounts (each with its own droplet IP, stage, and
-    package) rather than the single-droplet/single-package legacy view.
+    One row per ACCOUNT, expandable into its Websites. Each site carries
+    its own droplet IP, stage and package, which is the whole reason the
+    row expands: a single-droplet, single-package row cannot describe an
+    account running two builds.
 
-    Falls back gracefully:
-      - Client with linked Account + multiple Websites → expandable
-        row with one nested card per Website.
-      - Client with a linked Account but no Websites yet → single
-        row, modern data.
-      - Pure-legacy client (no Account) → single row using the
-        legacy ClientProfile fields (do_droplet_ip, package).
+    This used to iterate ClientProfiles and hydrate each with its migrated
+    Account, carrying a third branch that synthesised a fake one-website
+    row out of the legacy profile for clients that had no Account. Reading
+    the canonical table removes that branch entirely — and with it the
+    possibility of an account created after the cutover being absent from
+    the client list, which is what the legacy iteration would have done.
     """
     from clients.account_models import Account, Website
-    from clients.models import ClientProfile
     from reporting.models import VulnerabilityFinding, VulnerabilityScan
 
     # Real clients first, testers at the bottom. `is_tester` is False=0 /
     # True=1 so a plain ascending sort puts non-testers first.
-    clients = ClientProfile.objects.order_by('is_tester', 'firm_name')
+    accounts = Account.objects.order_by('is_tester', 'name')
     query = (request.GET.get('q') or '').strip()
     if query:
-        clients = clients.filter(firm_name__icontains=query)
-    clients = list(clients)
+        accounts = accounts.filter(name__icontains=query)
+    accounts = list(accounts)
 
-    # Map ClientProfile.id → Account in one query keyed on the FORWARD
-    # FK (legacy_client_profile_id). Avoids the reverse 1:1 accessor
-    # gotcha: ClientProfile.migrated_account RAISES DoesNotExist when
-    # not linked, and there's no _id sibling on reverse one-to-ones.
-    profile_ids = [c.id for c in clients]
-    account_by_profile = {
-        a.legacy_client_profile_id: a
-        for a in Account.objects.filter(
-            legacy_client_profile_id__in=profile_ids
-        )
-    }
-
-    # Pull every Website for the linked Accounts in ONE query, group by
+    # Pull every Website for these Accounts in ONE query, grouped by
     # account_id so per-row lookup is O(1).
-    account_ids = [a.id for a in account_by_profile.values()]
+    account_ids = [a.id for a in accounts]
     websites_by_account = {}
     if account_ids:
         for w in Website.objects.filter(account_id__in=account_ids):
             websites_by_account.setdefault(w.account_id, []).append(w)
 
-    # Last completed scan per client — single query, indexed by client id.
-    # Scans are still keyed on ClientProfile during Phase C; in Phase D
-    # they'll move to Website.
-    last_scan_by_client = {}
-    for s in (VulnerabilityScan.objects
-              .filter(status='complete', client__in=clients)
-              .order_by('client_id', '-completed_at')):
-        last_scan_by_client.setdefault(s.client_id, s)
+    # Last completed scan per SITE — a scan targets one droplet, so an
+    # account-level "last scan" described whichever site happened to be
+    # scanned most recently and said nothing about the others.
+    all_sites = [w for group in websites_by_account.values() for w in group]
+    last_scan_by_site = {}
+    for scan in (VulnerabilityScan.objects
+                 .filter(status='complete', website_new__in=all_sites)
+                 .order_by('website_new_id', '-completed_at')):
+        last_scan_by_site.setdefault(scan.website_new_id, scan)
 
     # Has-open-critical / has-open-high lookups for the severity dot —
     # one count() per scan would be N+1, so pre-aggregate in two queries.
     open_critical_by_scan = set(
         VulnerabilityFinding.objects
-        .filter(scan__in=last_scan_by_client.values(),
+        .filter(scan__in=last_scan_by_site.values(),
                 status='open', severity='critical')
         .values_list('scan_id', flat=True).distinct()
     )
     open_high_by_scan = set(
         VulnerabilityFinding.objects
-        .filter(scan__in=last_scan_by_client.values(),
+        .filter(scan__in=last_scan_by_site.values(),
                 status='open', severity='high')
         .values_list('scan_id', flat=True).distinct()
     )
 
-    rows = []
-    for c in clients:
-        scan = last_scan_by_client.get(c.id)
+    def _dot(scan):
         if scan is None:
-            dot = 'never'  # ⚪
-        elif scan.id in open_critical_by_scan:
-            dot = 'critical'  # 🔴
-        elif scan.id in open_high_by_scan:
-            dot = 'high'  # 🟠
-        else:
-            dot = 'clean'  # 🟢
+            return 'never'      # ⚪
+        if scan.id in open_critical_by_scan:
+            return 'critical'   # 🔴
+        if scan.id in open_high_by_scan:
+            return 'high'       # 🟠
+        return 'clean'          # 🟢
 
-        # Hydrate website-level info. Pure-legacy clients (no Account)
-        # synthesise a single 'website' from the ClientProfile so the
-        # template doesn't need a separate branch.
-        account = account_by_profile.get(c.id)
-        websites = (
-            websites_by_account.get(account.id, []) if account else []
-        )
-        if not websites:
-            # Build a single legacy pseudo-row from the ClientProfile.
-            websites = [{
-                'name':         c.firm_name,
-                'stage':        '',
-                'stage_display': '',
-                'package_display': c.get_package_display() if c.package else '',
-                'droplet_ip':   c.do_droplet_ip or '',
-                'url':          c.website or '',
-                'is_legacy':    True,
-            }]
-            droplets_with_ip = 1 if c.do_droplet_ip else 0
-            package_summary = (
-                c.get_package_display() if c.package else '—')
+    # Account-level severity is the WORST of its sites: a clean second
+    # site must not mask a critical finding on the first.
+    _RANK = {'critical': 0, 'high': 1, 'clean': 2, 'never': 3}
+
+    rows = []
+    for account in accounts:
+        sites = websites_by_account.get(account.id, [])
+
+        wsite_rows = []
+        for w in sites:
+            scan = last_scan_by_site.get(w.id)
+            wsite_rows.append({
+                'pk':              w.pk,
+                'name':            w.name,
+                'stage':           w.stage,
+                'stage_display':   w.get_stage_display(),
+                'package_display': (
+                    w.get_package_display() if w.package else ''),
+                'droplet_ip':      w.do_droplet_ip or '',
+                'url':             w.url or '',
+                'last_scan':       scan,
+                'scan_dot':        _dot(scan),
+                'is_legacy':       False,
+            })
+
+        droplets_with_ip = sum(1 for w in wsite_rows if w['droplet_ip'])
+
+        # Compact package summary — distinct packages joined; an account
+        # with three 'Maintenance — Growth' websites shows one badge
+        # labelled "Maintenance — Growth ×3".
+        from collections import Counter
+        pkg_counts = Counter(
+            w['package_display'] for w in wsite_rows if w['package_display'])
+        if pkg_counts:
+            package_summary = ' · '.join(
+                f'{pkg}{" ×" + str(n) if n > 1 else ""}'
+                for pkg, n in pkg_counts.items()
+            )
         else:
-            # Hydrate from real Website rows.
-            wsite_rows = []
-            for w in websites:
-                wsite_rows.append({
-                    'pk':              w.pk,
-                    'name':            w.name,
-                    'stage':           w.stage,
-                    'stage_display':   w.get_stage_display(),
-                    'package_display': (
-                        w.get_package_display() if w.package else ''),
-                    'droplet_ip':      w.do_droplet_ip or '',
-                    'url':             w.url or '',
-                    'is_legacy':       False,
-                })
-            websites = wsite_rows
-            droplets_with_ip = sum(1 for w in websites if w['droplet_ip'])
-            # Compact package summary — distinct packages joined; an
-            # account with three 'Maintenance — Growth' websites shows
-            # one badge labelled "Maintenance — Growth ×3".
-            from collections import Counter
-            pkg_counts = Counter(
-                w['package_display'] for w in websites if w['package_display'])
-            if pkg_counts:
-                package_summary = ' · '.join(
-                    f'{pkg}{" ×" + str(n) if n > 1 else ""}'
-                    for pkg, n in pkg_counts.items()
-                )
-            else:
-                package_summary = '—'
+            package_summary = '—'
+
+        dots = [w['scan_dot'] for w in wsite_rows] or ['never']
+        worst = min(dots, key=lambda d: _RANK[d])
+        newest_scan = max(
+            (w['last_scan'] for w in wsite_rows if w['last_scan']),
+            key=lambda sc: sc.completed_at,
+            default=None,
+        )
 
         rows.append({
-            'client':           c,
+            'client':           account,
             'account':          account,
-            'last_scan':        scan,
-            'scan_dot':         dot,
-            'websites':         websites,
-            'website_count':    len(websites),
+            'last_scan':        newest_scan,
+            'scan_dot':         worst,
+            'websites':         wsite_rows,
+            'website_count':    len(wsite_rows),
             'droplets_count':   droplets_with_ip,
             'package_summary':  package_summary,
         })
 
     return render(request, 'admin_dashboard/client_list.html', _admin_context(
-        'clients', clients=clients, query=query, rows=rows,
+        'clients', clients=accounts, query=query, rows=rows,
     ))
 
 
@@ -1165,12 +1149,15 @@ def client_detail(request, client_id):
     website_detail. Kept as a redirect so the inbound links across the
     admin still resolve while they get repointed.
     """
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
-    try:
-        account = client.migrated_account
-    except Exception:
-        account = None
+    # Inbound links carry a legacy ClientProfile id. Resolved through
+    # Account's own legacy_client_profile column, so keeping those links
+    # alive costs no legacy read — and an id that is already an Account's
+    # works too, for links repointed since.
+    from clients.account_models import Account
+
+    account = (Account.objects.filter(id=client_id).first()
+               or Account.objects.filter(
+                   legacy_client_profile_id=client_id).first())
     if account is not None:
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
@@ -1185,48 +1172,59 @@ def clients_onboarding(request):
     uptime monitoring, email). Cards are colour-coded by completeness so
     the most-stale row jumps out first.
     """
-    from clients.models import ClientProfile, UptimeRecord
+    from clients.account_models import Website
+    from clients.models import UptimeRecord
     from vault.models import ClientVault, VaultCredential
 
+    # Per site: each card is one build's readiness checklist (its URL, its
+    # uptime data, its droplet's key). An account with two builds has two
+    # sets of gaps to close.
     legacy = (
-        ClientProfile.objects
-        .filter(internal_notes__contains='Legacy client')
-        .order_by('firm_name')
+        Website.objects
+        .filter(account__internal_notes__contains='Legacy client')
+        .select_related('account', 'account__user')
+        .order_by('account__name', 'name')
     )
 
     # Cheap lookups so we don't do N+1 queries inside the template.
-    vault_ids_by_client = {}
+    # Credentials hang off the ACCOUNT's vault, so the map is keyed on the
+    # account and every one of its sites shares the same key.
+    account_ids = {w.account_id for w in legacy}
+    vault_ids_by_account = {}
     for cred in VaultCredential.objects.filter(
             is_ssh_credential=True,
-            vault__client__in=legacy).select_related('vault'):
+            vault__account_new_id__in=account_ids).select_related('vault'):
         # First SSH credential wins — link straight into it from the card.
-        vault_ids_by_client.setdefault(cred.vault.client_id, cred.id)
+        vault_ids_by_account.setdefault(
+            cred.vault.account_new_id, cred.id)
     has_uptime = set(UptimeRecord.objects.filter(
-        client__in=legacy).values_list('client_id', flat=True).distinct())
+        website_new__in=legacy)
+        .values_list('website_new_id', flat=True).distinct())
 
     cards = []
     any_missing_key = False
     any_missing_url = False
     for client in legacy:
-        # client.website is the canonical live URL (post-2026-05-25).
-        live_url = client.website or ''
+        account = client.account
+        live_url = client.url or ''
         # A "real" user account is one that can log in — the seed command
         # creates inactive placeholder users with unusable passwords for
-        # legacy clients we don't have an email for yet.
+        # legacy clients we don't have an email for yet. The login is
+        # account-level: one user per customer.
+        user = getattr(account, 'user', None)
         has_user = bool(
-            client.user
-            and client.user.is_active
-            and client.user.has_usable_password())
-        has_email = bool(client.user and client.user.email)
+            user and user.is_active and user.has_usable_password())
+        has_email = bool(user and user.email)
         has_live_url = bool(live_url)
-        cred_id = vault_ids_by_client.get(client.id)
+        cred_id = vault_ids_by_account.get(client.account_id)
         has_vault_key = cred_id is not None
         has_uptime_data = has_live_url and (client.id in has_uptime)
         # Read the real boolean now that it's backfilled — leave the
         # internal_notes string lookup as a fallback for any rows that
         # haven't been re-saved since the backfill (belt + suspenders).
-        is_tester = bool(client.is_tester) or (
-            'Tester: True' in (client.internal_notes or ''))
+        # Both are account-level: a tester is a customer, not a site.
+        is_tester = bool(getattr(account, 'is_tester', False)) or (
+            'Tester: True' in (getattr(account, 'internal_notes', '') or ''))
 
         # Testers only need a vault key + working email + live URL if you
         # actually plan to use them externally. For the colour-coded card
@@ -1426,14 +1424,14 @@ def website_conversions(request, website_id):
 @admin_required
 @require_POST
 def client_toggle_session_recording(request, client_id):
-    """Operator toggle — flip ClientProfile.session_recording_enabled.
+    """Operator toggle — flip Website.session_recording_enabled.
 
     The standalone tracker page was retired (the Website detail page's
     Conversion Tracker card is the snippet/recording UI now); this toggle
     is posted from that card with a ?next= back to the website page.
     """
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
+    from clients.account_models import Website
+    client = get_object_or_404(Website, id=client_id)
     client.session_recording_enabled = (
         not client.session_recording_enabled)
     client.save(update_fields=[
@@ -1527,12 +1525,15 @@ def client_edit(request, client_id):
     on account_detail, per-website fields on website_detail. Kept as a
     redirect so any lingering links resolve.
     """
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
-    try:
-        account = client.migrated_account
-    except Exception:
-        account = None
+    # Inbound links carry a legacy ClientProfile id. Resolved through
+    # Account's own legacy_client_profile column, so keeping those links
+    # alive costs no legacy read — and an id that is already an Account's
+    # works too, for links repointed since.
+    from clients.account_models import Account
+
+    account = (Account.objects.filter(id=client_id).first()
+               or Account.objects.filter(
+                   legacy_client_profile_id=client_id).first())
     if account is not None:
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
@@ -2131,7 +2132,7 @@ def client_change_stage(request, client_id):
     Project Progress section on the admin client detail page.
 
     Side effects (delegated to clients.services.change_client_stage):
-      - Updates ClientProfile.stage + updated_at
+      - Updates Website.stage + updated_at
       - Logs to ProjectStageLog (immutable audit trail)
       - Sends the branded stage-change email to the client
       - Stamps log.client_notified=True if the email succeeded
@@ -2141,10 +2142,13 @@ def client_change_stage(request, client_id):
     """
     from django.contrib import messages as _msg
 
-    from clients.models import ClientProfile, PROJECT_STAGES
+    from clients.account_models import Website
+    from clients.models import PROJECT_STAGES
     from clients.services import GuardError, change_client_stage
 
-    profile = get_object_or_404(ClientProfile, id=client_id)
+    # A stage belongs to a build, and change_client_stage is site-scoped.
+    profile = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     new_stage = (request.POST.get('stage') or '').strip()
     note = (request.POST.get('note') or '').strip()
     setter = (request.user.get_full_name()
@@ -2322,10 +2326,12 @@ def admin_stripe_customer_recovery(request, client_id):
     import stripe
     from django.conf import settings as _s
     from django.shortcuts import get_object_or_404
-    from clients.models import ClientProfile
+    from clients.account_models import Account
 
+    # The Stripe customer holds the card and the billing relationship,
+    # both account-level.
     stripe.api_key = _s.STRIPE_SECRET_KEY
-    profile = get_object_or_404(ClientProfile, pk=client_id)
+    profile = get_object_or_404(Account, pk=client_id)
     email = (profile.user.email or '').strip() if profile.user else ''
 
     candidates = []
@@ -2392,9 +2398,9 @@ def admin_stripe_customer_relink(request, client_id):
     """Switch a client's stripe_customer_id to the chosen Stripe Customer."""
     from django.contrib import messages as _msg
     from django.shortcuts import get_object_or_404
-    from clients.models import ClientProfile
+    from clients.account_models import Account
 
-    profile = get_object_or_404(ClientProfile, pk=client_id)
+    profile = get_object_or_404(Account, pk=client_id)
     new_customer_id = (request.POST.get('customer_id') or '').strip()
     if not new_customer_id.startswith('cus_'):
         _msg.error(request, 'Invalid Stripe customer ID.')
@@ -2616,16 +2622,17 @@ def admin_domain_register(request):
     number of domains.
     """
     from django.contrib import messages as _msg
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from domains.models import TLD_CHOICES, NamecheapConfig
     from domains.namecheap_client import NamecheapError
     from domains.services import admin_register_domain_for_client
 
+    # A domain points at one site's droplet, so the picker lists sites.
     clients = (
-        ClientProfile.objects
-        .filter(status='active')
-        .select_related('user')
-        .order_by('firm_name')
+        Website.objects
+        .filter(status='active', account__status='active')
+        .select_related('account', 'account__user')
+        .order_by('account__name', 'name')
     )
 
     if request.method == 'POST':
@@ -2634,7 +2641,10 @@ def admin_domain_register(request):
         tld = (request.POST.get('tld') or '').strip().lower()
         notes = (request.POST.get('notes') or '').strip()
 
-        client = ClientProfile.objects.filter(pk=client_id).first()
+        client = (Website.objects
+                  .select_related('account')
+                  .filter(pk=client_id)
+                  .first())
         if client is None:
             _msg.error(request, 'Pick a client.')
             return redirect('admin_dashboard:admin_domain_register')
@@ -3354,33 +3364,31 @@ def account_set_comp_tier(request, account_id):
     from django.contrib import messages as _messages
 
     from clients.account_models import Account
-    from clients.models import ClientProfile
 
     account = get_object_or_404(Account, id=account_id)
-    profile = account.legacy_client_profile
-    if profile is None:
-        _messages.error(
-            request,
-            'This account has no linked ClientProfile — cannot comp '
-            'a tier.')
-        return redirect(
-            'admin_dashboard:account_detail', account_id=account.id)
 
+    # Comps are written to the Account, which is where the entitlement
+    # check reads them (Website.active_tiers). They used to be written to
+    # the legacy profile and only reached the Account when someone ran
+    # backfill_account_data by hand — so a tier comped through this UI did
+    # not actually grant the feature. It also refused outright for an
+    # account with no legacy profile, which is every account created after
+    # the cutover.
     bucket = (request.POST.get('bucket') or '').strip()
 
     if bucket == 'build':
         value = (request.POST.get('comp_build_package') or '').strip()
-        valid = {k for k, _ in ClientProfile.BUILD_COMP_CHOICES}
+        valid = {k for k, _ in Account.BUILD_COMP_CHOICES}
         if value and value not in valid:
             _messages.error(request, f'Invalid build comp: {value!r}')
             return redirect(
                 'admin_dashboard:account_detail',
                 account_id=account.id)
-        profile.comp_build_package = value
-        profile.save(update_fields=[
+        account.comp_build_package = value
+        account.save(update_fields=[
             'comp_build_package', 'updated_at'])
         if value:
-            label = dict(ClientProfile.BUILD_COMP_CHOICES).get(
+            label = dict(Account.BUILD_COMP_CHOICES).get(
                 value, value)
             _messages.success(
                 request,
@@ -3393,19 +3401,19 @@ def account_set_comp_tier(request, account_id):
     elif bucket == 'maintenance':
         value = (request.POST.get(
             'comp_maintenance_package') or '').strip()
-        valid = {k for k, _ in ClientProfile.MAINTENANCE_COMP_CHOICES}
+        valid = {k for k, _ in Account.MAINTENANCE_COMP_CHOICES}
         if value and value not in valid:
             _messages.error(
                 request, f'Invalid maintenance comp: {value!r}')
             return redirect(
                 'admin_dashboard:account_detail',
                 account_id=account.id)
-        profile.comp_maintenance_package = value
-        profile.save(update_fields=[
+        account.comp_maintenance_package = value
+        account.save(update_fields=[
             'comp_maintenance_package', 'updated_at'])
         if value:
             label = dict(
-                ClientProfile.MAINTENANCE_COMP_CHOICES
+                Account.MAINTENANCE_COMP_CHOICES
             ).get(value, value)
             _messages.success(
                 request,
@@ -3417,14 +3425,14 @@ def account_set_comp_tier(request, account_id):
 
     elif bucket == 'social':
         value = (request.POST.get('comp_social_tier') or '').strip()
-        valid = {k for k, _ in ClientProfile.SOCIAL_COMP_CHOICES}
+        valid = {k for k, _ in Account.SOCIAL_COMP_CHOICES}
         if value and value not in valid:
             _messages.error(request, f'Invalid social comp: {value!r}')
             return redirect(
                 'admin_dashboard:account_detail',
                 account_id=account.id)
-        profile.comp_social_tier = value
-        profile.save(update_fields=[
+        account.comp_social_tier = value
+        account.save(update_fields=[
             'comp_social_tier', 'updated_at'])
 
         # Side-effect: comping the social tier provisions an active
@@ -3454,7 +3462,7 @@ def account_set_comp_tier(request, account_id):
                     plan.status = 'active'
                     plan.save(update_fields=[
                         'tier_slug', 'status', 'updated_at'])
-            label = dict(ClientProfile.SOCIAL_COMP_CHOICES).get(
+            label = dict(Account.SOCIAL_COMP_CHOICES).get(
                 value, value)
             count = len(targets)
             _messages.success(
@@ -3480,9 +3488,9 @@ def account_set_comp_tier(request, account_id):
                     f'Cleared the social comp on {account.name}.')
 
     elif bucket == 'notes':
-        profile.comp_notes = (
+        account.comp_notes = (
             request.POST.get('comp_notes') or '').strip()
-        profile.save(update_fields=['comp_notes', 'updated_at'])
+        account.save(update_fields=['comp_notes', 'updated_at'])
         _messages.success(request, 'Comp note saved.')
 
     else:

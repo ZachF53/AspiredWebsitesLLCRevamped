@@ -198,11 +198,31 @@ class Account(TimestampedModel):
     sync_conflict_flagged = models.BooleanField(default=False)
 
     # ── Comped tiers (operator-granted free access) ──
-    # Migrated from ClientProfile.comp_* during Phase D. Plain CharFields;
-    # label lookups reuse ClientProfile's *_COMP_CHOICES dicts.
-    comp_build_package = models.CharField(max_length=30, blank=True)
-    comp_maintenance_package = models.CharField(max_length=30, blank=True)
-    comp_social_tier = models.CharField(max_length=30, blank=True)
+    # Operator-granted access to a paid tier without billing. The choice
+    # lists live here rather than on ClientProfile: they are the labels
+    # the comp UI validates against, and the legacy model is going away.
+    BUILD_COMP_CHOICES = [
+        ('essential_build', 'Essential Website Build'),
+        ('premium_build',   'Premium Website Build'),
+    ]
+    MAINTENANCE_COMP_CHOICES = [
+        ('maintenance_essentials', 'Maintenance — Essentials'),
+        ('maintenance_growth',     'Maintenance — Growth'),
+        ('maintenance_dominant',   'Maintenance — Dominant'),
+        ('moonieful_referred',     'Moonieful Referred'),
+    ]
+    SOCIAL_COMP_CHOICES = [
+        ('social-basic',    'Social — Basic'),
+        ('social-standard', 'Social — Standard'),
+        ('social-full',     'Social — Full Management'),
+    ]
+
+    comp_build_package = models.CharField(
+        max_length=30, choices=BUILD_COMP_CHOICES, blank=True)
+    comp_maintenance_package = models.CharField(
+        max_length=30, choices=MAINTENANCE_COMP_CHOICES, blank=True)
+    comp_social_tier = models.CharField(
+        max_length=30, choices=SOCIAL_COMP_CHOICES, blank=True)
     comp_notes = models.TextField(blank=True)
 
     # ── Multi-website migration review ──
