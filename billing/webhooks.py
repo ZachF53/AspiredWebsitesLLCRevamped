@@ -316,15 +316,83 @@ def _safe_payload(obj):
         return {}
 
 
+def _unroutable(kind, identifier, owner):
+    """A payment arrived for a canonical owner with no legacy profile.
+
+    Every caller of the lookups below drives a ClientProfile, so an
+    Account created after the cutover — which is the shape all new
+    accounts take — resolves to None and the webhook returns quietly.
+    Money moves and nothing records it.
+
+    Until those callers read Account/Website directly, the least bad
+    behaviour is to be loud about it rather than silent.
+    """
+    logger.error(
+        'billing: %s %s belongs to %s but it has no ClientProfile, so this '
+        'webhook cannot be processed', kind, identifier, owner)
+    try:
+        from core.system_alerts import record_alert
+
+        record_alert(
+            severity='error',
+            source='billing.webhooks.unroutable',
+            message=f'Stripe {kind} {identifier} could not be routed.',
+            detail=(f'{owner} owns this identifier but has no legacy '
+                    'ClientProfile, and the webhook handlers still require '
+                    'one. The payment was NOT recorded — reconcile it by '
+                    'hand.'),
+        )
+    except Exception:
+        logger.exception('billing: could not record the unroutable alert')
+
+
 def _client_for_customer(customer_id):
+    """The ClientProfile for a Stripe customer.
+
+    Resolved through Account first: the cutover contract makes Account
+    the owner of `stripe_customer_id`, and after the cutover it is the
+    only row that carries it. The direct profile lookup stays as the
+    fallback for accounts the backfill has not reached.
+    """
     if not customer_id:
         return None
-    return ClientProfile.objects.filter(stripe_customer_id=customer_id).first()
+
+    from clients.account_models import Account
+
+    account = Account.objects.filter(
+        stripe_customer_id=customer_id).select_related(
+            'legacy_client_profile').first()
+    if account is not None:
+        if account.legacy_client_profile is not None:
+            return account.legacy_client_profile
+        _unroutable('customer', customer_id, f'Account {account.pk}')
+        return None
+
+    return ClientProfile.objects.filter(
+        stripe_customer_id=customer_id).first()
 
 
 def _client_for_invoice(invoice_id):
+    """The ClientProfile for a Stripe invoice.
+
+    `stripe_invoice_id` is Website-level per the cutover contract, so the
+    Website is consulted before the legacy mirror.
+    """
     if not invoice_id:
         return None
+
+    from clients.account_models import Website
+
+    website = Website.objects.filter(
+        stripe_invoice_id=invoice_id).select_related(
+            'account__legacy_client_profile').first()
+    if website is not None:
+        profile = getattr(website.account, 'legacy_client_profile', None)
+        if profile is not None:
+            return profile
+        _unroutable('invoice', invoice_id, f'Website {website.pk}')
+        return None
+
     return ClientProfile.objects.filter(stripe_invoice_id=invoice_id).first()
 
 
@@ -796,8 +864,15 @@ def _handle_invoice_upcoming(event):
     if _domain_renewal_gate(sub_id):
         return
 
-    client = ClientProfile.objects.filter(
-        stripe_hosting_subscription_id=sub_id).first()
+    # Hosting subscriptions are Website-level per the cutover contract.
+    from clients.account_models import Website
+
+    site = Website.objects.filter(
+        stripe_hosting_subscription_id=sub_id).select_related(
+            'account__legacy_client_profile').first()
+    client = getattr(site.account, 'legacy_client_profile', None) if site \
+        else ClientProfile.objects.filter(
+            stripe_hosting_subscription_id=sub_id).first()
     if client is None:
         # Not one of our hosting subs — maintenance subs etc. have
         # their own gate (or none).
