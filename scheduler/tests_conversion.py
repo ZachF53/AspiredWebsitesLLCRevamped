@@ -90,8 +90,20 @@ class SchedulerConversionCopyTests(TestCase):
                 self.assertNotIn('save 10% on your first month', html)
                 self.assertNotIn('addon-fieldset', html)
 
-    def test_kickoff_is_reserved_for_post_sale(self):
+    def test_the_canonical_call_name_is_used(self):
+        """SUPERSEDED 2026-08-17. This previously asserted that "kickoff"
+        never appeared pre-sale, following the handoff's advice to reserve
+        it for paying customers. The owner has since named the sales call
+        the Kickoff Call, which is their decision to make; the test now
+        holds the canonical name instead of forbidding it.
+
+        The collision this creates with the refund policy's "until the
+        kickoff call happens" clause is recorded in
+        docs/brand_fact_matrix.md and is an owner/legal decision.
+        """
+        from core.site_facts import CALL_NAME
+
         for path in self.PATHS:
             with self.subTest(path=path):
-                html = self.client.get(path).content.decode().lower()
-                self.assertNotIn('kickoff call', html)
+                html = self.client.get(path).content.decode()
+                self.assertIn(CALL_NAME, html)

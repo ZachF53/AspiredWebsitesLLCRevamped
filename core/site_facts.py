@@ -46,6 +46,33 @@ LOCATION_PHRASE = 'based in Georgia, serving clients nationwide'
 # unresolved, so nothing here names one.
 GOVERNING_LAW_STATE = 'Georgia'
 
+# ── Delivery timeline. Approved 2026-08-17 ────────────────────────────
+# Three weeks Essential, four weeks Premium. This matches what
+# `seed_pricing` already writes to ServiceTier.timeline_weeks, so the
+# database and the public copy finally agree; the "about six weeks"
+# wording scattered across a dozen pages was the outlier.
+#
+# The numbers themselves are NOT restated here — they live on
+# ServiceTier.timeline_weeks and templates render them from the tier, so
+# a pricing-admin edit updates the pages. Only the shared phrasing lives
+# in this module.
+DELIVERY_QUALIFIER = 'after kickoff, depending on scope and content readiness'
+
+# ── The sales call. Approved 2026-08-17 ───────────────────────────────
+# One name, one duration, one destination. Before this the site offered
+# "Book a Call", "Schedule", "Strategy Call", "Consultation", "Kickoff
+# Call" and "Start Your Project", and roughly thirty Book/Schedule
+# buttons pointed at the contact form rather than the calendar — so a
+# visitor who wanted to pick a time landed on a message form instead.
+CALL_NAME = 'Kickoff Call'
+CALL_DURATION_MINUTES = 30
+CALL_IS_FREE = True
+CALL_CTA = 'Book a Free 30-Minute Kickoff Call'
+CALL_CTA_SHORT = 'Book a Kickoff Call'
+# Every booking CTA resolves here. Named rather than hardcoded so the
+# canonical scheduler can move without another thirty-link sweep.
+CALL_URL_NAME = 'scheduler:design_schedule'
+
 # The build guarantee, as the signed contract actually grants it
 # (clients/contract_template.py §7 and §10). Public copy must not promise
 # more or less than this.
@@ -66,4 +93,9 @@ def site_facts(request):
         'GOVERNING_LAW_STATE': GOVERNING_LAW_STATE,
         'BUILD_GUARANTEE': BUILD_GUARANTEE,
         'BUILD_GUARANTEE_SHORT': BUILD_GUARANTEE_SHORT,
+        'DELIVERY_QUALIFIER': DELIVERY_QUALIFIER,
+        'CALL_NAME': CALL_NAME,
+        'CALL_DURATION_MINUTES': CALL_DURATION_MINUTES,
+        'CALL_CTA': CALL_CTA,
+        'CALL_CTA_SHORT': CALL_CTA_SHORT,
     }
