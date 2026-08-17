@@ -527,8 +527,16 @@ def _report_summary(report_month, uptime_pct, forms, phones, improved):
 
 
 @shared_task
-def generate_monthly_report(client_id, report_month_str):
-    """Generate and send one client's monthly PDF report. report_month_str: YYYY-MM-01."""
+def generate_monthly_report(client_id, report_month_str, website_id=None):
+    """Generate and send one monthly PDF report. report_month_str: YYYY-MM-01.
+
+    Reports are per WEBSITE. An account owning several sites gets one
+    report per site, because a single report covering two different
+    domains' uptime and conversions describes neither.
+
+    `website_id` is optional so existing callers and queued tasks keep
+    working; when omitted the account's sole website is used.
+    """
     import os
     from datetime import date
 
@@ -548,21 +556,42 @@ def generate_monthly_report(client_id, report_month_str):
         return 'No such client.'
     report_month = date.fromisoformat(report_month_str).replace(day=1)
 
+    from clients.account_models import Website
+
+    site = None
+    if website_id:
+        site = Website.objects.filter(id=website_id).first()
+    if site is None:
+        from clients.website_helpers import primary_website
+        site = primary_website(client)
+
+    # Scope the row to the website. Keyed on client alone, a multi-site
+    # account could only ever hold ONE report per month — the second
+    # site's run would find the first site's row, see status='sent' and
+    # skip, so that site silently never got a report.
+    lookup = {'client': client, 'report_month': report_month}
+    if site is not None:
+        lookup['website_new'] = site
     report, created = MonthlyReport.objects.get_or_create(
-        client=client, report_month=report_month,
-        defaults={'status': 'generating'})
+        **lookup, defaults={'status': 'generating'})
     if not created and report.status == 'sent':
         return 'Already sent — skipped.'
 
     month_start = report_month
     month_end = _month_end(month_start)
 
-    uptime_pct = get_uptime_percentage(client, days=30)
-    avg_ms = get_avg_response_time(client, days=30)
+    # Uptime and conversion helpers accept either owner via
+    # reporting.scope.scope_filter, so pass the website when we have one.
+    metric_scope = site or client
+    uptime_pct = get_uptime_percentage(metric_scope, days=30)
+    avg_ms = get_avg_response_time(metric_scope, days=30)
+
+    from .scope import scope_filter
+    _event_scope = scope_filter(metric_scope)
 
     def _count(event_type):
         return ConversionEvent.objects.filter(
-            client=client, event_type=event_type,
+            **_event_scope, event_type=event_type,
             event_timestamp__date__gte=month_start,
             event_timestamp__date__lt=month_end).count()
 
@@ -763,10 +792,27 @@ def send_monthly_reports():
     else:
         report_month = date(today.year, today.month - 1, 1)
 
+    # One report per WEBSITE (owner decision 2026-08-17). Maintenance is
+    # recorded on the Website; the legacy profile flag is the fallback
+    # for rows the backfill has not reached.
+    from django.db.models import Q
+
+    from clients.account_models import Website
+
+    sites = Website.objects.filter(
+        Q(maintenance_active=True)
+        | Q(account__legacy_client_profile__maintenance_active=True),
+        status='active', account__status='active',
+    ).select_related('account__legacy_client_profile')
+
     count = 0
-    for client in ClientProfile.objects.filter(
-            status='active', maintenance_active=True):
-        generate_monthly_report(str(client.id), report_month.isoformat())
+    for site in sites:
+        client = site.account.legacy_client_profile
+        if client is None:
+            # MonthlyReport.client is non-nullable until Phase D.
+            continue
+        generate_monthly_report(
+            str(client.id), report_month.isoformat(), str(site.id))
         count += 1
     return f'Processed {count} monthly report(s) for {report_month}.'
 
@@ -870,21 +916,47 @@ def send_nps_email(client, survey):
 @shared_task
 def send_nps_surveys():
     """Send NPS surveys to eligible maintenance clients (none recent, 30d+ old)."""
-    from clients.models import ClientProfile
+    from django.db.models import Q
+
+    from clients.account_models import Website
 
     from .models import NPSSurvey
 
+    # One survey per WEBSITE (owner decision 2026-08-17), so an account
+    # owning several sites is asked about each one rather than about
+    # whichever site the account happened to resolve to.
     now = timezone.now()
-    eligible = ClientProfile.objects.filter(
-        maintenance_active=True,
-        created_at__lte=now - timedelta(days=30),
-    ).exclude(
-        nps_surveys__sent_at__gte=now - timedelta(days=90),
-    ).distinct()
+    cutoff = now - timedelta(days=30)
+
+    # The 30-day rule is about how long the CLIENT has been with us, not
+    # how old the website row is. Filtering on Website.created_at would
+    # exclude a long-standing client whose site row was created later by
+    # the backfill, and would ask about a brand-new site on an old
+    # account too early.
+    sites = Website.objects.filter(
+        Q(maintenance_active=True)
+        | Q(account__legacy_client_profile__maintenance_active=True),
+        Q(account__legacy_client_profile__created_at__lte=cutoff)
+        | Q(account__legacy_client_profile__isnull=True,
+            account__created_at__lte=cutoff),
+        status='active', account__status='active',
+    ).select_related('account__legacy_client_profile')
 
     count = 0
-    for client in eligible:
-        survey = NPSSurvey.objects.create(client=client)
+    for site in sites:
+        client = site.account.legacy_client_profile
+        if client is None:
+            continue  # NPSSurvey.client is non-nullable until Phase D
+
+        # The 90-day cooldown is per site now. It has to be: keyed on
+        # client, the first site's survey suppressed every other site on
+        # the account for three months, so those sites were never asked.
+        recent = NPSSurvey.objects.filter(
+            website_new=site, sent_at__gte=now - timedelta(days=90))
+        if recent.exists():
+            continue
+
+        survey = NPSSurvey.objects.create(client=client, website_new=site)
         send_nps_email(client, survey)
         count += 1
     return f'Sent {count} NPS survey(s).'

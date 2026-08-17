@@ -1238,3 +1238,80 @@ class MultiWebsiteUptimeTests(TestCase):
             UptimeAlert.objects.filter(website_new=self.second).count(), 1)
         self.assertEqual(
             UptimeAlert.objects.filter(website_new=self.first).count(), 0)
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class PerSiteReportingTests(TestCase):
+    """Owner decision 2026-08-17: monthly reports and NPS surveys are per
+    WEBSITE. An account owning several sites gets one of each per site —
+    a single report covering two domains' uptime and conversions
+    describes neither."""
+
+    def setUp(self):
+        from clients.account_models import Website
+
+        self.cp = _client('Two Site Co', status='active',
+                          maintenance_active=True, stage='live')
+        ClientProfile.objects.filter(pk=self.cp.pk).update(
+            created_at=timezone.now() - timedelta(days=90))
+        self.account = self.cp.migrated_account
+        self.first = self.account.websites.get()
+        Website.objects.filter(pk=self.first.pk).update(
+            maintenance_active=True, url='https://first.example.com')
+        self.second = Website.objects.create(
+            account=self.account, name='Second Site',
+            url='https://second.example.com', maintenance_active=True)
+        self.first.refresh_from_db()
+
+    def test_nps_is_sent_once_per_site(self):
+        from reporting.tasks import send_nps_surveys
+
+        send_nps_surveys()
+
+        surveyed = set(
+            NPSSurvey.objects.values_list('website_new_id', flat=True))
+        self.assertIn(self.first.pk, surveyed)
+        self.assertIn(self.second.pk, surveyed)
+
+    def test_the_nps_cooldown_is_per_site(self):
+        """Keyed on client, the first site's survey suppressed every other
+        site on the account for 90 days, so those sites were never asked."""
+        from reporting.tasks import send_nps_surveys
+
+        NPSSurvey.objects.create(
+            client=self.cp, website_new=self.first,
+            sent_at=timezone.now())
+
+        send_nps_surveys()
+
+        self.assertEqual(
+            NPSSurvey.objects.filter(website_new=self.first).count(), 1)
+        self.assertEqual(
+            NPSSurvey.objects.filter(website_new=self.second).count(), 1)
+
+    def test_monthly_report_rows_are_scoped_per_site(self):
+        """Keyed on client alone a multi-site account could hold only ONE
+        report per month: the second site's run found the first site's
+        row, saw status='sent' and skipped."""
+        from reporting.models import MonthlyReport
+
+        month = timezone.localdate().replace(day=1)
+        MonthlyReport.objects.create(
+            client=self.cp, website_new=self.first,
+            report_month=month, status='sent')
+        MonthlyReport.objects.create(
+            client=self.cp, website_new=self.second,
+            report_month=month, status='sent')
+
+        self.assertEqual(
+            MonthlyReport.objects.filter(report_month=month).count(), 2)
+
+    def test_a_brand_new_client_is_still_not_surveyed(self):
+        from reporting.tasks import send_nps_surveys
+
+        NPSSurvey.objects.all().delete()
+        ClientProfile.objects.filter(pk=self.cp.pk).update(
+            created_at=timezone.now())
+
+        send_nps_surveys()
+        self.assertEqual(NPSSurvey.objects.count(), 0)

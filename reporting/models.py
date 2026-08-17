@@ -180,7 +180,13 @@ class MonthlyReport(TimestampedModel):
 
     class Meta:
         ordering = ['-report_month']
-        unique_together = ['client', 'report_month']
+        # Reports are per WEBSITE. Keyed on (client, report_month)
+        # alone, a multi-site account could hold only ONE report per
+        # month: the second site's run found the first site's row, saw
+        # status='sent' and skipped, so that site silently never got a
+        # report. Widening the key rather than replacing it keeps the
+        # guard against duplicate runs for the same site.
+        unique_together = ['client', 'report_month', 'website_new']
 
     def __str__(self):
         return f"{self.client.firm_name} — {self.report_month.strftime('%B %Y')}"
