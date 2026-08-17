@@ -652,26 +652,31 @@ def send_onboarding_reminders():
     Throttle is checked against the per-token timestamp so a slow Celery
     run or a manually triggered task doesn't double-send.
     """
-    from clients.models import ClientProfile, OnboardingToken
+    from clients.account_models import Account
+    from clients.models import OnboardingToken
 
     now = timezone.now()
     DAY = 86400      # seconds
     TWO_DAYS = 172800
 
+    # Account setup is account-level: one login, one password, one PIN.
+    # Keyed on ClientProfile, this skipped every account created after the
+    # cutover — the shape all new accounts take — so those clients were
+    # never reminded to set up the account they had just paid for.
     setup_qs = (
-        ClientProfile.objects
+        Account.objects
         .filter(
             onboarding_status='pending_setup',
             status='active',
             user__is_active=False,
         )
-        .select_related('user', 'onboarding_token')
+        .select_related('user')
     )
 
     setup_sent = 0
     for client in setup_qs:
         token = OnboardingToken.objects.filter(
-            client=client).first()
+            account_new=client).first()
         if token is None or token.used:
             continue
         last = token.last_setup_reminder_at
@@ -691,20 +696,25 @@ def send_onboarding_reminders():
             logger.exception(
                 'setup reminder failed for %s', client.pk)
 
+    # The intake is per WEBSITE — it describes a build. A client with two
+    # builds owes two intakes and is chased for each.
+    from clients.account_models import Website
+
     intake_qs = (
-        ClientProfile.objects
+        Website.objects
         .filter(
             onboarding_status='pending_intake',
             status='active',
-            user__is_active=True,
+            account__status='active',
+            account__user__is_active=True,
         )
-        .select_related('user', 'onboarding_token')
+        .select_related('account', 'account__user')
     )
 
     intake_sent = 0
     for client in intake_qs:
         token = OnboardingToken.objects.filter(
-            client=client).first()
+            account_new=client.account).first()
         if token is None:
             continue
         last = token.last_intake_reminder_at
@@ -728,16 +738,21 @@ def send_onboarding_reminders():
             f'intake reminders sent: {intake_sent}')
 
 
-def _setup_first_name(client):
-    raw = (client.contact_name or client.firm_name or '').strip()
-    return raw.split(' ')[0] if raw else 'there'
+def _setup_first_name(owner):
+    """First name for the nudge. `owner` is an Account or a Website."""
+    from clients.display import owner_recipient
+
+    _email, name = owner_recipient(owner)
+    name = (name or '').strip()
+    return name.split(' ')[0] if name else 'there'
 
 
-def _recipient_email(client):
-    """Best-effort recipient — the user record always has the canonical email."""
-    if client.user and client.user.email:
-        return client.user.email
-    return ''
+def _recipient_email(owner):
+    """Best-effort recipient — the user record holds the canonical email."""
+    from clients.display import owner_recipient
+
+    email, _name = owner_recipient(owner)
+    return email
 
 
 def _send_setup_reminder(client, token):
