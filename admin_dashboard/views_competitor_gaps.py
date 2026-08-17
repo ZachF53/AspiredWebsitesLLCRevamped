@@ -42,7 +42,8 @@ _COMPETITOR_LIMIT = 3
 def _competitors_fragment(request, client):
     """Render the competitors box that HTMX swaps in/out."""
     from clients.models import ClientCompetitor
-    competitors = list(client.competitors.all()[:_COMPETITOR_LIMIT])
+    competitors = list(
+        client.competitors_new.all()[:_COMPETITOR_LIMIT])
     return render(
         request, 'admin_dashboard/_competitors_box.html',
         {
@@ -61,12 +62,17 @@ def competitor_add(request, client_id):
     refreshed competitors box (HTMX); GET returns the inline form
     fragment.
     """
-    from clients.models import ClientCompetitor, ClientProfile
+    from clients.account_models import Website
+    from clients.models import ClientCompetitor
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    # Competitors are tracked per SITE: the gap analysis compares one
+    # site's pages against theirs, so a firm's two brands have different
+    # competitors and would otherwise share one list.
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
 
     if request.method == 'POST':
-        existing = client.competitors.count()
+        existing = client.competitors_new.count()
         if existing >= _COMPETITOR_LIMIT:
             return HttpResponseBadRequest(
                 f'Max {_COMPETITOR_LIMIT} competitors per client.')
@@ -97,11 +103,13 @@ def competitor_add(request, client_id):
 @admin_required
 def competitor_edit(request, client_id, comp_id):
     """Inline edit; same HTMX contract as add."""
-    from clients.models import ClientCompetitor, ClientProfile
+    from clients.account_models import Website
+    from clients.models import ClientCompetitor
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     comp = get_object_or_404(
-        ClientCompetitor, id=comp_id, client=client)
+        ClientCompetitor, id=comp_id, website_new=client)
 
     if request.method == 'POST':
         name = (request.POST.get('name') or '').strip()[:200]
@@ -137,11 +145,13 @@ def competitor_edit(request, client_id, comp_id):
 @require_POST
 def competitor_delete(request, client_id, comp_id):
     """Drop a competitor; return the refreshed box."""
-    from clients.models import ClientCompetitor, ClientProfile
+    from clients.account_models import Website
+    from clients.models import ClientCompetitor
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     comp = get_object_or_404(
-        ClientCompetitor, id=comp_id, client=client)
+        ClientCompetitor, id=comp_id, website_new=client)
     comp.delete()
     return _competitors_fragment(request, client)
 
@@ -151,13 +161,12 @@ def competitor_delete(request, client_id, comp_id):
 @admin_required
 def competitor_gaps_list(request):
     """All gap reports + 4 summary cards."""
-    from clients.models import (
-        ClientProfile, CompetitorGapReport,
-    )
+    from clients.account_models import Website
+    from clients.models import CompetitorGapReport
     from django.db.models import Sum
 
     qs = (CompetitorGapReport.objects
-          .select_related('client')
+          .select_related('website_new', 'website_new__account')
           .order_by('-report_month', 'client__firm_name'))
 
     client_filter = (request.GET.get('client') or '').strip()
@@ -185,20 +194,21 @@ def competitor_gaps_list(request):
         'high_priority': (base.aggregate(
             s=Sum('high_priority_gaps'))['s'] or 0),
         'with_competitors': (
-            ClientProfile.objects
-            .filter(competitors__isnull=False,
-                    is_tester=False, status='active')
+            Website.objects
+            .filter(competitors_new__isnull=False,
+                    account__is_tester=False, status='active')
             .distinct().count()),
         'without_competitors': (
-            ClientProfile.objects
-            .filter(competitors__isnull=True,
-                    is_tester=False, status='active')
+            Website.objects
+            .filter(competitors_new__isnull=True,
+                    account__is_tester=False, status='active')
             .distinct().count()),
     }
 
-    clients = (ClientProfile.objects
-               .filter(competitor_gap_reports__isnull=False)
-               .distinct().order_by('firm_name'))
+    clients = (Website.objects
+               .filter(competitor_gap_reports_new__isnull=False)
+               .select_related('account')
+               .distinct().order_by('account__name', 'name'))
 
     return render(
         request, 'admin_dashboard/competitor_gaps_list.html',
@@ -244,10 +254,11 @@ def competitor_gap_detail(request, report_id):
 @require_POST
 def competitor_gap_run_now(request, client_id):
     """"Run Analysis Now" — fires the Celery task async."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from clients.tasks import run_competitor_gap_analysis
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     run_competitor_gap_analysis.apply_async(args=[str(client.id)])
 
     if request.headers.get('HX-Request') == 'true':

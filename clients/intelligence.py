@@ -30,6 +30,19 @@ from reporting.ai import MODEL_CONTENT
 logger = logging.getLogger(__name__)
 
 
+def _acct_field(website, name):
+    """Read an account-level fact off a Website.
+
+    City, state and contact name describe the business, not the site, so
+    they live on the Account. Returns '' rather than raising when a site
+    has no account -- the engine's whole contract is to degrade into a
+    partial report rather than fail a scheduled run.
+    """
+    account = getattr(website, 'account', None)
+    return (getattr(account, name, '') or '') if account is not None else ''
+
+
+
 # ── Data gatherer ──────────────────────────────────────────────────────────
 
 def gather_client_data(client):
@@ -40,10 +53,10 @@ def gather_client_data(client):
     Claude analysis.
     """
     data = {
-        'firm_name': client.firm_name,
+        'firm_name': client.name,
         'business_type': client.business_type or '',
-        'city': client.city or '',
-        'state': client.state or '',
+        'city': _acct_field(client, 'city') or '',
+        'state': _acct_field(client, 'state') or '',
         'package': client.package or '',
         'maintenance_active': bool(client.maintenance_active),
         'on_maintenance_plan': bool(client.maintenance_active),
@@ -52,7 +65,7 @@ def gather_client_data(client):
     }
 
     # ── Project fields (now flat on ClientProfile) ─────────────
-    data['live_url'] = client.website or ''
+    data['live_url'] = client.url or ''
     if client.launch_date:
         delta = date.today() - client.launch_date
         data['months_since_launch'] = delta.days // 30
@@ -77,7 +90,7 @@ def gather_client_data(client):
         from reporting.models import TrackedKeyword
         keywords = (
             TrackedKeyword.objects
-            .filter(client=client, is_active=True)
+            .filter(website_new=client, is_active=True)
             .prefetch_related('rank_records')
         )
         keyword_data = []
@@ -115,13 +128,13 @@ def gather_client_data(client):
         thirty_days_ago = timezone.now() - timedelta(days=30)
         data['form_submissions_30d'] = (
             ConversionEvent.objects
-            .filter(client=client, event_type='form_submit',
+            .filter(website_new=client, event_type='form_submit',
                     event_timestamp__gte=thirty_days_ago)
             .count()
         )
         data['phone_clicks_30d'] = (
             ConversionEvent.objects
-            .filter(client=client, event_type='phone_click',
+            .filter(website_new=client, event_type='phone_click',
                     event_timestamp__gte=thirty_days_ago)
             .count()
         )
@@ -135,7 +148,7 @@ def gather_client_data(client):
         from reporting.models import VulnerabilityScan
         latest_scan = (
             VulnerabilityScan.objects
-            .filter(client=client, status='complete')
+            .filter(website_new=client, status='complete')
             .order_by('-completed_at').first()
         )
         if latest_scan:
@@ -166,7 +179,7 @@ def gather_client_data(client):
         from reporting.models import GBPSyncCheck
         data['gbp_mismatches'] = (
             GBPSyncCheck.objects
-            .filter(client=client, is_mismatch=True, resolved=False)
+            .filter(website_new=client, is_mismatch=True, resolved=False)
             .count()
         )
     except Exception:
@@ -178,7 +191,7 @@ def gather_client_data(client):
         from reporting.models import ContentFreshnessReport
         latest = (
             ContentFreshnessReport.objects
-            .filter(client=client).order_by('-generated_at').first()
+            .filter(website_new=client).order_by('-generated_at').first()
         )
         if latest:
             data['pages_needing_update'] = latest.pages_needing_update
@@ -196,7 +209,7 @@ def gather_client_data(client):
         from clients.models import CompetitorGapReport
         latest_gap_report = (
             CompetitorGapReport.objects
-            .filter(client=client, status='complete')
+            .filter(website_new=client, status='complete')
             .order_by('-report_month').first()
         )
         if latest_gap_report:
@@ -446,18 +459,18 @@ def gather_annual_data(client, year):
 
     data = {
         'year': year,
-        'firm_name': client.firm_name,
+        'firm_name': client.name,
         'business_type': client.business_type or '',
-        'city': client.city or '',
-        'state': client.state or '',
-        'contact_name': client.contact_name or '',
+        'city': _acct_field(client, 'city') or '',
+        'state': _acct_field(client, 'state') or '',
+        'contact_name': _acct_field(client, 'contact_name') or '',
         'live_url': '',
         'launch_date': None,
         'months_as_client': None,
     }
 
     # ── Project fields (now flat on ClientProfile) ─────────────
-    data['live_url'] = client.website or ''
+    data['live_url'] = client.url or ''
     if client.launch_date:
         data['launch_date'] = client.launch_date.isoformat()
         delta = date.today() - client.launch_date
@@ -469,7 +482,7 @@ def gather_annual_data(client, year):
         from clients.models import UptimeAlert, UptimeRecord
 
         uptime_records = UptimeRecord.objects.filter(
-            client=client,
+            website_new=client,
             checked_at__date__gte=year_start,
             checked_at__date__lte=year_end,
         )
@@ -497,7 +510,7 @@ def gather_annual_data(client, year):
         data['uptime_by_month'] = monthly_uptime
 
         data['downtime_incidents'] = UptimeAlert.objects.filter(
-            client=client,
+            website_new=client,
             alerted_at__date__gte=year_start,
             alerted_at__date__lte=year_end,
         ).count()
@@ -518,7 +531,7 @@ def gather_annual_data(client, year):
     try:
         from reporting.models import ConversionEvent
         year_conversions = ConversionEvent.objects.filter(
-            client=client,
+            website_new=client,
             event_timestamp__date__gte=year_start,
             event_timestamp__date__lte=year_end,
         )
@@ -552,7 +565,7 @@ def gather_annual_data(client, year):
     try:
         from reporting.models import TrackedKeyword
         keywords = TrackedKeyword.objects.filter(
-            client=client, is_active=True)
+            website_new=client, is_active=True)
         data['keywords_tracked'] = keywords.count()
 
         page_1_count = 0
@@ -587,7 +600,7 @@ def gather_annual_data(client, year):
             VulnerabilityFinding, VulnerabilityScan,
         )
         year_scans = VulnerabilityScan.objects.filter(
-            client=client, status='complete',
+            website_new=client, status='complete',
             completed_at__date__gte=year_start,
             completed_at__date__lte=year_end,
         ).order_by('completed_at')
@@ -598,7 +611,7 @@ def gather_annual_data(client, year):
             s.high_count for s in year_scans)
         data['findings_resolved'] = (
             VulnerabilityFinding.objects.filter(
-                scan__client=client,
+                scan__website_new=client,
                 scan__completed_at__date__gte=year_start,
                 scan__completed_at__date__lte=year_end,
                 status='resolved',
@@ -626,7 +639,7 @@ def gather_annual_data(client, year):
     try:
         from clients.models import IntelligenceSuggestion
         year_suggestions = IntelligenceSuggestion.objects.filter(
-            client=client,
+            website_new=client,
             generated_at__date__gte=year_start,
             generated_at__date__lte=year_end,
         )
@@ -665,7 +678,7 @@ def gather_annual_data(client, year):
     try:
         from clients.models import SiteChangelogEntry
         year_changelog = SiteChangelogEntry.objects.filter(
-            client=client,
+            website_new=client,
             date_of_change__gte=year_start,
             date_of_change__lte=year_end,
             is_client_visible=True,
@@ -698,7 +711,7 @@ def gather_annual_data(client, year):
     try:
         from reporting.models import NPSSurvey
         year_nps = NPSSurvey.objects.filter(
-            client=client,
+            website_new=client,
             sent_at__date__gte=year_start,
             sent_at__date__lte=year_end,
             score__isnull=False,
@@ -736,7 +749,7 @@ def generate_annual_narrative(client, data):
         'executive_summary': (
             f"Thank you for a great year with Aspired Websites LLC."),
         'year_in_review': (
-            f"We have been proud to support {client.firm_name}'s "
+            f"We have been proud to support {client.name}'s "
             f"online presence throughout the year."),
         'looking_ahead': (
             f"We look forward to continuing to grow your online "
@@ -1028,9 +1041,9 @@ def analyze_competitor_gaps(client, client_pages, competitor_data):
     user_message = (
         f"Analyze content gaps for this client vs their "
         f"competitors:\n\n"
-        f"CLIENT: {client.firm_name}\n"
+        f"CLIENT: {client.name}\n"
         f"Business type: {client.business_type or 'unspecified'}\n"
-        f"Location: {client.city or '?'}, {client.state or '?'}\n\n"
+        f"Location: {_acct_field(client, 'city') or '?'}, {_acct_field(client, 'state') or '?'}\n\n"
         f"CLIENT'S PAGES ({len(client_pages)} total):\n"
         f"Titles: {_json.dumps(client_page_titles[:25])}\n"
         f"Paths: {_json.dumps(client_paths[:25])}\n\n"

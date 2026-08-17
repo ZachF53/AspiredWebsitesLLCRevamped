@@ -162,7 +162,7 @@ def annual_report_regenerate(request, report_id):
     report.status = 'generating'
     report.save(update_fields=['status', 'updated_at'])
     generate_annual_report.apply_async(
-        args=[str(report.client.id), report.report_year])
+        args=[str(report.website_new_id), report.report_year])
     return redirect('admin_dashboard:annual_report_detail',
                     report_id=report.id)
 
@@ -173,7 +173,8 @@ def annual_report_generate(request):
     Manual on-demand generation — admin picks a client + year,
     we queue the Celery task and bounce to the detail page.
     """
-    from clients.models import AnnualReport, ClientProfile
+    from clients.account_models import Website
+    from clients.models import AnnualReport
     from clients.tasks import generate_annual_report
 
     if request.method == 'POST':
@@ -186,28 +187,25 @@ def annual_report_generate(request):
         except ValueError:
             return HttpResponseBadRequest(
                 'report_year must be an integer.')
-        client = get_object_or_404(ClientProfile, id=cid)
-
-        # Keyed on the website to match the unique constraint — see
-        # clients.tasks.generate_annual_report for why `client` is out.
-        from clients.website_helpers import primary_website
-        site = primary_website(client)
-        key = ({'website_new': site} if site is not None
-               else {'client': client})
+        # The report covers one site's year. Keyed on the website,
+        # matching the unique constraint.
+        site = get_object_or_404(
+            Website.objects.select_related('account'), id=cid)
         report, _ = AnnualReport.objects.get_or_create(
-            report_year=year, **key,
+            website_new=site, report_year=year,
             defaults={'status': 'generating'},
         )
         report.status = 'generating'
         report.save(update_fields=['status', 'updated_at'])
         generate_annual_report.apply_async(
-            args=[str(client.id), year])
+            args=[str(site.id), year])
         return redirect(
             'admin_dashboard:annual_report_detail',
             report_id=report.id)
 
-    clients = (ClientProfile.objects.filter(is_tester=False)
-               .order_by('firm_name'))
+    clients = (Website.objects.filter(account__is_tester=False)
+               .select_related('account')
+               .order_by('account__name', 'name'))
     return render(request, 'admin_dashboard/annual_report_generate.html',
                   _admin_context(
                       'annual_reports',

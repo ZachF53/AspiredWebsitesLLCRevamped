@@ -64,7 +64,7 @@ def _payment_score(client):
         score = 100
 
     fortnight_ago = timezone.now() - timedelta(days=14)
-    overdue = client.tickets.filter(
+    overdue = client.tickets_new.filter(
         billable=True,
         status__in=('open', 'in_progress'),
         created_at__lt=fortnight_ago,
@@ -76,11 +76,14 @@ def _payment_score(client):
 
 def _engagement_score(client):
     """20% — portal login recency."""
-    if not client.user:
+    # The login is account-level: one user per customer, however many
+    # sites they have.
+    user = getattr(client.account, 'user', None) if client.account else None
+    if not user:
         # No login account = no portal access. Don't penalise; the
         # client may be email-only by design (legacy seed flow).
         return 50
-    last_login = client.user.last_login
+    last_login = user.last_login
     if not last_login:
         return 0
     days = (timezone.now() - last_login).days
@@ -97,7 +100,7 @@ def _engagement_score(client):
 
 def _nps_score(client):
     """20% — latest NPS survey response. 50 (neutral) when no data."""
-    latest = client.nps_surveys.filter(
+    latest = client.nps_surveys_new.filter(
         score__isnull=False).order_by('-sent_at').first()
     if latest is None or latest.score is None:
         return 50
@@ -128,7 +131,7 @@ def _uptime_score(client):
 
 def _support_score(client):
     """10% — open ticket pressure. 3+ open is critical for one client."""
-    open_count = client.tickets.filter(
+    open_count = client.tickets_new.filter(
         status__in=('open', 'in_progress')).count()
     if open_count == 0:
         return 100
@@ -169,10 +172,8 @@ def calculate_client_health(client):
     churn_risk = (health_status == 'critical') or (payment == 0)
 
     from clients.models import ClientHealthScore
-    from clients.website_helpers import primary_website
     return ClientHealthScore(
-        client=client,
-        website_new=primary_website(client),
+        website_new=client,
         score=score,
         payment_score=payment,
         engagement_score=engagement,
@@ -193,7 +194,7 @@ def get_latest_health_score(client):
     """
     from clients.models import ClientHealthScore
 
-    latest = ClientHealthScore.objects.filter(client=client).first()
+    latest = ClientHealthScore.objects.filter(website_new=client).first()
     if latest is not None and (
             timezone.now() - latest.calculated_at) < timedelta(days=1):
         return latest

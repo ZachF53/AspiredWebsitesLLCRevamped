@@ -23,7 +23,6 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from clients.website_helpers import primary_website
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +76,11 @@ def _fire_churn_alert(client, score):
     if prior_alerts:
         return  # Already alerted this week.
 
-    subject = (f'[Churn Risk] {client.firm_name} — '
+    subject = (f'[Churn Risk] {client.name} — '
                f'Health Score {score.score}/100')
     message = (
         f'Client health score has dropped into the critical band.\n\n'
-        f'Client:       {client.firm_name}\n'
+        f'Client:       {client.name}\n'
         f'Score:        {score.score}/100  ({score.health_status})\n'
         f'Payment:      {score.payment_score}/100\n'
         f'Engagement:   {score.engagement_score}/100\n'
@@ -89,7 +88,7 @@ def _fire_churn_alert(client, score):
         f'Uptime:       {score.uptime_score}/100\n'
         f'Support:      {score.support_score}/100\n\n'
         f'Review at:\n'
-        f'{settings.SITE_BASE_URL}/admin-dashboard/clients/'
+        f'{settings.SITE_BASE_URL}/admin-dashboard/websites/'
         f'{client.id}/\n'
     )
     try:
@@ -194,22 +193,26 @@ def run_intelligence_for_client(client_id):
     """
     from datetime import date
 
+    from clients.account_models import Website
     from clients.intelligence import run_intelligence_analysis
-    from clients.models import (
-        ClientProfile, IntelligenceReport, IntelligenceSuggestion,
-    )
+    from clients.models import IntelligenceReport, IntelligenceSuggestion
 
-    try:
-        client = ClientProfile.objects.get(id=client_id)
-    except ClientProfile.DoesNotExist:
-        return f'Client {client_id} not found.'
+    # Per SITE. The engine analyses one site's uptime, keywords,
+    # conversions, scans and listing; run per account it averaged two
+    # sites into findings that described neither.
+    client = (Website.objects
+              .select_related('account')
+              .filter(id=client_id)
+              .first())
+    if client is None:
+        return f'Website {client_id} not found.'
 
     report_month = date.today().replace(day=1)
     existing = (IntelligenceReport.objects
-                .filter(client=client, report_month=report_month)
+                .filter(website_new=client, report_month=report_month)
                 .first())
     if existing:
-        return (f'Already ran for {client.firm_name} '
+        return (f'Already ran for {client.name} '
                 f'this month ({report_month.isoformat()}).')
 
     result = run_intelligence_analysis(client)
@@ -222,12 +225,9 @@ def run_intelligence_for_client(client_id):
     else:
         status = 'complete'
 
-    # The intelligence admin pages are per-website — stamp both the report
-    # and every suggestion hanging off it, or they render as empty.
-    site = primary_website(client)
+    site = client
 
     report = IntelligenceReport.objects.create(
-        client=client,
         website_new=site,
         report_month=report_month,
         data_snapshot=result.get('data_snapshot', {}) or {},
@@ -266,7 +266,7 @@ def run_intelligence_for_client(client_id):
             status='pending_review',
         )
 
-    return (f'{client.firm_name}: {len(suggestions)} '
+    return (f'{client.name}: {len(suggestions)} '
             f'suggestion(s), status={status}.')
 
 
@@ -314,29 +314,26 @@ def generate_annual_report(client_id, year):
     from clients.intelligence import (
         gather_annual_data, generate_annual_narrative,
     )
-    from clients.models import AnnualReport, ClientProfile
+    from clients.account_models import Website
+    from clients.models import AnnualReport
 
-    try:
-        client = ClientProfile.objects.get(id=client_id)
-    except ClientProfile.DoesNotExist:
-        return f'Client {client_id} not found.'
-
-    # Keyed on the website, matching the unique constraint. `client` is
-    # nullable and new rows leave it NULL, so a lookup including it would
-    # miss the existing row, create a second, and violate
-    # (website_new, report_year).
-    site = primary_website(client)
-    key = ({'website_new': site} if site is not None
-           else {'client': client})
+    # The report covers one site's year, and is keyed on the website to
+    # match the unique constraint.
+    client = (Website.objects
+              .select_related('account')
+              .filter(id=client_id)
+              .first())
+    if client is None:
+        return f'Website {client_id} not found.'
 
     existing = AnnualReport.objects.filter(
-        report_year=year, **key).first()
+        website_new=client, report_year=year).first()
     if existing and existing.status in ('ready', 'sent'):
-        return (f'Already ready: {client.firm_name} {year} '
+        return (f'Already ready: {client.name} {year} '
                 f'(status={existing.status})')
 
     report, _ = AnnualReport.objects.get_or_create(
-        report_year=year, **key,
+        website_new=client, report_year=year,
         defaults={'status': 'generating'},
     )
     report.status = 'generating'
@@ -397,10 +394,10 @@ def generate_annual_report(client_id, year):
         try:
             send_mail(
                 subject=(f'Annual Report Ready: '
-                         f'{client.firm_name} — {year}'),
+                         f'{client.name} — {year}'),
                 message=(
                     f'Annual report generated for '
-                    f'{client.firm_name}.\n\n'
+                    f'{client.name}.\n\n'
                     f'Review and send at:\n'
                     f'{settings.SITE_BASE_URL}/admin-dashboard/'
                     f'annual-reports/{report.id}/\n'),
@@ -413,7 +410,7 @@ def generate_annual_report(client_id, year):
         except Exception:
             logger.exception('annual-report admin email failed')
 
-        return (f'Ready: {client.firm_name} {year} '
+        return (f'Ready: {client.name} {year} '
                 f'({report.total_tokens_used} tokens)')
     except Exception as exc:  # noqa: BLE001
         logger.exception(
@@ -421,7 +418,7 @@ def generate_annual_report(client_id, year):
             client.pk, year)
         report.status = 'failed'
         report.save(update_fields=['status', 'updated_at'])
-        return f'FAILED: {client.firm_name} {year}: {exc}'
+        return f'FAILED: {client.name} {year}: {exc}'
 
 
 @shared_task
@@ -441,43 +438,43 @@ def run_competitor_gap_analysis(client_id):
     from clients.intelligence import (
         analyze_competitor_gaps, crawl_site_for_pages,
     )
-    from clients.models import (
-        ClientCompetitor, ClientProfile, CompetitorGapReport,
-    )
+    from clients.account_models import Website
+    from clients.models import ClientCompetitor, CompetitorGapReport
 
-    try:
-        client = ClientProfile.objects.get(id=client_id)
-    except ClientProfile.DoesNotExist:
-        return f'Client {client_id} not found.'
+    # Per site: the analysis compares one site's pages against its own
+    # competitors, and those are tracked per site too.
+    client = (Website.objects
+              .select_related('account')
+              .filter(id=client_id)
+              .first())
+    if client is None:
+        return f'Website {client_id} not found.'
 
     report_month = date.today().replace(day=1)
     if CompetitorGapReport.objects.filter(
-            client=client, report_month=report_month).exists():
-        return (f'Already ran for {client.firm_name} this month '
+            website_new=client, report_month=report_month).exists():
+        return (f'Already ran for {client.name} this month '
                 f'({report_month.isoformat()}).')
 
-    # Gap-report pages filter by website_new — stamp every exit path,
-    # including the early no-competitors / no-URL rows.
-    site = primary_website(client)
+    site = client
 
     competitors = list(
-        ClientCompetitor.objects.filter(client=client)[:3])
+        ClientCompetitor.objects.filter(website_new=client)[:3])
     if not competitors:
         CompetitorGapReport.objects.create(
-            client=client, website_new=site, report_month=report_month,
+            website_new=site, report_month=report_month,
             status='no_competitors',
         )
-        return f'{client.firm_name}: no competitors set.'
+        return f'{client.name}: no competitors set.'
 
-    # client.website is the canonical live URL (2026-05-25 refactor).
-    client_url = client.website or ''
+    client_url = client.url or ''
     if not client_url:
         CompetitorGapReport.objects.create(
-            client=client, website_new=site, report_month=report_month,
+            website_new=site, report_month=report_month,
             status='failed',
             overall_assessment='Client has no live URL set.',
         )
-        return (f'{client.firm_name}: skipped — no live URL.')
+        return (f'{client.name}: skipped — no live URL.')
 
     report = CompetitorGapReport.objects.create(
         client=client, website_new=site, report_month=report_month,
@@ -524,7 +521,7 @@ def run_competitor_gap_analysis(client_id):
         if report.high_priority_gaps > 0:
             _notify_competitor_gaps(client, report)
 
-        return (f'{client.firm_name}: {report.total_gaps_found} '
+        return (f'{client.name}: {report.total_gaps_found} '
                 f'gap(s), {report.high_priority_gaps} high '
                 f'priority.')
     except Exception as exc:  # noqa: BLE001
@@ -535,7 +532,7 @@ def run_competitor_gap_analysis(client_id):
             f'Analysis failed: {str(exc)[:300]}')
         report.save(update_fields=[
             'status', 'overall_assessment', 'updated_at'])
-        return f'FAILED: {client.firm_name}: {exc}'
+        return f'FAILED: {client.name}: {exc}'
 
 
 def _notify_competitor_gaps(client, report):
@@ -549,12 +546,12 @@ def _notify_competitor_gaps(client, report):
     gap_list = '\n'.join(f'  - {g["title"]}' for g in high_gaps[:5])
     try:
         send_mail(
-            subject=(f'Competitor gaps found: {client.firm_name} '
+            subject=(f'Competitor gaps found: {client.name} '
                      f'— {report.high_priority_gaps} high '
                      f'priority'),
             message=(
                 f'Competitor content gap analysis complete for '
-                f'{client.firm_name}.\n\n'
+                f'{client.name}.\n\n'
                 f'High priority gaps:\n{gap_list}\n\n'
                 f'Review at:\n'
                 f'{settings.SITE_BASE_URL}/admin-dashboard/'
@@ -608,13 +605,17 @@ def check_annual_report_schedule():
     """
     from datetime import date
 
-    from clients.models import AnnualReport, ClientProfile
-
-    from clients.canonical_iteration import profiles_with_coverage_report
+    from clients.account_models import Website
+    from clients.models import AnnualReport
 
     today = date.today()
-    active = profiles_with_coverage_report(
-        'check_annual_report_schedule', status='active', is_tester=False)
+    # Iterates Websites directly. The coverage-report shim existed to make
+    # the accounts a legacy-table walk would silently drop *loud*; walking
+    # the canonical table means there are none to drop.
+    active = (Website.objects
+              .filter(status='active', account__status='active',
+                      account__is_tester=False)
+              .select_related('account'))
 
     queued = 0
     for client in active:
