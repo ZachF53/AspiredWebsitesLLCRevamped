@@ -33,6 +33,7 @@ _ALLOWED_REFERENCES = (
     'clients/parity.py',
     'clients/account_setup.py',
     'clients/canonical_stamping.py',
+    'clients/canonical_iteration.py',
     'clients/signals.py',
     'clients/apps.py',
     'clients/account_models.py',
