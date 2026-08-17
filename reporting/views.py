@@ -21,11 +21,46 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
-from clients.models import ClientProfile
-
 from .models import ConversionEvent
 
 VALID_EVENT_TYPES = {'form_submit', 'phone_click', 'cta_click'}
+
+
+def _website_for_tracker_id(raw_id):
+    """Resolve the id in a tracker snippet to a Website, or None.
+
+    The snippet is `<script data-aspired-client="UUID">`, sitting in the
+    HTML of a client's live site. We cannot redeploy those, and every one
+    already out there carries a ClientProfile id. So both forms resolve:
+    a Website id for snippets generated from now on, and a legacy profile
+    id for everything already in the wild — indefinitely, because a
+    client site can stay untouched for years.
+
+    The legacy branch filters Account on its own `legacy_client_profile`
+    column rather than importing ClientProfile, so supporting the old
+    snippets does not count as a legacy read.
+
+    A profile id maps to the account's oldest site. That is a guess on a
+    multi-site account, but the snippet genuinely does not say which site
+    it is on, and dropping the event entirely would be worse: the client
+    would see their conversions stop.
+    """
+    from clients.account_models import Website
+
+    if not raw_id:
+        return None
+    site = (Website.objects
+            .select_related('account')
+            .filter(id=raw_id)
+            .first())
+    if site is not None:
+        return site
+    return (Website.objects
+            .select_related('account')
+            .filter(account__legacy_client_profile_id=raw_id)
+            .order_by('created_at')
+            .first())
+
 
 # Preflight cached for 24h — browser skips OPTIONS for subsequent POSTs.
 _CORS_HEADERS = {
@@ -93,13 +128,6 @@ def _hash_ip(request):
         (ip + settings.SECRET_KEY).encode('utf-8')).hexdigest()
 
 
-def _primary_website(client):
-    """The client's primary (oldest) Website, or None — used to stamp the
-    per-website FK on ingested analytics during the Phase-D teardown."""
-    from clients.website_helpers import primary_website
-    return primary_website(client)
-
-
 @cors_post
 @csrf_exempt
 @ratelimit(key='ip', rate='100/m', block=True)
@@ -119,15 +147,14 @@ def track_conversion_event(request):
     client_id = data.get('client_id', '')
     if not _is_uuid(client_id):
         return _ok()
-    client = ClientProfile.objects.filter(id=client_id).first()
+    client = _website_for_tracker_id(client_id)
     if client is None:
         return _ok()
 
     event_ts = parse_datetime(str(data.get('timestamp') or '')) or timezone.now()
 
     ConversionEvent.objects.create(
-        client=client,
-        website_new=_primary_website(client),
+        website_new=client,
         event_type=event_type,
         element_id=str(data.get('element_id') or '')[:100],
         element_text=str(data.get('element_text') or '')[:100],
@@ -175,10 +202,10 @@ def track_batch(request):
     if not _is_uuid(client_id):
         return _ok()
 
-    client = ClientProfile.objects.filter(id=client_id).first()
-    if client is None or not events:
+    site = _website_for_tracker_id(client_id)
+    if site is None or not events:
         return _ok()
-    site = _primary_website(client)
+    client = site
 
     # Pull the page_summary event (always last on the queue but
     # don't depend on position — find by type).
@@ -215,7 +242,6 @@ def track_batch(request):
 
     try:
         PageSession.objects.create(
-            client=client,
             website_new=site,
             session_id=session_id,
             page_url=page_url[:2000],
@@ -248,7 +274,6 @@ def track_batch(request):
         ev_ts = (parse_datetime(str(e.get('timestamp') or '')) or now)
         try:
             ConversionEvent.objects.create(
-                client=client,
                 website_new=site,
                 event_type=etype,
                 element_id=str(e.get('element_id') or '')[:100],
@@ -281,13 +306,10 @@ def tracker_config(request, client_id):
     CORS-open because the request originates on the client's own
     domain, not aspiredwebsites.com.
     """
-    from clients.models import ClientProfile
-
     enabled = False
     try:
-        enabled = ClientProfile.objects.filter(
-            id=client_id).values_list(
-            'session_recording_enabled', flat=True).first() or False
+        site = _website_for_tracker_id(client_id)
+        enabled = bool(site and site.session_recording_enabled)
     except (ValueError, TypeError):
         enabled = False
 
@@ -336,9 +358,8 @@ def track_recording(request):
     if not _is_uuid(client_id) or not session_id or not events:
         return _ok()
 
-    client = ClientProfile.objects.filter(
-        id=client_id, session_recording_enabled=True).first()
-    if client is None:
+    client = _website_for_tracker_id(client_id)
+    if client is None or not client.session_recording_enabled:
         return _ok()
 
     viewport = data.get('viewport') or {}
@@ -350,10 +371,9 @@ def track_recording(request):
 
     # Every read path for recordings — the admin recordings list, the
     # website_detail count, and the portal replay/download views — filters
-    # on `website_new`. A row written without it is invisible everywhere,
-    # so stamp it here exactly like track_batch does for PageSession and
-    # ConversionEvent.
-    site = _primary_website(client)
+    # on `website_new`. `client` IS the Website here — the tracker id
+    # resolves straight to one.
+    site = client
 
     # Visitor device, read off the request's own User-Agent. Doing this
     # server-side means the tracker snippet on the client's site stays
@@ -364,10 +384,9 @@ def track_recording(request):
 
     try:
         rec, _created = SessionRecording.objects.get_or_create(
-            client=client,
+            website_new=site,
             session_id=session_id,
             defaults={
-                'website_new': site,
                 'page_url': str(data.get('page_url') or '')[:2000],
                 'page_title': str(data.get('page_title') or '')[:200],
                 'viewport_width': vp_w,
@@ -514,13 +533,15 @@ def _nps_take_action(survey):
             return 'review_email_failed'
         return 'review_requested'
     if band == 'detractor':
+        from clients.display import owner_label
         from .tasks import send_admin_alert
+
+        label = owner_label(survey)
         send_admin_alert(
-            subject=(f'Low NPS from {survey.client.firm_name}: '
-                     f'score {survey.score}'),
+            subject=f'Low NPS from {label}: score {survey.score}',
             message=(
                 f'NPS score: {survey.score}/10\n'
-                f'Client: {survey.client.firm_name}\n'
+                f'Client: {label}\n'
                 f'Feedback: {survey.feedback or "(none given)"}'
             ),
         )
@@ -576,12 +597,18 @@ _PHONE_RE = re.compile(
 
 
 def _build_chat_system_prompt(client, chatbot):
-    """Assemble the chatbot system prompt from the client + chatbot config."""
+    """Assemble the chatbot system prompt from the site + chatbot config.
+
+    `client` is a Website. The brand the bot speaks as is the site's own
+    name: a visitor on the mediation site should not be greeted by the
+    law firm.
+    """
     from .ai import client_location_phrase
+    account = client.account
     biz = client.business_type or 'business'
     return (
-        f'You are a helpful assistant for {client.firm_name}, a {biz}'
-        f'{client_location_phrase(client)}.\n\n'
+        f'You are a helpful assistant for {client.name}, a {biz}'
+        f'{client_location_phrase(account)}.\n\n'
         f'{chatbot.system_prompt}\n\n'
         'IMPORTANT RULES:\n'
         '- You are not a lawyer and cannot give legal advice.\n'
@@ -589,7 +616,8 @@ def _build_chat_system_prompt(client, chatbot):
         'questions.\n'
         '- Be warm, professional, and helpful.\n'
         '- If someone seems to have an urgent legal issue, give them the '
-        f"firm's phone number: {client.phone or 'our office'}.\n"
+        f"firm's phone number: "
+        f"{(account.phone if account else '') or 'our office'}.\n"
         '- If the visitor shares their name or asks to book an appointment, '
         'acknowledge it and offer to have someone follow up.\n'
         '- Keep responses concise — 2-3 short paragraphs maximum.\n'
@@ -648,8 +676,8 @@ def chatbot_api(request):
     if not _is_uuid(client_id) or not session_id or not message:
         return _cors_json({'error': 'Bad request'}, status=400)
 
-    client = ClientProfile.objects.filter(id=client_id).first()
-    chatbot = getattr(client, 'chatbot', None) if client else None
+    client = _website_for_tracker_id(client_id)
+    chatbot = getattr(client, 'chatbot_new', None) if client else None
     if chatbot is None or not chatbot.is_active:
         return _cors_json({'error': 'Chatbot unavailable'}, status=403)
 

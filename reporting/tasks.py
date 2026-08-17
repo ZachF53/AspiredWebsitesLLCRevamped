@@ -470,7 +470,7 @@ def check_conversion_drops():
     Compare this month's form submissions to last month's per client.
     A drop of 30%+ raises an admin alert. Scheduled on the 2nd at 8am.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from .models import ConversionEvent
 
     now = timezone.now()
@@ -478,14 +478,21 @@ def check_conversion_drops():
         day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
 
+    # Per site. Conversions are recorded against the website the tracker
+    # fired on, so summing them per account averaged two sites together
+    # and a 60% collapse on one could hide behind steady numbers on the
+    # other — exactly the case the alert exists to catch.
     alerted = 0
-    for client in ClientProfile.objects.filter(status='active'):
+    sites = (Website.objects
+             .filter(status='active', account__status='active')
+             .select_related('account'))
+    for client in sites:
         this_month = ConversionEvent.objects.filter(
-            client=client, event_type='form_submit',
+            website_new=client, event_type='form_submit',
             event_timestamp__gte=this_month_start,
         ).count()
         last_month = ConversionEvent.objects.filter(
-            client=client, event_type='form_submit',
+            website_new=client, event_type='form_submit',
             event_timestamp__gte=last_month_start,
             event_timestamp__lt=this_month_start,
         ).count()
@@ -496,12 +503,13 @@ def check_conversion_drops():
         drop_pct = ((last_month - this_month) / last_month) * 100
         if drop_pct >= 30:
             send_admin_alert(
-                subject=f'⚠ Conversion Drop: {client.firm_name}',
+                subject=f'⚠ Conversion Drop: {client.name}',
                 message=(
                     f'Form submissions dropped {drop_pct:.0f}% this month.\n'
                     f'Last month: {last_month}\n'
                     f'This month: {this_month}\n'
-                    f'Check: /admin-dashboard/clients/{client.id}/conversions/'
+                    f'Check: /admin-dashboard/websites/{client.id}'
+                    f'/conversions/'
                 ),
             )
             alerted += 1
@@ -543,15 +551,17 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
     report per site, because a single report covering two different
     domains' uptime and conversions describes neither.
 
-    `website_id` is optional so existing callers and queued tasks keep
-    working; when omitted the account's sole website is used.
+    `client_id` is the legacy first argument, retained so tasks queued
+    before the cutover still resolve; pass None and give `website_id`.
+    Either identifies the site, and the site is what the report is about.
     """
     import os
     from datetime import date
 
     from django.template.loader import render_to_string
 
-    from clients.models import ClientProfile, SiteChangelogEntry
+    from clients.account_models import Website
+    from clients.models import SiteChangelogEntry
 
     from .conversion_helpers import conversion_counts
     from .keyword_helpers import build_keyword_rows
@@ -560,19 +570,26 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
         get_avg_response_time, get_uptime_chart_data, get_uptime_percentage,
     )
 
-    client = ClientProfile.objects.filter(id=client_id).first()
-    if client is None:
-        return 'No such client.'
     report_month = date.fromisoformat(report_month_str).replace(day=1)
-
-    from clients.account_models import Website
 
     site = None
     if website_id:
-        site = Website.objects.filter(id=website_id).first()
+        site = (Website.objects
+                .select_related('account')
+                .filter(id=website_id)
+                .first())
+    if site is None and client_id:
+        # A task queued under the old signature. Resolve through the
+        # Account's own legacy_client_profile column rather than reading
+        # ClientProfile, so compatibility does not cost a legacy read.
+        site = (Website.objects
+                .select_related('account')
+                .filter(account__legacy_client_profile_id=client_id)
+                .order_by('created_at')
+                .first())
     if site is None:
-        from clients.website_helpers import primary_website
-        site = primary_website(client)
+        return 'No such website.'
+    client = site.account
 
     # Scope the row to the website. Keyed on client alone, a multi-site
     # account could only ever hold ONE report per month — the second
@@ -625,7 +642,7 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
         weekly_forms.append({
             'label': f'Wk {week_no}',
             'count': ConversionEvent.objects.filter(
-                client=client, event_type='form_submit',
+                website_new=site, event_type='form_submit',
                 event_timestamp__date__gte=week_start,
                 event_timestamp__date__lt=week_end).count(),
         })
@@ -635,14 +652,14 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
         week['bar_h'] = round(week['count'] / peak_week * 100)
 
     changelog = list(SiteChangelogEntry.objects.filter(
-        client=client, date_of_change__gte=month_start,
+        website_new=site, date_of_change__gte=month_start,
         date_of_change__lt=month_end, is_client_visible=True))
 
-    keyword_rows = build_keyword_rows(client, active_only=True)
+    keyword_rows = build_keyword_rows(site, active_only=True)
     page1 = sum(1 for r in keyword_rows if r['position'] and r['position'] <= 10)
     improved = sum(1 for r in keyword_rows if r['trend']['css'] == 'up')
 
-    uptime_chart = get_uptime_chart_data(client, days=30)
+    uptime_chart = get_uptime_chart_data(site, days=30)
     peak = max((d['avg_response_ms'] or 0 for d in uptime_chart), default=0) or 1
     for day in uptime_chart:
         day['bar_h'] = round((day['avg_response_ms'] or 0) / peak * 100)
@@ -657,17 +674,17 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
     # them an empty GBP section reads as "we did nothing for you" rather
     # than "you are not on this plan".
     from .models import GbpPerformanceSnapshot, GBPSyncCheck
-    has_gbp = client.has_gbp_features()
+    has_gbp = site.has_gbp_features()
     gbp_performance = None
     nap_drift = []
     if has_gbp:
         gbp_performance = GbpPerformanceSnapshot.objects.filter(
-            client=client, snapshot_month=month_start).first()
+            website_new=site, snapshot_month=month_start).first()
         # Unresolved mismatches only. A drift that was found AND fixed
         # during the month is work done, not an outstanding problem, and
         # listing it as a warning would misrepresent the month.
         nap_drift = list(GBPSyncCheck.objects.filter(
-            client=client, is_mismatch=True, resolved=False,
+            website_new=site, is_mismatch=True, resolved=False,
             checked_at__date__lt=month_end,
         ).order_by('field_name'))
 
@@ -694,7 +711,7 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
         'keyword_rows': keyword_rows[:10],
         'keywords_on_page_1': page1,
         'keywords_improved': improved,
-        'conversion_counts': conversion_counts(client),
+        'conversion_counts': conversion_counts(site),
         'weekly_forms': weekly_forms,
         'uptime_chart': uptime_chart,
         'summary': _report_summary(
@@ -703,7 +720,9 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
     }
     html_string = render_to_string('reporting/monthly_report.html', context)
 
-    rel_dir = os.path.join('reports', str(client.id))
+    # Report files live under the SITE, so a two-site account does not
+    # have its second report overwrite the first at the same path.
+    rel_dir = os.path.join('reports', str(site.id))
     abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
     os.makedirs(abs_dir, exist_ok=True)
     filename = f'report-{report_month.strftime("%Y-%m")}.pdf'
@@ -732,7 +751,8 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
     report.save()
 
     send_monthly_report_email(report)
-    return f'Report generated for {client.firm_name}.'
+    from clients.display import owner_label
+    return f'Report generated for {owner_label(site)}.'
 
 
 def send_monthly_report_email(report):
@@ -810,27 +830,23 @@ def send_monthly_reports():
     else:
         report_month = date(today.year, today.month - 1, 1)
 
-    # One report per WEBSITE (owner decision 2026-08-17). Maintenance is
-    # recorded on the Website; the legacy profile flag is the fallback
-    # for rows the backfill has not reached.
-    from django.db.models import Q
-
+    # One report per WEBSITE (owner decision 2026-08-17).
+    #
+    # The legacy-profile fallback is gone, and with it the guard that
+    # skipped any site whose account had no profile — the shape every
+    # account created after the cutover takes. Those clients paid for
+    # maintenance and silently received no monthly report at all.
     from clients.account_models import Website
 
-    sites = Website.objects.filter(
-        Q(maintenance_active=True)
-        | Q(account__legacy_client_profile__maintenance_active=True),
-        status='active', account__status='active',
-    ).select_related('account__legacy_client_profile')
+    sites = (Website.objects
+             .filter(maintenance_active=True, status='active',
+                     account__status='active')
+             .select_related('account'))
 
     count = 0
     for site in sites:
-        client = site.account.legacy_client_profile
-        if client is None:
-            # MonthlyReport.client is non-nullable until Phase D.
-            continue
         generate_monthly_report(
-            str(client.id), report_month.isoformat(), str(site.id))
+            None, report_month.isoformat(), str(site.id))
         count += 1
     return f'Processed {count} monthly report(s) for {report_month}.'
 
@@ -840,18 +856,18 @@ def send_monthly_reports():
 @shared_task
 def generate_freshness_report(client_id):
     """Crawl a client's live site and score every page for content freshness."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     from .freshness import calculate_freshness_score, crawl_site
     from .models import ContentFreshnessReport
 
-    client = ClientProfile.objects.filter(id=client_id).first()
+    client = Website.objects.filter(id=client_id).first()
     if client is None:
-        return 'No such client.'
-    if not client.website:
+        return 'No such website.'
+    if not client.url:
         return 'No live site to crawl.'
 
-    base_url = client.website
+    base_url = client.url
     if not base_url.startswith('http'):
         base_url = f'https://{base_url}'
 
@@ -872,26 +888,26 @@ def generate_freshness_report(client_id):
     report_data.sort(key=lambda item: item['freshness_score'])
 
     ContentFreshnessReport.objects.create(
-        client=client,
-        website_new=_primary_website(client),
+        website_new=client,
         pages_analyzed=len(pages),
         pages_needing_update=sum(
             1 for p in report_data if p['priority'] == 'high'),
         report_data=report_data,
     )
-    return f'Freshness report for {client.firm_name}: {len(pages)} page(s).'
+    return f'Freshness report for {client.name}: {len(pages)} page(s).'
 
 
 @shared_task
 def generate_freshness_reports():
     """Quarterly freshness crawl for every active maintenance client."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     count = 0
-    for client in ClientProfile.objects.filter(
-            status='active', maintenance_active=True):
+    for client in Website.objects.filter(
+            status='active', maintenance_active=True,
+            account__status='active'):
         generate_freshness_report(str(client.id))
         count += 1
-    return f'Freshness reports generated for {count} client(s).'
+    return f'Freshness reports generated for {count} site(s).'
 
 
 # ── Phase 5b Part 3: NPS surveys ────────────────────────────────────────────
@@ -900,10 +916,12 @@ def send_nps_email(client, survey):
     """Send the NPS survey email with 0-10 scoring buttons."""
     from clients.emails import send_branded
 
-    recipient = getattr(client.user, 'email', '') if client.user_id else ''
+    from clients.display import owner_label, owner_recipient
+
+    recipient, _resolved_name = owner_recipient(client)
     if not recipient:
         return
-    name = client.contact_name or client.firm_name
+    name = _resolved_name or owner_label(client)
     base_url = f'{settings.SITE_BASE_URL}/nps/{survey.survey_token}/'
 
     text_lines = [
@@ -986,10 +1004,12 @@ def send_testimonial_email(client):
     """Send the one-time video testimonial request email."""
     from clients.emails import send_branded
 
-    recipient = getattr(client.user, 'email', '') if client.user_id else ''
+    from clients.display import owner_label, owner_recipient
+
+    recipient, _resolved_name = owner_recipient(client)
     if not recipient:
         return
-    name = client.contact_name or client.firm_name
+    name = _resolved_name or owner_label(client)
     text_body = (
         f'Hi {name},\n\n'
         f"It's been a month since your site launched — I hope it's been "
@@ -1018,15 +1038,16 @@ def send_testimonial_email(client):
 @shared_task
 def send_testimonial_requests():
     """One-time testimonial request ~30 days after a client's site launched."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
-    # Post-2026-05-25 refactor: stage + launch_date on ClientProfile.
+    # Per site: the testimonial is about a build, and a client who
+    # received two sites has two things worth being asked about.
     thirty_days_ago = (timezone.now() - timedelta(days=30)).date()
-    eligible = ClientProfile.objects.filter(
+    eligible = Website.objects.filter(
         stage='live',
         launch_date__lte=thirty_days_ago,
         testimonial_requested_at__isnull=True,
-    )
+    ).select_related('account')
 
     count = 0
     for client in eligible:
@@ -1061,28 +1082,30 @@ def check_scan_schedule():
 
     Due scans are queued via `run_vulnerability_scan_task.delay`.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import VulnerabilityScan
 
     now = timezone.now()
     interval = timedelta(days=30)
 
-    eligible = ClientProfile.objects.filter(
+    # Per site: the droplet being scanned belongs to one. Scanning per
+    # account meant only one of a client's servers was ever checked.
+    eligible = Website.objects.filter(
         status='active',
+        account__status='active',
         do_droplet_ip__isnull=False,
-    )
+    ).select_related('account')
 
     queued = 0
     for client in eligible:
         if not client.do_droplet_ip:
             continue
-        # Canonical URL: client.website (post-2026-05-25 backfill).
-        target_url = client.website or ''
+        target_url = client.url or ''
         if not target_url:
             continue
 
         last = (VulnerabilityScan.objects
-                .filter(client=client, status='complete')
+                .filter(website_new=client, status='complete')
                 .order_by('-completed_at').first())
 
         if last is None:
@@ -1098,8 +1121,7 @@ def check_scan_schedule():
             continue
 
         scan = VulnerabilityScan.objects.create(
-            client=client,
-            website_new=_primary_website(client),
+            website_new=client,
             target_url=target_url,
             target_ip=client.do_droplet_ip,
             scan_type='full',
@@ -1153,15 +1175,15 @@ def recording_storage_report():
     from django.core.mail import send_mail
     from django.db.models import Count, Sum
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import SessionRecording
 
-    clients = ClientProfile.objects.filter(
-        session_recording_enabled=True)
+    clients = Website.objects.filter(
+        session_recording_enabled=True).select_related('account')
     warnings = 0
     for client in clients:
         stats = SessionRecording.objects.filter(
-            client=client, status='complete',
+            website_new=client, status='complete',
         ).aggregate(
             total_recordings=Count('id'),
             total_size_kb=Sum('estimated_size_kb'),
@@ -1171,10 +1193,10 @@ def recording_storage_report():
             continue
         try:
             send_mail(
-                subject=(f'Storage warning: {client.firm_name} '
+                subject=(f'Storage warning: {client.name} '
                          f'recordings at {total_mb:.0f}MB'),
                 message=(
-                    f'{client.firm_name} has '
+                    f'{client.name} has '
                     f'{stats["total_recordings"]} '
                     f'session recording(s) using {total_mb:.0f}MB. '
                     f'Consider reducing retention or archiving '

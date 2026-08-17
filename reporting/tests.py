@@ -37,13 +37,61 @@ User = get_user_model()
 _seq = 0
 
 
+# Fields that are the SITE's, not the account's. Passed to _client() for
+# convenience, they are mirrored onto the auto-created Website — which is
+# what every sweep now filters on. Same mapping the backfill applies, so a
+# test fixture and a migrated production row agree.
+_SITE_FIELDS = {
+    'maintenance_active': 'maintenance_active',
+    'stage': 'stage',
+    'launch_date': 'launch_date',
+    'package': 'package',
+    'website': 'url',
+    'do_droplet_ip': 'do_droplet_ip',
+    'do_droplet_created_at': 'do_droplet_created_at',
+    'session_recording_enabled': 'session_recording_enabled',
+    'testimonial_requested_at': 'testimonial_requested_at',
+    'gbp_location_name': 'gbp_location_name',
+}
+
+
 def _client(firm='Test Co', **kw):
-    """Create a ClientProfile with a unique placeholder user (with email)."""
+    """Create a ClientProfile with a unique placeholder user (with email).
+
+    Also mirrors the site-level values onto the Website the autocreate
+    signal makes, so callers can keep writing `_client(..., stage='live')`
+    and have the per-site sweeps actually see it.
+    """
     global _seq
     _seq += 1
     user = User.objects.create_user(
         username=f'u{_seq}', password='x', email=f'u{_seq}@example.com')
-    return ClientProfile.objects.create(user=user, firm_name=firm, **kw)
+    profile = ClientProfile.objects.create(user=user, firm_name=firm, **kw)
+    _mirror_to_site(profile, kw)
+    return profile
+
+
+def _mirror_to_site(profile, kw):
+    """Copy the site-level kwargs onto the profile's Website."""
+    account = getattr(profile, 'migrated_account', None)
+    if account is None:
+        return None
+    site = account.websites.order_by('created_at').first()
+    if site is None:
+        return None
+    changed = []
+    for legacy, canonical in _SITE_FIELDS.items():
+        if legacy in kw:
+            setattr(site, canonical, kw[legacy])
+            changed.append(canonical)
+    if changed:
+        site.save(update_fields=changed + ['updated_at'])
+    return site
+
+
+def _site_of(profile):
+    """The profile's Website — what the per-site sweeps operate on."""
+    return profile.migrated_account.websites.order_by('created_at').first()
 
 
 # ── Part 4: tracking endpoint ───────────────────────────────────────────────
@@ -231,8 +279,11 @@ class SessionRecordingIngestTests(TestCase):
 
     def test_recording_disabled_client_writes_nothing(self):
         from reporting.models import SessionRecording
-        self.cp.session_recording_enabled = False
-        self.cp.save(update_fields=['session_recording_enabled'])
+        # The flag is the SITE's: recording is enabled per website, and
+        # the tracker snippet fires on one site.
+        site = _site_of(self.cp)
+        site.session_recording_enabled = False
+        site.save(update_fields=['session_recording_enabled'])
         self.assertEqual(self._post().status_code, 200)
         self.assertEqual(SessionRecording.objects.count(), 0)
 
@@ -504,7 +555,7 @@ class MonthlyReportTests(TestCase):
         ConversionEvent.objects.create(
             client=cp, event_type='form_submit',
             event_timestamp=timezone.now())
-        generate_monthly_report(str(cp.id), '2026-04-01')
+        generate_monthly_report(None, '2026-04-01', str(_site_of(cp).id))
         # Keyed on the site: the report row is written with website_new
         # and client left NULL, matching the unique constraint.
         report = MonthlyReport.objects.get(
@@ -550,12 +601,13 @@ class FreshnessTests(TestCase):
              'last_modified': timezone.now(), 'word_count': 900,
              'is_blog': True, 'has_structured_data': True},
         ]
-        # Post-2026-05-25: stage + website on client directly.
         cp = _client('Crawl Co', status='active',
                      stage='live', website='https://x.com')
         from reporting.tasks import generate_freshness_report
-        generate_freshness_report(str(cp.id))
-        report = ContentFreshnessReport.objects.get(client=cp)
+        # The crawl is of a site, so the task takes a website id.
+        generate_freshness_report(str(_site_of(cp).id))
+        report = ContentFreshnessReport.objects.get(
+            website_new=_site_of(cp))
         self.assertEqual(report.pages_analyzed, 2)
         self.assertEqual(report.pages_needing_update, 1)  # the thin home page
 
@@ -625,7 +677,9 @@ class TestimonialTests(TestCase):
                      launch_date=timezone.localdate() - timedelta(days=35))
         send_testimonial_requests()
         cp.refresh_from_db()
-        self.assertIsNotNone(cp.testimonial_requested_at)
+        site = _site_of(cp)
+        site.refresh_from_db()
+        self.assertIsNotNone(site.testimonial_requested_at)
 
     def test_not_resent(self):
         from reporting.tasks import send_testimonial_requests
