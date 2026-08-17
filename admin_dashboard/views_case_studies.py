@@ -2,8 +2,15 @@
 Case study admin.
 
 Split out of admin_dashboard/views.py. `admin_dashboard.views`
-re-exports these names, so urls.py — which references them as
-`views.<name>` — keeps working unchanged.
+re-exports these names, so urls.py -- which references them as
+`views.<name>` -- keeps working unchanged.
+
+Phase-D cutover: the subject of a case study is a **website**, not an
+account. That is not just bookkeeping. An account with two sites (Vance
+Family Law and Vance Mediation) has two different stories to tell, and the
+old picker offered only the account, so the second site could never be
+written up without overwriting the first one's subject. Selecting the site
+directly fixes that and removes the last legacy read from this module.
 """
 
 from django.contrib import messages
@@ -24,8 +31,48 @@ from .context import (  # noqa: F401
 )
 
 
+def _selectable_websites():
+    """Every non-tester website, ordered the way the picker reads."""
+    from clients.account_models import Website
+
+    return (Website.objects
+            .filter(account__is_tester=False)
+            .select_related('account')
+            .order_by('account__name', 'name'))
+
+
+def _website_or_none(raw):
+    """Resolve a website id from form input, tolerating junk."""
+    from clients.account_models import Website
+
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    try:
+        return (Website.objects
+                .select_related('account')
+                .get(id=raw))
+    except (Website.DoesNotExist, ValueError, TypeError):
+        return None
+
+
+def _website_location(website):
+    """"City, State" for a website's account, or empty."""
+    if website is None or website.account is None:
+        return ''
+    account = website.account
+    return ', '.join(p for p in (account.city, account.state) if p)
+
+
+def _website_business_type(website):
+    """Business type, preferring the site's own over the account default."""
+    if website is None:
+        return ''
+    return website.business_type or ''
+
+
 # ────────────────────────────────────────────────────────────────────────────
-# Phase 7 Part 2 — Case studies
+# Phase 7 Part 2 - Case studies
 # ────────────────────────────────────────────────────────────────────────────
 
 @admin_required
@@ -33,7 +80,7 @@ def case_studies_list(request):
     """List view of CaseStudy rows."""
     from clients.models import CaseStudy
     case_studies = (CaseStudy.objects
-                    .select_related('client')
+                    .select_related('website_new', 'website_new__account')
                     .order_by('-created_at'))
     return render(request, 'admin_dashboard/case_studies_list.html',
                   _admin_context(
@@ -45,30 +92,22 @@ def case_studies_list(request):
 @admin_required
 def case_study_new(request):
     """Create a new CaseStudy (form + save)."""
-    from clients.models import CaseStudy, ClientProfile
+    from clients.models import CaseStudy
 
     if request.method == 'POST':
-        client = None
-        cid = (request.POST.get('client_id') or '').strip()
-        if cid:
-            try:
-                client = ClientProfile.objects.get(id=cid)
-            except (ClientProfile.DoesNotExist, ValueError):
-                client = None
+        website = _website_or_none(request.POST.get('website_id'))
 
         is_published = request.POST.get('is_published') == 'on'
 
-        from clients.website_helpers import primary_website
         cs = CaseStudy.objects.create(
-            client=client,
             # Stays None for a marketing case study with no client attached.
-            website_new=primary_website(client),
+            website_new=website,
             title=(request.POST.get('title') or '').strip()[:300],
             business_type=(request.POST.get('business_type')
-                           or (client.business_type if client else '')
+                           or _website_business_type(website)
                            or '').strip()[:100],
             location=(request.POST.get('location')
-                      or _client_location(client)
+                      or _website_location(website)
                       or '').strip()[:100],
             challenge=(request.POST.get('challenge') or '').strip(),
             solution=(request.POST.get('solution') or '').strip(),
@@ -94,46 +133,37 @@ def case_study_new(request):
         )
         return redirect('admin_dashboard:case_study_edit', cs_id=cs.id)
 
-    preselect_client = None
-    cid_query = (request.GET.get('client') or '').strip()
-    if cid_query:
-        try:
-            preselect_client = ClientProfile.objects.get(id=cid_query)
-        except (ClientProfile.DoesNotExist, ValueError):
-            preselect_client = None
-
-    clients = (ClientProfile.objects.filter(is_tester=False)
-               .order_by('firm_name'))
+    preselect_website = _website_or_none(request.GET.get('website'))
 
     return render(request, 'admin_dashboard/case_study_form.html',
                   _admin_context(
                       'case_studies',
-                      clients=clients,
+                      websites=_selectable_websites(),
                       case_study=None,
-                      preselect_client=preselect_client,
+                      preselect_website=preselect_website,
                   ))
 
 
 @admin_required
 def case_study_edit(request, cs_id):
     """Edit an existing CaseStudy."""
-    from clients.models import CaseStudy, ClientProfile
+    from clients.models import CaseStudy
 
-    cs = get_object_or_404(CaseStudy, id=cs_id)
+    cs = get_object_or_404(
+        CaseStudy.objects.select_related('website_new', 'website_new__account'),
+        id=cs_id)
 
     if request.method == 'POST':
-        client = cs.client
-        cid = (request.POST.get('client_id') or '').strip()
-        if cid:
-            try:
-                client = ClientProfile.objects.get(id=cid)
-            except (ClientProfile.DoesNotExist, ValueError):
-                pass
+        # An unparseable id keeps the existing subject rather than
+        # silently detaching the case study from its site.
+        website = _website_or_none(request.POST.get('website_id'))
+        if website is None and (request.POST.get('website_id') or '').strip():
+            website = cs.website_new
 
         was_published = cs.is_published
         is_published = request.POST.get('is_published') == 'on'
 
-        cs.client = client
+        cs.website_new = website
         cs.title = (request.POST.get('title') or '').strip()[:300]
         cs.business_type = (request.POST.get('business_type')
                             or '').strip()[:100]
@@ -163,14 +193,12 @@ def case_study_edit(request, cs_id):
         cs.save()
         return redirect('admin_dashboard:case_studies_list')
 
-    clients = (ClientProfile.objects.filter(is_tester=False)
-               .order_by('firm_name'))
     return render(request, 'admin_dashboard/case_study_form.html',
                   _admin_context(
                       'case_studies',
-                      clients=clients,
+                      websites=_selectable_websites(),
                       case_study=cs,
-                      preselect_client=cs.client,
+                      preselect_website=cs.website_new,
                   ))
 
 
@@ -192,36 +220,40 @@ def case_study_toggle_publish(request, cs_id):
 @require_POST
 def case_study_ai_draft(request):
     """
-    POST a {client_id, title?} pair, get back a JSON draft of
+    POST a {website_id, title?} pair, get back a JSON draft of
     challenge / solution / results / 3 metrics. Front-end renders the
     response into the form fields.
+
+    The metric fields come back **empty unless the intake actually
+    contained a number**. An earlier version of this prompt told the model
+    to "estimate plausible metrics (e.g. '40%' increase in inquiries)" when
+    real ones were unavailable. Those drafts feed published case studies on
+    the public site, so that instruction was manufacturing client results
+    -- invented numbers, attributed to a named real business, presented as
+    outcomes. An empty metric box the admin has to fill in from real data
+    is the only safe default.
     """
     import json
 
-    from clients.models import ClientProfile
     from reporting.ai import (
         AIError, AINotConfigured, claude_complete, MODEL_CONTENT,
     )
 
-    cid = (request.POST.get('client_id') or '').strip()
-    if not cid:
-        return HttpResponseBadRequest('client_id required')
-    try:
-        client = ClientProfile.objects.get(id=cid)
-    except (ClientProfile.DoesNotExist, ValueError):
-        return HttpResponseBadRequest('client not found')
+    raw_id = (request.POST.get('website_id') or '').strip()
+    if not raw_id:
+        return HttpResponseBadRequest('website_id required')
+    website = _website_or_none(raw_id)
+    if website is None:
+        return HttpResponseBadRequest('website not found')
 
     title_hint = (request.POST.get('title') or '').strip()
 
-    # Post-2026-05-25 refactor: project fields live on ClientProfile.
-    # `project` alias preserved so existing reads (project.stage,
-    # project.intake, project.stage_logs, etc.) keep working.
-    project = client
-    package_label = (project.get_package_display()
-                     if project and project.package else '')
+    package_label = (website.get_package_display()
+                     if website.package else '')
+
     intake_summary = ''
-    if project and hasattr(project, 'intake'):
-        intake = project.intake
+    intake = getattr(website, 'intake_new', None)
+    if intake is not None:
         bits = [
             intake.about_copy,
             f'Practice areas: {intake.practice_areas}'
@@ -231,7 +263,7 @@ def case_study_ai_draft(request):
         ]
         intake_summary = '\n'.join(b for b in bits if b)[:1500]
 
-    location = _client_location(client)
+    location = _website_location(website)
 
     system = (
         "You are writing a case study for Aspired Websites LLC, a "
@@ -241,18 +273,25 @@ def case_study_ai_draft(request):
         "metric_1_label, metric_1_value, metric_2_label, "
         "metric_2_value, metric_3_label, metric_3_value. No prose "
         "outside the JSON."
+        "\n\n"
+        "Never invent a metric. If the supplied information does not "
+        "contain a real, measured number, return an empty string for "
+        "both that metric's label and its value. A blank field is "
+        "correct; a plausible-sounding estimate is not, because these "
+        "drafts are published as results achieved for a named client."
     )
 
     user = (
-        f"Client: {client.firm_name}\n"
-        f"Business type: {client.business_type or 'unspecified'}\n"
+        f"Website: {website.name}\n"
+        f"Account: {website.account.name if website.account else 'unknown'}\n"
+        f"Business type: {_website_business_type(website) or 'unspecified'}\n"
         f"Location: {location or 'unspecified'}\n"
         f"Project package: {package_label or 'unspecified'}\n"
         f"Working title: {title_hint or 'not provided'}\n\n"
         f"Available info from their intake:\n{intake_summary or '(none)'}\n\n"
-        "Write the case study now. Estimate plausible metrics (e.g. "
-        "'40%' increase in inquiries, '2.3x' faster page load) when "
-        "exact numbers are unavailable. Three short metric pairs."
+        "Write the case study now. Describe the challenge and the work "
+        "honestly from the information above. Leave any metric you "
+        "cannot source from that information blank."
     )
 
     try:
@@ -268,7 +307,7 @@ def case_study_ai_draft(request):
     except AIError as exc:
         return HttpResponse(f'AI draft failed: {exc}', status=502)
 
-    # Defensive JSON parse — strip code fences if Claude adds them.
+    # Defensive JSON parse - strip code fences if Claude adds them.
     stripped = raw.strip()
     if stripped.startswith('```'):
         stripped = stripped.strip('`')
@@ -293,13 +332,3 @@ def case_study_ai_draft(request):
         'metric_3_label': data.get('metric_3_label', ''),
         'metric_3_value': data.get('metric_3_value', ''),
     })
-
-
-def _client_location(client):
-    """City, State string for a client or empty."""
-    if not client:
-        return ''
-    parts = [p for p in (client.city, client.state) if p]
-    return ', '.join(parts)
-
-

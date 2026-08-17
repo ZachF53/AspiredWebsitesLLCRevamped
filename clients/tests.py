@@ -320,10 +320,14 @@ class AdminChangelogTests(TestCase):
                '[2/7] Installing dependencies...\n'
                '[3/7] Running migrations...')
         url = reverse('admin_dashboard:changelog_import')
+        # The operator picks the SITE. Picking the account and attaching
+        # every step to its oldest website recorded deploys of a newer
+        # site against an older one, invisibly.
+        site = self.client_profile.migrated_account.websites.first()
         # Preview — parses but saves nothing.
         resp = self.client.post(url, {
             'step': 'preview',
-            'import_client': str(self.client_profile.id),
+            'import_client': str(site.id),
             'raw_log': raw,
         })
         self.assertEqual(resp.status_code, 200)
@@ -333,10 +337,9 @@ class AdminChangelogTests(TestCase):
         # Save — creates one entry per [n/n] step.
         resp = self.client.post(url, {
             'step': 'save',
-            'import_client': str(self.client_profile.id),
+            'import_client': str(site.id),
             'raw_log': raw,
         })
-        site = self.client_profile.migrated_account.websites.first()
         self.assertRedirects(resp, reverse(
             'admin_dashboard:website_changelog', args=[site.id]))
         self.assertEqual(SiteChangelogEntry.objects.count(), 3)

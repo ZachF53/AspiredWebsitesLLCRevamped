@@ -41,7 +41,7 @@
                 <strong>No GBP location bound yet.</strong>
                 Once <em>{{ profile.firm_name }}</em> has added you as a Manager
                 on their listing, click below to pick the right location.
-                <a class="btn-primary" href="{% url 'gbp:locations_picker' client_id=profile.id %}" style="margin-left:.6rem;">Bind a location →</a>
+                <a class="btn-primary" href="{% url 'gbp:locations_picker' website_id=profile.id %}" style="margin-left:.6rem;">Bind a location →</a>
             </div>
         </section>
     {% else %}
@@ -50,7 +50,7 @@
                 <p>
                     Bound to: <code>{{ profile.gbp_location_name }}</code>
                 </p>
-                <a class="btn-secondary btn-sm" href="{% url 'gbp:locations_picker' client_id=profile.id %}">Change location</a>
+                <a class="btn-secondary btn-sm" href="{% url 'gbp:locations_picker' website_id=profile.id %}">Change location</a>
             </div>
         </section>
 
@@ -85,7 +85,7 @@
             <div class="admin-card__header">
                 <h2 class="admin-card__title">Recent reviews</h2>
                 {% if recent_reviews %}
-                    <a class="btn-secondary btn-sm" href="{% url 'gbp:reviews_list' client_id=profile.id %}">All reviews →</a>
+                    <a class="btn-secondary btn-sm" href="{% url 'gbp:reviews_list' website_id=profile.id %}">All reviews →</a>
                 {% endif %}
             </div>
             <div class="admin-card__body">
@@ -129,7 +129,7 @@
         <section class="admin-card">
             <div class="admin-card__header">
                 <h2 class="admin-card__title">NAP sync</h2>
-                <a class="btn-secondary btn-sm" href="{% url 'gbp:nap_history' client_id=profile.id %}">History →</a>
+                <a class="btn-secondary btn-sm" href="{% url 'gbp:nap_history' website_id=profile.id %}">History →</a>
             </div>
             <div class="admin-card__body">
                 {% if latest_nap %}

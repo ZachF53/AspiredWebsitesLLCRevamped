@@ -7,8 +7,13 @@ Coverage:
   - OAuth callback persists encrypted token (operator-level)
   - OAuth state mismatch rejected (no token row)
   - sync_gbp_reviews flags low-star + unreplied
-  - check_gbp_nap detects drift between client record + GBP listing
-  - upgrade-required guard for clients on non-eligible tiers
+  - check_gbp_nap detects drift between our record + GBP listing
+  - upgrade-required guard for sites on non-eligible tiers
+
+Scoped per Website: a Google listing describes one business location, so
+`gbp_location_name` and the tier gate both live on the site. Name, phone
+and address still come from the Account — they describe the business,
+not the site.
 """
 
 import datetime as _dt
@@ -19,6 +24,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from clients.account_models import Website
 from clients.models import ClientProfile
 
 User = get_user_model()
@@ -55,6 +61,30 @@ def _client(*, package='maintenance_growth', **kw):
         package=package,
         **kw,
     )
+
+
+def _site(*, package='maintenance_growth', account_kw=None, **kw):
+    """A Website on its own Account, with the eligible default tier.
+
+    Goes through ClientProfile because the autocreate signal is what
+    materialises the Account and its first Website; creating an Account
+    directly would leave the two out of step with production.
+    """
+    profile = _client(package=package)
+    account = profile.migrated_account
+    for name, value in (account_kw or {}).items():
+        setattr(account, name, value)
+    if account_kw:
+        account.save()
+    site = account.websites.first()
+    if site is None:
+        site = Website.objects.create(account=account, name=account.name)
+    site.package = package
+    site.url = 'https://test.example'
+    for name, value in kw.items():
+        setattr(site, name, value)
+    site.save()
+    return site
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -188,7 +218,7 @@ class ReviewSyncTests(TestCase):
             refresh_token_encrypted=encrypt_token('refresh.test'),
             expires_at=timezone.now() + _dt.timedelta(hours=1),
         )
-        self.profile = _client(
+        self.site = _site(
             package='maintenance_growth',
             gbp_location_name='accounts/111/locations/222',
         )
@@ -266,17 +296,15 @@ class NapCheckTests(TestCase):
 
     @patch('reporting.google_gbp.fetch_location')
     def test_nap_drift_detected(self, mock_fetch):
-        """ClientProfile.phone differs from GBP phone → mismatch row."""
+        """Account.phone differs from GBP phone → mismatch row."""
         from reporting.models import GBPSyncCheck
         from reporting.tasks_gbp import check_gbp_nap_task
 
-        profile = _client(
+        site = _site(
             package='maintenance_growth',
+            account_kw={'phone': '210-555-9999', 'name': 'Test LLC'},
             gbp_location_name='accounts/111/locations/222',
         )
-        profile.phone = '210-555-9999'
-        profile.firm_name = 'Test LLC'
-        profile.save()
 
         mock_fetch.return_value = {
             'title':            'Test LLC',
@@ -288,11 +316,41 @@ class NapCheckTests(TestCase):
         check_gbp_nap_task()
 
         phone_check = GBPSyncCheck.objects.get(
-            client=profile, field_name='phone')
+            website_new=site, field_name='phone')
         self.assertTrue(phone_check.is_mismatch)
         name_check = GBPSyncCheck.objects.get(
-            client=profile, field_name='business_name')
+            website_new=site, field_name='business_name')
         self.assertFalse(name_check.is_mismatch)
+
+    @patch('reporting.google_gbp.fetch_location')
+    def test_the_site_url_is_compared_not_the_accounts(self, mock_fetch):
+        """The reason the check is per-site. Two sites under one account
+        have different URLs; a listing pointing at the wrong one sends
+        the client's callers to the wrong brand, and an account-level
+        comparison could never see it."""
+        from reporting.models import GBPSyncCheck
+        from reporting.tasks_gbp import check_gbp_nap_task
+
+        site = _site(
+            package='maintenance_growth',
+            gbp_location_name='accounts/111/locations/333',
+        )
+        site.url = 'https://mediation.example'
+        site.save()
+
+        mock_fetch.return_value = {
+            'title':            site.account.name,
+            'phoneNumbers':     {'primaryPhone': ''},
+            'storefrontAddress': {'addressLines': []},
+            'websiteUri':       'https://familylaw.example',
+        }
+
+        check_gbp_nap_task()
+
+        url_check = GBPSyncCheck.objects.get(
+            website_new=site, field_name='website')
+        self.assertTrue(url_check.is_mismatch)
+        self.assertEqual(url_check.website_value, 'https://mediation.example')
 
 
 class UpgradeRequiredTests(TestCase):
@@ -301,16 +359,28 @@ class UpgradeRequiredTests(TestCase):
         self.client.force_login(self.staff)
 
     def test_essentials_client_sees_upgrade_page(self):
-        profile = _client(package='maintenance_essentials')
+        site = _site(package='maintenance_essentials')
         r = self.client.get(
-            reverse('gbp:client_gbp', kwargs={'client_id': profile.id}))
+            reverse('gbp:client_gbp', kwargs={'website_id': site.id}))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'not in this tier')
 
     def test_growth_client_sees_real_page(self):
-        profile = _client(package='maintenance_growth')
+        site = _site(package='maintenance_growth')
         r = self.client.get(
-            reverse('gbp:client_gbp', kwargs={'client_id': profile.id}))
+            reverse('gbp:client_gbp', kwargs={'website_id': site.id}))
         self.assertEqual(r.status_code, 200)
         # Should NOT contain the upgrade banner heading
+        self.assertNotContains(r, 'not in this tier')
+
+    def test_a_comped_account_grants_its_sites_the_feature(self):
+        """Comps live on the Account, the billed package on the Website.
+        Reading only the site's own package would silently drop every
+        operator-granted entitlement."""
+        site = _site(package='')
+        site.account.comp_maintenance_package = 'maintenance_growth'
+        site.account.save()
+        r = self.client.get(
+            reverse('gbp:client_gbp', kwargs={'website_id': site.id}))
+        self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, 'not in this tier')

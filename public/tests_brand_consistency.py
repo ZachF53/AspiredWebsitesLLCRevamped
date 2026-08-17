@@ -234,6 +234,72 @@ class LocationStatementTests(TestCase):
         html = self.client.get('/for-law-firms/').content.decode().lower()
         self.assertNotIn('state bar compliant', html)
 
+    def test_the_contact_page_states_the_approved_location(self):
+        """The contact page listed "San Antonio, TX · Atlanta, GA" under a
+        "Locations" heading -- the most literal possible contradiction of
+        the approved statement, on the page a prospect checks precisely to
+        find out where the company is."""
+        from core.site_facts import LOCATION_STATEMENT
+
+        html = self.client.get('/contact/').content.decode()
+        self.assertIn(LOCATION_STATEMENT, html)
+        self.assertNotIn('San Antonio, TX', html)
+        self.assertNotIn('Atlanta, GA', html)
+
+
+class ContractLocationTests(TestCase):
+    """The contract is the highest-stakes place a location claim appears.
+
+    Both generated contracts carried the header "Aspired Websites LLC --
+    San Antonio, TX & Atlanta, GA". A wrong location on a marketing page
+    is a credibility problem; the same wrong location on a document the
+    client signs is a term of an executed agreement. The public-page
+    tests above never looked at contract text, so this drift survived
+    every previous sweep.
+    """
+
+    def _tier(self, slug='website-essential'):
+        from billing.pricing_models import ServiceTier
+
+        return ServiceTier.objects.create(
+            slug=slug, name='Essential Website Build', price=2500,
+            pages_included=5, practice_areas_included=2, timeline_weeks=3,
+        )
+
+    class _Client:
+        contact_name = 'Test Person'
+        firm_name = 'Test Firm LLC'
+
+    def test_build_contract_header_uses_the_approved_location(self):
+        from clients.contract_template import generate_contract_text
+        from core.site_facts import LOCATION_STATEMENT
+
+        self._tier()
+        text = generate_contract_text(self._Client(), 'website-essential')
+        self.assertIn(LOCATION_STATEMENT, text)
+        self.assertNotIn('San Antonio', text)
+        self.assertNotIn('Atlanta', text)
+
+    def test_combined_contract_header_uses_the_approved_location(self):
+        from clients.contract_template import generate_combined_contract_text
+        from core.site_facts import LOCATION_STATEMENT
+
+        tier = self._tier()
+        text = generate_combined_contract_text(
+            self._Client(), [{'service_type': 'build', 'tier': tier}])
+        self.assertIn(LOCATION_STATEMENT, text)
+        self.assertNotIn('San Antonio', text)
+        self.assertNotIn('Atlanta', text)
+
+    def test_contract_governing_law_matches_the_approved_state(self):
+        """Georgia, approved 2026-08-16 and already in both templates."""
+        from clients.contract_template import generate_contract_text
+        from core.site_facts import GOVERNING_LAW_STATE
+
+        self._tier()
+        text = generate_contract_text(self._Client(), 'website-essential')
+        self.assertIn(f'State of {GOVERNING_LAW_STATE}', text)
+
 
 class TemplateCommentHygieneTests(TestCase):
     """CLAUDE.md hard rule: `{# ... #}` is single-line only. A wrapped

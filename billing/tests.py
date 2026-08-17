@@ -732,51 +732,96 @@ class InvoicePaymentFailedTests(TestCase):
         self.assertEqual(c.payment_failure_started_at, first_failure)
 
 
+def _site_for(client):
+    """The client's first Website, with the account guard reset."""
+    account = client.migrated_account
+    site = account.websites.first()
+    return account, site
+
+
 class EscalationTaskGuardTests(TestCase):
-    """Phase 1.2 — each escalation task must no-op when the guard is None."""
+    """Phase 1.2 — each escalation task must no-op when the guard is None.
+
+    The guard lives on the Account (billing is account-level); the droplet
+    the task acts on lives on the Website. So the task takes a website id
+    and reads the guard one hop out.
+    """
+
+    def _guarded_site(self, firm, *, guard=None, droplet_id=''):
+        client = _new_client(firm=firm)
+        account, site = _site_for(client)
+        account.payment_failure_started_at = guard
+        account.save(update_fields=[
+            'payment_failure_started_at', 'updated_at'])
+        if droplet_id:
+            site.do_droplet_id = droplet_id
+            site.save(update_fields=['do_droplet_id', 'updated_at'])
+        return site
 
     def test_maintenance_task_noop_when_guard_none(self):
         from billing.tasks import set_site_maintenance_mode_task
-        c = _new_client(firm='Guard1')
-        c.payment_failure_started_at = None
-        c.save()
+        site = self._guarded_site('Guard1')
         with patch('billing.do_helpers.set_site_maintenance_mode') as mock_h:
-            set_site_maintenance_mode_task(str(c.id))
+            set_site_maintenance_mode_task(str(site.id))
         mock_h.assert_not_called()
 
     def test_offline_task_noop_when_guard_none(self):
         from billing.tasks import set_site_offline_task
-        c = _new_client(firm='Guard2')
-        c.save()
+        site = self._guarded_site('Guard2')
         with patch('billing.do_helpers.set_site_offline') as mock_h:
-            set_site_offline_task(str(c.id))
+            set_site_offline_task(str(site.id))
         mock_h.assert_not_called()
 
     def test_destroy_task_noop_when_guard_none(self):
         from billing.tasks import destroy_client_droplet_task
-        c = _new_client(firm='Guard3')
-        c.save()
+        site = self._guarded_site('Guard3')
         with patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(c.id))
+            destroy_client_droplet_task(str(site.id))
         mock_h.assert_not_called()
 
     def test_delete_snapshot_task_noop_when_guard_none(self):
         from billing.tasks import delete_client_snapshot_task
-        c = _new_client(firm='Guard4')
-        c.save()
+        site = self._guarded_site('Guard4')
         with patch('billing.do_helpers.delete_client_snapshot') as mock_h:
-            delete_client_snapshot_task(str(c.id))
+            delete_client_snapshot_task(str(site.id))
         mock_h.assert_not_called()
 
     def test_destroy_task_fires_when_guard_set(self):
         from billing.tasks import destroy_client_droplet_task
-        c = _new_client(firm='GuardActive')
-        c.payment_failure_started_at = timezone.now()
-        c.do_droplet_id = '12345'
-        c.save()
+        site = self._guarded_site(
+            'GuardActive', guard=timezone.now(), droplet_id='12345')
         with patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(c.id))
-        mock_h.assert_called_once_with(c)
+            destroy_client_droplet_task(str(site.id))
+        mock_h.assert_called_once()
+        self.assertEqual(mock_h.call_args[0][0].id, site.id)
+
+    def test_an_unresolvable_site_raises_an_alert_rather_than_no_oping(self):
+        """A cancellation and a stale id both used to return silently,
+        so a chain scheduled against a deleted site looked exactly like a
+        client who had paid. One of those needs a human."""
+        import uuid
+
+        from billing.tasks import destroy_client_droplet_task
+
+        with patch('core.system_alerts.record_alert') as mock_alert, \
+                patch('billing.do_helpers.destroy_client_droplet') as mock_h:
+            destroy_client_droplet_task(str(uuid.uuid4()))
+        mock_h.assert_not_called()
+        mock_alert.assert_called_once()
+        self.assertEqual(mock_alert.call_args.kwargs['severity'], 'error')
+
+    def test_a_paid_up_account_cancels_silently(self):
+        """The normal path must NOT raise an alert -- reinstatement is
+        expected, and alerting on it would train everyone to ignore the
+        alert that matters."""
+        from billing.tasks import destroy_client_droplet_task
+
+        site = self._guarded_site('GuardPaid')
+        with patch('core.system_alerts.record_alert') as mock_alert, \
+                patch('billing.do_helpers.destroy_client_droplet') as mock_h:
+            destroy_client_droplet_task(str(site.id))
+        mock_h.assert_not_called()
+        mock_alert.assert_not_called()
 
 
 class DestroyDropletSnapshotsFirstTests(TestCase):
@@ -788,7 +833,8 @@ class DestroyDropletSnapshotsFirstTests(TestCase):
             self, mock_snap, mock_delete):
         """Happy path: snapshot returns an id, DELETE fires."""
         from billing.do_helpers import destroy_client_droplet
-        c = _new_client(firm='SnapFirst')
+        client = _new_client(firm='SnapFirst')
+        c = client.migrated_account.websites.first()
         c.do_droplet_id = '99'
         c.save()
         mock_snap.return_value = 'snap_abc'
@@ -818,7 +864,8 @@ class DestroyDropletSnapshotsFirstTests(TestCase):
         """If snapshot returns '', the destroy MUST NOT fire — data loss
         on billing failure is the worst possible outcome."""
         from billing.do_helpers import destroy_client_droplet
-        c = _new_client(firm='SnapFail')
+        client = _new_client(firm='SnapFail')
+        c = client.migrated_account.websites.first()
         c.do_droplet_id = '99'
         c.save()
         mock_snap.return_value = ''  # snapshot failed

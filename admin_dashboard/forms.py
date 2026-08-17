@@ -3,7 +3,7 @@
 from django import forms
 
 from billing.pricing_models import ServiceTier
-from clients.models import ClientProfile, SiteChangelogEntry
+from clients.models import SiteChangelogEntry
 from outreach.models import Lead, LeadNote, ScrapeJob
 from reporting.models import ClientChatbot, TrackedKeyword
 
@@ -232,16 +232,23 @@ class DeploymentLogForm(forms.ModelForm):
 
 
 class SiteChangelogForm(forms.ModelForm):
-    """Add / edit a single client site changelog entry."""
+    """Add / edit a single changelog entry for one website.
+
+    The subject is the site, not the account. A changelog entry describes
+    a change made to a specific site, so on a multi-site account the
+    account-level picker could not express which one -- entries landed on
+    whichever site happened to be oldest.
+    """
 
     class Meta:
         model = SiteChangelogEntry
         fields = [
-            'client', 'date_of_change', 'change_type', 'title',
+            'website_new', 'date_of_change', 'change_type', 'title',
             'description', 'url_changed', 'is_client_visible',
         ]
+        labels = {'website_new': 'Website'}
         widgets = {
-            'client': forms.Select(attrs={'class': 'form-control'}),
+            'website_new': forms.Select(attrs={'class': 'form-control'}),
             'date_of_change': forms.DateInput(
                 attrs={'class': 'form-control', 'type': 'date'},
                 format='%Y-%m-%d',
@@ -265,7 +272,12 @@ class SiteChangelogForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['client'].empty_label = '— Select a client —'
+        field = self.fields['website_new']
+        field.empty_label = '— Select a website —'
+        field.queryset = (
+            field.queryset
+            .select_related('account')
+            .order_by('account__name', 'name'))
 
 
 class BlogGenerateForm(forms.Form):
@@ -282,11 +294,25 @@ class BlogGenerateForm(forms.Form):
         ('authoritative', 'Authoritative'),
     ]
 
-    client = forms.ModelChoiceField(
-        queryset=ClientProfile.objects.order_by('firm_name'),
-        empty_label='— Select a client —',
+    # A blog post is content published on a specific site, so it is
+    # scoped to the Website. The prompt reads the site's business type and
+    # its account's city/state, which on a multi-brand account are not the
+    # same answer for both sites.
+    website = forms.ModelChoiceField(
+        queryset=None,
+        empty_label='— Select a website —',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from clients.account_models import Website
+        # Evaluated per instance rather than at import time so a website
+        # created after the process started still appears.
+        self.fields['website'].queryset = (
+            Website.objects
+            .select_related('account')
+            .order_by('account__name', 'name'))
     topic = forms.CharField(
         max_length=200,
         widget=forms.TextInput(attrs={

@@ -33,7 +33,7 @@
                 <tbody>
                     {% for p in posts %}
                         <tr>
-                            <td>{{ p.client.firm_name }}</td>
+                            <td>{{ p.website_new.name }}</td>
                             <td><a class="lead-table__firm" href="{% url 'admin_dashboard:blog_detail' p.id %}">{{ p.topic|truncatechars:60 }}</a></td>
                             <td><span class="rep-badge rep-badge--{{ p.status }}">{{ p.get_status_display }}</span></td>
                             <td>{{ p.word_count }}</td>

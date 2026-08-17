@@ -20,7 +20,7 @@
             <table class="admin-table">
                 <thead>
                     <tr>
-                        <th>Client</th>
+                        <th>Website</th>
                         <th>Title</th>
                         <th>Metrics</th>
                         <th>Status</th>
@@ -31,7 +31,7 @@
                 <tbody>
                     {% for cs in case_studies %}
                         <tr>
-                            <td>{% if cs.client %}<a href="{% url 'admin_dashboard:client_detail' cs.client.id %}">{{ cs.client.firm_name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td>{% if cs.website_new %}<a href="{% url 'admin_dashboard:website_detail' cs.website_new.id %}">{{ cs.website_new.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
                             <td><a href="{% url 'admin_dashboard:case_study_edit' cs.id %}">{{ cs.title }}</a></td>
                             <td>
                                 {% with mets=cs.metrics %}

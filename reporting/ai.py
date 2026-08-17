@@ -30,12 +30,19 @@ def is_configured():
     return bool(settings.ANTHROPIC_API_KEY)
 
 
-def client_location_phrase(client):
+def client_location_phrase(owner):
     """
-    A ' based in City, State' phrase for AI prompts, or '' when the client
-    has no location set. Used by the blog and chatbot system prompts.
+    A ' based in City, State' phrase for AI prompts, or '' when there is no
+    location set. Used by the blog and chatbot system prompts.
+
+    `owner` is an Account (city/state are account-level facts about the
+    business). Tolerates None so a site with no account still generates a
+    prompt rather than raising mid-request.
     """
-    parts = [p for p in (client.city, client.state) if p]
+    if owner is None:
+        return ''
+    parts = [p for p in (getattr(owner, 'city', ''),
+                         getattr(owner, 'state', '')) if p]
     return f' based in {", ".join(parts)}' if parts else ''
 
 

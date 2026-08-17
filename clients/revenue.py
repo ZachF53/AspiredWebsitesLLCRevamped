@@ -52,25 +52,41 @@ def _price_for_package(package_code):
 
 def get_current_mrr():
     """
-    Live MRR snapshot from active maintenance clients. Returns
+    Live MRR snapshot from active maintenance subscriptions. Returns
     `{mrr_total, active_maintenance_clients, breakdown}` where
-    breakdown is the per-client list the dashboard table renders.
-    """
-    from clients.models import ClientProfile
+    breakdown is the per-website list the dashboard table renders.
 
-    active = (ClientProfile.objects
-              .filter(maintenance_active=True, status='active',
-                      is_tester=False)
-              .order_by('firm_name'))
+    Counted per website, not per account. A maintenance plan is sold
+    against a site, so an account paying for two maintained sites is
+    two subscriptions and two lots of revenue. The previous account-level
+    query counted that account once and took only one site's package
+    price, under-reporting MRR by a whole plan for every multi-site
+    client -- and every dependent figure (trend, forecast, snapshots)
+    inherited the shortfall.
+
+    A paused or archived account contributes nothing even if a site under
+    it still carries the flag, because billing is suspended at the
+    account level.
+    """
+    from clients.account_models import Website
+
+    active = (Website.objects
+              .filter(maintenance_active=True,
+                      status='active',
+                      account__status='active',
+                      account__is_tester=False)
+              .select_related('account')
+              .order_by('account__name', 'name'))
 
     breakdown = []
     total = 0.0
-    for c in active:
-        price = _price_for_package(c.package)
+    for site in active:
+        price = _price_for_package(site.package)
         total += price
         breakdown.append({
-            'client': c.firm_name,
-            'plan': c.get_package_display() or c.package or '—',
+            'client': site.name,
+            'account': site.account.name if site.account else '',
+            'plan': site.get_package_display() or site.package or '—',
             'mrr': price,
         })
 
@@ -131,7 +147,8 @@ def take_revenue_snapshot():
     month's snapshot (if any); a positive delta becomes `mrr_new`, a
     negative one becomes `mrr_churned`. Net change is signed.
     """
-    from clients.models import ClientProfile, RevenueSnapshot
+    from clients.account_models import Website
+    from clients.models import RevenueSnapshot
 
     snapshot_month = date.today().replace(day=1)
     prev = RevenueSnapshot.objects.filter(
@@ -152,10 +169,11 @@ def take_revenue_snapshot():
         'intake', 'structure', 'design', 'content',
         'review', 'revisions', 'pre_launch',
     )
-    # Post-2026-05-25: stage on ClientProfile directly.
-    active_project_clients = ClientProfile.objects.filter(
+    # Builds in flight, counted per site for the same reason as MRR: two
+    # sites being built for one account is two builds' worth of work.
+    active_project_clients = Website.objects.filter(
         stage__in=in_progress_stages,
-        is_tester=False,
+        account__is_tester=False,
     ).count()
 
     snapshot, _ = RevenueSnapshot.objects.update_or_create(

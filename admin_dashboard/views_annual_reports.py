@@ -188,8 +188,14 @@ def annual_report_generate(request):
                 'report_year must be an integer.')
         client = get_object_or_404(ClientProfile, id=cid)
 
+        # Keyed on the website to match the unique constraint — see
+        # clients.tasks.generate_annual_report for why `client` is out.
+        from clients.website_helpers import primary_website
+        site = primary_website(client)
+        key = ({'website_new': site} if site is not None
+               else {'client': client})
         report, _ = AnnualReport.objects.get_or_create(
-            client=client, report_year=year,
+            report_year=year, **key,
             defaults={'status': 'generating'},
         )
         report.status = 'generating'

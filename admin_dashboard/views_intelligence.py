@@ -270,7 +270,6 @@ from .views_proposals import (  # noqa: E402,F401
 # Extracted to views_case_studies.py
 # ──────────────────────────────────────────────────────────────────────────
 from .views_case_studies import (  # noqa: E402,F401
-    _client_location,
     case_studies_list,
     case_study_ai_draft,
     case_study_edit,

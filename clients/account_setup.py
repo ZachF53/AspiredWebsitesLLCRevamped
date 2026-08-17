@@ -50,6 +50,11 @@ ACCOUNT_LEVEL_FIELDS = [
     'sync_conflict_flagged',
     'comp_build_package', 'comp_maintenance_package', 'comp_social_tier',
     'comp_notes',
+    # Dunning + social billing. Added once it turned out neither had any
+    # canonical home at all: the drop would have zeroed every client's
+    # payment-failure history and lost the social subscription id.
+    'payment_failure_started_at', 'payment_failure_offenses',
+    'stripe_social_subscription_id',
 ]
 
 

@@ -36,6 +36,84 @@ at the end for owner/legal decision.
 | 3 | `seed_case_studies.py` docstring cites owner confirmation (2026-08-02) that Denis was a NEW practice launch; the handoff carries later owner direction that Aspired did not build it | 1 | Later direction wins; the approved fact-matrix row governs. Superseded note recorded in the seed |
 | 4 | 30-day money-back guarantee exists in `clients/contract_template.py` (§7, §10), not only in marketing | 1B/3 | Materially changes P2: the guarantee may be contractually real. Not removed unilaterally — blocked on owner/legal decision |
 
+## Column-level audit — 2026-08-17
+
+The parity audit compares fields present on **both** the legacy and the
+canonical model. A field present on only one side is invisible to it by
+construction, so a clean parity gate never implied the drop was safe. It
+was not.
+
+### Six load-bearing fields had no canonical home
+
+Every one is written by live code and read by a scheduled task. The
+staged drop would have taken all six.
+
+| Legacy field | Moved to | Consequence of losing it |
+|---|---|---|
+| `gbp_location_name` | `Website` | Google listing binding — sync and NAP checks stop, silently |
+| `do_snapshot_id` | `Website` | the 60-day retention snapshot's id; the snapshot keeps existing and keeps being billed, with nothing able to find, delete, or restore from it |
+| `site_status` | `Website` | live / maintenance / offline / destroyed |
+| `payment_failure_started_at` | `Account` | the escalation guard; in-flight dunning left half-applied, a site serving a 503 with nothing scheduled to lift it |
+| `payment_failure_offenses` | `Account` | the 1st-free / 2nd-costs-$75 counter, reset to zero for every client |
+| `stripe_social_subscription_id` | `Account` | the social plan's Stripe subscription link |
+
+`gbp_location_name` moving to `Website` also fixed a live limitation
+rather than only preparing for the drop: a listing describes one business
+location, so an account running two brands has two listings, and holding
+one at account level meant the second site could never be bound or synced
+at all.
+
+### Four models carried a legacy FK with no canonical counterpart
+
+`social.ScheduledPost`, `reporting.GbpReview`,
+`reporting.GbpPerformanceSnapshot`, `admin_dashboard.AIAssistantLog`.
+
+The last is the starkest. It is an append-only audit trail; the drop
+would have kept every row and removed, from all of them, the record of
+which client the action was performed against — the single property an
+audit trail exists to have.
+
+### 33 legacy FKs were NOT NULL
+
+This blocked the cutover as a whole, not one module: a writer cannot stop
+setting `client` while the column rejects NULL. Widening them is safe and
+non-destructive, and it had to land before any writer conversion.
+
+### 8 unique constraints were keyed on the column being nulled
+
+A consequence of the previous item, and the sharpest finding here. A NULL
+is distinct from every other NULL in a unique index, so
+`unique_together = ('client', 'provider_review_id')` stops enforcing
+anything the moment writers stop setting `client` — and it fails **open**.
+`reporting.GbpReview` is upserted on that key by a sync that runs every
+four hours, so the result would have been a duplicate copy of every
+review, six times a day, growing without bound and with no error anywhere.
+
+All eight re-keyed onto `website_new`. This also cleared rehearsal
+finding #2 in `clients/migrations_planned/README.md` for the unique
+constraints; the plain `models.Index` entries on `['client', ...]` still
+need `RemoveIndex` operations ahead of their `RemoveField`.
+
+### 34 `__str__` methods dereferenced the nullable FK
+
+`f'{self.client.firm_name} — ...'` raises `AttributeError` on any row
+written after the cutover. All now route through `clients.display
+.owner_label`, which resolves site → account → legacy profile and never
+raises. Centralised rather than patched in place because `__str__` failing
+breaks the admin changelist, the `%s` in a log line, and the repr Django
+builds for *unrelated* exceptions — replacing the error someone was
+trying to read with a different one.
+
+### The readiness gate was over-reporting by 40%
+
+It grepped for the substring, so a docstring reading "scope is a Website
+or a ClientProfile (legacy)" counted as a blocker next to a live
+queryset. At the point it claimed 70 blocking modules, 21 contained no
+code reference at all. It now walks the AST
+(`clients/legacy_audit.py`) and separates live code reads (blocking),
+`ForeignKey` declarations (removed by the drop migration itself — counting
+them as blockers made the gate unsatisfiable), and prose (harmless).
+
 ## Cutover mechanics — how Waves 2-5 were approached
 
 The naive reading of "cut Wave N to Website ownership" is to edit every

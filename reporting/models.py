@@ -10,6 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from clients.models import ClientProfile
+from clients.display import owner_label
 from core.models import TimestampedModel
 from reporting.useragent import DEVICE_CHOICES, DEVICE_ICONS
 
@@ -28,6 +29,7 @@ class GBPSyncCheck(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='gbp_sync_checks',
+        null=True, blank=True,
     )
     # Phase A — Website-scoped (each build has its own GBP listing).
     website_new = models.ForeignKey(
@@ -50,7 +52,7 @@ class GBPSyncCheck(TimestampedModel):
 
     def __str__(self):
         status = 'MISMATCH' if self.is_mismatch else 'OK'
-        return f'{self.client.firm_name} — {self.field_name} — {status}'
+        return f'{owner_label(self)} — {self.field_name} — {status}'
 
 
 class TrackedKeyword(TimestampedModel):
@@ -59,6 +61,7 @@ class TrackedKeyword(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='tracked_keywords',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -73,11 +76,14 @@ class TrackedKeyword(TimestampedModel):
     notes = models.CharField(max_length=200, blank=True)
 
     class Meta:
-        unique_together = ['client', 'keyword']
+        # Keyed on the site, not the account: the legacy `client` column
+        # is nullable now and new writes leave it NULL, which in
+        # PostgreSQL means the constraint silently stops enforcing.
+        unique_together = ['website_new', 'keyword']
         ordering = ['keyword']
 
     def __str__(self):
-        return f'{self.client.firm_name} — {self.keyword}'
+        return f'{owner_label(self)} — {self.keyword}'
 
 
 class KeywordRankRecord(TimestampedModel):
@@ -116,6 +122,7 @@ class ConversionEvent(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='conversion_events',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -137,7 +144,7 @@ class ConversionEvent(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — {self.event_type} — '
+        return (f'{owner_label(self)} — {self.event_type} — '
                 f'{self.event_timestamp.date()}')
 
 
@@ -154,6 +161,7 @@ class MonthlyReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='monthly_reports',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -184,12 +192,16 @@ class MonthlyReport(TimestampedModel):
         # alone, a multi-site account could hold only ONE report per
         # month: the second site's run found the first site's row, saw
         # status='sent' and skipped, so that site silently never got a
-        # report. Widening the key rather than replacing it keeps the
-        # guard against duplicate runs for the same site.
-        unique_together = ['client', 'report_month', 'website_new']
+        # report.
+        #
+        # `client` has since dropped out of the key entirely. It is
+        # nullable now, and a NULL in a unique index is distinct from
+        # every other NULL, so leaving it in would have re-opened the
+        # duplicate-run hole from the other direction.
+        unique_together = ['website_new', 'report_month']
 
     def __str__(self):
-        return f"{self.client.firm_name} — {self.report_month.strftime('%B %Y')}"
+        return f"{owner_label(self)} — {self.report_month.strftime('%B %Y')}"
 
 
 class ContentFreshnessReport(TimestampedModel):
@@ -198,6 +210,7 @@ class ContentFreshnessReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='freshness_reports',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -216,7 +229,7 @@ class ContentFreshnessReport(TimestampedModel):
         verbose_name_plural = 'Content Freshness Reports'
 
     def __str__(self):
-        return f'{self.client.firm_name} — Freshness — {self.generated_at.date()}'
+        return f'{owner_label(self)} — Freshness — {self.generated_at.date()}'
 
 
 class NPSSurvey(TimestampedModel):
@@ -225,6 +238,7 @@ class NPSSurvey(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='nps_surveys',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -245,7 +259,7 @@ class NPSSurvey(TimestampedModel):
 
     def __str__(self):
         score = str(self.score) if self.score is not None else 'No response'
-        return f'{self.client.firm_name} — NPS {score}'
+        return f'{owner_label(self)} — NPS {score}'
 
 
 class BlogPost(TimestampedModel):
@@ -273,6 +287,7 @@ class BlogPost(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='blog_posts',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -301,7 +316,7 @@ class BlogPost(TimestampedModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.client.firm_name} — {self.topic[:50]}'
+        return f'{owner_label(self)} — {self.topic[:50]}'
 
 
 class ClientChatbot(TimestampedModel):
@@ -318,6 +333,7 @@ class ClientChatbot(TimestampedModel):
 
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE, related_name='chatbot',
+        null=True, blank=True,
     )
     # Phase A — chatbot is per-Website (each site has its own visitor JS).
     website_new = models.OneToOneField(
@@ -338,7 +354,7 @@ class ClientChatbot(TimestampedModel):
 
     def __str__(self):
         status = 'Active' if self.is_active else 'Inactive'
-        return f'{self.client.firm_name} — Chatbot ({status})'
+        return f'{owner_label(self)} — Chatbot ({status})'
 
 
 class ChatbotConversation(TimestampedModel):
@@ -393,6 +409,7 @@ class VulnerabilityScan(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='vulnerability_scans',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -454,7 +471,7 @@ class VulnerabilityScan(TimestampedModel):
         verbose_name_plural = 'Vulnerability Scans'
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'{self.scan_type} — {self.created_at.date()}')
 
     def get_severity_summary(self):
@@ -560,6 +577,7 @@ class PageSession(TimestampedModel):
         'clients.ClientProfile',
         on_delete=models.CASCADE,
         related_name='page_sessions',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -605,7 +623,7 @@ class PageSession(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'{(self.page_url or "")[:50]} — '
                 f'{self.created_at.date()}')
 
@@ -634,6 +652,7 @@ class SessionRecording(TimestampedModel):
         'clients.ClientProfile',
         on_delete=models.CASCADE,
         related_name='session_recordings',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -696,7 +715,7 @@ class SessionRecording(TimestampedModel):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'{(self.page_url or "")[:40]} — '
                 f'{self.created_at.date()}')
 
@@ -1132,6 +1151,16 @@ class GbpReview(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='gbp_reviews',
+        null=True, blank=True,
+    )
+    # A Google Business Profile belongs to a location, which belongs to a
+    # site. This FK was missing entirely: every other reporting model got
+    # one during the cutover and the two GBP models were passed over, so
+    # the planned drop would have taken `client` away and left the reviews
+    # attached to nothing at all.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='gbp_reviews_new', null=True, blank=True,
     )
     # Google's review id — composite resource name like
     # 'accounts/.../locations/.../reviews/<id>'. Unique per client.
@@ -1153,7 +1182,11 @@ class GbpReview(TimestampedModel):
     )
 
     class Meta:
-        unique_together = ('client', 'provider_review_id')
+        # See TrackedKeyword. This one is the sharp edge: the review
+        # sync upserts on this key every four hours, so a constraint that
+        # stops enforcing means a duplicate copy of every review, six
+        # times a day.
+        unique_together = ('website_new', 'provider_review_id')
         ordering = ['-review_created_at', '-created_at']
         indexes = [
             models.Index(fields=['client', 'needs_attention']),
@@ -1161,7 +1194,7 @@ class GbpReview(TimestampedModel):
         verbose_name = 'GBP Review'
 
     def __str__(self):
-        return (f'GbpReview({self.client.firm_name}, '
+        return (f'GbpReview({owner_label(self)}, '
                 f'{self.star_rating}★)')
 
 
@@ -1177,6 +1210,12 @@ class GbpPerformanceSnapshot(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='gbp_performance_snapshots',
+        null=True, blank=True,
+    )
+    # See GbpReview.website_new — same omission, same consequence.
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='gbp_performance_snapshots_new', null=True, blank=True,
     )
     # First-day-of-month sentinel for the period these metrics cover.
     snapshot_month = models.DateField()
@@ -1193,10 +1232,10 @@ class GbpPerformanceSnapshot(TimestampedModel):
     raw_payload = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        unique_together = ('client', 'snapshot_month')
+        unique_together = ('website_new', 'snapshot_month')
         ordering = ['-snapshot_month']
         verbose_name = 'GBP Performance Snapshot'
 
     def __str__(self):
-        return (f'GBP perf {self.client.firm_name} '
+        return (f'GBP perf {owner_label(self)} '
                 f'{self.snapshot_month:%Y-%m}')

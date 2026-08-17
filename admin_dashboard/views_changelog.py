@@ -52,22 +52,32 @@ def _parse_deploy_log(text):
     return steps
 
 
+def _selectable_websites():
+    """Every website, ordered the way a picker reads."""
+    from clients.account_models import Website
+
+    return (Website.objects
+            .select_related('account')
+            .order_by('account__name', 'name'))
+
+
 @admin_required
 def changelog_list(request):
-    """All changelog entries across every client, with filters."""
-    from clients.models import ClientProfile, SiteChangelogEntry
+    """All changelog entries across every website, with filters."""
+    from clients.models import SiteChangelogEntry
     from django.utils.dateparse import parse_date
 
-    entries = SiteChangelogEntry.objects.select_related('client')
+    entries = SiteChangelogEntry.objects.select_related(
+        'website_new', 'website_new__account')
 
-    client_filter = request.GET.get('client', '')
+    client_filter = request.GET.get('website', '')
     type_filter = request.GET.get('change_type', '')
     visible_filter = request.GET.get('visible', '')
     date_from = request.GET.get('from', '')
     date_to = request.GET.get('to', '')
 
     if client_filter and _is_uuid(client_filter):
-        entries = entries.filter(client_id=client_filter)
+        entries = entries.filter(website_new_id=client_filter)
     if type_filter:
         entries = entries.filter(change_type=type_filter)
     if visible_filter == 'yes':
@@ -82,7 +92,7 @@ def changelog_list(request):
     return render(request, 'admin_dashboard/changelog_list.html', _admin_context(
         'changelog',
         entries=entries,
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=_selectable_websites(),
         change_type_choices=SiteChangelogEntry.CHANGE_TYPE_CHOICES,
         client_filter=client_filter,
         type_filter=type_filter,
@@ -110,41 +120,38 @@ def website_changelog(request, website_id):
 def changelog_add_website(request, website_id):
     """Add a changelog entry pre-scoped to a website."""
     from clients.account_models import Website
-    from clients.models import ClientProfile
     from .forms import SiteChangelogForm
 
-    website = get_object_or_404(Website, id=website_id)
-    cp = website.account.legacy_client_profile
+    website = get_object_or_404(
+        Website.objects.select_related('account'), id=website_id)
 
     if request.method == 'POST':
         form = SiteChangelogForm(request.POST)
         if form.is_valid():
             entry = form.save(commit=False)
+            # The URL already says which site this is for, so it wins over
+            # whatever the form's picker happens to hold.
             entry.website_new = website
-            if entry.client_id is None:
-                entry.client = cp
             entry.save()
             return redirect(
                 'admin_dashboard:website_changelog', website_id=website.id)
     else:
-        form = SiteChangelogForm(
-            initial={'client': cp} if cp else None)
+        form = SiteChangelogForm(initial={'website_new': website})
 
     return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
         'changelog',
         form=form,
         mode='add',
-        preset_client=cp,
+        preset_client=website,
         form_action=reverse(
             'admin_dashboard:changelog_add_website', args=[website.id]),
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=_selectable_websites(),
     ))
 
 
 @admin_required
 def changelog_add(request):
-    """Add a changelog entry (global — pick the client in the form)."""
-    from clients.models import ClientProfile
+    """Add a changelog entry (global — pick the website in the form)."""
     from .forms import SiteChangelogForm
 
     if request.method == 'POST':
@@ -161,7 +168,7 @@ def changelog_add(request):
         mode='add',
         preset_client=None,
         form_action=reverse('admin_dashboard:changelog_add'),
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=_selectable_websites(),
     ))
 
 
@@ -217,59 +224,60 @@ def changelog_import(request):
     Two-step: `step=preview` parses + shows a preview; `step=save` re-parses
     the same text and creates one entry per [n/n] step.
     """
-    from clients.models import ClientProfile, SiteChangelogEntry
+    from clients.account_models import Website
+    from clients.models import SiteChangelogEntry
     from .forms import SiteChangelogForm
 
     raw_log = request.POST.get('raw_log', '')
     client_id = request.POST.get('import_client', '')
     step = request.POST.get('step', 'preview')
 
-    client = None
+    # The operator picks the site directly. This used to take an account
+    # and then attach every parsed step to `websites.order_by(created_at)
+    # .first()` -- so on a two-site account, a deploy to the newer site
+    # was recorded against the older one, permanently and with nothing to
+    # indicate it had happened.
+    site = None
     if client_id and _is_uuid(client_id):
-        client = ClientProfile.objects.filter(id=client_id).first()
+        site = (Website.objects
+                .select_related('account')
+                .filter(id=client_id)
+                .first())
 
     parsed = _parse_deploy_log(raw_log)
 
-    if step == 'save' and client and parsed:
+    if step == 'save' and site and parsed:
         today = timezone.localdate()
-        try:
-            _acct = client.migrated_account
-        except Exception:
-            _acct = None
-        site = (_acct.websites.order_by('created_at').first()
-                if _acct else None)
         for title in parsed:
             # Imported deploy steps land as an internal audit trail — staff
             # flip individual entries visible to surface them to the client.
             SiteChangelogEntry.objects.create(
-                client=client,
                 website_new=site,
                 change_type='deployment',
                 title=title,
                 is_client_visible=False,
                 date_of_change=today,
             )
-        if site is not None:
-            return redirect(
-                'admin_dashboard:website_changelog', website_id=site.id)
-        return redirect('admin_dashboard:changelog_list')
+        return redirect(
+            'admin_dashboard:website_changelog', website_id=site.id)
 
     import_error = None
     if not parsed:
         import_error = 'No "[n/n]" deploy steps were found in that text.'
-    elif not client:
-        import_error = 'Choose a client to import these steps into.'
+    elif not site:
+        import_error = 'Choose a website to import these steps into.'
 
     return render(request, 'admin_dashboard/changelog_add.html', _admin_context(
         'changelog',
-        form=SiteChangelogForm(initial={'client': client} if client else None),
+        form=SiteChangelogForm(
+            initial={'website_new': site} if site else None),
         mode='add',
-        preset_client=client,
+        preset_client=site,
         form_action=reverse('admin_dashboard:changelog_add'),
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=_selectable_websites(),
         import_preview=parsed,
         import_raw=raw_log,
-        import_client=client,
+        import_client=site,
         import_error=import_error,
     ))
 

@@ -126,35 +126,38 @@ def check_case_study_prompts():
     yet, email the admin a 'case study needed' prompt. De-duplicates
     on a 7-day rolling window so a slow week doesn't spam the inbox.
     """
-    from clients.models import CaseStudy, ClientProfile
+    from clients.account_models import Website
 
     thirty_days_ago = (timezone.now() - timedelta(days=30)).date()
-    week_ago = timezone.now() - timedelta(days=7)
 
-    # Post-2026-05-25: stage + launch_date on ClientProfile directly.
+    # Per website, not per account. An account with two live sites has two
+    # case studies to write; prompting once per account meant the second
+    # site never got one.
     candidates = (
-        ClientProfile.objects
+        Website.objects
         .filter(
             stage='live',
             launch_date__lte=thirty_days_ago,
-            is_tester=False,
+            account__is_tester=False,
         )
-        .exclude(case_studies__isnull=False)
+        .exclude(case_studies_new__isnull=False)
+        .select_related('account')
     )
 
     sent = 0
-    for client in candidates:
-        # 7-day dedupe key — settings cache works across workers.
-        cache_key = f'cs_prompt:{client.id}'
+    for website in candidates:
+        # 7-day dedupe key - settings cache works across workers.
+        cache_key = f'cs_prompt:{website.id}'
         from django.core.cache import cache
         if cache.get(cache_key):
             continue
 
-        subject = f'Case study needed: {client.firm_name}'
+        label = website.name
+        subject = f'Case study needed: {label}'
         url = (f'{settings.SITE_BASE_URL}'
-               f'/admin-dashboard/case-studies/new/?client={client.id}')
+               f'/admin-dashboard/case-studies/new/?website={website.id}')
         body = (
-            f'{client.firm_name} launched 30+ days ago and still has no '
+            f'{label} launched 30+ days ago and still has no '
             f'case study. The results are now in long enough to write '
             f'one up.\n\n'
             f'Draft the case study (AI Draft button pre-fills it):\n'
@@ -172,7 +175,7 @@ def check_case_study_prompts():
             sent += 1
         except Exception:
             logger.exception(
-                'case-study prompt email failed for %s', client.pk)
+                'case-study prompt email failed for %s', website.pk)
     return f'Sent {sent} case-study prompt(s).'
 
 
@@ -318,14 +321,22 @@ def generate_annual_report(client_id, year):
     except ClientProfile.DoesNotExist:
         return f'Client {client_id} not found.'
 
+    # Keyed on the website, matching the unique constraint. `client` is
+    # nullable and new rows leave it NULL, so a lookup including it would
+    # miss the existing row, create a second, and violate
+    # (website_new, report_year).
+    site = primary_website(client)
+    key = ({'website_new': site} if site is not None
+           else {'client': client})
+
     existing = AnnualReport.objects.filter(
-        client=client, report_year=year).first()
+        report_year=year, **key).first()
     if existing and existing.status in ('ready', 'sent'):
         return (f'Already ready: {client.firm_name} {year} '
                 f'(status={existing.status})')
 
     report, _ = AnnualReport.objects.get_or_create(
-        client=client, report_year=year,
+        report_year=year, **key,
         defaults={'status': 'generating'},
     )
     report.status = 'generating'

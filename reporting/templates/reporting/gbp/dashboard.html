@@ -90,11 +90,11 @@
                         {% for r in attention %}
                             <tr>
                                 <td>{{ r.review_created_at|date:"M j" }}</td>
-                                <td><a href="{% url 'gbp:client_gbp' client_id=r.client.id %}">{{ r.client.firm_name }}</a></td>
+                                <td><a href="{% url 'gbp:client_gbp' website_id=r.website_new.id %}">{{ r.website_new.name }}</a></td>
                                 <td>{{ r.reviewer_name|default:"—" }}</td>
                                 <td><strong>{{ r.star_rating }}</strong></td>
                                 <td><span class="muted">{{ r.get_needs_attention_reason_display }}</span></td>
-                                <td><a href="{% url 'gbp:reviews_list' client_id=r.client.id %}">Open →</a></td>
+                                <td><a href="{% url 'gbp:reviews_list' website_id=r.website_new.id %}">Open →</a></td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -127,7 +127,7 @@
                         {% for c in nap_mismatches %}
                             <tr>
                                 <td>{{ c.checked_at|date:"M j" }}</td>
-                                <td><a href="{% url 'gbp:client_gbp' client_id=c.client.id %}">{{ c.client.firm_name }}</a></td>
+                                <td><a href="{% url 'gbp:client_gbp' website_id=c.website_new.id %}">{{ c.website_new.name }}</a></td>
                                 <td>{{ c.get_field_name_display }}</td>
                                 <td><code>{{ c.website_value|truncatechars:35 }}</code></td>
                                 <td><code>{{ c.gbp_value|truncatechars:35 }}</code></td>
@@ -157,7 +157,7 @@
                 </p>
                 <ul>
                     {% for p in unbound %}
-                        <li><a href="{% url 'gbp:client_gbp' client_id=p.id %}">{{ p.firm_name }}</a></li>
+                        <li><a href="{% url 'gbp:client_gbp' website_id=p.id %}">{{ p.name }}</a></li>
                     {% endfor %}
                 </ul>
             </div>

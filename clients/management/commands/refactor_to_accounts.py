@@ -179,6 +179,15 @@ def _apply_changed(instance, values):
     return changed
 
 
+# Fields whose model default is itself a meaningful value, mapped to that
+# default. See the second branch of _fill_missing for why these need naming
+# explicitly rather than being inferred: an unset row and a deliberately-set
+# row are indistinguishable once the default has been written.
+_DEFAULTED_FIELDS = {
+    'site_status': 'live',
+}
+
+
 def _fill_missing(instance, values):
     """Populate only the fields the canonical row has not got yet.
 
@@ -217,6 +226,25 @@ def _fill_missing(instance, values):
         if current is None or current == '':
             setattr(instance, name, value)
             changed.append(name)
+        elif name in _DEFAULTED_FIELDS and current == _DEFAULTED_FIELDS[name]:
+            # A field whose model default is a real, non-empty value is
+            # never "empty", so the gap-fill above can never reach it. The
+            # column arrives pre-populated with its default on every
+            # existing row, and the legacy value is silently discarded.
+            #
+            # `site_status` is the case that matters: it defaults to
+            # 'live', so a client actually suspended at 'maintenance' or
+            # 'offline' would read as live canonically -- the escalation
+            # tasks would see a healthy site, the 503 would stay up with
+            # nothing scheduled to lift it, and the admin would have no
+            # record of why.
+            #
+            # Only the default is treated as fillable. A site someone has
+            # explicitly moved to another state is still a conflict, and
+            # the parity audit still reports it as one.
+            if value != current:
+                setattr(instance, name, value)
+                changed.append(name)
     if changed:
         instance.save(update_fields=changed + ['updated_at'])
     return changed
@@ -332,6 +360,13 @@ def _make_website_from_client(client, account, project):
         'testimonial_requested_at': client.testimonial_requested_at,
         'testimonial_received': bool(client.testimonial_received),
         'testimonial_url': client.testimonial_url or '',
+        # Per-site operational state that had no canonical column until
+        # the audit found it. `site_status` is mapped through _fill_missing
+        # like everything else, so a Website already carrying a real state
+        # is never reverted to the legacy profile's.
+        'do_snapshot_id': client.do_snapshot_id or '',
+        'gbp_location_name': client.gbp_location_name or '',
+        'site_status': client.site_status or 'live',
         'legacy_project': project,
     }
 

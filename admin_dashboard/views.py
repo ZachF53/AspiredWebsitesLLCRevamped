@@ -3246,6 +3246,12 @@ def account_detail(request, account_id):
     except Exception:
         maintenance_plans, social_plans = [], []
 
+    # Sites entitled to GBP management. Filtered here rather than in the
+    # template: `has_gbp_features` is a method, so a template-side filter
+    # would have to be written as a loop, and the surrounding card markup
+    # can only be emitted once the filtered list is known to be non-empty.
+    gbp_websites = [w for w in websites if w.has_gbp_features()]
+
     return render(
         request, 'admin_dashboard/account_detail.html',
         _admin_context(
@@ -3254,6 +3260,7 @@ def account_detail(request, account_id):
             user=user,
             sections=sections,
             websites=websites,
+            gbp_websites=gbp_websites,
             domains=domains,
             delete_impact=delete_impact,
             contract_tiers=contract_tiers,
@@ -4795,7 +4802,6 @@ from .views_briefs import (  # noqa: E402,F401
 # surfaced as AttributeError at URL-conf load.
 # ──────────────────────────────────────────────────────────────────────────
 from .views_case_studies import (  # noqa: E402,F401
-    _client_location,
     case_studies_list,
     case_study_ai_draft,
     case_study_edit,

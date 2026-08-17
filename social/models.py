@@ -96,13 +96,24 @@ class ScheduledPost(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='scheduled_posts',
     )
-    # FK to ClientProfile alongside channel for direct admin lookup +
-    # context (location / tone) without traversing
-    # channel.plan.account.legacy_client_profile every time.
+    # FK alongside channel for direct admin lookup + context (location /
+    # tone) without traversing channel.plan.account every time.
     client = models.ForeignKey(
         'clients.ClientProfile',
         on_delete=models.CASCADE,
         related_name='scheduled_posts',
+        null=True, blank=True,
+    )
+    # Canonical owner. Account-level, not per-site: a social plan is sold
+    # to the business and its channels post on behalf of the brand, not on
+    # behalf of one website. Without this the planned drop would take
+    # `client` and leave a scheduled post reachable only through
+    # channel.plan, which is a different question from "whose post is
+    # this" whenever a plan is reassigned.
+    account_new = models.ForeignKey(
+        'clients.Account',
+        on_delete=models.CASCADE,
+        related_name='scheduled_posts_new', null=True, blank=True,
     )
     # GBP local-post hard cap is 1500 chars; the form should validate
     # client-side too. TextField so a future platform with higher caps

@@ -139,6 +139,27 @@ class Account(TimestampedModel):
     )
 
     # ── Stripe — one customer per Account, all websites bill under it ──
+    # ── Non-payment escalation, account level ──
+    # Dunning is a billing fact, and billing is the Account's: one Stripe
+    # customer, one card, one relationship. If that card fails, every site
+    # under the account is affected, and the "1st offence free, 2nd+ costs
+    # $75" rule counts against the customer, not against a website.
+    #
+    # `payment_failure_started_at` is the GUARD: when it is None the
+    # escalation tasks no-op, meaning paid up or reinstated. Neither field
+    # had a canonical home, so the planned legacy drop would have reset
+    # every client's offence history to zero and stranded any in-flight
+    # escalation half-applied -- a site left serving a 503 with nothing
+    # left in the database explaining why or scheduled to undo it.
+    payment_failure_started_at = models.DateTimeField(null=True, blank=True)
+    payment_failure_offenses = models.PositiveIntegerField(default=0)
+
+    # Social plan subscription. Account level because a social plan is
+    # sold to the business and its channels post for the brand -- the same
+    # reason ScheduledPost.account_new is account-scoped.
+    stripe_social_subscription_id = models.CharField(
+        max_length=255, blank=True)
+
     stripe_customer_id = models.CharField(
         max_length=255, blank=True, db_index=True)
 
@@ -331,6 +352,35 @@ class Website(TimestampedModel):
     do_droplet_ip = models.GenericIPAddressField(null=True, blank=True)
     do_droplet_created_at = models.DateTimeField(null=True, blank=True)
     do_droplet_name = models.CharField(max_length=120, blank=True)
+    # Retention snapshot taken when a droplet is destroyed for non-payment,
+    # deleted on Day 60 if the client never pays. This lived only on
+    # ClientProfile, so the planned legacy drop would have taken the id of
+    # a snapshot that still exists and is still being billed for by
+    # DigitalOcean -- an orphaned resource nothing can find, delete, or
+    # restore the client from.
+    do_snapshot_id = models.CharField(max_length=50, blank=True)
+
+    # ── Non-payment escalation state ──
+    # Driven by billing/tasks.py:
+    #   live -> maintenance (503) -> offline (powered down) -> destroyed
+    # Distinct from `status` above, which is the commercial state of the
+    # engagement (active/paused/archived). A site can be commercially
+    # active and serving a 503 because a card bounced.
+    SITE_STATUS_CHOICES = [
+        ('live', 'Live'),
+        ('maintenance', 'Maintenance (503)'),
+        ('offline', 'Offline (powered down)'),
+        ('destroyed', 'Droplet destroyed'),
+    ]
+    site_status = models.CharField(
+        max_length=20, choices=SITE_STATUS_CHOICES, default='live',
+    )
+
+    # ── Google Business Profile ──
+    # Resource name like 'accounts/<acc>/locations/<loc>'. Per site, not
+    # per account: a firm running two brands has two listings, and binding
+    # one at account level meant the second site could never be synced.
+    gbp_location_name = models.CharField(max_length=200, blank=True)
 
     # ── Launch + support window ──
     launch_date = models.DateField(null=True, blank=True)
@@ -448,6 +498,38 @@ class Website(TimestampedModel):
         return f'{self.name} ({self.get_stage_display()})'
 
     # ── Helpers (parity with the old Project / ClientProfile API) ──
+
+    # Tier gating for Google Business Profile management. Growth and above
+    # get NAP sync, review monitoring and performance metrics; the reply
+    # workflow, Q&A and listing audit are Dominant-only.
+    _GBP_TIERS = {'maintenance_growth', 'maintenance_dominant'}
+    _GBP_PREMIUM_TIERS = {'maintenance_dominant'}
+
+    def active_tiers(self):
+        """Tier slugs this site has access to -- billed plus comped.
+
+        The billed package is per site; the comp grants are per account,
+        because a comp is a commercial decision about a customer rather
+        than about one of their websites. Reading only the site's own
+        package would silently drop every operator-granted entitlement.
+        """
+        slugs = {self.package}
+        account = self.account
+        if account is not None:
+            slugs.update({
+                account.comp_build_package,
+                account.comp_maintenance_package,
+                account.comp_social_tier,
+            })
+        return {slug for slug in slugs if slug}
+
+    def has_gbp_features(self):
+        """Growth+ (paid or comped): NAP sync, reviews, performance."""
+        return bool(self.active_tiers() & self._GBP_TIERS)
+
+    def has_gbp_premium_features(self):
+        """Dominant-only: reply workflow, Q&A, listing audit."""
+        return bool(self.active_tiers() & self._GBP_PREMIUM_TIERS)
 
     @property
     def revisions_remaining(self):

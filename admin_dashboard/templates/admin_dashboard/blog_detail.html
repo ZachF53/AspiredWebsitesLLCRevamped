@@ -9,7 +9,7 @@
             <span class="eyebrow"><a href="{% url 'admin_dashboard:blog_list' %}" class="admin-back-link">&larr; All blog posts</a></span>
             <h1 class="admin-page-title">Review Blog Post</h1>
             <p class="muted">
-                {{ post.client.firm_name }} ·
+                {{ post.website_new.name }} ·
                 <span class="rep-badge rep-badge--{{ post.status }}">{{ post.get_status_display }}</span>
                 · {{ post.word_count }} words · Topic: {{ post.topic }}
             </p>

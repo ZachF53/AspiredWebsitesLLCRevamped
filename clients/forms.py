@@ -5,7 +5,6 @@ from django import forms
 from .account_models import Account
 from .models import (
     ClientDocument,
-    ClientProfile,
     IntakeResponse,
     RevisionRequest,
     SupportTicket,

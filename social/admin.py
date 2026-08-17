@@ -31,7 +31,7 @@ class ScheduledPostAdmin(admin.ModelAdmin):
     )
     list_filter = ('status', 'ai_generated')
     search_fields = (
-        'channel__handle', 'client__firm_name', 'body',
+        'channel__handle', 'account_new__name', 'body',
     )
     readonly_fields = ('created_at', 'updated_at')
 

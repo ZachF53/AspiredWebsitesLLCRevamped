@@ -43,26 +43,25 @@ SESSION_KEY_ACTIVE_WEBSITE = 'active_website_slug'
 
 def resolve_account_for_user(user):
     """
-    Return the Account for a logged-in user. Prefers the post-refactor
-    Account row (1:1 with User); falls back to deriving from the
-    legacy ClientProfile so pre-Phase-B environments still serve
-    requests.
+    Return the Account for a logged-in user, or None.
+
+    This used to fall back to finding the user's legacy ClientProfile and
+    then the Account linked to it. That path could never return anything
+    the first lookup had not already found: ``ensure_account`` enforces
+    that an Account linked to a profile is owned by that profile's user,
+    and ``audit_account_website_parity`` fails the build if it ever is
+    not. So the fallback could only fire on data the parity gate already
+    refuses to let exist -- and if such a row somehow did, silently
+    resolving it would hand one user another user's portal rather than
+    surfacing the conflict.
     """
     if user is None or not user.is_authenticated:
         return None
-    # Lazy imports — this module is imported by decorators that load
+    # Lazy import — this module is imported by decorators that load
     # early in the request cycle; the model registry must be ready.
     from clients.account_models import Account
-    from clients.models import ClientProfile
 
-    acc = Account.objects.filter(user=user).first()
-    if acc:
-        return acc
-    # Fallback path — legacy environment where the backfill hasn't run.
-    profile = ClientProfile.objects.filter(user=user).first()
-    if profile:
-        return Account.objects.filter(legacy_client_profile=profile).first()
-    return None
+    return Account.objects.filter(user=user).first()
 
 
 def resolve_website(request, account, *, slug_from_url=None):

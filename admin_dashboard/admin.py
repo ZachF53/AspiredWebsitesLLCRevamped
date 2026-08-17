@@ -12,18 +12,18 @@ class DeploymentLogAdmin(admin.ModelAdmin):
         'created_at',
     )
     list_filter = ('deploy_type', 'success')
-    search_fields = ('domain', 'server_ip', 'notes', 'client__firm_name')
+    search_fields = ('domain', 'server_ip', 'notes', 'website_new__name', 'website_new__account__name')
     readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(AIAssistantLog)
 class AIAssistantLogAdmin(admin.ModelAdmin):
     list_display = (
-        'created_at', 'operator', 'client', 'intent', 'success',
+        'created_at', 'operator', 'website_new', 'intent', 'success',
     )
     list_filter = ('success', 'intent')
     search_fields = ('intent', 'raw_command', 'result_message',
-                     'client__firm_name', 'operator__username')
+                     'website_new__name', 'website_new__account__name', 'operator__username')
     readonly_fields = (
         'created_at', 'updated_at', 'operator', 'client',
         'raw_command', 'intent', 'args', 'success', 'result_message',

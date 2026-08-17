@@ -9,10 +9,10 @@ from .models import AddonPricing, MiniInvoice, ServiceTier, TierFeature
 @admin.register(MiniInvoice)
 class MiniInvoiceAdmin(admin.ModelAdmin):
     list_display = (
-        'client', 'description', 'amount', 'hours', 'status', 'created_at',
+        'account_new', 'description', 'amount', 'hours', 'status', 'created_at',
     )
     list_filter = ('status',)
-    search_fields = ('client__firm_name', 'description', 'stripe_invoice_id')
+    search_fields = ('account_new__name', 'description', 'stripe_invoice_id')
     readonly_fields = ('created_at', 'updated_at')
     actions = ['send_via_stripe']
 

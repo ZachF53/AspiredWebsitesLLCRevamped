@@ -319,12 +319,17 @@ class UptimeHelperTests(TestCase):
 class GBPSyncTests(TestCase):
 
     def test_records_not_connected_status(self):
-        # Post-2026-05-25: stage + website on client directly.
         cp = _client('GBP Co', status='active',
                      stage='live', website='https://g.com')
+        # The sweep iterates Websites now: the stage and URL that decide
+        # eligibility are the site's, not the account's.
+        site = cp.migrated_account.websites.first()
+        site.stage = 'live'
+        site.url = 'https://g.com'
+        site.save()
         from reporting.tasks import check_gbp_sync
         check_gbp_sync()
-        check = GBPSyncCheck.objects.get(client=cp)
+        check = GBPSyncCheck.objects.get(website_new=site)
         self.assertEqual(check.website_value, 'GBP not connected')
         self.assertFalse(check.is_mismatch)
 
@@ -500,7 +505,10 @@ class MonthlyReportTests(TestCase):
             client=cp, event_type='form_submit',
             event_timestamp=timezone.now())
         generate_monthly_report(str(cp.id), '2026-04-01')
-        report = MonthlyReport.objects.get(client=cp)
+        # Keyed on the site: the report row is written with website_new
+        # and client left NULL, matching the unique constraint.
+        report = MonthlyReport.objects.get(
+            website_new=cp.migrated_account.websites.first())
         self.assertEqual(report.status, 'sent')
         self.assertTrue(report.pdf_path)
 
@@ -508,7 +516,8 @@ class MonthlyReportTests(TestCase):
         from reporting.tasks import generate_monthly_report
         cp = _client('Once Co', status='active', maintenance_active=True)
         MonthlyReport.objects.create(
-            client=cp, report_month=date(2026, 4, 1), status='sent')
+            website_new=cp.migrated_account.websites.first(),
+            report_month=date(2026, 4, 1), status='sent')
         result = generate_monthly_report(str(cp.id), '2026-04-01')
         self.assertIn('Already sent', result)
 
@@ -644,13 +653,14 @@ class BlogTests(TestCase):
             '<h2>Top Tips</h2><p>Helpful content here for readers.</p>',
             'A concise meta description for the post.',
         ]
+        site = self.cp.migrated_account.websites.first()
         resp = self.client.post(reverse('admin_dashboard:blog_generate'), {
-            'client': str(self.cp.id),
+            'website': str(site.id),
             'topic': 'What to do after a car accident',
             'target_keyword': 'car accident lawyer',
             'length': 'medium', 'tone': 'professional',
         })
-        post = BlogPost.objects.get(client=self.cp)
+        post = BlogPost.objects.get(website_new=site)
         self.assertEqual(post.status, 'review')
         self.assertIn('Top Tips', post.content)
         self.assertRedirects(resp, reverse(
@@ -814,6 +824,18 @@ class CheckGbpSyncTests(TestCase):
                     gbp_location_name='accounts/1/locations/2',
                     phone='210-555-0000', address='123 Main St',
                     website='https://example.com')
+        # Name, phone and address are the business's, so they live on the
+        # Account. The URL and the GBP binding are the site's.
+        acct = c.migrated_account
+        acct.name = 'Drift LLC'
+        acct.phone = '210-555-0000'
+        acct.address = '123 Main St'
+        acct.save()
+        site = acct.websites.first()
+        site.stage = 'live'
+        site.url = 'https://example.com'
+        site.gbp_location_name = 'accounts/1/locations/2'
+        site.save()
         u = c.user
         with _override6(VAULT_SERVER_SECRET='test-vault-secret'):
             GbpOperatorToken.objects.create(
@@ -826,11 +848,13 @@ class CheckGbpSyncTests(TestCase):
             check_gbp_sync()
 
         # 4 fields recorded
-        self.assertEqual(GBPSyncCheck.objects.filter(client=c).count(), 4)
+        self.assertEqual(
+            GBPSyncCheck.objects.filter(website_new=site).count(), 4)
         name_row = GBPSyncCheck.objects.get(
-            client=c, field_name='business_name')
+            website_new=site, field_name='business_name')
         self.assertTrue(name_row.is_mismatch)
-        phone_row = GBPSyncCheck.objects.get(client=c, field_name='phone')
+        phone_row = GBPSyncCheck.objects.get(
+            website_new=site, field_name='phone')
         self.assertTrue(phone_row.is_mismatch)
         # At least one alert email
         self.assertGreaterEqual(len(_mail.outbox), 1)

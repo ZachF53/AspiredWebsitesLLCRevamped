@@ -16,8 +16,14 @@
             </p>
         </div>
         <div>
-            {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
-                <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' client_id=account.legacy_client_profile_id %}">Manage GBP &rarr;</a>
+            {% comment %}
+            A Google listing describes one business location, so the link
+            belongs to a site. Shown only when exactly one site is eligible;
+            with several there is no single right target, and the per-site
+            card further down is the honest answer.
+            {% endcomment %}
+            {% if gbp_websites|length == 1 %}
+                <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' website_id=gbp_websites.0.id %}">Manage GBP &rarr;</a>
             {% endif %}
         </div>
     </div>
@@ -373,28 +379,39 @@
         </div>
     </div>
 
-    {% if account.legacy_client_profile and account.legacy_client_profile.has_gbp_features %}
     {% comment %}
-        GBP card — only shown for clients on Growth/Dominant tier
-        (paid) OR comped via ClientProfile.comp_package.
+        GBP card — one row per site on Growth/Dominant (paid or comped).
+
+        This used to be a single account-level card reading the legacy
+        profile's one gbp_location_name. That made a second site's listing
+        unreachable: there was nowhere to bind it and nowhere to see it,
+        so a multi-brand client could only ever have one profile managed.
     {% endcomment %}
+    {% if gbp_websites %}
     <div class="admin-card" style="margin-top: 2rem;border-left:4px solid var(--color-orange,#E8650A);">
         <div class="admin-card__header">
             <h2 class="admin-card__title">Google Business Profile</h2>
-            <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' client_id=account.legacy_client_profile_id %}">Manage →</a>
         </div>
         <div class="admin-card__body">
-            <p class="muted" style="margin-top:0;font-size:.9rem;">
-                NAP sync, performance reporting, and review management
-                {% if account.legacy_client_profile.has_gbp_premium_features %}<em>(with reply workflow on Dominant tier)</em>{% endif %}.
-                {% if account.legacy_client_profile.gbp_location_name %}
-                    Bound to: <code style="font-size:.75rem;">{{ account.legacy_client_profile.gbp_location_name }}</code>
-                {% else %}
-                    <strong>No GBP location bound yet.</strong>
-                    Once {{ account.name }} has added you as a Manager on their
-                    Business Profile, click <em>Manage →</em> to bind the right location.
-                {% endif %}
-            </p>
+            {% for site in gbp_websites %}
+                <div class="gbp-site-row" style="padding:.6rem 0;{% if not forloop.last %}border-bottom:1px solid var(--color-border,#e5e5e5);{% endif %}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                        <strong>{{ site.name }}</strong>
+                        <a class="btn-primary btn-sm" href="{% url 'gbp:client_gbp' website_id=site.id %}">Manage →</a>
+                    </div>
+                    <p class="muted" style="margin:.35rem 0 0;font-size:.9rem;">
+                        NAP sync, performance reporting, and review management
+                        {% if site.has_gbp_premium_features %}<em>(with reply workflow on Dominant tier)</em>{% endif %}.
+                        {% if site.gbp_location_name %}
+                            Bound to: <code style="font-size:.75rem;">{{ site.gbp_location_name }}</code>
+                        {% else %}
+                            <strong>No GBP location bound yet.</strong>
+                            Once {{ account.name }} has added you as a Manager on their
+                            Business Profile, click <em>Manage →</em> to bind the right location.
+                        {% endif %}
+                    </p>
+                </div>
+            {% endfor %}
         </div>
     </div>
     {% endif %}

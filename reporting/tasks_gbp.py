@@ -7,9 +7,13 @@ Four scheduled tasks (see CELERY_BEAT_SCHEDULE):
     snapshot_gbp_performance_task            monthly day 1, 05:33
     refresh_operator_tokens_task             hourly :17
 
-All loop over eligible ClientProfile rows (maintenance tier ≥ Growth,
+All loop over eligible Website rows (maintenance tier ≥ Growth,
 gbp_location_name set), using the single operator GbpOperatorToken.
-Per-client try/except so one bad listing doesn't poison the batch.
+Per-site try/except so one bad listing doesn't poison the batch.
+
+Scoped per website because a Google listing describes one business
+location. An account running two brands has two listings; iterating
+accounts meant the second was never synced.
 """
 
 import datetime as _dt
@@ -18,7 +22,7 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
-from clients.models import ClientProfile
+from clients.account_models import Website
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +32,13 @@ def _operator_token():
     return GbpOperatorToken.objects.order_by('created_at').first()
 
 
-def _eligible_clients():
+def _eligible_websites():
     """Maintenance tier ≥ Growth AND a GBP location bound."""
-    return ClientProfile.objects.filter(
-        package__in=['maintenance_growth', 'maintenance_dominant'],
-    ).exclude(gbp_location_name='')
+    return (Website.objects
+            .filter(package__in=[
+                'maintenance_growth', 'maintenance_dominant'])
+            .exclude(gbp_location_name='')
+            .select_related('account'))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -52,13 +58,13 @@ def sync_gbp_reviews_task():
         return 0
 
     processed = 0
-    for client in _eligible_clients():
+    for site in _eligible_websites():
         try:
-            reviews = list_reviews(token, client.gbp_location_name)
+            reviews = list_reviews(token, site.gbp_location_name)
         except Exception:
             logger.exception(
                 'sync_gbp_reviews: list_reviews failed for %s',
-                client.pk)
+                site.pk)
             continue
 
         for raw in reviews:
@@ -81,7 +87,7 @@ def sync_gbp_reviews_task():
                 need_reason = 'unreplied'
 
             GbpReview.objects.update_or_create(
-                client=client,
+                website_new=site,
                 provider_review_id=review_id,
                 defaults={
                     'reviewer_name':              (
@@ -126,13 +132,15 @@ def _parse_dt(value):
 
 @shared_task
 def check_gbp_nap_task():
-    """For each eligible client, compare the live GBP listing's NAP
-    fields to the client record. Write a GBPSyncCheck row per field.
+    """For each eligible site, compare the live GBP listing's NAP
+    fields to what we hold. Write a GBPSyncCheck row per field.
 
-    Replaces the stub `reporting.tasks.check_gbp_sync` for GBP-eligible
-    clients — that one still runs for legacy / non-eligible cases.
+    Name, phone and address are account-level facts (the business); the
+    website URL is the site's own. Comparing the site's URL against the
+    listing is the whole point of the check on a multi-site account —
+    the wrong URL on a listing sends the client's callers to the wrong
+    brand.
     """
-    from clients.website_helpers import primary_website
     from reporting.google_gbp import fetch_location
     from reporting.models import GBPSyncCheck
 
@@ -142,12 +150,12 @@ def check_gbp_nap_task():
         return 0
 
     processed = 0
-    for client in _eligible_clients():
+    for site in _eligible_websites():
         try:
-            data = fetch_location(token, client.gbp_location_name)
+            data = fetch_location(token, site.gbp_location_name)
         except Exception:
             logger.exception(
-                'check_gbp_nap: fetch_location raised for %s', client.pk)
+                'check_gbp_nap: fetch_location raised for %s', site.pk)
             continue
         if data is None:
             continue
@@ -159,19 +167,21 @@ def check_gbp_nap_task():
         gbp_address = ' '.join(sa.get('addressLines') or []).strip()
         gbp_website = (data.get('websiteUri') or '').strip()
 
+        account = site.account
         fields = [
-            ('business_name', (client.firm_name or '').strip(), gbp_name),
-            ('phone', (client.phone or '').strip(), gbp_phone),
-            ('address', (client.address or '').strip(), gbp_address),
-            ('website', (client.website or '').strip(), gbp_website),
+            ('business_name',
+             ((account.name if account else site.name) or '').strip(),
+             gbp_name),
+            ('phone', ((account.phone if account else '') or '').strip(),
+             gbp_phone),
+            ('address', ((account.address if account else '') or '').strip(),
+             gbp_address),
+            ('website', (site.url or '').strip(), gbp_website),
         ]
-        # Admin GBP views filter on website_new — resolve once per client.
-        site = primary_website(client)
         for field_name, web_val, gbp_val in fields:
             mismatch = bool(web_val) and bool(gbp_val) and (
                 _norm(web_val) != _norm(gbp_val))
             GBPSyncCheck.objects.create(
-                client=client,
                 website_new=site,
                 field_name=field_name,
                 website_value=web_val,
@@ -214,19 +224,19 @@ def snapshot_gbp_performance_task():
     snapshot_month = _dt.date(year, month, 1)
 
     processed = 0
-    for client in _eligible_clients():
+    for site in _eligible_websites():
         try:
             totals = fetch_monthly_performance(
-                token, client.gbp_location_name, year, month)
+                token, site.gbp_location_name, year, month)
         except Exception:
             logger.exception(
-                'snapshot_gbp_performance: fetch failed for %s', client.pk)
+                'snapshot_gbp_performance: fetch failed for %s', site.pk)
             continue
         if not totals:
             continue
 
         GbpPerformanceSnapshot.objects.update_or_create(
-            client=client,
+            website_new=site,
             snapshot_month=snapshot_month,
             defaults={
                 'profile_views_search': (

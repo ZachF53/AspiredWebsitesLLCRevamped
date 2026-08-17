@@ -8,11 +8,11 @@ from .models import SyncJob, SyncLog
 @admin.register(SyncJob)
 class SyncJobAdmin(admin.ModelAdmin):
     list_display = (
-        'event_type', 'target', 'client', 'status', 'attempts',
+        'event_type', 'target', 'account_new', 'status', 'attempts',
         'last_attempt_at', 'sent_at', 'created_at',
     )
     list_filter = ('status', 'target', 'event_type')
-    search_fields = ('client__firm_name', 'moonieful_client_id', 'last_error')
+    search_fields = ('account_new__name', 'moonieful_client_id', 'last_error')
     readonly_fields = ('created_at', 'updated_at', 'last_attempt_at', 'sent_at')
 
 

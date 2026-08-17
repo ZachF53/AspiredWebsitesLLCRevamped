@@ -3,6 +3,7 @@
 from django.db import models
 
 from clients.models import ClientProfile, Project, RevisionRequest
+from clients.display import owner_label
 from core.models import TimestampedModel
 
 # Pricing models live in a separate module — imported here so Django's app
@@ -31,6 +32,7 @@ class MiniInvoice(TimestampedModel):
 
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE, related_name='mini_invoices',
+        null=True, blank=True,
     )
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, null=True, blank=True,
@@ -62,4 +64,4 @@ class MiniInvoice(TimestampedModel):
         verbose_name_plural = 'Mini Invoices'
 
     def __str__(self):
-        return f'{self.client.firm_name}: {self.description} ({self.status})'
+        return f'{owner_label(self)}: {self.description} ({self.status})'

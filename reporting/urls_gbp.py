@@ -18,13 +18,14 @@ urlpatterns = [
          gbp_oauth_views.oauth_callback, name='oauth_callback'),
     path('disconnect/', gbp_oauth_views.disconnect, name='disconnect'),
 
-    # Per-client deep dive
-    path('clients/<uuid:client_id>/',
+    # Per-website deep dive. A GBP listing describes one business
+    # location, so it binds to a site rather than to the account.
+    path('websites/<uuid:website_id>/',
          views_gbp.client_gbp, name='client_gbp'),
-    path('clients/<uuid:client_id>/bind/',
+    path('websites/<uuid:website_id>/bind/',
          views_gbp.locations_picker, name='locations_picker'),
-    path('clients/<uuid:client_id>/reviews/',
+    path('websites/<uuid:website_id>/reviews/',
          views_gbp.reviews_list, name='reviews_list'),
-    path('clients/<uuid:client_id>/nap/',
+    path('websites/<uuid:website_id>/nap/',
          views_gbp.nap_history, name='nap_history'),
 ]

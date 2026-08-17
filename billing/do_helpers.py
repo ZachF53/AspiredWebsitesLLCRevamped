@@ -62,9 +62,21 @@ def _headers():
     }
 
 
-def droplet_name_for(client):
-    """Naming convention: clientname-prod (lowercase, hyphens)."""
-    return f'{slugify(client.firm_name)}-prod'
+def droplet_name_for(site):
+    """Naming convention: clientname-prod (lowercase, hyphens).
+
+    Derived from the site name rather than the account's. Website.name is
+    seeded from the firm name during the cutover, so a single-site account
+    produces exactly the name it produced before. A second site produces a
+    distinct one -- which the account-level version could not: two sites
+    under one account both wanted `vancefamilylaw-prod`, and DigitalOcean
+    would happily create two droplets with the same name, leaving nothing
+    in the console to tell them apart.
+
+    Accepts anything with a `name`, so the manual-provisioning path that
+    passes an Account still works.
+    """
+    return f'{slugify(getattr(site, "name", "") or "")}-prod'
 
 
 def _public_ip(droplet):
@@ -542,65 +554,65 @@ def _resolve_latest_snapshot_id(droplet_id):
     return str(snapshots[0].get('id') or '')
 
 
-def take_retention_snapshot(client):
+def take_retention_snapshot(site):
     """Phase 1 — payment failure Day 30 retention snapshot.
 
     Synchronous: takes the snapshot, polls the action, resolves the
-    image id, stores it on client.do_snapshot_id. Returns the id, or
+    image id, stores it on site.do_snapshot_id. Returns the id, or
     '' on failure (in which case the caller MUST refuse to destroy
-    the Droplet — losing client data is not acceptable).
+    the Droplet — losing site data is not acceptable).
     """
-    if not client.do_droplet_id:
+    if not site.do_droplet_id:
         return ''
-    label = (f'{droplet_name_for(client)}-retention-'
+    label = (f'{droplet_name_for(site)}-retention-'
              f'{int(timezone.now().timestamp())}')
     try:
-        action_id = snapshot_client_droplet(client, label)
+        action_id = snapshot_client_droplet(site, label)
     except Exception:
         logger.exception(
             'take_retention_snapshot: snapshot action failed for %s',
-            client.pk)
+            site.pk)
         return ''
     if not _wait_for_action(action_id):
         logger.error(
             'take_retention_snapshot: snapshot action %s did not '
-            'complete for client %s', action_id, client.pk)
+            'complete for site %s', action_id, site.pk)
         return ''
-    snap_id = _resolve_latest_snapshot_id(client.do_droplet_id)
+    snap_id = _resolve_latest_snapshot_id(site.do_droplet_id)
     if not snap_id:
         logger.error(
             'take_retention_snapshot: no snapshot id resolved for %s',
-            client.pk)
+            site.pk)
         return ''
-    client.do_snapshot_id = snap_id
-    client.save(update_fields=['do_snapshot_id', 'updated_at'])
+    site.do_snapshot_id = snap_id
+    site.save(update_fields=['do_snapshot_id', 'updated_at'])
     logger.info(
-        'take_retention_snapshot: client %s snapshot=%s', client.pk, snap_id)
+        'take_retention_snapshot: site %s snapshot=%s', site.pk, snap_id)
     return snap_id
 
 
-def destroy_client_droplet(client):
+def destroy_client_droplet(site):
     """Phase 1 — payment-failure Day 30. Snapshot FIRST (60-day
     retention), then destroy. If the retention snapshot can't be
-    produced, REFUSE to destroy — losing client data on a billing
+    produced, REFUSE to destroy — losing site data on a billing
     failure is the worst possible outcome and must be a hard fail."""
-    if not client.do_droplet_id:
+    if not site.do_droplet_id:
         return
-    if not client.do_snapshot_id:
-        snap_id = take_retention_snapshot(client)
+    if not site.do_snapshot_id:
+        snap_id = take_retention_snapshot(site)
         if not snap_id:
             logger.error(
                 'destroy_client_droplet: retention snapshot failed '
-                'for client %s — REFUSING to destroy', client.pk)
+                'for site %s — REFUSING to destroy', site.pk)
             # Operational alert: a human needs to investigate.
             try:
                 from core.system_alerts import record_alert
                 record_alert(
                     severity='critical',
                     source='billing.do_helpers.destroy_blocked',
-                    message=(f'Refused to destroy client {client.pk} '
+                    message=(f'Refused to destroy site {site.pk} '
                              f'Droplet — retention snapshot failed'),
-                    detail=f'droplet_id={client.do_droplet_id}',
+                    detail=f'droplet_id={site.do_droplet_id}',
                 )
             except Exception:
                 pass
@@ -609,44 +621,50 @@ def destroy_client_droplet(client):
     headers = _headers()
     try:
         resp = requests.delete(
-            f'{DO_API}/droplets/{client.do_droplet_id}', headers=headers,
+            f'{DO_API}/droplets/{site.do_droplet_id}', headers=headers,
             timeout=30)
         resp.raise_for_status()
     except requests.RequestException:
         logger.exception(
-            'destroy_client_droplet: DELETE failed for client %s',
-            client.pk)
+            'destroy_client_droplet: DELETE failed for site %s',
+            site.pk)
         return
     logger.info(
         'destroy_client_droplet: destroyed droplet %s for %s '
         '(snapshot %s retained)',
-        client.do_droplet_id, client.pk, client.do_snapshot_id)
-    client.do_droplet_id = ''
-    client.do_droplet_ip = None
-    client.site_status = 'destroyed'
-    client.save(update_fields=[
+        site.do_droplet_id, site.pk, site.do_snapshot_id)
+    site.do_droplet_id = ''
+    site.do_droplet_ip = None
+    site.site_status = 'destroyed'
+    site.save(update_fields=[
         'do_droplet_id', 'do_droplet_ip', 'site_status', 'updated_at',
     ])
 
 
-def _open_ssh_to_client(client):
+def _open_ssh_to_site(site):
     """Helper for background tasks (maintenance / restore). Tries to
     open a paramiko SSH session as root@<droplet_ip> using the
     server-key-encrypted vault credential. Returns the open client,
     or None on any failure. Caller must ssh.close() when done.
 
+    Credentials are account-scoped (one key per customer), the droplet
+    is site-scoped. So the IP comes from the site and the key from its
+    account.
+
     Background tasks can ONLY use server-key-encrypted credentials —
     PIN-encrypted ones need an admin session to decrypt and aren't
     reachable from Celery."""
-    if not client.do_droplet_ip:
+    if not site.do_droplet_ip:
         return None
     try:
         from vault.models import VaultCredential
         from vault.crypto import decrypt_value, derive_server_key
     except Exception:
         return None
+    if site.account_id is None:
+        return None
     cred = VaultCredential.objects.filter(
-        client=client,
+        account_new_id=site.account_id,
         encrypted_with_server_key=True,
     ).exclude(ssh_private_key_encrypted='').first()
     if cred is None:
@@ -692,18 +710,18 @@ def _run_remote(ssh, cmd, timeout=20):
         return -1
 
 
-def set_site_maintenance_mode(client):
+def set_site_maintenance_mode(site):
     """Phase 1 — Day 14 escalation. Push the maintenance vhost (503)
-    on the client's Droplet via SSH. Droplet stays up, just serves
+    on the site's Droplet via SSH. Droplet stays up, just serves
     a maintenance page. Best-effort — if SSH fails, fall back to
     powering off so visitors don't see a live site for an unpaid
     client. site_status flips to 'maintenance' either way."""
-    if not client.do_droplet_id:
-        client.site_status = 'maintenance'
-        client.save(update_fields=['site_status', 'updated_at'])
+    if not site.do_droplet_id:
+        site.site_status = 'maintenance'
+        site.save(update_fields=['site_status', 'updated_at'])
         return
 
-    ssh = _open_ssh_to_client(client)
+    ssh = _open_ssh_to_site(site)
     ok = False
     if ssh is not None:
         try:
@@ -726,37 +744,37 @@ def set_site_maintenance_mode(client):
         # SSH path didn't take — power-off fallback. The site is
         # unavailable rather than a 503, but it's still off.
         try:
-            power_off_droplet(client.do_droplet_id)
+            power_off_droplet(site.do_droplet_id)
         except Exception:
             logger.exception(
                 'set_site_maintenance_mode: power_off fallback failed '
-                'for client %s', client.pk)
+                'for site %s', site.pk)
 
-    client.site_status = 'maintenance'
-    client.save(update_fields=['site_status', 'updated_at'])
+    site.site_status = 'maintenance'
+    site.save(update_fields=['site_status', 'updated_at'])
 
 
-def set_site_offline(client):
+def set_site_offline(site):
     """Phase 1 — Day 21 escalation. Power the Droplet off."""
-    if client.do_droplet_id:
+    if site.do_droplet_id:
         try:
-            power_off_droplet(client.do_droplet_id)
+            power_off_droplet(site.do_droplet_id)
         except Exception:
             logger.exception(
-                'set_site_offline: power_off failed for client %s',
-                client.pk)
-    client.site_status = 'offline'
-    client.save(update_fields=['site_status', 'updated_at'])
+                'set_site_offline: power_off failed for site %s',
+                site.pk)
+    site.site_status = 'offline'
+    site.save(update_fields=['site_status', 'updated_at'])
 
 
-def delete_client_snapshot(client):
+def delete_client_snapshot(site):
     """Phase 1 — Day 60 escalation. Delete the retention snapshot.
     Last chance for the client to pay + reinstate has passed."""
-    if not client.do_snapshot_id:
+    if not site.do_snapshot_id:
         return
     try:
         r = requests.delete(
-            f'{DO_API}/images/{client.do_snapshot_id}',
+            f'{DO_API}/images/{site.do_snapshot_id}',
             headers=_headers(), timeout=30)
         # 204 No Content is success; 404 means already gone — treat
         # as success so we still clear the field.
@@ -764,17 +782,17 @@ def delete_client_snapshot(client):
             r.raise_for_status()
     except requests.RequestException:
         logger.exception(
-            'delete_client_snapshot: DELETE failed for client %s',
-            client.pk)
+            'delete_client_snapshot: DELETE failed for site %s',
+            site.pk)
         return
     logger.info(
-        'delete_client_snapshot: deleted snapshot %s for client %s',
-        client.do_snapshot_id, client.pk)
-    client.do_snapshot_id = ''
-    client.save(update_fields=['do_snapshot_id', 'updated_at'])
+        'delete_client_snapshot: deleted snapshot %s for site %s',
+        site.do_snapshot_id, site.pk)
+    site.do_snapshot_id = ''
+    site.save(update_fields=['do_snapshot_id', 'updated_at'])
 
 
-def restore_client_site(client):
+def restore_client_site(site):
     """Phase 1.6 — reinstatement. Bring the site back to `live`:
     - If droplet still exists (maintenance/offline state): power on
       and remove the maintenance vhost.
@@ -784,24 +802,24 @@ def restore_client_site(client):
 
     Returns True on success."""
     # Case 1: Droplet still alive — just power on + clear maintenance.
-    if client.do_droplet_id:
+    if site.do_droplet_id:
         try:
-            power_on_droplet(client.do_droplet_id)
+            power_on_droplet(site.do_droplet_id)
         except Exception:
             logger.exception(
-                'restore_client_site: power_on failed for client %s',
-                client.pk)
+                'restore_client_site: power_on failed for site %s',
+                site.pk)
         # If we pushed a maintenance vhost, swap it back. Best-effort —
         # if SSH isn't available (PIN-encrypted vault, no credential),
         # the admin will need to remove the maintenance vhost manually
         # when they have a vault session open.
-        if client.site_status == 'maintenance':
-            ssh = _open_ssh_to_client(client)
+        if site.site_status == 'maintenance':
+            ssh = _open_ssh_to_client(site)
             if ssh is not None:
                 try:
                     _run_remote(
                         ssh,
-                        "ln -sf /etc/nginx/sites-available/client "
+                        "ln -sf /etc/nginx/sites-available/site "
                         "/etc/nginx/sites-enabled/default && "
                         "nginx -t && systemctl reload nginx")
                 finally:
@@ -809,20 +827,20 @@ def restore_client_site(client):
                         ssh.close()
                     except Exception:
                         pass
-        client.site_status = 'live'
-        client.save(update_fields=['site_status', 'updated_at'])
+        site.site_status = 'live'
+        site.save(update_fields=['site_status', 'updated_at'])
         return True
 
     # Case 2: Destroyed but snapshot retained — rebuild from snapshot.
-    if client.do_snapshot_id:
+    if site.do_snapshot_id:
         try:
             resp = requests.post(
                 f'{DO_API}/droplets', headers=_headers(),
                 json={
-                    'name': droplet_name_for(client),
+                    'name': droplet_name_for(site),
                     'region': 'nyc1',
                     'size': 's-1vcpu-2gb',
-                    'image': int(client.do_snapshot_id),
+                    'image': int(site.do_snapshot_id),
                     'backups': True,
                     'ipv6': False,
                     'monitoring': True,
@@ -830,24 +848,24 @@ def restore_client_site(client):
                 timeout=30)
             resp.raise_for_status()
             d = resp.json().get('droplet') or {}
-            client.do_droplet_id = str(d.get('id') or '')
-            client.do_droplet_created_at = timezone.now()
+            site.do_droplet_id = str(d.get('id') or '')
+            site.do_droplet_created_at = timezone.now()
             # IP comes back async; downstream provisioning loop will
             # poll and fill it. For now save what we have.
-            client.site_status = 'live'
-            client.save(update_fields=[
+            site.site_status = 'live'
+            site.save(update_fields=[
                 'do_droplet_id', 'do_droplet_created_at', 'site_status',
                 'updated_at',
             ])
             logger.info(
-                'restore_client_site: rebuilt client %s from snapshot %s '
+                'restore_client_site: rebuilt site %s from snapshot %s '
                 'as droplet %s',
-                client.pk, client.do_snapshot_id, client.do_droplet_id)
+                site.pk, site.do_snapshot_id, site.do_droplet_id)
             return True
         except Exception:
             logger.exception(
                 'restore_client_site: rebuild from snapshot failed for %s',
-                client.pk)
+                site.pk)
             return False
 
     # Case 3: nothing to restore — admin needs to handle manually.
@@ -856,7 +874,7 @@ def restore_client_site(client):
         record_alert(
             severity='critical',
             source='billing.do_helpers.restore_client_site',
-            message=(f'Reinstatement requested for client {client.pk} '
+            message=(f'Reinstatement requested for site {site.pk} '
                      f'but no droplet or snapshot is on file'),
             detail='Manual recovery required',
         )

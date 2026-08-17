@@ -27,17 +27,59 @@ survive contact:
    'client'` during SQLite's table rebuild, because a `unique_together`
    or index still references it. Every model with a composite constraint
    touching `client` or `project` needs an `AlterUniqueTogether` /
-   `RemoveIndex` operation emitted ahead of its `RemoveField`. That is not
-   yet generated here.
+   `RemoveIndex` operation emitted ahead of its `RemoveField`.
+
+   **Resolved for the unique constraints, 2026-08-17.** All eight
+   `unique_together` tuples keyed on `client` were re-keyed onto
+   `website_new` in `clients.0056` and `reporting.0017`. That was not
+   done to unblock the drop — it was forced by making `client` nullable.
+   A NULL is distinct from every other NULL in a unique index, so the
+   moment writers stopped setting `client`, those constraints silently
+   stopped enforcing anything. `reporting.GbpReview` was the sharp edge:
+   the review sync upserts on that key every four hours, so the guard
+   failing open meant a duplicate copy of every review six times a day.
+   Fixing the correctness bug removed the migration blocker as a side
+   effect.
+
+   Still outstanding: the plain `models.Index` entries on
+   `['client', ...]`. Those are not correctness bugs — a stale index
+   costs write throughput, not accuracy — but each still needs a
+   `RemoveIndex` ahead of its `RemoveField`.
 3. **Ordering is load-bearing.** Phase 2 must depend on every phase-1
    migration, or the tables are dropped while other apps' FK constraints
    still point at them.
 
 None of that had reached the application-level breakage yet — those are
-schema errors that occur before any code runs. The 57 modules still
-reading `ClientProfile` are a separate, larger problem waiting behind them.
+schema errors that occur before any code runs. The modules still reading
+`ClientProfile` are a separate, larger problem waiting behind them.
 
 Take this as the argument for why the drop is a project, not a command.
+
+## Column-level findings, 2026-08-17
+
+The parity audit compares fields that exist on **both** sides, so a field
+that exists on only the legacy side is invisible to it by construction.
+Six were, and every one was written by live code and read by a scheduled
+task. The drop as staged would have taken all six:
+
+| Legacy field | Moved to | What was at stake |
+|---|---|---|
+| `gbp_location_name` | `Website` | the Google listing binding |
+| `do_snapshot_id` | `Website` | the 60-day retention snapshot's id — an orphaned, still-billed DigitalOcean resource nothing could find or restore from |
+| `site_status` | `Website` | live / maintenance / offline / destroyed |
+| `payment_failure_started_at` | `Account` | the escalation guard |
+| `payment_failure_offenses` | `Account` | 1st-free / 2nd-costs-$75 |
+| `stripe_social_subscription_id` | `Account` | the social plan's Stripe link |
+
+Four models also carried a legacy FK with **no canonical counterpart at
+all** — `social.ScheduledPost`, `reporting.GbpReview`,
+`reporting.GbpPerformanceSnapshot`, `admin_dashboard.AIAssistantLog`. The
+last is the starkest: an append-only audit trail that would have kept
+every row and lost, on all of them, the record of who the action was
+performed against.
+
+`clients.tests_canonical_coverage` now asserts the property directly, so
+a seventh cannot be added quietly.
 
 ## What is planned
 

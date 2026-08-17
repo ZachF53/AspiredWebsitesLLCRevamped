@@ -76,6 +76,18 @@ class AIAssistantLog(TimestampedModel):
         null=True, blank=True,
         related_name='ai_assistant_logs',
     )
+    # Canonical subject of the command. This model had no canonical FK at
+    # all, so the planned legacy drop would have removed `client` and
+    # turned an append-only audit trail into a list of actions with no
+    # record of who they were performed against -- the one property an
+    # audit trail exists to have. SET_NULL matches `client`: losing the
+    # subject must never delete the evidence that something happened.
+    website_new = models.ForeignKey(
+        'clients.Website',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ai_assistant_logs_new',
+    )
     raw_command = models.TextField(blank=True)
     intent = models.CharField(max_length=80, blank=True)
     args = models.JSONField(default=dict, blank=True)

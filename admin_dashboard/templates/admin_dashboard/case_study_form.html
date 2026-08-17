@@ -22,17 +22,24 @@
         <section class="admin-section">
             <div class="admin-section__header"><h2>Subject</h2></div>
 
+            {% comment %}
+            The subject is a website, not an account. An account with more
+            than one site has more than one story, and the old account-level
+            picker could only ever describe the first of them. The option
+            label carries the account name too, because two accounts can
+            easily have similarly named sites.
+            {% endcomment %}
             <div class="form-row">
-                <label>Client
-                    <select name="client_id" id="cs-client">
+                <label>Website
+                    <select name="website_id" id="cs-website">
                         <option value="">— None / cold —</option>
-                        {% for c in clients %}
-                            <option value="{{ c.id }}"
-                                    {% if preselect_client and preselect_client.id == c.id %}selected{% endif %}
-                                    data-business-type="{{ c.business_type|escape }}"
-                                    data-city="{{ c.city|escape }}"
-                                    data-state="{{ c.state|escape }}">
-                                {{ c.firm_name }}
+                        {% for w in websites %}
+                            <option value="{{ w.id }}"
+                                    {% if preselect_website and preselect_website.id == w.id %}selected{% endif %}
+                                    data-business-type="{{ w.business_type|escape }}"
+                                    data-city="{{ w.account.city|escape }}"
+                                    data-state="{{ w.account.state|escape }}">
+                                {{ w.name }}{% if w.account and w.account.name != w.name %} — {{ w.account.name }}{% endif %}
                             </option>
                         {% endfor %}
                     </select>
@@ -50,11 +57,11 @@
             <div class="form-row form-row--split">
                 <label>Business type
                     <input type="text" name="business_type" id="cs-business-type" maxlength="100"
-                           value="{% if case_study %}{{ case_study.business_type }}{% elif preselect_client %}{{ preselect_client.business_type }}{% endif %}">
+                           value="{% if case_study %}{{ case_study.business_type }}{% elif preselect_website %}{{ preselect_website.business_type }}{% endif %}">
                 </label>
                 <label>Location
                     <input type="text" name="location" id="cs-location" maxlength="100"
-                           value="{% if case_study %}{{ case_study.location }}{% elif preselect_client %}{{ preselect_client.city }}{% if preselect_client.city and preselect_client.state %}, {% endif %}{{ preselect_client.state }}{% endif %}"
+                           value="{% if case_study %}{{ case_study.location }}{% elif preselect_website %}{{ preselect_website.account.city }}{% if preselect_website.account.city and preselect_website.account.state %}, {% endif %}{{ preselect_website.account.state }}{% endif %}"
                            placeholder="San Antonio, TX">
                 </label>
             </div>
@@ -137,8 +144,8 @@
 
 <script>
     (function () {
-        // Auto-fill business_type + location when a client is picked.
-        var sel = document.getElementById('cs-client');
+        // Auto-fill business_type + location when a website is picked.
+        var sel = document.getElementById('cs-website');
         if (sel) {
             sel.addEventListener('change', function () {
                 var opt = sel.options[sel.selectedIndex];
@@ -159,9 +166,9 @@
         var status = document.getElementById('ai-draft-status');
         if (aiBtn) {
             aiBtn.addEventListener('click', function () {
-                var cid = document.getElementById('cs-client').value;
+                var cid = document.getElementById('cs-website').value;
                 if (!cid) {
-                    status.textContent = 'Pick a client first.';
+                    status.textContent = 'Pick a website first.';
                     return;
                 }
                 var title = document.querySelector('[name=title]').value || '';
@@ -169,7 +176,7 @@
                 aiBtn.textContent = 'Drafting…';
                 status.textContent = '';
                 var fd = new FormData();
-                fd.append('client_id', cid);
+                fd.append('website_id', cid);
                 fd.append('title', title);
                 fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
                 fetch("{% url 'admin_dashboard:case_study_ai_draft' %}", {

@@ -12,6 +12,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from clients.display import owner_label
 from core.models import TimestampedModel
 
 # Account / Website live in a separate module — re-export so Django's
@@ -491,7 +492,7 @@ class Project(TimestampedModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.client.firm_name} — {self.get_stage_display()}'
+        return f'{owner_label(self)} — {self.get_stage_display()}'
 
     @property
     def revisions_remaining(self):
@@ -545,8 +546,7 @@ class ProjectStageLog(TimestampedModel):
 
     def __str__(self):
         cname = (
-            (self.client.firm_name if self.client else None)
-            or (self.project.client.firm_name if self.project else '?')
+            owner_label(self)
         )
         return f'{cname}: {self.from_stage} → {self.to_stage}'
 
@@ -658,8 +658,7 @@ class IntakeResponse(TimestampedModel):
 
     def __str__(self):
         cname = (
-            (self.client.firm_name if self.client else None)
-            or (self.project.client.firm_name if self.project else '?')
+            owner_label(self)
         )
         return f'Intake — {cname}'
 
@@ -738,8 +737,7 @@ class RevisionRequest(TimestampedModel):
 
     def __str__(self):
         cname = (
-            (self.client.firm_name if self.client else None)
-            or (self.project.client.firm_name if self.project else '?')
+            owner_label(self)
         )
         return f'{cname}: {self.description[:50]}'
 
@@ -754,6 +752,7 @@ class ClientDocument(TimestampedModel):
 
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE, related_name='documents',
+        null=True, blank=True,
     )
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, null=True, blank=True,
@@ -799,6 +798,7 @@ class SupportTicket(TimestampedModel):
 
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE, related_name='tickets',
+        null=True, blank=True,
     )
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, null=True, blank=True,
@@ -831,7 +831,7 @@ class SupportTicket(TimestampedModel):
         verbose_name_plural = 'Support Tickets'
 
     def __str__(self):
-        return f'{self.client.firm_name}: {self.subject}'
+        return f'{owner_label(self)}: {self.subject}'
 
 
 class Contract(TimestampedModel):
@@ -850,6 +850,7 @@ class Contract(TimestampedModel):
 
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE, related_name='contracts',
+        null=True, blank=True,
     )
     # Phase C — contracts can be raised from the Account dashboard. Nullable
     # so legacy build contracts (created via the Django admin action, which
@@ -891,7 +892,7 @@ class Contract(TimestampedModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Contract — {self.client.firm_name}'
+        return f'Contract — {owner_label(self)}'
 
     @property
     def final_amount(self):
@@ -986,6 +987,7 @@ class SiteChangelogEntry(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='changelog_entries',
+        null=True, blank=True,
     )
     # Phase A — per-build.
     website_new = models.ForeignKey(
@@ -1022,7 +1024,7 @@ class SiteChangelogEntry(TimestampedModel):
         verbose_name_plural = 'Site Changelog Entries'
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'{self.get_change_type_display()} — '
                 f'{self.date_of_change}')
 
@@ -1033,6 +1035,7 @@ class UptimeRecord(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='uptime_records',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1052,7 +1055,7 @@ class UptimeRecord(TimestampedModel):
 
     def __str__(self):
         status = 'UP' if self.is_up else 'DOWN'
-        return f'{self.client.firm_name} — {status} — {self.checked_at}'
+        return f'{owner_label(self)} — {status} — {self.checked_at}'
 
 
 class UptimeAlert(TimestampedModel):
@@ -1061,6 +1064,7 @@ class UptimeAlert(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='uptime_alerts',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1077,7 +1081,7 @@ class UptimeAlert(TimestampedModel):
 
     def __str__(self):
         status = 'Resolved' if self.is_resolved else 'Active'
-        return f'{self.client.firm_name} — DOWN — {status}'
+        return f'{owner_label(self)} — DOWN — {status}'
 
 
 
@@ -1146,6 +1150,7 @@ class ClientHealthScore(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='health_scores',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1180,7 +1185,7 @@ class ClientHealthScore(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'Health: {self.score}/100')
 
 
@@ -1224,6 +1229,7 @@ class ReferralLink(TimestampedModel):
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE,
         related_name='referral_link',
+        null=True, blank=True,
     )
     # Phase A — referral links are account-level (one per Account).
     account_new = models.OneToOneField(
@@ -1244,7 +1250,7 @@ class ReferralLink(TimestampedModel):
         verbose_name_plural = 'Referral Links'
 
     def __str__(self):
-        return f'{self.client.firm_name} — ref/{self.code}'
+        return f'{owner_label(self)} — ref/{self.code}'
 
     def get_referral_url(self):
         return f'https://aspiredwebsites.com/ref/{self.code}/'
@@ -1564,6 +1570,7 @@ class IntelligenceReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='intelligence_reports',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1589,7 +1596,10 @@ class IntelligenceReport(TimestampedModel):
 
     class Meta:
         ordering = ['-report_month']
-        unique_together = ['client', 'report_month']
+        # Site-keyed. `client` is nullable during the cutover and a
+        # NULL is distinct from every other NULL in a unique index,
+        # so it can no longer carry a uniqueness guarantee.
+        unique_together = ['website_new', 'report_month']
         verbose_name = 'Intelligence Report'
         verbose_name_plural = 'Intelligence Reports'
         indexes = [
@@ -1597,7 +1607,7 @@ class IntelligenceReport(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — Intelligence '
+        return (f'{owner_label(self)} — Intelligence '
                 f'{self.report_month.strftime("%B %Y")}')
 
 
@@ -1640,6 +1650,7 @@ class IntelligenceSuggestion(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='intelligence_suggestions',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1705,7 +1716,7 @@ class IntelligenceSuggestion(TimestampedModel):
         ]
 
     def __str__(self):
-        return f'{self.client.firm_name} — {self.title[:60]}'
+        return f'{owner_label(self)} — {self.title[:60]}'
 
     def get_response_url(self, action):
         """Build the public approve/decline magic-link URL."""
@@ -1746,6 +1757,7 @@ class AnnualReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='annual_reports',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1774,7 +1786,10 @@ class AnnualReport(TimestampedModel):
 
     class Meta:
         ordering = ['-report_year']
-        unique_together = ['client', 'report_year']
+        # Site-keyed. `client` is nullable during the cutover and a
+        # NULL is distinct from every other NULL in a unique index,
+        # so it can no longer carry a uniqueness guarantee.
+        unique_together = ['website_new', 'report_year']
         verbose_name = 'Annual Report'
         verbose_name_plural = 'Annual Reports'
         indexes = [
@@ -1783,7 +1798,7 @@ class AnnualReport(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'Annual Report {self.report_year}')
 
 
@@ -1799,6 +1814,7 @@ class ClientCompetitor(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='competitors',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1811,12 +1827,15 @@ class ClientCompetitor(TimestampedModel):
 
     class Meta:
         ordering = ['sort_order', 'created_at']
-        unique_together = ['client', 'domain']
+        # Site-keyed. `client` is nullable during the cutover and a
+        # NULL is distinct from every other NULL in a unique index,
+        # so it can no longer carry a uniqueness guarantee.
+        unique_together = ['website_new', 'domain']
         verbose_name = 'Client Competitor'
         verbose_name_plural = 'Client Competitors'
 
     def __str__(self):
-        return f'{self.client.firm_name} — {self.name}'
+        return f'{owner_label(self)} — {self.name}'
 
 
 class CompetitorGapReport(TimestampedModel):
@@ -1841,6 +1860,7 @@ class CompetitorGapReport(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='competitor_gap_reports',
+        null=True, blank=True,
     )
     website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
@@ -1870,7 +1890,10 @@ class CompetitorGapReport(TimestampedModel):
 
     class Meta:
         ordering = ['-report_month']
-        unique_together = ['client', 'report_month']
+        # Site-keyed. `client` is nullable during the cutover and a
+        # NULL is distinct from every other NULL in a unique index,
+        # so it can no longer carry a uniqueness guarantee.
+        unique_together = ['website_new', 'report_month']
         verbose_name = 'Competitor Gap Report'
         verbose_name_plural = 'Competitor Gap Reports'
         indexes = [
@@ -1879,7 +1902,7 @@ class CompetitorGapReport(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.client.firm_name} — Gap Report '
+        return (f'{owner_label(self)} — Gap Report '
                 f'{self.report_month.strftime("%B %Y")}')
 
 
@@ -1899,6 +1922,7 @@ class OnboardingToken(TimestampedModel):
         ClientProfile,
         on_delete=models.CASCADE,
         related_name='onboarding_token',
+        null=True, blank=True,
     )
     # Phase A — onboarding token gates the account setup page (WHOIS +
     # PIN), so it's account-level (one per Account).
@@ -1935,7 +1959,7 @@ class OnboardingToken(TimestampedModel):
 
     def __str__(self):
         state = 'Used' if self.used else 'Pending'
-        return f'{self.client.firm_name} — {state}'
+        return f'{owner_label(self)} — {state}'
 
 
 # ── Onboarding invoice ─────────────────────────────────────────────────────
@@ -1968,6 +1992,7 @@ class OnboardingInvoice(TimestampedModel):
         ClientProfile,
         on_delete=models.CASCADE,
         related_name='onboarding_invoice',
+        null=True, blank=True,
     )
     # Phase A — onboarding invoice is per-build (a second Website needs
     # its own deposit + build fee invoice). 1:1 with Website. Account
@@ -2032,7 +2057,7 @@ class OnboardingInvoice(TimestampedModel):
         verbose_name_plural = 'Onboarding Invoices'
 
     def __str__(self):
-        return (f'{self.client.firm_name} — '
+        return (f'{owner_label(self)} — '
                 f'${self.total_amount:,.2f} ({self.status})')
 
     def get_pay_url(self):
@@ -2065,6 +2090,7 @@ class PaymentRecord(TimestampedModel):
     client = models.ForeignKey(
         ClientProfile, on_delete=models.CASCADE,
         related_name='payment_records',
+        null=True, blank=True,
     )
     account = models.ForeignKey(
         'clients.Account', on_delete=models.SET_NULL,
@@ -2089,5 +2115,5 @@ class PaymentRecord(TimestampedModel):
         ordering = ['-paid_at', '-created_at']
 
     def __str__(self):
-        return (f'{self.client.firm_name} — {self.get_kind_display()} '
+        return (f'{owner_label(self)} — {self.get_kind_display()} '
                 f'${self.amount:,.2f}')

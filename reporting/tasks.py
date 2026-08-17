@@ -88,12 +88,12 @@ def check_client_uptime():
         url = site.url or getattr(client, 'website', '')
         if not url:
             continue
-        if client is None:
-            # UptimeRecord.client is non-nullable, so a canonical-only
-            # account cannot be recorded until that FK is dropped in
-            # Phase D. Skipping is correct for now — writing a row with a
-            # borrowed owner would be worse than not writing one.
-            continue
+        # A canonical-only account used to be skipped here, because
+        # UptimeRecord.client was NOT NULL and there was no honest value to
+        # put in it. That meant every account created after the cutover —
+        # the shape all new accounts take — was silently unmonitored. The
+        # column is nullable now, so the row is written with the website
+        # alone and the site is watched like any other.
 
         if not url.startswith('http'):
             url = f'https://{url}'
@@ -171,14 +171,21 @@ def check_and_fire_alert(client, site=None):
         client=client, website_new=site,
         consecutive_failures=3, alert_sent=True)
 
-    live_url = (getattr(site, 'url', '') or client.website or '(unknown)')
+    # Every read here goes through the site first: `client` is None for a
+    # canonical-only account, which is now monitored rather than skipped.
+    from clients.display import owner_label
+
+    label = owner_label(UptimeAlert(client=client, website_new=site))
+    live_url = (getattr(site, 'url', '')
+                or getattr(client, 'website', '')
+                or '(unknown)')
     check_link = (
         f'/admin-dashboard/websites/{site.id}/uptime/' if site
         else '/admin-dashboard/accounts/')
     send_admin_alert(
-        subject=f"🔴 Site Down: {getattr(site, 'name', None) or client.firm_name}",
+        subject=f'🔴 Site Down: {label}',
         message=(
-            f'{client.firm_name} has been down for 3 consecutive checks.\n'
+            f'{label} has been down for 3 consecutive checks.\n'
             f'Domain: {live_url}\n'
             f'Check: {check_link}'
         ),
@@ -190,19 +197,19 @@ def check_and_fire_alert(client, site=None):
 GBP_NOT_CONNECTED = 'GBP not connected'
 
 
-def _gbp_is_connected(client):
-    """True when an agency operator's Google account is connected.
+def _gbp_is_connected(site):
+    """True when an agency operator's Google account is connected AND
+    this site is bound to a listing.
 
     Phase 6 — manager-invite model: ONE operator token covers every
-    client. So this check is effectively "did anyone connect Google
-    yet?" rather than per-client. Operator must also have bound the
-    client to a GBP location resource via
-    ClientProfile.gbp_location_name.
+    client, so the token half is effectively "did anyone connect Google
+    yet?". The binding half is per site: a Google listing describes one
+    business location, so `gbp_location_name` lives on Website.
     """
     from social.services import google_access_token
-    if not google_access_token(client):
+    if not google_access_token(site):
         return False
-    return bool(getattr(client, 'gbp_location_name', '') or '')
+    return bool(getattr(site, 'gbp_location_name', '') or '')
 
 
 def _normalise(s):
@@ -214,34 +221,30 @@ def _normalise(s):
 
 @shared_task
 def check_gbp_sync():
-    """Weekly NAP comparison between each client's site and GBP listing.
+    """Weekly NAP comparison between each live site and its GBP listing.
 
     Phase 6 — uses social.services.google_access_token + the bound
-    ClientProfile.gbp_location_name. Per-client try/except so one
-    failing API call doesn't abort the whole run. On any is_mismatch,
-    email LEAD_NOTIFICATION_EMAIL (best-effort).
+    Website.gbp_location_name. Per-site try/except so one failing API
+    call doesn't abort the whole run. On any is_mismatch, email
+    LEAD_NOTIFICATION_EMAIL (best-effort).
     """
     from django.conf import settings as _settings
     from django.core.mail import send_mail
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     from .models import GBPSyncCheck
 
-    clients = ClientProfile.objects.filter(status='active')
+    sites = (Website.objects
+             .filter(status='active', stage='live')
+             .select_related('account'))
     recorded = 0
     mismatch_count = 0
-    for client in clients:
-        if client.stage != 'live':
-            continue
+    for site in sites:
+        account = site.account
 
-        # The GBP admin views filter these rows by website_new — resolve
-        # once per client and stamp every row written below.
-        site = _primary_website(client)
-
-        if not _gbp_is_connected(client):
+        if not _gbp_is_connected(site):
             GBPSyncCheck.objects.create(
-                client=client,
                 website_new=site,
                 field_name='website',
                 website_value=GBP_NOT_CONNECTED,
@@ -251,18 +254,17 @@ def check_gbp_sync():
             recorded += 1
             continue
 
-        # Connected client — make a real GBP fetch.
+        # Connected site — make a real GBP fetch.
         try:
             from reporting.google_gbp import fetch_location
             from reporting.models import GbpOperatorToken
             token = (GbpOperatorToken.objects
                      .order_by('created_at').first())
-            data = fetch_location(token, client.gbp_location_name)
+            data = fetch_location(token, site.gbp_location_name)
         except Exception:
             logger.exception(
-                'check_gbp_sync: fetch_location failed for %s', client.pk)
+                'check_gbp_sync: fetch_location failed for %s', site.pk)
             GBPSyncCheck.objects.create(
-                client=client,
                 website_new=site,
                 field_name='website',
                 website_value='(error)',
@@ -282,18 +284,25 @@ def check_gbp_sync():
         gbp_address = ' '.join(sa.get('addressLines') or []).strip()
         gbp_website = (data.get('websiteUri') or '').strip()
 
+        # Name / phone / address are the business's, so they come from
+        # the Account. The URL is the site's own -- which is the whole
+        # point of the check on a multi-site account, where a listing
+        # pointing at the wrong brand sends callers to the wrong place.
         comparisons = [
-            ('business_name', (client.firm_name or '').strip(), gbp_name),
-            ('phone', (client.phone or '').strip(), gbp_phone),
-            ('address', (client.address or '').strip(), gbp_address),
-            ('website', (client.website or '').strip(), gbp_website),
+            ('business_name',
+             ((account.name if account else site.name) or '').strip(),
+             gbp_name),
+            ('phone', ((account.phone if account else '') or '').strip(),
+             gbp_phone),
+            ('address', ((account.address if account else '') or '').strip(),
+             gbp_address),
+            ('website', (site.url or '').strip(), gbp_website),
         ]
-        client_mismatch = False
+        site_mismatch = False
         for field_name, web_val, gbp_val in comparisons:
             mismatch = bool(web_val) and bool(gbp_val) and (
                 _normalise(web_val) != _normalise(gbp_val))
             GBPSyncCheck.objects.create(
-                client=client,
                 website_new=site,
                 field_name=field_name,
                 website_value=web_val,
@@ -302,20 +311,20 @@ def check_gbp_sync():
             )
             recorded += 1
             if mismatch:
-                client_mismatch = True
+                site_mismatch = True
                 mismatch_count += 1
 
-        # Per-client alert email — only one per run per client even if
+        # Per-site alert email -- only one per run per site even if
         # multiple fields mismatched.
-        if client_mismatch:
+        if site_mismatch:
             try:
                 send_mail(
                     subject=(
-                        f'[GBP drift] {client.firm_name} — NAP fields '
+                        f'[GBP drift] {site.name} — NAP fields '
                         f'differ from Google Business Profile'),
                     message=(
-                        f'NAP drift detected for {client.firm_name}.\n\n'
-                        f'See /admin-dashboard/gbp/clients/{client.id}/nap/'
+                        f'NAP drift detected for {site.name}.\n\n'
+                        f'See /admin-dashboard/gbp/websites/{site.id}/nap/'
                         f' for the field-by-field comparison.'),
                     from_email=getattr(
                         _settings, 'DEFAULT_FROM_EMAIL',
@@ -569,9 +578,17 @@ def generate_monthly_report(client_id, report_month_str, website_id=None):
     # account could only ever hold ONE report per month — the second
     # site's run would find the first site's row, see status='sent' and
     # skip, so that site silently never got a report.
-    lookup = {'client': client, 'report_month': report_month}
+    #
+    # `client` is deliberately NOT in the lookup. It is nullable now and
+    # new rows leave it NULL, so including it would fail to match the row
+    # that exists, create a second one, and hit the unique constraint on
+    # (website_new, report_month) — turning a duplicate-suppression
+    # mechanism into an IntegrityError.
+    lookup = {'report_month': report_month}
     if site is not None:
         lookup['website_new'] = site
+    else:
+        lookup['client'] = client
     report, created = MonthlyReport.objects.get_or_create(
         **lookup, defaults={'status': 'generating'})
     if not created and report.status == 'sent':
@@ -722,17 +739,18 @@ def send_monthly_report_email(report):
     """Email the report file to the client via the branded HTML template."""
     import os
 
+    from clients.display import owner_label, owner_recipient
     from clients.emails import send_branded
 
-    client = report.client
     month_str = report.report_month.strftime('%B %Y')
-    recipient = getattr(client.user, 'email', '') if client.user_id else ''
+    # Resolved canonically: `report.client` is null on every row written
+    # after the cutover, and this used to read `client.user_id` off it.
+    recipient, name = owner_recipient(report)
     if not recipient:
         report.status = 'failed'
         report.save(update_fields=['status', 'updated_at'])
         return
-
-    name = client.contact_name or client.firm_name
+    brand = owner_label(report)
     uptime = report.uptime_30d if report.uptime_30d is not None else 'N/A'
     portal_url = 'https://aspiredwebsites.com/portal/reports/'
 
@@ -755,7 +773,7 @@ def send_monthly_report_email(report):
     try:
         send_branded(
             subject=(f'Your Monthly Report — {month_str} — '
-                     f'{client.firm_name}'),
+                     f'{brand}'),
             template='monthly_report',
             context={
                 'name': name,
@@ -774,7 +792,7 @@ def send_monthly_report_email(report):
         report.status = 'sent'
         report.sent_at = timezone.now()
     except Exception:
-        logger.exception('Monthly report email failed for %s', client.pk)
+        logger.exception('Monthly report email failed for %s', report.pk)
         report.status = 'failed'
     report.save()
 

@@ -42,7 +42,8 @@ def reports_list(request):
     from clients.models import ClientProfile
     from reporting.models import MonthlyReport
 
-    reports = MonthlyReport.objects.select_related('client')
+    reports = MonthlyReport.objects.select_related(
+        'website_new', 'website_new__account')
     client_filter = request.GET.get('client', '')
     status_filter = request.GET.get('status', '')
     if client_filter and _is_uuid(client_filter):
@@ -171,7 +172,8 @@ def nps_list(request):
     """All NPS responses across clients, with a score-band filter."""
     from reporting.models import NPSSurvey
 
-    surveys = NPSSurvey.objects.select_related('client')
+    surveys = NPSSurvey.objects.select_related(
+        'website_new', 'website_new__account')
     band = request.GET.get('band', '')
     if band == 'promoter':
         surveys = surveys.filter(score__gte=9)
@@ -198,19 +200,29 @@ def nps_list(request):
 _BLOG_WORD_TARGETS = {'short': 500, 'medium': 800, 'long': 1200}
 
 
-def _blog_system_prompt(client, topic, keyword, length, tone):
-    """The system prompt for AI blog generation."""
+def _blog_system_prompt(website, topic, keyword, length, tone):
+    """The system prompt for AI blog generation.
+
+    The brand the post speaks as is the site's own name, not the billing
+    account's. On an account holding "Vance Family Law" and "Vance
+    Mediation Services", a post published on the mediation site that signs
+    off as the law firm is worse than a generic one -- it advertises the
+    wrong practice on the wrong domain.
+    """
     from reporting.ai import client_location_phrase
 
+    account = website.account
     words = _BLOG_WORD_TARGETS.get(length, 800)
-    biz = client.business_type or 'business'
+    biz = website.business_type or 'business'
+    brand = website.name or (account.name if account else 'the business')
+    phone = (account.phone if account else '') or 'our office'
     keyword_line = (
         f'- Naturally include the target keyword "{keyword}" 3-5 times\n'
         if keyword else '')
     return (
         f'You are an expert content writer specializing in {biz} SEO. Write a '
-        f'blog post for {client.firm_name}, a {biz}'
-        f'{client_location_phrase(client)}.\n\n'
+        f'blog post for {brand}, a {biz}'
+        f'{client_location_phrase(account)}.\n\n'
         f'Topic: {topic}\n'
         f'Target keyword: {keyword or "(none specified)"}\n'
         f'Length: approximately {words} words\n'
@@ -219,12 +231,12 @@ def _blog_system_prompt(client, topic, keyword, length, tone):
         '- Be informative and helpful to potential clients\n'
         f'{keyword_line}'
         f'- Include a clear call to action at the end mentioning '
-        f'{client.firm_name}\n'
+        f'{brand}\n'
         '- Be formatted as clean HTML with proper heading tags (h2, h3), '
         'paragraph tags, and a bulleted list where appropriate\n'
         '- Start with an engaging introduction\n'
-        f'- End with: contact {client.firm_name} at '
-        f'{client.phone or "our office"} for a free consultation\n\n'
+        f'- End with: contact {brand} at '
+        f'{phone} for a free consultation\n\n'
         'Return ONLY the HTML content — no explanations, no markdown fences.'
     )
 
@@ -241,7 +253,7 @@ def _generate_blog_content(post, length, tone):
         [{'role': 'user',
           'content': f'Write the blog post about: {post.topic}'}],
         system=_blog_system_prompt(
-            post.client, post.topic, post.target_keyword, length, tone),
+            post.website_new, post.topic, post.target_keyword, length, tone),
         model=MODEL_CONTENT, max_tokens=4000,
     )
     content = content.replace('```html', '').replace('```', '').strip()
@@ -271,7 +283,8 @@ def blog_list(request):
     from clients.models import ClientProfile
     from reporting.models import BlogPost
 
-    posts = BlogPost.objects.select_related('client')
+    posts = BlogPost.objects.select_related(
+        'website_new', 'website_new__account')
     client_filter = request.GET.get('client', '')
     status_filter = request.GET.get('status', '')
     if client_filter and _is_uuid(client_filter):
@@ -301,7 +314,7 @@ def blog_generate(request):
         if form.is_valid():
             cd = form.cleaned_data
             post = BlogPost(
-                client=cd['client'], topic=cd['topic'],
+                website_new=cd['website'], topic=cd['topic'],
                 target_keyword=cd['target_keyword'],
                 requested_length=cd['length'], requested_tone=cd['tone'],
                 status='review', generated_by_ai=True)

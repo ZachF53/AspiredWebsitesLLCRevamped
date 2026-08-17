@@ -11,7 +11,7 @@
                 <a href="{% url 'admin_dashboard:changelog_list' %}" class="admin-back-link">&larr; All changelog</a>
             </span>
             <h1 class="admin-page-title">{% if mode == 'edit' %}Edit Changelog Entry{% else %}Add Changelog Entry{% endif %}</h1>
-            {% if preset_client %}<p class="muted">Pre-filled for {{ preset_client.firm_name }}.</p>{% endif %}
+            {% if preset_client %}<p class="muted">Pre-filled for {{ preset_client.name }}.</p>{% endif %}
         </div>
     </div>
 
@@ -25,9 +25,9 @@
         <section class="admin-card">
             <div class="cl-form-grid">
                 <div class="form-group">
-                    <label for="{{ form.client.id_for_label }}">Client <span class="required">*</span></label>
-                    {{ form.client }}
-                    {% if form.client.errors %}<div class="form-field-error">{{ form.client.errors|join:" " }}</div>{% endif %}
+                    <label for="{{ form.website_new.id_for_label }}">Website <span class="required">*</span></label>
+                    {{ form.website_new }}
+                    {% if form.website_new.errors %}<div class="form-field-error">{{ form.website_new.errors|join:" " }}</div>{% endif %}
                 </div>
                 <div class="form-group">
                     <label for="{{ form.date_of_change.id_for_label }}">Date of Change</label>
@@ -84,7 +84,7 @@
                     <select name="import_client" id="cl-import-client" class="form-control">
                         <option value="">— Select a client —</option>
                         {% for c in clients %}
-                            <option value="{{ c.id }}" {% if import_client and import_client.id == c.id %}selected{% endif %}>{{ c.firm_name }}</option>
+                            <option value="{{ c.id }}" {% if import_client and import_client.id == c.id %}selected{% endif %}>{{ c.name }}{% if c.account and c.account.name != c.name %} &mdash; {{ c.account.name }}{% endif %}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -97,7 +97,7 @@
                 {% if import_preview %}
                     <div class="cl-import-preview">
                         <p class="cl-import-preview__head">
-                            {{ import_preview|length }} step{{ import_preview|length|pluralize }} parsed{% if import_client %} for <strong>{{ import_client.firm_name }}</strong>{% endif %}:
+                            {{ import_preview|length }} step{{ import_preview|length|pluralize }} parsed{% if import_client %} for <strong>{{ import_client.name }}</strong>{% endif %}:
                         </p>
                         <ul class="cl-import-list">
                             {% for step in import_preview %}

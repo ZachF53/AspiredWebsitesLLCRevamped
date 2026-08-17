@@ -14,33 +14,20 @@ It checks four things:
    Project. The cutover contract requires no runtime code to read them as a
    canonical source; until that count reaches zero, dropping the tables
    breaks the application rather than the data.
+
+   Measured by AST (`clients.legacy_audit`), not by grep. Only live code
+   reads block. A ForeignKey declaration is removed by the drop migration
+   itself, so counting it as a blocker would make the gate unsatisfiable;
+   a docstring mention breaks nothing at all.
 4. **Schema surface** — how many legacy FK columns and tables the removal
    migration has to account for.
 
 It never writes, and it never drops anything.
 """
 
-import pathlib
-
 from django.core.management.base import BaseCommand
 
-
-# Modules that legitimately reference the legacy models after cutover:
-# the migration tooling itself, the models module that defines them, and
-# the parity/backfill machinery whose entire job is the transition.
-_ALLOWED_REFERENCES = (
-    'clients/models.py',
-    'clients/parity.py',
-    'clients/account_setup.py',
-    'clients/canonical_stamping.py',
-    'clients/canonical_iteration.py',
-    'clients/signals.py',
-    'clients/apps.py',
-    'clients/account_models.py',
-    'clients/management/commands/',
-    'migrations/',
-    'migrations_planned/',
-)
+from clients.legacy_audit import scan_repository, summarise
 
 
 class Command(BaseCommand):
@@ -51,6 +38,10 @@ class Command(BaseCommand):
         parser.add_argument(
             '--strict', action='store_true',
             help='Exit non-zero unless every precondition is satisfied.')
+        parser.add_argument(
+            '--list-readers', action='store_true',
+            help='List every blocking module and its line numbers, so the '
+                 'remaining cutover work can be split up.')
 
     def handle(self, *args, **opts):
         blockers = []
@@ -98,14 +89,37 @@ class Command(BaseCommand):
         # ---- 3. runtime readers ----
         self.stdout.write('')
         self.stdout.write('Runtime modules still referencing the legacy models')
-        readers = self._runtime_readers()
-        for path in readers[:15]:
-            self.stdout.write(f'  {path}')
-        if len(readers) > 15:
-            self.stdout.write(f'  ... and {len(readers) - 15} more')
-        if readers:
+
+        reports = scan_repository()
+        totals = summarise(reports)
+        blocking = [r for r in reports if r.blocks_removal]
+
+        self.stdout.write(
+            f'  live code reads: {totals["code_reads"]} line(s) across '
+            f'{totals["blocking_modules"]} module(s)  <- blocks the drop')
+        self.stdout.write(
+            f'  FK declarations: {totals["schema_lines"]} line(s)  '
+            '<- removed by the drop migration itself')
+        self.stdout.write(
+            f'  comments/docstrings: {totals["prose_mentions"]}  '
+            '<- harmless')
+
+        limit = None if opts['list_readers'] else 15
+        shown = blocking if limit is None else blocking[:limit]
+        for report in shown:
+            detail = ''
+            if opts['list_readers']:
+                lines = ', '.join(str(n) for n in report.code_lines)
+                detail = f'  (lines {lines})'
+            self.stdout.write(
+                f'  {len(report.code_lines):3d}  {report.path}{detail}')
+        if limit is not None and len(blocking) > limit:
+            self.stdout.write(f'  ... and {len(blocking) - limit} more '
+                              '(--list-readers for all)')
+
+        if blocking:
             blockers.append(
-                f'{len(readers)} runtime module(s) still read '
+                f'{len(blocking)} runtime module(s) still read '
                 'ClientProfile/Project')
         else:
             self.stdout.write('  none')
@@ -141,28 +155,10 @@ class Command(BaseCommand):
                 'deployed and observed.')
             if opts['strict']:
                 raise SystemExit(1)
+            return
         else:
             self.stdout.write(self.style.SUCCESS(
                 'All checkable preconditions satisfied.'))
             self.stdout.write(
                 'Still confirm by hand: verified backup, timed '
                 'PostgreSQL-to-PostgreSQL rehearsal, Waves 1-5 observed.')
-
-    def _runtime_readers(self):
-        root = pathlib.Path('.')
-        hits = []
-        for path in sorted(root.rglob('*.py')):
-            text = str(path).replace('\\', '/')
-            if any(part in text for part in ('myvenv', 'node_modules')):
-                continue
-            if 'test' in path.name:
-                continue
-            if any(allowed in text for allowed in _ALLOWED_REFERENCES):
-                continue
-            try:
-                source = path.read_text(encoding='utf-8', errors='replace')
-            except Exception:
-                continue
-            if 'ClientProfile' in source or 'clients.Project' in source:
-                hits.append(text)
-        return hits

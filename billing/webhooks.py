@@ -755,9 +755,16 @@ def _handle_invoice_payment_failed(event):
         logger.exception('Could not schedule payment-failure follow-ups for %s',
                          client.pk)
 
-    # Phase 1.1 — schedule the full 14/21/30/60 escalation chain.
-    # Each task self-checks payment_failure_started_at; if reinstatement
-    # nulls it, all remaining tasks no-op without us tracking IDs.
+    # Phase 1.1 — schedule the full 14/21/30/60 escalation chain, once
+    # per site under the account.
+    #
+    # The chain acts on droplets, and droplets are per site. Scheduling it
+    # once per account meant only one site was ever taken down for
+    # non-payment: on a two-site account the second stayed live and served
+    # traffic indefinitely while the customer was in dunning, and the
+    # snapshot/destroy steps never touched its droplet, so it also kept
+    # billing us. Each task still self-checks the account-level guard, so
+    # a reinstatement cancels every branch at once.
     try:
         from billing.tasks import (
             set_site_maintenance_mode_task,
@@ -765,19 +772,58 @@ def _handle_invoice_payment_failed(event):
             destroy_client_droplet_task,
             delete_client_snapshot_task,
         )
-        cid = str(client.id)
-        set_site_maintenance_mode_task.apply_async(
-            (cid,), countdown=14 * DAY)
-        set_site_offline_task.apply_async(
-            (cid,), countdown=21 * DAY)
-        destroy_client_droplet_task.apply_async(
-            (cid,), countdown=30 * DAY)
-        delete_client_snapshot_task.apply_async(
-            (cid,), countdown=60 * DAY)
+        sites = _sites_for_escalation(client)
+        if not sites:
+            logger.error(
+                'No website resolved for %s — dunning escalation not '
+                'scheduled', client.pk)
+            _alert_no_escalation_target(client)
+        for site_id in sites:
+            set_site_maintenance_mode_task.apply_async(
+                (site_id,), countdown=14 * DAY)
+            set_site_offline_task.apply_async(
+                (site_id,), countdown=21 * DAY)
+            destroy_client_droplet_task.apply_async(
+                (site_id,), countdown=30 * DAY)
+            delete_client_snapshot_task.apply_async(
+                (site_id,), countdown=60 * DAY)
     except Exception:
         logger.exception(
             'Could not schedule dunning escalation chain for %s',
             client.pk)
+
+
+def _sites_for_escalation(client):
+    """Every website id under this client's account, as strings."""
+    from clients.account_models import Website
+
+    account = getattr(client, 'migrated_account', None)
+    if account is None:
+        return []
+    return [str(pk) for pk in
+            Website.objects.filter(account=account)
+            .values_list('id', flat=True)]
+
+
+def _alert_no_escalation_target(client):
+    """A client in dunning with no site is a silent non-event otherwise.
+
+    Nothing gets taken down, nothing errors, and the first anyone knows is
+    an unpaid customer still being served months later.
+    """
+    try:
+        from core.system_alerts import record_alert
+        record_alert(
+            severity='error',
+            source='billing.webhooks.no_escalation_target',
+            message=(f'Payment failed for {client.pk} but no Website was '
+                     'found to escalate against'),
+            detail=('The 14/21/30/60 dunning chain was not scheduled. '
+                    'Check that the account exists and owns at least one '
+                    'website.'),
+        )
+    except Exception:
+        logger.exception('could not record the no-escalation-target alert')
 
 
 # ── customer.subscription.deleted ───────────────────────────────────────────
@@ -1463,14 +1509,23 @@ def _handle_reinstatement(client):
                 'payment_failure_offenses', 'updated_at'])
             return
 
-    # Restore the site state. restore_client_site logs + alerts on
-    # its own failures.
-    try:
-        restore_client_site(client)
-    except Exception:
-        logger.exception(
-            '_handle_reinstatement: restore_client_site raised for %s',
-            client.pk)
+    # Restore every site under the account, not just one. The escalation
+    # took them all down (one chain per site), so reinstatement has to
+    # bring them all back; restoring one would leave the customer paid up
+    # with the rest of their sites still powered off.
+    # restore_client_site logs + alerts on its own failures.
+    from clients.account_models import Website
+
+    account = getattr(client, 'migrated_account', None)
+    sites = (list(Website.objects.filter(account=account))
+             if account is not None else [])
+    for site in sites:
+        try:
+            restore_client_site(site)
+        except Exception:
+            logger.exception(
+                '_handle_reinstatement: restore_client_site raised for %s',
+                site.pk)
 
     # Cancel the in-flight escalation chain by nulling the guard.
     # The 14/21/30/60-day tasks check this field on fire and no-op

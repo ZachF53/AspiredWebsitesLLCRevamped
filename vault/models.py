@@ -10,6 +10,7 @@ import uuid
 from django.db import models
 
 from clients.models import ClientProfile
+from clients.display import owner_label
 from core.models import TimestampedModel
 
 # VaultConfig is a singleton. TimestampedModel uses a UUID primary key, so the
@@ -133,6 +134,7 @@ class ClientVault(TimestampedModel):
 
     client = models.OneToOneField(
         ClientProfile, on_delete=models.CASCADE, related_name='vault',
+        null=True, blank=True,
     )
     # Phase A — vault is account-level. One PIN unlocks every cred for
     # every Website under that Account.
@@ -150,7 +152,7 @@ class ClientVault(TimestampedModel):
         ordering = ['client__firm_name']
 
     def __str__(self):
-        return f'Vault — {self.client.firm_name}'
+        return f'Vault — {owner_label(self)}'
 
 
 class VaultCredential(TimestampedModel):

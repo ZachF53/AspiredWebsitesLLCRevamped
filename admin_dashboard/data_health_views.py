@@ -71,7 +71,16 @@ def _sync_section():
 
 
 def _legacy_section():
-    """How far the Account/Website cutover has left to run."""
+    """How far the Account/Website cutover has left to run.
+
+    This function reads ClientProfile and Project on purpose, and it is
+    NOT exempted from `check_legacy_removal_readiness`. Being counted as a
+    blocker is correct: it genuinely breaks when the tables are dropped.
+    Unlike every other blocker, though, the fix is deletion rather than
+    conversion — once the legacy tables are gone this whole section is
+    reporting on something that no longer exists, so it comes out in the
+    same change that drops them.
+    """
     from clients.canonical_stamping import build_plan
     from clients.models import ClientProfile, Project
 

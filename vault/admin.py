@@ -29,11 +29,11 @@ class ServerCommandLibraryAdmin(admin.ModelAdmin):
 @admin.register(SSHSessionLog)
 class SSHSessionLogAdmin(admin.ModelAdmin):
     list_display = (
-        'credential', 'client', 'started_at', 'ended_at',
+        'credential', 'account_new', 'started_at', 'ended_at',
         'duration_seconds', 'totp_verified',
     )
     list_filter = ('totp_verified',)
-    search_fields = ('credential__label', 'client__firm_name')
+    search_fields = ('credential__label', 'account_new__name')
     readonly_fields = (
         'credential', 'client', 'started_at', 'ended_at', 'duration_seconds',
         'totp_verified', 'ip_address', 'commands_executed',
@@ -65,6 +65,6 @@ class VaultAccessLogAdmin(admin.ModelAdmin):
 
 @admin.register(ClientVault)
 class ClientVaultAdmin(admin.ModelAdmin):
-    list_display = ('client', 'created_at')
-    search_fields = ('client__firm_name',)
+    list_display = ('account_new', 'created_at')
+    search_fields = ('account_new__name',)
     readonly_fields = ('created_at', 'updated_at')

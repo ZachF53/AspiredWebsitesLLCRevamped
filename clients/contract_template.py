@@ -4,9 +4,17 @@ Contract text generator.
 generate_contract_text() returns the full website-build agreement as an HTML
 string. All pricing and scope numbers are pulled from the billing ServiceTier
 row (looked up by slug) — nothing here is hardcoded.
+
+The company location comes from `core.site_facts` for the same reason. Both
+contract headers used to read "Aspired Websites LLC — San Antonio, TX &
+Atlanta, GA", which is not where the business is based and, unlike the same
+error on a marketing page, appeared on a document a client signs. Those are
+service markets. The approved statement is the one in the fact matrix.
 """
 
 from decimal import Decimal
+
+from core.site_facts import LOCATION_STATEMENT
 
 
 def _money(amount):
@@ -125,7 +133,7 @@ def generate_combined_contract_text(client, services):
     return f"""
 <div class="contract-doc">
   <h1>Services Agreement</h1>
-  <p class="contract-doc__meta">Aspired Websites LLC &mdash; San Antonio, TX &amp; Atlanta, GA</p>
+  <p class="contract-doc__meta">Aspired Websites LLC &mdash; {LOCATION_STATEMENT}</p>
 
   <h2>1. Parties</h2>
   <p>This Services Agreement (the &ldquo;Agreement&rdquo;) is entered into
@@ -215,7 +223,7 @@ def generate_contract_text(client, package_slug):
     return f"""
 <div class="contract-doc">
   <h1>Website Design &amp; Development Agreement</h1>
-  <p class="contract-doc__meta">Aspired Websites LLC &mdash; San Antonio, TX &amp; Atlanta, GA</p>
+  <p class="contract-doc__meta">Aspired Websites LLC &mdash; {LOCATION_STATEMENT}</p>
 
   <h2>1. Parties</h2>
   <p>This Website Design &amp; Development Agreement (the &ldquo;Agreement&rdquo;) is entered

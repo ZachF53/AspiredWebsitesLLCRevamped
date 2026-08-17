@@ -148,6 +148,7 @@ class DomainRegistration(TimestampedModel):
         'clients.ClientProfile',
         on_delete=models.PROTECT,
         related_name='domain_registrations',
+        null=True, blank=True,
     )
     # Phase A — domains are owned at the Account level (per the new
     # model, one Account can have multiple sites + multiple domains).

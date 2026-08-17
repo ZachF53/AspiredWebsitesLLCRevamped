@@ -89,12 +89,12 @@
             <div class="droplet-table-wrap" style="border-radius: 8px;">
                 <table class="droplet-table">
                     <thead>
-                        <tr><th>Client</th><th>Plan</th><th style="text-align: right;">MRR</th></tr>
+                        <tr><th>Website</th><th>Plan</th><th style="text-align: right;">MRR</th></tr>
                     </thead>
                     <tbody>
                         {% for row in mrr_breakdown %}
                             <tr>
-                                <td class="droplet-name">{{ row.client }}</td>
+                                <td class="droplet-name">{{ row.client }}{% if row.account and row.account != row.client %}<span class="muted"> — {{ row.account }}</span>{% endif %}</td>
                                 <td>{{ row.plan }}</td>
                                 <td style="text-align: right;">${{ row.mrr|floatformat:0|intcomma }}/mo</td>
                             </tr>

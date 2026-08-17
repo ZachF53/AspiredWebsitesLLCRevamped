@@ -58,11 +58,14 @@ def send_payment_failed_email_task(client_id, day):
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 1 — payment-failure dunning escalation tasks
 # ─────────────────────────────────────────────────────────────────────────────
-# Each task re-checks ClientProfile.payment_failure_started_at before
-# acting. When that field is None, payment was received in the
-# meantime (reinstatement) — the task no-ops. This is how the chain
-# self-cancels without us having to track and revoke individual
-# Celery task IDs.
+# Each task takes a WEBSITE id. The droplet, its 503 vhost and its
+# retention snapshot all belong to a site; the escalation guard and the
+# offence counter belong to the Account, because billing does. So the
+# task resolves the site and reads the guard through `site.account`.
+#
+# When the guard is None, payment was received in the meantime
+# (reinstatement) and the task no-ops. That is how the chain self-cancels
+# without tracking and revoking individual Celery task IDs.
 #
 # Order:
 #   Day 14 → set_site_maintenance_mode_task    (503 page, droplet up)
@@ -70,65 +73,111 @@ def send_payment_failed_email_task(client_id, day):
 #   Day 30 → destroy_client_droplet_task       (snapshot, then destroy)
 #   Day 60 → delete_client_snapshot_task       (no recovery after this)
 
+
+def _site_still_in_failure_window(website_id, task_name):
+    """Resolve the site, or return None if the chain should stop.
+
+    Two different "None"s are deliberately distinguished. A site whose
+    account has no `payment_failure_started_at` is a *cancellation* -- the
+    normal, expected path when a client pays -- and is silent. A site id
+    that resolves to nothing is a *fault*: the chain was scheduled against
+    something that no longer exists, so an escalation step will not happen
+    and nobody would otherwise know. Historically this returned silently
+    for both, which meant a stale id looked exactly like a successful
+    reinstatement.
+    """
+    from clients.account_models import Website
+
+    site = (Website.objects
+            .select_related('account')
+            .filter(id=website_id)
+            .first())
+    if site is None:
+        logger.error(
+            '%s: no Website %s — escalation step skipped',
+            task_name, website_id)
+        try:
+            from core.system_alerts import record_alert
+            record_alert(
+                severity='error',
+                source=f'billing.escalation.{task_name}',
+                message=(f'Dunning step {task_name} could not resolve '
+                         f'website {website_id}'),
+                detail=('The escalation chain was scheduled against a site '
+                        'that no longer exists, so this step did not run. '
+                        'Check whether the site was deleted mid-chain or '
+                        'the task was queued under the pre-cutover '
+                        'signature, which passed a ClientProfile id.'),
+            )
+        except Exception:
+            logger.exception('%s: could not record the alert', task_name)
+        return None
+
+    account = site.account
+    if account is None or account.payment_failure_started_at is None:
+        # Paid up / reinstated — cancel the chain by no-op.
+        return None
+    return site
+
+
 @shared_task
-def set_site_maintenance_mode_task(client_id):
+def set_site_maintenance_mode_task(website_id):
     """Day 14 — flip site to maintenance (503) if still in failure window."""
-    from clients.models import ClientProfile
     from billing.do_helpers import set_site_maintenance_mode
-    c = ClientProfile.objects.filter(id=client_id).first()
-    if c is None or c.payment_failure_started_at is None:
-        # Paid up / reinstated / vanished — cancel chain by no-op.
+    site = _site_still_in_failure_window(
+        website_id, 'set_site_maintenance_mode_task')
+    if site is None:
         return
     try:
-        set_site_maintenance_mode(c)
+        set_site_maintenance_mode(site)
     except Exception:
         logger.exception(
-            'set_site_maintenance_mode_task failed for client %s', client_id)
+            'set_site_maintenance_mode_task failed for site %s', website_id)
 
 
 @shared_task
-def set_site_offline_task(client_id):
+def set_site_offline_task(website_id):
     """Day 21 — power the Droplet off if still in failure window."""
-    from clients.models import ClientProfile
     from billing.do_helpers import set_site_offline
-    c = ClientProfile.objects.filter(id=client_id).first()
-    if c is None or c.payment_failure_started_at is None:
+    site = _site_still_in_failure_window(
+        website_id, 'set_site_offline_task')
+    if site is None:
         return
     try:
-        set_site_offline(c)
+        set_site_offline(site)
     except Exception:
         logger.exception(
-            'set_site_offline_task failed for client %s', client_id)
+            'set_site_offline_task failed for site %s', website_id)
 
 
 @shared_task
-def destroy_client_droplet_task(client_id):
+def destroy_client_droplet_task(website_id):
     """Day 30 — snapshot for 60-day retention, then destroy the Droplet."""
-    from clients.models import ClientProfile
     from billing.do_helpers import destroy_client_droplet
-    c = ClientProfile.objects.filter(id=client_id).first()
-    if c is None or c.payment_failure_started_at is None:
+    site = _site_still_in_failure_window(
+        website_id, 'destroy_client_droplet_task')
+    if site is None:
         return
     try:
-        destroy_client_droplet(c)
+        destroy_client_droplet(site)
     except Exception:
         logger.exception(
-            'destroy_client_droplet_task failed for client %s', client_id)
+            'destroy_client_droplet_task failed for site %s', website_id)
 
 
 @shared_task
-def delete_client_snapshot_task(client_id):
+def delete_client_snapshot_task(website_id):
     """Day 60 — delete the retention snapshot. Last call."""
-    from clients.models import ClientProfile
     from billing.do_helpers import delete_client_snapshot
-    c = ClientProfile.objects.filter(id=client_id).first()
-    if c is None or c.payment_failure_started_at is None:
+    site = _site_still_in_failure_window(
+        website_id, 'delete_client_snapshot_task')
+    if site is None:
         return
     try:
-        delete_client_snapshot(c)
+        delete_client_snapshot(site)
     except Exception:
         logger.exception(
-            'delete_client_snapshot_task failed for client %s', client_id)
+            'delete_client_snapshot_task failed for site %s', website_id)
 
 
 @shared_task
