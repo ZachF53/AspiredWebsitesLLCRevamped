@@ -81,6 +81,69 @@ def _active_project(request):
     return getattr(request, 'client_profile', None)
 
 
+def _owner_filter(request):
+    """Queryset filter scoping rows to whatever owns this request.
+
+    Four portal views had each written this inline as
+
+        ({'website_new': project} if getattr(request, 'website', None)
+         else {'client': request.client_profile})
+
+    which has a hole in it. Since Wave 1, `client_required` admits a user
+    who has an Account but no legacy ClientProfile — that is the shape
+    every client created after the cutover will have. For them the else
+    branch produces `{'client': None}`, which does not scope to their
+    data, it filters to rows owned by nobody.
+
+    Resolution order, canonical first:
+      1. the picked Website,
+      2. the Account, when there is no per-website pick,
+      3. the legacy profile, for accounts the backfill has not reached.
+
+    When nothing owns the request the result matches no rows. That is
+    deliberate: every call site splats this into `.filter(**flt)`, and the
+    failure mode of an unscoped filter on a portal page is showing one
+    client another client's records. Returning an impossible filter fails
+    closed; returning `{}` would fail open.
+    """
+    site = getattr(request, 'website', None)
+    if site is not None:
+        return {'website_new': site}
+    account = getattr(request, 'account', None)
+    if account is not None:
+        return {'website_new__account': account}
+    profile = getattr(request, 'client_profile', None)
+    if profile is not None:
+        return {'client': profile}
+    return {'pk__in': ()}
+
+
+def _owns(request, obj):
+    """Whether the requesting client owns `obj`.
+
+    Checks the canonical owner first and never dereferences a legacy
+    profile that may be absent. The previous inline version read
+    `request.client_profile.id` as the first term of an `or`, so it
+    raised AttributeError for an Account-only client before the
+    canonical branch could answer — on an access-control check.
+    """
+    account = getattr(request, 'account', None)
+    website_id = getattr(obj, 'website_new_id', None)
+    if website_id and account is not None:
+        site = getattr(obj, 'website_new', None)
+        if site is not None and site.account_id == account.id:
+            return True
+
+    account_id = getattr(obj, 'account_new_id', None) or getattr(
+        obj, 'account_id', None)
+    if account_id and account is not None and account_id == account.id:
+        return True
+
+    profile = getattr(request, 'client_profile', None)
+    client_id = getattr(obj, 'client_id', None)
+    return bool(profile is not None and client_id and client_id == profile.id)
+
+
 def _intake_for(profile, site):
     """Resolve (or create) the IntakeResponse, ensuring website_new is set so
     the per-website reads (e.g. _portal_context) find it. Never duplicates:
@@ -103,12 +166,13 @@ def _portal_context(request, active_nav, **extra):
     account = getattr(request, 'account', None)
     website = getattr(request, 'website', None)
 
-    # Scope the badge queries to the active Website (per-build) when one
-    # is resolved, falling back to the legacy ClientProfile. `flt` works
-    # for every model that carries both the client + website_new FK.
+    # Scope the badge queries to whatever owns this request — the active
+    # Website first, then the Account, then the legacy profile. Shared
+    # with the portal list views so one rule decides scoping everywhere,
+    # and an Account-only client (no legacy profile) is scoped to their
+    # own data rather than to `client=None`.
     scope = website or profile
-    flt = ({'website_new': website} if website is not None
-           else {'client': profile})
+    flt = _owner_filter(request)
 
     from .models import (
         IntakeResponse, RevisionRequest, SiteChangelogEntry, SupportTicket,
@@ -1621,8 +1685,7 @@ def portal_reports(request):
     `ready` or `sent`.
     """
     project = _active_project(request)
-    flt = ({'website_new': project} if getattr(request, 'website', None)
-           else {'client': request.client_profile})
+    flt = _owner_filter(request)
     from reporting.models import MonthlyReport
     from .models import AnnualReport
     reports = list(MonthlyReport.objects.filter(**flt, status='sent'))
@@ -1659,8 +1722,7 @@ def portal_recordings(request):
     account = getattr(request, 'account', None)
     enabled = bool(getattr(project, 'session_recording_enabled', False))
 
-    flt = ({'website_new': project} if getattr(request, 'website', None)
-           else {'client': request.client_profile})
+    flt = _owner_filter(request)
     recordings = SessionRecording.objects.filter(**flt)
     stats = recordings.aggregate(
         total=Count('id'),
@@ -1803,9 +1865,7 @@ def portal_security(request):
     """
     from reporting.models import VulnerabilityScan
 
-    flt = ({'website_new': _active_project(request)}
-           if getattr(request, 'website', None)
-           else {'client': request.client_profile})
+    flt = _owner_filter(request)
     scans = list(
         VulnerabilityScan.objects
         .filter(**flt, status='complete')
@@ -2223,10 +2283,7 @@ def _intel_respond(request, token, action):
             "That recommendation link is invalid or has been removed.")
         return redirect('clients:portal_suggestions')
 
-    account = getattr(request, 'account', None)
-    owned = (s.client_id == request.client_profile.id) or (
-        s.website_new_id and account is not None
-        and s.website_new.account_id == account.id)
+    owned = _owns(request, s)
     if not owned:
         messages.error(
             request, "That recommendation isn't on your account.")
@@ -2268,9 +2325,7 @@ def portal_suggestions(request):
     """Portal page that mirrors what the client received via email."""
     from .models import IntelligenceSuggestion
 
-    flt = ({'website_new': _active_project(request)}
-           if getattr(request, 'website', None)
-           else {'client': request.client_profile})
+    flt = _owner_filter(request)
     suggestions = (
         IntelligenceSuggestion.objects
         .filter(**flt, status__in=_PORTAL_INTEL_STATUSES)
