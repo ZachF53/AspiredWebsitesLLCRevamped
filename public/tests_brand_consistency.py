@@ -221,6 +221,15 @@ class LocationStatementTests(TestCase):
         self.assertIn('Georgia', html)
         self.assertNotIn('Based in San Antonio', html)
 
+    def test_credential_pills_do_not_contradict_the_location_statement(self):
+        """The About sidebar listed "San Antonio, TX" and "Atlanta, GA"
+        as location pills, two paragraphs above the approved statement
+        saying the business is based in Georgia."""
+        html = self.client.get('/about/').content.decode()
+        self.assertNotIn('San Antonio, TX', html)
+        self.assertNotIn('Atlanta, GA', html)
+        self.assertIn('Based in Georgia', html)
+
     def test_law_firm_metadata_does_not_promise_bar_compliance(self):
         html = self.client.get('/for-law-firms/').content.decode().lower()
         self.assertNotIn('state bar compliant', html)
@@ -246,3 +255,40 @@ class TemplateCommentHygieneTests(TestCase):
         self.assertEqual(offenders, [], (
             'Multiline {# #} comments leak into rendered HTML. Convert '
             'them to {% comment %}...{% endcomment %}.'))
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class FounderPortraitTests(TestCase):
+    """Owner approved publishing the portrait on 2026-08-16. It replaced
+    an initials placeholder, so it is real content, not decoration."""
+
+    def test_portrait_renders_with_accessible_alt_text(self):
+        html = self.client.get('/about/').content.decode()
+        self.assertIn('founder-zachery-long.jpg', html)
+        self.assertIn(
+            'alt="Zachery Long, founder of Aspired Websites LLC"', html)
+
+    def test_portrait_is_not_hidden_from_assistive_technology(self):
+        """The initials placeholder was aria-hidden because it carried no
+        information. A real photograph of the founder does."""
+        html = self.client.get('/about/').content.decode()
+        block = html[html.find('bio-photo'):html.find('bio-name')]
+        self.assertNotIn('aria-hidden', block)
+
+    def test_initials_placeholder_is_gone(self):
+        html = self.client.get('/about/').content.decode()
+        self.assertNotIn('bio-photo__initials', html)
+
+    def test_portrait_reserves_its_space(self):
+        """Without width/height the bio text jumps when the image lands."""
+        html = self.client.get('/about/').content.decode()
+        self.assertIn('width="400" height="500"', html)
+
+    def test_portrait_asset_exists_and_is_reasonably_sized(self):
+        import pathlib
+
+        path = pathlib.Path('core/static/images/founder-zachery-long.jpg')
+        self.assertTrue(path.exists())
+        self.assertLess(
+            path.stat().st_size, 120_000,
+            'The About page should not ship a heavyweight portrait.')

@@ -28,7 +28,7 @@ Allowed statuses:
 | Founder credentials and verification link | PENDING | AGENTS.md reports a master's degree and CISSP; public verification and exact degree wording are not documented here | Confirm exact credential names, awarding institution where appropriate, and approved verification link |
 | Publishable security controls | PENDING | Controls exist across code/configuration, but marketing claims require a separate evidence inventory | Approve only controls supported by current implementation and operations evidence |
 | Contact-form phone field is required | PENDING | Current implementation must be compared with actual follow-up workflow | Decide whether email-only leads can be served; default recommendation is optional phone |
-| Founder portrait may be published | PENDING | Handoff says to use one only if authorized | Approve the exact asset and placement or reject portrait use |
+| Founder portrait may be published | APPROVED | Owner supplied the asset and approved it 2026-08-16 | IMPLEMENTED: optimised to `core/static/images/founder-zachery-long.jpg` (400x500, 27KB) and placed in the About bio card, replacing the "ZL" initials placeholder. Carries alt text and is not aria-hidden |
 | Client result metrics may be published | PENDING | No blanket permission documented | Require evidence window and client approval per metric, not one global approval |
 
 ## Implementation notes (2026-08-16)

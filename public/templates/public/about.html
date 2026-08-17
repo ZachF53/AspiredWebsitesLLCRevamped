@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}About Zachery Long, CISSP | Aspired Websites{% endblock %}
 
@@ -23,16 +24,34 @@
         <div class="bio-grid">
 
             <aside class="card">
-                <div class="bio-photo" aria-hidden="true">
-                    <span class="bio-photo__initials">ZL</span>
+                {% comment %}
+                The portrait replaces an "ZL" initials placeholder. It is
+                real content rather than decoration, so it carries alt
+                text and is not aria-hidden — a screen-reader user should
+                know whose photo this is.
+
+                Dimensions are stated so the circle holds its space while
+                the image loads and the bio text below does not jump.
+                {% endcomment %}
+                <div class="bio-photo bio-photo--has-image">
+                    <img class="bio-photo__img"
+                         src="{% static 'images/founder-zachery-long.jpg' %}?v={{ STATIC_VERSION }}"
+                         alt="Zachery Long, founder of Aspired Websites LLC"
+                         width="400" height="500" decoding="async">
                 </div>
                 <h2 class="bio-name">Zachery Long</h2>
                 <p class="bio-title">Founder, Aspired Websites LLC</p>
+                {% comment %}
+                The location pills used to read "San Antonio, TX" and
+                "Atlanta, GA", which contradicted the approved location
+                statement in the bio two paragraphs below. Those are
+                service markets, not where the business is based.
+                {% endcomment %}
                 <ul class="credential-pills">
                     <li class="credential-pill">CISSP Certified</li>
                     <li class="credential-pill">M.S. Cybersecurity</li>
-                    <li class="credential-pill credential-pill--teal">San Antonio, TX</li>
-                    <li class="credential-pill credential-pill--teal">Atlanta, GA</li>
+                    <li class="credential-pill credential-pill--teal">Based in {{ LOCATION_BASE }}</li>
+                    <li class="credential-pill credential-pill--teal">Serving clients {{ LOCATION_REACH }}</li>
                 </ul>
             </aside>
 
