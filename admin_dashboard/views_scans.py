@@ -96,14 +96,14 @@ def scans_list(request):
     Full scan dashboard — filters, pagination, stats, HTMX auto-refresh
     when scans are pending or running, run-new-scan modal.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import VulnerabilityScan
 
     client_id = (request.GET.get('client') or '').strip()
     status = (request.GET.get('status') or '').strip()
 
     qs = (VulnerabilityScan.objects
-          .select_related('client')
+          .select_related('website_new', 'website_new__account')
           .order_by('-created_at'))
     if client_id:
         qs = qs.filter(client_id=client_id)
@@ -121,8 +121,11 @@ def scans_list(request):
     last_scan = VulnerabilityScan.objects.order_by(
         '-created_at').first()
 
-    clients = ClientProfile.objects.filter(
-        status='active').order_by('firm_name')
+    # A scan targets one droplet, so the picker lists sites.
+    clients = (Website.objects
+               .filter(status='active', account__status='active')
+               .select_related('account')
+               .order_by('account__name', 'name'))
 
     # Preserve filter querystring (sans `page`) so the HTMX partial
     # respects the filters across each poll.
@@ -519,9 +522,10 @@ def send_scan_report(request, scan_id):
 @admin_required
 @require_POST
 def toggle_auto_send_scans(request, client_id):
-    """HTMX toggle — flip ClientProfile.auto_send_scan_reports."""
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
+    """HTMX toggle — flip Website.auto_send_scan_reports."""
+    from clients.account_models import Website
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     client.auto_send_scan_reports = not client.auto_send_scan_reports
     client.save(update_fields=['auto_send_scan_reports', 'updated_at'])
     return render(request,
@@ -579,7 +583,7 @@ def run_scan(request):
       client_id (required), scan_type (default 'full').
     Returns an HTMX fragment for inline status, or redirects if not HTMX.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import VulnerabilityScan
     from reporting.tasks import run_vulnerability_scan_task
 
@@ -588,25 +592,19 @@ def run_scan(request):
     if scan_type not in dict(VulnerabilityScan.SCAN_TYPE_CHOICES):
         scan_type = 'full'
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    # Post-2026-05-25 refactor: project fields live on ClientProfile.
-    # `project` alias preserved so existing reads (project.stage,
-    # project.intake, project.stage_logs, etc.) keep working.
-    project = client
-    # client.website is the canonical live URL (post-2026-05-25 fix).
-    # Legacy project.live_url data was backfilled, so we don't need
-    # the fallback any more.
-    target_url = client.website or ''
+    # A scan targets one site's URL and its droplet's IP, both of which
+    # are the Website's.
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
+    target_url = client.url or ''
     target_ip = client.do_droplet_ip or ''
 
     if not (target_url or target_ip):
         return HttpResponseBadRequest(
-            'Client has no live URL or Droplet IP to scan.')
+            'Site has no live URL or Droplet IP to scan.')
 
-    from clients.website_helpers import primary_website
     scan = VulnerabilityScan.objects.create(
-        client=client,
-        website_new=primary_website(client),
+        website_new=client,
         target_url=target_url,
         target_ip=target_ip,
         scan_type=scan_type,

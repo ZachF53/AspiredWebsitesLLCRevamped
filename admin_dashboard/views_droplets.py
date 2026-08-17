@@ -53,36 +53,32 @@ DROPLET_SIZES = [
 ]
 
 
-def _droplet_rows(droplets, clients_by_ip, websites_by_ip):
+def _droplet_rows(droplets, websites_by_ip):
     """
     Decorate raw DO droplet dicts with the dashboard display fields.
 
     `is_client_droplet` is True if EITHER the DO tag list contains
-    'client' OR the IP matches a ClientProfile.do_droplet_ip OR the
-    IP matches a Website.do_droplet_ip. The IP-match arms matter for
-    legacy Droplets that pre-date the tagging convention — without
-    them the Destroy button would arm for every real client server
-    (footgun).
+    'client' OR the IP matches a Website.do_droplet_ip. The IP-match arm
+    matters for legacy Droplets that pre-date the tagging convention
+    — without it the Destroy button would arm for every real client
+    server (footgun).
 
     Each row carries:
-      - ``client``  — legacy ClientProfile match (kept for the old
-                      column / Destroy gate).
-      - ``website`` — new Website match. Source of truth going
-                      forward for the "what is this droplet for"
-                      question.
-      - ``is_unlinked`` — True when no Website AND no ClientProfile
-                      points at this IP. Drives the "Link to
-                      Website" action.
+      - ``website`` — the Website this droplet belongs to. Source of
+                      truth for "what is this droplet for".
+      - ``client``  — kept as an alias of ``website`` so the existing
+                      template column keeps rendering.
+      - ``is_unlinked`` — True when no Website points at this IP.
+                      Drives the "Link to Website" action.
     """
     rows = []
     for d in droplets:
-        linked_client = clients_by_ip.get(d['ip'])
         linked_website = websites_by_ip.get(d['ip'])
+        linked_client = linked_website
         tag_says_client = 'client' in (d.get('tags') or [])
-        is_client = bool(
-            tag_says_client or linked_client or linked_website)
+        is_client = bool(tag_says_client or linked_website)
         is_manual = (not is_client) or 'manual' in (d.get('tags') or [])
-        is_unlinked = not (linked_client or linked_website)
+        is_unlinked = not linked_website
         if d['status'] == 'active':
             border = 'green'
         elif d['status'] in ('off', 'archive'):
@@ -103,25 +99,18 @@ def _droplet_rows(droplets, clients_by_ip, websites_by_ip):
 
 
 def _load_droplet_dashboard():
-    """Pull DO droplets + match to Website + legacy ClientProfile rows
-    by IP. Pure read."""
+    """Pull DO droplets + match them to Websites by IP. Pure read."""
     from billing.do_helpers import get_all_droplets
     from clients.account_models import Website
-    from clients.models import ClientProfile
 
     droplets = get_all_droplets()
-    clients_by_ip = {
-        c.do_droplet_ip: c
-        for c in ClientProfile.objects.filter(do_droplet_ip__isnull=False)
-        if c.do_droplet_ip
-    }
     websites_by_ip = {
         w.do_droplet_ip: w
         for w in Website.objects.select_related('account').filter(
             do_droplet_ip__isnull=False)
         if w.do_droplet_ip
     }
-    rows = _droplet_rows(droplets, clients_by_ip, websites_by_ip)
+    rows = _droplet_rows(droplets, websites_by_ip)
     return {
         'rows': rows,
         'total_count': len(rows),
@@ -174,7 +163,7 @@ def droplet_new(request):
     HTMX-polls until the new Droplet shows up active.
     """
     from billing.do_helpers import next_droplet_name
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     if request.method == 'POST':
         name = (request.POST.get('name') or '').strip()
@@ -205,7 +194,8 @@ def droplet_new(request):
     except Exception:  # noqa: BLE001 — never block the page
         suggested_name = 'manual-001'
 
-    clients = ClientProfile.objects.order_by('firm_name')
+    clients = (Website.objects.select_related('account')
+               .order_by('account__name', 'name'))
 
     return render(request, 'admin_dashboard/droplets_new.html', _admin_context(
         'droplets',
@@ -227,7 +217,7 @@ def droplet_power(request, droplet_id):
     from billing.do_helpers import (
         get_droplet, power_off_droplet, power_on_droplet,
     )
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     action = (request.POST.get('action') or '').strip()
     if action == 'on':
@@ -246,12 +236,13 @@ def droplet_power(request, droplet_id):
     if d is None:
         return HttpResponseBadRequest('Droplet not found')
 
-    clients_by_ip = {
-        c.do_droplet_ip: c
-        for c in ClientProfile.objects.filter(do_droplet_ip=d['ip'])
-        if c.do_droplet_ip
+    websites_by_ip = {
+        w.do_droplet_ip: w
+        for w in Website.objects.select_related('account').filter(
+            do_droplet_ip=d['ip'])
+        if w.do_droplet_ip
     }
-    rows = _droplet_rows([d], clients_by_ip)
+    rows = _droplet_rows([d], websites_by_ip)
     return render(request, 'admin_dashboard/_droplet_rows.html', {
         'rows': rows, 'single_row': True,
     })
@@ -262,10 +253,10 @@ def droplet_destroy(request, droplet_id):
     """
     Destroy a Droplet. GET shows the confirm modal; POST validates the
     typed-name match + refuses if client-tagged + clears the linked
-    ClientProfile IP if any.
+    Website's IP if any.
     """
     from billing.do_helpers import destroy_droplet, get_droplet
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from django.contrib import messages
 
     d = get_droplet(droplet_id)
@@ -273,7 +264,10 @@ def droplet_destroy(request, droplet_id):
         from django.http import Http404
         raise Http404('Droplet not found')
 
-    linked_client = ClientProfile.objects.filter(do_droplet_ip=d['ip']).first()
+    linked_client = (Website.objects
+                     .select_related('account')
+                     .filter(do_droplet_ip=d['ip'])
+                     .first())
     # Same rule as the list-row gate: 'client' tag OR a real client linkage
     # via matching IP protects the Droplet. Legacy client Droplets predate
     # the tag convention, so the IP arm matters in production.
@@ -395,16 +389,9 @@ def droplet_link_to_website(request, droplet_id):
         'do_droplet_id', 'do_droplet_ip', 'do_droplet_name',
         'updated_at'])
 
-    # Mirror onto the legacy ClientProfile so the legacy droplet
-    # dashboard match path (clients_by_ip) keeps working until
-    # Phase D drops the legacy column entirely.
-    legacy_cp = (website.account.legacy_client_profile
-                 if website.account else None)
-    if legacy_cp is not None:
-        legacy_cp.do_droplet_id = droplet_id_str
-        legacy_cp.do_droplet_ip = droplet_ip or None
-        legacy_cp.save(update_fields=[
-            'do_droplet_id', 'do_droplet_ip', 'updated_at'])
+    # The legacy mirror is gone with the dashboard's legacy match path:
+    # the droplet IP lives on the Website and nothing reads it off the
+    # profile any more.
 
     msg = (f'Droplet "{droplet_name}" ({droplet_ip}) linked to '
            f'{website.name}.')
@@ -423,7 +410,7 @@ def droplet_metrics(request, droplet_id):
     Uptime stats come from the existing UptimeRecord table.
     """
     from billing.do_helpers import get_droplet
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.uptime_helpers import (
         get_avg_response_time, get_current_status, get_uptime_percentage,
     )
@@ -435,13 +422,18 @@ def droplet_metrics(request, droplet_id):
         from django.http import Http404
         raise Http404('Droplet not found')
 
-    client = ClientProfile.objects.filter(do_droplet_ip=d['ip']).first()
+    client = (Website.objects
+              .select_related('account')
+              .filter(do_droplet_ip=d['ip'])
+              .first())
 
     cred = None
     if d['ip']:
+        # Credentials hang off the account's vault; the droplet IP
+        # identifies which of that account's sites we are looking at.
         cred = VaultCredential.objects.filter(
             is_ssh_credential=True,
-            vault__client__do_droplet_ip=d['ip']).first()
+            vault__account_new__websites__do_droplet_ip=d['ip']).first()
 
     vault_key = get_vault_key(request)
     ssh_metrics = None

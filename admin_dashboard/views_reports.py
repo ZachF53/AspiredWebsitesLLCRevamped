@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 @admin_required
 def reports_list(request):
     """All monthly reports, with client/status filters + a generate form."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import MonthlyReport
 
     reports = MonthlyReport.objects.select_related(
@@ -47,14 +47,15 @@ def reports_list(request):
     client_filter = request.GET.get('client', '')
     status_filter = request.GET.get('status', '')
     if client_filter and _is_uuid(client_filter):
-        reports = reports.filter(client_id=client_filter)
+        reports = reports.filter(website_new_id=client_filter)
     if status_filter:
         reports = reports.filter(status=status_filter)
 
     return render(request, 'admin_dashboard/reports_list.html', _admin_context(
         'reports',
         reports=reports,
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=(Website.objects.select_related('account')
+                 .order_by('account__name', 'name')),
         statuses=MonthlyReport.STATUS_CHOICES,
         client_filter=client_filter,
         status_filter=status_filter,
@@ -68,11 +69,11 @@ def report_generate_now(request):
     """Generate (and send) one client's monthly report immediately."""
     from datetime import date
 
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.tasks import generate_monthly_report
 
     client_id = request.POST.get('client', '')
-    if not _is_uuid(client_id) or not ClientProfile.objects.filter(
+    if not _is_uuid(client_id) or not Website.objects.filter(
             id=client_id).exists():
         return redirect('admin_dashboard:reports_list')
     try:
@@ -488,14 +489,18 @@ def chatbot_conversation(request, website_id, conv_id):
 @admin_required
 @require_POST
 def testimonial_mark_received(request, client_id):
-    """Record a received video testimonial against a client."""
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
+    """Record a received video testimonial against a site.
+
+    Per site: the testimonial is about a build, and a client who received
+    two builds can give one for each.
+    """
+    from clients.account_models import Website
+    client = get_object_or_404(Website, id=client_id)
     client.testimonial_received = True
     client.testimonial_url = (request.POST.get('testimonial_url') or '')[:200]
     client.save(update_fields=[
         'testimonial_received', 'testimonial_url', 'updated_at'])
-    return redirect('admin_dashboard:client_detail', client_id=client.id)
+    return redirect('admin_dashboard:website_detail', website_id=client.id)
 
 
 # ──────────────────────────────────────────────────────────────────────────

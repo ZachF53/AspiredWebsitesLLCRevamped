@@ -9,13 +9,19 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def provision_droplet_task(client_id):
-    """Provision a client's DigitalOcean Droplet after deposit payment."""
-    from clients.models import ClientProfile
+    """Provision a site's DigitalOcean Droplet after deposit payment.
+
+    One droplet per site (CLAUDE.md), so this takes a website id.
+    """
+    from clients.account_models import Website
     from billing.do_helpers import provision_client_droplet
 
-    client = ClientProfile.objects.filter(id=client_id).first()
+    client = (Website.objects
+              .select_related('account')
+              .filter(id=client_id)
+              .first())
     if client is None:
-        logger.warning('provision_droplet_task: no client %s', client_id)
+        logger.warning('provision_droplet_task: no website %s', client_id)
         return
     provision_client_droplet(client)
 
@@ -24,20 +30,25 @@ def provision_droplet_task(client_id):
 def send_intake_reminder_task(client_id, day):
     """Send a Day-2 / Day-4 intake reminder if intake is still incomplete.
 
-    Backwards-compat note: the task signature changed from
-    `(project_id, day)` to `(client_id, day)` in the Project→Client
-    consolidation. Old in-flight tasks queued under the previous
-    signature would still resolve a valid UUID (the project IDs and
-    client IDs are both UUIDs, but distinct namespaces) and silently
-    no-op — the ClientProfile.objects.filter call would return None.
-    """
-    from clients.emails import send_intake_reminder_email
-    from clients.models import ClientProfile
+    The intake describes a build, so this is per site: a client with two
+    builds owes two intakes and is reminded about each.
 
-    client = ClientProfile.objects.filter(id=client_id).first()
+    Backwards-compat note: this signature has moved twice, from
+    `(project_id, day)` to `(client_id, day)` to a website id. An
+    in-flight task queued under an older signature resolves to nothing
+    and no-ops, which is the safe direction — a missed reminder, not a
+    reminder sent to the wrong client.
+    """
+    from clients.account_models import Website
+    from clients.emails import send_intake_reminder_email
+
+    client = (Website.objects
+              .select_related('account')
+              .filter(id=client_id)
+              .first())
     if client is None:
         return
-    intake = getattr(client, 'intake', None)
+    intake = getattr(client, 'intake_new', None)
     if intake is not None and intake.completed:
         return  # Intake already done — no reminder needed.
     send_intake_reminder_email(client, day)
@@ -45,11 +56,15 @@ def send_intake_reminder_task(client_id, day):
 
 @shared_task
 def send_payment_failed_email_task(client_id, day):
-    """Send a Day-7 / Day-14 payment-failure follow-up email."""
-    from clients.emails import send_payment_failed_email
-    from clients.models import ClientProfile
+    """Send a Day-7 / Day-14 payment-failure follow-up email.
 
-    client = ClientProfile.objects.filter(id=client_id).first()
+    Account-level: the card that failed belongs to the customer, not to
+    one of their sites.
+    """
+    from clients.account_models import Account
+    from clients.emails import send_payment_failed_email
+
+    client = Account.objects.filter(id=client_id).first()
     if client is None:
         return
     send_payment_failed_email(client, day)
@@ -192,14 +207,17 @@ def provision_manual_droplet_task(name, region, size, snapshot_id,
     install when a client is linked.
     """
     from billing.do_helpers import create_droplet
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     client = None
     if client_id:
-        client = ClientProfile.objects.filter(id=client_id).first()
+        client = (Website.objects
+                  .select_related('account')
+                  .filter(id=client_id)
+                  .first())
         if client is None:
             logger.warning(
-                'provision_manual_droplet_task: client %s not found '
+                'provision_manual_droplet_task: website %s not found '
                 '— continuing as a manual (unlinked) Droplet.', client_id)
 
     try:
