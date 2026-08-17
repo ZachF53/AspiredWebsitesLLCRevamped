@@ -120,3 +120,41 @@ class NavigationRenderingTests(TestCase):
         html = self.client.get('/admin-dashboard/').content.decode()
         self.assertIn('aria-current="page"', html)
         self.assertEqual(html.count('aria-current="page"'), 1)
+
+
+class ViewModuleSplitTests(TestCase):
+    """admin_dashboard/views.py is being split into per-domain modules.
+
+    urls.py references every view as `views.<name>`, so an extraction that
+    forgets to re-export a name breaks that URL at import time — and the
+    admin sidebar is on every page, so one missing name takes the whole
+    dashboard down rather than one route.
+    """
+
+    def test_every_url_referenced_view_resolves(self):
+        import pathlib
+        import re
+
+        from admin_dashboard import views
+
+        source = pathlib.Path(
+            'admin_dashboard/urls.py').read_text(encoding='utf-8')
+        names = sorted(set(re.findall(r'views\.(\w+)', source)))
+        self.assertGreater(len(names), 100, 'urls.py scan found too few names')
+
+        missing = [name for name in names if not hasattr(views, name)]
+        self.assertEqual(missing, [], (
+            'These views are referenced by urls.py but no longer reachable '
+            'from admin_dashboard.views — re-export them from the module '
+            'they moved to.'))
+
+    def test_extracted_modules_are_importable_on_their_own(self):
+        """A split module that only works when views.py imports it first
+        has not really been split."""
+        import importlib
+
+        for module in ('admin_dashboard.views_pricing',
+                       'admin_dashboard.views_deploy',
+                       'admin_dashboard.views_onboarding_questions'):
+            with self.subTest(module=module):
+                self.assertIsNotNone(importlib.import_module(module))
