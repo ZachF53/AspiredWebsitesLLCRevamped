@@ -114,6 +114,54 @@ code reference at all. It now walks the AST
 `ForeignKey` declarations (removed by the drop migration itself — counting
 them as blockers made the gate unsatisfiable), and prose (harmless).
 
+## Deployment record — staging, 2026-08-17
+
+Commit `6d6c159`. Ten migrations applied against PostgreSQL:
+
+```
+admin_dashboard.0004  clients.0055  clients.0056  billing.0007
+domains.0005  reporting.0016  reporting.0017
+social.0002  social.0003  vault.0011
+```
+
+Backfills run twice; the second pass wrote nothing (`Total field updates
+pending: 0`), which is the idempotency check the cutover contract
+requires. One field came across: `stripe_social_subscription_id`, one of
+the six columns that had no canonical home until this change.
+
+**Verified by rendering, not by status code.** 22 admin pages were
+fetched as a logged-in staff user through the Django test client on the
+staging box, including three `?q=` searches — `search_fields` is the one
+thing `manage.py check` does not validate, so a stale `client__firm_name`
+would have passed every check and then raised the first time someone
+typed in the box. All 200. The single 404 was my own wrong URL:
+`reporting.GbpReview` has no admin registration.
+
+Public pages: `/`, `/contact/`, `/about/`, `/portfolio/`,
+`/design/schedule/` all 200; the contact page now carries the approved
+location statement and no longer says "San Antonio, TX · Atlanta, GA".
+
+`aspiredwebsites-celerybeat` stopped after the restart, per the standing
+staging rule.
+
+### Outstanding on staging
+
+`audit_account_website_parity --strict --fail-on-warnings` reports **0
+errors, 1 warning**: a `website-field-conflict` on the single staging
+client, where the canonical Website and the legacy profile disagree on
+`package`, `payment_status`, `deposit_paid_at` and `final_paid_at`.
+
+This is drift from editing the canonical row in the new admin while the
+legacy profile stayed behind — expected on a test box, and exactly the
+shape the audit exists to surface. It is a conflict for a human by
+design: the repair tooling refuses to guess a winner. Left as-is, and
+recorded here rather than resolved, because inventing a winner on
+payment fields is the precise failure the cutover contract forbids.
+
+**Production has not been deployed.** CLAUDE.md is explicit that approval
+to deploy one change to prod does not carry to the next, and this request
+did not name prod.
+
 ## Cutover mechanics — how Waves 2-5 were approached
 
 The naive reading of "cut Wave N to Website ownership" is to edit every
