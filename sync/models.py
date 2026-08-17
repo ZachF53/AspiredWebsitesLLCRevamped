@@ -7,7 +7,7 @@ audit trail (Moonieful → Aspired). Both inherit TimestampedModel per CLAUDE.md
 
 from django.db import models
 
-from clients.models import ClientProfile
+
 from core.models import TimestampedModel
 
 
@@ -38,7 +38,7 @@ class SyncJob(TimestampedModel):
 
     target = models.CharField(max_length=20, choices=TARGET_CHOICES)
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE, null=True, blank=True,
+        'clients.ClientProfile', on_delete=models.CASCADE, null=True, blank=True,
         related_name='sync_jobs',
     )
     # Phase A — sync routes to the Account (Miki refers a PERSON).

@@ -5,34 +5,53 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from clients.models import ClientProfile
+from clients.account_models import Account
 
 from .models import ClientVault, VaultCredential
 
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender=ClientProfile)
+@receiver(post_save, sender=Account)
 def create_client_vault(sender, instance, created, **kwargs):
-    """Every client — whether from Stripe or Moonieful sync — gets a vault."""
-    # Restoring a fixture (raw=True) already carries the ClientVault rows;
-    # creating another would collide with the unique client FK.
+    """Every account — whether from Stripe or Moonieful sync — gets a vault.
+
+    Fires on Account rather than ClientProfile. Both are created for a new
+    client today, so the vault still appears exactly once and at the same
+    moment; what changes is that an account created *without* a legacy
+    profile now gets one too. Under the old receiver it did not, and the
+    absence only surfaced later as a
+    ``vault.ClientVault.missing-canonical-account`` parity finding, or as
+    a client whose credentials page had nothing behind it.
+
+    Keyed on the Account, so re-running against a client that already has
+    a vault adopts it rather than colliding on the unique FK.
+    """
     if kwargs.get('raw') or not created:
         return
-    try:
-        account = instance.migrated_account
-    except Exception:
-        account = None
-    vault, _ = ClientVault.objects.get_or_create(
-        client=instance,
-        defaults={'account_new': account},
-    )
-    # Another creation path may already have materialised the vault without
-    # its transitional canonical FK; repair that row instead of duplicating it.
-    if account is not None and vault.account_new_id is None:
-        vault.account_new = account
+
+    vault = ClientVault.objects.filter(account_new=instance).first()
+    if vault is None:
+        # A vault may already exist against the legacy profile from an
+        # earlier creation path; adopt it rather than creating a second.
+        legacy = instance.legacy_client_profile
+        if legacy is not None:
+            vault = ClientVault.objects.filter(client=legacy).first()
+
+    if vault is None:
+        ClientVault.objects.create(
+            account_new=instance,
+            client=instance.legacy_client_profile,
+        )
+        logger.info('vault: created ClientVault for account %s', instance.pk)
+        return
+
+    if vault.account_new_id is None:
+        vault.account_new = instance
         vault.save(update_fields=['account_new', 'updated_at'])
-    logger.info('vault: created ClientVault for %s', instance.pk)
+        logger.info(
+            'vault: linked existing ClientVault %s to account %s',
+            vault.pk, instance.pk)
 
 
 @receiver(post_save, sender=VaultCredential)

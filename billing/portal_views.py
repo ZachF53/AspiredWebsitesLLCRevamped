@@ -41,12 +41,12 @@ def _stripe():
 
 
 def _customer_id_for_user(user):
-    """Find the user's Stripe Customer id — prefer ClientProfile."""
+    """Find the user's Stripe Customer id — prefer the Account record."""
     try:
-        from clients.models import ClientProfile
-        cp = ClientProfile.objects.filter(user=user).first()
-        if cp and cp.stripe_customer_id:
-            return cp.stripe_customer_id
+        from clients.account_models import Account
+        account = Account.objects.filter(user=user).first()
+        if account and account.stripe_customer_id:
+            return account.stripe_customer_id
     except Exception:
         pass
     # Fallback: lookup by email

@@ -33,7 +33,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from admin_dashboard.decorators import admin_required
-from clients.models import ClientProfile
 from clients.service_models import SocialChannel, SocialMediaPlan
 
 from .ai import generate_post_draft
@@ -80,13 +79,15 @@ def channels_list(request):
     })
 
 
-def _resolve_client(channel):
-    """Walk channel.plan.account.legacy_client_profile (Phase D pattern).
-    Falls back to None — caller surfaces an error."""
-    account = getattr(channel.plan, 'account', None)
-    if account is None:
-        return None
-    return getattr(account, 'legacy_client_profile', None)
+def _resolve_account(channel):
+    """The Account whose social plan owns this channel, or None.
+
+    This used to take one more hop, to `account.legacy_client_profile`,
+    and every composer view refused to work when that came back None --
+    which is the shape of every account created after the cutover. The
+    Account is the owner; the legacy profile was only ever a passenger.
+    """
+    return getattr(channel.plan, 'account', None)
 
 
 @admin_required
@@ -94,7 +95,7 @@ def connect_page(request, channel_id):
     """Per-channel connect/disconnect. Shows state + connect button or
     'change account' / 'disconnect'."""
     channel = get_object_or_404(SocialChannel, id=channel_id)
-    client = _resolve_client(channel)
+    client = _resolve_account(channel)
     token = getattr(channel, 'token', None)
     connected = token is not None and bool(token.access_token_encrypted)
     wired = channel.platform in WIRED_PLATFORMS
@@ -118,12 +119,12 @@ def post_composer(request, channel_id):
     POST  body + scheduled_for -> create ScheduledPost(status='scheduled')
     """
     channel = get_object_or_404(SocialChannel, id=channel_id)
-    client = _resolve_client(channel)
+    client = _resolve_account(channel)
     if client is None:
         messages.error(
             request,
-            'This channel is not linked to a Client profile. '
-            'Add a legacy ClientProfile to the Account first.')
+            'This channel is not linked to an account. '
+            'Attach its social plan to an account first.')
         return redirect('social:channels_list')
 
     if channel.platform not in WIRED_PLATFORMS:
@@ -202,7 +203,7 @@ def post_composer(request, channel_id):
 
         post = ScheduledPost.objects.create(
             channel=channel,
-            client=client,
+            account_new=client,
             body=body,
             media_url=media_url,
             scheduled_for=scheduled_for,

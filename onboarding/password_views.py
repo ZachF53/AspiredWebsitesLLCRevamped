@@ -105,14 +105,19 @@ def set_password(request, token):
 
 
 def _set_client_pin(user, pin):
-    """Persist the 4-digit portal PIN on the user's ClientProfile."""
-    from vault.crypto import generate_salt, hash_client_pin
-    from clients.models import ClientProfile
+    """Persist the 4-digit portal PIN on the user's Account.
 
-    cp = ClientProfile.objects.filter(user=user).first()
+    Was keyed on ClientProfile. A client created after the cutover has no
+    legacy profile, so this returned early and their PIN was never stored
+    — they set one during onboarding and it silently did not exist.
+    """
+    from vault.crypto import generate_salt, hash_client_pin
+    from clients.account_models import Account
+
+    cp = Account.objects.filter(user=user).first()
     if cp is None:
         logger.warning(
-            'set_password: no ClientProfile for %s — PIN not stored', user.pk)
+            'set_password: no Account for %s — PIN not stored', user.pk)
         return
     salt = generate_salt()
     cp.client_pin_salt = salt

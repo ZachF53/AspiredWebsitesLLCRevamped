@@ -21,8 +21,8 @@ Tones (from SocialContentSettings or override):
 
 Each call injects:
   - client_location_phrase(client)  — keeps Texas/Georgia language consistent
-  - client.firm_name                — for first-person voice
-  - client.business_type            — keeps law-firm phrasings out of
+  - account.name                    — for first-person voice
+  - account.business context        — keeps law-firm phrasings out of
                                       Moonieful-referred orgs
 """
 
@@ -115,24 +115,34 @@ def _tone_guidance(tone):
     return TONE_GUIDANCE.get((tone or '').lower(), '')
 
 
-def _business_descriptor(client):
-    """Tight one-line description used by the model. Handles both
-    direct (law firm) and Moonieful-referred (business_type='') cases.
+def _business_descriptor(owner):
+    """Tight one-line description used by the model.
+
+    `owner` is an Account. The business type is per site, so it is read
+    from the account's first website when it has one -- a social plan is
+    sold to the business, not to one of its sites, and the account itself
+    carries no type. Handles the Moonieful-referred case, where the type
+    is deliberately blank.
     """
-    btype = (getattr(client, 'business_type', '') or '').strip()
-    firm = (getattr(client, 'firm_name', '') or '').strip()
-    if firm and btype:
-        return f'{firm}, a {btype.replace("_", " ")}'
-    if firm:
-        return firm
+    name = (getattr(owner, 'name', '') or '').strip()
+    btype = ''
+    try:
+        site = owner.websites.order_by('created_at').first()
+        btype = (getattr(site, 'business_type', '') or '').strip()
+    except Exception:  # noqa: BLE001 -- no account, or no websites yet
+        btype = ''
+    if name and btype:
+        return f'{name}, a {btype.replace("_", " ")}'
+    if name:
+        return name
     return 'a small business'
 
 
-def generate_post_draft(client, platform, prompt, tone='friendly'):
-    """Generate a social post body for `client` on `platform`.
+def generate_post_draft(account, platform, prompt, tone='friendly'):
+    """Generate a social post body for `account` on `platform`.
 
     Args:
-        client    ClientProfile
+        account   Account the social plan belongs to
         platform  one of SocialChannel.PLATFORM_CHOICES values
         prompt    operator-supplied topic ("Promote our new family-law
                   practice page", "Holiday hours announcement", etc.)
@@ -147,9 +157,11 @@ def generate_post_draft(client, platform, prompt, tone='friendly'):
                           surface a clean error and skip the row.
     """
     limit = PLATFORM_LIMITS.get(platform, PLATFORM_LIMITS['other'])
-    descriptor = _business_descriptor(client)
-    location = client_location_phrase(client) or ''
-    where = f' based in {location}' if location else ''
+    descriptor = _business_descriptor(account)
+    # client_location_phrase already returns " based in City, State".
+    # Wrapping it in another " based in {...}" produced
+    # "based in  based in San Antonio, TX" in every system prompt.
+    where = client_location_phrase(account) or ''
 
     system = (
         f'You are a social media writer for {descriptor}{where}. '
@@ -177,8 +189,8 @@ def generate_post_draft(client, platform, prompt, tone='friendly'):
         raise
     except Exception as exc:  # noqa: BLE001
         logger.exception(
-            'social.ai.generate_post_draft failed for client=%s '
-            'platform=%s', getattr(client, 'pk', '?'), platform)
+            'social.ai.generate_post_draft failed for account=%s '
+            'platform=%s', getattr(account, 'pk', '?'), platform)
         raise RuntimeError(f'AI generation failed: {exc}') from exc
 
     body = (body or '').strip()

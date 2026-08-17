@@ -9,7 +9,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 
-from clients.models import ClientProfile
+
 from clients.display import owner_label
 from core.models import TimestampedModel
 from reporting.useragent import DEVICE_CHOICES, DEVICE_ICONS
@@ -27,7 +27,7 @@ class GBPSyncCheck(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='gbp_sync_checks',
         null=True, blank=True,
     )
@@ -59,7 +59,7 @@ class TrackedKeyword(TimestampedModel):
     """A keyword a client's site is being tracked for in search rankings."""
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='tracked_keywords',
         null=True, blank=True,
     )
@@ -120,7 +120,7 @@ class ConversionEvent(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='conversion_events',
         null=True, blank=True,
     )
@@ -159,7 +159,7 @@ class MonthlyReport(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='monthly_reports',
         null=True, blank=True,
     )
@@ -208,7 +208,7 @@ class ContentFreshnessReport(TimestampedModel):
     """An admin-only crawl scoring each page of a client's site for freshness."""
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='freshness_reports',
         null=True, blank=True,
     )
@@ -236,7 +236,7 @@ class NPSSurvey(TimestampedModel):
     """A Net Promoter Score survey sent to a maintenance client."""
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='nps_surveys',
         null=True, blank=True,
     )
@@ -285,7 +285,7 @@ class BlogPost(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='blog_posts',
         null=True, blank=True,
     )
@@ -332,7 +332,7 @@ class ClientChatbot(TimestampedModel):
     )
 
     client = models.OneToOneField(
-        ClientProfile, on_delete=models.CASCADE, related_name='chatbot',
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='chatbot',
         null=True, blank=True,
     )
     # Phase A — chatbot is per-Website (each site has its own visitor JS).
@@ -407,7 +407,7 @@ class VulnerabilityScan(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='vulnerability_scans',
         null=True, blank=True,
     )
@@ -1149,7 +1149,7 @@ class GbpReview(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='gbp_reviews',
         null=True, blank=True,
     )
@@ -1208,7 +1208,7 @@ class GbpPerformanceSnapshot(TimestampedModel):
     """
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE,
+        'clients.ClientProfile', on_delete=models.CASCADE,
         related_name='gbp_performance_snapshots',
         null=True, blank=True,
     )

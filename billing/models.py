@@ -2,7 +2,7 @@
 
 from django.db import models
 
-from clients.models import ClientProfile, Project, RevisionRequest
+from clients.models import RevisionRequest
 from clients.display import owner_label
 from core.models import TimestampedModel
 
@@ -31,11 +31,11 @@ class MiniInvoice(TimestampedModel):
     ]
 
     client = models.ForeignKey(
-        ClientProfile, on_delete=models.CASCADE, related_name='mini_invoices',
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='mini_invoices',
         null=True, blank=True,
     )
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, blank=True,
+        'clients.Project', on_delete=models.CASCADE, null=True, blank=True,
         related_name='mini_invoices',
     )
     # Phase A — out-of-scope work is per-build; account FK kept so

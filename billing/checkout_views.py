@@ -434,12 +434,26 @@ def checkout_confirm(request, tier_slug):
         if hosting_sub is not None and buyer is not None and (
                 'id' in hosting_sub):
             try:
-                from clients.models import ClientProfile
-                cp = ClientProfile.objects.filter(user=buyer).first()
-                if cp is not None:
-                    cp.stripe_hosting_subscription_id = hosting_sub['id']
-                    cp.save(update_fields=[
+                # Hosting is billed per site, so the subscription id
+                # belongs on the Website. Stored on the account's only
+                # site; with several there is no way to tell which was
+                # bought, so the id is left for a human rather than
+                # attached to whichever happens to be oldest.
+                from clients.account_models import Account, Website
+                account = Account.objects.filter(user=buyer).first()
+                sites = (list(Website.objects.filter(account=account)[:2])
+                         if account is not None else [])
+                if len(sites) == 1:
+                    site = sites[0]
+                    site.stripe_hosting_subscription_id = hosting_sub['id']
+                    site.save(update_fields=[
                         'stripe_hosting_subscription_id', 'updated_at'])
+                elif len(sites) > 1:
+                    logger.error(
+                        'checkout: account %s owns %s sites — hosting sub '
+                        '%s not attached to any of them',
+                        getattr(account, 'pk', '?'), len(sites),
+                        hosting_sub['id'])
             except Exception:  # noqa: BLE001
                 logger.exception('checkout: store hosting sub id failed')
 

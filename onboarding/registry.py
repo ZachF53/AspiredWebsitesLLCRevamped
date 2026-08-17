@@ -642,14 +642,16 @@ def _has_completed_intake(user):
     (i.e. they're an existing website-build client) so we don't need
     to re-ask for brand assets."""
     try:
-        from clients.models import ClientProfile
-        cp = (ClientProfile.objects
-              .filter(user=user)
-              .select_related('intake')
-              .first())
-        if cp is None:
+        from clients.account_models import Website
+        # The intake is per website, so the answer is per website too.
+        site = (Website.objects
+                .filter(account__user=user)
+                .select_related('intake_new')
+                .order_by('created_at')
+                .first())
+        if site is None:
             return False
-        intake = getattr(cp, 'intake', None)
+        intake = getattr(site, 'intake_new', None)
         return bool(intake and intake.completed)
     except Exception:
         return False

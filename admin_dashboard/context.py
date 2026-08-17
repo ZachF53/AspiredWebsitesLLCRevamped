@@ -90,8 +90,11 @@ def _admin_context(active=None, **extra):
     # Intake reviews (admin task generated when a client submits intake)
     # count toward the same Needs You badge.
     try:
-        from clients.models import ClientProfile as _ClientProfile
-        needs_you_count += _ClientProfile.objects.filter(
+        from clients.account_models import Website
+        # Counted per site: an intake is submitted for a website, so an
+        # account with two builds awaiting review is two items of work.
+        # The account-level count showed one.
+        needs_you_count += Website.objects.filter(
             needs_admin_review_at__isnull=False,
             admin_reviewed_at__isnull=True,
         ).count()

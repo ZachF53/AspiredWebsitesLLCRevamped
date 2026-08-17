@@ -9,7 +9,7 @@ import uuid
 
 from django.db import models
 
-from clients.models import ClientProfile
+
 from clients.display import owner_label
 from core.models import TimestampedModel
 
@@ -133,7 +133,7 @@ class ClientVault(TimestampedModel):
     """One vault per client — a container for that client's credentials."""
 
     client = models.OneToOneField(
-        ClientProfile, on_delete=models.CASCADE, related_name='vault',
+        'clients.ClientProfile', on_delete=models.CASCADE, related_name='vault',
         null=True, blank=True,
     )
     # Phase A — vault is account-level. One PIN unlocks every cred for
