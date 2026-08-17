@@ -59,12 +59,11 @@ def intelligence_suggestions(request):
     until volume grows; we'll add it later if the table exceeds a
     screen on a 27" monitor.
     """
-    from clients.models import (
-        ClientProfile, IntelligenceSuggestion,
-    )
+    from clients.account_models import Website
+    from clients.models import IntelligenceSuggestion
 
     qs = (IntelligenceSuggestion.objects
-          .select_related('client', 'report')
+          .select_related('website_new', 'website_new__account', 'report')
           .order_by('-generated_at'))
 
     status_filter = (request.GET.get('status') or 'pending_review').strip()
@@ -111,9 +110,10 @@ def intelligence_suggestions(request):
         ),
     }
 
-    clients = (ClientProfile.objects
-               .filter(intelligence_suggestions__isnull=False)
-               .distinct().order_by('firm_name'))
+    clients = (Website.objects
+               .filter(intelligence_suggestions_new__isnull=False)
+               .select_related('account')
+               .distinct().order_by('account__name', 'name'))
 
     return render(request,
                   'admin_dashboard/intelligence_suggestions.html',
@@ -391,10 +391,11 @@ def intelligence_run_for_client(request, client_id):
     Celery task asynchronously so the operator gets immediate feedback
     instead of staring at a 30-second Claude call.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from clients.tasks import run_intelligence_for_client
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     run_intelligence_for_client.apply_async(args=[str(client.id)])
 
     if request.headers.get('HX-Request') == 'true':

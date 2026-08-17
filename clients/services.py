@@ -59,7 +59,7 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
             f'Valid stages: {", ".join(sorted(valid))}')
     if new_stage == 'live' and profile.payment_status != 'fully_paid':
         raise GuardError(
-            f'Cannot move {profile.firm_name} to "live" — final payment '
+            f'Cannot move {profile.name} to "live" — final payment '
             f'has not cleared yet (payment_status='
             f'{profile.payment_status}).')
 
@@ -71,11 +71,13 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
     if new_stage == 'live' and not payment_verified:
         from clients.payment_evidence import (
             is_fully_paid_without_evidence, unverified_payment_message)
-        from clients.website_helpers import primary_website
 
-        website = primary_website(profile)
-        if website is not None and is_fully_paid_without_evidence(website):
-            raise GuardError(unverified_payment_message(website))
+        # `profile` IS the site being launched. This used to resolve the
+        # account's oldest website instead, which on a multi-site account
+        # checked the wrong site's ledger — and once `profile` became a
+        # Website, resolved to nothing at all and left the gate open.
+        if is_fully_paid_without_evidence(profile):
+            raise GuardError(unverified_payment_message(profile))
 
     from_stage = profile.stage
     if from_stage == new_stage:
@@ -85,10 +87,8 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
     profile.stage = new_stage
     profile.save(update_fields=['stage', 'updated_at'])
 
-    from clients.website_helpers import primary_website
     log = ProjectStageLog.objects.create(
-        client=profile,
-        website_new=primary_website(profile),
+        website_new=profile,
         from_stage=from_stage,
         to_stage=new_stage,
         note=note or '',
@@ -130,7 +130,7 @@ def mark_intake_complete(profile):
     from django.utils import timezone
     from clients.models import IntakeResponse
 
-    intake, _ = IntakeResponse.objects.get_or_create(client=profile)
+    intake, _ = IntakeResponse.objects.get_or_create(website_new=profile)
     if intake.completed:
         return intake
     intake.completed = True
@@ -161,11 +161,11 @@ def add_revision(profile, description, *, is_major=True, source='ai_assistant'):
 
     if profile.has_unpaid_out_of_scope():
         raise GuardError(
-            f'{profile.firm_name} has an unpaid out-of-scope invoice — '
+            f'{profile.name} has an unpaid out-of-scope invoice — '
             f'cannot accept new revisions until it clears.')
 
     revision = RevisionRequest.objects.create(
-        client=profile,
+        website_new=profile,
         description=(description or '').strip(),
         is_major=bool(is_major),
         source=source,
@@ -182,7 +182,8 @@ def add_revision(profile, description, *, is_major=True, source='ai_assistant'):
         revision.status = 'out_of_scope'
         revision.save(update_fields=['status', 'updated_at'])
         mini = MiniInvoice.objects.create(
-            client=profile,
+            website_new=profile,
+            account_new=profile.account,
             revision=revision,
             description=(f'Out-of-scope revision: '
                          f'{revision.description[:120]}'),
@@ -246,7 +247,8 @@ def create_out_of_scope_invoice(profile, description, amount, *,
             f'Out-of-scope invoice amount must be > 0 (got {amount!r})')
 
     return MiniInvoice.objects.create(
-        client=profile,
+        website_new=profile,
+        account_new=profile.account,
         description=(description or '').strip()[:255],
         amount=amt,
         hours=Decimal(str(hours or 0)),
@@ -263,11 +265,12 @@ def get_client_status(profile):
     card so the operator sees the current state alongside the proposed
     action."""
     from clients.models import SupportTicket
+    # Per site: a ticket is raised about a specific build.
     open_tickets = SupportTicket.objects.filter(
-        client=profile, status__in=['open', 'in_progress']).count()
+        website_new=profile, status__in=['open', 'in_progress']).count()
     has_unpaid_mini = profile.has_unpaid_out_of_scope()
     return {
-        'firm_name': profile.firm_name,
+        'firm_name': profile.name,
         'stage': profile.stage,
         'payment_status': profile.payment_status,
         'revision_count': profile.revision_count,
@@ -281,5 +284,7 @@ def get_client_status(profile):
         'open_tickets': open_tickets,
         'package': profile.package,
         'payment_failure_active': (
-            profile.payment_failure_started_at is not None),
+            # Dunning is account-level: one card, one relationship.
+            getattr(profile.account, 'payment_failure_started_at', None)
+            is not None),
     }

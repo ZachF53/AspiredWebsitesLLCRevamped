@@ -57,7 +57,7 @@
                 <select name="client">
                     <option value="">All clients</option>
                     {% for c in clients %}
-                        <option value="{{ c.id }}" {% if filter_client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.firm_name }}</option>
+                        <option value="{{ c.id }}" {% if filter_client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}{% if c.account and c.account.name != c.name %} — {{ c.account.name }}{% endif %}</option>
                     {% endfor %}
                 </select>
             </label>
@@ -84,7 +84,7 @@
                 <tbody>
                     {% for s in suggestions %}
                         <tr>
-                            <td><a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a></td>
+                            <td><a href="{% url 'admin_dashboard:website_detail' s.website_new.id %}">{{ s.website_new.name }}</a></td>
                             <td><span class="intel-type intel-type--{{ s.suggestion_type }}">{{ s.get_suggestion_type_display }}</span></td>
                             <td>
                                 <a href="{% url 'admin_dashboard:intelligence_suggestion_detail' s.id %}" class="intel-row-title">

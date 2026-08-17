@@ -1,7 +1,7 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}Client Site Deploy — {{ deploy_client.firm_name }}{% endblock %}
+{% block title %}Client Site Deploy — {{ deploy_client.name }}{% endblock %}
 
 {% block content %}
 <div class="admin-deploy">
@@ -11,7 +11,7 @@
     </div>
 
     <div class="deploy-client-banner">
-        Deploying: <strong>{{ prefill_client|default:deploy_client.firm_name }}</strong>
+        Deploying: <strong>{{ prefill_client|default:deploy_client.name }}</strong>
         &mdash; <strong>{{ prefill_domain|default:"no domain on file" }}</strong>
     </div>
 

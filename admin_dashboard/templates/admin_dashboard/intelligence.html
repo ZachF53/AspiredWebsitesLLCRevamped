@@ -171,7 +171,7 @@
                     {% for r in rows %}
                         {% with h=r.health c=r.client %}
                             <tr>
-                                <td class="droplet-name">{{ c.firm_name }}</td>
+                                <td class="droplet-name">{{ c.name }}{% if c.account and c.account.name != c.name %}<span class="muted"> — {{ c.account.name }}</span>{% endif %}</td>
                                 <td>
                                     <span class="bi-score bi-score--{{ h.health_status }}">{{ h.score }}</span>
                                 </td>

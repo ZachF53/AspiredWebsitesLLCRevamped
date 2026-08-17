@@ -822,8 +822,6 @@ def send_monthly_reports():
     """Generate + send last month's report for every active maintenance client."""
     from datetime import date
 
-    from clients.models import ClientProfile
-
     today = timezone.localdate()
     if today.month == 1:
         report_month = date(today.year - 1, 12, 1)

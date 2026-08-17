@@ -42,11 +42,13 @@ def _domain_from_url(url):
 def deploy_home(request):
     """Deploy landing page — 3 deploy-type cards + recent deployments."""
     from .models import DeploymentLog
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     return render(request, 'admin_dashboard/deploy_home.html', _admin_context(
         'deploy',
-        recent=DeploymentLog.objects.select_related('client')[:10],
-        clients=ClientProfile.objects.order_by('firm_name'),
+        recent=DeploymentLog.objects.select_related(
+            'website_new', 'website_new__account')[:10],
+        clients=(Website.objects.select_related('account')
+                 .order_by('account__name', 'name')),
     ))
 
 
@@ -54,16 +56,20 @@ def deploy_home(request):
 def deploy_fresh(request):
     """Fresh-server deploy runbook with live-fill command blocks."""
     from django.utils.text import slugify
-    from clients.models import ClientProfile
+    from clients.account_models import Website
+    # A deploy targets one droplet, and a droplet belongs to one site. The
+    # account-level list offered a single entry per client, so the second
+    # site of a two-site account could not be deployed from here at all.
     options = []
-    for client in ClientProfile.objects.filter(do_droplet_ip__isnull=False):
-        project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
+    for client in (Website.objects
+                   .filter(do_droplet_ip__isnull=False)
+                   .select_related('account')):
         options.append({
             'id': client.id,
-            'name': client.firm_name,
-            'slug': slugify(client.firm_name),
+            'name': client.name,
+            'slug': slugify(client.name),
             'ip': client.do_droplet_ip or '',
-            'domain': _domain_from_url(project.live_url) if project else '',
+            'domain': _domain_from_url(client.url),
         })
     return render(request, 'admin_dashboard/deploy_fresh.html', _admin_context(
         'deploy',
@@ -81,17 +87,17 @@ def deploy_redeploy(request):
 
 @admin_required
 def deploy_client(request, client_id):
-    """Client-site deploy runbook, pre-filled from the ClientProfile."""
+    """Client-site deploy runbook, pre-filled from the Website."""
     from django.utils.text import slugify
-    from clients.models import ClientProfile
-    client = get_object_or_404(ClientProfile, id=client_id)
-    project = client    # ← alias post-2026-05-25 refactor (project fields on ClientProfile)
+    from clients.account_models import Website
+    client = get_object_or_404(
+        Website.objects.select_related('account'), id=client_id)
     return render(request, 'admin_dashboard/deploy_client.html', _admin_context(
         'deploy',
         deploy_client=client,
         prefill_ip=client.do_droplet_ip or '',
-        prefill_domain=_domain_from_url(project.live_url) if project else '',
-        prefill_client=slugify(client.firm_name),
+        prefill_domain=_domain_from_url(client.url),
+        prefill_client=slugify(client.name),
         github_default=GITHUB_REPO_DEFAULT,
     ))
 
@@ -102,7 +108,8 @@ def deploy_history(request):
     from .models import DeploymentLog
     return render(request, 'admin_dashboard/deploy_history.html', _admin_context(
         'deploy',
-        logs=DeploymentLog.objects.select_related('client'),
+        logs=DeploymentLog.objects.select_related(
+            'website_new', 'website_new__account'),
         form=DeploymentLogForm(),
         logged=request.GET.get('logged'),
     ))
@@ -121,7 +128,8 @@ def deploy_log_create(request):
         )
     return render(request, 'admin_dashboard/deploy_history.html', _admin_context(
         'deploy',
-        logs=DeploymentLog.objects.select_related('client'),
+        logs=DeploymentLog.objects.select_related(
+            'website_new', 'website_new__account'),
         form=form,
     ))
 

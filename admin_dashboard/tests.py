@@ -24,6 +24,43 @@ def _new_client(firm, **kw):
     return ClientProfile.objects.create(user=u, firm_name=firm, **kw)
 
 
+# Site-level values, mirrored onto the Website the autocreate signal
+# makes. Same mapping the backfill applies, so a fixture and a migrated
+# production row agree.
+_SITE_FIELDS = {
+    'stage': 'stage',
+    'package': 'package',
+    'payment_status': 'payment_status',
+    'website': 'url',
+    'maintenance_active': 'maintenance_active',
+    'launch_date': 'launch_date',
+    'revision_count': 'revision_count',
+    'revision_limit': 'revision_limit',
+}
+
+
+def _new_site(firm, **kw):
+    """A Website named `firm`, with the site-level kwargs applied.
+
+    The AI assistant resolves and acts on SITES: every command it runs
+    ("move X to design", "X is live", "invoice X") changes a build's
+    state, and a build is a site.
+    """
+    profile = _new_client(firm, **kw)
+    site = profile.migrated_account.websites.first()
+    changed = []
+    for legacy, canonical in _SITE_FIELDS.items():
+        if legacy in kw:
+            setattr(site, canonical, kw[legacy])
+            changed.append(canonical)
+    if site.name != firm:
+        site.name = firm
+        changed.append('name')
+    if changed:
+        site.save(update_fields=changed + ['updated_at'])
+    return site
+
+
 def _staff(password='admin-pass-123'):
     global _ai_seq
     _ai_seq += 1
@@ -71,17 +108,17 @@ class ResolveClientTests(TestCase):
     """Phase 4.2 — fuzzy resolution of name fragments."""
 
     def test_exact_match_wins(self):
-        c = _new_client('Apex Holdings')
+        c = _new_site('Apex Holdings')
         from admin_dashboard.ai_assistant import resolve_client
         self.assertEqual(resolve_client('Apex Holdings').id, c.id)
 
     def test_case_insensitive_match(self):
-        c = _new_client('Apex Holdings')
+        c = _new_site('Apex Holdings')
         from admin_dashboard.ai_assistant import resolve_client
         self.assertEqual(resolve_client('apex holdings').id, c.id)
 
     def test_partial_substring_resolves(self):
-        c = _new_client('Smith & Associates')
+        c = _new_site('Smith & Associates')
         from admin_dashboard.ai_assistant import resolve_client
         self.assertEqual(resolve_client('Smith').id, c.id)
 
@@ -93,8 +130,8 @@ class ResolveClientTests(TestCase):
             resolve_client('Nonexistent Firm XYZ')
 
     def test_ambiguous_substring_raises(self):
-        _new_client('Smith Holdings')
-        _new_client('Smith Capital')
+        _new_site('Smith Holdings')
+        _new_site('Smith Capital')
         from admin_dashboard.ai_assistant import (
             ClientAmbiguous, resolve_client,
         )
@@ -108,12 +145,12 @@ class ExecuteTests(TestCase):
     guards convert exceptions to {'ok': False, 'message': ...}."""
 
     def test_move_stage_calls_service(self):
-        c = _new_client('Stage Test LLC')
+        c = _new_site('Stage Test LLC')
         from admin_dashboard.ai_assistant import execute
         with patch('admin_dashboard.ai_assistant.change_client_stage') as m:
             m.return_value = (MagicMock(id='log-1'), True)
             result = execute('move_stage',
-                             {'client': c.firm_name, 'stage': 'design'}, c,
+                             {'client': c.name, 'stage': 'design'}, c,
                              set_by='Tester')
         self.assertTrue(result['ok'])
         m.assert_called_once()
@@ -122,26 +159,26 @@ class ExecuteTests(TestCase):
         """Phase 4.0 guard: mark_live refuses unless payment_status='fully_paid'.
         Verified via the integration path — no mock — because the guard
         lives inside the service."""
-        c = _new_client('Notpaid LLC', payment_status='awaiting_deposit',
-                        stage='pre_launch')
+        c = _new_site('Notpaid LLC', payment_status='awaiting_deposit',
+                      stage='pre_launch')
         from admin_dashboard.ai_assistant import execute
-        result = execute('mark_live', {'client': c.firm_name}, c)
+        result = execute('mark_live', {'client': c.name}, c)
         self.assertFalse(result['ok'])
         self.assertIn('final payment', result['message'].lower())
 
     def test_create_invoice_refuses_zero_amount(self):
-        c = _new_client('ZeroBill LLC')
+        c = _new_site('ZeroBill LLC')
         from admin_dashboard.ai_assistant import execute
         result = execute(
             'create_out_of_scope_invoice',
-            {'client': c.firm_name, 'description': 'extra work',
+            {'client': c.name, 'description': 'extra work',
              'amount': 0}, c)
         self.assertFalse(result['ok'])
 
     def test_get_status_read_only(self):
-        c = _new_client('Status LLC')
+        c = _new_site('Status LLC')
         from admin_dashboard.ai_assistant import execute
-        result = execute('get_status', {'client': c.firm_name}, c)
+        result = execute('get_status', {'client': c.name}, c)
         self.assertTrue(result['ok'])
         self.assertEqual(result['extra']['firm_name'], 'Status LLC')
 
@@ -153,6 +190,9 @@ class AssistantViewTests(TestCase):
         self.staff = _staff()
         self.client.force_login(self.staff)
         self.profile = _new_client('Viewtest LLC')
+        # The assistant resolves and acts on SITES — the commands it runs
+        # ("move X to design", "X is live") all change a build's state.
+        self.site = self.profile.migrated_account.websites.first()
 
     def test_page_requires_staff(self):
         self.client.logout()
@@ -169,14 +209,14 @@ class AssistantViewTests(TestCase):
         mock_tools.return_value = {
             'kind': 'tool_use',
             'name': 'get_status',
-            'input': {'client': self.profile.firm_name},
+            'input': {'client': self.site.name},
         }
         r = self.client.post(
             reverse('admin_dashboard:ai_assistant_parse'),
-            data={'command': f'show me {self.profile.firm_name}'})
+            data={'command': f'show me {self.site.name}'})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Proposed action')
-        self.assertContains(r, self.profile.firm_name)
+        self.assertContains(r, self.site.name)
 
     def test_execute_writes_log_row(self):
         """Even a guard-refused execution should land in AIAssistantLog."""
@@ -186,13 +226,13 @@ class AssistantViewTests(TestCase):
             reverse('admin_dashboard:ai_assistant_execute'),
             data={
                 'intent': 'mark_live',
-                'args': _json.dumps({'client': self.profile.firm_name}),
-                'client_id': str(self.profile.id),
+                'args': _json.dumps({'client': self.site.name}),
+                'client_id': str(self.site.id),
                 'raw_command': 'launch',
             })
         self.assertEqual(r.status_code, 200)
         log = AIAssistantLog.objects.filter(
-            client=self.profile, intent='mark_live').first()
+            website_new=self.site, intent='mark_live').first()
         self.assertIsNotNone(log)
         # Should be False since the test client isn't 'fully_paid'.
         self.assertFalse(log.success)

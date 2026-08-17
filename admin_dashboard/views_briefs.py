@@ -559,7 +559,7 @@ def ai_assistant_execute(request):
     via ai_assistant.execute and write an AIAssistantLog row."""
     from admin_dashboard import ai_assistant
     from admin_dashboard.models import AIAssistantLog
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     import json as _json
 
     intent = (request.POST.get('intent') or '').strip()
@@ -573,12 +573,15 @@ def ai_assistant_execute(request):
 
     profile = None
     try:
-        profile = ClientProfile.objects.filter(id=client_id).first()
+        profile = (Website.objects
+                   .select_related('account')
+                   .filter(id=client_id)
+                   .first())
     except Exception:
         profile = None
     if profile is None:
         return render(request, 'admin_dashboard/_ai_result.html', {
-            'result': {'ok': False, 'message': 'Client no longer found.'},
+            'result': {'ok': False, 'message': 'Website no longer found.'},
         })
 
     set_by = (request.user.get_full_name()
@@ -592,7 +595,7 @@ def ai_assistant_execute(request):
     try:
         AIAssistantLog.objects.create(
             operator=request.user,
-            client=profile,
+            website_new=profile,
             raw_command=raw_command,
             intent=intent,
             args=args,
@@ -604,5 +607,5 @@ def ai_assistant_execute(request):
 
     return render(request, 'admin_dashboard/_ai_result.html', {
         'result': result,
-        'firm_name': profile.firm_name,
+        'firm_name': profile.name,
     })

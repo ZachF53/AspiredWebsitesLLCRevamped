@@ -40,7 +40,7 @@
                     <select id="client-deploy-picker" class="form-control" aria-label="Select a client">
                         <option value="">— Select a client —</option>
                         {% for c in clients %}
-                            <option value="{% url 'admin_dashboard:deploy_client' c.id %}">{{ c.firm_name }}</option>
+                            <option value="{% url 'admin_dashboard:deploy_client' c.id %}">{{ c.name }}</option>
                         {% endfor %}
                     </select>
                     <button type="button" class="btn-primary" id="client-deploy-go">Client Deploy &rarr;</button>

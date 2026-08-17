@@ -333,20 +333,22 @@ class LedgerEvidenceTests(TestCase):
     def test_launch_is_blocked_without_evidence(self):
         from clients.services import GuardError, mark_live
 
+        # The launch gate is per SITE: payment_status and the operator
+        # attestation both live on the Website being launched.
         with self.assertRaises(GuardError) as ctx:
-            mark_live(self.profile)
+            mark_live(self.website)
 
         self.assertIn('fully_paid', str(ctx.exception))
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.stage, 'pre_launch')
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'pre_launch')
 
     def test_operator_can_launch_after_verifying_manually(self):
         from clients.services import mark_live
 
-        mark_live(self.profile, payment_verified=True)
+        mark_live(self.website, payment_verified=True)
 
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.stage, 'live')
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'live')
 
     def test_operator_attestation_settles_it_permanently(self):
         """A payment made outside Stripe is real. Recording that a named
@@ -372,9 +374,9 @@ class LedgerEvidenceTests(TestCase):
         self.assertEqual(PaymentRecord.objects.count(), 0)
 
         # And the launch gate now lets it through unaided.
-        mark_live(self.profile)
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.stage, 'live')
+        mark_live(self.website)
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'live')
 
     def test_attestation_requires_a_name(self):
         """An attestation with nobody attached is not evidence."""

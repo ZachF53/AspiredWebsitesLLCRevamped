@@ -45,7 +45,8 @@ def get_daily_focus():
     dashboard and the home page Today's Focus widget. Sorted by
     priority (lower number = more urgent).
     """
-    from clients.models import ClientHealthScore, ClientProfile
+    from clients.account_models import Website
+    from clients.models import ClientHealthScore
 
     items = []
     today = timezone.now().date()
@@ -104,20 +105,23 @@ def get_daily_focus():
 
     # 3. Active non-tester clients in 'live' stage with no website
     #    set — uptime monitoring + scans can't run without one.
-    # Post-2026-05-25: stage + website on ClientProfile directly.
-    no_url = (ClientProfile.objects
-              .filter(status='active', is_tester=False,
-                      stage='live', website='')
+    # A live site with no URL cannot be monitored or scanned. Asked per
+    # site: on a two-site account the account-level check was satisfied by
+    # whichever site happened to have a URL, so the other stayed invisible.
+    no_url = (Website.objects
+              .filter(status='active', account__is_tester=False,
+                      stage='live', url='')
+              .select_related('account')
               [:3])
     for client in no_url:
         items.append({
             'priority': 3,
             'icon': '⚠',
-            'title': f'No live URL: {client.firm_name}',
+            'title': f'No live URL: {client.name}',
             'description': (
                 'Uptime monitoring and scans cannot run without a '
                 'live URL'),
-            'url': reverse('admin_dashboard:client_edit',
+            'url': reverse('admin_dashboard:website_detail',
                            args=[client.id]),
             'action': 'Add URL',
         })
@@ -134,9 +138,8 @@ def intelligence_dashboard(request):
     phase.
     """
     from clients.health import get_latest_health_score
-    from clients.models import (
-        ClientHealthScore, ClientProfile, RevenueSnapshot,
-    )
+    from clients.account_models import Website
+    from clients.models import ClientHealthScore, RevenueSnapshot
     from clients.revenue import (
         get_current_mrr, get_mrr_trend, get_revenue_forecast,
     )
@@ -164,9 +167,11 @@ def intelligence_dashboard(request):
         row['height_pct'] = round(row['mrr'] / max_mrr * 100)
 
     # ── Client health ─────────────────────────────────────────
-    active_clients = (ClientProfile.objects
-                      .filter(status='active', is_tester=False)
-                      .order_by('firm_name'))
+    active_clients = (Website.objects
+                      .filter(status='active', account__is_tester=False,
+                              account__status='active')
+                      .select_related('account')
+                      .order_by('account__name', 'name'))
     rows = []
     for client in active_clients:
         rows.append({

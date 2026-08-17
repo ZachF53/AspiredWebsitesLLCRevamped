@@ -209,29 +209,35 @@ class ClientAmbiguous(Exception):
         self.matches = matches
         super().__init__(
             f'Multiple matches: ' +
-            ', '.join(f'"{m.firm_name}"' for m in matches[:5]))
+            ', '.join(f'"{m.name}"' for m in matches[:5]))
 
 
 def resolve_client(name_query):
-    """Fuzzy-match a name fragment against active ClientProfile.firm_name.
+    """Fuzzy-match a name fragment against active Website names.
+
+    Matches SITES, not accounts. The commands this feeds ("move X to
+    design", "X is live") all change a build's state, and a build is a
+    site — on a two-site account, naming the account cannot say which one
+    the operator meant. Matching sites makes the ambiguity visible: the
+    operator is asked which, instead of the wrong site being moved.
 
     Strategy:
       1. Exact case-insensitive match wins immediately.
-      2. firm_name CONTAINS the query (case-insensitive) — if exactly one,
+      2. name CONTAINS the query (case-insensitive) — if exactly one,
          use it.
       3. SequenceMatcher ratio ≥ FUZZY_THRESHOLD — top 1 if uniquely best,
          otherwise raise ClientAmbiguous with all matches.
       4. Nothing → ClientNotFound.
 
-    Operates on active clients (status='active' if the field exists).
+    Operates on active sites under active accounts.
     """
-    from clients.models import ClientProfile
+    from clients.account_models import Website
 
     query = (name_query or '').strip()
     if not query:
         raise ClientNotFound('No client name in the command.')
 
-    qs = ClientProfile.objects.all()
+    qs = Website.objects.select_related('account')
     # Filter to active when the column exists. Don't error if the
     # status field was renamed/removed in a future migration.
     try:
@@ -240,14 +246,18 @@ def resolve_client(name_query):
         pass
 
     # 1) Exact (case-insensitive)
-    exact = list(qs.filter(firm_name__iexact=query)[:2])
+    exact = list(qs.filter(name__iexact=query)[:2])
     if len(exact) == 1:
         return exact[0]
     if len(exact) >= 2:
         raise ClientAmbiguous(exact)
 
-    # 2) Contains
-    contains = list(qs.filter(firm_name__icontains=query)[:10])
+    # 2) Contains — on the site name OR its account's, so "move Vance to
+    #    design" still finds both Vance sites and asks which.
+    from django.db.models import Q
+
+    contains = list(qs.filter(
+        Q(name__icontains=query) | Q(account__name__icontains=query))[:10])
     if len(contains) == 1:
         return contains[0]
     if len(contains) >= 2:
@@ -262,7 +272,7 @@ def resolve_client(name_query):
     pool = contains if contains else list(qs[:500])
     for cp in pool:
         ratio = SequenceMatcher(
-            None, q_lower, (cp.firm_name or '').lower()).ratio()
+            None, q_lower, (cp.name or '').lower()).ratio()
         if ratio >= FUZZY_THRESHOLD:
             scored.append((ratio, cp))
     scored.sort(key=lambda t: -t[0])
@@ -293,7 +303,7 @@ def build_preview(intent, args, profile):
         'intent': intent,
         'args': args,
         'client_id': str(profile.id),
-        'firm_name': profile.firm_name,
+        'firm_name': profile.name,
         'state': state,
         'summary': summary,
         'warnings': warnings,
@@ -303,25 +313,25 @@ def build_preview(intent, args, profile):
 
 def _summarise(intent, args, profile):
     if intent == 'move_stage':
-        return (f'Move {profile.firm_name} from "{profile.stage}" to '
+        return (f'Move {profile.name} from "{profile.stage}" to '
                 f'"{args.get("stage")}".')
     if intent == 'mark_intake_complete':
-        return f'Mark {profile.firm_name} intake as complete.'
+        return f'Mark {profile.name} intake as complete.'
     if intent == 'approve_staging':
-        return (f'Move {profile.firm_name} to "pre_launch" '
+        return (f'Move {profile.name} to "pre_launch" '
                 f'(staging approved).')
     if intent == 'mark_live':
-        return f'Launch {profile.firm_name} — set stage to "live".'
+        return f'Launch {profile.name} — set stage to "live".'
     if intent == 'add_revision':
         flavour = 'major' if args.get('is_major', True) else 'minor'
-        return (f'Add a {flavour} revision for {profile.firm_name}: '
+        return (f'Add a {flavour} revision for {profile.name}: '
                 f'"{(args.get("description") or "")[:80]}".')
     if intent == 'create_out_of_scope_invoice':
-        return (f'Create a pending MiniInvoice for {profile.firm_name} — '
+        return (f'Create a pending MiniInvoice for {profile.name} — '
                 f'${args.get("amount")} for '
                 f'"{(args.get("description") or "")[:60]}".')
     if intent == 'get_status':
-        return f'Show {profile.firm_name}\'s current state (read-only).'
+        return f'Show {profile.name}\'s current state (read-only).'
     return f'{intent}({args})'
 
 
@@ -392,7 +402,7 @@ def execute(intent, args, profile, *, set_by='AI assistant'):
             intake = mark_intake_complete(profile)
             return {
                 'ok': True,
-                'message': f'Intake marked complete for {profile.firm_name}.',
+                'message': f'Intake marked complete for {profile.name}.',
                 'extra': {'intake_id': str(intake.id)},
             }
 
@@ -409,7 +419,7 @@ def execute(intent, args, profile, *, set_by='AI assistant'):
             log, notified = mark_live(profile, set_by=set_by)
             return {
                 'ok': True,
-                'message': f'Launched {profile.firm_name}.',
+                'message': f'Launched {profile.name}.',
                 'extra': {'log_id': str(log.id) if log else None,
                           'notified': notified},
             }
@@ -420,7 +430,7 @@ def execute(intent, args, profile, *, set_by='AI assistant'):
                 args.get('description') or '',
                 is_major=args.get('is_major', True),
                 source='ai_assistant')
-            msg = f'Revision logged for {profile.firm_name}.'
+            msg = f'Revision logged for {profile.name}.'
             if mini is not None:
                 msg += (' Out-of-scope: a MiniInvoice was created '
                         '(set the amount + send via the admin action).')
@@ -450,7 +460,7 @@ def execute(intent, args, profile, *, set_by='AI assistant'):
         if intent == 'get_status':
             return {
                 'ok': True,
-                'message': f'{profile.firm_name} status:',
+                'message': f'{profile.name} status:',
                 'extra': get_client_status(profile),
             }
 

@@ -531,6 +531,16 @@ class Website(TimestampedModel):
         """Dominant-only: reply workflow, Q&A, listing audit."""
         return bool(self.active_tiers() & self._GBP_PREMIUM_TIERS)
 
+    def has_unpaid_out_of_scope(self):
+        """True if any MiniInvoice on this site is not paid or cancelled.
+
+        Gates revision work: out-of-scope work is quoted and invoiced
+        against a specific build, so an unpaid invoice on one site must
+        not block revisions on another the client is up to date on.
+        """
+        return self.mini_invoices_new.exclude(
+            status__in=['paid', 'cancelled']).exists()
+
     @property
     def revisions_remaining(self):
         return max(self.revision_limit - self.revision_count, 0)
