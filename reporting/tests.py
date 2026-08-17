@@ -1155,3 +1155,86 @@ class NpsReviewRequestTests(TestCase):
         self.survey.refresh_from_db()
         self.assertEqual(self.survey.response_action_taken,
                          'review_email_failed')
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class MultiWebsiteUptimeTests(TestCase):
+    """Uptime used to walk ClientProfile and check only the account's
+    oldest Website, so every other site an account owned was invisible to
+    monitoring — silently, since the dashboard showed the one it picked."""
+
+    def setUp(self):
+        from clients.account_models import Website
+
+        self.cp = _client(
+            'Multi Site Co', status='active', do_droplet_ip='10.0.0.9',
+            stage='live', website='https://first.example.com')
+        self.account = self.cp.migrated_account
+        self.first = self.account.websites.get()
+        Website.objects.filter(pk=self.first.pk).update(
+            url='https://first.example.com', do_droplet_ip='10.0.0.9')
+        self.second = Website.objects.create(
+            account=self.account, name='Second Site',
+            url='https://second.example.com', do_droplet_ip='10.0.0.10')
+        self.first.refresh_from_db()
+
+    @patch('requests.get')
+    def test_every_website_on_the_account_is_checked(self, mock_get):
+        mock_get.return_value = MagicMock(status_code=200)
+        from reporting.tasks import check_client_uptime
+
+        check_client_uptime()
+
+        checked = set(
+            UptimeRecord.objects.values_list('website_new_id', flat=True))
+        self.assertIn(self.first.pk, checked)
+        self.assertIn(self.second.pk, checked)
+
+    @patch('requests.get')
+    def test_one_site_recovering_does_not_close_another_sites_alert(
+            self, mock_get):
+        """Resolving by client alone cleared every open alert on the
+        account."""
+        from reporting.tasks import check_and_fire_alert
+
+        for _ in range(3):
+            UptimeRecord.objects.create(
+                client=self.cp, website_new=self.second, is_up=False)
+        check_and_fire_alert(self.cp, self.second)
+        self.assertEqual(
+            UptimeAlert.objects.filter(
+                website_new=self.second, is_resolved=False).count(), 1)
+
+        # First site healthy, second still down. The mock has to answer
+        # per URL: the task checks BOTH sites, so a blanket 200 would
+        # legitimately recover the second one and prove nothing.
+        def _by_url(url, **kwargs):
+            return MagicMock(
+                status_code=200 if 'first' in url else 503)
+
+        mock_get.side_effect = _by_url
+        from reporting.tasks import check_client_uptime
+        check_client_uptime()
+
+        # The second site's outage must still be open.
+        self.assertEqual(
+            UptimeAlert.objects.filter(
+                website_new=self.second, is_resolved=False).count(), 1)
+
+    def test_failure_counting_is_per_site_not_per_account(self):
+        """Three failures on one site interleaved with healthy checks on
+        another never showed three consecutive failures."""
+        from reporting.tasks import check_and_fire_alert
+
+        for _ in range(3):
+            UptimeRecord.objects.create(
+                client=self.cp, website_new=self.second, is_up=False)
+            UptimeRecord.objects.create(
+                client=self.cp, website_new=self.first, is_up=True)
+
+        check_and_fire_alert(self.cp, self.second)
+
+        self.assertEqual(
+            UptimeAlert.objects.filter(website_new=self.second).count(), 1)
+        self.assertEqual(
+            UptimeAlert.objects.filter(website_new=self.first).count(), 0)

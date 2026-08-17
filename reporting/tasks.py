@@ -54,24 +54,49 @@ def _primary_website(client):
 def check_client_uptime():
     """Ping every active, launched client site. Scheduled every 5 minutes."""
     import requests
-    from clients.models import ClientProfile, UptimeRecord, UptimeAlert
+    from clients.account_models import Website
+    from clients.models import UptimeRecord, UptimeAlert
 
-    # do_droplet_ip is a GenericIPAddressField — when blank it is stored as
-    # NULL (never ''), so isnull=False alone selects clients with a server.
-    active_clients = ClientProfile.objects.filter(
-        status='active', do_droplet_ip__isnull=False,
-    )
+    # Iterate Websites, not accounts. This used to walk ClientProfile and
+    # monitor `_primary_website(client)` — the account's OLDEST site — so
+    # an account owning several builds had exactly one of them checked and
+    # the rest were invisible to monitoring. Nothing reported that; the
+    # dashboard simply showed uptime for the site it happened to pick.
+    #
+    # do_droplet_ip is a GenericIPAddressField, stored NULL when blank
+    # (never ''), so isnull=False alone selects sites with a server.
+    #
+    # Accept the IP on either the Website or the legacy profile. The
+    # backfill copies it onto the Website, but a row the backfill has not
+    # reached still carries it only on the profile — filtering on the
+    # Website alone silently dropped those sites out of monitoring, which
+    # is how this change first broke the existing uptime tests.
+    from django.db.models import Q
+
+    active_sites = Website.objects.filter(
+        Q(do_droplet_ip__isnull=False)
+        | Q(account__legacy_client_profile__do_droplet_ip__isnull=False),
+        status='active', account__status='active',
+    ).select_related('account__legacy_client_profile')
 
     checked = 0
-    for client in active_clients:
-        # client.website is the canonical live URL (2026-05-25 refactor).
-        if not client.website:
+    for site in active_sites:
+        # Website.url is the canonical live URL; the legacy profile's
+        # `website` column is the fallback for rows the backfill has not
+        # filled in yet.
+        client = site.account.legacy_client_profile
+        url = site.url or getattr(client, 'website', '')
+        if not url:
+            continue
+        if client is None:
+            # UptimeRecord.client is non-nullable, so a canonical-only
+            # account cannot be recorded until that FK is dropped in
+            # Phase D. Skipping is correct for now — writing a row with a
+            # borrowed owner would be worse than not writing one.
             continue
 
-        url = client.website
         if not url.startswith('http'):
             url = f'https://{url}'
-        site = _primary_website(client)
 
         try:
             start = timezone.now()
@@ -93,8 +118,11 @@ def check_client_uptime():
             )
 
             if is_up:
+                # Scoped to this Website. Resolving by client alone
+                # cleared every open alert on the account, so one site
+                # recovering silently closed another site's outage.
                 UptimeAlert.objects.filter(
-                    client=client, is_resolved=False,
+                    website_new=site, is_resolved=False,
                 ).update(is_resolved=True, resolved_at=timezone.now())
             else:
                 check_and_fire_alert(client, site)
@@ -111,7 +139,7 @@ def check_client_uptime():
             check_and_fire_alert(client, site)
         checked += 1
 
-    return f'Checked {checked} client site(s).'
+    return f"Checked {checked} website(s)."
 
 
 def check_and_fire_alert(client, site=None):
@@ -122,25 +150,33 @@ def check_and_fire_alert(client, site=None):
     """
     from clients.models import UptimeRecord, UptimeAlert
 
+    # Scope to the Website when we have one. Counting an account's checks
+    # together interleaves separate sites: three failures on one site and
+    # healthy checks on another produced a `recent` window that never
+    # showed three consecutive failures, so a genuine outage never
+    # alerted. The open-alert guard had the mirror of the same fault —
+    # an open alert on one site suppressed the alert for another.
+    scope = {'website_new': site} if site is not None else {'client': client}
+
     recent = list(
-        UptimeRecord.objects.filter(client=client).order_by('-checked_at')[:3]
+        UptimeRecord.objects.filter(**scope).order_by('-checked_at')[:3]
     )
     if len(recent) < 3 or not all(not r.is_up for r in recent):
         return
 
-    if UptimeAlert.objects.filter(client=client, is_resolved=False).exists():
+    if UptimeAlert.objects.filter(**scope, is_resolved=False).exists():
         return  # an alert is already open for this outage
 
     UptimeAlert.objects.create(
         client=client, website_new=site,
         consecutive_failures=3, alert_sent=True)
 
-    live_url = client.website or '(unknown)'
+    live_url = (getattr(site, 'url', '') or client.website or '(unknown)')
     check_link = (
         f'/admin-dashboard/websites/{site.id}/uptime/' if site
         else '/admin-dashboard/accounts/')
     send_admin_alert(
-        subject=f'🔴 Site Down: {client.firm_name}',
+        subject=f"🔴 Site Down: {getattr(site, 'name', None) or client.firm_name}",
         message=(
             f'{client.firm_name} has been down for 3 consecutive checks.\n'
             f'Domain: {live_url}\n'
