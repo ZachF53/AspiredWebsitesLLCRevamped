@@ -158,9 +158,68 @@ design: the repair tooling refuses to guess a winner. Left as-is, and
 recorded here rather than resolved, because inventing a winner on
 payment fields is the precise failure the cutover contract forbids.
 
-**Production has not been deployed.** CLAUDE.md is explicit that approval
-to deploy one change to prod does not carry to the next, and this request
-did not name prod.
+The four conflicts were resolved **canonical wins** (owner decision,
+2026-08-17) via `repair_account_website_parity`. Worth noting how that
+command implements it: it writes the canonical value back onto the
+*legacy* row. No canonical data is touched, so "canonical wins" cannot
+lose live data even if the decision is later reversed. Staging then
+reported no parity findings at all.
+
+## Deployment record — production, 2026-08-17
+
+Commit `6c37b42`. Explicitly approved for prod this turn.
+
+**Backup first.** `/root/db-backups/aspired_prod-20260817-192054.dump`
+(33M, custom format), verified restorable by listing its TOC (836
+entries) rather than assuming. Taken via a writable temp directory —
+`pg_dump` runs as `postgres`, which cannot write to `/root`.
+
+**Migration: 11 seconds** for all ten. The concern was
+`clients_uptimerecord` at 77,830 rows; `sqlmigrate` confirmed the
+operation is `ALTER COLUMN ... DROP NOT NULL`, which in PostgreSQL is a
+catalog-only change with no table rewrite. The FK constraint is dropped
+and re-added, which does validate, but 78k rows validates in under a
+second.
+
+**Nothing lost.** Row counts for 20 models captured before and after are
+identical, including `UptimeRecord` at 77,830 and `ConversionEvent` at
+189. All 12 websites now carry the six recovered fields — including
+`Aspired N8N Automation` and `Rachael Link Tree`, which exist only
+canonically and have no legacy profile at all.
+
+**Backfills wrote nothing**, correctly: every prod client is
+`site_status='live'` with no snapshot, no GBP binding, no payment failure
+and no social subscription, so there was genuinely nothing to copy. This
+also confirms the `_DEFAULTED_FIELDS` branch does not write spuriously —
+legacy `'live'` equals the canonical default, and it correctly reported
+no change rather than bumping `updated_at` on twelve rows.
+
+`audit_account_website_parity --strict --fail-on-warnings`: **0 errors,
+0 warnings, 0 operational**.
+
+**Verified by rendering:** the same 21 admin pages and three `?q=`
+searches, all 200, 0 problems. Public pages `/`, `/contact/`, `/about/`,
+`/portfolio/`, `/pricing/`, `/design/schedule/`, `/for-law-firms/` all
+200; the approved location statement is live and the stale
+"San Antonio, TX / Atlanta, GA" strings are gone.
+
+### Finding: two sites flagged for maintenance carry a build package
+
+Converting MRR to per-site made this visible. `Whitehead Wellness` and
+`Moonieful Designs` both have `maintenance_active=True` on the Website,
+but `package='premium_build'` — a one-time build tier, so no recurring
+price resolves and each contributes $0.
+
+The MRR *total* is unchanged by the conversion: no `ClientProfile` row
+carries `maintenance_active=True`, so the old account-level query matched
+zero rows and reported $0 too. What changed is the count on the
+dashboard, 0 → 2 maintained sites.
+
+So this is pre-existing, and it is a data question rather than a code
+one: either the flag is wrong, or the package should name a maintenance
+tier. Both readings are plausible and the owner has stated these are
+previous clients who are fully paid. Not guessed at — recorded for a
+decision.
 
 ## Cutover mechanics — how Waves 2-5 were approached
 
