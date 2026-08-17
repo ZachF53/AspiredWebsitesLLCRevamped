@@ -38,8 +38,6 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
 
         from billing.pricing_models import ServiceTier
         from clients.account_models import Account, Website, _slugify_unique
-        from clients.account_setup import AccountSetupError, ensure_account
-        from clients.models import ClientProfile
 
         User = get_user_model()
         if not email:
@@ -64,25 +62,31 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
             user.email = email
             user.save(update_fields=['email'])
 
-        profile = ClientProfile.objects.filter(user=user).first()
-        if profile is None:
-            # Creating the profile fires the signal that materialises the
-            # Account + first Website (using firm_name + package).
-            profile = ClientProfile.objects.create(
-                user=user, firm_name=business or email,
-                contact_name=contact_name or '', phone=phone or '',
-                website=website or '', package=build_package or '')
-
-        # ensure_account resolves the row the signal should have made and
-        # materialises it if the signal failed, so a booking can never land
-        # on a profile with no Account behind it.
-        try:
-            account = ensure_account(profile)
-        except AccountSetupError:
-            logger.exception(
-                'scheduler: cannot resolve Account for profile %s',
-                profile.pk)
-            return None
+        # The Account is created directly. This used to create a
+        # ClientProfile and rely on a signal to materialise the Account
+        # behind it, then repair the result with ensure_account when the
+        # signal had failed -- two writes and a repair pass to produce the
+        # row we can simply create.
+        account, _ = Account.objects.get_or_create(
+            user=user,
+            defaults={
+                'name': business or email,
+                'contact_name': contact_name or '',
+                'phone': phone or '',
+            },
+        )
+        changed = []
+        if business and not account.name:
+            account.name = business
+            changed.append('name')
+        if contact_name and not account.contact_name:
+            account.contact_name = contact_name
+            changed.append('contact_name')
+        if phone and not account.phone:
+            account.phone = phone
+            changed.append('phone')
+        if changed:
+            account.save(update_fields=changed + ['updated_at'])
 
         web = account.websites.order_by('created_at').first()
         if web is None:

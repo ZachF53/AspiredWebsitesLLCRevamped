@@ -291,8 +291,11 @@ class ReEncryptionOnClientVaultViewTests(TestCase):
         user = User.objects.create_user(username='cliento', password='x')
         self.client_profile = ClientProfile.objects.create(
             user=user, firm_name='Reencrypt Co')
+        # The vault is account-scoped: one set of credentials per
+        # customer, and the URL takes the Account id.
+        self.account = self.client_profile.migrated_account
         vault, _ = ClientVault.objects.get_or_create(
-            client=self.client_profile)
+            account_new=self.account)
 
         # A credential encrypted with the server provisioning key — as if
         # provision_client_droplet had just created it.
@@ -309,7 +312,7 @@ class ReEncryptionOnClientVaultViewTests(TestCase):
         )
 
     def test_first_open_reencrypts_and_clears_flag(self):
-        url = reverse('vault:client_vault', args=[self.client_profile.id])
+        url = reverse('vault:client_vault', args=[self.account.id])
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
         # The info banner is shown on the first open.
@@ -327,7 +330,7 @@ class ReEncryptionOnClientVaultViewTests(TestCase):
                 self.cred.ssh_private_key_encrypted, self.pin_key))
 
     def test_second_open_is_idempotent_no_banner(self):
-        url = reverse('vault:client_vault', args=[self.client_profile.id])
+        url = reverse('vault:client_vault', args=[self.account.id])
         self.client.get(url)  # first open — re-encrypts.
         resp = self.client.get(url)  # second open — already PIN-encrypted.
         self.assertEqual(resp.status_code, 200)
@@ -1059,17 +1062,22 @@ class SeedStripeCustomersCommandTests(TestCase):
 
         with patch('billing.management.commands.seed_stripe_customers.'
                    'create_or_get_customer') as mock_create:
-            def _fake(cp):
-                cp.stripe_customer_id = 'cus_new'
-                cp.save(update_fields=['stripe_customer_id', 'updated_at'])
+            def _fake(account):
+                account.stripe_customer_id = 'cus_new'
+                account.save(update_fields=[
+                    'stripe_customer_id', 'updated_at'])
                 return type('C', (), {'id': 'cus_new'})()
             mock_create.side_effect = _fake
             call_command('seed_stripe_customers', '--apply', stdout=StringIO())
 
-        cp1.refresh_from_db()
-        cp2.refresh_from_db()
-        self.assertEqual(cp1.stripe_customer_id, 'cus_new')
-        self.assertEqual(cp2.stripe_customer_id, 'cus_existing')
+        # The Stripe customer holds the card and the billing relationship,
+        # both account-level, so the id is stored on the Account.
+        a1 = cp1.migrated_account
+        a2 = cp2.migrated_account
+        a1.refresh_from_db()
+        a2.refresh_from_db()
+        self.assertEqual(a1.stripe_customer_id, 'cus_new')
+        self.assertEqual(a2.stripe_customer_id, 'cus_existing')
         # Only the one missing an id should have been created.
         self.assertEqual(mock_create.call_count, 1)
 

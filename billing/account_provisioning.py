@@ -2,9 +2,8 @@
 Shared self-checkout account provisioning.
 
 A buyer who completes the custom Stripe Elements checkout needs a real
-Django account (User + ClientProfile + Account + the Phase-D service-plan
-row) so they can be dropped straight onto the set-password screen and
-into their dashboard. This used to live only in the
+Django account (User + Account + the service-plan row) so they can be
+dropped straight onto the set-password screen and into their dashboard. This used to live only in the
 ``customer.subscription.created`` webhook — but that webhook is async and
 was not reliably firing, so the buyer ended up paid-but-account-less.
 
@@ -30,10 +29,9 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
     Returns the ``User`` (with a possibly-unusable password — the buyer
     sets it on the set-password screen), or ``None`` if no email.
 
-    ``ClientProfile.onboarding_status`` is intentionally left at its
-    default (``onboarding_complete``) so a subscription buyer with no
-    website build lands straight in the dashboard — they are NOT pushed
-    through the website intake gate.
+    ``Account.onboarding_status`` is intentionally left at its default
+    so a subscription buyer with no website build lands straight in the
+    dashboard — they are NOT pushed through the website intake gate.
     """
     User = get_user_model()
     email = (email or '').strip().lower()
@@ -53,47 +51,40 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
         local = email.split('@', 1)[0]
         derived_name = local.replace('.', ' ').replace('-', ' ').title()
 
-    # ClientProfile is the legacy "everything" model the portal still
-    # resolves against; Account is the Phase-C login-level model (the
-    # post_save signal usually creates it, but we get_or_create to be safe).
+    # The Account is created directly. This used to create a
+    # ClientProfile, rely on a post_save signal to materialise the Account
+    # behind it, and then call ensure_account to repair the result when
+    # that signal had swallowed its own failure — three steps to produce
+    # one row, with a paid-up customer facing a 500 if any of them lost.
+    #
+    # Self-checkout subscription buyers are NOT website-build clients, so
+    # no Website is created: they would otherwise land on build-only nav
+    # for a build they never bought.
     try:
-        from clients.account_setup import ensure_account
-        from clients.models import ClientProfile
+        from clients.account_models import Account
 
-        cp = ClientProfile.objects.filter(user=user).first()
-        if cp is None:
-            cp = ClientProfile(
-                user=user,
-                firm_name=derived_name,
-                contact_name=derived_name,
-                status='active',
-                stripe_customer_id=customer_id,
-            )
-            # Self-checkout subscription buyers are NOT website-build
-            # clients — the post_save signal would otherwise auto-spawn a
-            # Website and surface build-only nav. Suppress that.
-            cp._skip_website_autocreate = True
-            cp.save()
-        elif not cp.stripe_customer_id:
-            cp.stripe_customer_id = customer_id
-            cp.save(update_fields=['stripe_customer_id'])
-
-        # The post_save signal normally creates the Account, but it
-        # swallows its own failures so a payment is never blocked by an
-        # Account write. ensure_account confirms the row is actually there
-        # and linked, and creates it if the signal fell over — otherwise
-        # this buyer is paid-up with a portal that resolves to nothing.
-        ensure_account(cp)
+        account, created = Account.objects.get_or_create(
+            user=user,
+            defaults={
+                'name': derived_name,
+                'contact_name': derived_name,
+                'status': 'active',
+                'stripe_customer_id': customer_id,
+            },
+        )
+        if not created and not account.stripe_customer_id:
+            account.stripe_customer_id = customer_id
+            account.save(update_fields=[
+                'stripe_customer_id', 'updated_at'])
     except Exception:  # noqa: BLE001
         logger.exception(
-            'provision: ClientProfile/Account create failed for %s',
-            user.pk)
+            'provision: Account create failed for %s', user.pk)
         try:
             from core.system_alerts import record_alert
             record_alert(
                 severity='error',
                 source='billing.provision.profile_create',
-                message=f'ClientProfile/Account auto-create failed for {email}',
+                message=f'Account auto-create failed for {email}',
                 detail='Customer paid but portal will 500 — investigate.',
             )
         except Exception:
@@ -111,12 +102,10 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
     # Phase-D service-plan row — the canonical record of what they bought.
     try:
         from clients.account_models import Account
-        from clients.models import ClientProfile
         from clients.service_models import MaintenancePlan, SocialMediaPlan
         from billing.pricing_models import ServiceTier
 
         account = Account.objects.filter(user=user).first()
-        cp = ClientProfile.objects.filter(user=user).first()
         if account is not None and subscription_id:
             if product_type == 'maintenance':
                 MaintenancePlan.objects.update_or_create(
@@ -131,22 +120,20 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                             timezone.now() if hosting_upsell else None),
                     },
                 )
-                # Mirror onto the legacy ClientProfile fields the portal
-                # still reads everywhere (subscriptions list, upsell
-                # state, dashboard maintenance card, cancel/resume). The
-                # new MaintenancePlan row above is the Phase-D source of
-                # truth; these keep the not-yet-migrated views working.
-                # This is an UPDATE (cp already exists) so it does NOT
-                # re-fire the Website-autocreate signal (created=False).
-                if cp is not None:
-                    cp.stripe_subscription_id = subscription_id
-                    cp.maintenance_active = True
-                    if not cp.maintenance_started_at:
-                        cp.maintenance_started_at = timezone.now()
-                    cp.package = tier_slug.replace('-', '_')
-                    cp.save(update_fields=[
-                        'stripe_subscription_id', 'maintenance_active',
-                        'maintenance_started_at', 'package', 'updated_at'])
+                # Mirror onto the sites the plan covers. Maintenance is
+                # sold per site, so a buyer with no website build has
+                # nothing to mirror onto — the MaintenancePlan row above
+                # is the record of what they bought either way.
+                for site in account.websites.all():
+                    site.stripe_maintenance_subscription_id = subscription_id
+                    site.maintenance_active = True
+                    if not site.maintenance_started_at:
+                        site.maintenance_started_at = timezone.now()
+                    site.package = tier_slug.replace('-', '_')
+                    site.save(update_fields=[
+                        'stripe_maintenance_subscription_id',
+                        'maintenance_active', 'maintenance_started_at',
+                        'package', 'updated_at'])
             elif product_type == 'social_media':
                 tier = ServiceTier.objects.filter(slug=tier_slug).first()
                 max_ch = (tier.max_channels if tier and tier.max_channels
@@ -161,13 +148,11 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                         'max_channels': max_ch,
                     },
                 )
-                # Legacy mirror so the subscriptions list shows the social
-                # sub for not-yet-migrated views (package enum has no
-                # social value, so only the pointer field is set).
-                if cp is not None and (
-                        cp.stripe_social_subscription_id != subscription_id):
-                    cp.stripe_social_subscription_id = subscription_id
-                    cp.save(update_fields=[
+                # Social is account-level, matching where the plan is
+                # sold and where its channels post from.
+                if account.stripe_social_subscription_id != subscription_id:
+                    account.stripe_social_subscription_id = subscription_id
+                    account.save(update_fields=[
                         'stripe_social_subscription_id', 'updated_at'])
     except Exception:  # noqa: BLE001
         logger.exception(

@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from admin_dashboard.decorators import admin_required
-from clients.models import ClientProfile
+from clients.account_models import Account
 
 from .crypto import (
     decrypt_value,
@@ -332,13 +332,17 @@ def _handle_pin_entry(request, config):
 
 def _render_vault_home(request):
     query = (request.GET.get('q') or '').strip()
-    clients = ClientProfile.objects.order_by('firm_name')
+    # Vaults are account-scoped: one set of credentials per customer, not
+    # per site. Listing accounts also surfaces accounts created after the
+    # cutover, which have no legacy profile and were therefore missing
+    # from this page entirely.
+    clients = Account.objects.order_by('name')
     if query:
-        clients = clients.filter(firm_name__icontains=query)
+        clients = clients.filter(name__icontains=query)
 
     vaults = []
     for client in clients:
-        vault = getattr(client, 'vault', None)
+        vault = getattr(client, 'vault_new', None)
         creds = list(vault.credentials.all()) if vault else []
         vaults.append({
             'client': client,
@@ -359,8 +363,8 @@ def new_vault(request):
     """
     Create a new vault entry by name — for an internal property (your own
     site, Moonieful, etc.) that didn't arrive through client onboarding.
-    Creates a placeholder, login-disabled User + ClientProfile; the
-    ClientProfile post_save signal then creates the ClientVault.
+    Creates a placeholder, login-disabled User + Account; the Account
+    post_save signal then creates the ClientVault.
     """
     if get_vault_key(request) is None:
         return redirect('vault:home')
@@ -382,15 +386,9 @@ def new_vault(request):
     user = User(username=username, is_staff=False, is_active=False)
     user.set_unusable_password()  # placeholder — this user never logs in
     user.save()
-    profile = ClientProfile.objects.create(
-        user=user, firm_name=name, business_type='',
-    )
-    # Vault-only placeholders are Account-only by design (no Website), but
-    # they still need the Account row — the parity audit treats a profile
-    # without one as a structural error, and the account-level vault view
-    # resolves through it.
-    from clients.account_setup import ensure_account
-    ensure_account(profile)
+    # Vault-only placeholders are Account-only by design: no Website,
+    # no legacy profile, nothing but somewhere to hang credentials.
+    profile = Account.objects.create(user=user, name=name)
     return redirect('vault:client_vault', client_id=profile.id)
 
 
@@ -402,8 +400,8 @@ def client_vault(request, client_id):
     if key is None:
         return redirect(f"{reverse('vault:home')}?next={request.path}")
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    vault, _ = ClientVault.objects.get_or_create(client=client)
+    client = get_object_or_404(Account, id=client_id)
+    vault, _ = ClientVault.objects.get_or_create(account_new=client)
 
     # Re-encrypt any server-key-encrypted credentials (auto-provisioned
     # before any admin had unlocked the vault) under the PIN key now that
@@ -482,18 +480,11 @@ def client_vault(request, client_id):
 
     # Pull the account's websites for the cred-add form's site-tag
     # dropdown (Phase C5 — add-credential UI gets a "Belongs to which
-    # website?" picker). Resolve via the Account derived from this
-    # client. Falls back to [] for environments where the backfill
-    # hasn't run.
-    websites_for_tagging = []
-    try:
-        from clients.account_models import Account
-        acc = Account.objects.filter(legacy_client_profile=client).first()
-        if acc is not None:
-            websites_for_tagging = list(
-                acc.websites.all().order_by('name'))
-    except Exception:
-        pass
+    # website?" picker). `client` IS the Account now, so this no longer
+    # has to resolve one; the local re-import that used to do the lookup
+    # also shadowed the module-level name and raised UnboundLocalError
+    # for every reference above it.
+    websites_for_tagging = list(client.websites.all().order_by('name'))
 
     return render(request, 'vault/client_vault.html', {
         'active': 'vault',
@@ -515,7 +506,7 @@ def reveal_credential(request, client_id, cred_id):
         return JsonResponse({'error': 'Vault locked'}, status=403)
 
     cred = get_object_or_404(
-        VaultCredential, id=cred_id, vault__client_id=client_id,
+        VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
     _log('credential_viewed', request,
          client_name=cred.vault.client.firm_name,
@@ -535,8 +526,8 @@ def add_credential(request, client_id):
     if key is None:
         return redirect(f"{reverse('vault:home')}?next={request.path}")
 
-    client = get_object_or_404(ClientProfile, id=client_id)
-    vault, _ = ClientVault.objects.get_or_create(client=client)
+    client = get_object_or_404(Account, id=client_id)
+    vault, _ = ClientVault.objects.get_or_create(account_new=client)
 
     if request.method == 'POST':
         form = CredentialForm(request.POST)
@@ -596,9 +587,9 @@ def edit_credential(request, client_id, cred_id):
     if key is None:
         return redirect(f"{reverse('vault:home')}?next={request.path}")
 
-    client = get_object_or_404(ClientProfile, id=client_id)
+    client = get_object_or_404(Account, id=client_id)
     cred = get_object_or_404(
-        VaultCredential, id=cred_id, vault__client_id=client_id,
+        VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
 
     if request.method == 'POST':
@@ -670,7 +661,7 @@ def delete_credential(request, client_id, cred_id):
         return redirect(f"{reverse('vault:home')}?next="
                         f"{reverse('vault:client_vault', args=[client_id])}")
     cred = get_object_or_404(
-        VaultCredential, id=cred_id, vault__client_id=client_id,
+        VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
     label, firm = cred.label, cred.vault.client.firm_name
     cred.delete()
@@ -687,7 +678,7 @@ def toggle_visibility(request, client_id, cred_id):
     if key is None:
         return JsonResponse({'error': 'Vault locked'}, status=403)
     cred = get_object_or_404(
-        VaultCredential, id=cred_id, vault__client_id=client_id,
+        VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
     cred.visible_to_client = not cred.visible_to_client
     _sync_client_plain(cred, key)

@@ -34,7 +34,7 @@
                             <td class="droplet-name">{{ s.credential.label }}</td>
                             <td>
                                 {% if s.client %}
-                                    <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                                    <a href="{% url 'admin_dashboard:account_detail' s.account_new.id %}">{{ s.account_new.name }}</a>
                                 {% else %}<span class="droplet-muted">—</span>{% endif %}
                             </td>
                             <td><time datetime="{{ s.started_at }}">{{ s.started_at|date:"Y-m-d H:i" }}</time></td>

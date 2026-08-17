@@ -22,7 +22,7 @@ the list before applying on prod.
 from django.core.management.base import BaseCommand
 
 from billing.stripe_helpers import StripeNotConfigured, create_or_get_customer
-from clients.models import ClientProfile
+from clients.account_models import Account
 
 
 class Command(BaseCommand):
@@ -38,13 +38,14 @@ class Command(BaseCommand):
         mode = 'APPLY' if apply else 'DRY RUN - no writes'
         self.stdout.write(f'seed_stripe_customers ({mode})')
 
-        profiles = ClientProfile.objects.select_related('user').order_by(
-            'firm_name')
+        # One Stripe customer per Account: the customer holds the card
+        # and the billing relationship, both of which are account-level.
+        profiles = Account.objects.select_related('user').order_by('name')
         total = profiles.count()
         created = skipped = failed = no_email = 0
 
         for cp in profiles:
-            name = cp.firm_name or f'ClientProfile {cp.pk}'
+            name = cp.name or f'Account {cp.pk}'
             email = getattr(getattr(cp, 'user', None), 'email', '') or ''
 
             if cp.stripe_customer_id:
@@ -76,15 +77,9 @@ class Command(BaseCommand):
                     f'  FAIL  {name} - {exc}'))
                 continue
 
-            # create_or_get_customer saved cp.stripe_customer_id, which
-            # fires the CP->Account sync. Mirror it explicitly too in case
-            # the account row was somehow out of sync.
-            account = getattr(cp, 'migrated_account', None)
-            if account is not None and not account.stripe_customer_id:
-                account.stripe_customer_id = cp.stripe_customer_id
-                account.save(update_fields=[
-                    'stripe_customer_id', 'updated_at'])
-
+            # create_or_get_customer saves stripe_customer_id on the
+            # row it was handed, which is now the Account itself — no
+            # mirroring step needed.
             created += 1
             self.stdout.write(self.style.SUCCESS(
                 f'  CREATED  {name} -> {customer.id}'))

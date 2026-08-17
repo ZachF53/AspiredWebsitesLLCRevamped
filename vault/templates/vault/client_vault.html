@@ -1,7 +1,7 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}{{ client.firm_name }} — Vault{% endblock %}
+{% block title %}{{ client.name }} — Vault{% endblock %}
 
 {% block content %}
 <div class="admin-vault"
@@ -12,9 +12,9 @@
     <div class="vault-header">
         <div class="vault-header__title">
             <p class="vault-breadcrumb">
-                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo; {{ client.firm_name }}
+                <a href="{% url 'vault:home' %}">Vault</a> &rsaquo; {{ client.name }}
             </p>
-            <h1>{{ client.firm_name }}</h1>
+            <h1>{{ client.name }}</h1>
         </div>
         <div class="vault-header__actions">
             <span class="vault-session">Expires in <strong id="vault-session-countdown">--:--</strong></span>

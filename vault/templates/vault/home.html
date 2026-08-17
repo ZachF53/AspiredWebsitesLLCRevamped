@@ -40,7 +40,7 @@
         <div class="vault-grid">
             {% for v in vaults %}
                 <article class="vault-card">
-                    <h2 class="vault-card__name">{{ v.client.firm_name }}</h2>
+                    <h2 class="vault-card__name">{{ v.client.name }}</h2>
                     <p class="vault-card__count">{{ v.count }} credential{{ v.count|pluralize }}</p>
                     {% if v.categories %}
                         <div class="vault-card__cats">

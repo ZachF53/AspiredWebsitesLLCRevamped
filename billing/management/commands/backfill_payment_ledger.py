@@ -42,15 +42,36 @@ def _kind_from_pi_desc(desc):
     return 'build'
 
 
-def _kind_for_sub(sub_id, cp):
+def _kind_for_sub(sub_id, account):
+    """Classify a Stripe subscription, and name the site it belongs to.
+
+    Hosting and maintenance subscription ids live on Website (each site is
+    hosted and maintained separately); the social one is account-level,
+    matching where the plan is sold. Returning the site as well as the
+    kind is what lets the ledger row be attributed to the right build on a
+    multi-site account.
+    """
+    from clients.account_models import Website
     from clients.service_models import MaintenancePlan, SocialMediaPlan
-    if sub_id and sub_id == cp.stripe_hosting_subscription_id:
-        return 'hosting', None
+
+    if sub_id:
+        hosted = Website.objects.filter(
+            account=account, stripe_hosting_subscription_id=sub_id).first()
+        if hosted is not None:
+            return 'hosting', hosted
+
     mp = MaintenancePlan.objects.filter(stripe_subscription_id=sub_id).first()
-    if mp or sub_id == cp.stripe_subscription_id:
-        return 'maintenance', (mp.website if mp else None)
+    if mp is not None:
+        return 'maintenance', mp.website
+    if sub_id:
+        maintained = Website.objects.filter(
+            account=account,
+            stripe_maintenance_subscription_id=sub_id).first()
+        if maintained is not None:
+            return 'maintenance', maintained
+
     sp = SocialMediaPlan.objects.filter(stripe_subscription_id=sub_id).first()
-    if sp or sub_id == cp.stripe_social_subscription_id:
+    if sp or (sub_id and sub_id == account.stripe_social_subscription_id):
         return 'social', (sp.website if sp else None)
     return 'other', None
 
@@ -69,10 +90,11 @@ class Command(BaseCommand):
 
         from billing.stripe_helpers import _init
         from billing.webhooks import _record_payment
-        from clients.models import ClientProfile, PaymentRecord
+        from clients.account_models import Account
+        from clients.models import PaymentRecord
         _init()
 
-        qs = ClientProfile.objects.exclude(stripe_customer_id='')
+        qs = Account.objects.exclude(stripe_customer_id='')
         if opts['customer']:
             qs = qs.filter(stripe_customer_id=opts['customer'])
         elif not opts['all']:
@@ -83,7 +105,7 @@ class Command(BaseCommand):
         for cp in qs:
             cust = cp.stripe_customer_id
             if opts['rebuild']:
-                PaymentRecord.objects.filter(client=cp).delete()
+                PaymentRecord.objects.filter(account=cp).delete()
 
             # One-time card charges (not tied to an invoice).
             try:
@@ -102,7 +124,7 @@ class Command(BaseCommand):
                     desc = (getattr(pi, 'description', '') or 'Website payment')
                     desc = desc.replace('Aspired Websites — ', '')
                     _record_payment(
-                        client=cp, stripe_id=pi.id,
+                        client=None, account=cp, stripe_id=pi.id,
                         kind=_kind_from_pi_desc(desc), amount=amt,
                         description=desc, paid_at=_ts(getattr(pi, 'created', None)))
             except Exception as exc:  # noqa: BLE001
@@ -152,7 +174,8 @@ class Command(BaseCommand):
                         elif 'hosting' in dl:
                             kind = 'hosting'
                     _record_payment(
-                        client=cp, stripe_id=inv.id, kind=kind, amount=amt,
+                        client=None, account=cp, stripe_id=inv.id,
+                        kind=kind, amount=amt,
                         description=ld or f'{kind.title()} charge',
                         paid_at=_ts(getattr(inv, 'created', None)),
                         website=web,

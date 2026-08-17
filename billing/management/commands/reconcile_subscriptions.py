@@ -36,14 +36,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from billing.webhooks import _droplet_alive
-        from clients.models import ClientProfile
+        from clients.account_models import Website
 
         dry = options['dry_run']
         prefix = '[DRY-RUN] ' if dry else ''
 
-        # Active hosting subs.
-        qs = ClientProfile.objects.exclude(
-            stripe_hosting_subscription_id='')
+        # Active hosting subs. Per site: hosting is billed per website and
+        # the droplet whose absence justifies cancelling belongs to one.
+        # Reading the account meant a two-site client had one subscription
+        # checked against one droplet, so a destroyed second droplet kept
+        # billing indefinitely.
+        qs = (Website.objects
+              .exclude(stripe_hosting_subscription_id='')
+              .select_related('account'))
         self.stdout.write(
             f'{prefix}Reconciling {qs.count()} hosting subscription(s) …')
 
@@ -55,7 +60,7 @@ class Command(BaseCommand):
                 ok += 1
                 continue
             self.stdout.write(self.style.WARNING(
-                f'  {prefix}DRIFT: {client.firm_name} — '
+                f'  {prefix}DRIFT: {client.name} — '
                 f'droplet {client.do_droplet_id or "(unknown)"} not '
                 f'active; sub {client.stripe_hosting_subscription_id} '
                 f'should cancel'))

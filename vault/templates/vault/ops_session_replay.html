@@ -15,7 +15,7 @@
             <p class="admin-page-sub">
                 {{ sess.started_at|date:"M j, Y H:i:s" }}
                 {% if sess.duration_seconds %} · {{ sess.duration_seconds }}s{% elif not sess.ended_at %} · <span class="scan-status scan-status--running">live</span>{% endif %}
-                {% if sess.client %} · <a href="{% url 'admin_dashboard:client_detail' sess.client.id %}">{{ sess.client.firm_name }}</a>{% endif %}
+                {% if sess.account_new %} · <a href="{% url 'admin_dashboard:account_detail' sess.account_new.id %}">{{ sess.account_new.name }}</a>{% endif %}
             </p>
         </div>
     </div>
