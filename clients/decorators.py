@@ -1,5 +1,6 @@
 """Access-control decorators for the client portal."""
 
+import logging
 from functools import wraps
 
 from django.contrib import messages
@@ -10,6 +11,8 @@ from .portal_resolvers import (
     resolve_account_for_user,
     resolve_website,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def client_required(view_func):
@@ -69,7 +72,17 @@ def client_required(view_func):
         # this change they were bounced to the login page in a loop.
         account = resolve_account_for_user(request.user)
         if account is None:
-            return redirect_to_login(request.get_full_path())
+            # Authenticated, but not a client. Bouncing them to the login
+            # page loops — login sees a valid session and sends them
+            # straight back — so say plainly that this login has no
+            # client account rather than cycling forever.
+            from django.core.exceptions import PermissionDenied
+
+            logger.warning(
+                'portal: user %s is authenticated but owns no Account',
+                request.user.pk)
+            raise PermissionDenied(
+                'This login is not attached to a client account.')
 
         request.account = account
         # Website: from URL kwarg (when mounted under /portal/site/<slug>/),
@@ -102,8 +115,39 @@ def client_required(view_func):
             token = getattr(account, 'onboarding_token_new', None)
             if token and not token.used:
                 return redirect(token.get_setup_url())
-            # No usable token → bail to login so an admin can rebuild.
-            return redirect_to_login(request.get_full_path())
+
+            # No usable token. This used to bail to the login page, which
+            # for an ALREADY-AUTHENTICATED user is an infinite redirect
+            # loop: login sees a valid session and sends them straight
+            # back here. Staging hit it the moment the gate moved onto
+            # Account.onboarding_status, because the autocreate signal
+            # had stamped 'pending_setup' on a row whose client was long
+            # since set up — the staleness clients/account_setup.py
+            # warned about.
+            #
+            # They are authenticated and they own this account, so let
+            # them in. A stale flag is not a reason to lock a paying
+            # client out of their own portal; it is a reason to tell an
+            # admin the flag is wrong.
+            logger.error(
+                'portal: account %s is pending_setup with no usable '
+                'token — admitting the authenticated owner anyway',
+                account.pk)
+            try:
+                from core.system_alerts import record_alert
+                record_alert(
+                    severity='error',
+                    source='clients.portal.stale_pending_setup',
+                    message=(f'Account {account.pk} says pending_setup '
+                             'but has no usable onboarding token'),
+                    detail=('The owner is logged in and was admitted, '
+                            'because bouncing an authenticated user to '
+                            'the login page loops forever. Fix the '
+                            'status, or issue a fresh setup token.'),
+                )
+            except Exception:
+                logger.exception('could not record the stale-setup alert')
+            status = 'onboarding_complete'
 
         if status == 'pending_intake':
             # Allow only views that explicitly opt in (intake itself,
