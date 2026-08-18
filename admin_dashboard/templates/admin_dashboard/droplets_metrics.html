@@ -56,7 +56,21 @@
         {% elif cred.encrypted_with_server_key %}
             <div class="droplet-banner droplet-banner--info">
                 This credential is still encrypted with the auto-provisioning server key.
-                <a href="{% url 'vault:client_vault' cred.vault.client.id %}">Open the vault</a> once to re-encrypt it under your PIN, then live metrics will appear here.
+                {% comment %}
+                    `vault:client_vault` resolves an ACCOUNT id — see
+                    vault.views.client_vault, which does
+                    get_object_or_404(Account, id=client_id). This passed
+                    `vault.client.id`, the legacy ClientProfile id, so
+                    the link already 404s today: the id is real, it just
+                    names a row in the wrong table. It fails for exactly
+                    the case the banner exists to serve, a freshly
+                    provisioned droplet whose key is still server-encrypted.
+                {% endcomment %}
+                {% if cred.vault.account_new_id %}
+                    <a href="{% url 'vault:client_vault' cred.vault.account_new_id %}">Open the vault</a> once to re-encrypt it under your PIN, then live metrics will appear here.
+                {% else %}
+                    Open this client's vault once to re-encrypt it under your PIN, then live metrics will appear here.
+                {% endif %}
             </div>
         {% elif ssh_metrics is None %}
             <p class="droplet-muted">SSH connection failed. Try opening a terminal session from the vault to verify the credential.</p>
