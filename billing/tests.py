@@ -567,6 +567,8 @@ class InvoicePaidTests(TestCase):
     def test_reinstatement_first_offense_no_fee(self):
         """First offense: payment_failure_started_at clears, NO fee charged."""
         c = _new_client(firm='First LLC')
+        # Billing state is the Account's: one customer, one card.
+        c = c.migrated_account
         c.stripe_customer_id = 'cus_first'
         c.payment_failure_started_at = timezone.now()
         c.payment_failure_offenses = 0
@@ -597,6 +599,8 @@ class InvoicePaidTests(TestCase):
 
     def test_reinstatement_second_offense_charges_fee(self):
         c = _new_client(firm='Second LLC')
+        # Billing state is the Account's: one customer, one card.
+        c = c.migrated_account
         c.stripe_customer_id = 'cus_second'
         c.payment_failure_started_at = timezone.now()
         c.payment_failure_offenses = 1  # this one becomes the 2nd
@@ -625,6 +629,8 @@ class InvoicePaidTests(TestCase):
     def test_reinstatement_fee_failure_blocks_restore(self):
         """Fee charge returns None → DO NOT restore + DO NOT clear guard."""
         c = _new_client(firm='Fail LLC')
+        # Billing state is the Account's: one customer, one card.
+        c = c.migrated_account
         c.stripe_customer_id = 'cus_fail'
         c.payment_failure_started_at = timezone.now()
         c.payment_failure_offenses = 1
@@ -676,6 +682,8 @@ class InvoicePaymentFailedTests(TestCase):
             mock_maint):
         from django.core import mail
         c = _new_client(firm='Failed LLC')
+        # Billing state is the Account's: one customer, one card.
+        c = c.migrated_account
         c.stripe_customer_id = 'cus_failed'
         c.save()
 

@@ -59,6 +59,20 @@ ALLOWED_PREFIXES = (
     'migrations_planned/',
 )
 
+# Modules whose job is to REPORT on the cutover. They read the legacy
+# models deliberately and are deleted by the drop rather than converted,
+# so counting them as blockers makes the gate unsatisfiable in the same
+# way FK declarations do — it would demand the removal have happened
+# before permitting the removal.
+#
+# `admin_dashboard/data_health_views.py` renders the cutover-progress
+# panel: legacy row counts, orphan counts, how much is left. Once the
+# tables are gone that panel is describing something that no longer
+# exists, and it comes out in the same change.
+REPORTING_ON_THE_CUTOVER = (
+    'admin_dashboard/data_health_views.py',
+)
+
 SKIP_DIR_PARTS = ('myvenv', 'node_modules', '.git', 'staticfiles')
 
 LEGACY_NAMES = frozenset({'ClientProfile', 'Project'})
@@ -83,18 +97,26 @@ LEGACY_STRINGS = frozenset({
 class ModuleReport:
     """What one module does with the legacy models."""
 
-    __slots__ = ('path', 'code_lines', 'schema_lines', 'prose_count')
+    __slots__ = ('path', 'code_lines', 'schema_lines', 'prose_count',
+                 'reports_on_cutover')
 
-    def __init__(self, path, code_lines, schema_lines, prose_count):
+    def __init__(self, path, code_lines, schema_lines, prose_count,
+                 reports_on_cutover=False):
         self.path = path
         self.code_lines = code_lines
         self.schema_lines = schema_lines
         self.prose_count = prose_count
+        self.reports_on_cutover = reports_on_cutover
 
     @property
     def blocks_removal(self):
-        """Only live code reads block the drop. See the module docstring."""
-        return bool(self.code_lines)
+        """Only live code reads block the drop. See the module docstring.
+
+        A module that exists to REPORT on the cutover is excluded: it
+        reads the legacy models on purpose and is deleted alongside them,
+        so blocking on it would be circular.
+        """
+        return bool(self.code_lines) and not self.reports_on_cutover
 
     def __repr__(self):                                   # pragma: no cover
         return (f'<ModuleReport {self.path} code={len(self.code_lines)} '
@@ -234,6 +256,8 @@ def scan_repository(root='.'):
         report = analyse_source(source, path=relative)
         if report is None:
             continue
+        report.reports_on_cutover = any(
+            marker in relative for marker in REPORTING_ON_THE_CUTOVER)
         if report.code_lines or report.schema_lines or report.prose_count:
             reports.append(report)
 

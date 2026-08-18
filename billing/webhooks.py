@@ -22,11 +22,31 @@ from clients.emails import (
     send_payment_failed_email,
     send_welcome_email,
 )
-from clients.models import ClientProfile, IntakeResponse
+from clients.models import IntakeResponse
 
 logger = logging.getLogger(__name__)
 
 DAY = 86400  # seconds
+
+
+def _site_by_sub(account, field, sub_id):
+    """The Website under ``account`` whose ``field`` holds ``sub_id``.
+
+    Hosting and maintenance subscription ids live on Website — one
+    droplet and one maintenance plan per site. Asking the account for a
+    single id could only ever describe one of its sites, so on a
+    multi-site account the others' renewals and cancellations matched
+    nothing and silently did nothing.
+    """
+    if account is None or not sub_id:
+        return None
+    from clients.account_models import Website
+
+    return (Website.objects
+            .select_related('account')
+            .filter(account=account, **{field: sub_id})
+            .first())
+
 
 
 @csrf_exempt
@@ -347,12 +367,16 @@ def _unroutable(kind, identifier, owner):
 
 
 def _client_for_customer(customer_id):
-    """The ClientProfile for a Stripe customer.
+    """The Account for a Stripe customer.
 
-    Resolved through Account first: the cutover contract makes Account
-    the owner of `stripe_customer_id`, and after the cutover it is the
-    only row that carries it. The direct profile lookup stays as the
-    fallback for accounts the backfill has not reached.
+    A Stripe customer holds the card and the billing relationship, both
+    of which are account-level, so this is the natural owner of a
+    customer-scoped event.
+
+    It used to resolve the Account and then hand back
+    `account.legacy_client_profile` — and declare the webhook unroutable
+    when there was none, which is every account created after the
+    cutover. A customer who had just paid had their event dropped.
     """
     if not customer_id:
         return None
@@ -360,40 +384,32 @@ def _client_for_customer(customer_id):
     from clients.account_models import Account
 
     account = Account.objects.filter(
-        stripe_customer_id=customer_id).select_related(
-            'legacy_client_profile').first()
-    if account is not None:
-        if account.legacy_client_profile is not None:
-            return account.legacy_client_profile
-        _unroutable('customer', customer_id, f'Account {account.pk}')
-        return None
-
-    return ClientProfile.objects.filter(
         stripe_customer_id=customer_id).first()
+    if account is None:
+        _unroutable('customer', customer_id, 'no Account')
+    return account
 
 
-def _client_for_invoice(invoice_id):
-    """The ClientProfile for a Stripe invoice.
+def _website_for_invoice(invoice_id):
+    """The Website a Stripe invoice was raised against, or None.
 
-    `stripe_invoice_id` is Website-level per the cutover contract, so the
-    Website is consulted before the legacy mirror.
+    An onboarding invoice bills for one build, so the site is the owner.
     """
     if not invoice_id:
         return None
 
     from clients.account_models import Website
 
-    website = Website.objects.filter(
-        stripe_invoice_id=invoice_id).select_related(
-            'account__legacy_client_profile').first()
-    if website is not None:
-        profile = getattr(website.account, 'legacy_client_profile', None)
-        if profile is not None:
-            return profile
-        _unroutable('invoice', invoice_id, f'Website {website.pk}')
-        return None
+    return (Website.objects
+            .select_related('account')
+            .filter(stripe_invoice_id=invoice_id)
+            .first())
 
-    return ClientProfile.objects.filter(stripe_invoice_id=invoice_id).first()
+
+def _client_for_invoice(invoice_id):
+    """The Account for a Stripe invoice, via the site it billed for."""
+    website = _website_for_invoice(invoice_id)
+    return website.account if website is not None else None
 
 
 # ── invoice.paid ────────────────────────────────────────────────────────────
@@ -403,7 +419,10 @@ def _handle_invoice_paid(event):
     # Look up by invoice ID first (set on admin-created onboarding invoices),
     # fall back to customer ID for contract-flow invoices that pre-date the
     # stripe_invoice_id field.
-    client = (_client_for_invoice(invoice.get('id'))
+    # The account owns the billing relationship; the site (when the
+    # invoice names one) owns the build being paid for.
+    site = _website_for_invoice(invoice.get('id'))
+    client = ((site.account if site is not None else None)
               or _client_for_customer(invoice.get('customer')))
     if client is None:
         logger.warning('invoice.paid: no client for invoice %s / customer %s',
@@ -453,7 +472,13 @@ def _handle_invoice_paid(event):
     if sub_id and _activate_website_plan_sub(sub_id):
         return
     if sub_id:
-        if sub_id == client.stripe_hosting_subscription_id:
+        # Which SITE this subscription belongs to. Comparing the id
+        # against one profile could only ever match a single site.
+        hosted = _site_by_sub(client, 'stripe_hosting_subscription_id',
+                              sub_id)
+        maintained = _site_by_sub(
+            client, 'stripe_maintenance_subscription_id', sub_id)
+        if hosted is not None:
             # Hosting renewal cleared — nothing extra to record locally
             # beyond what Stripe already retains. Renewal gating happens
             # earlier in `invoice.upcoming`.
@@ -466,7 +491,8 @@ def _handle_invoice_paid(event):
         # we owe the renewal regardless of Namecheap outcome.
         if _maybe_handle_domain_renewal(client, sub_id, invoice):
             return
-        if sub_id == client.stripe_subscription_id:
+        if maintained is not None:
+            client = maintained
             client.maintenance_active = True
             if not client.maintenance_started_at:
                 client.maintenance_started_at = timezone.now()
@@ -793,11 +819,10 @@ def _handle_invoice_payment_failed(event):
             client.pk)
 
 
-def _sites_for_escalation(client):
-    """Every website id under this client's account, as strings."""
+def _sites_for_escalation(account):
+    """Every website id under this account, as strings."""
     from clients.account_models import Website
 
-    account = getattr(client, 'migrated_account', None)
     if account is None:
         return []
     return [str(pk) for pk in
@@ -840,29 +865,38 @@ def _handle_subscription_deleted(event):
     if client is None:
         return
 
-    # Disambiguate which of our refs this was.
+    # Disambiguate which of our refs this was. Hosting and maintenance
+    # subscriptions belong to a SITE, so the id names which one — the
+    # account-level comparison this replaced could only ever match a
+    # single site, leaving a second site's cancellation to do nothing.
+    hosted = _site_by_sub(client, 'stripe_hosting_subscription_id', sub_id)
+    maintained = _site_by_sub(
+        client, 'stripe_maintenance_subscription_id', sub_id)
+
     fields = []
-    if client.stripe_hosting_subscription_id == sub_id:
-        client.stripe_hosting_subscription_id = ''
+    target = hosted or maintained
+    if hosted is not None:
+        hosted.stripe_hosting_subscription_id = ''
         fields.append('stripe_hosting_subscription_id')
         # Hosting cancelled → park every domain still pointing at
-        # this client's now-defunct Droplet. Best-effort: failure
+        # this site's now-defunct Droplet. Best-effort: failure
         # here doesn't block the rest of subscription teardown.
-        _park_client_domains_on_hosting_cancel(client)
-    if client.stripe_subscription_id == sub_id:
-        client.maintenance_active = False
-        client.stripe_subscription_id = ''
-        fields.extend(['maintenance_active', 'stripe_subscription_id'])
+        _park_client_domains_on_hosting_cancel(hosted)
+    if maintained is not None:
+        maintained.maintenance_active = False
+        maintained.stripe_maintenance_subscription_id = ''
+        fields.extend([
+            'maintenance_active', 'stripe_maintenance_subscription_id'])
 
-    if fields:
+    if fields and target is not None:
         fields.append('updated_at')
-        client.save(update_fields=fields)
+        target.save(update_fields=fields)
         logger.info(
-            'subscription.deleted: cleared %s for client %s',
-            ', '.join(fields), client.pk)
+            'subscription.deleted: cleared %s for site %s',
+            ', '.join(fields), target.pk)
     else:
         logger.info(
-            'subscription.deleted: no matching ref for client %s '
+            'subscription.deleted: no matching ref for account %s '
             '(sub %s)', client.pk, sub_id)
 
     # Domain subscription deletion — flip the matching DomainRegistration
@@ -913,12 +947,10 @@ def _handle_invoice_upcoming(event):
     # Hosting subscriptions are Website-level per the cutover contract.
     from clients.account_models import Website
 
-    site = Website.objects.filter(
-        stripe_hosting_subscription_id=sub_id).select_related(
-            'account__legacy_client_profile').first()
-    client = getattr(site.account, 'legacy_client_profile', None) if site \
-        else ClientProfile.objects.filter(
-            stripe_hosting_subscription_id=sub_id).first()
+    client = (Website.objects
+              .select_related('account')
+              .filter(stripe_hosting_subscription_id=sub_id)
+              .first())
     if client is None:
         # Not one of our hosting subs — maintenance subs etc. have
         # their own gate (or none).
@@ -1161,17 +1193,28 @@ def _domain_renewal_gate(sub_id):
     return True
 
 
-def _park_client_domains_on_hosting_cancel(client):
+def _park_client_domains_on_hosting_cancel(site):
     """
-    Re-point every active domain the client owns at our parking page
-    when hosting is cancelled. Without this, visitors hit a dead
+    Re-point every active domain aimed at this SITE at our parking page
+    when its hosting is cancelled. Without this, visitors hit a dead
     Droplet IP. Best-effort: never raise — just log.
+
+    Scoped by `pointed_at_website`, not by account: cancelling hosting on
+    one site must not park the domains of another site the client is
+    still paying for. Domains not pointed anywhere in particular fall
+    back to the account, since they were aimed at whatever hosting the
+    client had.
     """
     try:
+        from django.db.models import Q
+
         from domains.models import DomainRegistration
         from domains.services import park_domain
+        account = getattr(site, 'account', None)
         regs = list(DomainRegistration.objects.filter(
-            client=client, status='active'))
+            Q(pointed_at_website=site)
+            | Q(pointed_at_website__isnull=True, account_new=account),
+            status='active'))
         for reg in regs:
             try:
                 park_domain(reg)
@@ -1516,9 +1559,8 @@ def _handle_reinstatement(client):
     # restore_client_site logs + alerts on its own failures.
     from clients.account_models import Website
 
-    account = getattr(client, 'migrated_account', None)
-    sites = (list(Website.objects.filter(account=account))
-             if account is not None else [])
+    sites = (list(Website.objects.filter(account=client))
+             if client is not None else [])
     for site in sites:
         try:
             restore_client_site(site)

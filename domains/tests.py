@@ -1330,13 +1330,21 @@ class HostingCancelParksDomainsTests(TestCase):
         self.user = User.objects.create_user(
             username='hc', email='hc@example.com', password='x')
         self.profile = ClientProfile.objects.create(
-            user=self.user, firm_name='HC Co',
-            stripe_customer_id='cus_hc',
-            stripe_hosting_subscription_id='sub_hosting_xyz')
+            user=self.user, firm_name='HC Co')
+        # Hosting is billed per SITE — one droplet each — so the
+        # subscription id lives on the Website. The Stripe customer is
+        # the account's.
+        self.account = self.profile.migrated_account
+        self.account.stripe_customer_id = 'cus_hc'
+        self.account.save(update_fields=['stripe_customer_id', 'updated_at'])
+        self.site = self.account.websites.first()
+        self.site.stripe_hosting_subscription_id = 'sub_hosting_xyz'
+        self.site.save(update_fields=[
+            'stripe_hosting_subscription_id', 'updated_at'])
         from domains.models import DomainRegistration
         self.reg = DomainRegistration.objects.create(
-            client=self.profile, account_new=self.profile.migrated_account, domain_name='hostparked.com',
-            tld='com', status='active')
+            account_new=self.account, pointed_at_website=self.site,
+            domain_name='hostparked.com', tld='com', status='active')
 
     def test_hosting_subscription_deleted_parks_active_domains(self):
         from billing.webhooks import _handle_subscription_deleted

@@ -153,7 +153,8 @@ class ScanRepositoryTests(SimpleTestCase):
             if not r.code_lines and not r.schema_lines and r.prose_count]
         self.assertEqual(
             totals['blocking_modules'],
-            len([r for r in self.reports if r.code_lines]))
+            len([r for r in self.reports
+                 if r.code_lines and not r.reports_on_cutover]))
         for report in prose_only:
             self.assertFalse(report.blocks_removal)
 
@@ -205,3 +206,40 @@ class LegacyAttributeDetectionTests(SimpleTestCase):
     def test_an_unrelated_attribute_is_not_flagged(self):
         report = analyse_source('x = request.account\n')
         self.assertFalse(report.blocks_removal)
+
+
+class CutoverReportingExclusionTests(SimpleTestCase):
+    """A module that REPORTS on the cutover cannot block it.
+
+    data_health_views renders the progress panel — legacy row counts,
+    orphan counts, how much is left. It reads the legacy models on
+    purpose and is deleted alongside them, so blocking on it is circular
+    in exactly the way blocking on FK declarations would be.
+
+    Narrow on purpose: this is an allowlist of one path, not a heuristic.
+    Anything else that reads the legacy models still blocks.
+    """
+
+    def test_the_data_health_panel_does_not_block(self):
+        reports = {r.path: r for r in scan_repository()}
+        panel = reports.get('admin_dashboard/data_health_views.py')
+        self.assertIsNotNone(
+            panel, 'the panel should still be REPORTED, just not blocking')
+        self.assertTrue(panel.code_lines, 'it does read the legacy models')
+        self.assertTrue(panel.reports_on_cutover)
+        self.assertFalse(panel.blocks_removal)
+
+    def test_the_exclusion_is_an_allowlist_not_a_pattern(self):
+        from clients.legacy_audit import REPORTING_ON_THE_CUTOVER
+
+        self.assertEqual(
+            REPORTING_ON_THE_CUTOVER,
+            ('admin_dashboard/data_health_views.py',))
+
+    def test_an_ordinary_module_with_reads_still_blocks(self):
+        from clients.legacy_audit import ModuleReport
+
+        ordinary = ModuleReport(
+            path='some/view.py', code_lines=[1], schema_lines=[],
+            prose_count=0)
+        self.assertTrue(ordinary.blocks_removal)
