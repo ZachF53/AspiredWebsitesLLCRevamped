@@ -96,6 +96,37 @@ def owner_account(row):
     return None
 
 
+def owner_site(row):
+    """The Website that owns ``row``, or None.
+
+    Templates need this separately from :func:`owner_label`, because a
+    label and a link fail differently. ``{{ row.client.firm_name }}``
+    against a null FK renders the empty string and the page still returns
+    200 with a blank cell; ``{% url 'x' row.client.id %}`` against the
+    same null FK raises NoReverseMatch and takes the whole page down.
+
+    Returns the row itself when it already IS a Website, so a caller can
+    hand over either without checking first.
+    """
+    if _is_instance(row, 'Website'):
+        return row
+
+    for attr in ('website_new', 'website', 'pointed_at_website'):
+        site = _relation(row, attr)
+        if site is not None:
+            return site
+
+    # One hop out, through the legacy project, for rows that never had a
+    # direct site FK.
+    project = _safe(row, 'project')
+    if project is not None:
+        site = _relation(project, 'migrated_website')
+        if site is not None:
+            return site
+
+    return None
+
+
 def owner_recipient(row):
     """``(email, name)`` for the person to contact about ``row``.
 

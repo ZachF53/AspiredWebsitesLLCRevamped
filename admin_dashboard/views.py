@@ -648,12 +648,16 @@ def _pending_intake_reviews():
     from clients.account_models import Website
     return (
         Website.objects
-        .select_related('account')
+        # `user` and `intake` were the ClientProfile accessors, left
+        # behind when this moved to Website. The queryset raised
+        # FieldError on evaluation, so the whole Needs You page 500'd --
+        # the queue Zach works from. On Website the user hangs off the
+        # account and the intake relation is `intake_new`.
+        .select_related('account', 'account__user', 'intake_new')
         .filter(
             needs_admin_review_at__isnull=False,
             admin_reviewed_at__isnull=True,
         )
-        .select_related('user', 'intake')
         .order_by('-needs_admin_review_at')
     )
 

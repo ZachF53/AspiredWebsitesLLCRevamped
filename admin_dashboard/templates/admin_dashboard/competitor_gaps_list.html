@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Competitor Gaps — Admin{% endblock %}
 
@@ -72,7 +73,7 @@
                 <tbody>
                     {% for r in reports %}
                         <tr>
-                            <td><a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td>{% with site=r|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ r|owner_label }}</a>{% else %}<span class="muted">{{ r|owner_label }}</span>{% endif %}{% endwith %}</td>
                             <td>{{ r.report_month|date:"F Y" }}</td>
                             <td><span class="intel-status intel-status--{% if r.status == 'complete' %}client_approved{% elif r.status == 'failed' %}client_declined{% elif r.status == 'no_competitors' %}dismissed{% else %}pending_review{% endif %}">{{ r.get_status_display }}</span></td>
                             <td class="num">{{ r.total_gaps_found }}</td>
@@ -81,10 +82,14 @@
                             <td>{% if r.admin_notified %}<span class="status-badge status-badge--won">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                             <td class="admin-table__actions">
                                 <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:competitor_gap_detail' r.id %}">View</a>
-                                <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' r.client.id %}" style="display:inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn-secondary btn-sm">Run Now</button>
-                                </form>
+                                {% with site=r|owner_site %}
+                                    {% if site %}
+                                        <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' site.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-secondary btn-sm">Run Now</button>
+                                        </form>
+                                    {% endif %}
+                                {% endwith %}
                             </td>
                         </tr>
                     {% endfor %}

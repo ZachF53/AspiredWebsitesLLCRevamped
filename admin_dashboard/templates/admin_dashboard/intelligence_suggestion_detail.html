@@ -1,5 +1,7 @@
 {% extends "admin_dashboard/base.html" %}
 
+{% load owners %}
+
 {% block title %}{{ s.title|truncatechars:50 }} — Intelligence — Admin{% endblock %}
 
 {% block content %}
@@ -8,7 +10,13 @@
         <div>
             <span class="eyebrow">
                 <a href="{% url 'admin_dashboard:intelligence_suggestions' %}">Intelligence Suggestions</a> /
-                <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                {% with site=s|owner_site %}
+                    {% if site %}
+                        <a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ s|owner_label }}</a>
+                    {% else %}
+                        <span class="muted">{{ s|owner_label }}</span>
+                    {% endif %}
+                {% endwith %}
             </span>
             <h1 class="admin-page-title">{{ s.title }}</h1>
             <p class="muted">
@@ -40,12 +48,13 @@
         <section class="admin-section">
             <div class="admin-section__header"><h2>Facts</h2></div>
             <dl class="admin-dl">
-                <dt>Client</dt><dd><a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a></dd>
+                <dt>Client</dt>
+                <dd>{% with site=s|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ s|owner_label }}</a>{% else %}<span class="muted">{{ s|owner_label }}</span>{% endif %}{% endwith %}</dd>
                 <dt>One-time fee</dt><dd>{% if s.one_time_fee %}${{ s.one_time_fee|floatformat:0 }}{% else %}—{% endif %}</dd>
                 <dt>In maintenance scope</dt>
                 <dd>{% if s.is_in_maintenance_scope %}<span class="status-badge status-badge--won">Yes</span>{% else %}<span class="status-badge status-badge--proposal_sent">No</span>{% endif %}</dd>
                 <dt>Maintenance plan</dt>
-                <dd>{% if s.client.maintenance_active %}{{ s.client.get_package_display|default:"Active" }}{% else %}<span class="muted">None — one-time build</span>{% endif %}</dd>
+                <dd>{% with site=s|owner_site %}{% if site.maintenance_active %}{{ site.get_package_display|default:"Active" }}{% else %}<span class="muted">None — one-time build</span>{% endif %}{% endwith %}</dd>
                 {% if s.report %}
                     <dt>Report month</dt><dd>{{ s.report.report_month|date:"F Y" }}</dd>
                 {% endif %}
@@ -98,7 +107,7 @@
 
             {% if s.status == 'approved_to_send' %}
                 <form method="post" action="{% url 'admin_dashboard:intelligence_suggestion_send' s.id %}" style="display:inline;"
-                      onsubmit="return confirm('Send this suggestion to {{ s.client.firm_name|escapejs }}?');">
+                      onsubmit="return confirm('Send this suggestion to {{ s|owner_label|escapejs }}?');">
                     {% csrf_token %}
                     <button type="submit" class="btn-primary">Send to Client</button>
                 </form>

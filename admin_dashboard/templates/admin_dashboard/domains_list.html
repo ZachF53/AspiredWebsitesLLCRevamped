@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Domains — Admin{% endblock %}
 
@@ -64,7 +65,7 @@
             {% for reg in domains %}
                 <tr>
                     <td><a href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}">{{ reg.domain_name }}</a></td>
-                    <td><a href="{% url 'admin_dashboard:client_detail' client_id=reg.client.id %}">{{ reg.client.firm_name }}</a></td>
+                    <td>{% with site=reg|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' client_id=site.id %}">{{ reg|owner_label }}</a>{% else %}<span class="muted">{{ reg|owner_label }}</span>{% endif %}{% endwith %}</td>
                     <td><span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span></td>
                     <td>{% if reg.expires_at %}{{ reg.expires_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
                     <td>{% if reg.last_synced_at %}{{ reg.last_synced_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>

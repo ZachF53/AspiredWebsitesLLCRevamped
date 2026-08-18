@@ -1,6 +1,8 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}Gap Report — {{ report.client.firm_name }}{% endblock %}
+{% load owners %}
+
+{% block title %}Gap Report — {{ report|owner_label }}{% endblock %}
 
 {% block content %}
 <div class="admin-container">
@@ -8,7 +10,13 @@
         <div>
             <span class="eyebrow">
                 <a href="{% url 'admin_dashboard:competitor_gaps_list' %}">Competitor Gaps</a> /
-                <a href="{% url 'admin_dashboard:client_detail' report.client.id %}">{{ report.client.firm_name }}</a>
+                {% with site=report|owner_site %}
+                    {% if site %}
+                        <a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ report|owner_label }}</a>
+                    {% else %}
+                        <span class="muted">{{ report|owner_label }}</span>
+                    {% endif %}
+                {% endwith %}
             </span>
             <h1 class="admin-page-title">{{ report.report_month|date:"F Y" }} Gap Report</h1>
             <p class="muted">
@@ -19,10 +27,14 @@
             </p>
         </div>
         <div class="admin-page-actions">
-            <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' report.client.id %}" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn-primary">Run New Analysis</button>
-            </form>
+            {% with site=report|owner_site %}
+                {% if site %}
+                    <form method="post" action="{% url 'admin_dashboard:competitor_gap_run_now' site.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary">Run New Analysis</button>
+                    </form>
+                {% endif %}
+            {% endwith %}
             <a class="btn-secondary" href="{% url 'admin_dashboard:competitor_gaps_list' %}">Back to List</a>
         </div>
     </div>
@@ -40,7 +52,7 @@
             <thead><tr><th>Site</th><th class="num">Pages crawled</th><th>Sample titles</th></tr></thead>
             <tbody>
                 <tr>
-                    <td><strong>{{ report.client.firm_name }}</strong> <span class="muted">(client)</span></td>
+                    <td><strong>{{ report|owner_label }}</strong> <span class="muted">(client)</span></td>
                     <td class="num">{{ report.client_pages|length }}</td>
                     <td>
                         {% for p in report.client_pages|slice:":5" %}

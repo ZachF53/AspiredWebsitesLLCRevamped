@@ -1,6 +1,8 @@
 {% extends "admin_dashboard/base.html" %}
 
-{% block title %}{{ report.client.firm_name }} — {{ report.report_year }} Annual Report{% endblock %}
+{% load owners %}
+
+{% block title %}{{ report|owner_label }} — {{ report.report_year }} Annual Report{% endblock %}
 
 {% block content %}
 <div class="admin-container">
@@ -8,9 +10,15 @@
         <div>
             <span class="eyebrow">
                 <a href="{% url 'admin_dashboard:annual_reports_list' %}">Annual Reports</a> /
-                <a href="{% url 'admin_dashboard:client_detail' report.client.id %}">{{ report.client.firm_name }}</a>
+                {% with site=report|owner_site %}
+                    {% if site %}
+                        <a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ report|owner_label }}</a>
+                    {% else %}
+                        <span class="muted">{{ report|owner_label }}</span>
+                    {% endif %}
+                {% endwith %}
             </span>
-            <h1 class="admin-page-title">{{ report.report_year }} Annual Report — {{ report.client.firm_name }}</h1>
+            <h1 class="admin-page-title">{{ report.report_year }} Annual Report — {{ report|owner_label }}</h1>
             <p class="muted">
                 <span class="intel-status intel-status--{% if report.status == 'ready' %}client_approved{% elif report.status == 'sent' %}implemented{% elif report.status == 'failed' %}client_declined{% else %}pending_review{% endif %}">{{ report.get_status_display }}</span>
                 · Generated {{ report.created_at|date:"M j, Y" }}
@@ -94,15 +102,17 @@
             </form>
 
             {% if report.status == 'ready' or report.status == 'sent' %}
-                {% if report.client.user.email %}
+                {% with recipient=report|owner_email %}
+                {% if recipient %}
                     <form method="post" action="{% url 'admin_dashboard:annual_report_send' report.id %}" style="display:inline;"
-                          onsubmit="return confirm('Send the {{ report.report_year }} report to {{ report.client.user.email|escapejs }}?');">
+                          onsubmit="return confirm('Send the {{ report.report_year }} report to {{ recipient|escapejs }}?');">
                         {% csrf_token %}
                         <button type="submit" class="btn-primary">{% if report.status == 'sent' %}Re-send to Client{% else %}Send to Client{% endif %}</button>
                     </form>
                 {% else %}
                     <span class="muted">No client email on file — can't send.</span>
                 {% endif %}
+                {% endwith %}
             {% endif %}
         </div>
     </section>

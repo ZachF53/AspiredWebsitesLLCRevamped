@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load owners %}
 
 {% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
 {% block canonical %}{% endblock %}
@@ -16,7 +17,9 @@
             </div>
             <h1 class="login-card__title">Contract signed — let's get started</h1>
             <p class="login-card__subtitle">
-                Thanks, {{ contract.client.contact_name|default:contract.client.firm_name }}.
+                {% with account=contract|owner_account owner=contract|owner_label %}
+                Thanks, {{ account.contact_name|default:owner }}.
+                {% endwith %}
                 Choose how you'd like to pay. Your project begins the moment your
                 payment clears, and you'll set up your account right after.
             </p>

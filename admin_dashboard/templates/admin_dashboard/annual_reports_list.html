@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Annual Reports — Admin{% endblock %}
 
@@ -32,7 +33,7 @@
                 <tbody>
                     {% for r in reports %}
                         <tr>
-                            <td><a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td>{% with site=r|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ r|owner_label }}</a>{% else %}<span class="muted">{{ r|owner_label }}</span>{% endif %}{% endwith %}</td>
                             <td class="num">{{ r.report_year }}</td>
                             <td><span class="intel-status intel-status--{% if r.status == 'ready' %}client_approved{% elif r.status == 'sent' %}implemented{% elif r.status == 'failed' %}client_declined{% else %}pending_review{% endif %}">{{ r.get_status_display }}</span></td>
                             <td>{{ r.created_at|date:"M j, Y" }}</td>

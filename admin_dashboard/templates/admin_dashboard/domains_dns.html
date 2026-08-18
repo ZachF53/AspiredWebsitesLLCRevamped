@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 {% load static %}
 
 {% block title %}DNS — {{ reg.domain_name }} — Admin{% endblock %}
@@ -10,7 +11,7 @@
             <span class="eyebrow"><a href="{% url 'admin_dashboard:admin_domain_detail' reg_id=reg.id %}" class="admin-back-link">← {{ reg.domain_name }}</a></span>
             <h1 class="admin-page-title">DNS records — {{ reg.domain_name }}</h1>
             <p class="muted">
-                Editing on behalf of <strong>{{ reg.client.firm_name }}</strong>. Changes save in full to Namecheap when you click Save. Propagation takes 5-15 minutes.
+                Editing on behalf of <strong>{{ reg|owner_label }}</strong>. Changes save in full to Namecheap when you click Save. Propagation takes 5-15 minutes.
             </p>
         </div>
     </div>

@@ -1,4 +1,5 @@
 {% extends "clients/base.html" %}
+{% load owners %}
 {% load static %}
 
 {% block title %}Domains{% endblock %}
@@ -31,11 +32,13 @@
                     {% if reg.expires_at %}
                         <span>Renews {{ reg.expires_at|date:"M j, Y" }}</span>
                     {% endif %}
+                    {% with site=reg|owner_site %}
                     {% if reg.auto_a_record_set_at %}
                         <span>· Pointed to your site</span>
-                    {% elif reg.status == 'active' and reg.client.do_droplet_ip %}
+                    {% elif reg.status == 'active' and site.do_droplet_ip %}
                         <span>· DNS not pointed yet</span>
                     {% endif %}
+                    {% endwith %}
                     {% if reg.whois_privacy_enabled %}
                         <span>· WHOIS privacy on</span>
                     {% endif %}

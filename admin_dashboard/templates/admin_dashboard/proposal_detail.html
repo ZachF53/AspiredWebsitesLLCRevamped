@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Proposal — {{ proposal.prospect_name }} — Admin{% endblock %}
 
@@ -89,7 +90,7 @@
                     <li class="admin-activity-item">
                         <a href="{% url 'admin_dashboard:case_study_edit' cs.id %}"
                            class="admin-activity-item__title">{{ cs.title }}</a>
-                        {% if cs.client %}<div class="admin-activity-item__meta">{{ cs.client.firm_name }}</div>{% endif %}
+                        {% with owner=cs|owner_label %}{% if owner %}<div class="admin-activity-item__meta">{{ owner }}</div>{% endif %}{% endwith %}
                     </li>
                 {% endfor %}
             </ul>

@@ -1,3 +1,4 @@
+{% load owners %}
 {% comment %}
 Scan table rows — included by scans_list.html AND returned standalone by
 /scans/table/ for the 15s HTMX poll. No wrapping tags so it slots into a
@@ -26,7 +27,7 @@ hx-swap='innerHTML' target cleanly.
                               title="{{ s.status }}"></span>
                     </td>
                     <td class="droplet-name">
-                        <a href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a>
+                        {% with site=s|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ s|owner_label }}</a>{% else %}<span class="muted">{{ s|owner_label }}</span>{% endif %}{% endwith %}
                     </td>
                     <td>
                         <span class="scan-type scan-type--{{ s.scan_type }}">{{ s.get_scan_type_display|cut:" Scan" }}</span>
@@ -74,7 +75,7 @@ hx-swap='innerHTML' target cleanly.
                         {% if s.status == 'complete' or s.status == 'failed' %}
                             <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="droplet-inline-form">
                                 {% csrf_token %}
-                                <input type="hidden" name="client_id" value="{{ s.client.id }}">
+                                <input type="hidden" name="client_id" value="{% with site=s|owner_site %}{{ site.id }}{% endwith %}">
                                 <input type="hidden" name="scan_type" value="{{ s.scan_type }}">
                                 <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
                             </form>

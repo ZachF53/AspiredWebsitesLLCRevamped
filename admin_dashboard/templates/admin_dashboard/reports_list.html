@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Monthly Reports — Admin{% endblock %}
 
@@ -46,7 +47,7 @@
                 <tbody>
                     {% for r in reports %}
                         <tr>
-                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a></td>
+                            <td>{% with site=r|owner_site %}{% if site %}<a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' site.id %}">{{ r|owner_label }}</a>{% else %}<span class="muted">{{ r|owner_label }}</span>{% endif %}{% endwith %}</td>
                             <td>{{ r.report_month|date:"F Y" }}</td>
                             <td><span class="rep-badge rep-badge--{{ r.status }}">{{ r.get_status_display }}</span></td>
                             <td>{% if r.uptime_30d is not None %}{{ r.uptime_30d }}%{% else %}—{% endif %}</td>

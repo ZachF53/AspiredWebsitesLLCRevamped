@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}{{ reg.domain_name }} — Admin{% endblock %}
 
@@ -10,7 +11,7 @@
             <h1 class="admin-page-title">{{ reg.domain_name }}</h1>
             <p class="muted">
                 Client:
-                <a href="{% url 'admin_dashboard:client_detail' client_id=reg.client.id %}">{{ reg.client.firm_name }}</a>
+                {% with site=reg|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' client_id=site.id %}">{{ reg|owner_label }}</a>{% else %}<span class="muted">{{ reg|owner_label }}</span>{% endif %}{% endwith %}
                 · Status: <span class="domain-card__badge domain-card__badge--{{ reg.status }}">{{ reg.display_status }}</span>
             </p>
         </div>
@@ -74,7 +75,7 @@
             {% if reg.parked_at %}
                 <form method="post" action="{% url 'admin_dashboard:admin_domain_unpark' reg_id=reg.id %}" class="admin-action-form">
                     {% csrf_token %}
-                    <label>Unpark — IP to point at <span class="muted">(blank uses client's Droplet IP {{ reg.client.do_droplet_ip|default:"—" }})</span></label>
+                    <label>Unpark — IP to point at <span class="muted">(blank uses client's Droplet IP {% with site=reg|owner_site %}{{ site.do_droplet_ip|default:"—" }}{% endwith %})</span></label>
                     <input type="text" name="ip" placeholder="161.35.108.209" autocomplete="off">
                     <button type="submit" class="btn-primary">Unpark + repoint A record</button>
                     <p class="muted">Parked {{ reg.parked_at|date:"M j, Y" }} — currently redirecting to our offline page.</p>
@@ -89,7 +90,7 @@
 
             <form method="post" action="{% url 'admin_dashboard:admin_domain_repoint' reg_id=reg.id %}" class="admin-action-form">
                 {% csrf_token %}
-                <label>Force-point A record at IP <span class="muted">(blank = use client's Droplet IP {{ reg.client.do_droplet_ip|default:"—" }})</span></label>
+                <label>Force-point A record at IP <span class="muted">(blank = use client's Droplet IP {% with site=reg|owner_site %}{{ site.do_droplet_ip|default:"—" }}{% endwith %})</span></label>
                 <input type="text" name="ip" placeholder="161.35.108.209" autocomplete="off">
                 <button type="submit" class="btn-secondary">Re-point A record</button>
             </form>

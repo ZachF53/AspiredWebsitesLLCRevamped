@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}AI Assistant — Admin{% endblock %}
 
@@ -71,7 +72,7 @@
                             <tr>
                                 <td><span class="muted">{{ log.created_at|date:"M j H:i" }}</span></td>
                                 <td>{{ log.operator|default:"—" }}</td>
-                                <td>{{ log.client.firm_name|default:"—" }}</td>
+                                <td>{{ log|owner_label }}</td>
                                 <td><code>{{ log.intent }}</code></td>
                                 <td>
                                     {% if log.success %}

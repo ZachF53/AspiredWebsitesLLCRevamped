@@ -1,21 +1,22 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
+{% load owners %}
 
-{% block title %}Scan — {{ scan.client.firm_name }} — Admin{% endblock %}
+{% block title %}Scan — {{ scan|owner_label }} — Admin{% endblock %}
 
 {% block content %}
 <div class="admin-container">
 
     <p class="vault-breadcrumb">
         <a href="{% url 'admin_dashboard:scans_list' %}">Scans</a> &rsaquo;
-        <a href="{% url 'admin_dashboard:client_detail' scan.client.id %}">{{ scan.client.firm_name }}</a> &rsaquo;
+        {% with site=scan|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ scan|owner_label }}</a>{% else %}<span class="muted">{{ scan|owner_label }}</span>{% endif %}{% endwith %} &rsaquo;
         {{ scan.created_at|date:"Y-m-d H:i" }}
     </p>
 
     <section class="scan-header-card">
         <div class="scan-header-card__left">
             <h1 class="scan-header-card__client">
-                <a href="{% url 'admin_dashboard:client_detail' scan.client.id %}">{{ scan.client.firm_name }}</a>
+                {% with site=scan|owner_site %}{% if site %}<a href="{% url 'admin_dashboard:client_detail' site.id %}">{{ scan|owner_label }}</a>{% else %}{{ scan|owner_label }}{% endif %}{% endwith %}
             </h1>
             <p class="scan-header-card__badges">
                 <span class="scan-type scan-type--{{ scan.scan_type }}">{{ scan.get_scan_type_display }}</span>
@@ -61,7 +62,7 @@
                         <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:scan_generate_pdf' scan.id %}">Generate PDF Report</a>
                     {% endif %}
 
-                    {% with client_email=scan.client.user.email %}
+                    {% with client_email=scan|owner_email %}
                         {% if client_email %}
                             <button type="button" class="btn-secondary btn-sm"
                                     hx-post="{% url 'admin_dashboard:scan_send_report' scan.id %}"
@@ -79,12 +80,14 @@
                     {% endwith %}
                 {% endif %}
 
+                {% with site=scan|owner_site %}
                 <form method="post" action="{% url 'admin_dashboard:scan_run' %}" class="droplet-inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="client_id" value="{{ scan.client.id }}">
+                    <input type="hidden" name="client_id" value="{{ site.id }}">
                     <input type="hidden" name="scan_type" value="{{ scan.scan_type }}">
                     <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
                 </form>
+                {% endwith %}
 
                 {% if scan.status == 'pending' or scan.status == 'running' %}
                     <form method="post" action="{% url 'admin_dashboard:scan_cancel' scan.id %}" class="droplet-inline-form"

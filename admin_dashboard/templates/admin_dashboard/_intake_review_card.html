@@ -1,34 +1,45 @@
 {% comment %}
     Single intake-review card on the Needs You page.
 
-    Renders when a client has `needs_admin_review_at` set + no
-    `admin_reviewed_at` — i.e. they just submitted their intake form
-    and an admin hasn't yet acknowledged it.
+    Renders when a site has `needs_admin_review_at` set + no
+    `admin_reviewed_at` — i.e. the client just submitted their intake
+    form and an admin hasn't yet acknowledged it.
 
-    Card surfaces a quick snapshot (firm, when submitted, a peek at
-    the goal text) + two actions: open the full client detail page
+    Card surfaces a quick snapshot (site, when submitted, a peek at
+    the intake text) + two actions: open the full detail page
     OR mark this task done.
+
+    `review` is a Website. It used to be a ClientProfile, and this card
+    still read `review.projects.first.intake`, `client.firm_name` and
+    `client.user.email` off it. Django templates resolve a missing
+    attribute to the empty string rather than raising, so none of that
+    failed — the card just rendered with no name, no contact and no
+    intake content, which is every field that makes it worth reading.
 {% endcomment %}
-{% with client=review project=review.projects.first intake=review.projects.first.intake %}
-<div id="intake-review-{{ client.id }}" class="needs-you-card needs-you-card--intake">
+{% with site=review account=review.account intake=review.intake_new %}
+<div id="intake-review-{{ site.id }}" class="needs-you-card needs-you-card--intake">
 
     <div class="needs-you-card__head">
         <span class="needs-you-card__badge needs-you-card__badge--intake">New intake</span>
         <span class="needs-you-card__when">
-            Submitted {{ client.needs_admin_review_at|timesince }} ago
+            Submitted {{ site.needs_admin_review_at|timesince }} ago
         </span>
     </div>
 
     <h3 class="needs-you-card__title">
-        <a href="{% url 'admin_dashboard:client_detail' client.id %}">{{ client.firm_name }}</a>
+        <a href="{% url 'admin_dashboard:client_detail' site.id %}">
+            {{ site.name }}{% if account.name and account.name != site.name %}
+                <span class="muted">· {{ account.name }}</span>
+            {% endif %}
+        </a>
     </h3>
 
     <dl class="needs-you-card__dl">
         <dt>Contact</dt>
         <dd>
-            {% if client.contact_name %}{{ client.contact_name }}{% endif %}
-            {% if client.user.email %}<span class="muted">· {{ client.user.email }}</span>{% endif %}
-            {% if client.phone %}<span class="muted">· {{ client.phone }}</span>{% endif %}
+            {% if account.contact_name %}{{ account.contact_name }}{% endif %}
+            {% if account.user.email %}<span class="muted">· {{ account.user.email }}</span>{% endif %}
+            {% if account.phone %}<span class="muted">· {{ account.phone }}</span>{% endif %}
         </dd>
 
         {% if intake %}
@@ -48,12 +59,12 @@
     </dl>
 
     <div class="needs-you-card__actions">
-        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:client_detail' client.id %}">
+        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:client_detail' site.id %}">
             Open client →
         </a>
         <form method="post"
-              action="{% url 'admin_dashboard:intake_review_mark_done' client.id %}"
-              hx-post="{% url 'admin_dashboard:intake_review_mark_done' client.id %}"
+              action="{% url 'admin_dashboard:intake_review_mark_done' site.id %}"
+              hx-post="{% url 'admin_dashboard:intake_review_mark_done' site.id %}"
               hx-target="#needs-you-list"
               hx-swap="outerHTML"
               style="display:inline;">

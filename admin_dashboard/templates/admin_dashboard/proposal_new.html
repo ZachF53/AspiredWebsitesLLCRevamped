@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}New Proposal — Admin{% endblock %}
 
@@ -129,7 +130,7 @@
                             <label class="cs-picker__item">
                                 <input type="checkbox" name="case_study_ids" value="{{ cs.id }}">
                                 <strong>{{ cs.title }}</strong>
-                                {% if cs.client %}<span class="muted">— {{ cs.client.firm_name }}</span>{% endif %}
+                                {% with owner=cs|owner_label %}{% if owner %}<span class="muted">— {{ owner }}</span>{% endif %}{% endwith %}
                             </label>
                         {% endfor %}
                     </div>

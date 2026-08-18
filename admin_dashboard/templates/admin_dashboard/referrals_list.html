@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}Referrals — Admin{% endblock %}
 
@@ -55,9 +56,15 @@
                     {% for link in links %}
                         <tr>
                             <td>
-                                <a href="{% url 'admin_dashboard:client_detail' link.client.id %}">
-                                    {{ link.client.firm_name }}
-                                </a>
+                                {% with site=link|owner_site %}
+                                    {% if site %}
+                                        <a href="{% url 'admin_dashboard:client_detail' site.id %}">
+                                            {{ link|owner_label }}
+                                        </a>
+                                    {% else %}
+                                        <span class="muted">{{ link|owner_label }}</span>
+                                    {% endif %}
+                                {% endwith %}
                             </td>
                             <td><code>{{ link.code }}</code></td>
                             <td>

@@ -835,8 +835,18 @@ class EscalationTaskGuardTests(TestCase):
         mock_alert.assert_not_called()
 
 
+@override_settings(DO_API_TOKEN='test-do-token')
 class DestroyDropletSnapshotsFirstTests(TestCase):
-    """Phase 1.2a — destroy_client_droplet MUST snapshot before DELETE."""
+    """Phase 1.2a — destroy_client_droplet MUST snapshot before DELETE.
+
+    `DO_API_TOKEN` is overridden because `_headers()` raises
+    DONotConfigured without one, and every request out of here is mocked
+    anyway. Without the override the outcome depends on whether the
+    machine's `.env` happens to hold a real DigitalOcean token: it passed
+    on the dev box and failed on staging, where the token is absent.
+    A test that reads production credentials to decide whether to pass is
+    not testing what it claims to.
+    """
 
     @patch('billing.do_helpers.requests.delete')
     @patch('billing.do_helpers.take_retention_snapshot')

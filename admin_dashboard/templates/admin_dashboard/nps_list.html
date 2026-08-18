@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load owners %}
 
 {% block title %}NPS — Admin{% endblock %}
 
@@ -40,7 +41,7 @@
                 <tbody>
                     {% for s in surveys %}
                         <tr>
-                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' s.client.id %}">{{ s.client.firm_name }}</a></td>
+                            <td>{% with site=s|owner_site %}{% if site %}<a class="lead-table__firm" href="{% url 'admin_dashboard:client_detail' site.id %}">{{ s|owner_label }}</a>{% else %}<span class="muted">{{ s|owner_label }}</span>{% endif %}{% endwith %}</td>
                             <td>
                                 {% if s.score is None %}<span class="muted">No response</span>
                                 {% elif s.score >= 9 %}<span class="nps-score nps-score--promoter">{{ s.score }}</span>

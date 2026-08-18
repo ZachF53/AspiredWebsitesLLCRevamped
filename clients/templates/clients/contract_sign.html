@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load owners %}
 {% load static %}
 
 {% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
@@ -12,7 +13,7 @@
         <div class="contract-wrap">
             <span class="eyebrow">Your Agreement</span>
             <h1>Aspired Websites — Website Build Contract</h1>
-            <p class="muted">{{ contract.client.firm_name }}</p>
+            <p class="muted">{{ contract|owner_label }}</p>
 
             {% if already_signed %}
                 <div class="audit-email-confirmation" role="status">
