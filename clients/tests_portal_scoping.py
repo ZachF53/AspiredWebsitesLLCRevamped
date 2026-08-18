@@ -142,7 +142,21 @@ class OwnershipCheckTests(TestCase):
         request = self._request(account=None, client_profile=None)
         self.assertFalse(_owns(request, suggestion))
 
-    def test_legacy_only_client_is_still_recognised(self):
+    def test_a_legacy_only_row_is_refused(self):
+        """The last legacy branch is gone, and this is the deliberate
+        consequence.
+
+        `_owns` used to fall back to `request.client_profile` when the
+        row matched neither the site nor the account. The portal no
+        longer resolves a legacy profile at all — the decorator does not
+        attach one — so that branch could only ever compare against None.
+
+        A row owned solely by a legacy profile is therefore refused. That
+        is the correct direction for an ownership check: refusing a row
+        the request cannot prove it owns shows an empty page, while
+        guessing hands one client another client's data. Any such row is
+        also a parity finding, and the audit reports zero of them.
+        """
         suggestion = self._suggestion(client=self.profile)
         request = self._request(account=None, client_profile=self.profile)
-        self.assertTrue(_owns(request, suggestion))
+        self.assertFalse(_owns(request, suggestion))

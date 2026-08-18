@@ -78,7 +78,7 @@ def _active_project(request):
     site = getattr(request, 'website', None)
     if site is not None:
         return site
-    return getattr(request, 'client_profile', None)
+    return getattr(request, 'account', None)
 
 
 def _owner_filter(request):
@@ -139,30 +139,33 @@ def _owns(request, obj):
     if account_id and account is not None and account_id == account.id:
         return True
 
-    profile = getattr(request, 'client_profile', None)
-    client_id = getattr(obj, 'client_id', None)
-    return bool(profile is not None and client_id and client_id == profile.id)
+    # Nothing left to fall back to: `request.client_profile` is gone, so
+    # an object that matched neither the site nor the account above is
+    # simply not this request's. Failing closed is the only safe answer
+    # for an ownership check.
+    return False
 
 
 def _intake_for(profile, site):
-    """Resolve (or create) the IntakeResponse, ensuring website_new is set so
-    the per-website reads (e.g. _portal_context) find it. Never duplicates:
-    IntakeResponse.client is O2O, so we look up by client first."""
+    """Resolve (or create) the IntakeResponse for a site.
+
+    Keyed on the website: an intake describes one build, and a client
+    with two builds owes an intake for each. `profile` is the site too —
+    both arguments are the same object now — and is kept in the signature
+    only because several callers pass it positionally.
+    """
     from .models import IntakeResponse
-    obj = IntakeResponse.objects.filter(client=profile).first()
-    if obj is None and site is not None:
-        obj = IntakeResponse.objects.filter(website_new=site).first()
+    site = site or profile
+    if site is None:
+        return None
+    obj = IntakeResponse.objects.filter(website_new=site).first()
     if obj is None:
-        obj = IntakeResponse.objects.create(client=profile, website_new=site)
-    elif site is not None and obj.website_new_id is None:
-        obj.website_new = site
-        obj.save(update_fields=['website_new', 'updated_at'])
+        obj = IntakeResponse.objects.create(website_new=site)
     return obj
 
 
 def _portal_context(request, active_nav, **extra):
     """Common context for every portal page — drives the sidebar + badges."""
-    profile = request.client_profile
     account = getattr(request, 'account', None)
     website = getattr(request, 'website', None)
 
@@ -171,7 +174,7 @@ def _portal_context(request, active_nav, **extra):
     # with the portal list views so one rule decides scoping everywhere,
     # and an Account-only client (no legacy profile) is scoped to their
     # own data rather than to `client=None`.
-    scope = website or profile
+    scope = website or account
     flt = _owner_filter(request)
 
     from .models import (
@@ -253,13 +256,14 @@ def _portal_context(request, active_nav, **extra):
     multi_website = len(websites_list) > 1
 
     ctx = {
-        'profile': profile,
-        # `project` is an alias used by every legacy template that
-        # reads {{ project.stage }} / {{ project.revisions }} / etc.
-        # During Phase C we prefer the active Website (so multi-
-        # website accounts show per-pick data), falling back to the
-        # legacy single ClientProfile.
-        'project': website or profile,
+        # Templates read {{ profile.name }} for the client's own name and
+        # {{ profile.contact_name }} for the person, both account-level.
+        'profile': account,
+        # `project` is an alias used by every template that reads
+        # {{ project.stage }} / {{ project.revisions }} / etc. It is the
+        # active Website: those are per-build facts, and on a multi-site
+        # account the chooser decides which build is being looked at.
+        'project': website or account,
         'intake': intake,
         'active_portal_nav': active_nav,
         'intake_incomplete': intake is None or not intake.completed,
@@ -425,6 +429,8 @@ def social_channels(request):
     admin side at /admin-dashboard/social/. This page just shows the
     client what's connected and what's been published recently.
     """
+    from clients.account_models import Account
+
     account = request.account
 
     plans = []
@@ -632,7 +638,8 @@ def _ensure_project_for_unlocked_intake(client):
 @client_required
 @allow_pending_intake
 def intake(request):
-    profile = request.client_profile
+    # The intake describes a build, so the subject is the site.
+    profile = getattr(request, 'website', None)
     project = _active_project(request)
 
     if not _intake_unlocked(profile, project):
@@ -684,7 +691,8 @@ def intake(request):
 @allow_pending_intake
 def intake_save(request):
     """HTMX auto-save endpoint — persists the intake form on every change."""
-    profile = request.client_profile
+    # The intake describes a build, so the subject is the site.
+    profile = getattr(request, 'website', None)
     project = _active_project(request)
     if request.method != 'POST' or not _intake_unlocked(profile, project):
         return redirect('clients:intake')
@@ -757,7 +765,8 @@ def intake_photo_upload(request):
     `request.FILES.getlist('file')` handles both the single and the
     many case uniformly.
     """
-    profile = request.client_profile
+    # The intake describes a build, so the subject is the site.
+    profile = getattr(request, 'website', None)
     project = _active_project(request)
     if not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
@@ -810,7 +819,8 @@ def intake_photo_upload(request):
 @require_POST
 def intake_photo_delete(request, photo_id):
     """HTMX endpoint: remove one IntakePhoto, return the refreshed gallery."""
-    profile = request.client_profile
+    # The intake describes a build, so the subject is the site.
+    profile = getattr(request, 'website', None)
     project = _active_project(request)
     if project is None or not _intake_unlocked(profile, project):
         return HttpResponse(status=403)
@@ -875,13 +885,12 @@ def _copy_intake_files_to_documents(profile, project):
         if not file_field:
             return
         if ClientDocument.objects.filter(
-                client=profile, label=label).exists():
+                website_new=profile, label=label).exists():
             return
         try:
             file_field.open('rb')
             ClientDocument.objects.create(
-                client=profile,
-                project=project,
+                website_new=profile,
                 direction='from_client',
                 label=label,
                 description='Uploaded via intake form.',
@@ -962,12 +971,9 @@ def _on_intake_submitted(profile, project):
     # detail). SiteChangelogEntry import is local so a missing model
     # never breaks intake submission.
     try:
-        from clients.website_helpers import primary_website
-
         from .models import SiteChangelogEntry
         SiteChangelogEntry.objects.create(
-            client=profile,
-            website_new=primary_website(profile),
+            website_new=profile,
             change_type='other',
             title='Intake form submitted',
             description=(
@@ -1062,9 +1068,6 @@ def file_upload(request):
         form = FileUploadForm(request.POST, request.FILES)
         if form.is_valid():
             doc = form.save(commit=False)
-            # client FK retained (table not dropped) as a bridge; the
-            # per-website FK is the one reads now use.
-            doc.client = request.client_profile
             doc.website_new = getattr(request, 'website', None)
             doc.direction = 'from_client'
             doc.uploaded_by = request.user
@@ -1141,9 +1144,6 @@ def revision_new(request):
         form = RevisionForm(request.POST)
         if form.is_valid():
             revision = form.save(commit=False)
-            # website_new is the canonical per-build FK now; client kept
-            # as a bridge (table not dropped).
-            revision.client = request.client_profile
             revision.website_new = getattr(request, 'website', None)
             revision.source = 'aspired_portal'
             revision.counts_against_limit = revision.is_major
@@ -1159,7 +1159,7 @@ def revision_new(request):
                 revision.status = 'out_of_scope'
                 revision.save(update_fields=['status', 'updated_at'])
                 _create_revision_mini_invoice(
-                    request.client_profile, revision,
+                    getattr(request, 'website', None), revision,
                     account=account, website=getattr(request, 'website', None))
                 messages.warning(
                     request,
@@ -1169,7 +1169,8 @@ def revision_new(request):
             else:
                 messages.success(request, 'Revision request submitted.')
 
-            _notify_admin_revision(request.client_profile, revision)
+            _notify_admin_revision(
+                getattr(request, 'website', None), revision)
             return redirect('clients:revisions')
 
         ctx = _portal_context(
@@ -1184,9 +1185,7 @@ def revision_new(request):
 def _create_revision_mini_invoice(profile, revision, account=None,
                                   website=None):
     from billing.models import MiniInvoice
-    # account_new/website_new are canonical; client kept as a bridge.
     MiniInvoice.objects.create(
-        client=profile,
         account_new=account,
         website_new=website,
         revision=revision,
@@ -1229,13 +1228,11 @@ def support_new(request):
         form = SupportTicketForm(request.POST)
         if form.is_valid():
             ticket = form.save(commit=False)
-            # client kept as a bridge (table retained); the per-website
-            # / per-account FKs are canonical now.
-            ticket.client = request.client_profile
             ticket.website_new = getattr(request, 'website', None)
             ticket.account_new = getattr(request, 'account', None)
             ticket.save()
-            _notify_admin_ticket(request.client_profile, ticket)
+            _notify_admin_ticket(ticket.website_new or ticket.account_new,
+                                 ticket)
             messages.success(request, 'Support ticket submitted.')
             return redirect('clients:support')
         ctx = _portal_context(
@@ -1543,10 +1540,9 @@ def portal_credentials_add(request):
     vault = ClientVault.objects.filter(account_new=account).first()
     if vault is None:
         vault = ClientVault.objects.filter(
-            client=request.client_profile).first()
+            account_new=account).first()
     if vault is None:
-        vault = ClientVault.objects.create(
-            client=request.client_profile, account_new=account)
+        vault = ClientVault.objects.create(account_new=account)
     elif vault.account_new_id is None:
         vault.account_new = account
         vault.save(update_fields=['account_new', 'updated_at'])
@@ -2422,7 +2418,6 @@ def portal_subscriptions(request):
         list_customer_payment_methods,
     )
 
-    from .models import ClientProfile
     account = request.account
     _stripe.api_key = _s.STRIPE_SECRET_KEY
 
@@ -2482,7 +2477,7 @@ def portal_subscriptions(request):
     # "Comped" badge instead of pricing + Stripe controls.
     comp_subscriptions = []
     if account.comp_build_package:
-        label = dict(ClientProfile.BUILD_COMP_CHOICES).get(
+        label = dict(Account.BUILD_COMP_CHOICES).get(
             account.comp_build_package, account.comp_build_package)
         comp_subscriptions.append({
             'id': f'comp-build-{account.id}',
@@ -2495,7 +2490,7 @@ def portal_subscriptions(request):
             'comp_notes': account.comp_notes,
         })
     if account.comp_maintenance_package:
-        label = dict(ClientProfile.MAINTENANCE_COMP_CHOICES).get(
+        label = dict(Account.MAINTENANCE_COMP_CHOICES).get(
             account.comp_maintenance_package,
             account.comp_maintenance_package)
         comp_subscriptions.append({
@@ -2511,7 +2506,7 @@ def portal_subscriptions(request):
     if (account.comp_social_tier
             and not account.social_media_plans.filter(
                 status='active').exclude(stripe_subscription_id='').exists()):
-        label = dict(ClientProfile.SOCIAL_COMP_CHOICES).get(
+        label = dict(Account.SOCIAL_COMP_CHOICES).get(
             account.comp_social_tier, account.comp_social_tier)
         comp_subscriptions.append({
             'id': f'comp-social-{account.id}',
@@ -2867,7 +2862,8 @@ def portal_maintenance_start(request, slug):
         messages.error(request, 'Unknown maintenance plan.')
         return redirect('clients:portal_maintenance')
 
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
 
     try:
         tier = get_maintenance_tier(slug)
@@ -2992,7 +2988,8 @@ def portal_maintenance_cancel(request):
         StripeNotConfigured, cancel_maintenance_subscription,
     )
 
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
     reason = (request.POST.get('reason') or '').strip()
     try:
         result = cancel_maintenance_subscription(profile, reason=reason)
@@ -3024,7 +3021,8 @@ def portal_maintenance_resume(request):
         StripeNotConfigured, resume_maintenance_subscription,
     )
 
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
     try:
         resume_maintenance_subscription(profile)
         messages.success(
@@ -3186,7 +3184,8 @@ def portal_social_plans_start(request, slug):
         messages.error(request, 'Unknown social media plan.')
         return redirect('clients:portal_social_plans')
 
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
     website = getattr(request, 'website', None)
     # ?w=<slug> takes precedence over the chooser pick. The per-business
     # Subscribe buttons on /portal/social/plans/ pass it so a multi-
@@ -3307,7 +3306,8 @@ def portal_social_cancel(request):
     from billing.stripe_helpers import (
         StripeNotConfigured, cancel_social_subscription,
     )
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
     website = getattr(request, 'website', None)
     try:
         cancel_social_subscription(
@@ -3335,7 +3335,8 @@ def portal_social_resume(request):
     from billing.stripe_helpers import (
         StripeNotConfigured, resume_social_subscription,
     )
-    profile = request.client_profile
+    # Billing is account-level: one customer, one card.
+    profile = getattr(request, 'account', None)
     website = getattr(request, 'website', None)
     try:
         resume_social_subscription(profile, website=website)
@@ -3364,10 +3365,10 @@ def portal_referral(request):
     link = ReferralLink.objects.filter(account_new=account).first()
     if link is None:
         link = ReferralLink.objects.filter(
-            client=request.client_profile).first()
+            account_new=account).first()
     if link is None:
         link = ReferralLink.objects.create(
-            client=request.client_profile, account_new=account,
+            account_new=account,
             code=generate_referral_code(account.name))
     elif link.account_new_id is None:
         link.account_new = account

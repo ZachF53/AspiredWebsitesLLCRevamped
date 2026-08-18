@@ -281,7 +281,7 @@ def _generate_blog_content(post, length, tone):
 @admin_required
 def blog_list(request):
     """All AI blog posts across clients, with client/status filters."""
-    from clients.models import ClientProfile
+    from clients.account_models import Website
     from reporting.models import BlogPost
 
     posts = BlogPost.objects.select_related(
@@ -289,13 +289,14 @@ def blog_list(request):
     client_filter = request.GET.get('client', '')
     status_filter = request.GET.get('status', '')
     if client_filter and _is_uuid(client_filter):
-        posts = posts.filter(client_id=client_filter)
+        posts = posts.filter(website_new_id=client_filter)
     if status_filter:
         posts = posts.filter(status=status_filter)
     return render(request, 'admin_dashboard/blog_list.html', _admin_context(
         'blog',
         posts=posts,
-        clients=ClientProfile.objects.order_by('firm_name'),
+        clients=(Website.objects.select_related('account')
+                 .order_by('account__name', 'name')),
         statuses=BlogPost.STATUS_CHOICES,
         client_filter=client_filter,
         status_filter=status_filter,

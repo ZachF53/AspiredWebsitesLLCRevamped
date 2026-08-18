@@ -22,6 +22,7 @@ from .account_setup import (
     ACCOUNT_LEVEL_FIELDS,
     account_name_for,
     account_onboarding_status_for,
+    website_onboarding_status_for,
 )
 from .models import ClientProfile
 
@@ -165,7 +166,8 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
                 'url': instance.website or '',
                 'stage': instance.stage or 'intake',
                 'package': instance.package or '',
-                'onboarding_status': 'pending_intake',
+                'onboarding_status': website_onboarding_status_for(
+                    instance),
             },
         )
     except Exception:

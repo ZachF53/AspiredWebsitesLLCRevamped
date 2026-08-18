@@ -62,6 +62,16 @@ ALLOWED_PREFIXES = (
 SKIP_DIR_PARTS = ('myvenv', 'node_modules', '.git', 'staticfiles')
 
 LEGACY_NAMES = frozenset({'ClientProfile', 'Project'})
+
+# Attributes that hold a legacy instance without naming its class.
+#
+# `request.client_profile` is set by clients.decorators.client_required and
+# read by ~20 portal views. None of them mentions ClientProfile, so a
+# name-based scan reports those modules as clean while they still break
+# outright at drop time. Counting symbols is not the same as counting
+# dependence, and this is where the two came apart -- the gate said
+# clients/views.py had zero legacy reads while it had twenty.
+LEGACY_ATTRIBUTES = frozenset({'client_profile'})
 RELATION_FIELDS = frozenset(
     {'ForeignKey', 'OneToOneField', 'ManyToManyField'})
 # String forms Django resolves lazily -- `models.ForeignKey('clients.Project')`.
@@ -136,7 +146,8 @@ def _references_legacy(node):
     if isinstance(node, ast.Name):
         return node.id in LEGACY_NAMES
     if isinstance(node, ast.Attribute):
-        return node.attr in LEGACY_NAMES
+        return (node.attr in LEGACY_NAMES
+                or node.attr in LEGACY_ATTRIBUTES)
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         return any(alias.name in LEGACY_NAMES for alias in node.names)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -217,7 +228,8 @@ def scan_repository(root='.'):
             source = path.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
-        if not any(legacy in source for legacy in LEGACY_NAMES):
+        markers = LEGACY_NAMES | LEGACY_ATTRIBUTES
+        if not any(marker in source for marker in markers):
             continue
         report = analyse_source(source, path=relative)
         if report is None:

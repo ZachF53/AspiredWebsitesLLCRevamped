@@ -123,8 +123,10 @@ def portal_domain_register(request, domain):
         list_customer_payment_methods,
     )
 
-    profile = request.client_profile
+    # A domain purchase is billed to the customer, so the subject is
+    # the account.
     account = request.account
+    profile = account
 
     domain = (domain or '').lower().strip()
     if '.' not in domain:

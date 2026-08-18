@@ -160,3 +160,48 @@ class ScanRepositoryTests(SimpleTestCase):
     def test_reports_are_ordered_by_remaining_work(self):
         counts = [len(r.code_lines) for r in self.reports]
         self.assertEqual(counts, sorted(counts, reverse=True))
+
+
+class LegacyAttributeDetectionTests(SimpleTestCase):
+    """Counting symbols is not the same as counting dependence.
+
+    `request.client_profile` is set by the portal decorator and read by
+    ~20 views. None of them names ClientProfile, so a scan that looks
+    only for the class reported every one of those modules as clean while
+    they would break outright at drop time — the gate said
+    clients/views.py had zero legacy reads when it had twenty.
+    """
+
+    def test_a_request_attribute_read_is_a_live_read(self):
+        source = (
+            'def portal_view(request):\n'
+            '    profile = request.client_profile\n'
+            '    return profile\n'
+        )
+        report = analyse_source(source)
+        self.assertEqual(report.code_lines, [2])
+        self.assertTrue(report.blocks_removal)
+
+    def test_an_assignment_to_it_also_counts(self):
+        """The decorator that sets it is a dependency too."""
+        source = (
+            'def wrapper(request, profile):\n'
+            '    request.client_profile = profile\n'
+        )
+        self.assertTrue(analyse_source(source).blocks_removal)
+
+    def test_a_module_naming_only_the_attribute_is_still_scanned(self):
+        """The pre-filter skipped any file that never said
+        'ClientProfile', so a module using only the request attribute was
+        never even parsed. domains/views.py was invisible for that
+        reason."""
+        from clients.legacy_audit import LEGACY_ATTRIBUTES, LEGACY_NAMES
+
+        source = 'x = request.client_profile\n'
+        self.assertFalse(any(n in source for n in LEGACY_NAMES))
+        self.assertTrue(any(a in source for a in LEGACY_ATTRIBUTES))
+        self.assertTrue(analyse_source(source).blocks_removal)
+
+    def test_an_unrelated_attribute_is_not_flagged(self):
+        report = analyse_source('x = request.account\n')
+        self.assertFalse(report.blocks_removal)

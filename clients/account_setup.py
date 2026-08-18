@@ -218,3 +218,25 @@ def _copy_fields(profile, account):
                 setattr(account, field, getattr(profile, field))
         account.save(update_fields=changed + ['updated_at'])
     return changed
+
+
+def website_onboarding_status_for(profile):
+    """The per-site intake state a new Website inherits from its profile.
+
+    The autocreate signal hardcoded 'pending_intake' for every Website it
+    made, while `refactor_to_accounts` derived it from the client's stage.
+    The two disagreeing did not matter while only an admin badge read the
+    field — but the portal gate reads it now, so a signal-created site
+    would have bounced an established client into the intake form on
+    every page.
+
+    Mirrors the backfill exactly:
+      live               -> complete       (the build shipped)
+      pending_intake     -> pending_intake (they genuinely owe one)
+      anything else      -> intake_complete
+    """
+    if (getattr(profile, 'stage', '') or '') == 'live':
+        return 'complete'
+    if (getattr(profile, 'onboarding_status', '') or '') == 'pending_intake':
+        return 'pending_intake'
+    return 'intake_complete'

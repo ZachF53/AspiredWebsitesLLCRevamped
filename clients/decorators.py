@@ -6,7 +6,6 @@ from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 
-from .models import ClientProfile
 from .portal_resolvers import (
     resolve_account_for_user,
     resolve_website,
@@ -16,21 +15,20 @@ from .portal_resolvers import (
 def client_required(view_func):
     """
     Gate a portal view: the user must be authenticated AND be a client —
-    which since cutover Wave 1 means holding an Account, a ClientProfile,
-    or both. Anyone else is bounced to /login/ with a ?next= back here.
+    which means holding an Account. Anyone else is bounced to /login/
+    with a ?next= back here.
 
-    Requiring a ClientProfile was correct only while every client had one.
-    Account is the canonical owner now, so a user with an Account and no
-    legacy profile is a client; rejecting them sent a legitimate customer
-    into a login loop with no error to explain it.
+    This used to admit a user holding an Account *or* a legacy
+    ClientProfile, and attached `request.client_profile` for the ~20
+    views that read it. Those views read `request.website` or
+    `request.account` now, so the profile is neither looked up nor
+    attached — which is what actually severs the portal from the legacy
+    table. A name-based scan never saw those twenty reads, because none
+    of them mentioned ClientProfile.
 
     On success the following are attached to the request:
 
-      request.client_profile  — legacy single profile, or None once a
-                                client exists only as an Account. Views
-                                that still read it must tolerate None.
-      request.account         — Account (Phase C resolver, derived
-                                from the profile during the transition).
+      request.account         — the Account this user owns.
       request.website         — Website the request is scoped to, or
                                 None if the caller will redirect to
                                 the chooser. Picked from a
@@ -70,12 +68,10 @@ def client_required(view_func):
         # (the shape every post-cutover signup will have) is let in; before
         # this change they were bounced to the login page in a loop.
         account = resolve_account_for_user(request.user)
-        profile = ClientProfile.objects.filter(user=request.user).first()
-        if account is None and profile is None:
+        if account is None:
             return redirect_to_login(request.get_full_path())
 
         request.account = account
-        request.client_profile = profile
         # Website: from URL kwarg (when mounted under /portal/site/<slug>/),
         # else session, else the account's sole website if exactly one.
         # Per-website views consume `request.website`; account-wide views
@@ -86,18 +82,16 @@ def client_required(view_func):
             request, request.account, slug_from_url=slug_kwarg)
 
         # ── Onboarding gate ──
-        # Still driven by the legacy profile on purpose. The canonical
-        # split — account setup on Account, intake on Website — is Wave 2,
-        # and Account.onboarding_status is not yet trustworthy on rows the
-        # autocreate signal wrote before it recorded the real state. When
-        # there is no legacy profile at all, fall back to the Account,
-        # which is correct for anything created after this cutover.
-        if profile is not None:
-            status = getattr(
-                profile, 'onboarding_status', 'onboarding_complete')
-        elif account is not None and account.onboarding_status == (
-                'pending_setup'):
+        # The canonical split, finally: account setup (WHOIS contact +
+        # vault PIN) is the Account's, the intake form is the Website's.
+        # This used to read a single three-state field off the legacy
+        # profile, which could not express a client who had finished one
+        # build's intake but not another's.
+        if account.onboarding_status == 'pending_setup':
             status = 'pending_setup'
+        elif (request.website is not None
+                and request.website.onboarding_status == 'pending_intake'):
+            status = 'pending_intake'
         else:
             status = 'onboarding_complete'
 
@@ -105,7 +99,7 @@ def client_required(view_func):
             # Shouldn't happen — the user shouldn't have a password until
             # they've consumed the token — but if it does, send them to
             # finish setup rather than into a half-broken portal.
-            token = getattr(profile, 'onboarding_token', None)
+            token = getattr(account, 'onboarding_token_new', None)
             if token and not token.used:
                 return redirect(token.get_setup_url())
             # No usable token → bail to login so an admin can rebuild.
