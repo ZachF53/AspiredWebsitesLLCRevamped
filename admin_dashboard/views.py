@@ -1711,9 +1711,7 @@ def new_invoice(request):
         StripeNotConfigured, create_onboarding_payment_intent,
     )
     from clients.emails import send_invoice_email
-    from clients.models import (
-        ClientProfile, OnboardingInvoice, OnboardingToken,
-    )
+    from clients.models import OnboardingInvoice, OnboardingToken
 
     packages = _billing_packages()
     maintenance_plans = _billing_maintenance_plans()
@@ -1745,7 +1743,7 @@ def new_invoice(request):
         # ── Resolve project line ──
         project_amount = None
         project_label = ''
-        package_db_slug = ''  # for ClientProfile.package
+        package_db_slug = ''  # for Website.package
         if package_slug == 'custom':
             try:
                 project_amount = Decimal(custom_amount_raw)
@@ -1763,7 +1761,7 @@ def new_invoice(request):
             else:
                 project_amount = tier.price
                 project_label = tier.name
-                # Map ServiceTier slug → ClientProfile.PACKAGE_CHOICES.
+                # Map ServiceTier slug → Website.PACKAGE_CHOICES.
                 package_db_slug = (
                     'essential_build' if 'essential' in tier.slug
                     else 'premium_build' if 'premium' in tier.slug
@@ -1844,36 +1842,42 @@ def new_invoice(request):
                     firm_name or f'{first} {last}'.strip()
                     or email.split('@')[0])
 
-                profile = ClientProfile.objects.create(
+                # Account first, then its Website. This used to create a
+                # ClientProfile and let a post_save signal materialise
+                # both behind it — a signal that swallows its own
+                # failures, so `ensure_account` had to run afterwards to
+                # check whether it had worked. Creating the rows directly
+                # removes the signal, the check, and the window in which
+                # an admin had billed a client whose account did not
+                # exist.
+                from clients.account_models import Account, Website
+
+                profile = Account.objects.create(
                     user=user,
-                    firm_name=display_name,
+                    name=display_name,
                     contact_name=f'{first} {last}'.strip(),
                     phone=phone,
                     city=city,
                     state=state,
-                    package=package_db_slug,
                     status='active',
                     onboarding_status='pending_setup',
                     onboarding_complete=False,
-                    maintenance_active=False,
                     internal_notes=notes,
                 )
-
-                # `autocreate_account_and_website` fired on the
-                # ClientProfile post_save above, so the Account and the
-                # primary Website exist by now — unless it failed, which it
-                # does silently. Confirm before anything downstream hangs
-                # rows off this client.
-                from clients.account_setup import ensure_account
-                ensure_account(profile)
+                site = Website.objects.create(
+                    account=profile,
+                    name=display_name,
+                    package=package_db_slug,
+                    status='active',
+                    onboarding_status='pending_intake',
+                )
 
                 # OnboardingInvoice row (snapshot of what's being
                 # billed — line items render on our /pay/ page and
                 # on the PDF receipt).
-                from clients.website_helpers import primary_website
                 invoice = OnboardingInvoice.objects.create(
-                    client=profile,
-                    website_new=primary_website(profile),
+                    account_new=profile,
+                    website_new=site,
                     line_items=[
                         {'description': it['description'],
                          'amount': str(it['amount'])}
@@ -1911,7 +1915,7 @@ def new_invoice(request):
                 # OnboardingToken is created up-front so the setup
                 # link is ready the moment payment.intent.succeeded
                 # webhook fires.
-                OnboardingToken.objects.create(client=profile)
+                OnboardingToken.objects.create(account_new=profile)
         except StripeNotConfigured:
             _msg.error(
                 request,
@@ -2014,13 +2018,15 @@ def new_invoice(request):
 @admin_required
 def invoice_detail(request, invoice_id):
     """Per-invoice admin page: status, onboarding state, resend actions."""
-    from clients.models import (
-        ClientProfile, OnboardingInvoice, OnboardingToken,
-    )
+    from clients.account_models import Account
+    from clients.models import OnboardingInvoice, OnboardingToken
+
+    # Account-scoped: the onboarding invoice covers the engagement and
+    # the setup token creates one login.
     profile = get_object_or_404(
-        ClientProfile.objects.select_related('user'), id=invoice_id)
-    token = OnboardingToken.objects.filter(client=profile).first()
-    invoice = OnboardingInvoice.objects.filter(client=profile).first()
+        Account.objects.select_related('user'), id=invoice_id)
+    token = OnboardingToken.objects.filter(account_new=profile).first()
+    invoice = OnboardingInvoice.objects.filter(account_new=profile).first()
 
     return render(
         request,
@@ -2040,11 +2046,11 @@ def invoice_resend_setup(request, invoice_id):
     """Resend the account-setup link email."""
     from django.contrib import messages as _msg
 
+    from clients.account_models import Account
     from clients.emails import send_onboarding_setup_email
-    from clients.models import ClientProfile
 
-    profile = get_object_or_404(ClientProfile, id=invoice_id)
-    token = getattr(profile, 'onboarding_token', None)
+    profile = get_object_or_404(Account, id=invoice_id)
+    token = getattr(profile, 'onboarding_token_new', None)
     if token is None:
         _msg.error(request, 'No onboarding token on file.')
     elif token.used:
@@ -2066,11 +2072,13 @@ def invoice_resend(request, invoice_id):
     """Resend the branded invoice email — points to our /pay/ page."""
     from django.contrib import messages as _msg
 
+    from clients.account_models import Account
     from clients.emails import send_invoice_email
-    from clients.models import ClientProfile, OnboardingInvoice
+    from clients.models import OnboardingInvoice
 
-    profile = get_object_or_404(ClientProfile, id=invoice_id)
-    invoice = OnboardingInvoice.objects.filter(client=profile).first()
+    profile = get_object_or_404(Account, id=invoice_id)
+    invoice = OnboardingInvoice.objects.filter(
+        account_new=profile).first()
     if invoice is None:
         _msg.error(request, 'No invoice on file for this client.')
         return redirect(
@@ -2096,12 +2104,17 @@ def invoice_send_intake_reminder(request, invoice_id):
     from django.contrib import messages as _msg
     from django.utils import timezone
 
-    from clients.models import ClientProfile
+    from clients.account_models import Account
     from clients.tasks import _send_intake_reminder
 
-    profile = get_object_or_404(ClientProfile, id=invoice_id)
-    token = getattr(profile, 'onboarding_token', None)
-    if profile.onboarding_status != 'pending_intake' or token is None:
+    profile = get_object_or_404(Account, id=invoice_id)
+    token = getattr(profile, 'onboarding_token_new', None)
+    # The intake is per WEBSITE, so "still owes one" is asked of the
+    # account's sites. The account-level status could not express a
+    # client who had submitted one build's intake but not the other's.
+    pending = profile.websites.filter(
+        onboarding_status='pending_intake').first()
+    if pending is None or token is None:
         _msg.warning(
             request,
             'Client is not in the pending-intake state — '
@@ -2109,7 +2122,7 @@ def invoice_send_intake_reminder(request, invoice_id):
         return redirect(
             'admin_dashboard:invoice_detail', invoice_id=profile.id)
     try:
-        _send_intake_reminder(profile, token)
+        _send_intake_reminder(pending, token)
         token.intake_reminders_sent += 1
         token.last_intake_reminder_at = timezone.now()
         token.save(update_fields=[
@@ -2201,9 +2214,7 @@ def send_onboarding(request):
     from django.db import transaction
 
     from clients.emails import send_onboarding_setup_email
-    from clients.models import (
-        ClientProfile, OnboardingInvoice, OnboardingToken,
-    )
+    from clients.models import OnboardingInvoice, OnboardingToken
 
     if request.method == 'POST':
         from core.phone_utils import normalize_phone
@@ -2255,9 +2266,13 @@ def send_onboarding(request):
                     firm_name or f'{first} {last}'.strip()
                     or email.split('@')[0])
 
-                profile = ClientProfile.objects.create(
+                # Account + Website created directly — see the paid
+                # invoice path above for why the signal detour is gone.
+                from clients.account_models import Account, Website
+
+                profile = Account.objects.create(
                     user=user,
-                    firm_name=display_name,
+                    name=display_name,
                     contact_name=f'{first} {last}'.strip(),
                     phone=phone,
                     city=city,
@@ -2265,21 +2280,20 @@ def send_onboarding(request):
                     status='active',
                     onboarding_status='pending_setup',
                     onboarding_complete=False,
-                    maintenance_active=False,
                     internal_notes=notes,
                 )
-
-                # Confirm the autocreate signal actually produced the
-                # Account before hanging an invoice + token off this client.
-                from clients.account_setup import ensure_account
-                ensure_account(profile)
+                site = Website.objects.create(
+                    account=profile,
+                    name=display_name,
+                    status='active',
+                    onboarding_status='pending_intake',
+                )
 
                 # Zero-amount paid invoice so the downstream gate
                 # treats this client identically to a paid client.
-                from clients.website_helpers import primary_website
                 OnboardingInvoice.objects.create(
-                    client=profile,
-                    website_new=primary_website(profile),
+                    account_new=profile,
+                    website_new=site,
                     line_items=[],
                     total_amount=_Decimal('0'),
                     status='paid',
@@ -2287,7 +2301,8 @@ def send_onboarding(request):
                     paid_at=timezone.now(),
                 )
 
-                token = OnboardingToken.objects.create(client=profile)
+                token = OnboardingToken.objects.create(
+                    account_new=profile)
         except Exception as exc:  # noqa: BLE001
             _msg.error(request, f'Could not create client: {exc}')
             return redirect('admin_dashboard:send_onboarding')
@@ -3500,28 +3515,11 @@ def account_set_comp_tier(request, account_id):
         'admin_dashboard:account_detail', account_id=account.id)
 
 
-def _ensure_client_profile(account):
-    """Return the Account's linked ClientProfile, linking the user's existing
-    one if the FK isn't set. Contracts hang off ClientProfile; in practice
-    every Account is born from a ClientProfile (see clients.signals), so the
-    FK is almost always present. We do NOT create a new ClientProfile here —
-    that would re-fire the auto-Account signal and collide on the user's
-    existing Account. Returns None only for a genuinely orphaned Account
-    (no profile, no user), which the caller surfaces as an error.
-    """
-    from clients.models import ClientProfile
-
-    if account.legacy_client_profile_id:
-        return account.legacy_client_profile
-    user = account.user
-    if user is None:
-        return None
-    profile = ClientProfile.objects.filter(user=user).first()
-    if profile is None:
-        return None
-    account.legacy_client_profile = profile
-    account.save(update_fields=['legacy_client_profile'])
-    return profile
+# `_ensure_client_profile` lived here. It resolved (and back-filled) the
+# Account's legacy ClientProfile purely so a Contract could be hung off
+# it. Contract now carries `account` and `website_new`, and the contract
+# text reads the party name off whichever owner it is handed, so there is
+# nothing left for it to do.
 
 
 # Map a website-build ServiceTier slug to the Contract.package code so the
@@ -3551,13 +3549,14 @@ def website_send_contract(request, website_id):
     from clients.emails import send_contract_ready_email
     from clients.models import Contract, ContractService
 
-    website = get_object_or_404(Website, id=website_id)
+    website = get_object_or_404(
+        Website.objects.select_related('account'), id=website_id)
     account = website.account
-    profile = _ensure_client_profile(account) if account else None
-    if profile is None:
+    if account is None:
         _messages.error(
-            request, 'This website has no account/user — cannot send a contract.')
+            request, 'This website has no account — cannot send a contract.')
         return redirect('admin_dashboard:website_detail', website_id=website.id)
+    profile = account
 
     slug = _PACKAGE_TO_BUILD_SLUG.get(website.package or '')
     tier = (ServiceTier.objects.filter(slug=slug, category='website_build',
@@ -3572,7 +3571,7 @@ def website_send_contract(request, website_id):
 
     price = Decimal(tier.price)
     contract = Contract.objects.create(
-        client=profile, account=account, website_new=website,
+        account=account, website_new=website,
         package=website.package,
         build_price=price,
         deposit_amount=(price / 2).quantize(Decimal('0.01')),
@@ -3725,13 +3724,13 @@ def account_send_contract(request, account_id):
 
     account = get_object_or_404(Account, id=account_id)
 
-    profile = _ensure_client_profile(account)
-    if profile is None:
+    if account.user is None:
         _messages.error(
             request,
             'This account has no user on file — cannot create a contract.')
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
+    profile = account
 
     # (service_type, checkbox field, tier-select field, ServiceTier category)
     service_form = [
@@ -3768,7 +3767,6 @@ def account_send_contract(request, account_id):
     build_tier = next((t for st, t in selected if st == 'build'), None)
 
     contract = Contract.objects.create(
-        client=profile,
         account=account,
         package=(_BUILD_SLUG_TO_PACKAGE.get(build_tier.slug, '')
                  if build_tier else ''),

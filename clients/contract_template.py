@@ -17,6 +17,19 @@ from decimal import Decimal
 from core.site_facts import LOCATION_STATEMENT
 
 
+def _party_name(client):
+    """The organisation name on the contract.
+
+    Accepts an Account (``name``) or a legacy ClientProfile
+    (``firm_name``). The party that signs is the business, which is
+    account-level: a contract for "Vance Mediation Services" is still
+    signed by Vance Family Law the firm.
+    """
+    return (getattr(client, 'name', '')
+            or getattr(client, 'firm_name', '') or '')
+
+
+
 def _money(amount):
     """Format a Decimal/number as $X,XXX (no cents when whole)."""
     amount = Decimal(amount)
@@ -54,8 +67,8 @@ def generate_combined_contract_text(client, services):
     hourly = AddonPricing.objects.filter(slug='addon-hourly').first()
     hourly_rate = f'${hourly.price_min:,.0f}' if hourly else '$85'
 
-    client_name = client.contact_name or client.firm_name
-    firm = client.firm_name
+    firm = _party_name(client)
+    client_name = client.contact_name or firm
 
     by_type = {s['service_type']: s['tier'] for s in services}
     build = by_type.get('build')
@@ -217,8 +230,8 @@ def generate_contract_text(client, package_slug):
     hourly = AddonPricing.objects.filter(slug='addon-hourly').first()
     hourly_rate = f'${hourly.price_min:,.0f}' if hourly else '$85'
 
-    client_name = client.contact_name or client.firm_name
-    firm = client.firm_name
+    firm = _party_name(client)
+    client_name = client.contact_name or firm
 
     return f"""
 <div class="contract-doc">
