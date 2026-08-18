@@ -31,10 +31,11 @@ def _operator_token():
     return GbpOperatorToken.objects.order_by('created_at').first()
 
 
-def _client_domain(website, cp):
+def _client_domain(website):
+    """The site's own URL. It used to fall back to the legacy profile's
+    `website` column for rows the backfill had not reached; the parity
+    gate reports no gaps on that column now."""
     domain = (website.url or '').strip()
-    if not domain and cp is not None:
-        domain = (getattr(cp, 'website', '') or '').strip()
     if not domain:
         return ''
     if not domain.startswith(('http://', 'https://')):
@@ -66,9 +67,8 @@ def provision_ga4_for_website(website):
         return None
     headers['Content-Type'] = 'application/json'
 
-    cp = website.account.legacy_client_profile if website.account else None
     display_name = (website.name
-                    or (cp.firm_name if cp else '')
+                    or (website.account.name if website.account else '')
                     or 'Website')[:100]
 
     # 1) Create the property under the agency GA account.
@@ -93,7 +93,7 @@ def provision_ga4_for_website(website):
     # 2) Create the web data stream → yields the Measurement ID.
     measurement_id = ''
     stream_name = ''
-    default_uri = _client_domain(website, cp) or 'https://example.com'
+    default_uri = _client_domain(website) or 'https://example.com'
     try:
         r = requests.post(
             f'{ADMIN_BASE}/{property_name}/dataStreams',
@@ -121,7 +121,9 @@ def provision_ga4_for_website(website):
         'ga4_provisioned_at', 'updated_at'])
 
     # 3) Grant the client access to their property (best-effort).
-    client_email = (cp.user.email if (cp and cp.user_id) else '')
+    from clients.display import owner_recipient
+
+    client_email = owner_recipient(website)[0]
     if client_email:
         try:
             requests.post(

@@ -49,7 +49,7 @@ ALLOWED_PREFIXES = (
     'clients/parity.py',
     'clients/account_setup.py',
     'clients/canonical_stamping.py',
-    'clients/canonical_iteration.py',
+    'clients/legacy_teardown.py',
     'clients/legacy_audit.py',
     'clients/signals.py',
     'clients/apps.py',
@@ -85,7 +85,18 @@ LEGACY_NAMES = frozenset({'ClientProfile', 'Project'})
 # outright at drop time. Counting symbols is not the same as counting
 # dependence, and this is where the two came apart -- the gate said
 # clients/views.py had zero legacy reads while it had twenty.
-LEGACY_ATTRIBUTES = frozenset({'client_profile'})
+#
+# `legacy_client_profile` / `legacy_project` are the transitional FKs
+# themselves. Phase 2 of the drop removes them, so any module reading one
+# to decide what to do is depending on the very thing being removed --
+# and, before that, is already taking a different code path for the
+# canonical-only clients created since the cutover. `admin_dashboard`
+# gated the stage-change email on `if legacy_cp is not None`, so those
+# clients were never told their project had moved. None of those lines
+# names ClientProfile, so a name-based scan scored the module clean.
+LEGACY_ATTRIBUTES = frozenset({
+    'client_profile', 'legacy_client_profile', 'legacy_project',
+})
 RELATION_FIELDS = frozenset(
     {'ForeignKey', 'OneToOneField', 'ManyToManyField'})
 # String forms Django resolves lazily -- `models.ForeignKey('clients.Project')`.

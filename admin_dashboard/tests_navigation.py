@@ -165,6 +165,14 @@ class ViewModuleSplitTests(TestCase):
         a NameError inside a view body only fires when the view runs — so
         the breakage surfaced as failing tests rather than a startup
         error. pyflakes catches the whole class statically.
+
+        Widened past `admin_dashboard/views*.py` to the modules the
+        cutover actually rewrote. Removing a `client = ...` lookup from
+        `reporting/tasks.py` left two `client=client` kwargs behind it,
+        and the uptime task — a Celery beat job with no test covering
+        that branch — raised NameError every five minutes. The guard
+        existed for exactly that failure and was scoped too narrowly to
+        see it.
         """
         import glob
         import subprocess
@@ -172,6 +180,12 @@ class ViewModuleSplitTests(TestCase):
 
         targets = sorted(
             glob.glob('admin_dashboard/views*.py')
+            + glob.glob('clients/*.py')
+            + glob.glob('clients/management/commands/*.py')
+            + glob.glob('reporting/*.py')
+            + glob.glob('billing/*.py')
+            + glob.glob('vault/*.py')
+            + glob.glob('domains/*.py')
             + ['admin_dashboard/context.py'])
         try:
             result = subprocess.run(

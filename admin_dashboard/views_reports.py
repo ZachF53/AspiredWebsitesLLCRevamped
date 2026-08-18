@@ -139,11 +139,13 @@ def freshness_generate(request, website_id):
     from clients.account_models import Website
     from reporting.tasks import generate_freshness_report
     website = get_object_or_404(Website, id=website_id)
-    # The crawl task still keys off the legacy profile (it reads the live
-    # URL there) and stamps website_new on the report it writes.
-    cp = website.account.legacy_client_profile
-    if cp is not None:
-        generate_freshness_report(str(cp.id))
+    # `generate_freshness_report` resolves its argument as a Website id --
+    # it has since the crawl moved onto `Website.url`. This passed the
+    # legacy profile's id, so the task looked up a Website that did not
+    # exist and returned "No such website." for every client, not only
+    # the canonical-only ones. The button reported success and crawled
+    # nothing.
+    generate_freshness_report(str(website.id))
     return redirect('admin_dashboard:website_freshness', website_id=website.id)
 
 
@@ -157,7 +159,6 @@ def freshness_flag(request, website_id):
     url = (request.POST.get('url') or '').strip()
     title = (request.POST.get('title') or '').strip()
     SiteChangelogEntry.objects.create(
-        client=website.account.legacy_client_profile,
         website_new=website,
         change_type='content_update',
         title=f'Content flagged for update: {title or url}'[:200],
@@ -391,14 +392,12 @@ def _chatbot_for_website(website):
     one config until the FK flip)."""
     from reporting.models import ClientChatbot
     bot = ClientChatbot.objects.filter(website_new=website).first()
-    if bot is not None:
-        return bot
-    cp = website.account.legacy_client_profile
-    if cp is None:
-        return None
-    bot = ClientChatbot.objects.filter(client=cp).first()
     if bot is None:
-        bot = ClientChatbot.objects.create(client=cp, website_new=website)
+        # Per site, created on demand. The fallback used to look the bot
+        # up on the account's legacy profile and `return None` when there
+        # wasn't one, so a client created since the cutover simply had no
+        # chatbot config and the page offered nothing to configure.
+        bot = ClientChatbot.objects.create(website_new=website)
     return bot
 
 

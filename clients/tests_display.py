@@ -9,9 +9,13 @@ is the worst of the three because it replaces the error someone was
 actually trying to read.
 """
 
+from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
 from clients.display import UNASSIGNED, owner_label
+from clients.models import ClientProfile
+
+User = get_user_model()
 
 
 class _Row:
@@ -290,3 +294,39 @@ class RealInstancePassedDirectlyTests(TestCase):
 
         self.assertEqual(_recipient_email(self.site), 'direct@example.com')
         self.assertEqual(_setup_first_name(self.site), 'Dana')
+
+
+class LegacyProfileOwnerTests(TestCase):
+    """A ClientProfile handed to the resolvers directly.
+
+    Not hypothetical: droplet provisioning receives one, and
+    `owner_account` fell through every branch and returned None — so the
+    new server's SSH credential was written into a vault keyed on
+    nothing, minutes after the customer paid. The Account and Website
+    branches above were added for exactly this shape of bug; this is the
+    third instance of it.
+    """
+
+    def setUp(self):
+        user = User.objects.create_user(
+            username='legacyowner', email='legacyowner@example.com',
+            password='test-pass-123')
+        self.profile = ClientProfile.objects.create(
+            user=user, firm_name='Legacy Owner Co')
+
+    def test_owner_account_resolves_the_migrated_account(self):
+        from clients.display import owner_account
+
+        self.assertEqual(
+            owner_account(self.profile), self.profile.migrated_account)
+
+    def test_owner_recipient_reaches_the_user(self):
+        from clients.display import owner_recipient
+
+        email, _name = owner_recipient(self.profile)
+        self.assertEqual(email, 'legacyowner@example.com')
+
+    def test_owner_label_names_it(self):
+        from clients.display import owner_label
+
+        self.assertIn('Legacy Owner Co', owner_label(self.profile))

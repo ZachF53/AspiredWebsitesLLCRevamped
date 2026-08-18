@@ -35,18 +35,25 @@ def _stripe():
 
 
 def _customer_id_for(website):
-    """The Stripe customer holding the saved card — the one used for the
-    build deposit (legacy ClientProfile), falling back to the Account."""
+    """The Stripe customer holding the saved card, off the Account.
+
+    The card and the billing relationship are account-level, and the
+    cutover contract puts `stripe_customer_id` on Account. This read the
+    legacy profile's copy first and fell back to the Account, which meant
+    the legacy row decided who got charged.
+
+    Checked against production before the preference was flipped: all 10
+    accounts hold the same id on both sides — no mismatches, and no
+    account where only the legacy row carried one. So this is the same
+    customer it was already resolving, read from the row that survives.
+    """
     acct = website.account
-    cp = acct.legacy_client_profile if acct else None
-    return (getattr(cp, 'stripe_customer_id', '') or
-            getattr(acct, 'stripe_customer_id', '') or '')
+    return (getattr(acct, 'stripe_customer_id', '') or '') if acct else ''
 
 
 def _create_customer(stripe, website):
     """Create a Stripe customer for the account + persist its id."""
     acct = website.account
-    cp = acct.legacy_client_profile if acct else None
     email = (acct.user.email if (acct and acct.user_id) else '') or ''
     try:
         cust = stripe.Customer.create(
@@ -54,9 +61,6 @@ def _create_customer(stripe, website):
     except Exception:
         logger.exception('plan_billing: customer create failed')
         return ''
-    if cp is not None:
-        cp.stripe_customer_id = cust.id
-        cp.save(update_fields=['stripe_customer_id', 'updated_at'])
     if acct is not None:
         acct.stripe_customer_id = cust.id
         acct.save(update_fields=['stripe_customer_id'])

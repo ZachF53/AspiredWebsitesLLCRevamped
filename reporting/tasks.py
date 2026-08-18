@@ -74,18 +74,17 @@ def check_client_uptime():
     from django.db.models import Q
 
     active_sites = Website.objects.filter(
-        Q(do_droplet_ip__isnull=False)
-        | Q(account__legacy_client_profile__do_droplet_ip__isnull=False),
+        do_droplet_ip__isnull=False,
         status='active', account__status='active',
-    ).select_related('account__legacy_client_profile')
+    ).select_related('account')
 
     checked = 0
     for site in active_sites:
-        # Website.url is the canonical live URL; the legacy profile's
-        # `website` column is the fallback for rows the backfill has not
-        # filled in yet.
-        client = site.account.legacy_client_profile
-        url = site.url or getattr(client, 'website', '')
+        # `Website.url` and `Website.do_droplet_ip` outright. Both used to
+        # fall back to the legacy profile for rows the backfill had not
+        # reached; the parity gate reports zero gaps on those columns, so
+        # the fallback now only kept a dropped table in the query plan.
+        url = site.url
         if not url:
             continue
         # A canonical-only account used to be skipped here, because
@@ -109,7 +108,6 @@ def check_client_uptime():
             is_up = response.status_code < 500
 
             UptimeRecord.objects.create(
-                client=client,
                 website_new=site,
                 response_time_ms=response_time,
                 status_code=response.status_code,
@@ -125,38 +123,40 @@ def check_client_uptime():
                     website_new=site, is_resolved=False,
                 ).update(is_resolved=True, resolved_at=timezone.now())
             else:
-                check_and_fire_alert(client, site)
+                check_and_fire_alert(site)
 
         except requests.RequestException as exc:
             UptimeRecord.objects.create(
-                client=client,
                 website_new=site,
                 response_time_ms=None,
                 status_code=None,
                 is_up=False,
                 error_message=str(exc)[:200],
             )
-            check_and_fire_alert(client, site)
+            check_and_fire_alert(site)
         checked += 1
 
     return f"Checked {checked} website(s)."
 
 
-def check_and_fire_alert(client, site=None):
+def check_and_fire_alert(site):
     """
     Open a downtime alert after 3 consecutive failed checks — once per
     outage, so a long outage does not spam the admin on every check.
-    `site` is the Website to stamp on the alert (Phase-D per-website FK).
+
+    Takes the Website. It used to take a legacy client with the site as
+    an optional extra and fall back to account-wide scoping when the site
+    was missing — which interleaved separate sites: three failures on one
+    and healthy checks on another produced a window that never showed
+    three consecutive failures, so a genuine outage never alerted. The
+    open-alert guard had the mirror of the same fault, where an alert
+    open on one site suppressed the alert for another.
     """
     from clients.models import UptimeRecord, UptimeAlert
 
-    # Scope to the Website when we have one. Counting an account's checks
-    # together interleaves separate sites: three failures on one site and
-    # healthy checks on another produced a `recent` window that never
-    # showed three consecutive failures, so a genuine outage never
-    # alerted. The open-alert guard had the mirror of the same fault —
-    # an open alert on one site suppressed the alert for another.
-    scope = {'website_new': site} if site is not None else {'client': client}
+    if site is None:
+        return
+    scope = {'website_new': site}
 
     recent = list(
         UptimeRecord.objects.filter(**scope).order_by('-checked_at')[:3]
@@ -168,20 +168,13 @@ def check_and_fire_alert(client, site=None):
         return  # an alert is already open for this outage
 
     UptimeAlert.objects.create(
-        client=client, website_new=site,
-        consecutive_failures=3, alert_sent=True)
+        website_new=site, consecutive_failures=3, alert_sent=True)
 
-    # Every read here goes through the site first: `client` is None for a
-    # canonical-only account, which is now monitored rather than skipped.
     from clients.display import owner_label
 
-    label = owner_label(UptimeAlert(client=client, website_new=site))
-    live_url = (getattr(site, 'url', '')
-                or getattr(client, 'website', '')
-                or '(unknown)')
-    check_link = (
-        f'/admin-dashboard/websites/{site.id}/uptime/' if site
-        else '/admin-dashboard/accounts/')
+    label = owner_label(site)
+    live_url = getattr(site, 'url', '') or '(unknown)'
+    check_link = f'/admin-dashboard/websites/{site.id}/uptime/'
     send_admin_alert(
         subject=f'🔴 Site Down: {label}',
         message=(
@@ -337,7 +330,7 @@ def check_gbp_sync():
             except Exception:
                 logger.exception(
                     'check_gbp_sync: drift alert email failed for %s',
-                    client.pk)
+                    site.pk)
 
     return (f'Recorded {recorded} GBP sync row(s); '
             f'{mismatch_count} mismatch(es).')
@@ -974,13 +967,14 @@ def send_nps_surveys():
         | Q(account__legacy_client_profile__isnull=True,
             account__created_at__lte=cutoff),
         status='active', account__status='active',
-    ).select_related('account__legacy_client_profile')
+    ).select_related('account', 'account__user')
 
     count = 0
     for site in sites:
-        client = site.account.legacy_client_profile
-        if client is None:
-            continue  # NPSSurvey.client is non-nullable until Phase D
+        # `NPSSurvey.client` became nullable in clients.0056, so the
+        # guard this replaces ("non-nullable until Phase D") was stale --
+        # and while it stood, every account created since the cutover was
+        # skipped outright and never surveyed.
 
         # The 90-day cooldown is per site now. It has to be: keyed on
         # client, the first site's survey suppressed every other site on
@@ -990,8 +984,8 @@ def send_nps_surveys():
         if recent.exists():
             continue
 
-        survey = NPSSurvey.objects.create(client=client, website_new=site)
-        send_nps_email(client, survey)
+        survey = NPSSurvey.objects.create(website_new=site)
+        send_nps_email(site, survey)
         count += 1
     return f'Sent {count} NPS survey(s).'
 

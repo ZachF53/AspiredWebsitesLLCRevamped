@@ -131,6 +131,28 @@ def _first_name(client):
     return raw.split(' ')[0] if raw else 'there'
 
 
+def _recipient(owner):
+    """``[address]`` for the person to email about ``owner``, or ``[]``.
+
+    Every send in this module addressed ``owner.user.email`` directly.
+    That is a legacy shape: ``user`` lives on Account, so passing the
+    Website the caller actually has raises AttributeError *while sending
+    a customer-facing email* — after the report or invoice it is carrying
+    has already been generated.
+
+    :func:`clients.display.owner_recipient` walks site → account → legacy
+    and never raises, which is why `_display_name` above already uses its
+    sibling. Returning a list means a caller with no address on file
+    sends to nobody rather than raising: `send_mail` with an empty
+    recipient list is a no-op, and a missing address is a data problem,
+    not a reason to fail the surrounding task.
+    """
+    from clients.display import owner_recipient
+
+    address = (owner_recipient(owner)[0] or '').strip()
+    return [address] if address else []
+
+
 # ── Project stage change ────────────────────────────────────────────────────
 
 # Per-stage headline + description copy. Keeps email tone consistent
@@ -255,7 +277,7 @@ def send_stage_change_email(client, new_stage):
             'maintenance_url': maintenance_url,
             'preheader': copy['headline'],
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         # secure=True — the email contains the client's portal URL +
         # potentially a staging link, both of which should never be
@@ -304,7 +326,7 @@ def send_maintenance_upsell_email(client, day):
             'maintenance_url': maintenance_url,
             'preheader': copy['preheader'],
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,
     )
@@ -392,7 +414,7 @@ def send_invoice_email(invoice):
                 f'Total ${invoice.total_amount:,.2f} — pay securely on '
                 f'aspiredwebsites.com.'),
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,
     )
@@ -476,7 +498,7 @@ def send_invoice_receipt_email(invoice):
             'preheader': (
                 f'${invoice.total_amount:,.2f} paid — receipt attached.'),
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         attachments=attachments,
         secure=True,
@@ -519,7 +541,7 @@ def send_onboarding_setup_email(client, token):
                 'Set up your password and PIN to access your portal '
                 'and start the intake.'),
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,
     )
@@ -554,7 +576,7 @@ def send_account_setup_complete_email(client):
             'preheader': (
                 'Submit your intake form and we\'ll start building.'),
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,
     )
@@ -585,7 +607,7 @@ def send_intake_received_email(client):
             'portal_url': portal_url,
             'preheader': 'We\'ll reach out within 1 business day.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
     )
 
@@ -609,7 +631,7 @@ def send_contract_ready_email(contract, sign_url):
             'sign_url': sign_url,
             'preheader': 'Review and sign to lock in your project.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,  # contains the unguessable contract sign URL
     )
@@ -636,7 +658,7 @@ def send_contract_signed_email(contract):
             'name': name,
             'preheader': 'Your deposit invoice is on its way.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         from_email=settings.EMAIL_FROM_NO_REPLY,
     )
@@ -669,7 +691,7 @@ def send_final_invoice_email(client, contract, pay_url):
             'pay_url': pay_url,
             'preheader': 'Final balance due before launch.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,  # contains a payable invoice URL
     )
@@ -706,7 +728,7 @@ def send_gmb_add_manager_email(client):
         template='gmb_add_manager',
         context={'name': name, 'manager_email': GMB_MANAGER_EMAIL,
                  'preheader': 'A quick step so we can manage your Google listing.'},
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
     )
 
@@ -747,7 +769,7 @@ def send_gmb_create_email(client):
         template='gmb_create',
         context={'name': name, 'manager_email': GMB_MANAGER_EMAIL,
                  'preheader': 'Get on Google Maps — create your profile + add us.'},
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
     )
 
@@ -776,7 +798,7 @@ def send_welcome_email(client):
             'login_url': login_url,
             'preheader': 'Project active — complete your intake to begin.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
     )
 
@@ -801,7 +823,7 @@ def send_intake_reminder_email(client, day):
             'intake_url': intake_url,
             'preheader': 'Your project is on hold until intake is in.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
     )
 
@@ -827,7 +849,7 @@ def send_payment_failed_email(client, day):
             'invoices_url': invoices_url,
             'preheader': 'Please update your payment details.',
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         from_email=settings.EMAIL_FROM_NO_REPLY,
     )
@@ -864,7 +886,7 @@ def send_maintenance_handoff_email(client, handoff_url, followup_day=None):
             'subject_line': subject,
             'preheader': preheader,
         },
-        recipient_list=[client.user.email],
+        recipient_list=_recipient(client),
         text_body=text_body,
         secure=True,  # contains the 48h signed maintenance token URL
     )

@@ -1347,9 +1347,10 @@ def keyword_add(request, website_id):
     website = get_object_or_404(Website, id=website_id)
     form = KeywordForm(request.POST)
     form.instance.website_new = website
-    # `client` FK is still non-null during the teardown — bridge it to the
-    # account's legacy profile until the FK flip drops it.
-    form.instance.client = website.account.legacy_client_profile
+    # No legacy bridge. `TrackedKeyword.client` became nullable in
+    # clients.0056, so the comment this replaces ("still non-null during
+    # the teardown") stopped being true then — the write was keeping a
+    # column alive that nothing requires and the drop removes.
     if form.is_valid():
         # client/website aren't form fields, so the unique check is skipped
         # by ModelForm — verify per-website explicitly here.
@@ -3170,34 +3171,43 @@ def account_detail(request, account_id):
     # Delete-impact summary for the danger card modal — shows the
     # admin exactly what will be wiped before they type the name to
     # confirm. Counts are cheap one-shot aggregates; nothing N+1.
-    legacy_cp = account.legacy_client_profile
+    # Counted off the canonical rows.
+    #
+    # Every count here came through the account's legacy profile and was
+    # left at 0 when there wasn't one — so an account created since the
+    # cutover showed "0 tickets, 0 documents, 0 revisions, 0 scans" in
+    # the modal whose entire job is telling the admin what they are about
+    # to destroy. Under-reporting on a confirm-by-typing-the-name dialog
+    # is the worst direction for that to be wrong in.
+    from django.db.models import Count, Q
+
+    from clients.account_models import Website
+    from clients.models import SupportTicket
+
+    site_ids = [w.pk for w in websites]
+    counts = Website.objects.filter(pk__in=site_ids).aggregate(
+        documents=Count('documents_new', distinct=True),
+        revisions=Count('revisions_new', distinct=True),
+        scans=Count('vulnerability_scans_new', distinct=True),
+        credentials=Count('vault_credentials_new', distinct=True),
+    ) if site_ids else {}
+
     delete_impact = {
         'websites': len(websites),
         'domains': len(domains),
-        'vault_credentials': 0,
-        'support_tickets': 0,
-        'documents': 0,
-        'revisions': 0,
-        'scans': 0,
+        'vault_credentials': counts.get('credentials', 0) or 0,
+        # Union, not just the account-level link: the portal sets both
+        # `account_new` and `website_new`, but counting one of them alone
+        # would miss any ticket written with only the other.
+        'support_tickets': SupportTicket.objects.filter(
+            Q(account_new=account) | Q(website_new__account=account)
+        ).distinct().count(),
+        'documents': counts.get('documents', 0) or 0,
+        'revisions': counts.get('revisions', 0) or 0,
+        'scans': counts.get('scans', 0) or 0,
         'active_droplets': 0,
         'active_subscriptions': 0,
     }
-    if legacy_cp is not None:
-        try:
-            delete_impact['vault_credentials'] = (
-                legacy_cp.vault.credentials.count()
-                if hasattr(legacy_cp, 'vault') and legacy_cp.vault else 0)
-        except Exception:
-            pass
-        delete_impact['support_tickets'] = legacy_cp.tickets.count()
-        delete_impact['documents'] = legacy_cp.documents.count()
-        delete_impact['revisions'] = legacy_cp.revisions.count()
-        try:
-            from reporting.models import VulnerabilityScan
-            delete_impact['scans'] = VulnerabilityScan.objects.filter(
-                client=legacy_cp).count()
-        except Exception:
-            pass
     # External-state warnings — these are NOT cascaded by the DB
     # delete, so admin must handle them separately. Surfaced in the
     # modal so the admin doesn't end up with orphan resources.
@@ -3260,15 +3270,16 @@ def account_detail(request, account_id):
 
     # Payments: onboarding invoice + out-of-scope mini invoices + the
     # recurring service subscriptions (maintenance/social).
-    onboarding_invoice = None
-    mini_invoices = []
-    if legacy_cp is not None:
-        onboarding_invoice = getattr(legacy_cp, 'onboarding_invoice', None)
-        try:
-            mini_invoices = list(
-                legacy_cp.mini_invoices.all().order_by('-created_at')[:10])
-        except Exception:
-            mini_invoices = []
+    # Off the account. Read through the legacy profile these were both
+    # empty for an account without one, so a client created since the
+    # cutover showed no invoices on a page whose job is listing them.
+    onboarding_invoice = account.onboarding_invoices_new.order_by(
+        '-created_at').first()
+    try:
+        mini_invoices = list(
+            account.mini_invoices_new.all().order_by('-created_at')[:10])
+    except Exception:
+        mini_invoices = []
     try:
         maintenance_plans = list(account.maintenance_plans.all())
         social_plans = list(account.social_media_plans.all())
@@ -3663,10 +3674,14 @@ def _issue_website_final_invoice(website):
 
     if website.payment_status == 'fully_paid':
         return
-    cp = website.account.legacy_client_profile if website.account else None
+    # The signed contract is the only thing this needs. It also required a
+    # legacy ClientProfile and returned early without one, so moving a
+    # canonical-only client to Pre-Launch raised no final invoice, left
+    # `final_invoice_url` empty, and sent no email — and the launch gate
+    # then blocks on a payment that was never asked for.
     contract = (Contract.objects.filter(website_new=website, signed=True)
                 .order_by('-created_at').first())
-    if cp is None or contract is None:
+    if contract is None:
         return
     try:
         invoice = start_contract_final_payment(contract)
@@ -3682,7 +3697,7 @@ def _issue_website_final_invoice(website):
     website.save(update_fields=['final_invoice_url', 'updated_at'])
     try:
         from clients.emails import send_final_invoice_email
-        send_final_invoice_email(cp, contract, pay_url)
+        send_final_invoice_email(website, contract, pay_url)
     except Exception:
         logger.exception(
             'final invoice email failed for website %s', website.pk)
@@ -3870,7 +3885,8 @@ def account_delete(request, account_id):
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
 
-    legacy_cp = account.legacy_client_profile
+    from clients.legacy_teardown import delete_mirror_for
+
     user = account.user
     label = account.name
 
@@ -3880,15 +3896,21 @@ def account_delete(request, account_id):
             # 1. Account delete → Websites, Domains, vault_credentials,
             #    onboarding_token, onboarding_invoice, etc. (everything
             #    with FK to Account with on_delete=CASCADE)
-            # 2. Legacy ClientProfile delete → vault, intake, tickets,
-            #    scans, reports, freshness, NPS, chatbot, etc.
+            # 2. Legacy mirror → vault, intake, tickets, scans, reports,
+            #    freshness, NPS, chatbot. `legacy_client_profile` is
+            #    SET_NULL, so the profile survives step 1 and has to be
+            #    finished off explicitly. Lives in clients.legacy_teardown
+            #    so the one remaining legacy touch is in a module the drop
+            #    change deletes whole, rather than buried in a view.
             # 3. User delete → auth row gone so the email is free to
             #    re-onboard.
+            # Mirror first: the FK is SET_NULL, so after `account.delete()`
+            # the link is already gone in the database and only Django's
+            # in-memory cache still holds it — not something to build a
+            # destructive path on. Deleting the profile first cascades the
+            # rows it owns; `account.delete()` then takes the rest.
+            delete_mirror_for(account)
             account.delete()
-            if legacy_cp is not None:
-                # CP.legacy_account FK had on_delete=SET_NULL so the
-                # CP survived step 1; now finish it.
-                legacy_cp.delete()
             if user is not None:
                 user.delete()
     except Exception as exc:  # noqa: BLE001
@@ -4057,20 +4079,15 @@ def website_detail(request, website_id):
     # still lives there during Phase C). Used by the template's
     # admin-override card so the button only renders when intake
     # actually needs the manual flip.
-    legacy_cp = website.account.legacy_client_profile if website.account else None
-    intake_response = getattr(legacy_cp, 'intake', None) if legacy_cp else None
+    intake_response = getattr(website, 'intake_new', None)
     intake_needs_admin_complete = (
         website.onboarding_status == 'pending_intake'
-        or (intake_response is not None and not intake_response.completed)
-        or (legacy_cp is not None
-            and legacy_cp.onboarding_status == 'pending_intake'))
+        or (intake_response is not None and not intake_response.completed))
 
     # Freshness report drives the count badge on the monitoring tools
-    # card. Defensive — first() returns None when no report exists,
-    # outer getattr handles legacy_cp being None for unsynced sites.
-    freshness_report = (
-        legacy_cp.freshness_reports.first() if legacy_cp else None
-    )
+    # card. Per site — read off the legacy profile it was the account's
+    # report, so on a two-build account both sites showed the same badge.
+    freshness_report = website.freshness_reports_new.first()
 
     # ── Contract (per-website) + plan management ──
     from billing.pricing_models import ServiceTier
@@ -4097,34 +4114,38 @@ def website_detail(request, website_id):
     # because the tracker + conversion/session data still live there
     # (per-website split is Phase D). Degrades to None when the website
     # has no legacy mirror yet.
-    tracker_snippet = None
-    tracker_recording_active = False
+    # The snippet carries the WEBSITE id. `_website_for_tracker_id`
+    # already accepts either form — a Website id, or a legacy profile id
+    # for the snippets sitting in client HTML we cannot redeploy — but
+    # this generator only ever emitted the legacy one, and emitted
+    # nothing at all when there was no legacy profile. A client created
+    # since the cutover was shown no install snippet, so their site was
+    # never instrumented and their conversions page stayed empty.
+    base_url = settings.SITE_BASE_URL
+    tracker_snippet = (
+        f'<script src="{base_url}/static/js/aspired-tracker.js" '
+        f'data-aspired-client="{website.id}" defer></script>')
+    tracker_recording_active = bool(website.session_recording_enabled)
     tracker_recording_included = False
     tracker_last_event = None
     tracker_last_session = None
-    if legacy_cp is not None:
-        base_url = settings.SITE_BASE_URL
-        tracker_snippet = (
-            f'<script src="{base_url}/static/js/aspired-tracker.js" '
-            f'data-aspired-client="{legacy_cp.id}" defer></script>')
-        tracker_recording_active = bool(legacy_cp.session_recording_enabled)
-        try:
-            from billing.pricing_models import AddonPricing
-            addon = AddonPricing.objects.filter(
-                slug='addon-session-recording').first()
-            if addon:
-                tracker_recording_included = addon.is_included_for(
-                    legacy_cp.package)
-        except Exception:
-            tracker_recording_included = False
-        try:
-            from reporting.models import ConversionEvent, PageSession
-            tracker_last_event = ConversionEvent.objects.filter(
-                website_new=website).first()
-            tracker_last_session = PageSession.objects.filter(
-                website_new=website).first()
-        except Exception:
-            pass
+    try:
+        from billing.pricing_models import AddonPricing
+        addon = AddonPricing.objects.filter(
+            slug='addon-session-recording').first()
+        if addon:
+            tracker_recording_included = addon.is_included_for(
+                website.package)
+    except Exception:
+        tracker_recording_included = False
+    try:
+        from reporting.models import ConversionEvent, PageSession
+        tracker_last_event = ConversionEvent.objects.filter(
+            website_new=website).first()
+        tracker_last_session = PageSession.objects.filter(
+            website_new=website).first()
+    except Exception:
+        pass
     try:
         from reporting.models import SessionRecording
         tracker_recordings_count = SessionRecording.objects.filter(
@@ -4134,29 +4155,30 @@ def website_detail(request, website_id):
 
     # ── Monitoring & reporting accordion tools ──
     # Each lazy-loads its existing admin page in an iframe (?embed=1).
-    # Data resolves via legacy_cp (per-website split is Phase D).
     # Session Recordings deliberately omitted — it's a media list with
     # its own page, linked from the Conversion Tracker card instead.
-    mon_tools = []
-    if legacy_cp is not None:
-        cid = legacy_cp.id
-        fresh_badge = ''
-        if freshness_report and freshness_report.pages_needing_update:
-            fresh_badge = f'{freshness_report.pages_needing_update} flagged'
-        mon_tools = [
-            {'label': 'Uptime',
-             'url': reverse('admin_dashboard:website_uptime', args=[website.id])},
-            {'label': 'Keywords',
-             'url': reverse('admin_dashboard:website_keywords', args=[website.id])},
-            {'label': 'Conversions',
-             'url': reverse('admin_dashboard:website_conversions', args=[website.id])},
-            {'label': 'Content Freshness', 'badge': fresh_badge,
-             'url': reverse('admin_dashboard:website_freshness', args=[website.id])},
-            {'label': 'Chatbot',
-             'url': reverse('admin_dashboard:website_chatbot', args=[website.id])},
-            {'label': 'Changelog',
-             'url': reverse('admin_dashboard:website_changelog', args=[website.id])},
-        ]
+    #
+    # Every URL below is already keyed on `website.id`; the whole list was
+    # nonetheless gated on the legacy profile existing, so a client
+    # created since the cutover saw an empty Monitoring accordion while
+    # all six pages worked perfectly if you typed the URL.
+    fresh_badge = ''
+    if freshness_report and freshness_report.pages_needing_update:
+        fresh_badge = f'{freshness_report.pages_needing_update} flagged'
+    mon_tools = [
+        {'label': 'Uptime',
+         'url': reverse('admin_dashboard:website_uptime', args=[website.id])},
+        {'label': 'Keywords',
+         'url': reverse('admin_dashboard:website_keywords', args=[website.id])},
+        {'label': 'Conversions',
+         'url': reverse('admin_dashboard:website_conversions', args=[website.id])},
+        {'label': 'Content Freshness', 'badge': fresh_badge,
+         'url': reverse('admin_dashboard:website_freshness', args=[website.id])},
+        {'label': 'Chatbot',
+         'url': reverse('admin_dashboard:website_chatbot', args=[website.id])},
+        {'label': 'Changelog',
+         'url': reverse('admin_dashboard:website_changelog', args=[website.id])},
+    ]
 
     return render(
         request, 'admin_dashboard/website_detail.html',
@@ -4186,7 +4208,6 @@ def website_detail(request, website_id):
             do_console_url=do_console_url,
             intake_response=intake_response,
             intake_needs_admin_complete=intake_needs_admin_complete,
-            legacy_cp=legacy_cp,
             freshness_report=freshness_report,
             tracker_snippet=tracker_snippet,
             tracker_recording_active=tracker_recording_active,
@@ -4237,11 +4258,11 @@ def website_intake_mark_complete(request, website_id):
         website.onboarding_status = 'intake_complete'
         website.save(update_fields=['onboarding_status', 'updated_at'])
 
-    # 2. IntakeResponse on the legacy ClientProfile (where intake
-    #    actually lives during Phase C). Look up via the account's
-    #    legacy CP link.
-    legacy_cp = account.legacy_client_profile if account else None
-    intake = getattr(legacy_cp, 'intake', None) if legacy_cp else None
+    # 2. The site's IntakeResponse. This reached the intake through the
+    #    account's legacy profile, so for a client with no legacy row the
+    #    form was never marked complete — and on a two-build account it
+    #    marked whichever intake hung off the profile, not this site's.
+    intake = getattr(website, 'intake_new', None)
     if intake is not None and not intake.completed:
         intake.completed = True
         if intake.completed_at is None:
@@ -4249,18 +4270,14 @@ def website_intake_mark_complete(request, website_id):
         intake.save(update_fields=[
             'completed', 'completed_at', 'updated_at'])
 
-    # 3. Legacy CP onboarding gate — this is what the client-portal
-    #    @client_required decorator reads to decide whether to bounce
-    #    a logged-in client to /portal/intake/. Flip it so they can
-    #    actually see their dashboard.
-    if legacy_cp is not None and (
-            legacy_cp.onboarding_status != 'onboarding_complete'):
-        legacy_cp.onboarding_status = 'onboarding_complete'
-        legacy_cp.onboarding_complete = True
-        legacy_cp.save(update_fields=[
-            'onboarding_status', 'onboarding_complete', 'updated_at'])
+    # Step 3 used to flip the legacy profile's onboarding gate, because
+    # `@client_required` read it to decide whether to bounce a logged-in
+    # client to /portal/intake/. That decorator reads
+    # `Account.onboarding_status` and `Website.onboarding_status` now, and
+    # step 1 above already sets the site's — so writing the legacy column
+    # only kept a soon-to-be-dropped mirror warm.
 
-    # 4. Audit trail — same pattern as a stage change.
+    # 3. Audit trail — same pattern as a stage change.
     WebsiteStageLog.objects.create(
         website=website,
         from_stage=website.stage,
@@ -4342,51 +4359,49 @@ def website_change_stage(request, website_id):
         website.lifecycle_status = 'in_build'
         website.save(update_fields=['lifecycle_status', 'updated_at'])
 
-    # 2. Mirror to legacy ClientProfile (the client portal still
-    #    reads from CP). Phase D will drop this branch.
-    legacy_cp = (website.account.legacy_client_profile
-                 if website.account else None)
-    if legacy_cp is not None and legacy_cp.stage != new_stage:
-        legacy_cp.stage = new_stage
-        legacy_cp.save(update_fields=['stage', 'updated_at'])
+    # Step 2 used to mirror the stage onto the legacy ClientProfile
+    # "because the client portal still reads from CP". It does not: the
+    # portal reads `request.website`, so that mirror updated a column with
+    # no reader — and on a two-build account it overwrote the account-wide
+    # copy with whichever site moved last.
 
-    # 3. Audit trail — both logs so each surface (admin website page +
-    #    client portal Activity Log) shows the transition.
-    WebsiteStageLog.objects.create(
+    # 2. Audit trail. One log, not two.
+    #
+    # This also wrote a ProjectStageLog "so the client portal Activity Log
+    # shows the transition" — but the portal reads `stage_logs`, which is
+    # WebsiteStageLog. The legacy mirror had no reader, and it was skipped
+    # entirely for a client with no legacy profile, so the two logs
+    # disagreed for exactly the clients created since the cutover.
+    stage_log = WebsiteStageLog.objects.create(
         website=website,
         from_stage=from_stage,
         to_stage=new_stage,
         note=note,
         set_by=setter,
+        client_notified=False,
     )
-    legacy_log = None
-    if legacy_cp is not None:
-        legacy_log = ProjectStageLog.objects.create(
-            client=legacy_cp,
-            # `website` is the site being transitioned — no need to fall
-            # back to the account's primary site here.
-            website_new=website,
-            from_stage=from_stage,
-            to_stage=new_stage,
-            note=note,
-            set_by=setter,
-            client_notified=False,
-        )
 
     # 4. Stage-change email — best-effort. Email failure does not
     #    roll back the stage save.
+    # Addressed to the SITE being transitioned, unconditionally.
+    #
+    # This was `if legacy_cp is not None`, so a client with no legacy
+    # profile — every client created since the cutover — was silently
+    # never told their project had moved. No error, no log line: the
+    # branch simply did not run, and the success message still said the
+    # stage had moved. `send_stage_change_email` reads `stage`,
+    # `staging_url` and `maintenance_active`, all of which are Website
+    # fields, and resolves the address through `owner_recipient`.
     notify_ok = False
-    if legacy_cp is not None:
-        try:
-            send_stage_change_email(legacy_cp, new_stage)
-            notify_ok = True
-        except Exception:
-            logger.exception(
-                'stage-change email failed for %s', legacy_cp.pk)
-    if notify_ok and legacy_log is not None:
-        legacy_log.client_notified = True
-        legacy_log.notification_sent_at = timezone.now()
-        legacy_log.save(update_fields=[
+    try:
+        send_stage_change_email(website, new_stage)
+        notify_ok = True
+    except Exception:
+        logger.exception('stage-change email failed for %s', website.pk)
+    if notify_ok:
+        stage_log.client_notified = True
+        stage_log.notification_sent_at = timezone.now()
+        stage_log.save(update_fields=[
             'client_notified', 'notification_sent_at', 'updated_at'])
 
     messages.success(

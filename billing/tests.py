@@ -109,7 +109,7 @@ class VaultKeyBootstrapTests(TestCase):
         self.assertIn('passwd -l root', joined)
 
         cred = VaultCredential.objects.get(
-            vault__client=self.client_profile, is_ssh_credential=True)
+            vault__account_new=self.client_profile.migrated_account, is_ssh_credential=True)
         self.assertTrue(cred.encrypted_with_server_key)
         self.assertEqual(cred.ssh_auth_type, 'private_key')
         # Host + private key decrypt under the server key — the PIN key isn't
@@ -154,7 +154,7 @@ class VaultKeyBootstrapTests(TestCase):
         self.assertEqual(ssh_client_cls.call_count, 3)
         self.assertEqual(
             VaultCredential.objects.filter(
-                vault__client=self.client_profile).count(), 1)
+                vault__account_new=self.client_profile.migrated_account).count(), 1)
 
     @patch('billing.do_helpers.time.sleep', return_value=None)
     @patch('billing.do_helpers.paramiko.SSHClient')
@@ -172,7 +172,7 @@ class VaultKeyBootstrapTests(TestCase):
                 max_retries=2, retry_delay=0)
 
         self.assertFalse(VaultCredential.objects.filter(
-            vault__client=self.client_profile).exists())
+            vault__account_new=self.client_profile.migrated_account).exists())
 
 
 @override_settings(**TEST_SETTINGS)
@@ -224,7 +224,7 @@ class ProvisionDropletIntegrationTests(TestCase):
 
         # And the vault credential was created.
         self.assertTrue(VaultCredential.objects.filter(
-            vault__client=self.client_profile,
+            vault__account_new=self.client_profile.migrated_account,
             encrypted_with_server_key=True).exists())
 
     @patch('billing.do_helpers.time.sleep', return_value=None)
@@ -254,7 +254,7 @@ class ProvisionDropletIntegrationTests(TestCase):
                       self.client_profile.internal_notes)
         # No credential created — the SSH bootstrap never completed.
         self.assertFalse(VaultCredential.objects.filter(
-            vault__client=self.client_profile).exists())
+            vault__account_new=self.client_profile.migrated_account).exists())
 
 
 # ── Re-encryption hand-off in the vault view ────────────────────────────────

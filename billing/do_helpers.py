@@ -418,8 +418,18 @@ def _create_ssh_vault_credential(client, droplet_ip, private_key):
     from vault.crypto import derive_server_key, encrypt_value, make_hint
     from vault.models import ClientVault, VaultCredential
 
+    from clients.display import owner_account
+
     server_key = derive_server_key()
-    vault, _ = ClientVault.objects.get_or_create(client=client)
+    # Keyed on the ACCOUNT, which is what `vault.signals` keys on and
+    # what the unique constraint covers. Keyed on `client` this found
+    # nothing (the signal-created vault has no legacy link), created a
+    # second row, and canonical stamping then set `account_new` on it —
+    # straight into `UNIQUE constraint failed: vault_clientvault.
+    # account_new_id`, inside droplet provisioning, right after a
+    # customer paid.
+    account = owner_account(client)
+    vault, _ = ClientVault.objects.get_or_create(account_new=account)
     label = f'DigitalOcean — {droplet_name_for(client)}'
 
     cred = VaultCredential.objects.create(
@@ -689,14 +699,13 @@ def _open_ssh_to_site(site):
             return None
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(client.do_droplet_ip, username='root',
+        ssh.connect(site.do_droplet_ip, username='root',
                     pkey=pkey, timeout=10, banner_timeout=10,
                     auth_timeout=10)
         return ssh
     except Exception:
         logger.exception(
-            '_open_ssh_to_client: SSH open failed for client %s',
-            client.pk)
+            '_open_ssh_to_site: SSH open failed for site %s', site.pk)
         return None
 
 
@@ -814,7 +823,7 @@ def restore_client_site(site):
         # the admin will need to remove the maintenance vhost manually
         # when they have a vault session open.
         if site.site_status == 'maintenance':
-            ssh = _open_ssh_to_client(site)
+            ssh = _open_ssh_to_site(site)
             if ssh is not None:
                 try:
                     _run_remote(

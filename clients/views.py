@@ -2413,6 +2413,12 @@ def portal_subscriptions(request):
     import stripe as _stripe
     from django.conf import settings as _s
 
+    # `Account` is read below for the comp-tier labels and was never
+    # imported here, so this page raised NameError for any client with a
+    # comped package — the branch only runs when `comp_build_package` is
+    # set, which is why it survived: nothing in the suite renders this
+    # page for a comped account.
+    from clients.account_models import Account
     from billing.stripe_helpers import (
         get_customer_default_payment_method,
         list_customer_payment_methods,

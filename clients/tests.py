@@ -127,7 +127,7 @@ class PortalCredentialsTests(TestCase):
     def test_only_visible_credentials_listed(self):
         self._set_pin()
         self._unlock_session()
-        vault = self.profile.vault
+        vault = self.profile.migrated_account.vault_new
         vault.account_new = self.profile.migrated_account
         vault.save(update_fields=['account_new', 'updated_at'])
         VaultCredential.objects.create(
@@ -1057,7 +1057,13 @@ class ContractPayChoiceTests(TestCase):
 
 
 class OnboardingInvoicePaidStatusTests(TestCase):
-    """_on_onboarding_invoice_paid sets deposit_paid vs fully_paid."""
+    """_on_onboarding_invoice_paid sets deposit_paid vs fully_paid.
+
+    The handler takes an **Account**. It used to be called with whichever
+    type the firing Stripe event happened to produce -- a ClientProfile
+    from `payment_intent.succeeded`, an Account from `invoice.paid` --
+    and these tests encoded the profile half of that.
+    """
 
     @classmethod
     def setUpTestData(cls):
@@ -1065,6 +1071,8 @@ class OnboardingInvoicePaidStatusTests(TestCase):
             username='oip1', password='x', email='oip1@example.com')
         cls.profile = ClientProfile.objects.create(
             user=u, firm_name='Paid LLC')
+        cls.account = cls.profile.migrated_account
+        cls.site = cls.account.websites.first()
 
     def test_deposit_invoice_marks_deposit_paid(self):
         from decimal import Decimal
@@ -1072,11 +1080,12 @@ class OnboardingInvoicePaidStatusTests(TestCase):
         from billing.webhooks import _on_onboarding_invoice_paid
         from clients.models import OnboardingInvoice
         inv = OnboardingInvoice.objects.create(
-            client=self.profile, total_amount=Decimal('1250'),
+            account_new=self.account, website_new=self.site,
+            total_amount=Decimal('1250'),
             line_items=[], is_deposit=True)
-        _on_onboarding_invoice_paid(self.profile, inv)
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.payment_status, 'deposit_paid')
+        _on_onboarding_invoice_paid(self.account, inv)
+        self.site.refresh_from_db()
+        self.assertEqual(self.site.payment_status, 'deposit_paid')
 
     def test_full_invoice_marks_fully_paid(self):
         from decimal import Decimal
@@ -1084,11 +1093,12 @@ class OnboardingInvoicePaidStatusTests(TestCase):
         from billing.webhooks import _on_onboarding_invoice_paid
         from clients.models import OnboardingInvoice
         inv = OnboardingInvoice.objects.create(
-            client=self.profile, total_amount=Decimal('2500'),
+            account_new=self.account, website_new=self.site,
+            total_amount=Decimal('2500'),
             line_items=[], is_deposit=False)
-        _on_onboarding_invoice_paid(self.profile, inv)
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.payment_status, 'fully_paid')
+        _on_onboarding_invoice_paid(self.account, inv)
+        self.site.refresh_from_db()
+        self.assertEqual(self.site.payment_status, 'fully_paid')
 
 
 class AddonOptinDiscountTests(TestCase):

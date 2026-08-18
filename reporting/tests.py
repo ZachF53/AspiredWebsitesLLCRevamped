@@ -303,7 +303,7 @@ class UptimeTaskTests(TestCase):
         mock_get.return_value = MagicMock(status_code=200)
         from reporting.tasks import check_client_uptime
         check_client_uptime()
-        record = UptimeRecord.objects.get(client=self.cp)
+        record = UptimeRecord.objects.get(website_new=_site_of(self.cp))
         self.assertTrue(record.is_up)
         self.assertEqual(record.status_code, 200)
 
@@ -314,13 +314,16 @@ class UptimeTaskTests(TestCase):
         for _ in range(3):
             check_client_uptime()
         self.assertEqual(
-            UptimeRecord.objects.filter(client=self.cp, is_up=False).count(), 3)
+            UptimeRecord.objects.filter(
+                website_new=_site_of(self.cp), is_up=False).count(), 3)
         self.assertEqual(
-            UptimeAlert.objects.filter(client=self.cp, is_resolved=False).count(),
+            UptimeAlert.objects.filter(
+                website_new=_site_of(self.cp), is_resolved=False).count(),
             1)
         check_client_uptime()  # 4th failure must not open a second alert
         self.assertEqual(
-            UptimeAlert.objects.filter(client=self.cp, is_resolved=False).count(),
+            UptimeAlert.objects.filter(
+                website_new=_site_of(self.cp), is_resolved=False).count(),
             1)
 
     @patch('requests.get')
@@ -332,9 +335,11 @@ class UptimeTaskTests(TestCase):
         mock_get.return_value = MagicMock(status_code=200)
         check_client_uptime()
         self.assertFalse(
-            UptimeAlert.objects.filter(client=self.cp, is_resolved=False).exists())
+            UptimeAlert.objects.filter(
+                website_new=_site_of(self.cp), is_resolved=False).exists())
         self.assertTrue(
-            UptimeAlert.objects.filter(client=self.cp, is_resolved=True).exists())
+            UptimeAlert.objects.filter(
+                website_new=_site_of(self.cp), is_resolved=True).exists())
 
     @patch('requests.get')
     def test_request_exception_records_down(self, mock_get):
@@ -342,7 +347,7 @@ class UptimeTaskTests(TestCase):
         mock_get.side_effect = requests.RequestException('connection refused')
         from reporting.tasks import check_client_uptime
         check_client_uptime()
-        record = UptimeRecord.objects.get(client=self.cp)
+        record = UptimeRecord.objects.get(website_new=_site_of(self.cp))
         self.assertFalse(record.is_up)
         self.assertIn('connection refused', record.error_message)
 
@@ -494,7 +499,7 @@ class AdminMonitoringPageTests(TestCase):
         site = self.cp.migrated_account.websites.first()
         resp = self.client.get(
             reverse('admin_dashboard:website_detail', args=[site.id]))
-        self.assertContains(resp, str(self.cp.id))
+        self.assertContains(resp, str(site.id))
         self.assertContains(resp, 'aspired-tracker.js')
 
     def test_gbp_flag_and_resolve(self):
@@ -620,7 +625,8 @@ class NPSTests(TestCase):
         ClientProfile.objects.filter(pk=cp.pk).update(
             created_at=timezone.now() - timedelta(days=60))
         send_nps_surveys()
-        self.assertEqual(NPSSurvey.objects.filter(client=cp).count(), 1)
+        self.assertEqual(
+            NPSSurvey.objects.filter(website_new=_site_of(cp)).count(), 1)
 
     def test_new_client_not_surveyed(self):
         from reporting.tasks import send_nps_surveys
@@ -1278,7 +1284,7 @@ class MultiWebsiteUptimeTests(TestCase):
         for _ in range(3):
             UptimeRecord.objects.create(
                 client=self.cp, website_new=self.second, is_up=False)
-        check_and_fire_alert(self.cp, self.second)
+        check_and_fire_alert(self.second)
         self.assertEqual(
             UptimeAlert.objects.filter(
                 website_new=self.second, is_resolved=False).count(), 1)
@@ -1310,7 +1316,7 @@ class MultiWebsiteUptimeTests(TestCase):
             UptimeRecord.objects.create(
                 client=self.cp, website_new=self.first, is_up=True)
 
-        check_and_fire_alert(self.cp, self.second)
+        check_and_fire_alert(self.second)
 
         self.assertEqual(
             UptimeAlert.objects.filter(website_new=self.second).count(), 1)

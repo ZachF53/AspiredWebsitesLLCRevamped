@@ -245,9 +245,13 @@ class FixtureRawLoadTests(TestCase):
         self.assertEqual(
             Website.objects.get(account_id=account_id).pk, website_id)
 
+        # The vault is keyed on the Account — `vault.signals` creates it
+        # against `account_new` and no longer mirrors the legacy FK.
+        # The point of this assertion is unchanged: a raw fixture load
+        # must not create a *second* one.
         from vault.models import ClientVault
         self.assertEqual(
-            ClientVault.objects.filter(client=profile).count(), 1)
+            ClientVault.objects.filter(account_new_id=account_id).count(), 1)
 
     def test_raw_load_does_not_mutate_the_existing_account(self):
         user = User.objects.create_user(

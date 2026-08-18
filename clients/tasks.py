@@ -33,28 +33,36 @@ def calculate_all_health_scores():
     Recalculate health for every active non-tester client. Returns the
     count of scores written (handy for monitoring the cron run).
     """
-    from clients.canonical_iteration import profiles_with_coverage_report
+    from clients.account_models import Website
     from clients.health import calculate_client_health
 
-    # Reports any Account with no legacy profile instead of skipping it
-    # silently — see clients/canonical_iteration.py.
-    qs = profiles_with_coverage_report(
-        'calculate_all_health_scores',
-        status='active',
-        is_tester=False,
-    )
+    # Per SITE, and iterating Websites directly.
+    #
+    # This walked the legacy table through the coverage-report shim and
+    # handed each ClientProfile to `calculate_client_health`, which
+    # returns `ClientHealthScore(website_new=client)`. Assigning a
+    # ClientProfile to a Website FK raises ValueError, the broad `except`
+    # below swallowed it as "calc failed", and the task wrote **zero**
+    # rows for every client on every nightly run. Nothing surfaced,
+    # because a task that writes nothing and a task with nothing to write
+    # both return quietly — so the dashboard's health band and the churn
+    # alert had simply been dead.
+    sites = (Website.objects
+             .filter(status='active', account__status='active',
+                     account__is_tester=False)
+             .select_related('account'))
 
     written = 0
-    for client in qs:
+    for site in sites:
         try:
-            score = calculate_client_health(client)
+            score = calculate_client_health(site)
             score.save()
             written += 1
             if score.churn_risk:
-                _fire_churn_alert(client, score)
+                _fire_churn_alert(site, score)
         except Exception:
             logger.exception(
-                'Health score calc failed for %s', client.pk)
+                'Health score calc failed for %s', site.pk)
             continue
     return f'Wrote {written} health score(s).'
 
@@ -68,8 +76,11 @@ def _fire_churn_alert(client, score):
     from clients.models import ClientHealthScore
 
     week_ago = timezone.now() - timedelta(days=7)
+    # Keyed on the site. `client=` matched the legacy column, which new
+    # scores no longer set, so the de-duplication found no prior alerts
+    # and would have re-sent the churn email on every nightly run.
     prior_alerts = ClientHealthScore.objects.filter(
-        client=client,
+        website_new=client,
         churn_risk=True,
         calculated_at__gte=week_ago,
     ).exclude(pk=score.pk).count()
@@ -277,19 +288,25 @@ def run_monthly_intelligence():
     client on the 15th of the month. Staggers calls 30 seconds apart
     so a busy month doesn't bunch-up against the Anthropic rate limit.
     """
-    from clients.canonical_iteration import profiles_with_coverage_report
+    from clients.account_models import Website
 
-    clients = list(
-        profiles_with_coverage_report(
-            'run_monthly_intelligence', status='active', is_tester=False)
-        .order_by('firm_name')
+    # `run_intelligence_for_client` resolves its argument as a Website id.
+    # This queued legacy ClientProfile ids, so every queued task looked up
+    # a Website that did not exist, returned "Website <id> not found", and
+    # the monthly intelligence run produced nothing at all.
+    sites = list(
+        Website.objects
+        .filter(status='active', account__status='active',
+                account__is_tester=False)
+        .select_related('account')
+        .order_by('account__name', 'name')
     )
-    for i, client in enumerate(clients):
+    for i, site in enumerate(sites):
         run_intelligence_for_client.apply_async(
-            args=[str(client.id)],
+            args=[str(site.id)],
             countdown=i * 30,
         )
-    return f'Queued {len(clients)} client analyses.'
+    return f'Queued {len(sites)} client analyses.'
 
 
 @shared_task
@@ -577,21 +594,26 @@ def run_monthly_competitor_gaps():
     bandwidth-bound, not API-bound, and we want to be polite to
     competitor sites.
     """
-    from clients.canonical_iteration import profiles_with_coverage_report
+    from clients.account_models import Website
 
-    clients = list(
-        profiles_with_coverage_report(
-            'run_monthly_competitor_gaps', status='active', is_tester=False,
-            competitors__isnull=False)
+    # Competitors are tracked per site, and
+    # `run_competitor_gap_analysis` resolves a Website id — this queued
+    # legacy ClientProfile ids, so every analysis returned "not found".
+    sites = list(
+        Website.objects
+        .filter(status='active', account__status='active',
+                account__is_tester=False,
+                competitors_new__isnull=False)
+        .select_related('account')
         .distinct()
-        .order_by('firm_name')
+        .order_by('account__name', 'name')
     )
-    for i, client in enumerate(clients):
+    for i, site in enumerate(sites):
         run_competitor_gap_analysis.apply_async(
-            args=[str(client.id)],
+            args=[str(site.id)],
             countdown=i * 60,
         )
-    return f'Queued {len(clients)} competitor analyses.'
+    return f'Queued {len(sites)} competitor analyses.'
 
 
 @shared_task

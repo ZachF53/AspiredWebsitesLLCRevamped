@@ -521,10 +521,8 @@
                 <label class="form-row__label">Onboarding gates</label>
                 <div class="form-row__field">
                     <code>website: {{ website.get_onboarding_status_display }}</code>
-                    {% if legacy_cp %}
-                        <br>
-                        <code>legacy: {{ legacy_cp.get_onboarding_status_display }}</code>
-                    {% endif %}
+                    <br>
+                    <code>account: {{ account.get_onboarding_status_display }}</code>
                 </div>
             </div>
             {% if intake_needs_admin_complete %}
@@ -571,18 +569,15 @@
         consequences are clearly visible.
     {% endcomment %}
     {% comment %}
-        Per-website monitoring & reporting tools. These currently
-        aggregate at the ClientProfile level — buttons resolve via
-        ``legacy_cp`` (website.account.legacy_client_profile). A
-        future Phase D migration will add Website FKs to UptimeRecord,
-        TrackedKeyword, ConversionEvent, etc. and the same buttons
-        will become genuinely per-website.
+        Per-website monitoring & reporting tools, keyed on the Website.
 
-        If the website isn't linked to a ClientProfile (pure-Account
-        builds with no legacy mirror), the section hides entirely
-        rather than show broken links.
+        This whole section used to be wrapped in a legacy-profile guard —
+        "if the website isn't linked to a ClientProfile the section hides
+        entirely rather than show broken links". The links were not
+        broken; every one already resolved a Website id. What the guard
+        actually did was hide the tracker snippet and all six monitoring
+        tools from every client created since the cutover.
     {% endcomment %}
-    {% if legacy_cp %}
         {% comment %}
             Conversion tracker — inline (always visible). One snippet
             forever; session recording (Tier 2) flips server-side.
@@ -603,7 +598,7 @@
                         {% if tracker_recording_active %}<strong class="ok-text">On</strong>{% else %}<strong>Off</strong>{% endif %}
                         {% if tracker_recording_included %}<span class="muted">· included in plan</span>{% endif %}
                     </span>
-                    <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' legacy_cp.id %}" style="display:inline;">
+                    <form method="post" action="{% url 'admin_dashboard:client_toggle_session_recording' website.id %}" style="display:inline;">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
                         <button type="submit" class="btn-secondary btn-sm">{% if tracker_recording_active %}Turn off{% else %}Turn on{% endif %} recording</button>
@@ -625,7 +620,7 @@
             existing admin page inside an iframe (?embed=1 = chromeless)
             the first time its panel is opened — keeps everything in one
             area without stacking six full pages on load. Data still
-            resolves via ``legacy_cp`` (per-website split is Phase D).
+            resolves per website.
             Session Recordings stays its own page (media list), linked
             from the Conversion Tracker card above.
         {% endcomment %}
@@ -650,7 +645,6 @@
                 {% endfor %}
             </div>
         </div>
-    {% endif %}
 
     <div class="admin-card danger-card">
         <div class="admin-card__header">

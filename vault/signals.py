@@ -30,19 +30,19 @@ def create_client_vault(sender, instance, created, **kwargs):
     if kwargs.get('raw') or not created:
         return
 
+    # Keyed on the Account alone.
+    #
+    # This also looked for a vault hanging off the account's legacy
+    # profile and adopted it. That mattered while vaults were still being
+    # created against ClientProfile; nothing creates one that way now, and
+    # the backfill has linked every existing vault to its Account -- the
+    # parity gate reports no `ClientVault.missing-canonical-account`
+    # findings. What is left would only re-derive the same row through a
+    # column the drop removes.
     vault = ClientVault.objects.filter(account_new=instance).first()
-    if vault is None:
-        # A vault may already exist against the legacy profile from an
-        # earlier creation path; adopt it rather than creating a second.
-        legacy = instance.legacy_client_profile
-        if legacy is not None:
-            vault = ClientVault.objects.filter(client=legacy).first()
 
     if vault is None:
-        ClientVault.objects.create(
-            account_new=instance,
-            client=instance.legacy_client_profile,
-        )
+        ClientVault.objects.create(account_new=instance)
         logger.info('vault: created ClientVault for account %s', instance.pk)
         return
 

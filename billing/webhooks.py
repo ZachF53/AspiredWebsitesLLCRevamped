@@ -203,7 +203,16 @@ def _handle_payment_intent_succeeded(event):
         'status', 'paid_at', 'stripe_payment_intent_id', 'updated_at',
     ])
 
-    client = invoice.client
+    # The Account, resolved canonically.
+    #
+    # `invoice.client` is the legacy FK, so this handler passed a
+    # ClientProfile into `_on_onboarding_invoice_paid` while the other
+    # caller (`_handle_invoice_paid`) passed an Account — the same
+    # function receiving two different types depending on which Stripe
+    # event fired, and reading `stripe_customer_id` off whichever it got.
+    from clients.display import owner_account
+
+    client = owner_account(invoice)
 
     # Attach the card to the customer + set as default so future
     # subscriptions (hosting, domain) charge it automatically. PI had
@@ -622,6 +631,11 @@ def _on_onboarding_invoice_paid(client, invoice=None):
     """
     First-touch handler for the inline onboarding-invoice payment.
 
+    ``client`` is an **Account**. Both callers resolve one now; before
+    that, `_handle_payment_intent_succeeded` passed `invoice.client` (a
+    legacy ClientProfile) and `_handle_invoice_paid` passed an Account,
+    so the type depended on which Stripe event fired.
+
     Covers two callers:
       - the admin one-off onboarding invoice (single-pay → fully_paid), and
       - the build-contract deposit/pay-in-full flow, where ``invoice`` is the
@@ -645,6 +659,12 @@ def _on_onboarding_invoice_paid(client, invoice=None):
         client.user.is_active = True
         client.user.save(update_fields=['is_active'])
 
+    # Account-level state only. `payment_status`, `stage`,
+    # `deposit_paid_at` and `final_paid_at` are Website fields — a build
+    # is paid for, not an account — and were being written here as well,
+    # which only worked while `client` was a ClientProfile carrying a
+    # copy of every one of them. The website block below is where they
+    # belong, and already sets them.
     fields_to_save = ['status', 'updated_at']
     client.status = 'active'
     if client.onboarding_status not in (
@@ -652,28 +672,15 @@ def _on_onboarding_invoice_paid(client, invoice=None):
         client.onboarding_status = 'pending_setup'
         fields_to_save.append('onboarding_status')
 
+    client.save(update_fields=fields_to_save)
+
     # A build-contract deposit covers only 50% — keep payment_status at
     # 'deposit_paid' so the final invoice is still issued at pre-launch.
     # Everything else (admin one-off invoice, or pay-in-full) is fully paid.
     is_deposit = bool(getattr(invoice, 'is_deposit', False))
-    if is_deposit:
-        if client.payment_status != 'deposit_paid':
-            client.payment_status = 'deposit_paid'
-            client.deposit_paid_at = timezone.now()
-            fields_to_save += ['payment_status', 'deposit_paid_at']
-    else:
-        if client.payment_status != 'fully_paid':
-            client.payment_status = 'fully_paid'
-            client.final_paid_at = timezone.now()
-            fields_to_save += ['payment_status', 'final_paid_at']
-    if not client.stage:
-        client.stage = 'intake'
-        fields_to_save.append('stage')
 
-    client.save(update_fields=fields_to_save)
-
-    # Mirror the payment state onto the per-website record (source of truth
-    # for the build lifecycle). The OnboardingInvoice links to the website.
+    # The per-website record is the source of truth for the build
+    # lifecycle. The OnboardingInvoice links to the website.
     website = getattr(invoice, 'website_new', None) if invoice else None
     if website is None and invoice is not None and invoice.contract_id:
         website = getattr(invoice.contract, 'website_new', None)
@@ -682,8 +689,10 @@ def _on_onboarding_invoice_paid(client, invoice=None):
             website.payment_status = 'deposit_paid'
             website.deposit_paid_at = timezone.now()
             website.lifecycle_status = 'deposit_paid'
+            if not website.stage:
+                website.stage = 'intake'
             website.save(update_fields=[
-                'payment_status', 'deposit_paid_at',
+                'payment_status', 'deposit_paid_at', 'stage',
                 'lifecycle_status', 'updated_at'])
         else:
             # Final balance paid — mark fully paid + clear the portal pay
@@ -691,12 +700,21 @@ def _on_onboarding_invoice_paid(client, invoice=None):
             website.payment_status = 'fully_paid'
             website.final_paid_at = timezone.now()
             website.final_invoice_url = ''
+            if not website.stage:
+                website.stage = 'intake'
             website.save(update_fields=[
-                'payment_status', 'final_paid_at',
+                'payment_status', 'final_paid_at', 'stage',
                 'final_invoice_url', 'updated_at'])
 
-    IntakeResponse.objects.get_or_create(client=client)
-    ClientVault.objects.get_or_create(client=client)
+    # `client` is an Account here — `_client_for_customer` resolves one.
+    # Both of these keyed the row on the legacy `client` FK, which points
+    # at ClientProfile, so handing it an Account raises ValueError inside
+    # the Stripe webhook that has just taken a payment. Intake belongs to
+    # the site being built; the vault is account-level and is the column
+    # the unique constraint covers.
+    if website is not None:
+        IntakeResponse.objects.get_or_create(website_new=website)
+    ClientVault.objects.get_or_create(account_new=client)
 
     # Resend the setup link unless the token has already been used. The
     # admin view sent it once at invoice creation; this catches the
@@ -1229,7 +1247,7 @@ def _park_client_domains_on_hosting_cancel(site):
     except Exception:
         logger.exception(
             'hosting cancel: bulk domain park step failed '
-            'for client %s', client.pk)
+            'for site %s', site.pk)
 
 
 def _alert_admin_domain_renewal_failed(registration):

@@ -112,7 +112,7 @@ class SSHCredentialModelTests(TestCase):
     def test_ssh_credential_seeds_default_commands(self):
         profile = _client()
         cred = VaultCredential.objects.create(
-            vault=profile.vault, label='Prod Server', category='server',
+            vault=profile.migrated_account.vault_new, label='Prod Server', category='server',
             is_ssh_credential=True)
         self.assertEqual(cred.commands.count(), 10)
         self.assertTrue(cred.commands.filter(
@@ -121,13 +121,13 @@ class SSHCredentialModelTests(TestCase):
     def test_non_ssh_credential_seeds_nothing(self):
         profile = _client()
         cred = VaultCredential.objects.create(
-            vault=profile.vault, label='Gmail', category='google')
+            vault=profile.migrated_account.vault_new, label='Gmail', category='google')
         self.assertEqual(cred.commands.count(), 0)
 
     def test_session_log_str(self):
         profile = _client()
         cred = VaultCredential.objects.create(
-            vault=profile.vault, label='S', is_ssh_credential=True)
+            vault=profile.migrated_account.vault_new, label='S', is_ssh_credential=True)
         log = SSHSessionLog.objects.create(credential=cred)
         self.assertIn('S', str(log))
 
@@ -154,7 +154,7 @@ class VaultTotpAndTerminalViewTests(TestCase):
 
         self.profile = _client('Terminal Co')
         self.cred = VaultCredential.objects.create(
-            vault=self.profile.vault, label='Prod', category='server',
+            vault=self.profile.migrated_account.vault_new, label='Prod', category='server',
             is_ssh_credential=True,
             ssh_host_encrypted=encrypt_value('161.35.108.209', self.vault_key),
             ssh_username_encrypted=encrypt_value('root', self.vault_key),
@@ -288,7 +288,7 @@ class VaultTotpAndTerminalViewTests(TestCase):
         self._enroll_totp()
         self._unlock(totp_verified=True)
         other = VaultCredential.objects.create(
-            vault=self.profile.vault, label='Staging', category='server',
+            vault=self.profile.migrated_account.vault_new, label='Staging', category='server',
             is_ssh_credential=True,
             ssh_host_encrypted=encrypt_value('10.0.0.5', self.vault_key),
             ssh_username_encrypted=encrypt_value('root', self.vault_key),
@@ -600,7 +600,7 @@ class OpsSessionLifecycleTests(TestCase):
         self.client.login(username='opsstaff', password='op')
         profile = _client('Ops Co')
         self.cred = VaultCredential.objects.create(
-            vault=profile.vault, label='Ops Box', category='server',
+            vault=profile.migrated_account.vault_new, label='Ops Box', category='server',
             is_ssh_credential=True)
 
     def _session(self, *, started_ago_min=0, activity_ago_min=None):

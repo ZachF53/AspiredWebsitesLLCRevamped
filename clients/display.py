@@ -33,6 +33,12 @@ def owner_label(row):
     """
     if _is_instance(row, 'Website') or _is_instance(row, 'Account'):
         return getattr(row, 'name', '') or UNASSIGNED
+    # A legacy profile handed over directly names itself too. Without
+    # this it fell past every branch to the placeholder, so anything
+    # still labelling a ClientProfile -- the admin changelist, a log
+    # line, an exception repr -- read "(unassigned)".
+    if _is_legacy_profile(row):
+        return getattr(row, 'firm_name', '') or UNASSIGNED
 
     for attr in ('website_new', 'website'):
         site = _relation(row, attr)
@@ -76,6 +82,13 @@ def owner_account(row):
         return row
     if _is_instance(row, 'Website'):
         return _safe(row, 'account')
+    # A legacy profile handed over directly. Provisioning still receives
+    # one (the Stripe payment path resolves it from the invoice), and
+    # without this branch it fell through every lookup below and returned
+    # None -- so the droplet's SSH credential was written into a vault
+    # keyed on nothing, minutes after a customer paid.
+    if _is_legacy_profile(row):
+        return _safe(row, 'migrated_account')
 
     for attr in ('account_new', 'account'):
         account = _relation(row, attr)
@@ -158,6 +171,18 @@ def owner_recipient(row):
         return email, name
 
     return '', ''
+
+
+def _is_legacy_profile(row):
+    """True when ``row`` IS a ClientProfile.
+
+    Delegated to ``clients.legacy_teardown`` so the ClientProfile import
+    lives in the one module the drop change deletes whole, rather than
+    inside core display code the gate would rightly flag.
+    """
+    from clients.legacy_teardown import is_legacy_profile
+
+    return is_legacy_profile(row)
 
 
 def _is_instance(row, model_name):
