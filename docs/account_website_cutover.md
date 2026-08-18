@@ -339,6 +339,20 @@ Two things that measurement taught, worth keeping:
   redirect was correct and only the chain was wrong. Rendering real pages
   with `follow=True` is what caught it. "Deploy, observe" means requesting
   pages, not reading a green build.
+- **Converting the Python does not convert the templates, and the
+  readiness gate cannot see them.** It parses `.py` files, so twenty-two
+  templates naming the owner through the legacy FK counted as zero
+  blockers. Seventeen dereferences sat inside `{% url %}`, where an empty
+  argument raises NoReverseMatch and 500s the page; thirty-eight were
+  plain `{{ }}`, which Django resolves to the empty string — HTTP 200, no
+  log line, blank cell.
+- **Existing data hides both.** Rows written before the cutover still
+  carry a legacy FK, so every one of those lookups resolves on staging
+  and the pages look fine. Only a fixture with no legacy row anywhere
+  exposes it — `admin_dashboard/tests_canonical_only_render` builds
+  exactly that, and 11 of 14 pages failed the first time it ran. That
+  fixture is also the shape of every client created since the cutover,
+  so the same pages are wrong in production now, not only after the drop.
 
 **Remaining before the drop** (none of it code):
 
