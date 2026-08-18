@@ -1051,6 +1051,14 @@ class UptimeRecord(TimestampedModel):
         ordering = ['-checked_at']
         indexes = [
             models.Index(fields=['client', 'checked_at']),
+            # The canonical mirror. Every uptime read is now keyed on
+            # `website_new` (see reporting/uptime_helpers.py), so without
+            # this the composite above indexes a column nothing queries
+            # while the queries that replaced it run unindexed past the
+            # FK. This is the largest table in the schema — ~75k rows —
+            # and `get_uptime_chart_data` alone issues 90 of these per
+            # call.
+            models.Index(fields=['website_new', 'checked_at']),
         ]
 
     def __str__(self):
@@ -1181,6 +1189,7 @@ class ClientHealthScore(TimestampedModel):
         verbose_name_plural = 'Client Health Scores'
         indexes = [
             models.Index(fields=['client', '-calculated_at']),
+            models.Index(fields=['website_new', '-calculated_at']),
             models.Index(fields=['health_status', '-calculated_at']),
         ]
 
@@ -1604,6 +1613,7 @@ class IntelligenceReport(TimestampedModel):
         verbose_name_plural = 'Intelligence Reports'
         indexes = [
             models.Index(fields=['client', '-report_month']),
+            models.Index(fields=['website_new', '-report_month']),
         ]
 
     def __str__(self):
@@ -1713,6 +1723,7 @@ class IntelligenceSuggestion(TimestampedModel):
         indexes = [
             models.Index(fields=['status', '-generated_at']),
             models.Index(fields=['client', '-generated_at']),
+            models.Index(fields=['website_new', '-generated_at']),
         ]
 
     def __str__(self):
@@ -1794,6 +1805,7 @@ class AnnualReport(TimestampedModel):
         verbose_name_plural = 'Annual Reports'
         indexes = [
             models.Index(fields=['client', '-report_year']),
+            models.Index(fields=['website_new', '-report_year']),
             models.Index(fields=['status', '-created_at']),
         ]
 
@@ -1898,6 +1910,7 @@ class CompetitorGapReport(TimestampedModel):
         verbose_name_plural = 'Competitor Gap Reports'
         indexes = [
             models.Index(fields=['client', '-report_month']),
+            models.Index(fields=['website_new', '-report_month']),
             models.Index(fields=['status', '-report_month']),
         ]
 

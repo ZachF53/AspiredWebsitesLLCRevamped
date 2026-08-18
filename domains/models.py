@@ -234,6 +234,7 @@ class DomainRegistration(TimestampedModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['client', 'status']),
+            models.Index(fields=['account_new', 'status']),
             models.Index(fields=['expires_at']),
         ]
 

@@ -11,8 +11,15 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
+    # Every entry here is a PHASE 1 migration, not the app's current leaf.
+    # Phase 2 deletes the tables; phase 1 removes the FK columns pointing
+    # at them. Depending on a leaf that predates an app's phase 1 lets
+    # phase 2 run while that app's FK constraints still reference
+    # clients_clientprofile. The names do not exist until the phase 1
+    # files are promoted and given real numbers, so they are placeholders
+    # -- fill each one in at promotion time and uncomment it.
     dependencies = [
-        ('clients', '0054_website_payment_verification_note_and_more'),
+        ('clients', '<its phase 1 migration>'),
         # ('admin_dashboard', '<its phase 1 migration>'),
         # ('billing', '<its phase 1 migration>'),
         # ('domains', '<its phase 1 migration>'),

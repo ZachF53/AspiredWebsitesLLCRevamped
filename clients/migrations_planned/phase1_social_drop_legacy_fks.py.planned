@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('social', '0001_initial'),
+        ('social', '0003_alter_scheduledpost_client'),
     ]
 
     operations = [

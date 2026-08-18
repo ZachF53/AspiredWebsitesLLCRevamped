@@ -110,6 +110,70 @@ class CanonicalColumnCoverageTests(SimpleTestCase):
             dict(ClientProfile.SITE_STATUS_CHOICES))
 
 
+class CanonicalIndexCoverageTests(SimpleTestCase):
+    """A composite index is as load-bearing as a column, and just as
+    invisible to the parity audit.
+
+    Twelve composite indexes were keyed on `client` / `project`. Once the
+    readers moved to `website_new` / `account_new`, every one of them
+    indexed a column nothing queried, and every query that replaced them
+    ran with only the single-column FK index behind it -- no help at all
+    for the ordering half of `(owner, timestamp)`.
+
+    `clients.UptimeRecord` is the sharp edge: ~75k rows, and
+    `get_uptime_chart_data` issues 90 `(website_new, checked_at)` queries
+    per call. Nothing fails, so nothing reports it; the dashboard just
+    gets slower every month.
+    """
+
+    #: Legacy owner columns being removed by the drop.
+    LEGACY = frozenset({'client', 'project'})
+    #: The canonical column that replaces each.
+    CANONICAL = {'client': ('website_new', 'account_new'),
+                 'project': ('website_new',)}
+
+    @staticmethod
+    def _plain(fields):
+        """Index field list with sort markers stripped, for comparison."""
+        return tuple(f.lstrip('-') for f in fields)
+
+    def _missing_mirrors(self):
+        from django.apps import apps
+
+        missing = []
+        for model in apps.get_models():
+            declared = model._meta.indexes
+            canonical_shapes = {self._plain(i.fields) for i in declared}
+            for index in declared:
+                shape = self._plain(index.fields)
+                if not (self.LEGACY & set(shape)):
+                    continue
+                owner = shape[0]
+                if owner not in self.LEGACY:
+                    continue
+                # A mirror is the same index with the owner swapped for
+                # whichever canonical FK this model actually carries.
+                fields = {f.name for f in model._meta.get_fields()}
+                mirrored = False
+                for replacement in self.CANONICAL[owner]:
+                    if replacement not in fields:
+                        continue
+                    if (replacement,) + shape[1:] in canonical_shapes:
+                        mirrored = True
+                if not mirrored:
+                    missing.append(f'{model._meta.label}{list(index.fields)}')
+        return missing
+
+    def test_every_legacy_composite_index_has_a_canonical_mirror(self):
+        missing = self._missing_mirrors()
+        self.assertEqual(
+            missing, [],
+            'These composite indexes are keyed on a legacy owner column '
+            'with no equivalent on the canonical one, so the queries that '
+            f'replaced them run unindexed: {missing}. Add the mirrored '
+            'models.Index and a migration for it.')
+
+
 class DefaultedFieldBackfillTests(SimpleTestCase):
     """A field whose default is a real value can never look empty."""
 

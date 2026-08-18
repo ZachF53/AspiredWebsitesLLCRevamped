@@ -11,10 +11,22 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0054_website_payment_verification_note_and_more'),
+        ('clients', '0058_annualreport_clients_ann_website_919a1d_idx_and_more'),
     ]
 
     operations = [
+        # Indexes first. A composite index covering a column is dropped
+        # before the column, or the table rebuild fails looking for a
+        # field the new table does not have -- the rehearsal died exactly
+        # here. Each of these has a `website_new` mirror already live
+        # (clients.0058), so removing them costs no query performance.
+        migrations.RemoveIndex(model_name='annualreport', name='clients_ann_client__d834c6_idx'),
+        migrations.RemoveIndex(model_name='clienthealthscore', name='clients_cli_client__979f21_idx'),
+        migrations.RemoveIndex(model_name='competitorgapreport', name='clients_com_client__8ea5cf_idx'),
+        migrations.RemoveIndex(model_name='intelligencereport', name='clients_int_client__945ced_idx'),
+        migrations.RemoveIndex(model_name='intelligencesuggestion', name='clients_int_client__d16185_idx'),
+        migrations.RemoveIndex(model_name='uptimerecord', name='clients_upt_client__f4ac6c_idx'),
+
         migrations.RemoveField(model_name='annualreport', name='client'),  # -> ClientProfile
         migrations.RemoveField(model_name='casestudy', name='client'),  # -> ClientProfile
         migrations.RemoveField(model_name='clientcompetitor', name='client'),  # -> ClientProfile

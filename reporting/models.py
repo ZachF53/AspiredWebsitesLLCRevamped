@@ -141,6 +141,7 @@ class ConversionEvent(TimestampedModel):
         ordering = ['-event_timestamp']
         indexes = [
             models.Index(fields=['client', 'event_timestamp']),
+            models.Index(fields=['website_new', 'event_timestamp']),
         ]
 
     def __str__(self):
@@ -620,6 +621,8 @@ class PageSession(TimestampedModel):
         indexes = [
             models.Index(fields=['client', '-created_at']),
             models.Index(fields=['client', 'session_id']),
+            models.Index(fields=['website_new', '-created_at']),
+            models.Index(fields=['website_new', 'session_id']),
         ]
 
     def __str__(self):
@@ -701,6 +704,8 @@ class SessionRecording(TimestampedModel):
         indexes = [
             models.Index(
                 fields=['client', 'status', '-created_at']),
+            models.Index(
+                fields=['website_new', 'status', '-created_at']),
             # Index on expires_at so the nightly delete task can
             # find every expired row without scanning the table.
             models.Index(fields=['expires_at']),
@@ -1190,6 +1195,7 @@ class GbpReview(TimestampedModel):
         ordering = ['-review_created_at', '-created_at']
         indexes = [
             models.Index(fields=['client', 'needs_attention']),
+            models.Index(fields=['website_new', 'needs_attention']),
         ]
         verbose_name = 'GBP Review'
 

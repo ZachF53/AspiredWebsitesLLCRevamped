@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('vault', '0010_opssession_end_reason_opssession_last_activity_at'),
+        ('vault', '0011_alter_clientvault_client'),
     ]
 
     operations = [

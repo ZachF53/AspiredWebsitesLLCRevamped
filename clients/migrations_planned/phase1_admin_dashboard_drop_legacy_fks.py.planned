@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('admin_dashboard', '0003_aiassistantlog'),
+        ('admin_dashboard', '0004_aiassistantlog_website_new'),
     ]
 
     operations = [

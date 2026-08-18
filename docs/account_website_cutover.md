@@ -308,18 +308,6 @@ timestamp reopens the warning — the mapping never considered the new site.
 ## Cutover waves
 
 1. Account creation, editing, authentication, and portal resolution
-   — **in progress.** Editing already writes `Account` (`SettingsForm`).
-   `client_required` now admits on Account *or* legacy profile rather than
-   requiring a profile, and tolerates `request.client_profile` being None.
-   All five ClientProfile creation paths call
-   `clients.account_setup.ensure_account`, which verifies the Account the
-   autocreate signal was supposed to make and creates it if the signal
-   silently failed. The CP→Account field list is defined once there instead
-   of being copy-pasted into four modules.
-   **Not yet done:** the onboarding gate still reads the legacy profile
-   (it moves in Wave 2, now that `Account.onboarding_status` records the
-   real state), and the legacy fallback stays until this wave has been
-   deployed and observed.
 2. Contracts, intake, delivery stages, revisions, documents, and support
 3. Stripe checkout/webhooks, payments, subscriptions, domains, droplets, vault
 4. Moonieful sync, scheduled tasks, social services, and follow-ups
@@ -328,6 +316,41 @@ timestamp reopens the warning — the mapping never considered the new site.
 For each wave: characterize behavior, switch reads and writes together, run
 targeted tests and parity checks, deploy, observe, then remove that wave's
 legacy fallback. Legacy tables are dropped only after every wave is complete.
+
+### Status, 2026-08-18
+
+**The code half of all five waves is done and on `main`.**
+`manage.py check_legacy_removal_readiness` reports zero live code reads —
+down from 70 modules — and answers "All checkable preconditions satisfied."
+No runtime path reads `ClientProfile` or `Project` as a canonical source,
+and the per-wave legacy fallbacks are gone rather than merely unused.
+
+Two things that measurement taught, worth keeping:
+
+- **The reader count was wrong twice, in both directions.** It first
+  over-reported by 40% (21 of 70 "blockers" were prose in a docstring),
+  then under-reported: `request.client_profile` is a legacy instance that
+  never names its class, so 21 real reads in `clients/views.py` were
+  invisible to a name-based scan and `domains/views.py` was not even
+  parsed. `clients/legacy_audit.py` walks the AST and tracks that
+  attribute by name for exactly this reason.
+- **A passing suite is not an observed wave.** 883 tests passed while the
+  live portal sat in an infinite redirect loop, because every individual
+  redirect was correct and only the chain was wrong. Rendering real pages
+  with `follow=True` is what caught it. "Deploy, observe" means requesting
+  pages, not reading a green build.
+
+**Remaining before the drop** (none of it code):
+
+- Deploy to production and observe. Staging has run the full cutover since
+  2026-08-17; production is one commit behind.
+- A verified, restorable PostgreSQL backup.
+- A timed PostgreSQL→PostgreSQL rehearsal on a restored copy of
+  production. The SQLite rehearsal validates data mapping only; it cannot
+  measure how long `ALTER TABLE` holds a lock, and `clients_uptimerecord`
+  carries ~75k rows.
+- The three data decisions in "Decisions the tooling will not make for
+  you" that live production rows still raise.
 
 ## Public brand workstream
 

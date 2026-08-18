@@ -11,10 +11,18 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('reporting', '0014_sessionrecording_browser_and_more'),
+        ('reporting', '0018_conversionevent_reporting_c_website_32bbec_idx_and_more'),
     ]
 
     operations = [
+        # Indexes before the columns they cover -- see the clients phase 1.
+        # `website_new` mirrors for all five are live in reporting.0018.
+        migrations.RemoveIndex(model_name='conversionevent', name='reporting_c_client__f008e4_idx'),
+        migrations.RemoveIndex(model_name='gbpreview', name='reporting_g_client__bae8fd_idx'),
+        migrations.RemoveIndex(model_name='pagesession', name='reporting_p_client__ee9a95_idx'),
+        migrations.RemoveIndex(model_name='pagesession', name='reporting_p_client__534135_idx'),
+        migrations.RemoveIndex(model_name='sessionrecording', name='reporting_s_client__a65b14_idx'),
+
         migrations.RemoveField(model_name='blogpost', name='client'),  # -> ClientProfile
         migrations.RemoveField(model_name='clientchatbot', name='client'),  # -> ClientProfile
         migrations.RemoveField(model_name='contentfreshnessreport', name='client'),  # -> ClientProfile

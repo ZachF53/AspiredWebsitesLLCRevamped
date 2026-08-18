@@ -11,9 +11,13 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('domains', '0004_domainregistration_account_new_and_more'),
+        ('domains', '0006_domainregistration_domains_dom_account_bc4f2e_idx'),
     ]
 
     operations = [
+        # Index before the column -- see the clients phase 1. The
+        # `account_new` mirror is live in domains.0006.
+        migrations.RemoveIndex(model_name='domainregistration', name='domains_dom_client__b70c12_idx'),
+
         migrations.RemoveField(model_name='domainregistration', name='client'),  # -> ClientProfile
     ]

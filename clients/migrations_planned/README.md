@@ -41,10 +41,27 @@ survive contact:
    Fixing the correctness bug removed the migration blocker as a side
    effect.
 
-   Still outstanding: the plain `models.Index` entries on
-   `['client', ...]`. Those are not correctness bugs — a stale index
-   costs write throughput, not accuracy — but each still needs a
-   `RemoveIndex` ahead of its `RemoveField`.
+   **Resolved for the plain indexes too, 2026-08-18.** All twelve
+   `models.Index` entries keyed on `client` now have a `RemoveIndex`
+   ahead of their `RemoveField` in the phase 1 files, and
+   `clients.tests_planned_migrations` fails if a thirteenth is added
+   without one.
+
+   Removing them turned out not to be the cost-free bookkeeping the
+   note above assumed. Every one was a composite `(owner, timestamp)`
+   index, and once the readers moved to `website_new` / `account_new`
+   the index covered a column nothing queried while the queries that
+   replaced it ran with only the single-column FK index behind them —
+   no help at all for the ordering half. `clients.UptimeRecord` is the
+   sharp edge: ~75k rows, and `get_uptime_chart_data` issues 90
+   `(website_new, checked_at)` queries per call. Nothing fails, so
+   nothing reports it; the dashboard just gets slower every month.
+
+   So each index was **mirrored onto the canonical column first**
+   (`clients.0058`, `reporting.0018`, `domains.0006`) and only then
+   queued for removal. `clients.tests_canonical_coverage` asserts the
+   mirror exists, which is the index-level version of the column-level
+   check below.
 3. **Ordering is load-bearing.** Phase 2 must depend on every phase-1
    migration, or the tables are dropped while other apps' FK constraints
    still point at them.
