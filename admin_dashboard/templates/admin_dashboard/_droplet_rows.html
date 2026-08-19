@@ -47,15 +47,18 @@ the droplet name. Tags moved to a title="" tooltip on the dot
                     {% if r.website %}
                         <a href="{% url 'admin_dashboard:website_detail' r.website.id %}">{{ r.website.name }}</a>
                         <div class="droplet-muted">{{ r.website.account.name }}</div>
-                    {% elif r.client %}
-                        {% comment %}
-                            Legacy-only match — show with a small
-                            "legacy" caption so the divide is visible.
-                            Suppressed when a website match already
-                            rendered above (would be the same firm).
-                        {% endcomment %}
-                        <a href="{% url 'admin_dashboard:client_detail' r.client.id %}">{{ r.client.firm_name }}</a>
-                        <div class="droplet-muted">legacy link</div>
+                    {% comment %}
+                        There was an {% elif r.client %} branch here for a
+                        "legacy-only match". It could never run: the view
+                        sets `client` as an alias of the same Website
+                        object as `website` (views_droplets, "kept as an
+                        alias of ``website`` so the existing template
+                        column keeps rendering"), so if `website` is falsy
+                        `client` is the same falsy value. Had it run it
+                        would have printed `firm_name`, which a Website
+                        does not have — a blank cell under a "legacy link"
+                        caption.
+                    {% endcomment %}
                     {% else %}
                         <span class="droplet-muted">— unlinked —</span>
                         <button type="button"

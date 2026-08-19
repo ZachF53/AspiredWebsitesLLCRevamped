@@ -27,7 +27,11 @@ It never writes, and it never drops anything.
 
 from django.core.management.base import BaseCommand
 
-from clients.legacy_audit import scan_repository, summarise
+from clients.legacy_audit import (
+    scan_repository,
+    scan_templates,
+    summarise,
+)
 
 
 class Command(BaseCommand):
@@ -121,6 +125,38 @@ class Command(BaseCommand):
             blockers.append(
                 f'{len(blocking)} runtime module(s) still read '
                 'ClientProfile/Project')
+        else:
+            self.stdout.write('  none')
+
+        # ---- 3b. templates ----
+        #
+        # The scan above parses Python, so for the whole cutover this was
+        # a blind spot: twenty-two templates named a row's owner through
+        # the legacy FK while the gate reported zero blockers. A `{% url %}`
+        # with an empty argument raises NoReverseMatch and 500s the page;
+        # a `{{ }}` resolves to the empty string and returns 200 with the
+        # client's name missing, which is the one nothing catches.
+        self.stdout.write('')
+        self.stdout.write('Templates still resolving an owner via the '
+                          'legacy FK')
+
+        template_findings = scan_templates()
+        breaking = [f for f in template_findings if f.severity == 'url']
+        silent = [f for f in template_findings if f.severity == 'display']
+
+        if template_findings:
+            self.stdout.write(
+                f'  {len(breaking)} that raise NoReverseMatch (500), '
+                f'{len(silent)} that render blank (200)')
+            for finding in template_findings:
+                mark = '500' if finding.severity == 'url' else '   '
+                lines = ', '.join(str(n) for n in finding.lines)
+                self.stdout.write(
+                    f'  {mark}  {finding.path}  {finding.variable} '
+                    f'(lines {lines})')
+            blockers.append(
+                f'{len(template_findings)} template variable(s) still '
+                'resolve an owner through the legacy FK')
         else:
             self.stdout.write('  none')
 

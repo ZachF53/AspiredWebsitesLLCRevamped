@@ -75,8 +75,6 @@
                                 <td>
                                     {% if entry.website_new %}
                                         <a href="{% url 'admin_dashboard:website_changelog' entry.website_new.id %}" class="lead-table__firm">{{ entry.website_new.name }}</a>
-                                    {% elif entry.client %}
-                                        <span class="lead-table__firm">{{ entry.client.firm_name }}</span>
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
                             {% endif %}

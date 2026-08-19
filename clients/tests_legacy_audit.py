@@ -243,3 +243,85 @@ class CutoverReportingExclusionTests(SimpleTestCase):
             path='some/view.py', code_lines=[1], schema_lines=[],
             prose_count=0)
         self.assertTrue(ordinary.blocks_removal)
+
+
+class TemplateScanTests(SimpleTestCase):
+    """The scan that would have caught twenty-two broken templates.
+
+    `scan_repository` parses Python, so templates were invisible to the
+    readiness gate for the whole cutover. Twenty-two of them named a
+    row's owner through the legacy FK while the gate reported zero
+    blockers — seventeen dereferences inside `{% url %}`, which raise
+    NoReverseMatch and 500 the page, and thirty-eight in `{{ }}`, which
+    Django resolves to the empty string and returns 200 with the client's
+    name missing.
+
+    Those were found and fixed by hand. This asserts the scanner would
+    find them again, so a twenty-third cannot be added quietly.
+    """
+
+    def _scan(self, name, body):
+        import pathlib
+        import tempfile
+
+        from clients.legacy_audit import scan_templates
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / name).write_text(body, encoding='utf-8')
+            return scan_templates(str(root))
+
+    def test_a_url_tag_dereference_is_flagged_as_breaking(self):
+        findings = self._scan('page.html', (
+            "<a href=\"{% url 'x:detail' r.client.id %}\">"
+            "{{ r.client.firm_name }}</a>\n"))
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].severity, 'url')
+        self.assertEqual(findings[0].variable, 'r.client')
+
+    def test_a_plain_interpolation_is_flagged_as_silent(self):
+        findings = self._scan('page.html', '<td>{{ r.client.firm_name }}</td>\n')
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].severity, 'display')
+
+    def test_a_bare_id_is_flagged_when_the_variable_is_proven_legacy(self):
+        """The `.id` carries no evidence of its own — and it is the one
+        that 500s. It is reported because another line in the same
+        template reads `firm_name` off the same variable."""
+        findings = self._scan('page.html', (
+            '<td>{{ r.client.firm_name }}</td>\n'
+            "<a href=\"{% url 'x:detail' r.client.id %}\">go</a>\n"))
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].severity, 'url')
+        self.assertEqual(findings[0].lines, [1, 2])
+
+    def test_a_context_variable_merely_named_client_is_not_flagged(self):
+        """`admin_dashboard/clients_onboarding` builds
+        `{'client': <Website>}` dicts. Rewriting those would be the bug,
+        so a variable is only legacy when something ClientProfile-only is
+        read off it."""
+        findings = self._scan('page.html', (
+            "<a href=\"{% url 'x:site' card.client.id %}\">"
+            '{{ card.client.name }}</a>\n'))
+
+        self.assertEqual(findings, [])
+
+    def test_cutover_reporting_templates_are_exempt(self):
+        findings = self._scan(
+            'data_health.html', '<td>{{ r.client.firm_name }}</td>\n')
+
+        self.assertEqual(findings, [])
+
+    def test_the_repository_is_clean(self):
+        """The real check. Runs against the actual templates."""
+        from clients.legacy_audit import scan_templates
+
+        findings = scan_templates('.')
+        self.assertEqual(
+            [f'{f.path}:{f.variable} ({f.severity})' for f in findings], [],
+            'A template resolves a row owner through the legacy FK. In a '
+            '{% url %} that is a 500; in {{ }} it is a 200 with the value '
+            'silently blank.')

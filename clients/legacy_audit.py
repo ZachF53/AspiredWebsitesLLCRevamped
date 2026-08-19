@@ -39,6 +39,7 @@ once those modules are mid-rewrite.
 import ast
 import io
 import pathlib
+import re
 import tokenize
 
 # Modules whose entire job is the transition: the models themselves, the
@@ -275,6 +276,107 @@ def scan_repository(root='.'):
     reports.sort(
         key=lambda r: (-len(r.code_lines), -len(r.schema_lines), r.path))
     return reports
+
+
+# ── Templates ───────────────────────────────────────────────────────────
+#
+# The scan above parses Python. Templates are not Python, so for the whole
+# cutover they were invisible to it -- and twenty-two of them named the
+# owner of a row through the legacy FK while the gate reported zero
+# blockers. That is not a small gap: `{% url %}` with an empty argument
+# raises NoReverseMatch and 500s the page, and `{{ }}` resolves a missing
+# attribute to the empty string, which is worse, because it returns 200
+# with the client's name silently missing.
+#
+# Those were found and fixed by hand. This is here so a twenty-third
+# cannot be added quietly.
+
+TEMPLATE_DEREF = re.compile(
+    r'\b([a-z_][\w]*(?:\.[\w]+)*?\.(?:client|project))\.([\w]+)')
+TEMPLATE_URL_TAG = re.compile(r'{%\s*url\b[^%]*%}')
+
+#: Attributes that exist on ClientProfile/Project and on no canonical
+#: model. Reading one through `.client` proves the variable is a legacy
+#: row rather than a context variable that merely happens to be called
+#: `client` -- `admin_dashboard/clients_onboarding` builds
+#: `{'client': <Website>}` dicts, and rewriting those would be the bug.
+TEMPLATE_LEGACY_ONLY_ATTRS = frozenset({
+    'firm_name', 'migrated_account', 'legacy_client_profile',
+})
+
+#: Templates whose job is to report on the cutover.
+TEMPLATE_EXEMPT = ('data_health.html', 'account_detail.html')
+
+
+class TemplateFinding:
+    """One template variable that reaches a row through the legacy FK."""
+
+    __slots__ = ('path', 'variable', 'lines', 'in_url_tag')
+
+    def __init__(self, path, variable, lines, in_url_tag):
+        self.path = path
+        self.variable = variable
+        self.lines = lines
+        self.in_url_tag = in_url_tag
+
+    @property
+    def severity(self):
+        """`url` = a 500. `display` = a 200 with the value missing."""
+        return 'url' if self.in_url_tag else 'display'
+
+    def __repr__(self):                                   # pragma: no cover
+        return (f'<TemplateFinding {self.path} {self.variable} '
+                f'{self.severity}>')
+
+
+def scan_templates(root='.'):
+    """Templates still resolving a row's owner through the legacy FK.
+
+    Groups by (template, variable) so a variable proven legacy by one
+    line is reported for all of its uses -- including the bare `.id`
+    ones inside url tags, which carry no evidence of their own and are
+    the ones that 500.
+    """
+    grouped = {}
+
+    for path in sorted(pathlib.Path(root).rglob('*.html')):
+        relative = str(path.relative_to(root)).replace('\\', '/')
+        if any(part in relative for part in SKIP_DIR_PARTS):
+            continue
+        if any(name in relative for name in TEMPLATE_EXEMPT):
+            continue
+        try:
+            text = path.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        if '.client.' not in text and '.project.' not in text:
+            continue
+
+        for number, line in enumerate(text.splitlines(), 1):
+            spans = [(t.start(), t.end())
+                     for t in TEMPLATE_URL_TAG.finditer(line)]
+            for match in TEMPLATE_DEREF.finditer(line):
+                variable, attr = match.group(1), match.group(2)
+                if variable.startswith('form.'):
+                    continue            # a bound form field, not a relation
+                in_url = any(a <= match.start() < b for a, b in spans)
+                grouped.setdefault((relative, variable), []).append(
+                    (number, attr, in_url))
+
+    findings = []
+    for (relative, variable), uses in grouped.items():
+        attrs = {attr for _, attr, _ in uses}
+        if not (attrs & TEMPLATE_LEGACY_ONLY_ATTRS):
+            continue
+        findings.append(TemplateFinding(
+            path=relative,
+            variable=variable,
+            lines=sorted({n for n, _, _ in uses}),
+            in_url_tag=any(u for _, _, u in uses),
+        ))
+
+    findings.sort(key=lambda f: (not f.in_url_tag, f.path, f.variable))
+    return findings
 
 
 def summarise(reports):
