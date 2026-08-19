@@ -64,3 +64,41 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = 'memory://'
 CELERY_RESULT_BACKEND = 'cache+memory://'
+
+# ── Outbound credentials ────────────────────────────────────────────────
+#
+# Blanked, the same way settings_rehearsal.py blanks them.
+#
+# This file already stopped tests inheriting the operator's database,
+# SMTP, Redis and filesystem — but not the API keys, so
+# `STRIPE_SECRET_KEY` came straight from `.env` and any test path
+# reaching Stripe made a **live** call against the real account. A portal
+# render test surfaced it: `stripe._error.InvalidRequestError: Request
+# req_gYnaFiy2usw7V7: No such customer` — a real request id, from a real
+# round trip, on every run of the suite.
+#
+# A read is the harmless end of that. `stripe.Customer.create` and
+# `provision_client_droplet` are on the same key, and nothing but the
+# absence of a code path was stopping a test from creating billable
+# objects in the live account.
+#
+# Blank keys make each client raise or no-op locally instead, which is
+# the behaviour tests should be asserting against anyway.
+STRIPE_SECRET_KEY = ''
+STRIPE_PUBLISHABLE_KEY = ''
+STRIPE_WEBHOOK_SECRET = ''
+DO_API_TOKEN = ''
+SENDGRID_API_KEY = ''
+ANTHROPIC_API_KEY = ''
+TWILIO_ACCOUNT_SID = ''
+TWILIO_AUTH_TOKEN = ''
+TWILIO_PHONE_NUMBER = ''
+GOOGLE_PLACES_API_KEY = ''
+GOOGLE_CLIENT_ID = ''
+GOOGLE_CLIENT_SECRET = ''
+META_APP_ID = ''
+META_APP_SECRET = ''
+LINKEDIN_CLIENT_ID = ''
+LINKEDIN_CLIENT_SECRET = ''
+MOONIEFUL_SYNC_SECRET = 'test-moonieful-sync-secret'
+VAULT_SERVER_SECRET = 'test-vault-server-secret'

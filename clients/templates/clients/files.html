@@ -25,6 +25,15 @@
 </section>
 
 <div class="portal-cols">
+{% comment %}
+    `doc.file.url` raises ValueError when the FileField is empty, and an
+    empty one is a real state, not a broken row: sync/handlers
+    `handle_document_added` registers a Moonieful document first and the
+    file arrives afterwards via /api/sync/file/. In that window the whole
+    Files page 500'd for the client. Django templates swallow the
+    AttributeError from a missing attribute but NOT this ValueError, so
+    the row has to be guarded explicitly.
+{% endcomment %}
     <section class="portal-section portal-section--grow">
         <h2 class="portal-section__title">Documents From Us</h2>
         {% if docs_to_client %}
@@ -37,7 +46,11 @@
                         </span>
                         <span class="record-list__meta">
                             {{ doc.created_at|date:"M j, Y" }}
-                            <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                            {% if doc.file %}
+                                <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                            {% else %}
+                                <span class="muted">Upload in progress</span>
+                            {% endif %}
                         </span>
                     </li>
                 {% endfor %}
@@ -56,7 +69,11 @@
                         <span class="record-list__main">{{ doc.label|default:doc.file.name }}</span>
                         <span class="record-list__meta">
                             {{ doc.created_at|date:"M j, Y" }}
-                            <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                            {% if doc.file %}
+                                <a class="btn-secondary btn-sm" href="{{ doc.file.url }}" download>Download</a>
+                            {% else %}
+                                <span class="muted">Upload in progress</span>
+                            {% endif %}
                         </span>
                     </li>
                 {% endfor %}
