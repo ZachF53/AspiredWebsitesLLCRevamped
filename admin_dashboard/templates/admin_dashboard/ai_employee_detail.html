@@ -1,0 +1,188 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ employee.name }} — AI Employees — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:ai_employees' %}">AI Employees</a>
+            </span>
+            <h1 class="admin-page-title">{{ employee.name }}</h1>
+            {% if employee.role_description %}
+                <p class="admin-page-sub">{{ employee.role_description }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not runtime_ready %}
+        <div class="callout callout--warning" role="status">
+            <p>
+                <strong>Not running yet.</strong> {{ runtime_pending_reason }}
+            </p>
+        </div>
+    {% endif %}
+
+    {% comment %}
+    Controls. Pause/resume and task assignment are real and persist.
+    "Wake now" is rendered disabled while the runtime is missing rather
+    than posting and failing — and the view refuses it server-side too,
+    so a hand-crafted POST cannot fake a run either.
+    {% endcomment %}
+    <section class="admin-section">
+        <h2>Controls</h2>
+        <p>
+            Status:
+            {% if employee.active %}
+                <span class="chip chip--ok">Active</span>
+            {% else %}
+                <span class="chip">Paused</span>
+            {% endif %}
+            · effort <strong>{{ employee.get_reasoning_effort_display }}</strong>
+            · every {{ employee.run_interval_minutes }} minute{{ employee.run_interval_minutes|pluralize }}
+        </p>
+
+        <form method="post" action="{% url 'admin_dashboard:ai_employee_toggle_active' employee.slug %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn">
+                {% if employee.active %}Pause{% else %}Resume{% endif %}
+            </button>
+        </form>
+
+        {% if runtime_ready %}
+            <form method="post" action="{% url 'admin_dashboard:ai_employee_wake' employee.slug %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--primary">Wake now</button>
+            </form>
+        {% else %}
+            <button type="button" class="btn" disabled
+                    title="{{ runtime_pending_reason }}">Wake now</button>
+            <small>Disabled until the agent runtime exists.</small>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Assign a task</h2>
+        <p>
+            <small>
+                Queued immediately and picked up on the next run. This
+                works today even though nothing runs yet — the task simply
+                waits.
+            </small>
+        </p>
+        <form method="post" action="{% url 'admin_dashboard:ai_employee_add_task' employee.slug %}">
+            {% csrf_token %}
+            <textarea name="instruction" rows="3" style="width:100%;"
+                      placeholder="e.g. Focus on personal injury firms in Round Rock this week."></textarea>
+            <button type="submit" class="btn btn--primary">Queue task</button>
+        </form>
+
+        {% if tasks %}
+            <table class="admin-table">
+                <thead><tr><th>Instruction</th><th>Status</th><th>Queued</th><th>Result</th></tr></thead>
+                <tbody>
+                    {% for t in tasks %}
+                        <tr>
+                            <td>{{ t.instruction|truncatechars:120 }}</td>
+                            <td>{{ t.get_status_display }}</td>
+                            <td><small>{{ t.created_at|date:"Y-m-d H:i" }}</small></td>
+                            <td><small>{{ t.result|truncatechars:80|default:"—" }}</small></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No tasks queued.</p>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Waiting on you</h2>
+        {% if pending_actions %}
+            <p>
+                <strong>{{ pending_actions|length }}</strong>
+                tool call{{ pending_actions|length|pluralize }}
+                need{{ pending_actions|length|pluralize:"s," }} a decision.
+            </p>
+            <table class="admin-table">
+                <thead><tr><th>Tool</th><th>Input</th><th>Asked</th><th>Decision</th></tr></thead>
+                <tbody>
+                    {% for a in pending_actions %}
+                        <tr>
+                            <td>{{ a.tool_name }}</td>
+                            <td><small>{{ a.tool_input }}</small></td>
+                            <td><small>{{ a.created_at|date:"Y-m-d H:i" }}</small></td>
+                            <td>
+                                <form method="post" action="{% url 'admin_dashboard:ai_action_decide' a.pk %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" name="decision" value="approve" class="btn btn--primary">Approve</button>
+                                    <button type="submit" name="decision" value="reject" class="btn">Reject</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Nothing waiting. Drafted emails live under
+               <a href="{% url 'admin_dashboard:outreach_approvals' %}">Approvals</a>,
+               not here.</p>
+        {% endif %}
+    </section>
+
+    <section class="admin-section">
+        <h2>Run log</h2>
+        {% if runs %}
+            {% for run in runs %}
+                <details>
+                    <summary>
+                        {{ run.started_at|date:"Y-m-d H:i" }} ·
+                        {{ run.get_trigger_display }} ·
+                        {{ run.get_status_display }} ·
+                        {{ run.steps_used }} step{{ run.steps_used|pluralize }} ·
+                        ${{ run.spend_usd }}
+                    </summary>
+                    {% if run.summary %}
+                        <p>{{ run.summary }}</p>
+                    {% endif %}
+                    {% if run.actions.all %}
+                        <table class="admin-table">
+                            <thead><tr><th>Tool</th><th>Input</th><th>Result</th></tr></thead>
+                            <tbody>
+                                {% for a in run.actions.all %}
+                                    <tr>
+                                        <td>{{ a.tool_name }}</td>
+                                        <td><small>{{ a.tool_input }}</small></td>
+                                        <td><small>{{ a.result|truncatechars:160 }}</small></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p><small>No tool calls recorded for this run.</small></p>
+                    {% endif %}
+                </details>
+            {% endfor %}
+        {% else %}
+            <p>{{ employee.name }} has never run.</p>
+        {% endif %}
+    </section>
+
+    {% if employee.last_journal_entry %}
+        <section class="admin-section">
+            <h2>Last journal entry</h2>
+            <p>
+                <small>
+                    What {{ employee.name }} wrote to itself at the end of its
+                    last run. Fed back into the next run so it adapts rather
+                    than starting from zero each time.
+                </small>
+            </p>
+            <p>{{ employee.last_journal_entry }}</p>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}

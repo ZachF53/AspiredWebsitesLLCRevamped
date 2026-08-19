@@ -4878,3 +4878,15 @@ from .views_scans import (  # noqa: E402,F401
     toggle_auto_send_scans,
     update_finding_status,
 )
+
+# ──────────────────────────────────────────────────────────────────────────
+# Extracted to ai_employee_views.py — AI Employees cockpit (§8.2)
+# ──────────────────────────────────────────────────────────────────────────
+from .ai_employee_views import (  # noqa: E402,F401
+    ai_action_decide,
+    ai_employee_add_task,
+    ai_employee_detail,
+    ai_employee_toggle_active,
+    ai_employee_wake,
+    ai_employees,
+)

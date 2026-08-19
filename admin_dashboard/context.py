@@ -129,6 +129,20 @@ def _admin_context(active=None, **extra):
             status='pending_approval').count()
     except Exception:
         approvals_count = 0
+    try:
+        # AI Employees badge — tool calls an agent flagged for a human.
+        #
+        # Scoped to AIEmployeeAction ONLY. EmailSent.pending_approval is
+        # deliberately excluded: it is already the Approvals badge above,
+        # and counting one queue under two nav items would overstate the
+        # work waiting and make both numbers untrustworthy.
+        from admin_dashboard.models import AIEmployeeAction
+        ai_employees_pending_count = AIEmployeeAction.objects.filter(
+            requires_approval=True, approved__isnull=True).count()
+    except Exception:
+        # Migration may not have run yet on a fresh checkout — never
+        # break the chrome over a missing table.
+        ai_employees_pending_count = 0
     ctx = {
         'active': active,
         'needs_you_count': needs_you_count,
@@ -137,6 +151,7 @@ def _admin_context(active=None, **extra):
         'intel_pending_count': intel_pending_count,
         'gap_high_count': gap_high_count,
         'approvals_count': approvals_count,
+        'ai_employees_pending_count': ai_employees_pending_count,
     }
     ctx.update(extra)
     return ctx

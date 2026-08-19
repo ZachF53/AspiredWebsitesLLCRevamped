@@ -1,0 +1,81 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}AI Employees — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Operations</span>
+            <h1 class="admin-page-title">AI Employees</h1>
+            <p class="admin-page-sub">
+                Agents that do work on their own schedule, inside hard
+                guardrails on pricing, approved templates and spend. Each
+                one keeps a run log you can read after the fact.
+            </p>
+        </div>
+    </div>
+
+    {% if not runtime_ready %}
+        <div class="callout callout--warning" role="status">
+            <p>
+                <strong>The agent runtime is not built yet.</strong>
+                {{ runtime_pending_reason }}
+            </p>
+        </div>
+    {% endif %}
+
+    {% if employees %}
+        <div class="admin-grid">
+            {% for e in employees %}
+                <section class="admin-section">
+                    <h2>
+                        <a href="{% url 'admin_dashboard:ai_employee_detail' e.slug %}">{{ e.name }}</a>
+                    </h2>
+                    <p>
+                        {% if e.active %}
+                            <span class="chip chip--ok">Active</span>
+                        {% else %}
+                            <span class="chip">Paused</span>
+                        {% endif %}
+                        {% if e.pending_approvals %}
+                            <span class="chip chip--warning">{{ e.pending_approvals }} awaiting you</span>
+                        {% endif %}
+                        {% if e.open_tasks %}
+                            <span class="chip">{{ e.open_tasks }} queued task{{ e.open_tasks|pluralize }}</span>
+                        {% endif %}
+                    </p>
+
+                    {% if e.role_description %}
+                        <p><small>{{ e.role_description }}</small></p>
+                    {% endif %}
+
+                    <ul>
+                        <li>Reasoning effort: <strong>{{ e.get_reasoning_effort_display }}</strong></li>
+                        <li>Runs every {{ e.run_interval_minutes }} minute{{ e.run_interval_minutes|pluralize }}</li>
+                        <li>
+                            {% if e.latest_run %}
+                                Last run {{ e.latest_run.started_at|date:"Y-m-d H:i" }}
+                                ({{ e.latest_run.get_status_display|lower }})
+                            {% else %}
+                                Has never run
+                            {% endif %}
+                        </li>
+                        <li>{{ e.run_count }} run{{ e.run_count|pluralize }} logged</li>
+                    </ul>
+
+                    <p>
+                        <a href="{% url 'admin_dashboard:ai_employee_detail' e.slug %}">Open {{ e.name }}</a>
+                    </p>
+                </section>
+            {% endfor %}
+        </div>
+    {% else %}
+        <section class="admin-section">
+            <p>No AI employees are registered.</p>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}

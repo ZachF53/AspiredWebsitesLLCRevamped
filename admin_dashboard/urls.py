@@ -489,6 +489,24 @@ urlpatterns = [
                     fromlist=['data_health']).data_health,
          name='data_health'),
 
+    # AI Employees — the agent cockpit (COLD_OUTREACH_AGENT.md §8.2).
+    # Handlers live in the ai_employee_views module and are re-exported
+    # from the views module, per the convention tests_navigation enforces.
+    # (Do not write the dotted module filename in this file: that test
+    # regexes `views\.(\w+)` over the raw source, comments included, so it
+    # would read the extension as a missing view name.)
+    path('ai-employees/', views.ai_employees, name='ai_employees'),
+    path('ai-employees/<slug:slug>/', views.ai_employee_detail,
+         name='ai_employee_detail'),
+    path('ai-employees/<slug:slug>/toggle/', views.ai_employee_toggle_active,
+         name='ai_employee_toggle_active'),
+    path('ai-employees/<slug:slug>/task/', views.ai_employee_add_task,
+         name='ai_employee_add_task'),
+    path('ai-employees/<slug:slug>/wake/', views.ai_employee_wake,
+         name='ai_employee_wake'),
+    path('ai-employees/action/<int:action_id>/decide/',
+         views.ai_action_decide, name='ai_action_decide'),
+
     # System Alerts — X3 error visibility
     path('alerts/',
          __import__('core.system_alerts_views',

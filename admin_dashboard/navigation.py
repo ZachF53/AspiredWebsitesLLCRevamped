@@ -70,6 +70,8 @@ NAVIGATION = (
         NavItem('Needs You', 'admin_dashboard:needs_you', badge='needs_you_count'),
         NavItem('Approvals', 'admin_dashboard:outreach_approvals',
                 badge='approvals_count'),
+        NavItem('AI Employees', 'admin_dashboard:ai_employees',
+                badge='ai_employees_pending_count'),
         NavItem('Calls', 'admin_dashboard:schedule_calls'),
     )),
 
