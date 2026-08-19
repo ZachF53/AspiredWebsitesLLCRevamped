@@ -33,6 +33,7 @@ from .portal_resolvers import (
     resolve_account_for_user,
 )
 from .pdf_utils import render_contract_pdf
+from clients.display import owner_label
 from .vault_helpers import (
     get_client_vault_remaining_seconds,
     is_client_vault_unlocked,
@@ -2242,10 +2243,10 @@ def _intel_record_response(suggestion, action):
         from django.core.mail import send_mail as _send_mail
         verb = 'APPROVED' if action == 'approve' else 'DECLINED'
         _send_mail(
-            subject=(f'[Intelligence] {suggestion.client.firm_name} '
+            subject=(f'[Intelligence] {owner_label(suggestion)} '
                      f'{verb}: {suggestion.title[:60]}'),
             message=(
-                f'{suggestion.client.firm_name} {verb.lower()} the '
+                f'{owner_label(suggestion)} {verb.lower()} the '
                 f'suggestion "{suggestion.title}" '
                 f'(${suggestion.one_time_fee}).\n\n'
                 f'Review: {_s.SITE_BASE_URL}/admin-dashboard/'

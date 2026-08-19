@@ -325,3 +325,75 @@ class TemplateScanTests(SimpleTestCase):
             'A template resolves a row owner through the legacy FK. In a '
             '{% url %} that is a 500; in {{ }} it is a 200 with the value '
             'silently blank.')
+
+
+class LegacyChainDetectionTests(SimpleTestCase):
+    """`x.client.firm_name` — a legacy read that names nothing legacy.
+
+    The scan flags the identifier `ClientProfile` and the attribute
+    `legacy_client_profile`. This shape has neither: `client` is an
+    ordinary attribute name and only the trailing attribute gives it
+    away. Twenty-eight of them survived a gate reporting zero reads.
+
+    The one that mattered sat inside an `except` block in
+    `social.tasks.publish_due_posts`. `client` is None for every account
+    created since the cutover, so the alert raised AttributeError,
+    escaped the loop before `continue`, killed the task, and left every
+    *other* client's scheduled posts unpublished.
+    """
+
+    def _reads(self, source):
+        from clients.legacy_audit import analyse_source
+
+        report = analyse_source(source, path='x.py')
+        return report.code_lines
+
+    def test_a_chain_through_client_is_a_read(self):
+        self.assertEqual(
+            self._reads('def f(post):\n    return post.client.firm_name\n'),
+            [2])
+
+    def test_a_chain_through_project_is_a_read(self):
+        self.assertEqual(
+            self._reads('def f(row):\n    return row.project.firm_name\n'),
+            [2])
+
+    def test_migrated_account_is_a_read(self):
+        self.assertEqual(
+            self._reads('def f(p):\n    return p.client.migrated_account\n'),
+            [2])
+
+    def test_a_lead_is_not_flagged(self):
+        """`outreach.Lead` has a `firm_name` too. Matching the attribute
+        on its own would flag code with nothing to do with the cutover —
+        which is why it only counts after a `.client` / `.project` hop."""
+        self.assertEqual(
+            self._reads('def f(lead):\n    return lead.firm_name\n'), [])
+
+    def test_a_canonical_owner_is_not_flagged(self):
+        self.assertEqual(
+            self._reads('def f(row):\n    return row.website_new.name\n'), [])
+
+    def test_the_prefilter_admits_a_module_whose_only_read_is_a_chain(self):
+        """`scan_repository` runs a cheap substring check before parsing.
+        Without the chain attributes in it, a module whose only legacy
+        read is `x.client.firm_name` is never parsed at all — exactly how
+        `domains/views.py` escaped the scan once before."""
+        from clients.legacy_audit import (
+            LEGACY_ATTRIBUTES,
+            LEGACY_CHAIN_ATTRIBUTES,
+            LEGACY_NAMES,
+        )
+
+        markers = LEGACY_NAMES | LEGACY_ATTRIBUTES | LEGACY_CHAIN_ATTRIBUTES
+        self.assertIn('firm_name', markers)
+
+    def test_the_repository_is_clean(self):
+        from clients.legacy_audit import scan_repository
+
+        blocking = [r for r in scan_repository('.') if r.blocks_removal]
+        self.assertEqual(
+            [f'{r.path}:{r.code_lines}' for r in blocking], [],
+            'a module reads the legacy models — including through a bare '
+            '`.client` hop, which names nothing legacy and is how the '
+            'social publish loop was crashing')

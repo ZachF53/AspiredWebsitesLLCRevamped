@@ -23,6 +23,7 @@ from clients.emails import (
     send_welcome_email,
 )
 from clients.models import IntakeResponse
+from clients.display import owner_label
 
 logger = logging.getLogger(__name__)
 
@@ -1277,13 +1278,13 @@ def _alert_admin_domain_renewal_failed(registration):
         send_mail(
             subject=(
                 f'[Domain renewal failed] {registration.domain_name} '
-                f'({registration.client.firm_name})'),
+                f'({owner_label(registration)})'),
             message=(
                 f'Stripe charged the client for the renewal of '
                 f'{registration.domain_name}, but the Namecheap renew '
                 f'call failed.\n\n'
                 f'Last API error: {registration.last_api_error}\n\n'
-                f'Client: {registration.client.firm_name} '
+                f'Client: {owner_label(registration)} '
                 f'<{registration.client.user.email if registration.client.user else "(no user)"}>\n'
                 f'Registration ID: {registration.id}\n\n'
                 f'Manually renew on Namecheap, or refund the client.\n'),
@@ -1310,7 +1311,7 @@ def _alert_admin_domain_gate_cancel(registration, reason):
                 f'{registration.domain_name} has been cancelled '
                 f'because the domain is {reason} from our Namecheap '
                 f'account.\n\n'
-                f'Client: {registration.client.firm_name}\n'
+                f'Client: {owner_label(registration)}\n'
                 f'Registration ID: {registration.id}\n'),
             from_email=getattr(
                 _s, 'EMAIL_FROM_NO_REPLY', _s.DEFAULT_FROM_EMAIL),

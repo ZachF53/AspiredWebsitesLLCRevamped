@@ -258,7 +258,15 @@ class VaultCredential(TimestampedModel):
         verbose_name_plural = 'Vault Credentials'
 
     def __str__(self):
-        return f'{self.vault.client.firm_name} — {self.label}'
+        # Through `owner_label`, not `vault.client.firm_name`. The vault
+        # is keyed on the Account now and `client` is None on every one
+        # created since -- so this raised AttributeError, and __str__
+        # raising breaks the admin changelist, the `%s` in a log line,
+        # and the repr inside the exception for whatever you were
+        # actually debugging.
+        from clients.display import owner_label
+
+        return f'{owner_label(self.vault)} — {self.label}'
 
 
 class ServerCommandLibrary(TimestampedModel):

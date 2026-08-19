@@ -43,6 +43,8 @@ from .context import (  # noqa: F401
     _intel_pending_count,
 )
 
+from clients.display import owner_label
+
 from .forms import (
     DeploymentLogForm,
     LeadAddForm,
@@ -2957,7 +2959,7 @@ def admin_domain_delete(request, reg_id):
             'admin_dashboard:admin_domain_detail', reg_id=reg.id)
 
     name = reg.domain_name
-    client_name = reg.client.firm_name
+    client_name = owner_label(reg)
     reg.delete()
     _msg.success(
         request,

@@ -19,6 +19,7 @@ from django.views.decorators.http import require_POST
 
 from admin_dashboard.decorators import admin_required
 from clients.account_models import Account
+from clients.display import owner_label
 
 from .crypto import (
     decrypt_value,
@@ -509,7 +510,7 @@ def reveal_credential(request, client_id, cred_id):
         VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
     _log('credential_viewed', request,
-         client_name=cred.vault.client.firm_name,
+         client_name=owner_label(cred.vault),
          credential_label=cred.label,
          note='Decrypted values revealed.')
     return JsonResponse({
@@ -663,7 +664,7 @@ def delete_credential(request, client_id, cred_id):
     cred = get_object_or_404(
         VaultCredential, id=cred_id, vault__account_new_id=client_id,
     )
-    label, firm = cred.label, cred.vault.client.firm_name
+    label, firm = cred.label, owner_label(cred.vault)
     cred.delete()
     _log('credential_deleted', request,
          client_name=firm, credential_label=label)
@@ -684,7 +685,7 @@ def toggle_visibility(request, client_id, cred_id):
     _sync_client_plain(cred, key)
     cred.save()
     _log('credential_updated', request,
-         client_name=cred.vault.client.firm_name,
+         client_name=owner_label(cred.vault),
          credential_label=cred.label,
          note=f'visible_to_client set to {cred.visible_to_client}.')
     return render(request, 'vault/_visibility_toggle.html', {
@@ -1135,8 +1136,7 @@ def ops_agent(request, cred_id):
         )
         request.session[sess_key] = str(ops_session.id)
         _log('ssh_connected', request,
-             client_name=(cred.vault.client.firm_name
-                          if cred.vault.client else ''),
+             client_name=owner_label(cred.vault),
              credential_label=cred.label,
              note=f'AI Ops session started: {ops_session.id}')
 

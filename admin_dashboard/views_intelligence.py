@@ -26,6 +26,7 @@ from .context import (  # noqa: F401
     _intel_pending_count,
 )
 from .decorators import admin_required
+from clients.display import owner_label
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def get_daily_focus():
         items.append({
             'priority': 1,
             'icon': '🔴',
-            'title': f'Critical health risk: {hs.client.firm_name}',
+            'title': f'Critical health risk: {owner_label(hs)}',
             'description': (
                 f'Health score: {hs.score}/100 — '
                 f'immediate attention needed'),
@@ -93,7 +94,7 @@ def get_daily_focus():
             'priority': 2,
             'icon': '🔴',
             'title': (f'Critical scan findings: '
-                      f'{scan.client.firm_name}'),
+                      f'{owner_label(scan)}'),
             'description': (
                 f'{scan.critical_count} critical finding'
                 f'{"" if scan.critical_count == 1 else "s"} '

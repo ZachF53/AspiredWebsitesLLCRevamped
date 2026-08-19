@@ -1304,7 +1304,7 @@ class ReferralEvent(TimestampedModel):
         ]
 
     def __str__(self):
-        return (f'{self.referral_link.client.firm_name} — '
+        return (f'{owner_label(self.referral_link)} — '
                 f'{self.event_type}')
 
 

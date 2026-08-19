@@ -28,6 +28,7 @@ from .context import (  # noqa: F401
 )
 from .decorators import admin_required
 from .utils import _is_uuid
+from clients.display import owner_label
 
 logger = logging.getLogger(__name__)
 
@@ -298,13 +299,13 @@ def gap_create_suggestion(request, report_id, gap_index):
         gap.get('competitors_with_this') or [])
     expected = (
         f'Targeting this gap could help '
-        f'{report.client.firm_name} compete with '
+        f'{owner_label(report)} compete with '
         f'{competitors_str}'
         f' who already cover this topic.'
         if competitors_str
         else (
             f'Targeting this gap could help '
-            f'{report.client.firm_name} attract searches that '
+            f'{owner_label(report)} attract searches that '
             f'currently land on competitor sites.'
         )
     )

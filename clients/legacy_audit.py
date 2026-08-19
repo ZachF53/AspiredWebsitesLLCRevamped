@@ -176,12 +176,46 @@ def _schema_line_span(tree, source):
     return lines
 
 
+#: Attributes that exist on ClientProfile/Project and on no canonical
+#: model, used to identify a legacy row reached through a plain `.client`
+#: hop. `firm_name` cannot be matched on its own -- `outreach.Lead` has
+#: one too, and flagging those would be a false positive on code that has
+#: nothing to do with the cutover. It is only conclusive *after* `.client`
+#: or `.project`.
+LEGACY_CHAIN_ATTRIBUTES = frozenset({'firm_name', 'migrated_account'})
+
+
+def _is_legacy_chain(node):
+    """``x.client.firm_name`` — a legacy read that names nothing legacy.
+
+    The scan flags the identifier `ClientProfile` and the attribute
+    `legacy_client_profile`; this shape contains neither. `client` is an
+    ordinary attribute name and only the trailing attribute gives it
+    away, which is why twenty-eight of these survived a gate reporting
+    zero reads.
+
+    The one that mattered was in `social.tasks.publish_due_posts`, inside
+    an `except` block: `client` is None for every account created since
+    the cutover, so the alert raised AttributeError, escaped the loop
+    before `continue`, killed the task, and left every *other* client's
+    scheduled posts unpublished.
+    """
+    if not isinstance(node, ast.Attribute):
+        return False
+    if node.attr not in LEGACY_CHAIN_ATTRIBUTES:
+        return False
+    inner = node.value
+    return (isinstance(inner, ast.Attribute)
+            and inner.attr in ('client', 'project'))
+
+
 def _references_legacy(node):
     if isinstance(node, ast.Name):
         return node.id in LEGACY_NAMES
     if isinstance(node, ast.Attribute):
         return (node.attr in LEGACY_NAMES
-                or node.attr in LEGACY_ATTRIBUTES)
+                or node.attr in LEGACY_ATTRIBUTES
+                or _is_legacy_chain(node))
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         return any(alias.name in LEGACY_NAMES for alias in node.names)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -262,7 +296,12 @@ def scan_repository(root='.'):
             source = path.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
-        markers = LEGACY_NAMES | LEGACY_ATTRIBUTES
+        # The pre-filter has to admit the chain attributes too, or a
+        # module whose only legacy read is `x.client.firm_name` is never
+        # parsed at all. That is how `domains/views.py` escaped the scan
+        # when `request.client_profile` was added -- the cheap substring
+        # check ran before the AST pass and rejected the file.
+        markers = LEGACY_NAMES | LEGACY_ATTRIBUTES | LEGACY_CHAIN_ATTRIBUTES
         if not any(marker in source for marker in markers):
             continue
         report = analyse_source(source, path=relative)

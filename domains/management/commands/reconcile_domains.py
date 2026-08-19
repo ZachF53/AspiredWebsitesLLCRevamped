@@ -31,6 +31,7 @@ from domains.emails import (
 from domains.models import DomainRegistration
 from domains.namecheap_client import NamecheapError, get_client
 from domains.services import sync_one
+from clients.display import owner_label
 
 
 # 7-day pre-renewal heads-up. Tracked via Stripe-side cancel + local
@@ -275,7 +276,7 @@ class Command(BaseCommand):
                     f'attempts, the Namecheap renew for '
                     f'{reg.domain_name} is still failing.\n\n'
                     f'Last error: {reg.last_api_error}\n\n'
-                    f'Client: {reg.client.firm_name}\n'
+                    f'Client: {owner_label(reg)}\n'
                     f'Registration ID: {reg.id}\n\n'
                     f'Action: renew manually on Namecheap, or refund '
                     f'the client and let it expire.\n'),

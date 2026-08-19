@@ -26,6 +26,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from reporting.models import VulnerabilityFinding, VulnerabilityScan
+from clients.display import owner_label
 from reporting.scanners import (
     normalize_findings, run_nikto_scan, run_nmap_scan,
     run_ssl_scan, run_wpscan,
@@ -173,11 +174,11 @@ def _notify_admin_scan_complete(scan):
                 'auto-send failed for scan %s — falling back to admin alert',
                 scan.id)
 
-    subject = (f'[Scan] {scan.client.firm_name} — '
+    subject = (f'[Scan] {owner_label(scan)} — '
                f'{scan.critical_count} Critical / '
                f'{scan.high_count} High')
     message = (
-        f'Vulnerability scan complete for {scan.client.firm_name}.\n\n'
+        f'Vulnerability scan complete for {owner_label(scan)}.\n\n'
         f'Findings:\n'
         f'  Critical: {scan.critical_count}\n'
         f'  High:     {scan.high_count}\n'

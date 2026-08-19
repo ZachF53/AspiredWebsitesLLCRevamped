@@ -9,6 +9,8 @@ Every connection is gated by: authenticated staff user + unlocked vault
 import io
 import json
 import logging
+
+from clients.display import owner_label
 import select
 import threading
 import time
@@ -247,7 +249,7 @@ class SSHTerminalConsumer(WebsocketConsumer):
                 client_ip = self.scope['client'][0]
             VaultAccessLog.objects.create(
                 action=action,
-                client_name=self.credential.vault.client.firm_name,
+                client_name=owner_label(self.credential.vault),
                 credential_label=self.credential.label,
                 ip_address=client_ip,
                 note=note,

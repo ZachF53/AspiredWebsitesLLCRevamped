@@ -379,7 +379,8 @@ class ChatbotConversation(TimestampedModel):
         ordering = ['-started_at']
 
     def __str__(self):
-        return f'{self.chatbot.client.firm_name} — Chat {self.session_id[:8]}'
+        return (f'{owner_label(self.chatbot)} — '
+                f'Chat {self.session_id[:8]}')
 
 
 # ── Phase 6c — vulnerability scanner ──────────────────────────────────────

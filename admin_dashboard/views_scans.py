@@ -24,6 +24,7 @@ from .context import (  # noqa: F401
 )
 from django.conf import settings
 import logging
+from clients.display import owner_label
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +368,7 @@ def generate_scan_pdf_view(request, scan_id):
             f'</div>')
 
     # Primary "Generate PDF Report" path — serve the file directly.
-    slug = scan.client.firm_name.replace(' ', '-')
+    slug = owner_label(scan).replace(' ', '-')
     month = (scan.completed_at or scan.created_at).strftime('%Y-%m')
     filename = f'security-report-{slug}-{month}{ext}'
     return FileResponse(
@@ -397,7 +398,7 @@ def download_scan_pdf(request, scan_id):
     if not os.path.exists(abs_path):
         raise Http404('Report file missing on disk.')
 
-    slug = scan.client.firm_name.replace(' ', '-')
+    slug = owner_label(scan).replace(' ', '-')
     month = (scan.completed_at or scan.created_at).strftime('%Y-%m')
     ext = os.path.splitext(abs_path)[1] or '.pdf'
     filename = f'security-report-{slug}-{month}{ext}'
