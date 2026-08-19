@@ -317,23 +317,40 @@ For each wave: characterize behavior, switch reads and writes together, run
 targeted tests and parity checks, deploy, observe, then remove that wave's
 legacy fallback. Legacy tables are dropped only after every wave is complete.
 
-### Status, 2026-08-18
+### Status, 2026-08-19
 
 **The code half of all five waves is done and on `main`.**
-`manage.py check_legacy_removal_readiness` reports zero live code reads —
-down from 70 modules — and answers "All checkable preconditions satisfied."
-No runtime path reads `ClientProfile` or `Project` as a canonical source,
-and the per-wave legacy fallbacks are gone rather than merely unused.
+`manage.py check_legacy_removal_readiness` reports zero live code reads
+and zero template findings, and answers "All checkable preconditions
+satisfied." No runtime path reads `ClientProfile` or `Project` as a
+canonical source, and the per-wave legacy fallbacks are gone rather than
+merely unused.
 
-Two things that measurement taught, worth keeping:
+#### The gate has been confidently wrong five times
 
-- **The reader count was wrong twice, in both directions.** It first
-  over-reported by 40% (21 of 70 "blockers" were prose in a docstring),
-  then under-reported: `request.client_profile` is a legacy instance that
-  never names its class, so 21 real reads in `clients/views.py` were
-  invisible to a name-based scan and `domains/views.py` was not even
-  parsed. `clients/legacy_audit.py` walks the AST and tracks that
-  attribute by name for exactly this reason.
+Each time it answered "zero" while a whole category sat outside what it
+could see. Worth reading before trusting any number it prints:
+
+| Blind spot | Why it was invisible | Found |
+|---|---|---|
+| prose in docstrings | substring grep, no parser | over-reported 21 of 70 |
+| `request.client_profile` | an attribute holding a legacy instance; names no class | 21 reads in one module, and `domains/views.py` never parsed |
+| `legacy_client_profile` | the transitional FK itself | 17 reads across 6 modules |
+| `*.html` | the scan parses Python | 22 templates, 17 of them 500s |
+| `x.client.firm_name` | `client` is an ordinary attribute name; only the trailing attribute tells | 28 reads |
+
+The pattern is the same every time: **the gate counts symbols, and a
+dependency does not have to name anything.** When it says zero, the
+useful question is "zero of what it can see", and the answer has been
+"less than I assumed" five times out of five.
+
+Note the first row is the gate being wrong in the *other* direction —
+over-reporting, because a docstring mentioning `ClientProfile` was counted
+as a dependency. A gate that inflates its own blocker count is a gate the
+reader stops believing, which is worse than no gate.
+
+One more thing measurement taught:
+
 - **A passing suite is not an observed wave.** 883 tests passed while the
   live portal sat in an infinite redirect loop, because every individual
   redirect was correct and only the chain was wrong. Rendering real pages
@@ -354,10 +371,35 @@ Two things that measurement taught, worth keeping:
   fixture is also the shape of every client created since the cutover,
   so the same pages are wrong in production now, not only after the drop.
 
+#### What testing the post-cutover shape found
+
+Every client created since the cutover has an Account and a Website and
+no legacy row. Nothing had ever rendered or run against that shape,
+because production data all predates it — so the lookups resolve, the
+pages look fine, and the bugs are invisible until a new client hits
+them. Building fixtures with no legacy row anywhere turned up, among
+others:
+
+- three Celery beats writing **zero rows a night** — health scores,
+  monthly intelligence, competitor gaps — each returning quietly
+- `social.publish_due_posts` raising inside its own `except` block,
+  so one canonical-only client's failed post stopped social publishing
+  for every paying social client, every five minutes
+- the deposit webhook raising before recording the payment
+- no stage-change email, no final invoice at pre-launch, no tracker
+  snippet, no chatbot, no NPS survey, no upsell nudge
+- a delete-impact modal reporting "0 tickets, 0 documents" immediately
+  before the admin types the account name to confirm deletion
+
+Several were broken for **everyone**, not only new clients: the vault
+"Open the vault" link, the freshness-crawl button, the session-recording
+toggle, and `portal_subscriptions` for any comped account.
+
 **Remaining before the drop** (none of it code):
 
-- Deploy to production and observe. Staging has run the full cutover since
-  2026-08-17; production is one commit behind.
+- Deploy to production and observe. Staging has run the full cutover
+  since 2026-08-17; production is well behind and carries several of the
+  live bugs above.
 - A verified, restorable PostgreSQL backup.
 - A timed PostgreSQL→PostgreSQL rehearsal on a restored copy of
   production. The SQLite rehearsal validates data mapping only; it cannot
