@@ -242,3 +242,90 @@ class AIContentTests(TestCase):
             from social.ai import generate_post_draft
             with self.assertRaises(AINotConfigured):
                 generate_post_draft(client, 'facebook', 'announce')
+
+
+class CanonicalOnlyPublishTests(TestCase):
+    """A publish failure on an account with no legacy row.
+
+    The failure branch built its alert from `post.client.firm_name`.
+    `client` is the legacy FK and is None for every account created since
+    the cutover, so that raised AttributeError *inside the except block*
+    — escaping the loop before `continue`, killing the task, and leaving
+    every remaining client's due posts unpublished. One canonical-only
+    account's failed post stopped everybody's.
+    """
+
+    def _canonical_post(self, platform='facebook'):
+        import datetime as _dt
+
+        user = User.objects.create_user(
+            username=_seq('canon'), email=f'{_seq("canon")}@example.com',
+            password='x')
+        account = Account.objects.create(user=user, name='Canonical Social Co')
+        self.assertIsNone(account.legacy_client_profile_id)
+
+        plan = SocialMediaPlan.objects.create(
+            account=account, tier_slug='social-standard', status='active')
+        channel = SocialChannel.objects.create(
+            plan=plan, platform=platform, handle=_seq('@canonical'))
+        SocialToken.objects.create(
+            channel=channel,
+            access_token_encrypted=encrypt_token('fake-access-token'),
+            provider_account_id='1234567890')
+        return ScheduledPost.objects.create(
+            channel=channel,
+            account_new=account,
+            body='Hello from a canonical-only account',
+            scheduled_for=timezone.now() - _dt.timedelta(minutes=1),
+            status='scheduled')
+
+    @patch('social.meta_publisher.publish_facebook_post')
+    def test_a_failure_is_recorded_and_the_task_survives(self, mock_fb):
+        mock_fb.side_effect = RuntimeError('Meta said no')
+        post = self._canonical_post()
+
+        from social.tasks import publish_due_posts
+        result = publish_due_posts()
+
+        self.assertEqual(result, {'published': 0, 'failed': 1})
+        post.refresh_from_db()
+        self.assertEqual(post.status, 'failed')
+        self.assertTrue(
+            PostResult.objects.filter(
+                scheduled_post=post, success=False).exists())
+
+    @patch('social.meta_publisher.publish_facebook_post')
+    def test_one_accounts_failure_does_not_block_another(self, mock_fb):
+        """The consequence that made this worth finding. The failing post
+        is dispatched first; the healthy one must still publish."""
+        failing = self._canonical_post()
+        healthy = self._canonical_post()
+
+        def _dispatch(post):
+            if post.id == failing.id:
+                raise RuntimeError('Meta said no')
+            return {'provider_post_id': 'fb_ok', 'permalink': 'https://x/'}
+
+        mock_fb.side_effect = _dispatch
+
+        from social.tasks import publish_due_posts
+        result = publish_due_posts()
+
+        healthy.refresh_from_db()
+        self.assertEqual(
+            healthy.status, 'published',
+            'a healthy post was left unpublished because another '
+            f'account\'s post failed first ({result})')
+
+    @patch('social.meta_publisher.publish_facebook_post')
+    def test_the_alert_names_the_account(self, mock_fb):
+        mock_fb.side_effect = RuntimeError('Meta said no')
+        self._canonical_post()
+
+        with patch('social.tasks.record_alert') as alert:
+            from social.tasks import publish_due_posts
+            publish_due_posts()
+
+        alert.assert_called_once()
+        self.assertIn(
+            'Canonical Social Co', alert.call_args.kwargs['message'])

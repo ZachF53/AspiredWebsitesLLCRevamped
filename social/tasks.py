@@ -25,6 +25,7 @@ from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
+from clients.display import owner_label
 from core.system_alerts import record_alert
 
 from .models import PostResult, ScheduledPost, SocialToken
@@ -67,7 +68,7 @@ def publish_due_posts():
             continue  # another worker got it first
 
         post = ScheduledPost.objects.select_related(
-            'channel', 'channel__token', 'client',
+            'channel', 'channel__token', 'account_new',
         ).filter(id=post_id).first()
         if post is None:
             continue
@@ -102,12 +103,18 @@ def publish_due_posts():
                 error_detail=str(exc)[:4000],
                 attempted_at=timezone.now(),
             )
+            # `post.client` is the legacy FK and is None for every account
+            # created since the cutover, so reading `.firm_name` off it
+            # raised AttributeError *inside this except block* — escaping
+            # the loop before `continue`, killing the task, and leaving
+            # every remaining client's scheduled posts unpublished. One
+            # canonical-only account's failed post stopped everyone's.
             record_alert(
                 severity='warning',
                 source='social.publish_due_posts',
                 message=(
                     f'{post.channel.get_platform_display()} publish '
-                    f'failed — {post.client.firm_name}'),
+                    f'failed — {owner_label(post)}'),
                 detail=str(exc)[:1000],
             )
             failed += 1
