@@ -24,9 +24,8 @@ from clients.emails import send_maintenance_handoff_email
 from clients.models import (
     ClientDocument,
     IntakeResponse,
-    ProjectStageLog,
 )
-from clients.account_models import Account, Website
+from clients.account_models import Account, WebsiteStageLog, Website
 from sync.token_utils import generate_handoff_token
 
 logger = logging.getLogger(__name__)
@@ -195,8 +194,17 @@ def handle_project_complete(bundle):
     site._from_sync = True
     site.save()
 
-    ProjectStageLog.objects.create(
-        website_new=site,
+    # WebsiteStageLog, not ProjectStageLog.
+    #
+    # The portal's Activity Log and project timeline both read
+    # `stage_logs`, which is the WebsiteStageLog reverse accessor (see
+    # clients/views `_project_timeline`). A ProjectStageLog row is not on
+    # that relation, so the single most significant event in a
+    # Moonieful-referred client's project -- "your site is live, handed
+    # off" -- never appeared on their timeline. It is also the legacy
+    # model, so the row went away with the drop regardless.
+    WebsiteStageLog.objects.create(
+        website=site,
         from_stage=old_stage,
         to_stage='live',
         note='Project handed off from Moonieful.',

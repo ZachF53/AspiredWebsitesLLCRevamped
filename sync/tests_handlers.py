@@ -203,8 +203,13 @@ class ProjectCompleteTests(TestCase):
 
         handle_project_complete(_bundle())
 
-        log = ProjectStageLog.objects.get()
-        self.assertEqual(log.website_new_id, self.account.websites.first().id)
+        # WebsiteStageLog, because that is the relation the portal's
+        # Activity Log and project timeline read. A ProjectStageLog row
+        # satisfied this assertion while being invisible to the client.
+        from clients.account_models import WebsiteStageLog
+
+        log = WebsiteStageLog.objects.get()
+        self.assertEqual(log.website_id, self.account.websites.first().id)
         self.assertEqual(log.from_stage, 'intake')
         self.assertEqual(log.to_stage, 'live')
         self.assertEqual(log.set_by, 'sync')
@@ -321,3 +326,66 @@ class HandoffFollowupTests(TestCase):
         mail.outbox = []
         call_command('send_handoff_followups')
         self.assertEqual(len(mail.outbox), 2)
+
+
+class HandoffAppearsOnTheClientTimelineTests(TestCase):
+    """The handoff must land on the log the portal actually reads.
+
+    `handle_project_complete` wrote a ProjectStageLog. The portal's
+    Activity Log and project timeline both read `stage_logs`, which is
+    the WebsiteStageLog accessor — so the single most significant event
+    in a Moonieful-referred client's project, "your site is live", never
+    appeared on their timeline. It was also the legacy model, so the row
+    went away with the drop regardless.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from clients.account_models import Account, Website
+
+        User = get_user_model()
+        user = User.objects.create_user(
+            username='handoffowner', email='handoff@example.com',
+            password='test-pass-123')
+        self.account = Account.objects.create(
+            user=user, name='Handoff Co',
+            moonieful_client_id='11111111-1111-1111-1111-111111111111',
+            synced_from_moonieful=True)
+        self.website = Website.objects.create(
+            account=self.account, name='Handoff Site', stage='review')
+
+    def _complete(self):
+        from unittest.mock import patch
+        from sync.handlers import handle_project_complete
+
+        with patch('sync.handlers.send_maintenance_handoff_email'):
+            return handle_project_complete({
+                'client': {'id': str(self.account.moonieful_client_id)},
+            })
+
+    def test_the_site_goes_live(self):
+        self._complete()
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'live')
+        self.assertIsNotNone(self.website.moonieful_handoff_at)
+
+    def test_the_transition_is_on_the_relation_the_portal_reads(self):
+        self._complete()
+
+        logs = list(self.website.stage_logs.all())
+        self.assertEqual(
+            [log.to_stage for log in logs], ['live'],
+            'the handoff is not on `stage_logs`, so the client never sees '
+            'it on their project timeline')
+        self.assertIn('Moonieful', logs[0].note)
+
+    def test_no_outbound_job_is_queued_back_to_moonieful(self):
+        """Loop prevention. The handler sets `_from_sync` before saving
+        and the outbound signal checks it — otherwise Moonieful telling
+        us the project is complete makes us tell Moonieful the stage
+        changed, forever."""
+        from sync.models import SyncJob
+
+        before = SyncJob.objects.count()
+        self._complete()
+        self.assertEqual(SyncJob.objects.count(), before)
