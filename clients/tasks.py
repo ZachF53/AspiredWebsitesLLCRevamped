@@ -651,8 +651,12 @@ def check_annual_report_schedule():
             continue
 
         report_year = today.year - 1
+        # Keyed on the site. The loop iterates Websites, so `client=` was
+        # handing a Website to a ClientProfile FK — ValueError inside the
+        # beat job, on the first site whose launch anniversary came up,
+        # aborting the whole run before any report was queued.
         if AnnualReport.objects.filter(
-                client=client, report_year=report_year).exists():
+                website_new=client, report_year=report_year).exists():
             continue
 
         generate_annual_report.delay(str(client.id), report_year)

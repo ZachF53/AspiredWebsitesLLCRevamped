@@ -149,3 +149,80 @@ class SubscriptionToSiteTests(TestCase):
         self.assertIsNone(
             _site_by_sub(other, 'stripe_hosting_subscription_id',
                          'sub_host_1'))
+
+
+class ContractInvoicePaidTests(TestCase):
+    """`invoice.paid` on the contract flow, for a canonical-only client.
+
+    `_handle_invoice_paid` resolves an Account, then assigned
+    `payment_status` / `deposit_paid_at` / `final_paid_at` straight onto
+    it. Those are Website fields — a build is paid for, not an account —
+    so this raised AttributeError inside the webhook that had just taken
+    the money, and `_on_deposit_paid` then passed the Account to a
+    ClientProfile FK for a second failure behind it.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        user = User.objects.create_user(
+            username='contractpaid', email='contractpaid@example.com',
+            password='test-pass-123')
+        cls.account = Account.objects.create(
+            user=user, name='Contract Paid Co',
+            stripe_customer_id='cus_contract_paid')
+        cls.website = Website.objects.create(
+            account=cls.account, name='Contract Paid Site',
+            stage='design', payment_status='awaiting_deposit')
+
+        from clients.models import Contract
+        cls.contract = Contract.objects.create(
+            website_new=cls.website, signed=True)
+
+    def _event(self, kind):
+        return {
+            'id': 'in_contract_paid',
+            'customer': 'cus_contract_paid',
+            'metadata': {'kind': kind,
+                         'contract_id': str(self.contract.id)},
+            'lines': {'data': []},
+        }
+
+    def test_a_deposit_marks_the_site_deposit_paid(self):
+        from billing.webhooks import _handle_invoice_paid
+
+        with patch('billing.webhooks.send_welcome_email'), \
+                patch('billing.webhooks._schedule_intake_reminders'):
+            _handle_invoice_paid({'data': {'object': self._event('deposit')}})
+
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.payment_status, 'deposit_paid')
+        self.assertIsNotNone(self.website.deposit_paid_at)
+
+    def test_a_deposit_bootstraps_intake_and_the_vault(self):
+        from clients.models import IntakeResponse
+        from vault.models import ClientVault
+        from billing.webhooks import _handle_invoice_paid
+
+        with patch('billing.webhooks.send_welcome_email'), \
+                patch('billing.webhooks._schedule_intake_reminders'):
+            _handle_invoice_paid({'data': {'object': self._event('deposit')}})
+
+        self.assertTrue(
+            IntakeResponse.objects.filter(website_new=self.website).exists())
+        self.assertTrue(
+            ClientVault.objects.filter(account_new=self.account).exists())
+
+    def test_the_final_payment_marks_the_site_fully_paid(self):
+        from billing.webhooks import _handle_invoice_paid
+
+        _handle_invoice_paid({'data': {'object': self._event('final')}})
+
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.payment_status, 'fully_paid')
+        self.assertEqual(self.website.final_invoice_url, '')
+
+    def test_the_account_is_never_given_website_fields(self):
+        """The specific regression: Account has no `payment_status`."""
+        self.assertFalse(
+            hasattr(self.account, 'payment_status'),
+            'Account grew a payment_status — the split this guards is gone')

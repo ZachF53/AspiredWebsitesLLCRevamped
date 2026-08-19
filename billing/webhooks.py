@@ -563,36 +563,47 @@ def _handle_invoice_paid(event):
     # Triggered by the admin invoice-creation form. Activates the user,
     # bootstraps the IntakeResponse + ClientVault, and emails the setup
     # link. Droplet provisioning is deferred until intake completion.
-    if kind == 'onboarding_setup' or client.stage in ('', 'intake'):
+    # `client` is an Account. `payment_status`, `deposit_paid_at` and
+    # `final_paid_at` are Website fields — a build is paid for, not an
+    # account — and were being assigned to the Account directly, which
+    # raises AttributeError inside the webhook that has just taken the
+    # money. The site is resolved from the contract the invoice names.
+    from clients.models import Contract
+
+    contract_id = (invoice.get('metadata') or {}).get('contract_id')
+    contract = (Contract.objects.filter(id=contract_id).first()
+                if contract_id else None)
+    website = getattr(contract, 'website_new', None) if contract else None
+    if website is None:
+        website = _website_for_invoice(invoice.get('id'))
+
+    if kind == 'onboarding_setup' or (
+            website is not None and website.stage in ('', 'intake')):
         _on_onboarding_invoice_paid(client)
         return
 
+    if website is None:
+        logger.warning(
+            'invoice.paid (%s): no website for invoice %s — payment state '
+            'not recorded', kind or 'deposit', invoice.get('id'))
+        return
+
     if kind == 'final':
-        client.payment_status = 'fully_paid'
-        client.final_paid_at = timezone.now()
-        client.save(update_fields=[
-            'payment_status', 'final_paid_at', 'updated_at'])
-        # Mirror onto the per-website record + clear the portal pay button.
-        contract_id = (invoice.get('metadata') or {}).get('contract_id')
-        if contract_id:
-            from clients.models import Contract
-            contract = Contract.objects.filter(id=contract_id).first()
-            website = getattr(contract, 'website_new', None) if contract else None
-            if website is not None:
-                website.payment_status = 'fully_paid'
-                website.final_paid_at = timezone.now()
-                website.final_invoice_url = ''
-                website.save(update_fields=[
-                    'payment_status', 'final_paid_at',
-                    'final_invoice_url', 'updated_at'])
-        logger.info('invoice.paid (final): client %s fully paid', client.pk)
+        website.payment_status = 'fully_paid'
+        website.final_paid_at = timezone.now()
+        website.final_invoice_url = ''
+        website.save(update_fields=[
+            'payment_status', 'final_paid_at',
+            'final_invoice_url', 'updated_at'])
+        logger.info(
+            'invoice.paid (final): website %s fully paid', website.pk)
     else:
         # Anything not explicitly 'final' is treated as the deposit.
-        client.payment_status = 'deposit_paid'
-        client.deposit_paid_at = timezone.now()
-        client.save(update_fields=[
+        website.payment_status = 'deposit_paid'
+        website.deposit_paid_at = timezone.now()
+        website.save(update_fields=[
             'payment_status', 'deposit_paid_at', 'updated_at'])
-        _on_deposit_paid(client)
+        _on_deposit_paid(client, website)
 
 
 def _activate_website_plan_sub(sub_id):
@@ -732,20 +743,28 @@ def _on_onboarding_invoice_paid(client, invoice=None):
         'pending intake', client.pk)
 
 
-def _on_deposit_paid(client):
+def _on_deposit_paid(account, website):
     """
-    Legacy contract-flow handler — kept for the existing contract-signing
-    path. Sends the welcome email + schedules Day-2/4 intake reminders.
+    Contract-flow handler for the deposit. Sends the welcome email +
+    schedules Day-2/4 intake reminders.
 
     Droplet provisioning used to happen here; it's been moved to intake
     completion (Part 6) so a paid-but-never-submitted client doesn't
     waste a Droplet.
+
+    Both bootstraps used to key on the legacy `client` FK while the
+    caller passed an Account, so this raised ValueError the moment the
+    deposit landed. Intake belongs to the site being built; the vault is
+    account-level, and `account_new` is the column its unique constraint
+    covers.
     """
-    IntakeResponse.objects.get_or_create(client=client)
     from vault.models import ClientVault
-    ClientVault.objects.get_or_create(client=client)
-    send_welcome_email(client)
-    _schedule_intake_reminders(client)
+
+    if website is not None:
+        IntakeResponse.objects.get_or_create(website_new=website)
+    ClientVault.objects.get_or_create(account_new=account)
+    send_welcome_email(website or account)
+    _schedule_intake_reminders(website or account)
 
 
 def _schedule_intake_reminders(client):
