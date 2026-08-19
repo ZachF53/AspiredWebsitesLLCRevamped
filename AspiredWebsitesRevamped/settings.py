@@ -312,6 +312,17 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        # Outreach is the noisiest thing we run unattended — the cold
+        # sender, the dispatcher, reply ingest and Prospect's agent loop
+        # all log decisions (which variant, why a draft was rejected,
+        # whether the spend cap tripped). Without this logger those lines
+        # fell back to the root logger and were effectively invisible in
+        # supervisor output.
+        'outreach': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 

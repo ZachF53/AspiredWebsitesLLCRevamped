@@ -23,6 +23,46 @@ _BUILD_TYPE_TO_PACKAGE = {
 }
 
 
+def _attribute_booking_to_variant(email):
+    """Credit a booked call to the template variant that produced the
+    outreach the prospect actually received.
+
+    Walks: address → the Lead(s) with that address → their most recent
+    SENT cold email → its ``template_variant`` → bump ``bookings``.
+
+    "Most recent sent" is the honest attribution at this volume. A real
+    multi-touch model would weight every touch in the sequence, but with
+    a four-step sequence and single-digit bookings that would be
+    precision theatre — last-touch is defensible and legible.
+
+    Returns the variant id credited, or None when the booking did not
+    come from cold outreach at all (inbound contact form, referral,
+    someone who found the site directly). That None is the common case
+    and is not an error.
+    """
+    if not email:
+        return None
+
+    from outreach.models import EmailSent
+    from outreach.variant_rotation import record_booking
+
+    last_sent = (
+        EmailSent.objects
+        .filter(lead__email__iexact=email, status='sent', kind='cold')
+        .exclude(template_variant__isnull=True)
+        .order_by('-sent_at')
+        .first()
+    )
+    if last_sent is None:
+        return None
+
+    record_booking(last_sent.template_variant_id)
+    logger.info(
+        'booking attributed to template variant %s (EmailSent %s, step %s)',
+        last_sent.template_variant_id, last_sent.pk, last_sent.sequence_step)
+    return last_sent.template_variant_id
+
+
 def _provision_webdev_inquiry(*, email, business, contact_name, phone,
                               website, build_package, addons):
     """For a Website Development booking, create (or reuse) an inactive
@@ -376,6 +416,20 @@ def confirm_slot(request):
     call.status = 'confirmed'
     call.save(update_fields=[
         'lead', 'customer_name', 'customer_email', 'notes', 'status'])
+
+    # Attribute the booking back to the outreach angle that earned it.
+    # A booked call is the only outcome that actually matters — opens and
+    # replies are proxies for it — so this is the counter the variant
+    # rotation ultimately wants to optimise on.
+    #
+    # Matching is by email rather than by `call.lead`: the Lead created
+    # above is brand new, whereas the person booking may have been in the
+    # cold sequence for weeks under a lead row we already had. Best-effort
+    # throughout — a booking must never fail over attribution bookkeeping.
+    try:
+        _attribute_booking_to_variant(email)
+    except Exception:  # noqa: BLE001
+        logger.exception('booking attribution failed for %s', email)
 
     # Website Development bookings (a build tier was chosen) provision an
     # inactive account + website up front, so the contract / invoice / setup

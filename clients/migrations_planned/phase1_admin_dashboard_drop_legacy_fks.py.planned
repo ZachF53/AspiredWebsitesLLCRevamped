@@ -11,7 +11,11 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('admin_dashboard', '0004_aiassistantlog_website_new'),
+        # Re-pointed at the current leaf. 0005 added the AI Employees
+        # models, 0006 seeded the Prospect agent, 0007 added the run
+        # message history — so 0004 is long past being the tip. Promoting
+        # this against a stale parent would branch the migration graph.
+        ('admin_dashboard', '0007_aiemployeerun_message_history'),
     ]
 
     operations = [

@@ -64,7 +64,8 @@ def run_cold_sender_task():
         f'generated={counts["generated"]} '
         f'skipped_cap={counts["skipped_cap"]} '
         f'skipped_ai={counts["skipped_ai"]} '
-        f'rejected_copy={counts.get("rejected_copy", 0)}'
+        f'rejected_copy={counts.get("rejected_copy", 0)} '
+        f'skipped_no_variant={counts.get("skipped_no_variant", 0)}'
         + (f' reason={counts["reason"]}' if counts['reason'] else '')
     )
 
@@ -85,7 +86,9 @@ def send_approved_emails_task():
         return 'failed'
     return (
         f'sent={counts["sent"]} failed={counts["failed"]} '
-        f'suppressed={counts["suppressed"]}')
+        f'permanent_failure={counts.get("permanent_failure", 0)} '
+        f'suppressed={counts["suppressed"]} '
+        f'blocked={counts.get("blocked", 0)}')
 
 
 @shared_task

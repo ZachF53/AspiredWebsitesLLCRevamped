@@ -784,10 +784,35 @@ class SessionRecording(TimestampedModel):
 # Anthropic updates these occasionally — if the numbers below stop
 # matching console.anthropic.com, just edit the dict; the cost
 # computation reads it at call time.
+# USD per million tokens. Verified against Anthropic's published pricing
+# 2026-08-19.
+#
+# claude-sonnet-5 launched at $2/$10 as introductory pricing with a
+# scheduled rise to $3/$15 on 2026-09-01. Anthropic's pricing page now
+# states that increase will NOT occur and $2/$10 is standard — that is
+# what is encoded here.
+# RE-CHECK ON 2026-09-01 anyway. Costs nothing, and these rates feed the
+# daily spend cap: if the rise did happen, every figure here understates
+# spend by 33% and the cap would let the agent run a third further than
+# intended before tripping.
+#
+# KEEP EVERY MODEL THIS CODEBASE CAN STILL EMIT. ``ClaudeUsage.cost_usd``
+# returns 0.0 on a lookup miss rather than raising, so a model that is in
+# use but missing from this dict silently reports $0.00 — and the daily AI
+# spend cap that reads those figures would never trip. When you change a
+# model constant anywhere, add its rate here in the SAME commit.
+#
+# Currently emitted:
+#   claude-sonnet-5            reporting.ai.MODEL_CONTENT
+#   claude-sonnet-4-6          vault/views.py OPS_AGENT_MODEL (hardcoded,
+#                              does NOT follow MODEL_CONTENT)
+#   claude-haiku-4-5-20251001  reporting.ai.MODEL_CHAT, plus hardcoded in
+#                              admin_dashboard/views.py + public/views.py
 CLAUDE_PRICING_USD_PER_MTOK = {
+    'claude-sonnet-5':              {'input': 2.00,  'output': 10.00},
     'claude-sonnet-4-6':            {'input': 3.00,  'output': 15.00},
-    'claude-haiku-4-5-20251001':    {'input': 0.80,  'output': 4.00},
-    'claude-opus-4-7':              {'input': 15.00, 'output': 75.00},
+    'claude-haiku-4-5-20251001':    {'input': 1.00,  'output': 5.00},
+    'claude-opus-4-8':              {'input': 5.00,  'output': 25.00},
 }
 
 

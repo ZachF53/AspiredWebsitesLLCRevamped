@@ -160,6 +160,10 @@ def _process_event(evt):
         es.opened = True
         es.opened_at = when
         es.save(update_fields=['opened', 'opened_at'])
+        # Attribute the open to the variant (§2/§6); guarded on `not
+        # opened` so repeat pixel loads count once.
+        from outreach.variant_rotation import record_open
+        record_open(es.template_variant_id)
         return 'open'
 
     if event_type == 'click' and not es.clicked:

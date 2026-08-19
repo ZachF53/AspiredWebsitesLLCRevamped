@@ -295,11 +295,13 @@ def case_study_ai_draft(request):
     )
 
     try:
+        # Sonnet 5 shares max_tokens between adaptive thinking and the
+        # visible draft — raised from 1200 so reasoning can't truncate it.
         raw = claude_complete(
             messages=[{'role': 'user', 'content': user}],
             system=system,
             model=MODEL_CONTENT,
-            max_tokens=1200,
+            max_tokens=4000,
         )
     except AINotConfigured:
         return HttpResponse(

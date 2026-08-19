@@ -163,6 +163,10 @@ def _process_message(msg):
         email_sent.replied = True
         email_sent.replied_at = timezone.now()
         email_sent.save(update_fields=['replied', 'replied_at'])
+        # Attribute the reply to the angle that earned it (§2/§6). Guarded
+        # on `not replied` above so a threaded back-and-forth counts once.
+        from outreach.variant_rotation import record_reply
+        record_reply(email_sent.template_variant_id)
     Lead.objects.filter(pk=lead.pk).update(sequence_paused=True)
 
     # Fire-and-forget classify + draft on the new reply. The classify

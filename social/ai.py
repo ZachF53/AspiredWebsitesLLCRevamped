@@ -179,11 +179,13 @@ def generate_post_draft(account, platform, prompt, tone='friendly'):
     )
 
     try:
+        # Sonnet 5 shares max_tokens between adaptive thinking and the
+        # visible post — raised from 900 so reasoning can't truncate copy.
         body = claude_complete(
             messages=[{'role': 'user', 'content': user_message}],
             system=system,
             model=MODEL_CONTENT,
-            max_tokens=900,
+            max_tokens=3000,
         )
     except AINotConfigured:
         raise

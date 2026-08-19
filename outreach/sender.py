@@ -24,6 +24,13 @@ Sequence cadence (business days between steps):
     Step 3  →  Step 4  : 7 days
     Step 4  →  done
 
+The clock starts at CONFIRMED SEND, not at generation. ``Lead.sequence_step``
+and ``Lead.next_followup_at`` are both written by
+``outreach.dispatcher.dispatch_approved_batch`` once SendGrid accepts the
+message — never here. A draft that is never approved therefore never
+advances the lead, and step 2 can never reference a step 1 the prospect
+did not receive.
+
 The cap enforcement: at each generation tick we honour the
 ``effective_cap_for(today, settings.daily_send_cap)`` from
 ``outreach.warming`` minus rows already in ``status='sent'`` OR
@@ -37,9 +44,13 @@ import logging
 from django.conf import settings as django_settings
 from django.utils import timezone
 
-from outreach.copy_guard import describe_copy_problems
+from outreach.copy_guard import (
+    describe_copy_problems,
+    describe_pricing_problems,
+)
 from outreach.gating import should_queue_for_approval
 from outreach.models import EmailSent, Lead, OutreachSettings, SuppressionList
+from outreach.variant_rotation import choose_variant
 from outreach.warming import effective_cap_for, outreach_blocked_today
 
 logger = logging.getLogger(__name__)
@@ -95,6 +106,7 @@ def generate_pending_cold_emails(now=None):
         return {
             'considered': 0, 'generated': 0,
             'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0,
+            'skipped_no_variant': 0,
             'reason': reason,
         }
 
@@ -103,6 +115,7 @@ def generate_pending_cold_emails(now=None):
         return {
             'considered': 0, 'generated': 0,
             'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0,
+            'skipped_no_variant': 0,
             'reason': 'Cap is 0 for today.',
         }
 
@@ -120,7 +133,7 @@ def generate_pending_cold_emails(now=None):
         return {
             'considered': 0, 'generated': 0,
             'skipped_cap': sent_today + approved_today,
-            'skipped_ai': 0, 'rejected_copy': 0,
+            'skipped_ai': 0, 'rejected_copy': 0, 'skipped_no_variant': 0,
             'reason': f'Daily cap of {cap} already met.',
         }
 
@@ -128,7 +141,8 @@ def generate_pending_cold_emails(now=None):
 
     counts = {
         'considered': 0, 'generated': 0,
-        'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0, 'reason': '',
+        'skipped_cap': 0, 'skipped_ai': 0, 'rejected_copy': 0,
+        'skipped_no_variant': 0, 'reason': '',
     }
     suppressed_emails = set(
         SuppressionList.objects.values_list('email', flat=True))
@@ -153,8 +167,18 @@ def generate_pending_cold_emails(now=None):
         if EmailSent.objects.filter(lead=lead, sequence_step=step).exists():
             continue
 
+        # Which approved angle are we drafting from? §1.2: the copy must
+        # come from a variant a human activated — never freehanded.
+        variant, variant_reason = choose_variant(step)
+        if variant is None:
+            logger.error(
+                'cold sender: %s — lead %s step %s skipped',
+                variant_reason, lead.pk, step)
+            counts['skipped_no_variant'] += 1
+            continue
+
         try:
-            subject, body = _generate_email_copy(lead, step)
+            subject, body = _generate_email_copy(lead, step, variant)
         except EmailCopyRejected as exc:
             # The model produced something that is not an email. Persist
             # it as a rejected row so it is visible in the admin instead
@@ -173,6 +197,7 @@ def generate_pending_cold_emails(now=None):
                 body=exc.raw_text,
                 from_email=_from_address(),
                 sequence_step=step,
+                template_variant=variant,
                 rejected_reason=f'Copy validation: {exc.reason}',
             )
             counts['rejected_copy'] += 1
@@ -192,16 +217,25 @@ def generate_pending_cold_emails(now=None):
             body=body,
             from_email=_from_address(),
             sequence_step=step,
+            template_variant=variant,
             approved_at=None if queue_for_approval else now,
         )
+        logger.info(
+            'cold sender: lead %s step %s drafted — %s',
+            lead.pk, step, variant_reason)
 
-        # Advance the lead's sequence pointer immediately so a re-run
-        # of the task in the same day doesn't try the same step again,
-        # AND so the next followup date is in the future. The Lead's
-        # last_contacted_at moves only when the drainer actually sends.
-        lead.sequence_step = step
-        lead.next_followup_at = _next_followup_at(step, now)
-        lead.save(update_fields=['sequence_step', 'next_followup_at', 'updated_at'])
+        # The lead's sequence pointer is NOT advanced here. It moves only
+        # once the message is confirmed sent — see
+        # outreach.dispatcher.dispatch_approved_batch. Advancing at
+        # generation time meant a draft sitting in pending_approval (or
+        # rejected outright) still started the follow-up clock, so step 2
+        # ("I reached out previously") could go out against a step 1 the
+        # prospect never received.
+        #
+        # Re-running the task the same day is safe without the advance:
+        # the (lead, step) idempotency check above already skips a lead
+        # whose row exists, and _eligible_leads excludes anyone holding
+        # unsent mail.
         counts['generated'] += 1
 
     return counts
@@ -218,6 +252,7 @@ def _eligible_leads(now, limit):
       - sequence_step < 4 (room for at least one more touch)
       - next_followup_at is null (never contacted) OR <= now
       - has not replied to any prior email in the sequence
+      - is not already holding unsent mail (pending_approval / approved)
 
     Highest-score first so we burn the daily cap on the best leads.
     """
@@ -233,6 +268,13 @@ def _eligible_leads(now, limit):
     qs = qs.exclude(
         # Any inbound reply on this lead pauses outbound forever.
         replies__isnull=False
+    ).exclude(
+        # Since sequence_step now advances on SEND rather than on
+        # generation, a lead with an undispatched draft keeps matching
+        # the filters above forever. Without this exclusion a backlog of
+        # unapproved drafts would fill every eligible slot and starve
+        # leads that have never been contacted.
+        emails_sent__status__in=('pending_approval', 'approved'),
     ).distinct().order_by('-score', '-created_at')
     return list(qs[:limit])
 
@@ -252,23 +294,32 @@ def _from_address():
         'zacherylong@aspiredwebsites.com')
 
 
-def _generate_email_copy(lead, step):
+def _generate_email_copy(lead, step, variant):
     """
     Call Claude to generate (subject, body). Plain text, no HTML.
 
-    The system prompt + per-step user prompt are tuned to Aspired's
-    voice — professional, direct, security-first positioning. Future:
-    A/B variants via OutreachSettings.
+    ``variant`` is the approved ``EmailTemplateVariant`` supplying the
+    angle. The shared system prompt below carries Aspired's voice and
+    hard constraints and is IDENTICAL for every variant — only the angle
+    changes. That split is deliberate: the thing under test is the
+    approach (security-first vs speed vs local-competitor), not how
+    Aspired sounds.
     """
     from reporting.ai import MODEL_CONTENT, claude_complete
 
     system = _system_prompt()
-    user_prompt = _user_prompt_for_step(lead, step)
+    user_prompt = _user_prompt_for_step(lead, step, variant.angle_instructions)
+    # max_tokens covers thinking AND the visible email on Sonnet 5, where
+    # adaptive thinking is on by default. The email itself is 60-120 words
+    # (~200 tokens); the rest is headroom so reasoning can never squeeze
+    # the copy into a truncation. A truncated cold email is worse than no
+    # email — _split_subject_body rejects it, which burns the lead's slot
+    # for that step.
     text = claude_complete(
         messages=[{'role': 'user', 'content': user_prompt}],
         system=system,
         model=MODEL_CONTENT,
-        max_tokens=600,
+        max_tokens=3000,
     )
     return _split_subject_body(text, lead, step)
 
@@ -312,7 +363,7 @@ def _system_prompt():
     )
 
 
-def _user_prompt_for_step(lead, step):
+def _user_prompt_for_step(lead, step, angle_instructions):
     facts = []
     facts.append(f'- Business name: {lead.firm_name}')
     # attorney_name is law-firm-first but used for all contact types
@@ -333,34 +384,17 @@ def _user_prompt_for_step(lead, step):
     if lead.has_ssl is False:
         facts.append('- Their site is NOT served over HTTPS (security issue).')
 
-    step_brief = {
-        1: (
-            'STEP 1 — first touch. Introduce yourself briefly. If the facts '
-            'above include a website, PageSpeed score, HTTPS issue or '
-            'location, reference exactly one of them. If they include none '
-            'of those, write the email anyway without any specific '
-            'observation — do not ask for more data and do not invent a '
-            'detail. End with a single low-friction question (reply '
-            'yes/no). Do NOT pitch services in the first email.'),
-        2: (
-            'STEP 2 — follow up to a step-1 email that received no reply. '
-            'Mention you reached out previously. Offer one concrete '
-            'value-add observation (a specific improvement you would make). '
-            'Keep it shorter than step 1.'),
-        3: (
-            'STEP 3 — second follow-up. Acknowledge they may be busy. Offer '
-            'one resource or a 15-minute call. Brief — 3-4 sentences max.'),
-        4: (
-            'STEP 4 — break-up email. Brief and warm. Say this is the last '
-            'email, leave the door open for them to reach out later.'),
-    }[step]
-
+    # The per-step angle is DATA now, not a dict baked in here — it comes
+    # from the active EmailTemplateVariant the rotation picked. Editing
+    # copy is an admin change, not a deploy. The four original briefs were
+    # migrated verbatim as the "Baseline" variants in
+    # outreach/migrations/0011_seed_baseline_template_variants.py.
     return (
         'Write a cold outreach email.\n\n'
         'About the recipient:\n'
         + '\n'.join(facts)
         + '\n\n'
-        + step_brief
+        + angle_instructions
     )
 
 
@@ -405,6 +439,9 @@ def _split_subject_body(text, lead, step):
     subject = subject[:255]
 
     problems = describe_copy_problems(subject, body)
+    # §1.1 pricing guardrail — caught here so a made-up price never even
+    # reaches an EmailSent row, not just before SMTP.
+    problems += describe_pricing_problems(body, subject)
     if problems:
         raise EmailCopyRejected('; '.join(problems), text)
 

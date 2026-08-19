@@ -49,6 +49,7 @@ status line to ``lead.enrichment_log`` so the admin can see why a
 field is blank.
 """
 
+import html as _html
 import logging
 import re
 import time
@@ -353,10 +354,16 @@ def _http_get(url):
         return '', url, False
 
 
-def _extract_from_html(lead, html, base_url):
+def _extract_from_html(lead, raw_html, base_url):
     """Pull email, social URLs, copyright year out of a single page's
     HTML. Mutates lead in place; only fills fields that aren't set
     yet (so /contact extraction doesn't overwrite a homepage email)."""
+    # Decode entities BEFORE any pattern runs. Plenty of small-business
+    # sites emit `info&#64;firm&#46;com`, `&amp;` inside query strings, or
+    # `&#169; 2019` in the footer. Against the raw markup EMAIL_RE misses
+    # the address entirely and COPYRIGHT_RE misses the year — both read as
+    # "no signal" and quietly cost us a contactable lead.
+    html = _html.unescape(raw_html or '')
     # Email — try in order of reliability:
     #   1. mailto: hrefs        (most reliable — never obfuscated)
     #   2. plain regex          (catches anything in body text)
@@ -371,6 +378,16 @@ def _extract_from_html(lead, html, base_url):
         candidates.extend(_deobfuscate_emails(html))
         for raw in candidates:
             email = raw.strip().lower()
+            # mailto: hrefs and the de-obfuscators hand back whatever was
+            # between the delimiters, which is often not just an address:
+            # "info@firm.com?subject=Hello", trailing punctuation, or a
+            # whole sentence. EMAIL_RE alone is a *search*, so those pass.
+            # fullmatch is the guard — the winning candidate must BE an
+            # address end to end, not merely contain one. A malformed
+            # address here becomes a hard bounce and a suppression entry.
+            email = email.split('?', 1)[0].strip().strip('.,;:<>()[]"\'')
+            if not EMAIL_RE.fullmatch(email):
+                continue
             if not _is_real_email(email):
                 continue
             lead.email = email

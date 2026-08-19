@@ -143,6 +143,41 @@
         </ul>
     </section>
 
+    {% comment %}
+    Outreach sequence clock. Lead.sequence_step advances only on a
+    confirmed send, so if the code that advances it ever goes missing
+    (most plausibly when dispatcher.py is retired for Instantly and the
+    advance has to move to the "email sent" webhook) nothing errors —
+    mail keeps sending and every follow-up silently stops. This asserts
+    the invariant so that failure is visible instead of invisible.
+    {% endcomment %}
+    <section class="admin-section">
+        <h2>Outreach sequence clock</h2>
+        {% if outreach_seq.frozen_count %}
+            <p>
+                <strong>{{ outreach_seq.frozen_count }}</strong>
+                sent email{{ outreach_seq.frozen_count|pluralize }} whose lead
+                never advanced past that step. Follow-ups for these leads will
+                never fire — the sequence advance is broken.
+            </p>
+            <table class="admin-table">
+                <thead><tr><th>Lead</th><th>Email step</th><th>Lead step</th><th>Sent</th></tr></thead>
+                <tbody>
+                    {% for email in outreach_seq.frozen_sample %}
+                        <tr>
+                            <td>{{ email.lead.firm_name }}</td>
+                            <td>{{ email.sequence_step }}</td>
+                            <td>{{ email.lead.sequence_step }}</td>
+                            <td><small>{{ email.sent_at|date:"Y-m-d H:i" }}</small></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Sequence clock healthy — every sent email has advanced its lead.</p>
+        {% endif %}
+    </section>
+
     <section class="admin-section">
         <h2>Open system alerts</h2>
         {% if alerts.unresolved %}

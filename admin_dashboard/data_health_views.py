@@ -107,6 +107,41 @@ def _legacy_section():
     }
 
 
+def _outreach_sequence_section():
+    """Leads whose sequence clock has stopped despite mail going out.
+
+    ``Lead.sequence_step`` advances only on a CONFIRMED SEND (see
+    outreach/dispatcher.py). That makes it a silent single point of
+    failure: if the code that advances it is ever missing — most
+    plausibly when dispatcher.py is retired for Instantly and the advance
+    has to be re-anchored to the "email sent" webhook (see
+    COLD_OUTREACH_AGENT.md §4 step 6) — nothing errors. Mail keeps going
+    out, every lead sits at the same step forever, and no follow-up ever
+    fires. There is no exception to catch and no log line to notice.
+
+    So we assert the invariant directly: for any lead with a SENT email at
+    step N, ``lead.sequence_step`` must be >= N. A non-zero count here
+    means the advance is broken.
+    """
+    from django.db.models import F
+
+    from outreach.models import EmailSent
+
+    frozen = (
+        EmailSent.objects
+        .filter(status='sent', kind='cold')
+        .filter(sequence_step__gt=F('lead__sequence_step'))
+        .select_related('lead')
+        .order_by('-sent_at')
+    )
+    sample = list(frozen[:5])
+    return {
+        'frozen_count': frozen.count(),
+        'frozen_sample': sample,
+        'clean': not sample,
+    }
+
+
 def _alerts_section():
     from core.models import SystemAlert
 
@@ -126,13 +161,14 @@ def data_health(request):
     sync = _sync_section()
     legacy = _legacy_section()
     alerts = _alerts_section()
+    outreach_seq = _outreach_sequence_section()
 
     # One headline so the page answers "is anything wrong?" before it
     # answers "what exactly?".
     problems = (
         parity['errors'] + parity['warnings'] + payments['unverified_count']
         + sync['failed_count'] + sync['stuck'] + alerts['unresolved']
-        + legacy['orphan_rows']
+        + legacy['orphan_rows'] + outreach_seq['frozen_count']
     )
 
     return render(request, 'admin_dashboard/data_health.html', {
@@ -141,5 +177,6 @@ def data_health(request):
         'sync': sync,
         'legacy': legacy,
         'alerts': alerts,
+        'outreach_seq': outreach_seq,
         'problems': problems,
     })

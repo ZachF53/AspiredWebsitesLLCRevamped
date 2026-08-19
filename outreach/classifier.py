@@ -90,7 +90,10 @@ def classify_and_draft(reply):
         'reply', classification=classification, needs_human=needs_human)
     status = 'pending_approval' if queue else 'approved'
 
-    from outreach.dispatcher import _from_address as _from  # local import
+    # NOTE: _from_address lives in sender.py, NOT dispatcher.py. This
+    # import previously pointed at dispatcher and raised ImportError on
+    # every non-unsubscribe reply, so no reply was ever auto-drafted.
+    from outreach.sender import _from_address as _from  # local import
     EmailSent.objects.create(
         lead=reply.lead,
         in_reply_to=reply,
@@ -158,6 +161,11 @@ def _classify(reply):
         f"<{reply.lead.email}>\nSubject: {reply.subject}\n\n"
         f"{reply.body[:4000]}"
     )
+    # MODEL_CHAT (Haiku 4.5) on purpose: this is a two-field JSON pick, not
+    # a reasoning task, and Haiku does not spend the budget on thinking.
+    # If you ever repoint this at MODEL_CONTENT, pass thinking=THINKING_OFF
+    # as well — 120 tokens of adaptive thinking returns no JSON at all and
+    # every reply would silently fall through to ('unclear', True).
     raw = claude_complete(
         messages=[{'role': 'user', 'content': user}],
         system=system, model=MODEL_CHAT, max_tokens=120,
@@ -208,9 +216,12 @@ def _draft_reply(reply):
         f"{reply.email_sent.body if reply.email_sent else '(not threaded)'}"
         f"\n\nTheir reply:\n{reply.body[:3000]}"
     )
+    # Generation call on Sonnet 5 — adaptive thinking shares max_tokens
+    # with the visible reply, so this needs headroom well past the 3-6
+    # sentences we actually want back.
     body = claude_complete(
         messages=[{'role': 'user', 'content': user}],
-        system=system, model=MODEL_CONTENT, max_tokens=500,
+        system=system, model=MODEL_CONTENT, max_tokens=3000,
     ).strip()
 
     subject = (reply.subject or '').strip()

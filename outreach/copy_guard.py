@@ -142,3 +142,105 @@ def describe_copy_problems(subject, body):
 def is_sendable(subject, body):
     """Convenience boolean wrapper around describe_copy_problems()."""
     return not describe_copy_problems(subject, body)
+
+
+# ── Pricing guardrail ──────────────────────────────────────────────────
+#
+# The agent may not invent, discount, or approximate a price. Real pricing
+# lives in the database (billing.pricing_models.ServiceTier) and is the
+# only pricing the business has agreed to honour — a number the model made
+# up is a quote we are on the hook for.
+#
+# Cold outreach should almost never quote a price anyway: the ask is a
+# call, not a sale. So the posture here is deny-by-default — ANY
+# price-shaped text is a rejection unless it matches an active
+# ServiceTier.price_display exactly.
+#
+# Unlike describe_copy_problems, this one reads the DB. It is a separate
+# function precisely so the cheap dependency-free checks stay cheap and
+# dependency-free.
+
+# Money-shaped text: $2,500 / $2500.00 / $299/month / USD 299.
+_PRICE_PATTERNS = [
+    (r'\$\s?\d[\d,]*(?:\.\d{1,2})?', 'quotes a dollar figure'),
+    (r'\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|usd|dollars)\b',
+     'quotes a dollar figure'),
+    (r'\b\d+\s?%\s?(?:off|discount)', 'offers a percentage discount'),
+    (r'\b(?:discount|% off|half[- ]price|free month|no charge|'
+     r'waive[ds]?\s+(?:the\s+)?fee)\b', 'offers a discount or fee waiver'),
+    (r'\b(?:starting at|starts at|as low as|from only|priced at)\b',
+     'implies a price point'),
+    (r'\b\d[\d,]*\s?(?:/|per\s)\s?(?:mo|month|yr|year|hour|hr)\b',
+     'quotes a recurring rate'),
+]
+
+_COMPILED_PRICE = [(re.compile(p, re.IGNORECASE), why)
+                   for p, why in _PRICE_PATTERNS]
+
+
+def _approved_price_strings():
+    """Every price string the business has actually agreed to publish.
+
+    Returns a set of normalised (lowercased, whitespace-collapsed)
+    strings drawn from active ServiceTier rows — both the human
+    ``price_display`` and the raw decimal rendered a few common ways, so
+    "$299" matches a tier stored as ``299.00``.
+
+    Returns an empty set on any failure. That is deliberate: an empty
+    allow-list means every price-shaped string is rejected, which fails
+    CLOSED. A DB hiccup must never turn into permission to quote.
+    """
+    approved = set()
+    try:
+        from billing.pricing_models import ServiceTier
+        rows = ServiceTier.objects.filter(is_active=True).values_list(
+            'price', 'price_display')
+    except Exception:  # noqa: BLE001 — see docstring: fail closed.
+        return approved
+
+    for price, display in rows:
+        if display:
+            approved.add(re.sub(r'\s+', ' ', display).strip().lower())
+        if price is None:
+            continue
+        whole = int(price)
+        if price == whole:
+            approved.update({
+                f'${whole}', f'${whole:,}', f'${whole}.00', f'${whole:,}.00',
+            })
+        else:
+            approved.update({f'${price}', f'${price:,}'})
+    return approved
+
+
+def describe_pricing_problems(body, subject=''):
+    """Return a list of reasons this copy must not be sent, on price grounds.
+
+    Empty list means no price-shaped text, or every price found matches an
+    active ServiceTier exactly.
+
+    Never raises — callers decide what to do with the problems.
+    """
+    haystack = f'{(subject or "").strip()}\n{(body or "").strip()}'.strip()
+    if not haystack:
+        return []
+
+    hits = []
+    for rx, why in _COMPILED_PRICE:
+        for match in rx.finditer(haystack):
+            hits.append((match.group(0).strip(), why))
+    if not hits:
+        return []
+
+    approved = _approved_price_strings()
+    problems = []
+    seen = set()
+    for raw, why in hits:
+        normalised = re.sub(r'\s+', ' ', raw).strip().lower()
+        if normalised in approved:
+            continue
+        reason = f'{why}: {raw!r} is not an active ServiceTier price'
+        if reason not in seen:
+            seen.add(reason)
+            problems.append(reason)
+    return problems

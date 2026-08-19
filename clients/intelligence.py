@@ -396,6 +396,14 @@ def run_intelligence_analysis(client):
             json={
                 'model': MODEL_CONTENT,
                 'max_tokens': 2000,
+                # Structured JSON out, parsed by json.loads below. Sonnet 5
+                # turns adaptive thinking ON by default and shares this
+                # budget with it, which both truncates the JSON and pushes
+                # the text block off index 0 (content[0] would be a
+                # thinking block). Disabling keeps the pre-Sonnet-5
+                # behaviour exactly. Remove only alongside a bigger
+                # max_tokens AND a content-walk instead of [0].
+                'thinking': {'type': 'disabled'},
                 'system': _SYSTEM_PROMPT,
                 'messages': [
                     {'role': 'user', 'content': user_message},
@@ -805,6 +813,9 @@ def generate_annual_narrative(client, data):
             json={
                 'model': MODEL_CONTENT,
                 'max_tokens': 2000,
+                # See the note on the first Claude call in this module —
+                # structured JSON, so thinking stays off on Sonnet 5.
+                'thinking': {'type': 'disabled'},
                 'system': system_prompt,
                 'messages': [
                     {'role': 'user', 'content': user_message},
@@ -1064,6 +1075,9 @@ def analyze_competitor_gaps(client, client_pages, competitor_data):
             json={
                 'model': MODEL_CONTENT,
                 'max_tokens': 2000,
+                # See the note on the first Claude call in this module —
+                # structured JSON, so thinking stays off on Sonnet 5.
+                'thinking': {'type': 'disabled'},
                 'system': _GAP_SYSTEM_PROMPT,
                 'messages': [
                     {'role': 'user', 'content': user_message},
