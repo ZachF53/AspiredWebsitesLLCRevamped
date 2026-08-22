@@ -268,11 +268,22 @@ def verify_leads_task(limit=500):
     whether EMAIL_VERIFY_PROVIDER is configured, so this task does real
     work on a server with no verification key at all.
     """
+    from django.conf import settings
+
     from outreach import verify
     from outreach.models import Lead
 
+    # UNVERIFIED means "passed the free screen, but no vendor was
+    # configured when we looked". Once a vendor IS configured those leads
+    # need a second pass -- without this they stay permanently unsendable
+    # and the funnel silently stops at a stage that already ran.
+    statuses = [verify.PENDING]
+    if (getattr(settings, 'EMAIL_VERIFY_PROVIDER', '')
+            and getattr(settings, 'EMAIL_VERIFY_API_KEY', '')):
+        statuses.append(verify.UNVERIFIED)
+
     leads = Lead.objects.filter(
-        email_verification_status=verify.PENDING,
+        email_verification_status__in=statuses,
     ).exclude(email='').order_by('-score')[:limit]
 
     counts = {}

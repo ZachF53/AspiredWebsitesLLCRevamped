@@ -49,12 +49,21 @@ refuses to produce copy while it is unset.
 """
 
 # ── CAN-SPAM ───────────────────────────────────────────────────────────
-# Set this to the real registered business address for Aspired Websites
-# LLC. A PO box is acceptable if it is registered to the business.
-# Sending commercial email without it is a CAN-SPAM violation at up to
-# $53,088 per email, and it is also a deliverability signal - the major
-# providers look for it.
-POSTAL_ADDRESS = ''
+# Lives in .env as COMPANY_POSTAL_ADDRESS, not here, so a home address
+# never reaches git and staging can differ from prod. Sending commercial
+# email without one is a CAN-SPAM violation at up to $53,088 per message,
+# and its absence is read as a spam signal by the major providers.
+#
+# The FTC accepts a current street address, a USPS-registered PO box, or
+# a private mailbox at a Commercial Mail Receiving Agency. The test is
+# whether mail sent there actually reaches you -- a registered-agent
+# address only qualifies if the agent forwards general business mail
+# rather than service of process alone.
+
+
+def _configured_postal_address():
+    from django.conf import settings
+    return (getattr(settings, 'COMPANY_POSTAL_ADDRESS', '') or '').strip()
 
 FOOTER = (
     '\n\n---\n'
@@ -179,12 +188,12 @@ def build_steps(slug, postal_address=None):
         raise SequenceError(
             f'No sequence named {slug!r}. Known: {sorted(SEQUENCES)}')
 
-    postal = (postal_address or POSTAL_ADDRESS or '').strip()
+    postal = (postal_address or _configured_postal_address()).strip()
     if not postal:
         raise SequenceError(
             'No postal address set. CAN-SPAM requires a valid physical '
-            'address in every commercial email. Set POSTAL_ADDRESS in '
-            'outreach/sequences.py, or pass --postal-address.')
+            'address in every commercial email. Set '
+            'COMPANY_POSTAL_ADDRESS in .env, or pass --postal-address.')
 
     return [
         {

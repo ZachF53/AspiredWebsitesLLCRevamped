@@ -614,6 +614,20 @@ EMAIL_VERIFY_ALLOW_CATCH_ALL = env(
     'EMAIL_VERIFY_ALLOW_CATCH_ALL', 'False') == 'True'
 
 
+# ── CAN-SPAM postal address ────────────────────────────────────────────
+# Required in every commercial email, at up to $53,088 per message, and
+# its absence is also read as a spam signal by the major providers.
+#
+# The FTC accepts a current street address, a USPS-registered PO box, or
+# a private mailbox at a Commercial Mail Receiving Agency. The test that
+# matters is that mail sent there actually reaches you.
+#
+# Kept in .env rather than in code so a home address never lands in git,
+# and so staging can carry a placeholder while prod carries the real one.
+# outreach/sequences.py refuses to build copy while this is empty.
+COMPANY_POSTAL_ADDRESS = env('COMPANY_POSTAL_ADDRESS', '')
+
+
 # ── DMARC IMAP poller (reporting/management/commands/ingest_dmarc_imap) ─────
 # All four required for the poller to do anything. Setup steps live
 # in the management command's docstring. Empty = no-op + log warning.
