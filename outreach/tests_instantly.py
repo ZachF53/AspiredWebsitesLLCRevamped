@@ -492,3 +492,91 @@ class BusinessMatchTests(TestCase):
             {'title': 'The Law Office of Sarah Chen', 'description': ''},
             lead)
         self.assertTrue(ok)
+
+
+# ── sequence copy ──────────────────────────────────────────────────────
+
+class SequenceCopyTests(TestCase):
+    """The copy is the control half of every send. It has to stay clean."""
+
+    ADDR = '1 Main St, San Antonio, TX 78205'
+
+    def test_texas_law_copy_passes_preflight(self):
+        from outreach import sequences
+        steps = sequences.build_steps('texas-law', self.ADDR)
+        self.assertEqual(sequences.describe_problems(steps), [])
+
+    def test_no_postal_address_refuses_to_build(self):
+        """CAN-SPAM requires it; forgetting must be impossible, not likely."""
+        from outreach import sequences
+        with self.assertRaises(sequences.SequenceError):
+            sequences.build_steps('texas-law', '')
+
+    def test_footer_is_on_every_touch(self):
+        from outreach import sequences
+        for step in sequences.build_steps('texas-law', self.ADDR):
+            self.assertIn('Aspired Websites LLC', step['body'])
+            self.assertIn(self.ADDR, step['body'])
+            self.assertIn('Reply "no"', step['body'])
+
+    def test_copy_is_plain_ascii(self):
+        """Em-dashes and curly quotes read as machine-written."""
+        from outreach import sequences
+        for step in sequences.build_steps('texas-law', self.ADDR):
+            non_ascii = {c for c in step['body'] + step['subject']
+                         if ord(c) > 127}
+            self.assertEqual(non_ascii, set())
+
+    def test_machine_punctuation_is_caught(self):
+        from outreach import sequences
+        bad = [{'subject': 's', 'delay_days': 0,
+                'body': 'Hi ' + chr(8212) + ' Aspired Websites LLC'}]
+        problems = sequences.describe_problems(bad)
+        self.assertTrue(any('em-dash' in p for p in problems))
+
+    def test_html_body_is_caught(self):
+        """Business rule 7: cold email is plain text only."""
+        from outreach import sequences
+        bad = [{'subject': 's', 'delay_days': 0,
+                'body': '<p>Hi</p> Aspired Websites LLC'}]
+        self.assertTrue(any('HTML' in p
+                            for p in sequences.describe_problems(bad)))
+
+    def test_first_touch_must_have_a_subject(self):
+        from outreach import sequences
+        bad = [{'subject': '', 'delay_days': 0,
+                'body': 'Hi. Aspired Websites LLC'}]
+        self.assertTrue(any('subject' in p
+                            for p in sequences.describe_problems(bad)))
+
+    def test_followups_thread_under_the_first(self):
+        """A blank subject threads; a new subject reads as a sequence."""
+        from outreach import sequences
+        steps = sequences.build_steps('texas-law', self.ADDR)
+        self.assertTrue(steps[0]['subject'])
+        for step in steps[1:]:
+            self.assertEqual(step['subject'], '')
+
+    def test_delays_are_four_touches_over_24_days(self):
+        from outreach import sequences
+        steps = sequences.build_steps('texas-law', self.ADDR)
+        self.assertEqual([s['delay_days'] for s in steps], [0, 3, 7, 14])
+
+    def test_template_makes_no_per_lead_factual_claim(self):
+        """Touch 3 must OFFER to check SSL, never report a result.
+
+        A template cannot know whether this lead's site has SSL, so any
+        assertion about it is false for everyone who does.
+        """
+        from outreach import sequences
+        body = sequences.build_steps('texas-law', self.ADDR)[2]['body']
+        for claim in ('your site is not encrypted',
+                      "isn't encrypted",
+                      'I checked your'):
+            self.assertNotIn(claim.lower(), body.lower())
+        self.assertIn('Want me to run it', body)
+
+    def test_unknown_sequence_name_is_rejected(self):
+        from outreach import sequences
+        with self.assertRaises(sequences.SequenceError):
+            sequences.build_steps('does-not-exist', self.ADDR)
