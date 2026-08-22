@@ -3,8 +3,10 @@ from django.contrib import admin
 from .models import (
     EmailReply,
     EmailSent,
+    InstantlyEvent,
     Lead,
     LeadNote,
+    OutreachCampaign,
     OutreachSettings,
     SuppressionList,
 )
@@ -136,4 +138,78 @@ class OutreachSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         # Never delete the singleton.
+        return False
+
+
+@admin.register(OutreachCampaign)
+class OutreachCampaignAdmin(admin.ModelAdmin):
+    """One niche x geography segment, mapped to one Instantly campaign.
+
+    ``instantly_campaign_id`` is the field that matters: blank means
+    nothing can be pushed, no matter what ``active`` says. Both are shown
+    in the list for exactly that reason.
+    """
+
+    list_display = (
+        'name', 'niche', 'city', 'state', 'active',
+        'instantly_campaign_id', 'leads_pushed', 'last_push_at',
+    )
+    list_filter = ('active', 'state')
+    search_fields = ('name', 'niche', 'city', 'instantly_campaign_id')
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = (
+        'leads_pushed', 'last_push_at', 'last_push_error',
+        'created_at', 'updated_at',
+    )
+    fieldsets = (
+        ('Segment', {
+            'fields': ('name', 'slug', 'niche', 'business_type',
+                       'city', 'state'),
+        }),
+        ('Instantly', {
+            'fields': ('instantly_campaign_id', 'active'),
+            'description': (
+                'Create the campaign in Instantly first, then paste its '
+                'id here. Leads are only pushed when BOTH an id is set '
+                'and active is ticked.'),
+        }),
+        ('History', {
+            'fields': ('leads_pushed', 'last_push_at', 'last_push_error',
+                       'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+
+@admin.register(InstantlyEvent)
+class InstantlyEventAdmin(admin.ModelAdmin):
+    """Raw webhook events. Read-only on purpose.
+
+    These rows are the audit trail for what the reply filter accepted
+    and rejected. Editing them would destroy the only evidence of a
+    misclassification, which is precisely what was missing when ten
+    Google Ads notifications became ten prospect replies.
+    """
+
+    list_display = (
+        'received_at', 'event_type', 'lead_email', 'lead',
+        'campaign', 'processed', 'short_error',
+    )
+    list_filter = ('event_type', 'processed', 'received_at')
+    search_fields = ('lead_email', 'raw_event_type', 'dedupe_key')
+    readonly_fields = (
+        'event_type', 'raw_event_type', 'lead', 'lead_email', 'campaign',
+        'payload', 'dedupe_key', 'processed', 'processed_at', 'error',
+        'received_at',
+    )
+    date_hierarchy = 'received_at'
+
+    def short_error(self, obj):
+        return (obj.error or '')[:60]
+    short_error.short_description = 'Filter / error note'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

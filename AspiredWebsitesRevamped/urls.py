@@ -12,6 +12,7 @@ from clients.views import (
     proposal_view_tracking, referral_click,
 )
 from outreach.sendgrid_webhook import receive as sendgrid_events
+from outreach.instantly_webhook import receive as instantly_events
 from public.legacy_redirects import legacy_redirect_patterns
 from public.sitemaps import SITEMAPS
 from reporting.views import nps_response
@@ -57,6 +58,7 @@ def robots_txt(request):
         "Disallow: /maintenance/\n"
         "Disallow: /api/\n"
         "Disallow: /sendgrid/\n"
+        "Disallow: /outreach/\n"
         "Disallow: /ref/\n"
         "Disallow: /proposals/\n"
         "Disallow: /intelligence/\n"
@@ -76,6 +78,13 @@ urlpatterns = [
     # Public endpoint, locked by ECDSA signature verification against
     # SENDGRID_WEBHOOK_PUBLIC_KEY (rejects ALL POSTs when unset).
     path('sendgrid/events/', sendgrid_events, name='sendgrid_events'),
+    # Instantly webhook — replies/bounces/unsubscribes from the cold
+    # outreach sending layer. Instantly does not sign its webhooks, so
+    # the secret is carried in the path and compared in constant time;
+    # the endpoint 403s every request when INSTANTLY_WEBHOOK_SECRET is
+    # unset. See outreach/instantly_webhook.py.
+    path('outreach/instantly/events/<str:secret>/',
+         instantly_events, name='instantly_events'),
     path('admin/', admin.site.urls),
     path('admin-dashboard/vault/', include('vault.urls')),
     # Phase 5a-pivot — Google Business Profile lives in reporting/ as

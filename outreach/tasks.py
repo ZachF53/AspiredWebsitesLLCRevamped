@@ -244,3 +244,138 @@ def run_scrape_jobs_task():
     return (
         f'jobs={jobs.count()} imported={total_imported} '
         f'skipped={total_skipped}')
+
+
+# ── Instantly pipeline (verify → icebreak → push) ──────────────────────
+#
+# ORDER MATTERS AND IS NOT ARBITRARY.
+#
+# Verification runs before icebreaker generation because an icebreaker
+# costs a Claude call and a role address is worth zero of them. Under the
+# old ordering the expensive step ran on every lead including the 135
+# that should never have been contacted.
+#
+# Each stage is a separate task rather than one long function so a
+# failure in one does not roll back the stage before it, and so any
+# stage can be re-run alone from the admin.
+
+
+@shared_task
+def verify_leads_task(limit=500):
+    """Verify unverified leads. Cheap, safe to run often.
+
+    Role-address suppression needs no vendor and runs regardless of
+    whether EMAIL_VERIFY_PROVIDER is configured, so this task does real
+    work on a server with no verification key at all.
+    """
+    from outreach import verify
+    from outreach.models import Lead
+
+    leads = Lead.objects.filter(
+        email_verification_status=verify.PENDING,
+    ).exclude(email='').order_by('-score')[:limit]
+
+    counts = {}
+    for lead in leads:
+        status = verify.verify_lead(lead)
+        counts[status] = counts.get(status, 0) + 1
+
+    logger.info('verify_leads_task: %s', counts)
+    return ' '.join(f'{k}={v}' for k, v in sorted(counts.items())) or 'nothing to verify'
+
+
+@shared_task
+def generate_icebreakers_task(limit=50):
+    """Write one personalised opening line per sendable lead.
+
+    Only touches leads that passed verification AND finished enrichment —
+    an icebreaker written before PageSpeed and SSL are known has nothing
+    specific to say, which is the whole point of the line.
+    """
+    from outreach import icebreaker, verify
+    from outreach.models import Lead
+
+    candidates = Lead.objects.filter(
+        icebreaker='',
+        unsubscribed=False,
+        enrichment_completed_at__isnull=False,
+    ).exclude(email='').order_by('-score')[:limit * 3]
+
+    written = skipped = failed = 0
+    for lead in candidates:
+        if written >= limit:
+            break
+        if not verify.is_sendable(lead.email_verification_status):
+            skipped += 1
+            continue
+        try:
+            icebreaker.generate(lead)
+            written += 1
+        except icebreaker.IcebreakerError as exc:
+            logger.warning('icebreaker rejected for lead %s: %s', lead.pk, exc)
+            failed += 1
+        except Exception:
+            logger.exception('icebreaker crashed for lead %s', lead.pk)
+            failed += 1
+
+    return f'written={written} skipped={skipped} failed={failed}'
+
+
+@shared_task
+def push_to_instantly_task():
+    """Push ready leads into their campaign.
+
+    A lead is ready when it is verified sendable, has an icebreaker, is
+    not suppressed, and has not been pushed already. ``push_leads``
+    re-checks every one of those rather than trusting this query — it is
+    the last gate before a real send.
+    """
+    from outreach import instantly
+    from outreach.models import Lead, OutreachCampaign
+
+    campaigns = OutreachCampaign.objects.filter(
+        active=True).exclude(instantly_campaign_id='')
+    if not campaigns:
+        return 'no active campaigns with an Instantly id'
+
+    lines = []
+    for campaign in campaigns:
+        leads = Lead.objects.filter(
+            campaign=campaign,
+            instantly_lead_id='',
+            unsubscribed=False,
+        ).exclude(icebreaker='').exclude(email='').order_by('-score')
+
+        if not leads.exists():
+            lines.append(f'{campaign.name}: nothing ready')
+            continue
+        try:
+            summary = instantly.push_leads(list(leads), campaign)
+            lines.append(
+                f"{campaign.name}: pushed={summary['pushed']} "
+                f"unsendable={summary['skipped_unsendable']} "
+                f"errors={summary['errors']}")
+        except instantly.InstantlyError as exc:
+            logger.exception('push failed for campaign %s', campaign.pk)
+            campaign.last_push_error = str(exc)[:500]
+            campaign.save(update_fields=['last_push_error', 'updated_at'])
+            lines.append(f'{campaign.name}: FAILED — {exc}')
+
+    return ' | '.join(lines)
+
+
+@shared_task
+def run_outreach_pipeline_task():
+    """The whole chain, in order. One beat entry instead of four.
+
+    Sourcing is deliberately NOT included: it costs money per run and is
+    driven by ScrapeJob on its own schedule, so a pipeline retry can
+    never re-trigger a paid scrape.
+    """
+    results = [
+        f'verify: {verify_leads_task()}',
+        f'icebreak: {generate_icebreakers_task()}',
+        f'push: {push_to_instantly_task()}',
+    ]
+    logger.info('run_outreach_pipeline_task: %s', ' | '.join(results))
+    return ' | '.join(results)

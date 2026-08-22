@@ -54,6 +54,7 @@ import logging
 import re
 import time
 from datetime import datetime
+from difflib import SequenceMatcher
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -599,30 +600,46 @@ def _web_search_fallback(lead, log_lines):
     queries_made = 0
     found_website = ''
 
+    # Every hit below is verified against the lead before it is stored.
+    # Taking the first result on faith is what produced a ~50% wrong-
+    # business rate on the Facebook path — see _matches_business.
+
     # Query 1: find the firm's website.
     q1 = f'{name} {location}'.strip()
     if queries_made < WEB_SEARCH_MAX_PER_LEAD:
         results = _brave_search(q1, api_key)
         queries_made += 1
         log_lines.append(f'  Q1 "{q1}" → {len(results)} hits')
-        for url in results:
+        for hit in results:
+            url = hit['url']
             domain = _domain_of(url)
             if not domain:
                 continue
+            ok, why = _matches_business(hit, lead)
             if _is_directory_domain(domain):
+                if not ok:
+                    log_lines.append(f'    rejected {domain}: {why}')
+                    continue
                 # Capture the social profile in passing — match on
                 # base domain so e.g. m.facebook.com still counts.
                 base = _base_domain(domain)
                 if base == 'facebook.com' and not lead.facebook_url:
                     lead.facebook_url = url
+                    log_lines.append(f'    facebook ✓ ({why})')
                 elif base == 'instagram.com' and not lead.instagram_url:
                     lead.instagram_url = url
+                    log_lines.append(f'    instagram ✓ ({why})')
                 elif base == 'linkedin.com' and not lead.linkedin_url:
                     lead.linkedin_url = url
+                    log_lines.append(f'    linkedin ✓ ({why})')
                 continue
-            # First non-directory hit becomes the website.
+            if not ok:
+                log_lines.append(f'    rejected website {domain}: {why}')
+                continue
+            # First VERIFIED non-directory hit becomes the website.
             found_website = url
             lead.website = url
+            log_lines.append(f'    website ✓ {domain} ({why})')
             break
 
     # Query 2: Facebook (only if we haven't found one yet).
@@ -633,11 +650,17 @@ def _web_search_fallback(lead, log_lines):
         results = _brave_search(q2, api_key)
         queries_made += 1
         log_lines.append(f'  Q2 "{q2}" → {len(results)} hits')
-        for url in results:
+        for hit in results:
+            url = hit['url']
             if (_base_domain(_domain_of(url)) == 'facebook.com'
                     and '/sharer' not in url
                     and '/plugins' not in url):
+                ok, why = _matches_business(hit, lead)
+                if not ok:
+                    log_lines.append(f'    rejected {url[:60]}: {why}')
+                    continue
                 lead.facebook_url = url
+                log_lines.append(f'    facebook ✓ ({why})')
                 break
 
     # Query 3: Instagram (only if we haven't found one yet).
@@ -648,9 +671,15 @@ def _web_search_fallback(lead, log_lines):
         results = _brave_search(q3, api_key)
         queries_made += 1
         log_lines.append(f'  Q3 "{q3}" → {len(results)} hits')
-        for url in results:
+        for hit in results:
+            url = hit['url']
             if _base_domain(_domain_of(url)) == 'instagram.com':
+                ok, why = _matches_business(hit, lead)
+                if not ok:
+                    log_lines.append(f'    rejected {url[:60]}: {why}')
+                    continue
                 lead.instagram_url = url
+                log_lines.append(f'    instagram ✓ ({why})')
                 break
 
     log_lines.append(
@@ -711,7 +740,7 @@ def _brave_search(query, api_key, count=10):
         return []
 
     results = (data.get('web') or {}).get('results') or []
-    urls = []
+    hits = []
     seen = set()
     for r in results:
         url = (r.get('url') or '').strip()
@@ -722,8 +751,109 @@ def _brave_search(query, api_key, count=10):
         if url in seen:
             continue
         seen.add(url)
-        urls.append(url)
-    return urls
+        # Title and description are carried because a URL alone cannot
+        # be verified against the business it is supposed to belong to.
+        # See _matches_business.
+        hits.append({
+            'url': url,
+            'title': (r.get('title') or '').strip(),
+            'description': (r.get('description') or '').strip(),
+        })
+    return hits
+
+
+# ── Match verification ─────────────────────────────────────────────────
+#
+# WHY THIS EXISTS
+# ---------------
+# _web_search_fallback used to take the first facebook.com hit for
+# "<name> <city> facebook" and store it as the lead's Facebook page, with
+# no check that the page belonged to the business. Measured against 20
+# phone-verifiable pairs on 2026-08-22, that was wrong ~50% of the time:
+#
+#   Godwin Law Office   -> Goodwin & Goodwin, LLP | Charleston
+#   Gonzalez Raul A     -> raul.gonzalez@traviscountytx.gov
+#   Family Vital PC     -> Vital Interaction | Austin
+#
+# A wrong social URL is not cosmetic here. It feeds the scorer, and it
+# feeds the icebreaker as a "verified observation" — which is how an
+# invented fact reaches a prospect.
+
+# Words that carry no identifying signal, so "Law Office of Sarah Chen"
+# and "Sarah Chen Law" compare as the same business.
+_GENERIC_NAME_TOKENS = frozenset({
+    'law', 'laws', 'lawyer', 'lawyers', 'attorney', 'attorneys', 'legal',
+    'office', 'offices', 'firm', 'firms', 'group', 'associates',
+    'associate', 'partners', 'partner', 'practice', 'services', 'service',
+    'company', 'co', 'inc', 'corp', 'corporation', 'llc', 'pllc', 'llp',
+    'lp', 'pc', 'pa', 'ltd', 'the', 'of', 'and', 'a', 'an', 'at', 'for',
+    'dental', 'dentistry', 'dentist', 'dds', 'md', 'clinic', 'center',
+    'centre', 'health', 'medical', 'care', 'cpa', 'accounting',
+    'accountants', 'consulting', 'consultants', 'solutions',
+})
+
+_NAME_CLEAN_RE = re.compile(r'[^a-z0-9\s]')
+
+# Tuned against the measured sample: 0.65 accepted every true pair and
+# rejected every phone-disproved one. Deliberately strict — a missing
+# Facebook URL costs one signal, a wrong one poisons the copy.
+_NAME_SIMILARITY_THRESHOLD = 0.65
+
+
+def _name_tokens(name):
+    """Distinctive lowercase tokens from a business name."""
+    cleaned = _NAME_CLEAN_RE.sub(' ', (name or '').lower())
+    return [t for t in cleaned.split()
+            if t and t not in _GENERIC_NAME_TOKENS]
+
+
+def _phone_digits(value):
+    digits = re.sub(r'\D', '', value or '')
+    return digits[-10:] if len(digits) >= 10 else ''
+
+
+def _matches_business(hit, lead):
+    """Whether a search hit plausibly belongs to this lead.
+
+    Three tests, cheapest and most reliable first:
+
+    1. **Phone** — if the lead has a phone and the same last 10 digits
+       appear in the hit's text, it is the same business with near
+       certainty. This is the test that exposed the 50% error rate.
+    2. **Distinctive tokens** — every identifying word of the firm name
+       present in the hit's title. Handles "Law Office of X" vs "X Law".
+    3. **String similarity** — fuzzy fallback for spelling drift.
+
+    Returns (bool, reason) so the enrichment log records *why* a match
+    was accepted or rejected.
+    """
+    haystack = f"{hit.get('title', '')} {hit.get('description', '')}".lower()
+
+    lead_phone = _phone_digits(lead.phone)
+    if lead_phone:
+        if lead_phone in re.sub(r'\D', '', haystack):
+            return True, 'phone match'
+        # A hit that shows a DIFFERENT phone for a named business is
+        # positive evidence against it, not merely absent evidence.
+        hit_phones = re.findall(r'\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}',
+                                haystack)
+        if hit_phones and not any(
+                _phone_digits(p) == lead_phone for p in hit_phones):
+            return False, 'phone mismatch'
+
+    tokens = _name_tokens(lead.firm_name)
+    title = (hit.get('title') or '').lower()
+    if tokens:
+        title_blob = _NAME_CLEAN_RE.sub(' ', title)
+        if all(t in title_blob for t in tokens):
+            return True, 'all distinctive name tokens present'
+
+    ratio = SequenceMatcher(
+        None, ' '.join(tokens), ' '.join(_name_tokens(title))).ratio()
+    if ratio >= _NAME_SIMILARITY_THRESHOLD:
+        return True, f'name similarity {ratio:.2f}'
+
+    return False, f'name similarity {ratio:.2f} below threshold'
 
 
 def _domain_of(url):

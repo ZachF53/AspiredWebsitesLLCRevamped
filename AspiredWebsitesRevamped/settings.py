@@ -542,6 +542,78 @@ APIFY_MONTHLY_BUDGET_USD = float(env('APIFY_MONTHLY_BUDGET_USD', 5.00))
 BRAVE_SEARCH_MONTHLY_LIMIT = int(env('BRAVE_SEARCH_MONTHLY_LIMIT', '1000'))
 
 
+# ── Instantly — the sending layer ──────────────────────────────────────
+#
+# WHY INSTANTLY SENDS AND DJANGO DOES NOT
+# ---------------------------------------
+# 416 cold emails went out through SendGrid from one domain
+# (aspiredwebsites.com) and produced zero human replies. Beyond the list
+# problem (see outreach/verify.py), that architecture cannot survive
+# volume: one domain, one mailbox, no rotation, no warmup, no per-mailbox
+# throttle. At 30/day it is merely useless; at 300/day it burns the
+# domain that also carries invoices, portal logins and password resets.
+#
+# So the split is:
+#   Django    — sourcing, verification, enrichment, personalisation,
+#               guardrails, approval, reply intelligence
+#   Instantly — mailbox rotation, warmup, throttling, the 4-step
+#               sequence, bounce handling, unsubscribe links
+#
+# Django pushes a verified lead plus custom variables; Instantly's
+# campaign template references those variables. This is the same shape as
+# the manual scrape → clean → icebreak → CSV → Instantly workflow that
+# already works by hand, with the CSV step replaced by the API.
+#
+# SendGrid stays for transactional mail (invoices, portal, reports) and
+# is no longer the cold-outreach path.
+INSTANTLY_TOKEN = env('INSTANTLY_TOKEN', '')
+INSTANTLY_API_BASE = env(
+    'INSTANTLY_API_BASE', 'https://api.instantly.ai/api/v2')
+
+# Shared secret on the webhook URL Instantly posts events to. Instantly
+# does not sign its webhooks, so the only thing standing between the
+# endpoint and the open internet is an unguessable path segment. Empty
+# means the endpoint refuses every request rather than trusting anon POST
+# bodies that can mark leads unsubscribed.
+INSTANTLY_WEBHOOK_SECRET = env('INSTANTLY_WEBHOOK_SECRET', '')
+
+# Hard ceiling on leads pushed per campaign per day, independent of
+# whatever Instantly is configured to send. Guards against a bad Apify
+# run dumping thousands of unverified rows into a live campaign.
+INSTANTLY_MAX_PUSH_PER_DAY = int(env('INSTANTLY_MAX_PUSH_PER_DAY', '200'))
+
+
+# ── Email verification — the stage that did not exist ──────────────────
+#
+# Root cause of the 0/416: 111 of those sends went to info@, another 24
+# to other role mailboxes, 97 to consumer gmail/yahoo, plus scraped
+# garbage like rohtopharmacy5@ collected off a law firm's page. Roughly
+# 56% went somewhere no decision-maker reads.
+#
+# Role-address suppression is free and needs no vendor — it is pure
+# string matching and runs always. Bounce verification needs an API.
+# Above a 3% bounce rate Google and Microsoft begin filtering, and no
+# amount of warming undoes it.
+#
+# Supported: 'millionverifier' (cheapest), 'zerobounce' (better API),
+# or '' meaning "role suppression only, mark everything else unverified".
+# Unverified leads are NOT pushed to Instantly unless
+# EMAIL_VERIFY_REQUIRED is turned off.
+EMAIL_VERIFY_PROVIDER = env('EMAIL_VERIFY_PROVIDER', '')
+EMAIL_VERIFY_API_KEY = env('EMAIL_VERIFY_API_KEY', '')
+
+# When True (the default), a lead must hold a 'valid' verification result
+# before it can be pushed to a campaign. Turning this off is how you
+# knowingly accept bounce risk; it is not a thing to flip casually.
+EMAIL_VERIFY_REQUIRED = env('EMAIL_VERIFY_REQUIRED', 'True') == 'True'
+
+# Catch-all domains accept everything at SMTP time and bounce later, so
+# a 'catch-all' result is not evidence the mailbox exists. Treated as
+# unusable by default.
+EMAIL_VERIFY_ALLOW_CATCH_ALL = env(
+    'EMAIL_VERIFY_ALLOW_CATCH_ALL', 'False') == 'True'
+
+
 # ── DMARC IMAP poller (reporting/management/commands/ingest_dmarc_imap) ─────
 # All four required for the poller to do anything. Setup steps live
 # in the management command's docstring. Empty = no-op + log warning.

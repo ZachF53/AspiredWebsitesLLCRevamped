@@ -147,6 +147,42 @@ class Lead(models.Model):
     # capture notes, etc). Distinct from `notes` which is internal-only.
     inquiry_text = models.TextField(blank=True)
 
+    # ── Email verification (outreach/verify.py) ────────────────────────
+    # The stage whose absence caused 416 sends to return zero replies:
+    # 111 went to info@, 97 to consumer gmail, and several to addresses
+    # scraped off the wrong page entirely. A lead does not enter a
+    # campaign until this says it is sendable.
+    email_verification_status = models.CharField(
+        max_length=20, default='pending', db_index=True,
+        help_text=(
+            'Set by outreach.verify. Role addresses and hard-invalid '
+            'mailboxes never reach a campaign.'),
+    )
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Instantly (outreach/instantly.py) ──────────────────────────────
+    # Instantly owns sending; Django owns everything up to the push.
+    instantly_lead_id = models.CharField(
+        max_length=64, blank=True, db_index=True,
+        help_text='Instantly\'s own id, returned when the lead is pushed.')
+    pushed_to_instantly_at = models.DateTimeField(null=True, blank=True)
+    campaign = models.ForeignKey(
+        'OutreachCampaign', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='leads',
+    )
+
+    # The single personalised sentence Claude writes per lead, pushed to
+    # Instantly as a custom variable and referenced by the campaign
+    # template. This is the "one specific true thing" that separates a
+    # cold email worth reading from a mail merge.
+    icebreaker = models.TextField(
+        blank=True,
+        help_text=(
+            'One personalised opening line, generated from enrichment '
+            'signals. Pushed to Instantly as {{icebreaker}}.'),
+    )
+    icebreaker_generated_at = models.DateTimeField(null=True, blank=True)
+
     # Internal CRM scratch — not visible to the lead.
     notes = models.TextField(blank=True)
 
@@ -696,3 +732,143 @@ class BraveSearchUsage(models.Model):
         ym = cls._current_month()
         row = cls.objects.filter(year_month=ym).first()
         return row.query_count if row else 0
+
+
+class OutreachCampaign(models.Model):
+    """
+    One niche × geography segment, mapped to one Instantly campaign.
+
+    WHY SEGMENTS RATHER THAN ONE BIG CAMPAIGN
+    -----------------------------------------
+    Copy that references something specific and true cannot be written
+    for a blended list. "I work with personal injury firms in Houston"
+    is a sentence; "I work with businesses" is noise. Segmenting also
+    makes reply rate a per-niche measurement, which is the only way to
+    learn which niche actually wants this rather than guessing.
+
+    Four to start: TX law, GA law, TX dental, GA dental.
+
+    ``instantly_campaign_id`` is the join to the sending side. It stays
+    blank until the campaign is created in Instantly (either through
+    their UI or via ``outreach.instantly.create_campaign``), and nothing
+    can be pushed until it is set.
+    """
+
+    name = models.CharField(
+        max_length=120,
+        help_text='e.g. "TX — Personal Injury", "GA — Dental".')
+    slug = models.SlugField(max_length=140, unique=True)
+
+    # Targeting — also the search input when sourcing for this campaign.
+    niche = models.CharField(
+        max_length=120,
+        help_text='Search term / industry, e.g. "personal injury lawyer".')
+    business_type = models.CharField(
+        max_length=100, blank=True,
+        help_text='Stamped onto imported leads. Blank = infer from source.')
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=2, blank=True)
+
+    instantly_campaign_id = models.CharField(
+        max_length=64, blank=True, db_index=True,
+        help_text=(
+            'Instantly campaign UUID. Blank means leads cannot be pushed '
+            'yet — create the campaign in Instantly first.'),
+    )
+
+    # active=False pauses pushing without deleting the segment or losing
+    # its history. Default False so a newly-created campaign cannot start
+    # receiving leads before someone has looked at it.
+    active = models.BooleanField(default=False, db_index=True)
+
+    # Bookkeeping.
+    leads_pushed = models.IntegerField(default=0)
+    last_push_at = models.DateTimeField(null=True, blank=True)
+    last_push_error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-active', 'name']
+        verbose_name = 'Outreach Campaign'
+        verbose_name_plural = 'Outreach Campaigns'
+
+    def __str__(self):
+        state = 'active' if self.active else 'paused'
+        return f'{self.name} ({state})'
+
+    @property
+    def is_pushable(self):
+        """Whether push_leads may target this campaign at all."""
+        return bool(self.active and self.instantly_campaign_id)
+
+
+class InstantlyEvent(models.Model):
+    """
+    Raw webhook event from Instantly, stored before it is interpreted.
+
+    WHY THE RAW ROW IS KEPT
+    -----------------------
+    The reply-ingest path had no record of what it received, so when it
+    filed ten Google Ads notifications as prospect replies there was
+    nothing to audit — the mistake was only visible by reading the
+    resulting EmailReply rows and noticing they made no sense. Keeping
+    the payload means a misclassification can be diagnosed and replayed
+    rather than guessed at.
+
+    ``dedupe_key`` exists because webhooks are at-least-once delivery.
+    Instantly will resend on any non-2xx, and marking a lead unsubscribed
+    twice is harmless while creating a duplicate EmailReply is not.
+    """
+
+    EVENT_CHOICES = [
+        ('reply_received', 'Reply received'),
+        ('email_sent', 'Email sent'),
+        ('email_opened', 'Email opened'),
+        ('link_clicked', 'Link clicked'),
+        ('email_bounced', 'Email bounced'),
+        ('lead_unsubscribed', 'Lead unsubscribed'),
+        ('lead_interested', 'Lead marked interested'),
+        ('lead_not_interested', 'Lead marked not interested'),
+        ('campaign_completed', 'Campaign completed for lead'),
+        ('unknown', 'Unknown / unhandled'),
+    ]
+
+    event_type = models.CharField(
+        max_length=40, choices=EVENT_CHOICES, default='unknown',
+        db_index=True)
+    # Instantly's own event name, verbatim, before mapping. Kept because
+    # their vocabulary changes and an unmapped event should still be
+    # diagnosable from the row rather than only from logs.
+    raw_event_type = models.CharField(max_length=80, blank=True)
+
+    lead = models.ForeignKey(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='instantly_events')
+    lead_email = models.EmailField(blank=True, db_index=True)
+    campaign = models.ForeignKey(
+        OutreachCampaign, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='events')
+
+    payload = models.JSONField(default=dict, blank=True)
+
+    # Unique per logical event. Built from the event type plus whatever
+    # stable identifiers the payload carries; see instantly_webhook.
+    dedupe_key = models.CharField(
+        max_length=255, unique=True, null=True, blank=True, db_index=True)
+
+    processed = models.BooleanField(default=False, db_index=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+
+    received_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-received_at']
+        verbose_name = 'Instantly Event'
+        verbose_name_plural = 'Instantly Events'
+
+    def __str__(self):
+        who = self.lead_email or (self.lead.firm_name if self.lead else '?')
+        return f'{self.event_type} — {who}'
