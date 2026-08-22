@@ -180,7 +180,29 @@ def run_scrape_jobs_task():
         err = ''
         imported = skipped = 0
         try:
-            if job.source == 'google_maps':
+            if job.source == 'apify':
+                # Contacts WITH emails, unlike every other source here.
+                # Quota/budget refusals are not failures — they mean the
+                # day's sourcing is done, so record and move on quietly.
+                from outreach.apify_source import (
+                    ApifyQuotaReached,
+                    run_lead_search,
+                )
+                try:
+                    raw, _ledger = run_lead_search(
+                        niche=job.niche, city=job.city, state=job.state,
+                        max_results=job.max_results, label=job.name)
+                except ApifyQuotaReached as exc:
+                    logger.info('scrape job %s: %s', job.pk, exc)
+                    job.last_run_at = timezone.now()
+                    job.last_run_error = str(exc)[:500]
+                    job.save(update_fields=[
+                        'last_run_at', 'last_run_error', 'updated_at'])
+                    continue
+                summary = import_leads(
+                    raw, source='apify',
+                    business_type_override=job.niche.title())
+            elif job.source == 'google_maps':
                 state_full = 'Texas' if job.state == 'TX' else 'Georgia'
                 raw, _ = scrape_google_maps_sync(
                     job.niche, job.city, state_full, job.max_results)

@@ -507,6 +507,35 @@ PRODUCTION_HOST = env('PRODUCTION_HOST', 'aspiredwebsites.com')
 # no-website leads enriched per month. Empty = enricher quietly
 # skips the fallback search path.
 BRAVE_SEARCH_API_KEY = env('BRAVE_SEARCH_API_KEY', '')
+
+# ── Apify — lead sourcing (COLD_OUTREACH_AGENT.md §3) ──────────────────
+# Empty = outreach.apify_source refuses to start a run, same posture as
+# the Brave key above.
+APIFY_TOKEN = env('APIFY_TOKEN', '')
+
+# code_crafter/leads-finder — an Apollo-style B2B contact database, NOT a
+# Maps scraper. It returns a PERSON per row with a real email address,
+# which is the point: Google Places never returned emails, and email
+# discovery was the bottleneck on the whole outreach funnel.
+APIFY_LEADS_ACTOR_ID = env('APIFY_LEADS_ACTOR_ID', 'IoSHqwTR9YGhzccez')
+
+# Pay-per-event pricing, verified against the live actor 2026-08-22:
+#   apify-actor-start  $0.02  (one event per GB of memory, min one)
+#   lead-fetched       $0.002 per lead on the FREE tier
+# So 50 leads = $0.02 + $0.10 = $0.12.
+APIFY_COST_PER_RUN_START_USD = float(
+    env('APIFY_COST_PER_RUN_START_USD', 0.02))
+APIFY_COST_PER_LEAD_USD = float(env('APIFY_COST_PER_LEAD_USD', 0.002))
+
+# Apify enforces its own server-side ceiling per run. The actor's
+# minimalMaxTotalChargeUsd is 0.50, so this cannot be set lower — it is a
+# backstop in case our own arithmetic is ever wrong.
+APIFY_MAX_TOTAL_CHARGE_USD = float(env('APIFY_MAX_TOTAL_CHARGE_USD', 0.50))
+
+# The account's whole plan allowance. The FREE plan is $5/month; this is
+# the ceiling apify_source refuses to cross, independent of the per-day
+# run quota in OutreachSettings.
+APIFY_MONTHLY_BUDGET_USD = float(env('APIFY_MONTHLY_BUDGET_USD', 5.00))
 # Monthly quota for the usage banner on /admin-dashboard/leads/ —
 # Brave's free tier is 1000 queries/month at 1 req/sec, then $5
 # per 1000. Override per env if you upgrade to a paid plan.

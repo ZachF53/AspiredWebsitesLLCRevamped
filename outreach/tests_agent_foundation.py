@@ -521,7 +521,16 @@ class ApifyQuotaTests(TestCase):
         self.assertEqual(spend.daily_cap(), Decimal('10.00'))
 
     def test_result_ceiling_is_exposed(self):
-        self.assertEqual(spend.apify_max_results_per_run(), 100)
+        # Asserted against the configured value rather than a literal:
+        # this default moved from 100 to 50 once the actor's real pricing
+        # ($0.002/lead against a $5/month plan) was known, and pinning a
+        # magic number here just breaks on every future tuning.
+        # tests_apify::test_default_quota_fits_the_monthly_plan is what
+        # actually guards the budget.
+        cfg = OutreachSettings.load()
+        self.assertEqual(
+            spend.apify_max_results_per_run(), cfg.apify_max_results_per_run)
+        self.assertGreater(spend.apify_max_results_per_run(), 0)
 
 
 class MessageHistoryTests(TestCase):

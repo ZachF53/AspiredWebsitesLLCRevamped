@@ -16,6 +16,9 @@ class Lead(models.Model):
         ('audit_tool', 'Audit Tool'),
         ('manual', 'Manual Entry'),
         ('counsel_south', 'Counsel South'),
+        # Apify contact database — the only source that arrives WITH an
+        # email address rather than needing one scraped off a homepage.
+        ('apify', 'Apify'),
     ]
 
     STATUS_CHOICES = [
@@ -475,8 +478,14 @@ class OutreachSettings(models.Model):
     # more reliably than it can predict an actor's compute cost, and a
     # run ceiling is the thing that actually stops a runaway scrape.
     # Consumed by outreach/apify_source.py when §3 is built.
+    # Defaults sized against the ACTUAL plan, not guessed. The Apify
+    # account is on the FREE $5/month tier, and the actor bills $0.02 per
+    # run start plus $0.002 per lead. So:
+    #     1 run/day x 50 leads = $0.12/day = ~$3.60/month
+    # The original 3 x 100 would have been $0.66/day — the entire monthly
+    # allowance gone in about 8 days.
     apify_max_runs_per_day = models.IntegerField(
-        default=3,
+        default=1,
         help_text=(
             'Maximum Apify actor runs Prospect may start per day. '
             'Separate from the Claude spend cap on purpose — a runaway '
@@ -484,11 +493,12 @@ class OutreachSettings(models.Model):
             'sourcing.'),
     )
     apify_max_results_per_run = models.IntegerField(
-        default=100,
+        default=50,
         help_text=(
-            'Maximum results requested per Apify actor run. Bounds the '
-            'cost of any single run, which is where Apify overspend '
-            'actually happens.'),
+            'Maximum leads requested per Apify actor run. At $0.002/lead '
+            'this is the main cost lever: 50 leads is ~$0.12 a run. The '
+            'actor own default is 100000 — never let a run through '
+            'without this clamp.'),
     )
 
     # Counter — resets at midnight via Celery beat task (added in later week).
@@ -526,6 +536,7 @@ class ScrapeJob(models.Model):
     """
 
     SOURCE_CHOICES = [
+        ('apify', 'Apify — contacts with emails'),
         ('google_maps', 'Google Maps'),
         ('texas_bar', 'Texas State Bar'),
         ('georgia_bar', 'Georgia State Bar'),
@@ -566,6 +577,71 @@ class ScrapeJob(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.source})'
+
+
+class ApifyRun(models.Model):
+    """
+    One Apify actor run — the ledger the Apify quota reads
+    (COLD_OUTREACH_AGENT.md §1.3 cap B, §3).
+
+    Deliberately separate from ``AIEmployeeRun.spend_usd``, which is the
+    Claude ledger. Apify bills per run and per lead, and a single bad call
+    can burn a large slice of budget at once; letting the two share a pool
+    would mean one runaway scrape silently starves the reasoning budget.
+
+    ``estimated_cost_usd`` is written BEFORE the run starts. A run that
+    dies mid-flight still consumed compute, so costing it only on success
+    under-reports precisely when it matters most. ``actual_cost_usd`` is
+    filled in afterwards from Apify's own accounting when available.
+    """
+
+    STATUS_CHOICES = [
+        ('running', 'Running'),
+        ('succeeded', 'Succeeded'),
+        ('failed', 'Failed'),
+        ('refused', 'Refused — quota or budget'),
+    ]
+
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, default='running', choices=STATUS_CHOICES)
+
+    actor_id = models.CharField(max_length=64)
+    apify_run_id = models.CharField(max_length=64, blank=True)
+    dataset_id = models.CharField(max_length=64, blank=True)
+
+    # What we asked for, in the actor's own terms.
+    label = models.CharField(max_length=200, blank=True)
+    search_input = models.JSONField(default=dict, blank=True)
+
+    results_requested = models.IntegerField(default=0)
+    results_returned = models.IntegerField(default=0)
+    leads_imported = models.IntegerField(default=0)
+
+    estimated_cost_usd = models.DecimalField(
+        max_digits=8, decimal_places=4, default=0)
+    actual_cost_usd = models.DecimalField(
+        max_digits=8, decimal_places=4, null=True, blank=True)
+
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        verbose_name = 'Apify Run'
+        verbose_name_plural = 'Apify Runs'
+
+    def __str__(self):
+        return (f'{self.label or self.actor_id} — {self.status} '
+                f'({self.results_returned} leads, '
+                f'${self.actual_cost_usd or self.estimated_cost_usd})')
+
+    @property
+    def cost_usd(self):
+        """Actual cost where Apify reported one, else our estimate."""
+        return (self.actual_cost_usd
+                if self.actual_cost_usd is not None
+                else self.estimated_cost_usd)
 
 
 class BraveSearchUsage(models.Model):
