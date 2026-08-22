@@ -275,3 +275,116 @@ class LedgerTests(TestCase):
             actor_id='x', estimated_cost_usd=Decimal('4.00'))
         self.assertEqual(spend.spent_today(), Decimal('0'))
         self.assertTrue(spend.check_spend_allowed()[0])
+
+
+class ActorRefusalTests(TestCase):
+    """The actor can run, bill, and refuse — verified live 2026-08-22.
+
+    code_crafter/leads-finder blocks API-triggered runs on the FREE plan
+    and writes a single {"error": ...} row instead of leads. The run still
+    reports SUCCEEDED and still charges the $0.02 start event, so an
+    undetected refusal would look like "ran fine, found nothing" every
+    night while quietly spending money.
+    """
+
+    FREE_PLAN_ERROR = [{
+        'error': 'Users on the free Apify plan can run the actor through '
+                 'the UI and not via other methods.'
+    }]
+
+    def test_refusal_row_is_detected(self):
+        from outreach.apify_source import (
+            ApifyActorRefused,
+            _raise_if_actor_refused,
+        )
+        with self.assertRaises(ApifyActorRefused):
+            _raise_if_actor_refused(self.FREE_PLAN_ERROR)
+
+    def test_real_leads_are_not_mistaken_for_a_refusal(self):
+        from outreach.apify_source import _raise_if_actor_refused
+        _raise_if_actor_refused([REAL_ROW])  # must not raise
+
+    def test_empty_dataset_is_not_a_refusal(self):
+        from outreach.apify_source import _raise_if_actor_refused
+        _raise_if_actor_refused([])  # a genuine zero-result search
+
+    def test_row_with_both_error_and_data_is_not_a_refusal(self):
+        from outreach.apify_source import _raise_if_actor_refused
+        _raise_if_actor_refused([dict(REAL_ROW, error='partial warning')])
+
+    @override_settings(APIFY_TOKEN='t', APIFY_MONTHLY_BUDGET_USD=5.0)
+    def test_refused_run_is_recorded_as_failed_with_real_cost(self):
+        """It billed. The budget must reflect money actually spent."""
+        from outreach.apify_source import ApifyActorRefused
+        cfg = OutreachSettings.load()
+        cfg.apify_max_results_per_run = 50
+        cfg.apify_max_runs_per_day = 5
+        cfg.save()
+
+        with patch.object(
+            apify_source, '_start_and_wait',
+            return_value={'id': 'r9', 'defaultDatasetId': 'd9',
+                          'status': 'SUCCEEDED'},
+        ), patch.object(
+            apify_source, '_fetch_dataset',
+            return_value=self.FREE_PLAN_ERROR,
+        ):
+            with self.assertRaises(ApifyActorRefused):
+                apify_source.run_lead_search('law firm', 'Austin')
+
+        run = ApifyRun.objects.get()
+        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.actual_cost_usd, Decimal('0.02'))
+        self.assertIn('free Apify plan', run.error)
+
+
+class DatasetImportTests(TestCase):
+    """The free-plan workaround: run it in the UI, import the dataset.
+
+    Reading a dataset is free, so this costs nothing beyond whatever the
+    UI run already charged.
+    """
+
+    @override_settings(APIFY_TOKEN='t')
+    def test_imports_and_maps_a_ui_dataset(self):
+        with patch.object(
+                apify_source, '_fetch_dataset', return_value=[REAL_ROW]):
+            leads, ledger = apify_source.import_from_dataset(
+                'ds123', label='UI run')
+        self.assertEqual(len(leads), 1)
+        self.assertEqual(leads[0]['email'], 'christina@jmiresource.com')
+        self.assertEqual(ledger.status, 'succeeded')
+        self.assertEqual(ledger.dataset_id, 'ds123')
+
+    @override_settings(APIFY_TOKEN='t')
+    def test_import_does_not_charge_the_monthly_budget(self):
+        """The UI run already paid. Counting it again would double-bill."""
+        with patch.object(
+                apify_source, '_fetch_dataset', return_value=[REAL_ROW]):
+            _, ledger = apify_source.import_from_dataset('ds123')
+        self.assertEqual(ledger.estimated_cost_usd, Decimal('0'))
+        self.assertEqual(apify_source.budget_status()['spent_usd'],
+                         Decimal('0'))
+
+    @override_settings(APIFY_TOKEN='t')
+    def test_import_surfaces_a_refusal_dataset(self):
+        from outreach.apify_source import ApifyActorRefused
+        with patch.object(
+            apify_source, '_fetch_dataset',
+            return_value=ActorRefusalTests.FREE_PLAN_ERROR,
+        ):
+            with self.assertRaises(ApifyActorRefused):
+                apify_source.import_from_dataset('bad')
+        self.assertEqual(ApifyRun.objects.get().status, 'failed')
+
+    @override_settings(APIFY_TOKEN='t')
+    def test_blank_dataset_id_is_rejected(self):
+        from outreach.apify_source import ApifyError
+        with self.assertRaises(ApifyError):
+            apify_source.import_from_dataset('   ')
+
+    @override_settings(APIFY_TOKEN='')
+    def test_missing_token_is_rejected(self):
+        from outreach.apify_source import ApifyError
+        with self.assertRaises(ApifyError):
+            apify_source.import_from_dataset('ds123')

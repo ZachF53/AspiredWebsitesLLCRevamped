@@ -51,6 +51,7 @@ Three independent guards, because one is never enough with money:
 """
 
 import logging
+import time
 from decimal import Decimal
 
 import requests
@@ -71,6 +72,17 @@ class ApifyError(Exception):
 
 class ApifyQuotaReached(ApifyError):
     """Refused before spending anything. Not an error condition."""
+
+
+class ApifyActorRefused(ApifyError):
+    """The actor ran, billed, and declined to do the work.
+
+    Verified live 2026-08-22: code_crafter/leads-finder returns
+    "Users on the free Apify plan can run the actor through the UI and
+    not via other methods." No code change fixes this — it needs a paid
+    Apify plan, a different actor, or the UI + dataset-import path in
+    ``import_from_dataset`` below.
+    """
 
 
 # ── Cost ───────────────────────────────────────────────────────────────
@@ -193,6 +205,23 @@ def run_lead_search(niche, city, state=None, max_results=None,
         logger.exception('Apify run failed for %r', run_input.get('file_name'))
         raise ApifyError(f'Apify run failed: {exc}') from exc
 
+    try:
+        _raise_if_actor_refused(items)
+    except ApifyActorRefused as exc:
+        # The run billed even though it did nothing. Record the real cost
+        # so the monthly budget reflects money actually spent, and fail
+        # loudly — a silent empty result would repeat every single night.
+        ledger.status = 'failed'
+        ledger.error = str(exc)[:2000]
+        ledger.dataset_id = run.get('defaultDatasetId', '')
+        ledger.apify_run_id = run.get('id', '')
+        ledger.actual_cost_usd = Decimal(
+            str(settings.APIFY_COST_PER_RUN_START_USD))
+        ledger.finished_at = timezone.now()
+        ledger.save()
+        logger.error('Apify actor refused the run: %s', exc)
+        raise
+
     leads = [m for m in (map_contact_to_lead(i) for i in items) if m]
 
     ledger.status = 'succeeded'
@@ -210,6 +239,59 @@ def run_lead_search(niche, city, state=None, max_results=None,
         'Apify run %s: %s items, %s mappable, est $%s actual $%s',
         ledger.apify_run_id, len(items), len(leads),
         ledger.estimated_cost_usd, ledger.actual_cost_usd)
+    return leads, ledger
+
+
+def import_from_dataset(dataset_id, label=''):
+    """Import leads from a dataset produced by a UI-triggered run.
+
+    THE FREE-PLAN PATH. ``code_crafter/leads-finder`` refuses
+    API-triggered runs on Apify's free plan but runs fine from the Apify
+    Console. So: trigger the run yourself in the UI, copy the dataset ID
+    off the run, and hand it here. Everything downstream — the mapper,
+    dedup, scoring, enrichment — is identical to the API path.
+
+    Reading a dataset is free, so this costs nothing beyond whatever the
+    UI run already charged.
+
+    Returns ``(leads, apify_run)``.
+    """
+    from outreach.models import ApifyRun
+
+    token = getattr(settings, 'APIFY_TOKEN', '')
+    if not token:
+        raise ApifyError(
+            'APIFY_TOKEN is not set. Add it to .env and restart.')
+    dataset_id = (dataset_id or '').strip()
+    if not dataset_id:
+        raise ApifyError('A dataset ID is required.')
+
+    ledger = ApifyRun.objects.create(
+        actor_id=settings.APIFY_LEADS_ACTOR_ID,
+        dataset_id=dataset_id,
+        label=label or f'UI import {dataset_id}',
+        # Cost was incurred by the UI run, not by us; leave the estimate
+        # at zero so this import does not double-count against the
+        # monthly budget.
+        estimated_cost_usd=Decimal('0'),
+    )
+    try:
+        items = _fetch_dataset(token, dataset_id)
+        _raise_if_actor_refused(items)
+    except Exception as exc:  # noqa: BLE001
+        ledger.status = 'failed'
+        ledger.error = str(exc)[:2000]
+        ledger.finished_at = timezone.now()
+        ledger.save(update_fields=['status', 'error', 'finished_at'])
+        raise
+
+    leads = [m for m in (map_contact_to_lead(i) for i in items) if m]
+    ledger.status = 'succeeded'
+    ledger.results_returned = len(items)
+    ledger.finished_at = timezone.now()
+    ledger.save()
+    logger.info('Apify dataset %s imported: %s items, %s mappable',
+                dataset_id, len(items), len(leads))
     return leads, ledger
 
 
@@ -292,30 +374,80 @@ def _contact_note(item):
 # ── HTTP ───────────────────────────────────────────────────────────────
 
 def _start_and_wait(token, run_input, timeout_secs):
-    """POST the run and block until it finishes.
+    """Start the run and block until it reaches a terminal status.
+
+    Uses the async runs endpoint plus ``waitForFinish`` rather than
+    ``/run-sync``: run-sync returns the actor's OUTPUT key-value record,
+    which this actor leaves empty, so the response body was not JSON at
+    all and parsing it raised "Expecting value: line 1 column 1". We need
+    the run OBJECT anyway — its id, dataset id and billed cost.
 
     ``maxTotalChargeUsd`` is guard 3 — Apify enforces it server-side, so
     it holds even if our own arithmetic is wrong.
     """
     actor = settings.APIFY_LEADS_ACTOR_ID
+    deadline = time.monotonic() + timeout_secs
+
     resp = requests.post(
-        f'{APIFY_BASE}/acts/{actor}/run-sync',
+        f'{APIFY_BASE}/acts/{actor}/runs',
         headers={'Authorization': f'Bearer {token}'},
         params={
             'timeout': int(timeout_secs),
             'maxTotalChargeUsd': settings.APIFY_MAX_TOTAL_CHARGE_USD,
+            # Apify caps this at 60s per call; we loop below.
+            'waitForFinish': 60,
         },
         json=run_input,
-        timeout=timeout_secs + 30,
+        timeout=90,
     )
     if resp.status_code >= 400:
         raise ApifyError(f'Apify HTTP {resp.status_code}: {resp.text[:300]}')
-    data = (resp.json() or {}).get('data', {})
-    if data.get('status') not in ('SUCCEEDED', 'READY', 'RUNNING'):
+    try:
+        data = (resp.json() or {}).get('data', {})
+    except ValueError:
+        raise ApifyError(
+            f'Apify returned a non-JSON response: {resp.text[:200]}')
+
+    run_id = data.get('id')
+    while data.get('status') in ('READY', 'RUNNING') and run_id:
+        if time.monotonic() > deadline:
+            raise ApifyError(
+                f'Apify run {run_id} still {data.get("status")} after '
+                f'{timeout_secs}s — giving up waiting.')
+        poll = requests.get(
+            f'{APIFY_BASE}/actor-runs/{run_id}',
+            headers={'Authorization': f'Bearer {token}'},
+            params={'waitForFinish': 60},
+            timeout=90,
+        )
+        if poll.status_code >= 400:
+            raise ApifyError(
+                f'Apify poll HTTP {poll.status_code}: {poll.text[:200]}')
+        data = (poll.json() or {}).get('data', {})
+
+    if data.get('status') != 'SUCCEEDED':
         raise ApifyError(
             f'Apify run finished as {data.get("status")}: '
             f'{data.get("statusMessage", "")}')
     return data
+
+
+def _raise_if_actor_refused(items):
+    """Detect an actor that ran but refused to do the work.
+
+    ``code_crafter/leads-finder`` blocks API-triggered runs on Apify's
+    FREE plan and writes a single ``{"error": ...}`` row to the dataset
+    instead of leads. The run still reports SUCCEEDED and still bills the
+    $0.02 start event, so without this check every scheduled scrape would
+    look like "ran fine, found nothing" while quietly costing money.
+
+    Raised as ApifyError so the caller records a FAILED run rather than a
+    successful empty one.
+    """
+    if len(items) == 1 and isinstance(items[0], dict):
+        err = items[0].get('error')
+        if err and not items[0].get('company_name'):
+            raise ApifyActorRefused(str(err))
 
 
 def _fetch_dataset(token, dataset_id):
