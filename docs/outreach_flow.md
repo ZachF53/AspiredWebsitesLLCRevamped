@@ -31,7 +31,7 @@ the funnel currently stops.
                         │
   [8] SEND        4-step sequence · mailbox rotation · warmup · throttle
                         │
-  [9] EVENTS      webhook → Django: sent / opened / replied / bounced / unsub
+  [9] POLL        Django polls the unibox every 15 min (no webhook plan)
                         │   ✗ own-domain, autoresponder, no-reply → dropped
                         │
   [10] CLASSIFY   Claude classifies the reply, drafts a response
@@ -234,29 +234,53 @@ This module **will not activate a campaign**. `create_campaign()` builds
 one paused. Starting it is a deliberate click in Instantly's UI, because
 that is the irreversible step that puts mail in front of real people.
 
-### [9] EVENTS — `outreach/instantly_webhook.py`
+### [9] EVENTS — `outreach/instantly_poll.py` (polling, not webhooks)
+
+**Instantly gates outbound webhooks behind a higher plan tier.** Probed
+2026-08-22 on the current plan:
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/v2/emails` (unibox) | **200** |
+| `GET /api/v2/emails/unread/count` | **200** |
+| `GET /api/v2/campaigns/analytics` | **200** |
+| outbound webhooks | requires plan upgrade (~$100/mo) |
+
+So replies arrive by **polling the unibox**, not by webhook. That is not
+just the cheap fallback — it is better in two ways. There is no public
+endpoint to secure and no shared secret to leak (the webhook needs an
+unguessable URL precisely because Instantly does not sign its payloads).
+And delivery is exactly-once by construction rather than at-least-once
+against a hostile internet.
+
+The cost is latency: a reply is seen at the next poll instead of
+immediately. At a 15-minute beat that is fine — nobody expects a cold
+email answered in ninety seconds, and the draft waits for your approval
+either way.
 
 ```
-POST /outreach/instantly/events/<INSTANTLY_WEBHOOK_SECRET>/
+poll_instantly_replies_task()   # beat: every 15 min
 ```
 
-Instantly does not sign its webhooks, so the secret lives in the path and
-is compared in constant time. **Blank secret = every request 403s** —
-an anonymous POST here could mark leads unsubscribed.
+**Bounces arrive as mail, not as events.** The webhook had a distinct
+`email_bounced` event; polling does not. A bounce shows up in the unibox
+as a message from `mailer-daemon@` whose body names the address that
+failed. So each message is classified *before* the reply filter sees it
+— otherwise a bounce would be discarded as "automated sender" and the
+dead address would keep receiving mail.
 
-Every payload is stored raw in `InstantlyEvent` *before* interpretation.
-The old IMAP path kept no record, which is why ten Google Ads
-notifications becoming prospect replies was only discoverable by reading
-the resulting rows and noticing they made no sense.
+The failed address is matched against leads we actually pushed rather
+than taken as the first address in the notice. Otherwise a bounce would
+suppress `postmaster@`, our own sending mailbox, or a support URL.
 
-**The reply filter — the thing that did not exist.** A `reply_received`
-event is dropped when the sender is:
+**The reply filter — the thing that did not exist.** A message is
+dropped when the sender is:
 
 1. one of our own domains (`aspired-ai.com`, `aspiredwebsites.com`,
    `*aspiredautomations.com`, `moonieful.com`, `DEFAULT_FROM_EMAIL`'s
    domain) ← *this is the exact prod bug*
-2. an automated mailbox (`no-reply@`, `bounce@`, `mailer-daemon@`, …)
-3. an out-of-office / autoresponder / delivery-failure notice
+2. an automated mailbox (`no-reply@`, `notifications@`, …)
+3. an out-of-office / autoresponder
 4. an address we never emailed
 
 The filter runs **even when the sender matches a Lead row**, deliberately.
@@ -264,14 +288,18 @@ Prod has a Lead for "Aspired AI LLC" carrying `hello@aspired-ai.com`, so
 gating the filter behind "did we find a lead" would rebuild the bug
 exactly.
 
-Other events: bounce → suppress permanently · unsubscribe → permanent
-(business rule 6) · `email_sent` → **advances the sequence clock**. That
-last one matters: under SendGrid the clock advanced at *generation* time,
-so a draft that never dispatched froze the lead forever. It is now
-anchored to a confirmed send.
+Both ingest paths — the poller and the webhook — converge on the same
+`process_event()`. One filter, one set of handlers. A filter that applies
+to only one door is not a filter.
 
-Webhooks are at-least-once, so every event carries a `dedupe_key` and a
-repeat returns `200 {"status": "duplicate"}`.
+`email_sent` advancing the sequence clock still matters: under SendGrid
+it advanced at *generation* time, so a draft that never dispatched froze
+the lead forever.
+
+**The webhook endpoint stays in the codebase**, unused, for if you ever
+take a plan that includes it. It 403s everything while
+`INSTANTLY_WEBHOOK_SECRET` is unset, which is the correct and current
+state. **You do not need to set it.**
 
 ### [10] CLASSIFY — `outreach/classifier.py`
 
@@ -325,9 +353,8 @@ zero of them.
       starts the 2–3 week clock to the first real send. This is the
       longest-lead-time item — do it first, it blocks nothing else.
 - [ ] **No campaigns exist** in Instantly or in Django.
-- [ ] **`INSTANTLY_WEBHOOK_SECRET` not set** on any environment, so the
-      webhook 403s everything. Generate one, set it both places, register
-      the URL in Instantly.
+- [x] ~~Webhook secret~~ — **not needed.** Webhooks require a plan
+      upgrade; the poller replaces them and needs no secret.
 - [ ] **Sequence copy not written.** `create_campaign()` takes the steps;
       nobody has written the 4 touches.
 - [ ] **Apify free-plan API refusal** — UI + dataset import, or upgrade.

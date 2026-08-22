@@ -165,6 +165,31 @@ def sending_capacity():
     }
 
 
+def list_emails(limit=100):
+    """Messages from the unibox, newest first.
+
+    This is the reply-ingest path on plans without outbound webhooks.
+    Verified available on the current plan (HTTP 200, 2026-08-22) --
+    webhooks are gated behind a higher tier, this is not.
+
+    See ``outreach.instantly_poll`` for the classification that turns
+    these into replies and bounces.
+    """
+    per_page = min(max(int(limit), 1), 100)
+    pages = max(1, -(-int(limit) // per_page))   # ceil
+    return list(_paginate('emails', limit_per_page=per_page,
+                          max_pages=pages))
+
+
+def unread_count():
+    """Unread messages in the unibox. One cheap call, for the dashboard."""
+    result = _request('GET', 'emails/unread/count')
+    try:
+        return int(result.get('count', 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def list_campaigns():
     return list(_paginate('campaigns'))
 

@@ -580,3 +580,140 @@ class SequenceCopyTests(TestCase):
         from outreach import sequences
         with self.assertRaises(sequences.SequenceError):
             sequences.build_steps('does-not-exist', self.ADDR)
+
+
+# ── polling ingest (no webhook plan) ───────────────────────────────────
+
+@override_settings(INSTANTLY_TOKEN='t')
+class PollIngestTests(TestCase):
+    """Instantly gates webhooks behind a higher plan. GET /emails is not
+    gated, so replies arrive by polling. Both paths must share one
+    filter -- a filter that applies to only one ingest is not a filter.
+    """
+
+    def setUp(self):
+        self.lead = make_lead(instantly_lead_id='inst-1')
+
+    def _poll(self, items):
+        from outreach import instantly_poll
+        with patch.object(instantly, 'list_emails', return_value=items), \
+             patch.object(instantly, 'list_accounts', return_value=[
+                 {'email': 'zach@getaspiredwebsites.com'}]), \
+             patch('outreach.instantly_webhook._pause_quietly'), \
+             patch('outreach.tasks.classify_and_draft_reply_task.delay'):
+            return instantly_poll.poll_replies()
+
+    def test_inbound_reply_is_ingested(self):
+        summary = self._poll([{
+            'id': 'msg-1', 'ue_type': 2,
+            'from_address_email': self.lead.email,
+            'subject': 'Re: quick question',
+            'body': {'text': 'Sure, send it over.'},
+        }])
+        self.assertEqual(summary['replies'], 1)
+        self.assertEqual(EmailReply.objects.count(), 1)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.status, 'replied')
+
+    def test_outbound_message_is_ignored(self):
+        """ue_type 1 is us sending. Ingesting it would file our own copy."""
+        summary = self._poll([{
+            'id': 'msg-2', 'ue_type': 1,
+            'from_address_email': 'zach@getaspiredwebsites.com',
+            'to_address_email': self.lead.email,
+            'body': {'text': 'Hi Sarah, ...'},
+        }])
+        self.assertEqual(summary['inbound'], 0)
+        self.assertEqual(EmailReply.objects.count(), 0)
+
+    def test_own_domain_is_filtered_on_the_poll_path_too(self):
+        """The same bug, via the other door."""
+        Lead.objects.create(firm_name='Aspired AI LLC',
+                            email='hello@aspired-ai.com', source='manual')
+        summary = self._poll([{
+            'id': 'msg-3', 'ue_type': 2,
+            'from_address_email': 'hello@aspired-ai.com',
+            'subject': 'Google Ads budget',
+            'body': {'text': 'Progress toward the $1,000 credit...'},
+        }])
+        self.assertEqual(summary['filtered'], 1)
+        self.assertEqual(EmailReply.objects.count(), 0)
+
+    def test_polling_is_idempotent(self):
+        item = {'id': 'msg-4', 'ue_type': 2,
+                'from_address_email': self.lead.email,
+                'body': {'text': 'yes please'}}
+        self._poll([item])
+        second = self._poll([item])
+        self.assertEqual(second['new'], 0)
+        self.assertEqual(EmailReply.objects.count(), 1)
+        self.assertEqual(InstantlyEvent.objects.count(), 1)
+
+    def test_bounce_notice_suppresses_the_failed_address(self):
+        """A bounce arrives as mail from mailer-daemon, not as an event.
+
+        The reply filter would drop it as an automated sender, so it has
+        to be classified as a bounce BEFORE the filter sees it.
+        """
+        summary = self._poll([{
+            'id': 'msg-5', 'ue_type': 2,
+            'from_address_email': 'mailer-daemon@googlemail.com',
+            'subject': 'Delivery Status Notification (Failure)',
+            'body': {'text': f'Your message to {self.lead.email} could '
+                             f'not be delivered. 550 no such user.'},
+        }])
+        self.assertEqual(summary['bounces'], 1)
+        self.lead.refresh_from_db()
+        self.assertEqual(
+            self.lead.email_verification_status, verify.INVALID)
+        self.assertTrue(
+            SuppressionList.objects.filter(email=self.lead.email).exists())
+
+    def test_bounce_does_not_suppress_the_daemon_address(self):
+        """Taking the first address in the notice would suppress
+        postmaster@, our own mailbox, or a support URL."""
+        self._poll([{
+            'id': 'msg-6', 'ue_type': 2,
+            'from_address_email': 'mailer-daemon@googlemail.com',
+            'subject': 'Undeliverable',
+            'body': {'text': f'postmaster@example.com reports: message to '
+                             f'{self.lead.email} failed.'},
+        }])
+        self.assertFalse(SuppressionList.objects.filter(
+            email='postmaster@example.com').exists())
+        self.assertTrue(SuppressionList.objects.filter(
+            email=self.lead.email).exists())
+
+    def test_bounce_for_an_unknown_address_suppresses_nothing(self):
+        summary = self._poll([{
+            'id': 'msg-7', 'ue_type': 2,
+            'from_address_email': 'mailer-daemon@googlemail.com',
+            'subject': 'Undeliverable',
+            'body': {'text': 'message to nobody@nowhere.com failed'},
+        }])
+        self.assertEqual(SuppressionList.objects.count(), 0)
+        self.assertEqual(summary['new'], 1)
+
+    def test_html_only_body_still_yields_text(self):
+        self._poll([{
+            'id': 'msg-8', 'ue_type': 2,
+            'from_address_email': self.lead.email,
+            'body': {'html': '<p>Sounds <b>good</b>, send it.</p>'},
+        }])
+        reply = EmailReply.objects.get()
+        self.assertIn('Sounds', reply.body)
+        self.assertNotIn('<b>', reply.body)
+
+    def test_api_failure_is_reported_not_raised(self):
+        from outreach import instantly_poll
+        with patch.object(instantly, 'list_emails',
+                          side_effect=instantly.InstantlyError('502')):
+            summary = instantly_poll.poll_replies()
+        self.assertIn('502', summary['error'])
+        self.assertEqual(summary['polled'], 0)
+
+    @override_settings(INSTANTLY_TOKEN='')
+    def test_missing_token_is_reported_not_raised(self):
+        from outreach import instantly_poll
+        summary = instantly_poll.poll_replies()
+        self.assertIn('INSTANTLY_TOKEN', summary['error'])

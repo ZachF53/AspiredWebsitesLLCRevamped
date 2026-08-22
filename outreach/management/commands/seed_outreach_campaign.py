@@ -145,10 +145,11 @@ class Command(BaseCommand):
             blockers.append(
                 'EMAIL_VERIFY_PROVIDER unset - every lead stays '
                 '"unverified", which is not sendable.')
-        if not getattr(settings, 'INSTANTLY_WEBHOOK_SECRET', ''):
-            blockers.append(
-                'INSTANTLY_WEBHOOK_SECRET unset - replies and '
-                'unsubscribes will not reach the CRM.')
+        # Deliberately NOT checking INSTANTLY_WEBHOOK_SECRET. Webhooks
+        # need a higher Instantly plan; replies arrive by polling the
+        # unibox instead (poll_instantly_replies_task), which needs no
+        # secret. Flagging the unset secret would report a blocker that
+        # is not one.
         blockers.append(
             'The 9 *aspiredwebsites.com mailboxes are setup_pending - '
             'connect them, then warmup runs 2-3 weeks.')

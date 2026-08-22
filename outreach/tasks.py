@@ -379,3 +379,26 @@ def run_outreach_pipeline_task():
     ]
     logger.info('run_outreach_pipeline_task: %s', ' | '.join(results))
     return ' | '.join(results)
+
+
+@shared_task
+def poll_instantly_replies_task(limit=100):
+    """Fetch new unibox messages from Instantly and ingest them.
+
+    This is the reply path on plans without outbound webhooks. Webhooks
+    are gated behind a higher Instantly tier; GET /emails is not, so
+    replies arrive by polling instead. Both paths converge on the same
+    ``process_event``, so the sender filter cannot apply to one and not
+    the other.
+
+    Beat: every 15 minutes. Nobody expects a cold-email reply answered in
+    ninety seconds, and the draft waits for approval regardless.
+    """
+    from outreach.instantly_poll import poll_replies
+
+    summary = poll_replies(limit=limit)
+    if summary.get('error'):
+        return f"error: {summary['error']}"
+    return (f"polled={summary['polled']} inbound={summary['inbound']} "
+            f"new={summary['new']} replies={summary['replies']} "
+            f"bounces={summary['bounces']} filtered={summary['filtered']}")

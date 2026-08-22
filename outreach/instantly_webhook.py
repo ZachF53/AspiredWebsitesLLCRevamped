@@ -162,7 +162,7 @@ def receive(request, secret=''):
         return JsonResponse({'status': 'duplicate'})
 
     try:
-        _process(event)
+        process_event(event)
     except Exception:
         logger.exception('instantly webhook: processing failed for event %s',
                          event.pk)
@@ -254,8 +254,14 @@ def _is_ingestable_reply(event, lead):
     return True, ''
 
 
-def _process(event):
-    """Apply one stored event to the CRM."""
+def process_event(event):
+    """Apply one stored event to the CRM.
+
+    Shared by BOTH ingest paths: the webhook below and
+    ``outreach.instantly_poll``. Kept as one function on purpose -- two
+    copies of this logic would drift, and the half that drifted would be
+    the half that stopped filtering.
+    """
     lead = _match_lead(event)
     if lead is not None and event.lead_id is None:
         event.lead = lead
