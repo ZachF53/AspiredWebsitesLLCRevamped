@@ -506,8 +506,14 @@ class SequenceCopyTests(TestCase):
         steps = sequences.build_steps('texas-law', self.ADDR)
         self.assertEqual(sequences.describe_problems(steps), [])
 
+    @override_settings(COMPANY_POSTAL_ADDRESS='')
     def test_no_postal_address_refuses_to_build(self):
-        """CAN-SPAM requires it; forgetting must be impossible, not likely."""
+        """CAN-SPAM requires it; forgetting must be impossible, not likely.
+
+        The setting is overridden to empty because a real address now
+        lives in .env -- without the override this test would pass by
+        falling back to that value and would prove nothing.
+        """
         from outreach import sequences
         with self.assertRaises(sequences.SequenceError):
             sequences.build_steps('texas-law', '')
@@ -717,3 +723,109 @@ class PollIngestTests(TestCase):
         from outreach import instantly_poll
         summary = instantly_poll.poll_replies()
         self.assertIn('INSTANTLY_TOKEN', summary['error'])
+
+
+# ── site measurement (the false-claim bug) ─────────────────────────────
+
+class SiteClassificationTests(TestCase):
+    """has_ssl used to mean "an https GET returned 200", which is not a
+    TLS measurement. Verified against two real leads 2026-08-22:
+
+        scientificsearch.com    HTTP 403 (bot-blocked)  -> has_ssl=False
+        theascendantgroup.com   HTTP 404 (parked Wix)   -> has_ssl=False
+
+    Both serve valid certificates. The icebreaker then told one of them
+    their site "is still running on plain HTTP" -- a false, checkable
+    claim about a stranger's business. The guard verified the claim
+    against the measurement; nobody verified the measurement.
+    """
+
+    def test_bot_blocked_is_not_parked(self):
+        """403 means someone is home and will not talk to scrapers."""
+        from outreach.enricher import classify_site, ISSUE_BOT_BLOCKED
+        self.assertEqual(classify_site(403, ''), ISSUE_BOT_BLOCKED)
+        self.assertEqual(classify_site(429, ''), ISSUE_BOT_BLOCKED)
+
+    def test_404_is_parked(self):
+        from outreach.enricher import classify_site, ISSUE_PARKED
+        self.assertEqual(classify_site(404, ''), ISSUE_PARKED)
+
+    def test_wix_placeholder_is_parked(self):
+        from outreach.enricher import classify_site, ISSUE_PARKED
+        html = "<html><body><h1>This domain isn't connected to a site</h1>" \
+               "<p>If this domain is yours, head to the Domains page.</p>" \
+               "</body></html>"
+        self.assertEqual(classify_site(200, html), ISSUE_PARKED)
+
+    def test_js_rendered_site_is_live_not_parked(self):
+        """THE FALSE POSITIVE. careerpathwayllc.com returns 200 with 2,306
+        bytes and nine words -- content is rendered client-side. A naive
+        word-count rule flagged it as parked, which would have suppressed
+        every real signal for a live business."""
+        from outreach.enricher import classify_site
+        html = ('<html><head><title>Career Pathway LLC - Elite Staffing '
+                '&amp; Workforce Solutions</title></head><body>'
+                '<div id="root"></div><script src="/app.js"></script>'
+                '</body></html>')
+        self.assertEqual(classify_site(200, html), '')
+
+    def test_thin_scriptless_untitled_page_is_parked(self):
+        from outreach.enricher import classify_site, ISSUE_PARKED
+        self.assertEqual(
+            classify_site(200, '<html><head><title>Home</title></head>'
+                               '<body><p>Coming soon</p></body></html>'),
+            ISSUE_PARKED)
+
+    def test_real_content_is_live(self):
+        from outreach.enricher import classify_site
+        html = '<html><body>' + ('word ' * 300) + '</body></html>'
+        self.assertEqual(classify_site(200, html), '')
+
+    def test_empty_response_is_unreachable(self):
+        from outreach.enricher import classify_site, ISSUE_UNREACHABLE
+        self.assertEqual(classify_site(0, ''), ISSUE_UNREACHABLE)
+
+
+class ParkedSiteObservationTests(TestCase):
+    """A parked domain is the ABSENCE of a website, so every site-quality
+    signal is meaningless against it. PageSpeed scored a Wix placeholder
+    89/100 -- an excellent score for a page that does not exist."""
+
+    def test_parked_site_suppresses_all_quality_signals(self):
+        from outreach.enricher import ISSUE_PARKED
+        lead = make_lead(site_status=ISSUE_PARKED,
+                         website_performance_score=89,
+                         has_ssl=True, copyright_year=2015)
+        keys = [k for k, _ in icebreaker.observations(lead)]
+        self.assertEqual(keys, ['no_real_website'])
+        self.assertNotIn('slow', keys)
+        self.assertNotIn('stale_copyright', keys)
+
+    def test_unreachable_site_suppresses_all_quality_signals(self):
+        from outreach.enricher import ISSUE_UNREACHABLE
+        lead = make_lead(site_status=ISSUE_UNREACHABLE,
+                         website_performance_score=12)
+        self.assertEqual(
+            [k for k, _ in icebreaker.observations(lead)],
+            ['no_real_website'])
+
+    def test_bot_blocked_site_keeps_pagespeed_signal(self):
+        """Google's crawler is not blocked, so the score is still real."""
+        from outreach.enricher import ISSUE_BOT_BLOCKED
+        lead = make_lead(site_status=ISSUE_BOT_BLOCKED,
+                         website_performance_score=29, has_ssl=True)
+        keys = [k for k, _ in icebreaker.observations(lead)]
+        self.assertIn('slow', keys)
+        self.assertNotIn('no_real_website', keys)
+
+    def test_valid_tls_never_produces_a_no_ssl_claim(self):
+        """The exact false claim that reached generated copy."""
+        lead = make_lead(has_ssl=True, site_status='')
+        self.assertNotIn(
+            'no_ssl', [k for k, _ in icebreaker.observations(lead)])
+
+    def test_tls_failure_reason_is_carried_into_the_observation(self):
+        lead = make_lead(has_ssl=False, site_status='',
+                         tls_error='certificate not valid (expired)')
+        text = dict(icebreaker.observations(lead))['no_ssl']
+        self.assertIn('expired', text)

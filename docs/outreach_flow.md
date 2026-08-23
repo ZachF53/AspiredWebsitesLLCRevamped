@@ -142,6 +142,33 @@ distinctive-token match → fuzzy similarity ≥ 0.65. A hit showing a
 absent evidence. Rejections are written to `enrichment_log` with the
 reason.
 
+**Also fixed:** `has_ssl` never measured SSL. It was set from "did an
+https GET return 200", which conflates a TLS failure with a 403 aimed at
+scrapers and with a 404 on a dead domain:
+
+```
+scientificsearch.com    HTTP 403 (bot-blocked)  -> has_ssl=False
+theascendantgroup.com   HTTP 404 (parked Wix)   -> has_ssl=False
+```
+
+Both serve valid certificates. The generator then told one of them their
+site was "still running on plain HTTP" -- a false, checkable claim about
+a stranger's business, which is the most damaging thing this pipeline can
+emit. TLS is now answered by completing an actual handshake
+(`probe_tls`), and no HTTP status influences it.
+
+`site_status` is a new field recording what is actually at the domain:
+`site_parked`, `site_unreachable`, `site_bot_blocked`, or blank for a
+live site. A parked domain is not a bad website, it is the absence of
+one, and `icebreaker.observations()` suppresses every site-quality signal
+against it -- PageSpeed happily scored a Wix "domain isn't connected to a
+site" placeholder 89/100.
+
+Thin content alone does NOT mean parked. `careerpathwayllc.com` returns
+200 with nine words because it renders client-side; a naive word-count
+rule flagged it and would have discarded a live business's signals.
+Corroboration is required: thin AND scriptless AND no real title.
+
 This mattered beyond cosmetics — a wrong social URL fed the scorer and
 would have fed stage 5 as a "verified observation".
 

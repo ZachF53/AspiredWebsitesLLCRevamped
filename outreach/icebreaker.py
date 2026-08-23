@@ -67,14 +67,37 @@ def observations(lead):
     Only things measured directly. Nothing inferred, nothing guessed.
     Returns a list of (key, sentence) so the caller can tell which signal
     fired and the prompt can be given plain English.
+
+    SITE-QUALITY CLAIMS REQUIRE A SITE
+    ----------------------------------
+    A parked or unreachable domain is not a bad website, it is the
+    absence of one, and every observation below is meaningless against
+    it. PageSpeed scored theascendantgroup.com's Wix parking page 89/100
+    -- an excellent score for a page that does not exist. Without this
+    guard the generator would compliment a parking page, or criticise
+    intake forms that are not there.
     """
+    from outreach import enricher
+
     found = []
 
+    # The domain resolves but there is no site behind it. That IS the
+    # observation; nothing else measured about it means anything, so this
+    # returns rather than falling through to the site-quality signals.
+    if lead.site_status in (enricher.ISSUE_PARKED,
+                            enricher.ISSUE_UNREACHABLE):
+        return [(
+            'no_real_website',
+            "Their domain does not currently serve a working website - "
+            "it is parked, a builder placeholder, or unreachable.")]
+
     if lead.has_ssl is False:
+        detail = f' ({lead.tls_error})' if lead.tls_error else ''
         found.append((
             'no_ssl',
-            "Their website does not load over https — it is http only. "
-            "Any contact or intake form on it submits in plain text."))
+            f"Their website does not serve a valid certificate over "
+            f"https{detail}. Any contact or intake form on it is not "
+            f"protected in transit."))
 
     if lead.website_performance_score is not None:
         if lead.website_performance_score <= SLOW_PERFORMANCE_SCORE:

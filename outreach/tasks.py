@@ -385,6 +385,7 @@ def run_outreach_pipeline_task():
     """
     results = [
         f'verify: {verify_leads_task()}',
+        f'enrich: {enrich_pending_leads_task()}',
         f'icebreak: {generate_icebreakers_task()}',
         f'push: {push_to_instantly_task()}',
     ]
@@ -413,3 +414,44 @@ def poll_instantly_replies_task(limit=100):
     return (f"polled={summary['polled']} inbound={summary['inbound']} "
             f"new={summary['new']} replies={summary['replies']} "
             f"bounces={summary['bounces']} filtered={summary['filtered']}")
+
+
+@shared_task
+def enrich_pending_leads_task(limit=25):
+    """Backfill enrichment for leads that never got it.
+
+    ``enrich_lead_task`` only fires from ``import_leads`` at the moment a
+    lead is created. Anything imported before enrichment existed, or
+    whose task died, or that arrived while Celery was down, stays
+    un-enriched forever -- and an un-enriched lead has no measured
+    signals, so ``generate_icebreakers_task`` skips it and it silently
+    never reaches a campaign. Nothing in the funnel reported this,
+    because the stage had simply never run rather than failed.
+
+    Runs newest-and-highest-scoring first, in small batches: enrichment
+    is ~20-30s of HTTP per lead (homepage fetch, TLS probe, PageSpeed,
+    up to 3 Brave queries), so a large limit would hold a worker for
+    hours and burn the Brave free tier in one pass.
+    """
+    from outreach.enricher import enrich_lead
+    from outreach.models import Lead
+
+    leads = Lead.objects.filter(
+        enrichment_completed_at__isnull=True,
+        unsubscribed=False,
+    ).exclude(website='').order_by('-score', '-created_at')[:limit]
+
+    done = failed = 0
+    for lead in leads:
+        try:
+            enrich_lead(lead)
+            done += 1
+        except Exception:
+            logger.exception('enrichment failed for lead %s', lead.pk)
+            failed += 1
+
+    remaining = Lead.objects.filter(
+        enrichment_completed_at__isnull=True,
+        unsubscribed=False,
+    ).exclude(website='').count()
+    return f'enriched={done} failed={failed} remaining={remaining}'

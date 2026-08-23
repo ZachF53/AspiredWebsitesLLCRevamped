@@ -281,31 +281,39 @@ def _scrape_homepage(lead):
     if not base_url:
         return
 
-    # SSL probe — try https first.
-    https_ok = False
+    # ── TLS, measured properly ────────────────────────────────────────
+    # Answered by a real handshake, NOT by whether an HTTP GET returned
+    # 200. A 403 to a scraper and a 404 on a parked domain both used to
+    # read as "no SSL", and that put a false claim about a prospect's
+    # website into generated copy.
+    tls_ok, tls_reason = probe_tls(base_url)
+    lead.has_ssl = tls_ok
+
+    # ── Content ───────────────────────────────────────────────────────
     if base_url.startswith('https://'):
-        html, final_url, ok = _http_get(base_url)
-        https_ok = ok
+        html, final_url, ok, status = _http_get_status(base_url)
     elif base_url.startswith('http://'):
-        # Try https on the same host first; if it works, prefer it +
-        # update the lead's website to the upgraded URL.
+        # Prefer https on the same host when it genuinely serves content.
         upgrade = 'https://' + base_url[len('http://'):]
-        html, final_url, ok = _http_get(upgrade)
+        html, final_url, ok, status = _http_get_status(upgrade)
         if ok:
-            https_ok = True
             lead.website = upgrade
         else:
-            html, final_url, ok = _http_get(base_url)
+            html, final_url, ok, status = _http_get_status(base_url)
     else:
-        # No scheme — assume https.
         upgrade = 'https://' + base_url
-        html, final_url, ok = _http_get(upgrade)
+        html, final_url, ok, status = _http_get_status(upgrade)
         if ok:
-            https_ok = True
             lead.website = upgrade
         else:
-            html, final_url, ok = _http_get('http://' + base_url)
-    lead.has_ssl = https_ok
+            html, final_url, ok, status = _http_get_status(
+                'http://' + base_url)
+
+    # ── What kind of site is this actually ────────────────────────────
+    # Its own field, NOT website_issues -- that one already holds
+    # PageSpeed audit dicts and is not a flag set.
+    lead.site_status = classify_site(status, html)
+    lead.tls_error = '' if tls_ok else tls_reason[:200]
 
     if not html:
         return
@@ -332,9 +340,25 @@ def _scrape_homepage(lead):
 
 def _http_get(url):
     """Fetch a URL with realistic headers. Returns (html, final_url, ok).
-    Never raises — caller branches on ``ok``."""
+    Never raises — caller branches on ``ok``.
+
+    ``ok`` means "we have usable HTML", NOT "the site is healthy". Do not
+    infer anything about TLS from it — see ``probe_tls``.
+    """
+    html, final_url, ok, _status = _http_get_status(url)
+    return html, final_url, ok
+
+
+def _http_get_status(url):
+    """As ``_http_get``, but also returns the HTTP status code.
+
+    The status is the difference between "this site has no HTTPS" and
+    "this site returned 403 to a scraper", which the old boolean-only
+    version could not tell apart. That conflation put a false claim about
+    a prospect's website into generated copy.
+    """
     if not url:
-        return '', '', False
+        return '', '', False, 0
     try:
         resp = requests.get(
             url,
@@ -347,12 +371,147 @@ def _http_get(url):
             allow_redirects=True,
         )
         if resp.status_code != 200 or not resp.text:
-            return '', url, False
+            return '', resp.url or url, False, resp.status_code
         # Hard cap on HTML size — some sites serve 5MB pages; we only
         # need the first chunk for emails + socials + footer.
-        return resp.text[:400_000], resp.url, True
+        return resp.text[:400_000], resp.url, True, resp.status_code
     except requests.RequestException:
-        return '', url, False
+        return '', url, False, 0
+
+
+# ── TLS ────────────────────────────────────────────────────────────────
+#
+# WHY THIS IS A SEPARATE PROBE
+# ----------------------------
+# ``has_ssl`` used to be set from "did an https:// GET return 200". That
+# is not a TLS measurement. Verified against two real leads 2026-08-22:
+#
+#   scientificsearch.com    HTTP 403 (bot-blocked)  -> has_ssl=False
+#   theascendantgroup.com   HTTP 404 (parked Wix)   -> has_ssl=False
+#
+# Both negotiate TLS perfectly and both load over https in a browser. The
+# icebreaker generator then told one of them their site "is still running
+# on plain HTTP", which is a false, checkable claim about a stranger's
+# business -- the single most damaging thing this pipeline can emit.
+#
+# So TLS is now answered by actually completing a TLS handshake, and
+# nothing about HTTP status is allowed to influence it.
+
+def probe_tls(url, timeout=8):
+    """Does this host serve a valid certificate on 443?
+
+    Returns (ok, reason). ``ok`` False with a reason string is a genuine,
+    quotable finding; ``ok`` True means do not claim anything about
+    encryption.
+
+    A certificate that is expired, self-signed, or issued for the wrong
+    hostname counts as a failure, because a browser will refuse it and a
+    prospective client will see a warning page. That is a real problem
+    worth an email, unlike a 403 aimed at scrapers.
+    """
+    import socket
+    import ssl as _ssl
+
+    host = (urlparse(url if '://' in (url or '') else f'https://{url}')
+            .hostname or '').strip()
+    if not host:
+        return False, 'no hostname'
+
+    context = _ssl.create_default_context()
+    try:
+        with socket.create_connection((host, 443), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=host):
+                return True, ''
+    except _ssl.SSLCertVerificationError as exc:
+        return False, f'certificate not valid ({exc.verify_message or exc})'
+    except _ssl.SSLError as exc:
+        return False, f'TLS handshake failed ({exc})'
+    except socket.timeout:
+        return False, 'timed out connecting on port 443'
+    except (socket.gaierror, ConnectionRefusedError, OSError) as exc:
+        return False, f'no HTTPS service on port 443 ({type(exc).__name__})'
+
+
+# ── Dead / parked domains ──────────────────────────────────────────────
+#
+# A parked domain is not a bad website, it is the ABSENCE of a website,
+# and every site-quality observation is meaningless against it. PageSpeed
+# happily scored theascendantgroup.com's Wix parking page 89/100 -- a
+# great score for a page that does not exist. Left unchecked, the
+# icebreaker would have complimented a parking page or criticised forms
+# that are not there.
+
+_PARKED_MARKERS = (
+    "this domain isn't connected to a site",      # Wix
+    'this domain is not connected to a site',
+    'domain is parked', 'parked domain', 'parked free of charge',
+    'buy this domain', 'this domain is for sale',
+    'future home of something quite cool',        # Apache default
+    'website coming soon', 'coming soon!',
+    'under construction',
+    'this site can’t be reached', "this site can't be reached",
+    'default web site page',                      # IIS / nginx defaults
+    'welcome to nginx', 'apache2 ubuntu default page',
+    'account suspended', 'this account has been suspended',
+    'godaddy.com', 'sedoparking', 'hugedomains',
+)
+
+# Markers on the lead, stored in the existing website_issues JSONField so
+# no migration is needed. icebreaker.observations() reads these.
+ISSUE_PARKED = 'site_parked'
+ISSUE_UNREACHABLE = 'site_unreachable'
+ISSUE_BOT_BLOCKED = 'site_bot_blocked'
+ISSUE_NO_TLS = 'site_no_tls'
+
+
+def classify_site(status, html):
+    """What kind of 'site' is at this URL?
+
+    Returns one of the ISSUE_* markers, or '' when the site is a real,
+    reachable page we may legitimately comment on.
+    """
+    if status == 0:
+        return ISSUE_UNREACHABLE
+    if status in (401, 403, 429):
+        # Someone is home, they just will not talk to a scraper. TLS and
+        # PageSpeed are still valid; page CONTENT is unknown.
+        return ISSUE_BOT_BLOCKED
+    if status == 404 or status >= 500:
+        return ISSUE_PARKED if status == 404 else ISSUE_UNREACHABLE
+
+    lowered = (html or '')[:8000].lower()
+    if any(marker in lowered for marker in _PARKED_MARKERS):
+        return ISSUE_PARKED
+
+    if not html:
+        return ISSUE_UNREACHABLE
+
+    # Thin content alone is NOT parked. A JavaScript-rendered site serves
+    # an almost-empty shell and fills it client-side, and that is an
+    # ordinary modern website.
+    #
+    # Measured 2026-08-22: careerpathwayllc.com returns 200 with 2,306
+    # bytes and nine words of text. A naive "under 25 words = parked"
+    # rule flagged it, which would have suppressed every real signal for
+    # a live business. Corroboration is required.
+    words = len(re.sub(r'<[^>]+>', ' ', html).split())
+    if words >= 25:
+        return ''
+
+    # Thin AND scriptless AND without a business-specific title is a
+    # placeholder. Any one of those being false means someone built
+    # something here.
+    has_script = '<script' in lowered
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', lowered, re.S)
+    title = (title_match.group(1).strip() if title_match else '')
+    generic_titles = ('', 'untitled', 'home', 'index', 'welcome',
+                      'new page', 'coming soon', 'domain', 'default')
+    has_real_title = bool(title) and not any(
+        title == g or title.startswith(g) for g in generic_titles)
+
+    if has_script or has_real_title:
+        return ''
+    return ISSUE_PARKED
 
 
 def _extract_from_html(lead, raw_html, base_url):

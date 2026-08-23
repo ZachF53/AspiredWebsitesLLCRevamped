@@ -100,6 +100,30 @@ class Lead(models.Model):
             "(gmail.com, yahoo.com, hotmail.com, aol.com, outlook.com) "
             "rather than the firm's own domain."))
 
+    # What is actually at this domain. Blank means a real, reachable
+    # site we may legitimately comment on.
+    #
+    # This exists because a parked domain is not a bad website, it is the
+    # ABSENCE of one, and every site-quality signal is meaningless
+    # against it. PageSpeed scored a Wix "domain isn't connected to a
+    # site" placeholder 89/100 -- an excellent score for a page that does
+    # not exist. Without this, the icebreaker generator would compliment
+    # a parking page or criticise intake forms that are not there.
+    #
+    # NOT stored in website_issues: that field already holds PageSpeed
+    # audit dicts and is not a flag set.
+    site_status = models.CharField(
+        max_length=20, blank=True, db_index=True,
+        help_text=(
+            "'' = live site. Otherwise site_parked / site_unreachable / "
+            "site_bot_blocked. Set by outreach.enricher.classify_site."),
+    )
+
+    # Why the TLS handshake failed, when it did. A quotable finding:
+    # "certificate expired" is a real problem worth an email, whereas a
+    # 403 aimed at scrapers is not and must never be reported as one.
+    tls_error = models.CharField(max_length=200, blank=True)
+
     # Enrichment lifecycle — task picks up rows where _completed_at
     # is NULL, sets _attempted_at on entry, _completed_at on success.
     # log is plain text appended by each enrichment step for forensics.
