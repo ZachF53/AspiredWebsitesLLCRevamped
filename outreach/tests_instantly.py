@@ -890,3 +890,62 @@ class RenderPreviewTests(TestCase):
 
     def test_postal_address_survives_rendering(self):
         self.assertIn(self.ADDR, self._first_touch(make_lead())['body'])
+
+
+# ── segment matching ───────────────────────────────────────────────────
+
+@override_settings(INSTANTLY_TOKEN='t')
+class SegmentGateTests(TestCase):
+    """A dry run on 2026-08-23 produced this, two lines apart, in one email:
+
+        "...staffing and recruiting firms in Los Angeles..."  (icebreaker)
+        "I build websites for law firms around Texas."        (template)
+
+    Both halves were individually correct and described different
+    businesses. No downstream guard could catch it -- only the pairing is
+    wrong -- so the pairing is what gets checked.
+    """
+
+    def setUp(self):
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law', slug='tx-law', niche='law firm',
+            business_type='Law Firm', state='TX',
+            instantly_campaign_id='camp-1', active=True)
+
+    def test_the_actual_mismatch_is_refused(self):
+        lead = make_lead(firm_name='The Braden James Group',
+                         state='California', business_type='Staffing')
+        self.assertIn('California', instantly.segment_mismatch(
+            lead, self.campaign))
+
+    def test_matching_lead_passes(self):
+        lead = make_lead(state='TX', business_type='Law Firm')
+        self.assertEqual(instantly.segment_mismatch(lead, self.campaign), '')
+
+    def test_full_state_name_matches_abbreviation(self):
+        """Places writes 'Texas', Apify writes 'TX'. Same state."""
+        lead = make_lead(state='Texas', business_type='Law Firm')
+        self.assertEqual(instantly.segment_mismatch(lead, self.campaign), '')
+
+    def test_wrong_business_type_is_refused(self):
+        lead = make_lead(state='TX', business_type='Dentist')
+        self.assertIn('Dentist', instantly.segment_mismatch(
+            lead, self.campaign))
+
+    def test_blank_campaign_fields_do_not_constrain(self):
+        """A deliberately broad campaign must still work."""
+        broad = OutreachCampaign.objects.create(
+            name='Everything', slug='all', niche='x',
+            business_type='', state='',
+            instantly_campaign_id='c2', active=True)
+        lead = make_lead(state='NJ', business_type='Staffing')
+        self.assertEqual(instantly.segment_mismatch(lead, broad), '')
+
+    def test_push_refuses_the_mismatched_lead(self):
+        lead = make_lead(state='California', business_type='Staffing')
+        with patch.object(instantly, '_request',
+                          return_value={'id': 'x'}) as req:
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['pushed'], 0)
+        self.assertEqual(summary['skipped_wrong_segment'], 1)
+        req.assert_not_called()

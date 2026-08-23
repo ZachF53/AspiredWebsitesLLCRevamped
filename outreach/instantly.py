@@ -308,6 +308,61 @@ def _lead_payload(lead, campaign_id):
     return payload
 
 
+def segment_mismatch(lead, campaign):
+    """Why this lead does not belong in this campaign. '' means it does.
+
+    WHY THIS GATE EXISTS
+    --------------------
+    The design says one campaign per niche x geography, because template
+    copy states things that are only true of that segment. Nothing
+    enforced it, and a dry run on 2026-08-23 produced this, verbatim,
+    two lines apart in the same email:
+
+        "...staffing and recruiting firms in Los Angeles..."   <- icebreaker
+        "I build websites for law firms around Texas."         <- template
+
+    Both halves were individually correct. The icebreaker described the
+    lead accurately and the template described the campaign accurately;
+    they simply described different businesses. No guard downstream could
+    have caught it, because neither piece is wrong on its own -- only the
+    pairing is. So the pairing is what gets checked.
+
+    Blank fields on the campaign mean "do not constrain on this", so a
+    deliberately broad campaign still works.
+    """
+    if campaign.state:
+        lead_state = (lead.state or '').strip()
+        # Leads arrive with either 'TX' or 'Texas' depending on source.
+        normalised = _STATE_ABBREV.get(lead_state.lower(), lead_state).upper()
+        if normalised != campaign.state.upper():
+            return (f'Lead is in {lead_state or "an unknown state"}, '
+                    f'campaign targets {campaign.state}.')
+
+    if campaign.business_type:
+        lead_type = (lead.business_type or '').strip().lower()
+        wanted = campaign.business_type.strip().lower()
+        if lead_type != wanted:
+            return (f'Lead is a {lead.business_type or "(no type)"}, '
+                    f'campaign targets {campaign.business_type}.')
+
+    return ''
+
+
+# Sources disagree: Google Places writes 'Texas', Apify writes 'TX'.
+_STATE_ABBREV = {
+    'texas': 'TX', 'georgia': 'GA', 'california': 'CA', 'florida': 'FL',
+    'new york': 'NY', 'new jersey': 'NJ', 'pennsylvania': 'PA',
+    'virginia': 'VA', 'district of columbia': 'DC', 'illinois': 'IL',
+    'ohio': 'OH', 'north carolina': 'NC', 'tennessee': 'TN',
+    'arizona': 'AZ', 'colorado': 'CO', 'washington': 'WA',
+    'massachusetts': 'MA', 'maryland': 'MD', 'michigan': 'MI',
+    'missouri': 'MO', 'minnesota': 'MN', 'wisconsin': 'WI',
+    'louisiana': 'LA', 'alabama': 'AL', 'oklahoma': 'OK',
+    'south carolina': 'SC', 'kentucky': 'KY', 'oregon': 'OR',
+    'nevada': 'NV', 'utah': 'UT', 'indiana': 'IN', 'connecticut': 'CT',
+}
+
+
 def push_leads(leads, campaign):
     """Push verified leads into an Instantly campaign.
 
@@ -336,6 +391,7 @@ def push_leads(leads, campaign):
         'total': 0, 'pushed': 0, 'skipped_unsendable': 0,
         'skipped_suppressed': 0, 'skipped_no_icebreaker': 0,
         'skipped_already_pushed': 0, 'skipped_unsubscribed': 0,
+        'skipped_wrong_segment': 0,
         'errors': 0, 'reasons': {},
     }
 
@@ -366,6 +422,13 @@ def push_leads(leads, campaign):
             # the thing this whole pipeline exists to stop sending.
             summary['skipped_no_icebreaker'] += 1
             continue
+
+        mismatch = segment_mismatch(lead, campaign)
+        if mismatch:
+            summary['skipped_wrong_segment'] += 1
+            _note(mismatch)
+            continue
+
         eligible.append(lead)
 
     cap = int(getattr(settings, 'INSTANTLY_MAX_PUSH_PER_DAY', 200) or 0)
