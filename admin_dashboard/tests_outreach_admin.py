@@ -29,6 +29,7 @@ class OutreachAdminPagesTests(TestCase):
 
     def test_every_page_renders(self):
         for name, args in (
+            ('outreach_index', []),
             ('outreach_offer_list', []),
             ('outreach_offer_new', []),
             ('outreach_offer_edit', [self.offer.pk]),
@@ -39,6 +40,13 @@ class OutreachAdminPagesTests(TestCase):
             with self.subTest(page=name):
                 url = reverse(f'admin_dashboard:{name}', args=args)
                 self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_index_exists(self):
+        """/admin-dashboard/outreach/ used to 404 - it was a URL prefix
+        with nothing served at it, so the obvious place to navigate to
+        was the one place that broke."""
+        resp = self.client.get(reverse('admin_dashboard:outreach_index'))
+        self.assertEqual(resp.status_code, 200)
 
     def test_pages_require_login(self):
         self.client.logout()

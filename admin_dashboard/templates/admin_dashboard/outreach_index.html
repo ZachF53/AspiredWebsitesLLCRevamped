@@ -1,0 +1,94 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}Outreach — Admin — Aspired Websites{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Outreach</h1>
+        </div>
+    </div>
+
+    {% if sending_allowed %}
+        <div class="of-banner of-banner--ok">
+            <strong>Sending is live.</strong>
+            Verified leads are being pushed to active campaigns.
+        </div>
+    {% else %}
+        <div class="of-banner of-banner--warn">
+            <strong>Not sending.</strong> {{ sending_reason }}
+            <a href="{% url 'admin_dashboard:settings' %}">Settings</a>
+        </div>
+    {% endif %}
+
+    <div class="of-index">
+
+        <a href="{% url 'admin_dashboard:outreach_offer_list' %}"
+           class="admin-card of-index__card">
+            <div class="of-index__count">{{ offer_count }}</div>
+            <div class="of-index__name">Offers</div>
+            <p class="of-index__blurb">
+                What the prospect gets and how they say yes. The A/B
+                variable &mdash; it moves reply rate far more than
+                wording does.
+            </p>
+        </a>
+
+        <a href="{% url 'admin_dashboard:outreach_campaign_list' %}"
+           class="admin-card of-index__card">
+            <div class="of-index__count">{{ campaign_count }}</div>
+            <div class="of-index__name">Campaigns</div>
+            <p class="of-index__blurb">
+                One per niche &times; geography &times; offer.
+                {% if pushable_count %}
+                    {{ pushable_count }} can push right now.
+                {% else %}
+                    None can push yet.
+                {% endif %}
+            </p>
+        </a>
+
+        <a href="{% url 'admin_dashboard:outreach_review_queue' %}"
+           class="admin-card of-index__card">
+            <div class="of-index__count">{{ review_count }}</div>
+            <div class="of-index__name">Awaiting review</div>
+            <p class="of-index__blurb">
+                Leads whose name contradicts the industry the source
+                claimed. Held, never dropped.
+            </p>
+        </a>
+
+        <a href="{% url 'admin_dashboard:leads_table' %}"
+           class="admin-card of-index__card">
+            <div class="of-index__count">{{ lead_count }}</div>
+            <div class="of-index__name">Leads</div>
+            <p class="of-index__blurb">
+                {{ sendable_count }} verified sendable,
+                {{ icebreaker_count }} with copy written.
+            </p>
+        </a>
+
+    </div>
+
+    <div class="admin-card of-card" style="margin-top:1.5rem">
+        <h3 class="of-card__title">Where the funnel stops</h3>
+        <p class="of-card__intro">
+            Run <code>manage.py outreach_status</code> for the full
+            stage-by-stage breakdown, including what each stage dropped
+            and why.
+        </p>
+        <table class="of-table">
+            <tbody>
+                <tr><td>Sourced</td><td>{{ lead_count }}</td></tr>
+                <tr><td>Verified sendable</td><td>{{ sendable_count }}</td></tr>
+                <tr><td>Enriched</td><td>{{ enriched_count }}</td></tr>
+                <tr><td>Has an icebreaker</td><td>{{ icebreaker_count }}</td></tr>
+                <tr><td>Pushed to Instantly</td><td>{{ pushed_count }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

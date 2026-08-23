@@ -20,21 +20,22 @@ enabled for a week while pushing nothing, so both are columns and
     </div>
 
     {% if not sending_allowed %}
-        <div class="outreach-toggle__warning" role="status">
+        <div class="of-banner of-banner--warn" role="status">
             <strong>Nothing is being pushed.</strong> {{ sending_reason }}
             <a href="{% url 'admin_dashboard:settings' %}">Change this in Settings</a>.
         </div>
     {% endif %}
 
-    <p class="muted settings-help">
+    <p class="of-card__intro">
         One campaign per niche &times; geography &times; offer. Copy that
         says something specifically true cannot be written for a blended
         list, and per-campaign reply rate is the only way to learn which
         segment actually wants this.
     </p>
 
-    <div class="admin-card">
-        <table class="admin-table">
+    <div class="admin-card of-card">
+        <div class="of-table-wrap">
+        <table class="of-table">
             <thead>
                 <tr>
                     <th>Campaign</th>
@@ -79,14 +80,14 @@ enabled for a week while pushing nothing, so both are columns and
                     </td>
                     <td>
                         {% if c.is_pushable %}
-                            <span class="badge-yes">yes</span>
+                            <span class="of-chip of-chip--on">yes</span>
                         {% else %}
                             <span class="muted">
                                 {% if not c.instantly_campaign_id %}needs an id{% else %}paused{% endif %}
                             </span>
                         {% endif %}
                     </td>
-                    <td class="admin-table__actions">
+                    <td class="of-table__actions">
                         <a href="{% url 'admin_dashboard:outreach_campaign_edit' c.pk %}" class="btn-secondary btn-sm">Edit</a>
                         <a href="{% url 'admin_dashboard:outreach_campaign_delete' c.pk %}" class="btn-danger btn-sm">Delete</a>
                     </td>
@@ -96,6 +97,7 @@ enabled for a week while pushing nothing, so both are columns and
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 {% endblock %}

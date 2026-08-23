@@ -16,17 +16,17 @@ one, and "it was a link someone clicked" is not a recoverable state.
         </div>
     </div>
 
-    <div class="admin-card">
+    <div class="admin-card of-card">
         {% if warning %}
-            <div class="outreach-toggle__warning" role="alert">{{ warning }}</div>
+            <div class="of-banner of-banner--warn" role="alert">{{ warning }}</div>
         {% endif %}
 
         {% if blockers %}
-            <p class="muted settings-help">Blocked by:</p>
+            <p class="of-card__intro">Blocked by:</p>
             <ul>{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
         {% endif %}
 
-        <p class="muted settings-help">This cannot be undone.</p>
+        <p class="of-card__intro">This cannot be undone.</p>
 
         <form method="post">
             {% csrf_token %}

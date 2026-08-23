@@ -145,6 +145,7 @@ urlpatterns = [
     # equal weight, which is exactly wrong for a page where one field
     # (does this campaign have an Instantly id?) decides whether the
     # thing works at all.
+    path('outreach/', vo.outreach_index, name='outreach_index'),
     path('outreach/offers/', vo.offer_list, name='outreach_offer_list'),
     path('outreach/offers/new/', vo.offer_edit, name='outreach_offer_new'),
     path('outreach/offers/<int:offer_id>/edit/', vo.offer_edit,

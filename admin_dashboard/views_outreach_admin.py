@@ -39,6 +39,46 @@ from .decorators import admin_required
 logger = logging.getLogger(__name__)
 
 
+@admin_required
+def outreach_index(request):
+    """Landing page for /admin-dashboard/outreach/.
+
+    Existed as a URL prefix with nothing served at it, so the obvious
+    place to navigate to 404'd. The counts double as the funnel: each
+    number is a stage, and the gap between two of them is where leads
+    are being lost.
+    """
+    from outreach import instantly, verify
+
+    leads = Lead.objects.all()
+    sendable = sum(
+        1 for s in leads.values_list('email_verification_status', flat=True)
+        if verify.is_sendable(s))
+    campaigns = OutreachCampaign.objects.all()
+
+    try:
+        allowed, reason = instantly.sending_allowed()
+    except Exception:            # noqa: BLE001 - the page must still render
+        allowed, reason = False, 'Could not evaluate the send gates.'
+
+    return render(request, 'admin_dashboard/outreach_index.html',
+                  _admin_context(
+                      active='outreach',
+                      sending_allowed=allowed,
+                      sending_reason=reason,
+                      offer_count=Offer.objects.count(),
+                      campaign_count=campaigns.count(),
+                      pushable_count=sum(1 for c in campaigns if c.is_pushable),
+                      review_count=leads.filter(needs_review=True).count(),
+                      lead_count=leads.count(),
+                      sendable_count=sendable,
+                      enriched_count=leads.filter(
+                          enrichment_completed_at__isnull=False).count(),
+                      icebreaker_count=leads.exclude(icebreaker='').count(),
+                      pushed_count=leads.exclude(instantly_lead_id='').count(),
+                  ))
+
+
 # ── Offers ─────────────────────────────────────────────────────────────
 
 @admin_required

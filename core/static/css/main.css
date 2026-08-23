@@ -17324,3 +17324,292 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     gap: 0.5rem;
     margin-top: 1.5rem;
 }
+
+/* ==========================================================================
+   Outreach management pages
+   --------------------------------------------------------------------------
+   Offers, campaigns and the review queue live outside Django admin, so they
+   need their own form and table styling.
+
+   The first pass reused `.settings-field`, which lays a label BESIDE its
+   input — correct for "15 emails / day", wrong for a real form, where it
+   pushed labels into a narrow right-hand column and let inputs run the full
+   width of the card. Labels belong above their input: the eye reads down a
+   form, not across it, and a label to the right of a filled field is read
+   after the answer it was supposed to prompt.
+   ========================================================================== */
+
+.of-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin-bottom: 1.15rem;
+}
+
+.of-field__label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.of-field__hint {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.of-field input[type="text"],
+.of-field input[type="number"],
+.of-field select,
+.of-field textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background-color: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    font-family: inherit;
+}
+
+.of-field textarea {
+    line-height: 1.55;
+    resize: vertical;
+    min-height: 4.5rem;
+}
+
+.of-field input:focus,
+.of-field select:focus,
+.of-field textarea:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    box-shadow: 0 0 0 3px var(--color-orange-glow);
+}
+
+/* A number that means "how many", not "how much" — kept narrow so it does
+   not read as a text field. */
+.of-field--narrow input {
+    max-width: 8rem;
+}
+
+.of-field--inline {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.of-field--inline input[type="checkbox"] {
+    margin-top: 0.2rem;
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+.of-card {
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.of-card__title {
+    font-size: 1.0625rem;
+    margin: 0 0 0.35rem;
+}
+
+.of-card__intro {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    margin: 0 0 1.25rem;
+}
+
+.of-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding-top: 0.5rem;
+}
+
+.of-actions--end {
+    justify-content: flex-end;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+
+.of-table-wrap {
+    overflow-x: auto;
+}
+
+.of-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+}
+
+.of-table th,
+.of-table td {
+    text-align: left;
+    padding: 0.8rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.of-table th {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.of-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.of-table tbody tr:hover {
+    background-color: var(--color-bg-raised);
+}
+
+.of-table__actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.of-table__actions > * {
+    margin-left: 0.35rem;
+}
+
+.of-table__sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+}
+
+/* ── Status chips ─────────────────────────────────────────────────────── */
+
+.of-chip {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.of-chip--on {
+    background-color: rgba(46, 160, 67, 0.16);
+    color: var(--color-success);
+}
+
+.of-chip--off {
+    background-color: var(--color-bg-raised);
+    color: var(--color-text-muted);
+}
+
+.of-chip--warn {
+    background-color: rgba(232, 101, 10, 0.16);
+    color: var(--color-orange-light);
+}
+
+/* ── Banners ──────────────────────────────────────────────────────────── */
+
+.of-banner {
+    padding: 0.9rem 1.1rem;
+    border-radius: 8px;
+    border-left: 3px solid var(--color-border-strong);
+    background-color: var(--color-bg-raised);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    margin-bottom: 1.25rem;
+}
+
+.of-banner--ok {
+    border-left-color: var(--color-success);
+}
+
+.of-banner--warn {
+    border-left-color: var(--color-orange);
+}
+
+.of-banner--danger {
+    border-left-color: var(--color-danger);
+}
+
+.of-banner ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.15rem;
+}
+
+/* ── Email preview ────────────────────────────────────────────────────── */
+
+.of-preview {
+    background-color: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 32rem;
+    overflow-y: auto;
+    margin: 0;
+}
+
+/* ── Index cards ──────────────────────────────────────────────────────── */
+
+.of-index {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1.25rem;
+}
+
+.of-index__card {
+    display: block;
+    padding: 1.5rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.of-index__card:hover {
+    border-color: var(--color-orange);
+    transform: translateY(-2px);
+}
+
+.of-index__count {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-orange);
+    margin-bottom: 0.35rem;
+}
+
+.of-index__name {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    color: var(--color-text);
+}
+
+.of-index__blurb {
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+@media (max-width: 720px) {
+    .of-card {
+        padding: 1.15rem;
+    }
+
+    .of-table__actions {
+        text-align: left;
+    }
+}

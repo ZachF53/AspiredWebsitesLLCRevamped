@@ -27,7 +27,7 @@ page at all.
     </div>
 
     {% if saved %}
-        <div class="settings-saved" role="status">Settings saved.</div>
+        <div class="of-banner of-banner--ok" role="status">Settings saved.</div>
     {% endif %}
 
     <div class="settings-grid">
@@ -35,21 +35,21 @@ page at all.
         <form method="post" class="settings-form">
             {% csrf_token %}
 
-            <section class="admin-card">
-                <h3 class="admin-card__title">Sending</h3>
+            <section class="admin-card of-card">
+                <h3 class="of-card__title">Sending</h3>
 
                 {% if sending_allowed %}
-                    <div class="settings-saved" role="status">
+                    <div class="of-banner of-banner--ok" role="status">
                         <strong>Sending is live.</strong>
                         Verified leads will be pushed to active campaigns.
                     </div>
                 {% else %}
-                    <div class="outreach-toggle__warning" role="status">
+                    <div class="of-banner of-banner--warn" role="status">
                         <strong>Not sending.</strong> {{ sending_reason }}
                     </div>
                 {% endif %}
 
-                <p class="muted settings-help">
+                <p class="of-card__intro">
                     Two independent gates guard every push. The switch
                     below says you intend to send; the thresholds say the
                     mailboxes can survive it. <strong>Both</strong> must
@@ -71,9 +71,9 @@ page at all.
                 </div>
             </section>
 
-            <section class="admin-card">
-                <h3 class="admin-card__title">Warmup Thresholds</h3>
-                <p class="muted settings-help">
+            <section class="admin-card of-card">
+                <h3 class="of-card__title">Warmup Thresholds</h3>
+                <p class="of-card__intro">
                     A mailbox counts as ready only when its setup is
                     finished, its status is usable, and it clears
                     <em>both</em> numbers below. 14 days is a floor rather
@@ -82,32 +82,23 @@ page at all.
                     domains, not a formality.
                 </p>
 
-                <div class="settings-field">
-                    <input type="number" name="min_warmup_score"
-                           class="form-control settings-number"
-                           value="{{ config.min_warmup_score }}" min="0" max="100">
-                    <span class="settings-field__suffix">
-                        Warmup score a mailbox must reach
-                        <span class="muted">&mdash; Instantly scores each 0&ndash;100</span>
-                    </span>
+                <div class="of-field of-field--narrow">
+                    <label class="of-field__label" for="w-min_warmup_score">Warmup score a mailbox must reach</label>
+                    <input type="number" id="w-min_warmup_score" name="min_warmup_score"
+                           min="0" max="100" value="{{ config.min_warmup_score }}">
+                    <p class="of-field__hint">Instantly scores each mailbox 0-100.</p>
                 </div>
-                <div class="settings-field">
-                    <input type="number" name="min_warmup_days"
-                           class="form-control settings-number"
-                           value="{{ config.min_warmup_days }}" min="0" max="90">
-                    <span class="settings-field__suffix">
-                        Days a mailbox must have been warming
-                        <span class="muted">&mdash; a new one can post a good score before providers trust it</span>
-                    </span>
+                <div class="of-field of-field--narrow">
+                    <label class="of-field__label" for="w-min_warmup_days">Days a mailbox must have been warming</label>
+                    <input type="number" id="w-min_warmup_days" name="min_warmup_days"
+                           min="0" max="90" value="{{ config.min_warmup_days }}">
+                    <p class="of-field__hint">A new mailbox can post a good score days before providers trust it.</p>
                 </div>
-                <div class="settings-field">
-                    <input type="number" name="min_ready_mailboxes"
-                           class="form-control settings-number"
-                           value="{{ config.min_ready_mailboxes }}" min="1" max="50">
-                    <span class="settings-field__suffix">
-                        How many mailboxes must pass before sending starts
-                        <span class="muted">&mdash; rotation needs more than one or two</span>
-                    </span>
+                <div class="of-field of-field--narrow">
+                    <label class="of-field__label" for="w-min_ready_mailboxes">How many mailboxes must pass before sending starts</label>
+                    <input type="number" id="w-min_ready_mailboxes" name="min_ready_mailboxes"
+                           min="1" max="50" value="{{ config.min_ready_mailboxes }}">
+                    <p class="of-field__hint">Rotation needs more than one or two.</p>
                 </div>
             </section>
 
@@ -118,14 +109,14 @@ page at all.
 
         <aside class="settings-side">
 
-            <section class="admin-card">
-                <h3 class="admin-card__title">Mailbox Readiness</h3>
+            <section class="admin-card of-card">
+                <h3 class="of-card__title">Mailbox Readiness</h3>
                 <dl class="kv">
                     <dt>Ready</dt>
                     <dd>
                         {{ warmup.ready_mailboxes }} / {{ warmup.required }} required
                         {% if warmup.ready %}
-                            <span class="badge-yes">&mdash; passing</span>
+                            <span class="of-chip of-chip--on">&mdash; passing</span>
                         {% endif %}
                     </dd>
                     <dt>Daily capacity</dt>
@@ -137,7 +128,7 @@ page at all.
                         {% for m in warmup.detail %}
                             <li>
                                 {% if m.ready %}
-                                    <span class="badge-yes">ready</span>
+                                    <span class="of-chip of-chip--on">ready</span>
                                 {% else %}
                                     <span class="muted">blocked</span>
                                 {% endif %}
@@ -149,14 +140,14 @@ page at all.
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="muted settings-help">
+                    <p class="of-card__intro">
                         No mailboxes returned. {{ warmup.reason }}
                     </p>
                 {% endif %}
             </section>
 
-            <section class="admin-card">
-                <h3 class="admin-card__title">Where to go next</h3>
+            <section class="admin-card of-card">
+                <h3 class="of-card__title">Where to go next</h3>
                 <dl class="kv">
                     <dt>Offers</dt>
                     <dd><a href="{% url 'admin_dashboard:outreach_offer_list' %}">Edit offer copy</a></dd>
@@ -165,7 +156,7 @@ page at all.
                     <dt>Review queue</dt>
                     <dd><a href="{% url 'admin_dashboard:outreach_review_queue' %}">Leads awaiting review</a></dd>
                 </dl>
-                <p class="muted settings-help">
+                <p class="of-card__intro">
                     Run <code>manage.py outreach_status</code> to see the
                     whole funnel and exactly where it stops.
                 </p>

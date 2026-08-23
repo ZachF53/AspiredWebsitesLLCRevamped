@@ -15,101 +15,130 @@
     </div>
 
     {% if errors %}
-        <div class="outreach-toggle__warning" role="alert">
+        <div class="of-banner of-banner--danger" role="alert">
             <strong>Not saved.</strong>
             <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
         </div>
     {% endif %}
 
-    <form method="post" class="settings-form">
+    <form method="post">
         {% csrf_token %}
 
-        <section class="admin-card">
-            <h3 class="admin-card__title">Segment</h3>
+        <section class="admin-card of-card">
+            <h3 class="of-card__title">Segment</h3>
             {% comment %}
             Business type and state are not labels. They are the gate that
             decides which leads may enter, and it is what stopped a New
             Jersey staffing firm being pushed into a Texas law campaign.
             {% endcomment %}
-            <p class="muted settings-help">
+            <p class="of-card__intro">
                 Business type and state double as the gate on which leads
-                may enter. A lead that disagrees is refused at push time.
-                Leave a field blank to stop constraining on it.
+                may enter &mdash; a lead that disagrees is refused at push
+                time. Leave a field blank to stop constraining on it.
             </p>
 
-            <div class="settings-field">
-                <input type="text" name="name" class="form-control" required
+            <div class="of-field">
+                <label class="of-field__label" for="c-name">Name</label>
+                <input type="text" id="c-name" name="name" required
                        value="{{ campaign.name }}" placeholder="TX - Law Firms">
-                <span class="settings-field__suffix">Name</span>
             </div>
-            <div class="settings-field">
-                <input type="text" name="slug" class="form-control"
+
+            <div class="of-field">
+                <label class="of-field__label" for="c-slug">Slug</label>
+                <input type="text" id="c-slug" name="slug"
                        value="{{ campaign.slug }}" placeholder="derived from the name">
-                <span class="settings-field__suffix">Slug</span>
             </div>
-            <div class="settings-field">
-                <input type="text" name="niche" class="form-control" required
+
+            <div class="of-field">
+                <label class="of-field__label" for="c-niche">Niche</label>
+                <input type="text" id="c-niche" name="niche" required
                        value="{{ campaign.niche }}" placeholder="law firm">
-                <span class="settings-field__suffix">Niche (search term)</span>
+                <p class="of-field__hint">
+                    The search term used when sourcing for this campaign.
+                </p>
             </div>
-            <div class="settings-field">
-                <input type="text" name="business_type" class="form-control"
+
+            <div class="of-field">
+                <label class="of-field__label" for="c-type">Business type gate</label>
+                <input type="text" id="c-type" name="business_type"
                        value="{{ campaign.business_type }}" placeholder="Law Firm">
-                <span class="settings-field__suffix">Business type gate</span>
+                <p class="of-field__hint">
+                    Must match the lead exactly. Apollo industries are
+                    mapped to these on import.
+                </p>
             </div>
-            <div class="settings-field">
-                <input type="text" name="state" class="form-control" maxlength="2"
+
+            <div class="of-field of-field--narrow">
+                <label class="of-field__label" for="c-state">State gate</label>
+                <input type="text" id="c-state" name="state" maxlength="2"
                        value="{{ campaign.state }}" placeholder="TX">
-                <span class="settings-field__suffix">State gate</span>
+                <p class="of-field__hint">
+                    Two letters. &ldquo;Texas&rdquo; and &ldquo;TX&rdquo;
+                    on a lead both match.
+                </p>
             </div>
-            <div class="settings-field">
-                <input type="text" name="city" class="form-control"
+
+            <div class="of-field">
+                <label class="of-field__label" for="c-city">City</label>
+                <input type="text" id="c-city" name="city"
                        value="{{ campaign.city }}" placeholder="Houston">
-                <span class="settings-field__suffix">City (label only)</span>
+                <p class="of-field__hint">Label only &mdash; not a gate.</p>
             </div>
         </section>
 
-        <section class="admin-card">
-            <h3 class="admin-card__title">Offer</h3>
-            <p class="muted settings-help">
+        <section class="admin-card of-card">
+            <h3 class="of-card__title">Offer</h3>
+            <p class="of-card__intro">
                 The A/B arm. One campaign per offer means per-campaign
                 reply rate <em>is</em> per-offer reply rate, with exactly
                 one variable differing between arms.
             </p>
-            <select name="offer" class="form-control">
-                <option value="">&mdash; use the default offer &mdash;</option>
-                {% for o in offers %}
-                    <option value="{{ o.pk }}" {% if campaign.offer_id == o.pk %}selected{% endif %}>
-                        {{ o.name }}{% if not o.active %} (inactive){% endif %}
-                    </option>
-                {% endfor %}
-            </select>
+            <div class="of-field">
+                <label class="of-field__label" for="c-offer">Offer</label>
+                <select id="c-offer" name="offer">
+                    <option value="">&mdash; use the default offer &mdash;</option>
+                    {% for o in offers %}
+                        <option value="{{ o.pk }}" {% if campaign.offer_id == o.pk %}selected{% endif %}>
+                            {{ o.name }}{% if not o.active %} (inactive){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
         </section>
 
-        <section class="admin-card">
-            <h3 class="admin-card__title">Instantly</h3>
-            <p class="muted settings-help">
+        <section class="admin-card of-card">
+            <h3 class="of-card__title">Instantly</h3>
+            <p class="of-card__intro">
                 Create the campaign in Instantly first, then paste its id
                 here. A campaign cannot be activated without one &mdash;
                 there would be nowhere to push leads to.
             </p>
-            <div class="settings-field">
-                <input type="text" name="instantly_campaign_id" class="form-control"
+
+            <div class="of-field">
+                <label class="of-field__label" for="c-iid">Instantly campaign id</label>
+                <input type="text" id="c-iid" name="instantly_campaign_id"
                        value="{{ campaign.instantly_campaign_id }}"
                        placeholder="00000000-0000-0000-0000-000000000000">
-                <span class="settings-field__suffix">Instantly campaign id</span>
             </div>
-            <label class="toggle-row">
-                <input type="checkbox" name="active" {% if campaign.active %}checked{% endif %}>
-                <span>Active &mdash; allow leads to be pushed to this campaign</span>
-            </label>
+
+            <div class="of-field of-field--inline">
+                <input type="checkbox" id="c-active" name="active"
+                       {% if campaign.active %}checked{% endif %}>
+                <label for="c-active">
+                    <strong>Active</strong>
+                    <p class="of-field__hint">
+                        Allow leads to be pushed to this campaign. Still
+                        subject to the global send gates in Settings.
+                    </p>
+                </label>
+            </div>
         </section>
 
-        <div class="settings-form__actions">
-            <button type="submit" class="btn-primary">Save campaign</button>
+        <div class="of-actions of-actions--end">
             {% if not is_new %}
                 <a href="{% url 'admin_dashboard:outreach_campaign_delete' campaign.pk %}" class="btn-danger">Delete</a>
             {% endif %}
+            <button type="submit" class="btn-primary">Save campaign</button>
         </div>
     </form>
 </div>

@@ -18,7 +18,7 @@ somewhere a human can act on it.
         <a href="{% url 'admin_dashboard:outreach_offer_new' %}" class="btn-primary">New offer</a>
     </div>
 
-    <p class="muted settings-help">
+    <p class="of-card__intro">
         What the prospect gets, and how they say yes. Cold outreach
         without an offer asks for their time in exchange for nothing.
         The offer is the A/B variable &mdash; it moves reply rate far
@@ -27,8 +27,9 @@ somewhere a human can act on it.
         <strong>{{ active_count }}</strong> of {{ offers|length }} active.
     </p>
 
-    <div class="admin-card">
-        <table class="admin-table">
+    <div class="admin-card of-card">
+        <div class="of-table-wrap">
+        <table class="of-table">
             <thead>
                 <tr>
                     <th>Offer</th>
@@ -50,7 +51,7 @@ somewhere a human can act on it.
                         </a>
                         <br><code class="muted">{{ offer.key }}</code>
                         {% if offer.proposed_by == 'agent' %}
-                            <span class="badge badge--warn">proposed by agent</span>
+                            <span class="of-chip of-chip--warn">proposed by agent</span>
                         {% endif %}
                     </td>
                     <td class="muted">{{ offer.appeals_to|default:"—" }}</td>
@@ -66,12 +67,12 @@ somewhere a human can act on it.
                     </td>
                     <td>
                         {% if offer.active %}
-                            <span class="badge-yes">active</span>
+                            <span class="of-chip of-chip--on">active</span>
                         {% else %}
                             <span class="muted">inactive</span>
                         {% endif %}
                     </td>
-                    <td class="admin-table__actions">
+                    <td class="of-table__actions">
                         <form method="post" action="{% url 'admin_dashboard:outreach_offer_toggle' offer.pk %}" style="display:inline">
                             {% csrf_token %}
                             <button type="submit" class="btn-secondary btn-sm">
@@ -89,6 +90,7 @@ somewhere a human can act on it.
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 {% endblock %}

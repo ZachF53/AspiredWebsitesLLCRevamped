@@ -17,7 +17,7 @@ ever finding out. One glance each is the price of that safety.
         </div>
     </div>
 
-    <p class="muted settings-help">
+    <p class="of-card__intro">
         These leads have a company name that contradicts the industry the
         source claimed. Apollo tags recruiting firms and video companies
         as &ldquo;Legal Services&rdquo;, and no source-side filter can
@@ -27,7 +27,7 @@ ever finding out. One glance each is the price of that safety.
     </p>
 
     {% if leads %}
-        <div class="admin-card">
+        <div class="admin-card of-card">
             <form method="post" action="{% url 'admin_dashboard:outreach_review_bulk' %}">
                 {% csrf_token %}
                 <button type="submit" name="decision" value="approve" class="btn-secondary">
@@ -40,8 +40,9 @@ ever finding out. One glance each is the price of that safety.
         </div>
     {% endif %}
 
-    <div class="admin-card">
-        <table class="admin-table">
+    <div class="admin-card of-card">
+        <div class="of-table-wrap">
+        <table class="of-table">
             <thead>
                 <tr>
                     <th>Firm</th>
@@ -63,7 +64,7 @@ ever finding out. One glance each is the price of that safety.
                     <td class="muted">
                         {{ lead.city }}{% if lead.state %}, {{ lead.state }}{% endif %}
                     </td>
-                    <td class="admin-table__actions">
+                    <td class="of-table__actions">
                         <form method="post" action="{% url 'admin_dashboard:outreach_review_decide' lead.pk %}" style="display:inline">
                             {% csrf_token %}
                             <button type="submit" name="decision" value="approve" class="btn-secondary btn-sm">Approve</button>
@@ -76,6 +77,7 @@ ever finding out. One glance each is the price of that safety.
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 {% endblock %}
