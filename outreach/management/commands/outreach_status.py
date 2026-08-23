@@ -107,15 +107,15 @@ class Command(BaseCommand):
         w(f'     ready to push       : {ready}')
 
         # ── 4b. Manual review ─────────────────────────────────────────
-        w(bold('
-4b. AWAITING REVIEW  (outreach/review.py)'))
+        w(bold('\n4b. AWAITING REVIEW  (outreach/review.py)'))
         flagged = Lead.objects.filter(needs_review=True)
         w(f'     flagged             : {flagged.count()}')
         if flagged.exists():
             w('     These are HELD, not dropped. Clear them at')
-            w('     /admin/outreach/leadreviewqueue/')
-            for l in flagged[:5]:
-                w(f'       {l.firm_name[:32]:34} {l.review_reason[:46]}')
+            w('     /admin-dashboard/outreach/review/')
+            for lead in flagged[:5]:
+                w(f'       {lead.firm_name[:32]:34} '
+                  f'{lead.review_reason[:46]}')
 
         # ── 5. Campaigns ──────────────────────────────────────────────
         w(bold('\n5. SEGMENTED  (OutreachCampaign)'))
