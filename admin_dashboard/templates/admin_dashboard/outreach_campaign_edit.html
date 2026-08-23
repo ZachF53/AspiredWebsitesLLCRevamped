@@ -1,0 +1,116 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}{% if is_new %}New campaign{% else %}{{ campaign.name }}{% endif %} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach &middot; Campaign</span>
+            <h1 class="admin-page-title">
+                {% if is_new %}New campaign{% else %}{{ campaign.name }}{% endif %}
+            </h1>
+        </div>
+        <a href="{% url 'admin_dashboard:outreach_campaign_list' %}" class="btn-secondary">Back to campaigns</a>
+    </div>
+
+    {% if errors %}
+        <div class="outreach-toggle__warning" role="alert">
+            <strong>Not saved.</strong>
+            <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+        </div>
+    {% endif %}
+
+    <form method="post" class="settings-form">
+        {% csrf_token %}
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Segment</h3>
+            {% comment %}
+            Business type and state are not labels. They are the gate that
+            decides which leads may enter, and it is what stopped a New
+            Jersey staffing firm being pushed into a Texas law campaign.
+            {% endcomment %}
+            <p class="muted settings-help">
+                Business type and state double as the gate on which leads
+                may enter. A lead that disagrees is refused at push time.
+                Leave a field blank to stop constraining on it.
+            </p>
+
+            <div class="settings-field">
+                <input type="text" name="name" class="form-control" required
+                       value="{{ campaign.name }}" placeholder="TX - Law Firms">
+                <span class="settings-field__suffix">Name</span>
+            </div>
+            <div class="settings-field">
+                <input type="text" name="slug" class="form-control"
+                       value="{{ campaign.slug }}" placeholder="derived from the name">
+                <span class="settings-field__suffix">Slug</span>
+            </div>
+            <div class="settings-field">
+                <input type="text" name="niche" class="form-control" required
+                       value="{{ campaign.niche }}" placeholder="law firm">
+                <span class="settings-field__suffix">Niche (search term)</span>
+            </div>
+            <div class="settings-field">
+                <input type="text" name="business_type" class="form-control"
+                       value="{{ campaign.business_type }}" placeholder="Law Firm">
+                <span class="settings-field__suffix">Business type gate</span>
+            </div>
+            <div class="settings-field">
+                <input type="text" name="state" class="form-control" maxlength="2"
+                       value="{{ campaign.state }}" placeholder="TX">
+                <span class="settings-field__suffix">State gate</span>
+            </div>
+            <div class="settings-field">
+                <input type="text" name="city" class="form-control"
+                       value="{{ campaign.city }}" placeholder="Houston">
+                <span class="settings-field__suffix">City (label only)</span>
+            </div>
+        </section>
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Offer</h3>
+            <p class="muted settings-help">
+                The A/B arm. One campaign per offer means per-campaign
+                reply rate <em>is</em> per-offer reply rate, with exactly
+                one variable differing between arms.
+            </p>
+            <select name="offer" class="form-control">
+                <option value="">&mdash; use the default offer &mdash;</option>
+                {% for o in offers %}
+                    <option value="{{ o.pk }}" {% if campaign.offer_id == o.pk %}selected{% endif %}>
+                        {{ o.name }}{% if not o.active %} (inactive){% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </section>
+
+        <section class="admin-card">
+            <h3 class="admin-card__title">Instantly</h3>
+            <p class="muted settings-help">
+                Create the campaign in Instantly first, then paste its id
+                here. A campaign cannot be activated without one &mdash;
+                there would be nowhere to push leads to.
+            </p>
+            <div class="settings-field">
+                <input type="text" name="instantly_campaign_id" class="form-control"
+                       value="{{ campaign.instantly_campaign_id }}"
+                       placeholder="00000000-0000-0000-0000-000000000000">
+                <span class="settings-field__suffix">Instantly campaign id</span>
+            </div>
+            <label class="toggle-row">
+                <input type="checkbox" name="active" {% if campaign.active %}checked{% endif %}>
+                <span>Active &mdash; allow leads to be pushed to this campaign</span>
+            </label>
+        </section>
+
+        <div class="settings-form__actions">
+            <button type="submit" class="btn-primary">Save campaign</button>
+            {% if not is_new %}
+                <a href="{% url 'admin_dashboard:outreach_campaign_delete' campaign.pk %}" class="btn-danger">Delete</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

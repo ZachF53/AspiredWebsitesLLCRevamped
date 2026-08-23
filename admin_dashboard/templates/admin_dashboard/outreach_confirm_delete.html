@@ -1,0 +1,38 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}Confirm delete — Admin — Aspired Websites{% endblock %}
+
+{% comment %}
+Deletion confirms on GET and acts on POST. A GET must never destroy
+anything: a prefetching browser or a pasted link will eventually issue
+one, and "it was a link someone clicked" is not a recoverable state.
+{% endcomment %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Confirm</span>
+            <h1 class="admin-page-title">Delete this {{ object_label }}?</h1>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        {% if warning %}
+            <div class="outreach-toggle__warning" role="alert">{{ warning }}</div>
+        {% endif %}
+
+        {% if blockers %}
+            <p class="muted settings-help">Blocked by:</p>
+            <ul>{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+        {% endif %}
+
+        <p class="muted settings-help">This cannot be undone.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn-danger">Yes, delete it</button>
+            <a href="{{ cancel_url }}" class="btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

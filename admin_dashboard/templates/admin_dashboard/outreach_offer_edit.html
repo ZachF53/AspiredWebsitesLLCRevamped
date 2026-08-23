@@ -1,0 +1,144 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}{% if is_new %}New offer{% else %}{{ offer.name }}{% endif %} — Admin{% endblock %}
+
+{% comment %}
+The preview panel is the point of this page. An offer is three fragments
+that only make sense once the template assembles them, so editing them
+blind produces copy that reads correctly in the form and wrongly in the
+inbox. The preview shows the real touch-1 email with this offer in it.
+{% endcomment %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach &middot; Offer</span>
+            <h1 class="admin-page-title">
+                {% if is_new %}New offer{% else %}{{ offer.name }}{% endif %}
+            </h1>
+        </div>
+        <a href="{% url 'admin_dashboard:outreach_offer_list' %}" class="btn-secondary">Back to offers</a>
+    </div>
+
+    {% if errors %}
+        <div class="outreach-toggle__warning" role="alert">
+            <strong>Not saved.</strong>
+            <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+        </div>
+    {% endif %}
+
+    <div class="settings-grid">
+        <form method="post" class="settings-form">
+            {% csrf_token %}
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Identity</h3>
+                <div class="settings-field">
+                    <input type="text" name="name" class="form-control"
+                           value="{{ offer.name }}" required
+                           placeholder="Free security + performance review">
+                    <span class="settings-field__suffix">Name</span>
+                </div>
+                <div class="settings-field">
+                    <input type="text" name="key" class="form-control"
+                           value="{{ offer.key }}"
+                           placeholder="derived from the name if left blank">
+                    <span class="settings-field__suffix">Key</span>
+                </div>
+                <div class="settings-field">
+                    <input type="text" name="appeals_to" class="form-control"
+                           value="{{ offer.appeals_to }}"
+                           placeholder="compliance risk">
+                    <span class="settings-field__suffix">
+                        What motivation it targets
+                        <span class="muted">&mdash; keeps the set genuinely different rather than six rewordings</span>
+                    </span>
+                </div>
+                <label class="toggle-row">
+                    <input type="checkbox" name="active" {% if offer.active %}checked{% endif %}>
+                    <span>Active</span>
+                </label>
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Copy</h3>
+
+                <p class="muted settings-help">
+                    <strong>Pitch</strong> is the whole offer, in touch 1.
+                </p>
+                <textarea name="pitch" rows="6" class="form-control" required
+                          placeholder="Here's what I'd like to offer: ...">{{ offer.pitch }}</textarea>
+
+                <p class="muted settings-help">
+                    <strong>Restate</strong> appears in touch 2 as
+                    &ldquo;...what I'm offering: <em>restate</em>.&rdquo;
+                    Write it as a clause, lower case, no full stop.
+                </p>
+                {% comment %}
+                The placeholder shows Instantly's variable syntax, so the
+                braces are HTML entities. Written literally they would be
+                parsed as a Django tag; wrapped in {{ '...' }} they are a
+                syntax error, which is how this page first 500'd.
+                {% endcomment %}
+                <textarea name="restate" rows="3" class="form-control"
+                          placeholder="a written review of &#123;&#123;companyName&#125;&#125; site, free, within two days">{{ offer.restate }}</textarea>
+
+                <p class="muted settings-help">
+                    <strong>Ask</strong> is the call to action. Keep it to
+                    one line and one word of effort.
+                </p>
+                <textarea name="ask" rows="2" class="form-control" required
+                          placeholder='Just reply "yes" and I&#39;ll get started.'>{{ offer.ask }}</textarea>
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">What it costs you</h3>
+                <p class="muted settings-help">
+                    Be honest here. An offer with a great reply rate that
+                    takes four hours to honour is a trap &mdash; succeed
+                    and you have sold yourself into unpaid full-time work.
+                </p>
+                <textarea name="fulfilment_cost" rows="3" class="form-control"
+                          placeholder="Low - mostly automated, ~10 min review.">{{ offer.fulfilment_cost }}</textarea>
+            </section>
+
+            <div class="settings-form__actions">
+                <button type="submit" class="btn-primary">Save offer</button>
+                {% if not is_new %}
+                    <a href="{% url 'admin_dashboard:outreach_offer_delete' offer.pk %}" class="btn-danger">Delete</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <aside class="settings-side">
+            <section class="admin-card">
+                <h3 class="admin-card__title">Touch 1, as it will send</h3>
+                {% if preview_problems %}
+                    <div class="outreach-toggle__warning" role="alert">
+                        <strong>Pre-flight problems:</strong>
+                        <ul>{% for p in preview_problems %}<li>{{ p }}</li>{% endfor %}</ul>
+                    </div>
+                {% endif %}
+                {% if preview %}
+                    <pre class="email-preview">{{ preview }}</pre>
+                {% else %}
+                    <p class="muted settings-help">
+                        Save the offer to see the rendered email.
+                    </p>
+                {% endif %}
+            </section>
+
+            <section class="admin-card">
+                <h3 class="admin-card__title">Performance</h3>
+                <dl class="kv">
+                    <dt>Sends</dt><dd>{{ offer.sends }}</dd>
+                    <dt>Replies</dt><dd>{{ offer.replies }}</dd>
+                    <dt>Reply rate</dt>
+                    <dd>{% if offer.sends %}{{ offer.reply_rate|floatformat:3 }}{% else %}<span class="muted">no data yet</span>{% endif %}</dd>
+                </dl>
+            </section>
+        </aside>
+    </div>
+</div>
+{% endblock %}

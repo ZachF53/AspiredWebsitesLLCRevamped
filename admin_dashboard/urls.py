@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_outreach_admin as vo
 
 
 app_name = 'admin_dashboard'
@@ -139,6 +140,35 @@ urlpatterns = [
          name='admin_domain_delete'),
 
     # Pricing manager
+    # ── Outreach management ────────────────────────────────────────────
+    # Full CRUD outside /admin/. Django admin shows every field with
+    # equal weight, which is exactly wrong for a page where one field
+    # (does this campaign have an Instantly id?) decides whether the
+    # thing works at all.
+    path('outreach/offers/', vo.offer_list, name='outreach_offer_list'),
+    path('outreach/offers/new/', vo.offer_edit, name='outreach_offer_new'),
+    path('outreach/offers/<int:offer_id>/edit/', vo.offer_edit,
+         name='outreach_offer_edit'),
+    path('outreach/offers/<int:offer_id>/delete/', vo.offer_delete,
+         name='outreach_offer_delete'),
+    path('outreach/offers/<int:offer_id>/toggle/', vo.offer_toggle,
+         name='outreach_offer_toggle'),
+
+    path('outreach/campaigns/', vo.campaign_list,
+         name='outreach_campaign_list'),
+    path('outreach/campaigns/new/', vo.campaign_edit,
+         name='outreach_campaign_new'),
+    path('outreach/campaigns/<int:campaign_id>/edit/', vo.campaign_edit,
+         name='outreach_campaign_edit'),
+    path('outreach/campaigns/<int:campaign_id>/delete/', vo.campaign_delete,
+         name='outreach_campaign_delete'),
+
+    path('outreach/review/', vo.review_queue, name='outreach_review_queue'),
+    path('outreach/review/<int:lead_id>/decide/', vo.review_decide,
+         name='outreach_review_decide'),
+    path('outreach/review/bulk/', vo.review_bulk,
+         name='outreach_review_bulk'),
+
     path('pricing/', views.pricing_list, name='pricing_list'),
     path('pricing/<uuid:tier_id>/edit/', views.pricing_edit, name='pricing_edit'),
     path('pricing/<uuid:tier_id>/toggle/', views.pricing_toggle, name='pricing_toggle'),

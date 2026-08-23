@@ -86,19 +86,28 @@ page at all.
                     <input type="number" name="min_warmup_score"
                            class="form-control settings-number"
                            value="{{ config.min_warmup_score }}" min="0" max="100">
-                    <span class="settings-field__suffix">min warmup score (0&ndash;100)</span>
+                    <span class="settings-field__suffix">
+                        Warmup score a mailbox must reach
+                        <span class="muted">&mdash; Instantly scores each 0&ndash;100</span>
+                    </span>
                 </div>
                 <div class="settings-field">
                     <input type="number" name="min_warmup_days"
                            class="form-control settings-number"
                            value="{{ config.min_warmup_days }}" min="0" max="90">
-                    <span class="settings-field__suffix">min days warming</span>
+                    <span class="settings-field__suffix">
+                        Days a mailbox must have been warming
+                        <span class="muted">&mdash; a new one can post a good score before providers trust it</span>
+                    </span>
                 </div>
                 <div class="settings-field">
                     <input type="number" name="min_ready_mailboxes"
                            class="form-control settings-number"
                            value="{{ config.min_ready_mailboxes }}" min="1" max="50">
-                    <span class="settings-field__suffix">min ready mailboxes</span>
+                    <span class="settings-field__suffix">
+                        How many mailboxes must pass before sending starts
+                        <span class="muted">&mdash; rotation needs more than one or two</span>
+                    </span>
                 </div>
             </section>
 
@@ -150,11 +159,11 @@ page at all.
                 <h3 class="admin-card__title">Where to go next</h3>
                 <dl class="kv">
                     <dt>Offers</dt>
-                    <dd><a href="/admin/outreach/offer/">Edit offer copy</a></dd>
+                    <dd><a href="{% url 'admin_dashboard:outreach_offer_list' %}">Edit offer copy</a></dd>
                     <dt>Campaigns</dt>
-                    <dd><a href="/admin/outreach/outreachcampaign/">Campaigns &amp; Instantly IDs</a></dd>
+                    <dd><a href="{% url 'admin_dashboard:outreach_campaign_list' %}">Campaigns &amp; Instantly IDs</a></dd>
                     <dt>Review queue</dt>
-                    <dd><a href="/admin/outreach/leadreviewqueue/">Leads awaiting review</a></dd>
+                    <dd><a href="{% url 'admin_dashboard:outreach_review_queue' %}">Leads awaiting review</a></dd>
                 </dl>
                 <p class="muted settings-help">
                     Run <code>manage.py outreach_status</code> to see the

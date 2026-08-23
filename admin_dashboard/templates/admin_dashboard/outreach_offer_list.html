@@ -1,0 +1,94 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}Offers — Admin — Aspired Websites{% endblock %}
+
+{% comment %}
+Reply rate is the column this page is built around. Offers became rows
+rather than constants precisely so that number could accumulate
+somewhere a human can act on it.
+{% endcomment %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Offers</h1>
+        </div>
+        <a href="{% url 'admin_dashboard:outreach_offer_new' %}" class="btn-primary">New offer</a>
+    </div>
+
+    <p class="muted settings-help">
+        What the prospect gets, and how they say yes. Cold outreach
+        without an offer asks for their time in exchange for nothing.
+        The offer is the A/B variable &mdash; it moves reply rate far
+        more than wording does &mdash; so each one gets its own campaign
+        and its own number.
+        <strong>{{ active_count }}</strong> of {{ offers|length }} active.
+    </p>
+
+    <div class="admin-card">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Offer</th>
+                    <th>Appeals to</th>
+                    <th>Campaigns</th>
+                    <th>Sends</th>
+                    <th>Replies</th>
+                    <th>Reply rate</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for offer in offers %}
+                <tr>
+                    <td>
+                        <a href="{% url 'admin_dashboard:outreach_offer_edit' offer.pk %}">
+                            <strong>{{ offer.name }}</strong>
+                        </a>
+                        <br><code class="muted">{{ offer.key }}</code>
+                        {% if offer.proposed_by == 'agent' %}
+                            <span class="badge badge--warn">proposed by agent</span>
+                        {% endif %}
+                    </td>
+                    <td class="muted">{{ offer.appeals_to|default:"—" }}</td>
+                    <td>{{ offer.campaign_count }}</td>
+                    <td>{{ offer.sends }}</td>
+                    <td>{{ offer.replies }}</td>
+                    <td>
+                        {% if offer.sends %}
+                            {{ offer.reply_rate|floatformat:3 }}
+                        {% else %}
+                            <span class="muted">no data yet</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if offer.active %}
+                            <span class="badge-yes">active</span>
+                        {% else %}
+                            <span class="muted">inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="admin-table__actions">
+                        <form method="post" action="{% url 'admin_dashboard:outreach_offer_toggle' offer.pk %}" style="display:inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">
+                                {% if offer.active %}Deactivate{% else %}Activate{% endif %}
+                            </button>
+                        </form>
+                        <a href="{% url 'admin_dashboard:outreach_offer_edit' offer.pk %}" class="btn-secondary btn-sm">Edit</a>
+                        <a href="{% url 'admin_dashboard:outreach_offer_delete' offer.pk %}" class="btn-danger btn-sm">Delete</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="muted">
+                    No offers yet. Run <code>manage.py seed_offers</code> or create one.
+                </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

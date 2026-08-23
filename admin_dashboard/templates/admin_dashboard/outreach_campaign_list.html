@@ -1,0 +1,101 @@
+{% extends "admin_dashboard/base.html" %}
+{% block title %}Campaigns — Admin — Aspired Websites{% endblock %}
+
+{% comment %}
+A campaign can only push when it has BOTH an Instantly id and active
+ticked. Showing one without the other is how a campaign sits looking
+enabled for a week while pushing nothing, so both are columns and
+"Can push?" answers the question directly.
+{% endcomment %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Outreach</span>
+            <h1 class="admin-page-title">Campaigns</h1>
+        </div>
+        <a href="{% url 'admin_dashboard:outreach_campaign_new' %}" class="btn-primary">New campaign</a>
+    </div>
+
+    {% if not sending_allowed %}
+        <div class="outreach-toggle__warning" role="status">
+            <strong>Nothing is being pushed.</strong> {{ sending_reason }}
+            <a href="{% url 'admin_dashboard:settings' %}">Change this in Settings</a>.
+        </div>
+    {% endif %}
+
+    <p class="muted settings-help">
+        One campaign per niche &times; geography &times; offer. Copy that
+        says something specifically true cannot be written for a blended
+        list, and per-campaign reply rate is the only way to learn which
+        segment actually wants this.
+    </p>
+
+    <div class="admin-card">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Campaign</th>
+                    <th>Offer</th>
+                    <th>Targets</th>
+                    <th>Leads</th>
+                    <th>Pushed</th>
+                    <th>Instantly id</th>
+                    <th>Can push?</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for c in campaigns %}
+                <tr>
+                    <td>
+                        <a href="{% url 'admin_dashboard:outreach_campaign_edit' c.pk %}">
+                            <strong>{{ c.name }}</strong>
+                        </a>
+                        <br><code class="muted">{{ c.slug }}</code>
+                    </td>
+                    <td>
+                        {% if c.offer %}
+                            {{ c.offer.name }}
+                        {% else %}
+                            <span class="muted">default</span>
+                        {% endif %}
+                    </td>
+                    <td class="muted">
+                        {{ c.business_type|default:"any type" }}
+                        {% if c.state %} &middot; {{ c.state }}{% endif %}
+                        {% if c.city %} &middot; {{ c.city }}{% endif %}
+                    </td>
+                    <td>{{ c.lead_count }}</td>
+                    <td>{{ c.pushed_count }}</td>
+                    <td>
+                        {% if c.instantly_campaign_id %}
+                            <code>{{ c.instantly_campaign_id|truncatechars:14 }}</code>
+                        {% else %}
+                            <span class="muted">not linked</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if c.is_pushable %}
+                            <span class="badge-yes">yes</span>
+                        {% else %}
+                            <span class="muted">
+                                {% if not c.instantly_campaign_id %}needs an id{% else %}paused{% endif %}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="admin-table__actions">
+                        <a href="{% url 'admin_dashboard:outreach_campaign_edit' c.pk %}" class="btn-secondary btn-sm">Edit</a>
+                        <a href="{% url 'admin_dashboard:outreach_campaign_delete' c.pk %}" class="btn-danger btn-sm">Delete</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="muted">No campaigns yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
