@@ -881,24 +881,46 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'outreach.tasks.run_scrape_jobs_task',
         'schedule': crontab(hour=2, minute=0),            # daily 2am
     },
-    'generate-cold-outreach': {
-        'task': 'outreach.tasks.run_cold_sender_task',
-        'schedule': crontab(hour=9, minute=0),            # daily 9am
+    # ── The Instantly pipeline ─────────────────────────────────────────
+    #
+    # verify -> enrich -> verify -> icebreak -> push, hourly during the
+    # working day. Nothing here sends: Instantly does the sending, and
+    # only once BOTH send gates pass (the instantly_sending_enabled
+    # switch and the measured warmup check in instantly.warmup_readiness).
+    # Until then the pipeline quietly accumulates verified, drafted leads
+    # and push_to_instantly_task returns "not sending yet".
+    #
+    # Hourly rather than daily because each stage is bounded and
+    # idempotent, so a run that finds nothing to do costs one cheap query
+    # per stage, and a batch that lands at 10am should not wait until
+    # tomorrow to be verified.
+    'outreach-pipeline': {
+        'task': 'outreach.tasks.run_outreach_pipeline_task',
+        'schedule': crontab(minute=20, hour='8-19'),
     },
-    # Drain the approved queue every 30 minutes during business hours
-    # (9am-6pm CT = our send window). Off-hours: nothing dispatches
-    # even if the operator approves something at 11pm — it'll wait
-    # until 9am the next morning.
-    'dispatch-approved-emails': {
-        'task': 'outreach.tasks.send_approved_emails_task',
-        'schedule': crontab(minute='*/30', hour='9-18'),
-    },
-    # Poll the inbox for inbound replies every 15 minutes. Reply
-    # classification + auto-drafting fans out per-reply.
-    'ingest-outreach-replies': {
-        'task': 'outreach.tasks.ingest_replies_task',
+    # Replies arrive by polling the unibox -- Instantly gates outbound
+    # webhooks behind a higher plan tier. Cheap: one API call.
+    'poll-instantly-replies': {
+        'task': 'outreach.tasks.poll_instantly_replies_task',
         'schedule': crontab(minute='*/15'),
     },
+
+    # ── Legacy SendGrid cold path — DELIBERATELY NOT SCHEDULED ─────────
+    #
+    # run_cold_sender_task and send_approved_emails_task used to run here
+    # daily and every 30 minutes. They are the path that sent 416 cold
+    # emails to info@ addresses and produced zero human replies, and they
+    # bypass every gate built since: no email verification, no icebreaker
+    # fabrication guard, no campaign segment check, no warmup check.
+    #
+    # They are left in outreach/tasks.py so existing approved rows can
+    # still be drained by hand if ever needed, but nothing wakes them.
+    # OutreachSettings.outreach_active is also False, which is a second
+    # lock on the same door.
+    #
+    # ingest_replies_task (IMAP) is likewise unscheduled: it is the path
+    # that filed ten Google Ads notifications as prospect replies, and
+    # poll_instantly_replies_task replaces it with a sender filter.
     # Redis connection monitor — captures CLIENT LIST every 5 min,
     # buckets by process name (gunicorn / celery_worker / daphne /
     # etc), prunes older than 30 days. Surfaces at

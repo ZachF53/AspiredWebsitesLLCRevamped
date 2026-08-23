@@ -130,10 +130,41 @@ class SuppressionListAdmin(admin.ModelAdmin):
 @admin.register(OutreachSettings)
 class OutreachSettingsAdmin(admin.ModelAdmin):
     list_display = (
-        'trust_level', 'daily_send_cap',
+        'trust_level', 'daily_send_cap', 'instantly_sending_enabled',
         'outreach_active', 'emails_sent_today', 'last_reset_date',
     )
     readonly_fields = ('emails_sent_today', 'last_reset_date')
+    fieldsets = (
+        ('Instantly sending', {
+            'fields': ('instantly_sending_enabled', 'min_warmup_score',
+                       'min_warmup_days', 'min_ready_mailboxes'),
+            'description': (
+                'Two independent gates guard every push. The switch says a '
+                'human intends to send; the warmup thresholds say the '
+                'mailboxes can survive it. BOTH must pass.<br><br>'
+                'The thresholds are editable on purpose. 14 days is a '
+                'sensible floor rather than a rule - lower it if you '
+                'decide to start early, but lowering it is a decision '
+                'about your sending domains, not a formality.'),
+        }),
+        ('Legacy SendGrid path', {
+            'fields': ('outreach_active', 'trust_level', 'daily_send_cap',
+                       'warming_start_date'),
+            'description': (
+                'The OLD cold-email path. It bypasses verification, the '
+                'icebreaker guard and the segment gate, and it is what '
+                'sent 416 emails to info@ addresses. Leave '
+                'outreach_active OFF.'),
+        }),
+        ('Spend caps', {
+            'fields': ('daily_ai_spend_cap_usd', 'apify_max_runs_per_day',
+                       'apify_max_results_per_run'),
+        }),
+        ('Counters', {
+            'fields': ('emails_sent_today', 'last_reset_date'),
+            'classes': ('collapse',),
+        }),
+    )
 
     def has_add_permission(self, request):
         # Singleton — only one row allowed.

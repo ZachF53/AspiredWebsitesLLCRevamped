@@ -34,6 +34,17 @@ def make_lead(**kw):
     return Lead.objects.create(**defaults)
 
 
+def allow_sending():
+    """Open both send gates for tests about the OTHER push gates.
+
+    Explicit rather than a global default: a test that pushes leads
+    should have to say out loud that sending is permitted, because in
+    production that is two deliberate decisions and never an ambient
+    condition.
+    """
+    return patch.object(instantly, 'sending_allowed', return_value=(True, ''))
+
+
 # ── verify.py ──────────────────────────────────────────────────────────
 
 class RoleAddressTests(TestCase):
@@ -214,8 +225,9 @@ class PushGateTests(TestCase):
             instantly_campaign_id='camp-1', active=True)
 
     def _push(self, leads):
-        with patch.object(instantly, '_request',
-                          return_value={'id': 'inst-1'}) as req:
+        with allow_sending(), patch.object(
+                instantly, '_request',
+                return_value={'id': 'inst-1'}) as req:
             summary = instantly.push_leads(leads, self.campaign)
         return summary, req
 
@@ -276,14 +288,16 @@ class PushGateTests(TestCase):
     def test_paused_campaign_refuses_the_push(self):
         self.campaign.active = False
         self.campaign.save()
-        with self.assertRaises(instantly.InstantlyError):
-            instantly.push_leads([make_lead()], self.campaign)
+        with allow_sending():
+            with self.assertRaises(instantly.InstantlyError):
+                instantly.push_leads([make_lead()], self.campaign)
 
     def test_campaign_without_instantly_id_refuses_the_push(self):
         self.campaign.instantly_campaign_id = ''
         self.campaign.save()
-        with self.assertRaises(instantly.InstantlyError):
-            instantly.push_leads([make_lead()], self.campaign)
+        with allow_sending():
+            with self.assertRaises(instantly.InstantlyError):
+                instantly.push_leads([make_lead()], self.campaign)
 
     @override_settings(INSTANTLY_MAX_PUSH_PER_DAY=2)
     def test_daily_push_cap_defers_the_remainder(self):
@@ -954,8 +968,9 @@ class SegmentGateTests(TestCase):
 
     def test_push_refuses_the_mismatched_lead(self):
         lead = make_lead(state='California', business_type='Staffing')
-        with patch.object(instantly, '_request',
-                          return_value={'id': 'x'}) as req:
+        with allow_sending(), patch.object(
+                instantly, '_request',
+                return_value={'id': 'x'}) as req:
             summary = instantly.push_leads([lead], self.campaign)
         self.assertEqual(summary['pushed'], 0)
         self.assertEqual(summary['skipped_wrong_segment'], 1)
@@ -1131,8 +1146,9 @@ class ReviewGateTests(TestCase):
     def test_flagged_lead_is_not_pushed(self):
         lead = make_lead(needs_review=True,
                          review_reason='Name contains "recruiting"')
-        with patch.object(instantly, '_request',
-                          return_value={'id': 'x'}) as req:
+        with allow_sending(), patch.object(
+                instantly, '_request',
+                return_value={'id': 'x'}) as req:
             summary = instantly.push_leads([lead], self.campaign)
         self.assertEqual(summary['pushed'], 0)
         self.assertEqual(summary['skipped_needs_review'], 1)
@@ -1140,8 +1156,9 @@ class ReviewGateTests(TestCase):
 
     def test_cleared_lead_pushes_normally(self):
         lead = make_lead(needs_review=False)
-        with patch.object(instantly, '_request',
-                          return_value={'id': 'x'}):
+        with allow_sending(), patch.object(
+                instantly, '_request',
+                return_value={'id': 'x'}):
             summary = instantly.push_leads([lead], self.campaign)
         self.assertEqual(summary['pushed'], 1)
 
@@ -1340,3 +1357,112 @@ class ComposeEmailTests(TestCase):
                                     postal_address='1 Main St')
         self.assertEqual(d['offer_key'], sequences.DEFAULT_OFFER)
         self.assertEqual(d['unresolved'], [])
+
+
+# ── the send gates ─────────────────────────────────────────────────────
+
+@override_settings(INSTANTLY_TOKEN='t')
+class SendGateWarmupTests(TestCase):
+    """Two independent gates. A switch alone is one mis-click away from
+    270 emails/day out of mailboxes that finished setup yesterday, and
+    providers do not care that a human ticked a box."""
+
+    def setUp(self):
+        from outreach.models import OutreachSettings
+        self.cfg = OutreachSettings.load()
+        self.cfg.instantly_sending_enabled = True
+        self.cfg.min_warmup_score = 90
+        self.cfg.min_warmup_days = 14
+        self.cfg.min_ready_mailboxes = 3
+        self.cfg.save()
+
+    def _accounts(self, n=3, score=100, days_ago=30,
+                  pending=False, status=1):
+        from datetime import datetime, timedelta, timezone as tz
+        start = (datetime.now(tz.utc) - timedelta(days=days_ago)
+                 ).isoformat().replace('+00:00', 'Z')
+        return [{
+            'email': f'zach{i}@getaspiredwebsites.com',
+            'stat_warmup_score': score,
+            'timestamp_warmup_start': None if days_ago is None else start,
+            'setup_pending': pending,
+            'status': status,
+            'daily_limit': 30,
+        } for i in range(n)]
+
+    def test_switch_off_blocks_even_when_mailboxes_are_perfect(self):
+        self.cfg.instantly_sending_enabled = False
+        self.cfg.save()
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts()):
+            allowed, why = instantly.sending_allowed()
+        self.assertFalse(allowed)
+        self.assertIn('switched off', why)
+
+    def test_switch_on_but_mailboxes_unwarmed_still_blocks(self):
+        """THE POINT. The switch cannot override the measurement."""
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts(pending=True,
+                                                      status=2)):
+            allowed, why = instantly.sending_allowed()
+        self.assertFalse(allowed)
+        self.assertIn('not warm enough', why)
+
+    def test_the_real_aspiredwebsites_mailboxes_fail_today(self):
+        """Verified live 2026-08-23: status=2, setup_pending=True,
+        warmup_start=None. They have never been connected."""
+        live = [{'email': 'zach@getaspiredwebsites.com',
+                 'stat_warmup_score': 0, 'timestamp_warmup_start': None,
+                 'setup_pending': True, 'status': 2, 'daily_limit': 30}] * 9
+        with patch.object(instantly, 'list_accounts', return_value=live):
+            status = instantly.warmup_readiness()
+        self.assertFalse(status['ready'])
+        self.assertEqual(status['ready_mailboxes'], 0)
+
+    def test_warm_enough_and_switched_on_allows(self):
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts()):
+            allowed, why = instantly.sending_allowed()
+        self.assertTrue(allowed)
+        self.assertEqual(why, '')
+
+    def test_good_score_but_too_new_is_refused(self):
+        """A brand new mailbox can post a flattering score days before
+        any provider trusts it."""
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts(score=100,
+                                                      days_ago=3)):
+            self.assertFalse(instantly.warmup_readiness()['ready'])
+
+    def test_threshold_is_lowerable_for_a_deliberate_early_start(self):
+        """14 days is a floor, not a rule. Lowering it is a decision
+        about the sending domains, and the admin allows it."""
+        self.cfg.min_warmup_days = 7
+        self.cfg.save()
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts(days_ago=8)):
+            self.assertTrue(instantly.warmup_readiness()['ready'])
+
+    def test_too_few_ready_mailboxes_is_refused(self):
+        """Rotation needs more than one mailbox."""
+        with patch.object(instantly, 'list_accounts',
+                          return_value=self._accounts(n=2)):
+            self.assertFalse(instantly.warmup_readiness()['ready'])
+
+    def test_push_leads_refuses_when_gated(self):
+        self.cfg.instantly_sending_enabled = False
+        self.cfg.save()
+        campaign = OutreachCampaign.objects.create(
+            name='TX', slug='tx-gate', niche='law firm',
+            instantly_campaign_id='c1', active=True)
+        with patch.object(instantly, '_request') as req:
+            with self.assertRaises(instantly.InstantlySendingDisabled):
+                instantly.push_leads([make_lead()], campaign)
+        req.assert_not_called()
+
+    def test_api_outage_fails_closed(self):
+        with patch.object(instantly, 'list_accounts',
+                          side_effect=instantly.InstantlyError('502')):
+            status = instantly.warmup_readiness()
+        self.assertFalse(status['ready'])
+        self.assertIn('502', status['reason'])

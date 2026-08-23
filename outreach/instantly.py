@@ -52,6 +52,15 @@ class InstantlyNotConfigured(InstantlyError):
     """No token. Same posture as the Apify and Brave clients."""
 
 
+class InstantlySendingDisabled(InstantlyError):
+    """Refused before touching anything. Not a failure condition.
+
+    Either the switch is off or the mailboxes are not warm. Callers
+    should report this as "not sending yet" and carry on collecting
+    leads, rather than logging it as an error and retrying.
+    """
+
+
 def _token():
     token = (getattr(settings, 'INSTANTLY_TOKEN', '') or '').strip()
     if not token:
@@ -163,6 +172,120 @@ def sending_capacity():
         }),
         'warmup_scores': [a.get('stat_warmup_score') for a in active],
     }
+
+
+def warmup_readiness():
+    """Are the sending mailboxes actually warm enough to use?
+
+    MEASURED, not asserted. This is the second of the two gates on
+    ``push_leads`` and it exists because the first one -- the
+    ``instantly_sending_enabled`` switch -- is one mis-click away from
+    starting a 270/day campaign out of mailboxes that finished setup
+    yesterday. Providers do not care that a human ticked a box.
+
+    A mailbox counts as ready only when all four hold:
+
+        setup_pending is False    - the provider hookup finished
+        status == 1               - Instantly considers it usable
+        warmup score >= threshold - Instantly's own 0-100 measure
+        warming for >= N days     - a new mailbox can post a flattering
+                                    score days before anyone trusts it
+
+    Verified against the live workspace 2026-08-23: the nine
+    *aspiredwebsites.com mailboxes are status=2, setup_pending=True,
+    warmup_start=None. They fail on every count, which is correct -- they
+    have never been connected.
+
+    Never raises. A dict the admin and the push gate both read.
+    """
+    from datetime import datetime, timezone as _tz
+
+    from outreach.models import OutreachSettings
+
+    cfg = OutreachSettings.load()
+    min_score = int(cfg.min_warmup_score or 0)
+    min_days = int(cfg.min_warmup_days or 0)
+    min_count = int(cfg.min_ready_mailboxes or 1)
+
+    try:
+        accounts = list_accounts()
+    except InstantlyError as exc:
+        return {
+            'ready': False,
+            'reason': f'Could not reach Instantly: {exc}',
+            'ready_mailboxes': 0, 'required': min_count,
+            'daily_capacity': 0, 'detail': [],
+        }
+
+    now = datetime.now(_tz.utc)
+    ready, detail = [], []
+    for acct in accounts:
+        email = acct.get('email', '?')
+        score = acct.get('stat_warmup_score')
+        started = acct.get('timestamp_warmup_start')
+        days = None
+        if started:
+            try:
+                begin = datetime.fromisoformat(
+                    str(started).replace('Z', '+00:00'))
+                days = (now - begin).days
+            except ValueError:
+                days = None
+
+        problems = []
+        if acct.get('setup_pending'):
+            problems.append('setup not finished')
+        if acct.get('status') != 1:
+            problems.append(f"status={acct.get('status')}")
+        if score is None or int(score or 0) < min_score:
+            problems.append(f'warmup score {score} < {min_score}')
+        if days is None:
+            problems.append('warmup never started')
+        elif days < min_days:
+            problems.append(f'warming {days}d < {min_days}d')
+
+        if problems:
+            detail.append({'email': email, 'ready': False,
+                           'problems': problems})
+        else:
+            ready.append(acct)
+            detail.append({'email': email, 'ready': True, 'problems': []})
+
+    capacity = sum(int(a.get('daily_limit') or 0) for a in ready)
+    is_ready = len(ready) >= min_count
+
+    return {
+        'ready': is_ready,
+        'reason': '' if is_ready else (
+            f'{len(ready)} mailbox(es) pass the warmup check, '
+            f'{min_count} required.'),
+        'ready_mailboxes': len(ready),
+        'required': min_count,
+        'daily_capacity': capacity,
+        'detail': detail,
+    }
+
+
+def sending_allowed():
+    """Both gates. Returns (allowed, reason).
+
+    The switch says a human intends to send. The warmup check says the
+    infrastructure can survive it. Sending needs both, and neither can
+    override the other.
+    """
+    from outreach.models import OutreachSettings
+
+    cfg = OutreachSettings.load()
+    if not cfg.instantly_sending_enabled:
+        return False, (
+            'Sending is switched off (OutreachSettings.'
+            'instantly_sending_enabled). Leads will keep accumulating, '
+            'verified and drafted, until it is turned on.')
+
+    status = warmup_readiness()
+    if not status['ready']:
+        return False, f"Mailboxes are not warm enough: {status['reason']}"
+    return True, ''
 
 
 def list_emails(limit=100):
@@ -386,6 +509,13 @@ def push_leads(leads, campaign):
         raise InstantlyError(
             f'Campaign "{campaign.name}" is paused. Activate it in Django '
             'before pushing leads.')
+
+    # The two send gates. Checked HERE rather than only in the task,
+    # because push_leads is the last reversible step before a stranger
+    # receives mail and it must not depend on its caller having asked.
+    allowed, why = sending_allowed()
+    if not allowed:
+        raise InstantlySendingDisabled(why)
 
     summary = {
         'total': 0, 'pushed': 0, 'skipped_unsendable': 0,

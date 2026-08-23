@@ -590,6 +590,45 @@ class OutreachSettings(models.Model):
             'without this clamp.'),
     )
 
+    # ── The send switch ────────────────────────────────────────────────
+    #
+    # Pushing a lead into an Instantly campaign is the last reversible
+    # step before a stranger receives mail. This is the switch that
+    # governs it, and it defaults OFF.
+    #
+    # It is deliberately NOT the only gate. ``instantly.warmup_readiness``
+    # independently measures whether the mailboxes are actually warm, and
+    # ``push_leads`` requires both. A switch alone would be one mis-click
+    # away from sending 270 emails/day from mailboxes that finished setup
+    # yesterday, which is precisely how a domain gets burned before it has
+    # sent anything worth reading.
+    instantly_sending_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            'OFF until the sending mailboxes are warmed. Turning it on '
+            'does NOT bypass the warmup check - both must pass before any '
+            'lead is pushed to a campaign.'),
+    )
+
+    # Minimum Instantly warmup score before a mailbox counts as usable.
+    # Instantly reports 0-100; a mailbox mid-ramp sits well below this.
+    min_warmup_score = models.IntegerField(
+        default=90,
+        help_text='Mailboxes below this score do not count toward the '
+                  'readiness check.')
+
+    # Warmup needs calendar time as well as a good score - a brand new
+    # mailbox can show a flattering score days before providers trust it.
+    min_warmup_days = models.IntegerField(
+        default=14,
+        help_text='Days a mailbox must have been warming, regardless of '
+                  'its score.')
+
+    min_ready_mailboxes = models.IntegerField(
+        default=3,
+        help_text='How many mailboxes must pass before sending is '
+                  'allowed. Rotation needs more than one.')
+
     # Counter — resets at midnight via Celery beat task (added in later week).
     emails_sent_today = models.IntegerField(default=0)
     last_reset_date = models.DateField(null=True, blank=True)

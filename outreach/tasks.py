@@ -344,6 +344,13 @@ def push_to_instantly_task():
     from outreach import instantly
     from outreach.models import Lead, OutreachCampaign
 
+    # Check once up front so a disabled switch reads as one clear line
+    # rather than the same refusal repeated per campaign.
+    allowed, why = instantly.sending_allowed()
+    if not allowed:
+        logger.info('push_to_instantly_task: %s', why)
+        return f'not sending yet: {why}'
+
     campaigns = OutreachCampaign.objects.filter(
         active=True).exclude(instantly_campaign_id='')
     if not campaigns:
