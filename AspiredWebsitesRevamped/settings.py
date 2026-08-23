@@ -900,6 +900,13 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Replies arrive by polling the unibox -- Instantly gates outbound
     # webhooks behind a higher plan tier. Cheap: one API call.
+    # Audit follow-ups. Warm, requested, and sent through SendGrid from
+    # the main domain -- these people just visited the site and asked for
+    # the report, so it should come from the address they expect.
+    'audit-followups': {
+        'task': 'public.tasks.send_audit_followups_task',
+        'schedule': crontab(hour=9, minute=10),
+    },
     'poll-instantly-replies': {
         'task': 'outreach.tasks.poll_instantly_replies_task',
         'schedule': crontab(minute='*/15'),

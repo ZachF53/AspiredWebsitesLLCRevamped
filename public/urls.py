@@ -70,6 +70,10 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('audit/', views.audit, name='audit'),
     path('audit/results/', views.audit_results, name='audit_results'),
+    # One-click opt-out from the audit follow-up sequence. No
+    # login: the token is signed and identifies the record.
+    path('audit/unsubscribe/<str:token>/', views.audit_unsubscribe,
+         name='audit_unsubscribe'),
     path('audit/ai-review/', views.audit_ai_review, name='audit_ai_review'),
     path('login/', views.login_page, name='login'),
     path('logout/', views.logout_view, name='logout'),

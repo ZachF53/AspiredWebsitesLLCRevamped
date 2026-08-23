@@ -1,3 +1,4 @@
+import logging
 import re
 from urllib.parse import urlparse
 
@@ -16,6 +17,8 @@ from core.site_facts import LOCATION_PHRASE, LOCATION_STATEMENT
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
 from .models import AuditLead
+
+logger = logging.getLogger(__name__)
 
 
 def _domain_of(url):
@@ -1009,7 +1012,7 @@ def audit_results(request):
     if request.method == 'POST':
         email_form = AuditEmailForm(request.POST)
         if email_form.is_valid():
-            AuditLead.objects.create(
+            audit_lead = AuditLead.objects.create(
                 url=audit_url,
                 performance_score=scores['performance'],
                 seo_score=scores['seo'],
@@ -1019,10 +1022,16 @@ def audit_results(request):
                 email=email_form.cleaned_data['email'],
                 ip_address=_client_ip(request),
             )
-            _send_audit_report(
-                audit_url, scores, issues_by_category,
-                email_form.cleaned_data['email'],
-            )
+            # Email 1 of the follow-up sequence, sent immediately.
+            # Was an inline sender with no unsubscribe link, which made
+            # the message this business sends most often the one message
+            # that was not CAN-SPAM compliant.
+            from public.audit_sequence import send_report
+            try:
+                send_report(audit_lead)
+            except Exception:  # noqa: BLE001 - never break the capture
+                logger.exception(
+                    'audit report send failed for %s', audit_lead.pk)
             request.session['audit_email_submitted'] = True
             # §10 conversion — this one creates a contactable AuditLead,
             # so it is the audit funnel's real finish line. The visitor's
@@ -1343,41 +1352,11 @@ Write the review now."""
     return message.content[0].text.strip()
 
 
-def _send_audit_report(url, scores, issues_by_category, email):
-    if not isinstance(issues_by_category, dict):
-        issues_by_category = {}
-
-    lines = [
-        f'Here are the full audit results for {url}:',
-        '',
-    ]
-    for key in ('performance', 'seo', 'best_practices', 'accessibility'):
-        lines.append(f'{_CATEGORY_LABELS[key]}: {scores[key]}/100')
-        for issue in issues_by_category.get(key) or []:
-            lines.append(f'  - {issue.get("title", "")}')
-            if issue.get('description'):
-                lines.append(f'    {issue["description"]}')
-        lines.append('')
-
-    lines += [
-        '---',
-        '',
-        'Want to fix all of this? Book a free 30-minute call:',
-        'https://aspiredwebsites.com/contact/',
-        '',
-        '— Zachery Long',
-        'Aspired Websites LLC',
-    ]
-
-    send_mail(
-        subject=f'Your website audit: {url}',
-        message='\n'.join(lines),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        fail_silently=True,
-    )
-
-
+# _send_audit_report was removed on 2026-08-23. It built the report
+# inline with no unsubscribe link and no postal address, which made the
+# message this business sends most often the one message that was not
+# CAN-SPAM compliant. public/audit_sequence.py replaces it and carries
+# both, on all three emails.
 @ratelimit(key='post:email', rate='5/h', method='POST', block=False)
 @ratelimit(key='ip',         rate='10/h', method='POST', block=False)
 def login_page(request):
@@ -1496,4 +1475,48 @@ def domain_parked(request):
         'active_nav': '',
         'for_domain': safe_for,
         'meta_title': 'Site offline — Aspired Websites',
+    })
+
+
+def audit_unsubscribe(request, token):
+    """One-click opt-out from the audit follow-up sequence.
+
+    No login, no confirmation step, no "are you sure". A recipient who
+    clicks unsubscribe has already decided, and every extra step between
+    them and being gone is another chance they press the spam button
+    instead -- which costs the sending domain far more than the
+    unsubscribe ever would.
+
+    Also adds the address to the global SuppressionList, so opting out
+    here means opting out of cold outreach too. Somebody who says no is
+    saying no to us, not to one particular mailing.
+    """
+    from django.utils import timezone
+
+    from outreach.models import SuppressionList
+    from public.audit_sequence import resolve_unsubscribe_token
+
+    audit_lead = resolve_unsubscribe_token(token)
+
+    if audit_lead is not None and not audit_lead.unsubscribed:
+        audit_lead.unsubscribed = True
+        audit_lead.unsubscribed_at = timezone.now()
+        audit_lead.save(update_fields=['unsubscribed', 'unsubscribed_at'])
+        if audit_lead.email:
+            SuppressionList.objects.get_or_create(
+                email=audit_lead.email.lower(),
+                defaults={
+                    'reason': 'unsubscribed (audit follow-up)',
+                    'domain': audit_lead.email.rpartition('@')[2],
+                },
+            )
+
+    # The same page renders whether or not the token resolved. A bad or
+    # already-used token still says "you are unsubscribed", because the
+    # alternative is telling somebody their opt-out failed when there is
+    # nothing they can do about it.
+    return render(request, 'public/audit_unsubscribed.html', {
+        'meta_title': 'Unsubscribed — Aspired Websites',
+        'meta_description': 'You have been removed from our list.',
+        'noindex': True,
     })

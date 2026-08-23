@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="section">
+    <div class="container container--narrow" style="text-align:center">
+        <h1>You're unsubscribed.</h1>
+        <p class="lead">
+            You won't hear from us again. That covers the audit follow-ups
+            and any other outreach.
+        </p>
+        <p>
+            The website audit tool stays free either way &mdash; run it
+            whenever you like, no email required.
+        </p>
+        <p>
+            <a href="{% url 'public:audit' %}" class="btn btn-primary">Run another audit</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

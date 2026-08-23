@@ -100,6 +100,23 @@ class AuditLead(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── Follow-up sequence (public/audit_sequence.py) ──────────────────
+    #
+    # These people ASKED for the report, so this is a warm sequence and
+    # not cold outreach: it goes out through SendGrid from the main
+    # domain, which is where they expect it from, rather than through
+    # Instantly from a secondary sending domain.
+    #
+    # It is still commercial email, so it still needs a working opt-out.
+    # The original report had none, which was a CAN-SPAM gap on the one
+    # message the business sends most often.
+    report_sent_at = models.DateTimeField(null=True, blank=True)
+    followup_1_sent_at = models.DateTimeField(null=True, blank=True)
+    followup_2_sent_at = models.DateTimeField(null=True, blank=True)
+
+    unsubscribed = models.BooleanField(default=False, db_index=True)
+    unsubscribed_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Audit Lead'
@@ -107,6 +124,34 @@ class AuditLead(models.Model):
 
     def __str__(self):
         return f'{self.url} — perf {self.performance_score}'
+
+    @property
+    def worst_category(self):
+        """(key, score) of the lowest-scoring category.
+
+        The sequence is built around this: a site failing accessibility
+        needs a different conversation from one that is merely slow, and
+        sending both people the same follow-up wastes the one thing that
+        makes this sequence worth reading.
+        """
+        scores = {
+            'performance': self.performance_score,
+            'seo': self.seo_score,
+            'accessibility': self.accessibility_score,
+            'best_practices': self.best_practices_score,
+        }
+        key = min(scores, key=scores.get)
+        return key, scores[key]
+
+    @property
+    def is_healthy(self):
+        """True when nothing here is worth writing a follow-up about.
+
+        A site scoring well everywhere gets the report and then silence.
+        Manufacturing a problem to justify a follow-up is how a useful
+        tool turns into a sales funnel people resent.
+        """
+        return self.average_score >= 85 and self.worst_category[1] >= 70
 
     @property
     def average_score(self):
