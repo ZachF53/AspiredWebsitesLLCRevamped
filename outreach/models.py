@@ -207,6 +207,19 @@ class Lead(models.Model):
     )
     icebreaker_generated_at = models.DateTimeField(null=True, blank=True)
 
+    # ── Warm-opener material ───────────────────────────────────────────
+    # The facts an icebreaker may say something friendly about. Stored as
+    # real fields rather than left inside `notes` because the fabrication
+    # guard has to CHECK them: "practising since 1998" is exactly the
+    # kind of flattering detail a model invents, and a claim we cannot
+    # verify is a claim we cannot ship.
+    founded_year = models.IntegerField(
+        null=True, blank=True,
+        help_text='Year the firm was founded, when the source supplies it.')
+    practice_areas = models.CharField(
+        max_length=500, blank=True,
+        help_text='Comma-separated, from the source. e.g. "estate planning, probate".')
+
     # ── Manual review (outreach/review.py) ─────────────────────────────
     # Set when the company NAME contradicts the industry the source
     # claims. Apollo tags "Bwa Video, Inc." and "Kinney Recruiting" as

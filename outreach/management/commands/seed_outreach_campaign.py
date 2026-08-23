@@ -36,6 +36,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--sequence', default='texas-law',
                             help='Which sequence in outreach/sequences.py.')
+        parser.add_argument(
+            '--offer', default='',
+            help='One offer key, or "all" to seed one campaign per offer.')
         parser.add_argument('--name', default='TX - Law Firms')
         parser.add_argument('--niche', default='law firm')
         parser.add_argument('--state', default='TX')
@@ -57,9 +60,13 @@ class Command(BaseCommand):
         bad = self.style.ERROR
         warn = self.style.WARNING
 
+        offer = opts['offer'] or sequences.DEFAULT_OFFER
+        if offer == 'all':
+            self._seed_all(opts)
+            return
         try:
             steps = sequences.build_steps(
-                opts['sequence'], opts['postal_address'])
+                opts['sequence'], opts['postal_address'], offer=offer)
         except sequences.SequenceError as exc:
             raise CommandError(str(exc))
 
@@ -157,3 +164,43 @@ class Command(BaseCommand):
         for b in blockers:
             w(bad(f'  X {b}'))
         w('')
+
+    def _seed_all(self, opts):
+        """One campaign per offer -- the A/B/C/D/E/F harness.
+
+        Separate campaigns rather than Instantly's in-campaign variants
+        because per-campaign analytics is what already exists, and a
+        reply rate is only interpretable if exactly one thing differs
+        between arms. Here that one thing is the offer.
+        """
+        w = self.stdout.write
+        for key, spec in sequences.OFFERS.items():
+            try:
+                steps = sequences.build_steps(
+                    opts['sequence'], opts['postal_address'], offer=key)
+            except sequences.SequenceError as exc:
+                raise CommandError(str(exc))
+            problems = sequences.describe_problems(steps)
+            if problems:
+                raise CommandError(f'{key}: {problems}')
+
+            slug = slugify(f"{opts['name']}-{key}")
+            campaign, created = OutreachCampaign.objects.get_or_create(
+                slug=slug,
+                defaults={
+                    'name': f"{opts['name']} [{spec['name']}]",
+                    'niche': opts['niche'],
+                    'business_type': opts['business_type'],
+                    'city': opts['city'],
+                    'state': opts['state'],
+                    'active': False,
+                },
+            )
+            verb = 'created' if created else 'exists'
+            w(f"  {verb:8} {slug:44} {spec['fulfilment_cost'][:44]}")
+        w('')
+        w(self.style.WARNING(
+            'All paused, none linked to Instantly yet. Create each in '
+            'Instantly and paste its id in the admin.'))
+        w(self.style.WARNING(
+            'Read the sample-size note before splitting leads six ways.'))

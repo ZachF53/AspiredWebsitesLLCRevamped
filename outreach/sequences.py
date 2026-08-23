@@ -3,33 +3,46 @@ Cold sequence copy - the constant half of every email.
 
 WHAT LIVES HERE vs WHAT CLAUDE WRITES
 -------------------------------------
-These templates are the CONTROL. They are identical for every recipient
-in a campaign, which is what makes a reply rate mean something: if the
+The template is the CONTROL. It is identical for every recipient in a
+campaign, which is what makes a reply rate mean something: if the
 template never changes, a difference in reply rate is a difference in
-the list or the icebreaker, not noise from copy that drifted.
+the list, the icebreaker, or the offer -- not noise from copy that
+drifted.
 
-``{{icebreaker}}`` is the one variable sentence, written per lead by
-``outreach/icebreaker.py`` from measured facts. Everything else is
-constant.
+``{{icebreaker}}`` is the one per-lead sentence, written by
+``outreach/icebreaker.py``. The OFFER is the one per-campaign variable.
+Everything else is fixed.
 
-WHY THE COPY IS SHAPED THIS WAY
--------------------------------
-* **Plain text, no HTML, no images, no tracking pixel on the first
-  touch.** CLAUDE.md business rule 7. HTML in a cold email is a
-  deliverability signal and reads as a mailer.
-* **60-120 words.** Anything longer gets skimmed and deleted.
-* **One question per email**, and it is small. "Worth a look?" converts;
-  "book a 30-minute discovery call" does not, from a stranger.
-* **No price, ever.** ``copy_guard`` rejects any price string that is
-  not in the ServiceTier table, and quoting from a cold email anchors a
-  number before the scope is known.
-* **The security angle is a credential, not a hook.** Masters in
-  Cybersecurity + CISSP is verifiable and genuinely unusual for a web
-  designer. It is stated once, plainly, and never oversold.
+THE THREE THINGS THAT DECIDE WHETHER THIS WORKS
+-----------------------------------------------
+1. **A warm opener, not a critique.** The first version opened with a
+   site defect -- "your PageSpeed is 36/100". Specific, and it proves we
+   looked, but it tells a stranger their work is bad in sentence one.
+   Nobody replies warmly to that. The opener now leads with something
+   true about THEM. Research reads as respect; a defect list reads as a
+   pitch.
+
+2. **An offer.** Cold outreach without one asks for the prospect's time
+   in exchange for nothing. With one it is a trade they can evaluate.
+   See OFFERS below.
+
+3. **Testing the offer, not just the copy.** The offer moves reply rate
+   far more than wording does, so it is the thing worth A/B testing.
+   Six are defined; each becomes its own campaign, and per-campaign
+   analytics gives a clean per-offer reply rate.
+
+OTHER CONSTRAINTS
+-----------------
+* **Plain text, no HTML, no images, no tracking pixel on touch one.**
+  CLAUDE.md business rule 7.
+* **Under ~190 words.** Anything longer gets skimmed.
+* **One ask, and it is small.** "Reply yes" converts; "book a 30-minute
+  discovery call" does not, from a stranger.
+* **No price, ever.** ``copy_guard`` rejects any price string not in the
+  ServiceTier table, and quoting before scope anchors the wrong number.
 * **Plain ASCII punctuation only.** No em-dashes, no curly quotes. Both
   read as machine-written to a growing number of people, and cold email
-  is exactly where that suspicion costs a reply. ``describe_problems``
-  enforces this so a later edit cannot quietly reintroduce it.
+  is exactly where that suspicion costs a reply.
 
 WHAT TOUCH 3 DELIBERATELY DOES NOT SAY
 --------------------------------------
@@ -37,21 +50,19 @@ An earlier draft asserted "I checked your intake form and it isn't
 encrypted." That is a per-lead claim, and it is FALSE for every lead
 whose site does have SSL. Template copy cannot make per-lead factual
 claims - only the icebreaker can, because only the icebreaker is
-generated from that lead's own measurements. So touch 3 offers to check
-rather than reporting a result.
+generated from that lead's own measurements.
 
 COMPLIANCE
 ----------
 CAN-SPAM requires a working opt-out and a valid physical postal address
-in every commercial email. ``POSTAL_ADDRESS`` below is empty and MUST be
-set to the real registered address before a single send. ``build_steps``
-refuses to produce copy while it is unset.
+in every commercial email. ``build_steps`` refuses to produce copy while
+COMPANY_POSTAL_ADDRESS is unset.
 """
 
 import re
 
 
-# ── CAN-SPAM ───────────────────────────────────────────────────────
+# ── CAN-SPAM ───────────────────────────────────────────────────────────
 # Lives in .env as COMPANY_POSTAL_ADDRESS, not here, so a home address
 # never reaches git and staging can differ from prod. Sending commercial
 # email without one is a CAN-SPAM violation at up to $53,088 per message,
@@ -59,9 +70,7 @@ import re
 #
 # The FTC accepts a current street address, a USPS-registered PO box, or
 # a private mailbox at a Commercial Mail Receiving Agency. The test is
-# whether mail sent there actually reaches you -- a registered-agent
-# address only qualifies if the agent forwards general business mail
-# rather than service of process alone.
+# whether mail sent there actually reaches you.
 
 
 def _configured_postal_address():
@@ -77,15 +86,153 @@ FOOTER = (
 )
 
 
-# ── Texas law firms ────────────────────────────────────────────────────
+# ── The offers ─────────────────────────────────────────────────────────
 #
-# First campaign. Chosen because the existing enrichment data is already
-# law-heavy, so the icebreaker has real measurements to work from on day
-# one rather than producing generic lines while the data catches up.
+# Structure that works, in priority order:
+#
+#   1. Minimises financial risk   -> free, or money back
+#   2. Minimises friction         -> one word starts it
+#   3. Cheap for us to produce    -> or it stops scaling the moment it
+#                                    starts working
+#
+# Rule 3 is the one that gets ignored and then hurts. An offer with a
+# 10% reply rate that costs four hours to fulfil is a trap: succeed and
+# you have sold yourself into unpaid full-time work.
+# ``fulfilment_cost`` records that honestly for each one below.
+#
+# CONSENT IS NOT OPTIONAL
+# -----------------------
+# Anything that touches the prospect's infrastructure happens AFTER they
+# say yes. Never before.
+#
+# reporting/scan_runner.py drives nmap, nikto and wpscan -- ACTIVE tools
+# that send probe and attack-pattern traffic at a host. Running them
+# against a stranger's server without authorisation is a Computer Fraud
+# and Abuse Act problem and a Texas Penal Code sec. 33 problem, whatever
+# the commercial intent, and an indefensible look for a firm whose whole
+# pitch is that it takes security seriously.
+#
+# What happens BEFORE consent is passive and ordinary: fetch a public
+# homepage, complete a TLS handshake, ask Google's PageSpeed API for a
+# score. That is what any browser does. It is the basis for the opener,
+# and it is where pre-consent work stops.
 
-TEXAS_LAW = [
+OFFERS = {
+    'security_review': {
+        'name': 'Free security + performance review',
+        'appeals_to': 'compliance risk',
+        'fulfilment_cost': 'Low - scan_runner automates it, ~10 min review.',
+        'pitch': (
+            "Here's what I'd like to offer: I'll run a full security and "
+            "performance review of your site and send you the report "
+            "within 48 hours. Free, no strings, and I won't chase you "
+            "about it. It covers whether your intake forms are encrypted "
+            "end to end, what your site exposes publicly, and where "
+            "people give up before the page loads."),
+        'restate': (
+            "a written security and performance review of "
+            "{{companyName}}'s site, free, in your inbox within two days"),
+        'ask': "Just reply \"yes\" and I'll get started.",
+    },
+    'homepage_mockup': {
+        'name': 'Free homepage redesign mockup',
+        'appeals_to': 'how the firm presents itself',
+        'fulfilment_cost': (
+            'HIGH - real design time per lead. Run this one at low volume '
+            'and watch it, or a good reply rate becomes unpaid work.'),
+        'pitch': (
+            "Here's what I'd like to offer: I'll design a new homepage "
+            "for your firm and send it over within a week. I'll do the "
+            "work up front at my own cost. If you like it we can talk "
+            "about building it; if you don't, keep the design and we "
+            "never speak again."),
+        'restate': (
+            "a new homepage design for {{companyName}}, done up front at "
+            "my cost, yours to keep either way"),
+        'ask': "Just reply \"yes\" and I'll get started.",
+    },
+    'practice_area_page': {
+        'name': 'Free practice-area page, written and built',
+        'appeals_to': 'growth and search visibility',
+        'fulfilment_cost': (
+            'Medium - AI drafts the copy, but the build and review are '
+            'manual.'),
+        'pitch': (
+            "Here's what I'd like to offer: pick any practice area you "
+            "want to rank for and I'll write and build the page for it, "
+            "free. You keep it whether or not we ever work together. "
+            "Most firm sites have one thin page covering everything, "
+            "which is why they don't rank for anything in particular."),
+        'restate': (
+            "one practice-area page, written and built for you free, "
+            "yours to keep"),
+        'ask': "Reply with the practice area and I'll start on it.",
+    },
+    'speed_guarantee': {
+        'name': 'Speed fix, guaranteed or free',
+        'appeals_to': 'a measurable number they can check',
+        'fulfilment_cost': (
+            'Medium - usually images, caching and render-blocking JS. '
+            'Bounded work with a clear finish line.'),
+        'pitch': (
+            "Here's what I'd like to offer: I'll get your site loading "
+            "in under two seconds on mobile, or you pay nothing. You can "
+            "check the before and after yourself on Google PageSpeed, so "
+            "there's nothing to take my word for. Most firm sites I look "
+            "at are losing people before the page finishes loading."),
+        'restate': (
+            "your site under two seconds on mobile, verifiable on Google "
+            "PageSpeed, or you pay nothing"),
+        'ask': "Just reply \"yes\" and I'll get started.",
+    },
+    'competitor_teardown': {
+        'name': 'Competitor teardown',
+        'appeals_to': 'competitive standing',
+        'fulfilment_cost': (
+            'Low - same passive checks we already run, on two sites '
+            'instead of one.'),
+        'pitch': (
+            "Here's what I'd like to offer: name the firm you most often "
+            "lose clients to, and I'll send you a side-by-side of where "
+            "they're beating you online - speed, search visibility, how "
+            "easy they make it to get in touch. Free, and you'll have it "
+            "in 48 hours."),
+        'restate': (
+            "a side-by-side of you against whichever firm you name, free, "
+            "within two days"),
+        'ask': "Reply with the firm's name and I'll put it together.",
+    },
+    'maintenance_month': {
+        'name': 'Free month of maintenance',
+        'appeals_to': 'the chore they keep postponing',
+        'fulfilment_cost': (
+            'Low per client, but ONGOING - each yes adds a site you are '
+            'now responsible for. Cap the number you accept.'),
+        'pitch': (
+            "Here's what I'd like to offer: I'll take over maintenance of "
+            "your current site for 30 days at no cost - updates, backups, "
+            "uptime monitoring, and any small changes you want made. No "
+            "contract and nothing to cancel. At the end you either keep "
+            "me on or we shake hands and part ways."),
+        'restate': (
+            "30 days of maintenance on your current site at no cost - "
+            "updates, backups, monitoring, small changes"),
+        'ask': "Just reply \"yes\" and I'll get set up.",
+    },
+}
+
+DEFAULT_OFFER = 'security_review'
+
+
+# ── The sequence ───────────────────────────────────────────────────────
+#
+# One template, six offers. The offer text is substituted at build time
+# so every campaign shares identical structure and differs only in the
+# variable being tested.
+
+_TOUCHES = [
     {
-        'name': 'Touch 1 - the observation',
+        'name': 'Touch 1 - warm opener + the offer',
         'delay_days': 0,
         'subject': 'quick question about {{companyName}}',
         'body': (
@@ -93,19 +240,19 @@ TEXAS_LAW = [
             "\n"
             "{{icebreaker}}\n"
             "\n"
-            "I build websites for law firms around Texas. My background "
-            "is security (Masters in Cybersecurity, CISSP), so I tend to "
-            "notice things most designers walk past.\n"
+            "I build websites for law firms in Texas, and my background "
+            "is security - Masters in Cybersecurity and a CISSP.\n"
             "\n"
-            "Not pitching you anything today. Would it be useful if I "
-            "sent over the two or three things I'd change?\n"
+            "{offer_pitch}\n"
+            "\n"
+            "{offer_ask}\n"
             "\n"
             "Thanks,\n"
             "Zachery"
         ),
     },
     {
-        'name': 'Touch 2 - the offer, made smaller',
+        'name': 'Touch 2 - restate the offer, smaller',
         'delay_days': 3,
         # Blank subject threads under touch 1 rather than starting a new
         # conversation. A follow-up that opens a second thread reads as
@@ -116,34 +263,34 @@ TEXAS_LAW = [
             "\n"
             "Following up on the note below.\n"
             "\n"
-            "To be clear about what I'm offering: a short written list of "
-            "what I'd fix on {{companyName}}'s site. No call required, no "
-            "obligation, and I won't chase you about it.\n"
+            "To be clear about what I'm offering: {offer_restate}. No "
+            "call required, nothing to sign, and I won't chase you about "
+            "it afterwards.\n"
             "\n"
-            "Just reply \"send it\" and I'll put it together this week.\n"
+            "{offer_ask}\n"
             "\n"
             "Thanks,\n"
             "Zachery"
         ),
     },
     {
-        'name': 'Touch 3 - the security angle',
+        'name': 'Touch 3 - why this matters for a law firm',
         'delay_days': 7,
         'subject': '',
         'body': (
             "Hi {{firstName}},\n"
             "\n"
-            "One thing I check that most web designers don't: whether a "
-            "firm's intake form actually transmits over an encrypted "
-            "connection.\n"
+            "The reason I focus on law firms specifically: an intake form "
+            "is usually the first thing a prospective client touches, and "
+            "it often carries the most sensitive thing they will ever "
+            "tell you - what happened to them, and when.\n"
             "\n"
-            "When it doesn't, everything a prospective client types "
-            "(name, phone, what happened to them) crosses the internet in "
-            "plain text. For a law firm that's a confidentiality question "
-            "before it's a design question.\n"
+            "Most firm sites treat that form as a design detail. It "
+            "isn't, and the gap tends not to surface until somebody "
+            "asks.\n"
             "\n"
-            "Takes about a minute to check. Want me to run it on "
-            "{{companyName}} and send you what I find?\n"
+            "The offer stands either way, and it's still free. "
+            "{offer_ask}\n"
             "\n"
             "Thanks,\n"
             "Zachery"
@@ -158,7 +305,10 @@ TEXAS_LAW = [
             "\n"
             "I'll leave it here, I don't want to clutter your inbox.\n"
             "\n"
-            "If a site refresh ever moves up the list, I'm easy to find. "
+            "The offer doesn't expire. If you ever want it, reply to this "
+            "email and I'll pick it up, whether that's next week or next "
+            "year.\n"
+            "\n"
             "And if you'd rather I didn't reach out again, reply \"no\" "
             "and you're off my list permanently.\n"
             "\n"
@@ -170,9 +320,8 @@ TEXAS_LAW = [
     },
 ]
 
-
 SEQUENCES = {
-    'texas-law': TEXAS_LAW,
+    'texas-law': _TOUCHES,
 }
 
 
@@ -180,17 +329,22 @@ class SequenceError(Exception):
     """The copy is not fit to send."""
 
 
-def build_steps(slug, postal_address=None):
-    """Return the sequence with the CAN-SPAM footer appended to each step.
+def build_steps(slug, postal_address=None, offer=DEFAULT_OFFER):
+    """Compose one sequence: template + chosen offer + CAN-SPAM footer.
 
     Refuses to build without a postal address rather than quietly
-    producing non-compliant copy - the whole point of putting the
-    requirement in code is that it cannot be forgotten at 11pm.
+    producing non-compliant copy - the point of putting the requirement
+    in code is that it cannot be forgotten at 11pm.
     """
-    steps = SEQUENCES.get(slug)
-    if steps is None:
+    touches = SEQUENCES.get(slug)
+    if touches is None:
         raise SequenceError(
             f'No sequence named {slug!r}. Known: {sorted(SEQUENCES)}')
+
+    spec = OFFERS.get(offer)
+    if spec is None:
+        raise SequenceError(
+            f'No offer named {offer!r}. Known: {sorted(OFFERS)}')
 
     postal = (postal_address or _configured_postal_address()).strip()
     if not postal:
@@ -199,14 +353,28 @@ def build_steps(slug, postal_address=None):
             'address in every commercial email. Set '
             'COMPANY_POSTAL_ADDRESS in .env, or pass --postal-address.')
 
-    return [
-        {
-            'subject': step['subject'],
-            'body': step['body'] + FOOTER.format(postal=postal),
-            'delay_days': step['delay_days'],
-        }
-        for step in steps
-    ]
+    built = []
+    for touch in touches:
+        # NOT str.format(). The bodies contain Instantly's {{firstName}}
+        # syntax, and format() reads "{{" as an escape for a literal "{",
+        # so it silently rewrites every variable to {firstName} -- which
+        # then ships to the prospect verbatim as "Hi {firstName},".
+        # Caught by the render tests; it would have been catastrophic and
+        # completely invisible in the funnel counts.
+        body = touch['body']
+        for slot, value in (
+            ('{offer_pitch}', spec['pitch']),
+            ('{offer_restate}', spec['restate']),
+            ('{offer_ask}', spec['ask']),
+        ):
+            body = body.replace(slot, value)
+        built.append({
+            'subject': touch['subject'],
+            'body': body + FOOTER.replace('{postal}', postal),
+            'delay_days': touch['delay_days'],
+            'offer': offer,
+        })
+    return built
 
 
 # Characters that read as machine-written. Written as chr() calls so the
@@ -220,13 +388,15 @@ _MACHINE_PUNCTUATION = (
     (chr(8221), 'curly close quote'),
 )
 
+# Every sequence must make an offer somewhere. A sequence that only
+# describes what we do, without saying what the prospect gets and how to
+# start, is the shape that produced a 0% reply rate across 416 sends.
+_OFFER_MARKERS = ('free', 'no strings', 'no cost', 'pay nothing',
+                  'at my cost', 'yours to keep')
+
 
 def describe_problems(steps):
-    """Pre-flight the copy. Empty list means it is fit to send.
-
-    Checks the things that are cheap to get wrong and expensive to
-    discover after 200 sends.
-    """
+    """Pre-flight the copy. Empty list means it is fit to send."""
     from outreach import copy_guard
 
     problems = []
@@ -239,9 +409,8 @@ def describe_problems(steps):
             continue
 
         words = len(body.split())
-        if words > 160:
-            problems.append(
-                f'Step {i}: {words} words - over 160, too long for cold.')
+        if words > 190:
+            problems.append(f'Step {i}: {words} words - too long for cold.')
 
         if i == 1 and not subject.strip():
             problems.append('Step 1 must have a subject line.')
@@ -254,6 +423,11 @@ def describe_problems(steps):
         if 'Aspired Websites LLC' not in body:
             problems.append(f'Step {i}: missing the CAN-SPAM footer.')
 
+        if '{offer_' in body or '{postal}' in body:
+            problems.append(
+                f'Step {i}: an unsubstituted template slot survived the '
+                f'build and would ship literally.')
+
         for char, label in _MACHINE_PUNCTUATION:
             if char in body or char in subject:
                 problems.append(
@@ -265,6 +439,14 @@ def describe_problems(steps):
             f'Step {i}: {p}'
             for p in copy_guard.describe_pricing_problems(body, subject))
 
+    # Checked across the sequence rather than per step - touch 4 is a
+    # sign-off and does not need to re-pitch.
+    joined = ' '.join(s.get('body', '') for s in steps).lower()
+    if not any(marker in joined for marker in _OFFER_MARKERS):
+        problems.append(
+            'No offer anywhere in the sequence. Cold outreach without one '
+            "asks for the prospect's time in exchange for nothing.")
+
     return problems
 
 
@@ -273,13 +455,12 @@ def describe_problems(steps):
 def render_for_lead(step, lead):
     """Substitute Instantly's variables so a human can read the real email.
 
-    Instantly does this substitution at send time on its own side, which
+    Instantly does this substitution on its own side at send time, which
     means the exact text a prospect receives is never visible from Django
     -- you approve a template and hope. This renders it locally with one
     lead's data so the thing being approved is the thing being sent.
 
-    Preview only. Nothing here is transmitted; Instantly still owns the
-    real substitution.
+    Preview only. Nothing here is transmitted.
     """
     contact = (lead.attorney_name or '').strip()
     first = contact.split(' ')[0] if contact else ''
@@ -307,6 +488,7 @@ def render_for_lead(step, lead):
         'subject': _sub(step.get('subject', '')),
         'body': _sub(step.get('body', '')),
         'delay_days': step.get('delay_days', 0),
+        'offer': step.get('offer', ''),
     }
 
 
@@ -315,8 +497,7 @@ def unresolved_variables(text):
 
     A leftover placeholder ships literally to the prospect -- "Hi
     {{firstName}}," is worse than no email at all, and it is the classic
-    mail-merge failure. Callers should treat a non-empty result as a
-    blocker.
+    mail-merge failure. Treat a non-empty result as a blocker.
     """
     return sorted(set(re.findall(r'\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}',
                                  text or '')))

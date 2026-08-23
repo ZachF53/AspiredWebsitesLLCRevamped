@@ -95,6 +95,8 @@ def import_leads(scraped_data, source, business_type_override=None):
                 score=score,
                 temperature=temperature,
                 source=source,
+                founded_year=raw.get('founded_year'),
+                practice_areas=(raw.get('practice_areas') or '').strip(),
             )
             results['imported'] += 1
 

@@ -61,6 +61,45 @@ class IcebreakerError(Exception):
     """Generation failed — the lead keeps its previous icebreaker."""
 
 
+def warm_facts(lead):
+    """Friendly, true things about the BUSINESS - not about its website.
+
+    The opener used to lead with a site defect. "Your PageSpeed is
+    36/100" is specific and proves we looked, but it tells a stranger
+    their work is bad in sentence one, and people do not reply warmly to
+    that. Research reads as respect; a defect list reads as a pitch.
+
+    So the opener now draws from here, and the site findings feed the
+    OFFER instead -- which is where a problem belongs, because there it
+    comes attached to a free fix rather than to a criticism.
+
+    Everything returned is a stored field the guard can verify.
+    """
+    from django.utils import timezone
+
+    facts = []
+    if lead.founded_year:
+        years = timezone.now().year - lead.founded_year
+        if 0 < years <= 150:
+            facts.append((
+                'tenure',
+                f"The firm was founded in {lead.founded_year}, so about "
+                f"{years} years in practice."))
+    if lead.practice_areas:
+        facts.append((
+            'practice_areas',
+            f"Their stated practice areas: {lead.practice_areas}."))
+    if lead.city:
+        facts.append(('city', f"They are based in {lead.city}."))
+    if lead.google_review_count and lead.google_rating:
+        if lead.google_review_count >= 10 and float(lead.google_rating) >= 4.5:
+            facts.append((
+                'reviews',
+                f"{lead.google_review_count} Google reviews averaging "
+                f"{lead.google_rating} stars."))
+    return facts
+
+
 def observations(lead):
     """Verified, checkable facts about this lead's web presence.
 
@@ -168,7 +207,7 @@ def _facts_block(lead):
     return '\n'.join(lines)
 
 
-SYSTEM_PROMPT = (
+SYSTEM_PROMPT_OLD_CRITIQUE_STYLE = (
     "You are Zachery Long, founder of Aspired Websites LLC — a custom web "
     "design agency serving law firms and small businesses in Texas and "
     "Georgia. You hold a Masters in Cybersecurity and a CISSP; security "
@@ -197,6 +236,35 @@ SYSTEM_PROMPT = (
     "\n\n"
     "Tone: direct, warm, specific. You are a working professional "
     "pointing something out, not a salesperson opening a pitch."
+)
+
+
+SYSTEM_PROMPT = (
+    "You are Zachery Long, founder of Aspired Websites LLC - a custom web "
+    "design agency serving law firms in Texas and Georgia.\n\n"
+    "Your job is to write ONE warm opening line for a cold email to a law "
+    "firm. It is the first thing they read, and its only job is to make "
+    "them feel this was written for them rather than blasted at them.\n\n"
+    "RULES:\n"
+    "  * One or two sentences. Under 35 words.\n"
+    "  * Reference ONLY the facts you are given. If you are given very "
+    "little, write a short honest line about reaching out to firms of "
+    "this kind in this city. A slightly generic line is CORRECT when the "
+    "data is thin.\n"
+    "  * NEVER criticise their website, their marketing, or their "
+    "business. Not even gently. The email makes an offer later; the "
+    "opening line is not the place to point out a problem.\n"
+    "  * NEVER invent a fact: no made-up cases, awards, podcasts, "
+    "rankings, client counts or years in practice.\n"
+    "  * Never mention price or packages.\n"
+    "  * No greeting and no sign-off - the template supplies those.\n"
+    "  * Plain text. No markdown, no quotes around the line.\n"
+    "  * Use plain ASCII punctuation. No em-dashes, no curly quotes.\n"
+    "  * Output the line and nothing else. Never explain yourself.\n\n"
+    "Good shape: note how long they have been practising, or what they "
+    "practise, and why that made you reach out. Specific and respectful, "
+    "the way one professional writes to another. Not flattery, and not a "
+    "compliment you cannot back up."
 )
 
 
@@ -253,16 +321,37 @@ def describe_problems(line, lead):
                 f'Contains an unverifiable claim (matched {pattern!r}).')
             break
 
-    # If the copy names a year, it has to be the one we measured.
+    # A year is only sayable if we actually hold it. "Practising since
+    # 1998" is exactly the flattering detail a model invents, and the
+    # recipient can disprove it in one second.
     years = re.findall(r'\b(?:19|20)\d{2}\b', text)
-    if years and 'stale_copyright' not in observed_keys:
-        problems.append(
-            'Cites a year but no copyright year was measured for this lead.')
-    elif years and lead.copyright_year:
-        if str(lead.copyright_year) not in years:
+    if years:
+        known = {str(y) for y in (lead.founded_year, lead.copyright_year)
+                 if y}
+        unknown = [y for y in years if y not in known]
+        if unknown:
             problems.append(
-                f'Cites {years} but the measured copyright year is '
-                f'{lead.copyright_year}.')
+                f'Cites year(s) {unknown} never recorded for this lead '
+                f'(known: {sorted(known) or "none"}).')
+
+    # The opener must not criticise. The email makes its offer further
+    # down, where a problem arrives attached to a free fix; leading with
+    # a defect just puts a stranger on the defensive. This is the whole
+    # point of the rewrite, so it is enforced rather than requested.
+    critique_markers = (
+        'slow', 'outdated', 'out of date', 'dated', 'broken', 'stale',
+        'not secure', 'insecure', 'unencrypted', 'not encrypted',
+        'vulnerable', 'missing', 'lacks', 'lacking', 'poorly', 'weak',
+        'struggling', 'losing', 'falling behind', 'bouncing',
+        "isn't working", 'not working', 'problem with your',
+        'issue with your', "doesn't have", 'no https', 'plain http',
+    )
+    for marker in critique_markers:
+        if marker in low:
+            problems.append(
+                f'Opener criticises the prospect (matched {marker!r}). '
+                f'Problems belong in the offer, not the first line.')
+            break
 
     # Any number presented as a score must match a real measurement.
     scores = {lead.website_performance_score, lead.website_mobile_score,

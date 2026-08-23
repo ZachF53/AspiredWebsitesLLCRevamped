@@ -569,18 +569,29 @@ class SequenceCopyTests(TestCase):
         self.assertEqual([s['delay_days'] for s in steps], [0, 3, 7, 14])
 
     def test_template_makes_no_per_lead_factual_claim(self):
-        """Touch 3 must OFFER to check SSL, never report a result.
+        """Template copy is identical for everyone, so it cannot assert
+        anything about ONE lead's site. Only the icebreaker can, because
+        only the icebreaker is generated from that lead's measurements.
 
-        A template cannot know whether this lead's site has SSL, so any
-        assertion about it is false for everyone who does.
+        Checked across every offer and every touch -- a new offer is
+        exactly where someone would reintroduce "your site is slow".
         """
         from outreach import sequences
-        body = sequences.build_steps('texas-law', self.ADDR)[2]['body']
-        for claim in ('your site is not encrypted',
-                      "isn't encrypted",
-                      'I checked your'):
-            self.assertNotIn(claim.lower(), body.lower())
-        self.assertIn('Want me to run it', body)
+
+        forbidden = (
+            'your site is not encrypted', "your site isn't encrypted",
+            'i checked your', 'your site is slow', 'your site is outdated',
+            'your intake form is not', "your intake form isn't",
+            'your certificate is', 'your pagespeed score is',
+        )
+        for offer in sequences.OFFERS:
+            for i, step in enumerate(
+                    sequences.build_steps('texas-law', self.ADDR,
+                                          offer=offer), 1):
+                low = step['body'].lower()
+                for claim in forbidden:
+                    with self.subTest(offer=offer, touch=i, claim=claim):
+                        self.assertNotIn(claim, low)
 
     def test_unknown_sequence_name_is_rejected(self):
         from outreach import sequences
@@ -1133,3 +1144,64 @@ class ReviewGateTests(TestCase):
                           return_value={'id': 'x'}):
             summary = instantly.push_leads([lead], self.campaign)
         self.assertEqual(summary['pushed'], 1)
+
+
+class OfferCompositionTests(TestCase):
+    """Six offers, one template. The offer is the A/B variable."""
+
+    ADDR = '1 Main St, San Antonio, TX 78205'
+
+    def test_every_offer_builds_and_preflights_clean(self):
+        from outreach import sequences
+        self.assertEqual(len(sequences.OFFERS), 6)
+        for key in sequences.OFFERS:
+            with self.subTest(offer=key):
+                steps = sequences.build_steps(
+                    'texas-law', self.ADDR, offer=key)
+                self.assertEqual(sequences.describe_problems(steps), [])
+
+    def test_composing_the_offer_does_not_eat_instantly_variables(self):
+        """THE BUG. str.format() reads '{{' as an escape for a literal
+        '{', so composing the offer rewrote every {{firstName}} to
+        {firstName} -- which ships to the prospect as "Hi {firstName},".
+        Invisible in every funnel count."""
+        from outreach import sequences
+        for key in sequences.OFFERS:
+            with self.subTest(offer=key):
+                body = sequences.build_steps(
+                    'texas-law', self.ADDR, offer=key)[0]['body']
+                self.assertIn('{{firstName}}', body)
+                self.assertIn('{{icebreaker}}', body)
+                self.assertNotIn('{firstName}', body.replace('{{firstName}}', ''))
+
+    def test_no_unsubstituted_offer_slot_survives(self):
+        from outreach import sequences
+        for key in sequences.OFFERS:
+            for step in sequences.build_steps('texas-law', self.ADDR,
+                                              offer=key):
+                self.assertNotIn('{offer_', step['body'])
+                self.assertNotIn('{postal}', step['body'])
+
+    def test_offers_actually_differ(self):
+        """Six identical arms would be six identical numbers."""
+        from outreach import sequences
+        bodies = {
+            k: sequences.build_steps('texas-law', self.ADDR, offer=k)[0]['body']
+            for k in sequences.OFFERS
+        }
+        self.assertEqual(len(set(bodies.values())), 6)
+
+    def test_unknown_offer_is_rejected(self):
+        from outreach import sequences
+        with self.assertRaises(sequences.SequenceError):
+            sequences.build_steps('texas-law', self.ADDR, offer='nope')
+
+    def test_every_offer_declares_its_fulfilment_cost(self):
+        """An offer with a great reply rate that costs four hours to
+        fulfil is a trap: succeed and you have sold yourself into unpaid
+        full-time work."""
+        from outreach import sequences
+        for key, spec in sequences.OFFERS.items():
+            with self.subTest(offer=key):
+                self.assertTrue(spec['fulfilment_cost'].strip())
+                self.assertTrue(spec['appeals_to'].strip())

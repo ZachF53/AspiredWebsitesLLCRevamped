@@ -392,6 +392,10 @@ def map_contact_to_lead(item):
         'city': (item.get('company_city') or item.get('city') or '').strip(),
         'state': (item.get('company_state') or item.get('state') or '').strip(),
         'business_type': normalise_business_type(item.get('industry')),
+        # Warm-opener material. Kept as structured fields so the
+        # icebreaker's fabrication guard can verify what it claims.
+        'founded_year': _int_or_none(item.get('company_founded_year')),
+        'practice_areas': (item.get('keywords') or '').strip()[:500],
         'linkedin_url': (item.get('company_linkedin') or '').strip(),
         # Kept as internal context for the drafter: job title and headline
         # are exactly the "one specific thing" the copy is told to
@@ -400,16 +404,48 @@ def map_contact_to_lead(item):
     }
 
 
+def _int_or_none(value):
+    try:
+        year = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    # A founding year outside this range is bad data, not a fact.
+    return year if 1700 <= year <= 2100 else None
+
+
 def _contact_note(item):
+    """Context the icebreaker writes from.
+
+    Field population measured across 100 live rows 2026-08-23:
+
+        job_title             100%
+        headline               98%   (usually just "Owner, <firm>")
+        company_technologies   96%
+        company_description    87%   (often boilerplate, sometimes not English)
+        keywords               74%   <- practice areas, the useful one
+        company_founded_year   65%   <- tenure, the other useful one
+
+    keywords and founded_year were not captured before. They are the two
+    fields that support a WARM opener -- "20 years in estate planning"
+    reads as research; "your PageSpeed is 36/100" reads as a critique,
+    and a critique in sentence one puts a stranger on the defensive.
+    """
     bits = []
     if item.get('job_title'):
         bits.append(f"Title: {item['job_title']}")
-    if item.get('headline'):
-        bits.append(f"Headline: {item['headline']}")
+    if item.get('keywords'):
+        bits.append(f"Practice areas: {item['keywords']}")
+    if item.get('company_founded_year'):
+        bits.append(f"Founded: {item['company_founded_year']}")
     if item.get('company_size'):
         bits.append(f"Company size: {item['company_size']}")
-    if item.get('linkedin'):
-        bits.append(f"LinkedIn: {item['linkedin']}")
+    # Skipped when it is the generic Apollo filler, which says nothing
+    # and would tempt the model into inventing something around it.
+    desc = (item.get('company_description') or '').strip()
+    if desc and 'based out of' not in desc.lower() and len(desc) > 60:
+        bits.append(f"About: {desc[:400]}")
+    if item.get('company_linkedin'):
+        bits.append(f"LinkedIn: {item['company_linkedin']}")
     return ' | '.join(bits)
 
 
