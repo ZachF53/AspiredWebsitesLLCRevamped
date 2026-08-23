@@ -39,6 +39,30 @@ class Lead(models.Model):
         ('cold', 'Cold'),
     ]
 
+    # ── Inbound sources never receive cold outreach ────────────────────
+    #
+    # These people contacted US. Sending them a cold sequence that opens
+    # "I've been reaching out to law firms in Houston and yours caught my
+    # eye" to somebody who filled in the contact form last Tuesday reads
+    # as though nobody read their message, and it is the kind of mistake
+    # a prospect tells other people about.
+    #
+    # They get a human reply instead: the contact form already fires an
+    # auto-acknowledgement and an internal notification the moment it is
+    # submitted.
+    #
+    # Nothing enforced this before. An inbound lead cleared verification,
+    # the segment gate and the icebreaker guard identically to a scraped
+    # one; the only thing standing between a contact-form submission and
+    # a cold email was that campaign assignment had not been built yet.
+    # That is luck, not a safeguard.
+    INBOUND_SOURCES = frozenset({'contact_form', 'audit_tool'})
+
+    @property
+    def is_inbound(self):
+        """True when this person contacted us rather than us finding them."""
+        return self.source in self.INBOUND_SOURCES
+
     # Business info
     firm_name = models.CharField(max_length=255)
     attorney_name = models.CharField(max_length=255, blank=True)

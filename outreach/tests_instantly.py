@@ -1466,3 +1466,82 @@ class SendGateWarmupTests(TestCase):
             status = instantly.warmup_readiness()
         self.assertFalse(status['ready'])
         self.assertIn('502', status['reason'])
+
+
+# ── inbound leads never get cold outreach ──────────────────────────────
+
+@override_settings(INSTANTLY_TOKEN='t')
+class InboundLeadTests(TestCase):
+    """People who contacted US must never receive a cold sequence.
+
+    An inbound lead used to clear verification, the segment gate and the
+    icebreaker guard identically to a scraped one. The only thing between
+    a contact-form submission and a cold email opening "I've been
+    reaching out to law firms in Houston and yours caught my eye" was
+    that campaign assignment had not been built yet. That is luck, not a
+    safeguard.
+    """
+
+    def setUp(self):
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law', slug='tx-inbound', niche='law firm',
+            instantly_campaign_id='c1', active=True)
+
+    def test_contact_form_lead_is_not_pushed(self):
+        lead = make_lead(source='contact_form')
+        with allow_sending(), patch.object(
+                instantly, '_request', return_value={'id': 'x'}) as req:
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['pushed'], 0)
+        self.assertEqual(summary['skipped_inbound'], 1)
+        req.assert_not_called()
+
+    def test_audit_tool_lead_is_not_pushed(self):
+        lead = make_lead(source='audit_tool')
+        with allow_sending(), patch.object(
+                instantly, '_request', return_value={'id': 'x'}) as req:
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['skipped_inbound'], 1)
+        req.assert_not_called()
+
+    def test_scraped_lead_is_still_pushed(self):
+        """The guard must not quietly block everything."""
+        lead = make_lead(source='apify')
+        with allow_sending(), patch.object(
+                instantly, '_request', return_value={'id': 'x'}):
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['pushed'], 1)
+
+    def test_inbound_beats_every_other_eligibility_check(self):
+        """A perfectly eligible inbound lead is still refused - source
+        outranks verification, segment and everything else."""
+        lead = make_lead(source='contact_form', state='TX',
+                         business_type='Law Firm',
+                         email_verification_status=verify.VALID)
+        self.campaign.state = 'TX'
+        self.campaign.business_type = 'Law Firm'
+        self.campaign.save()
+        self.assertEqual(instantly.segment_mismatch(lead, self.campaign), '')
+        with allow_sending(), patch.object(
+                instantly, '_request', return_value={'id': 'x'}) as req:
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['skipped_inbound'], 1)
+        req.assert_not_called()
+
+    def test_is_inbound_property(self):
+        self.assertTrue(make_lead(source='contact_form').is_inbound)
+        self.assertTrue(make_lead(source='audit_tool').is_inbound)
+        self.assertFalse(make_lead(source='apify').is_inbound)
+        self.assertFalse(make_lead(source='google_maps').is_inbound)
+
+    def test_no_claude_spend_on_inbound_copy(self):
+        """Cold copy for someone who already wrote to us is money spent
+        on a thing that must never be sent."""
+        from django.utils import timezone
+        from outreach.tasks import generate_icebreakers_task
+
+        make_lead(source='contact_form', icebreaker='',
+                  enrichment_completed_at=timezone.now())
+        with patch('outreach.icebreaker.generate') as gen:
+            generate_icebreakers_task(limit=10)
+        gen.assert_not_called()

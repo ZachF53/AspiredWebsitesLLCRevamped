@@ -52,6 +52,13 @@ class Command(BaseCommand):
             w(f"     {row['source']:16} {row['n']:>6}")
         w(f"     {'TOTAL':16} {total:>6}")
 
+        inbound = Lead.objects.filter(
+            source__in=Lead.INBOUND_SOURCES).count()
+        if inbound:
+            w(f'\n     {inbound} of these are INBOUND (they contacted us).')
+            w('     They are held out of cold outreach entirely and get a')
+            w('     human reply instead. Not a drop-off - a decision.')
+
         with_email = Lead.objects.exclude(email='').count()
         w(f"\n     with an email address: {with_email} / {total}")
         if total and with_email / total < 0.8:

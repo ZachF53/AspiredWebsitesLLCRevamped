@@ -522,6 +522,7 @@ def push_leads(leads, campaign):
         'skipped_suppressed': 0, 'skipped_no_icebreaker': 0,
         'skipped_already_pushed': 0, 'skipped_unsubscribed': 0,
         'skipped_wrong_segment': 0, 'skipped_needs_review': 0,
+        'skipped_inbound': 0,
         'errors': 0, 'reasons': {},
     }
 
@@ -531,6 +532,15 @@ def push_leads(leads, campaign):
     eligible = []
     for lead in leads:
         summary['total'] += 1
+
+        if lead.is_inbound:
+            # Checked FIRST. Someone who contacted us must never receive
+            # a cold sequence, and that outranks every other reason a
+            # lead might or might not be eligible.
+            summary['skipped_inbound'] += 1
+            _note(f'Inbound lead ({lead.source}) - they contacted us, so '
+                  f'they get a reply, not a cold sequence.')
+            continue
 
         if lead.instantly_lead_id:
             summary['skipped_already_pushed'] += 1

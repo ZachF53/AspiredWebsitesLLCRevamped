@@ -306,10 +306,16 @@ def generate_icebreakers_task(limit=50):
     from outreach import icebreaker, verify
     from outreach.models import Lead
 
+    # Inbound leads are excluded here as well as at push time. An
+    # icebreaker costs a Claude call, and cold-email copy for somebody
+    # who already wrote to us is money spent on a thing that must never
+    # be sent.
     candidates = Lead.objects.filter(
         icebreaker='',
         unsubscribed=False,
         enrichment_completed_at__isnull=False,
+    ).exclude(
+        source__in=Lead.INBOUND_SOURCES,
     ).exclude(email='').order_by('-score')[:limit * 3]
 
     written = skipped = failed = 0
