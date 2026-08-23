@@ -913,31 +913,57 @@ def settings_view(request):
         config.save(update_fields=['warming_start_date'])
 
     if request.method == 'POST':
-        # Trust level — validate against model choices
-        try:
-            tl = int(request.POST.get('trust_level', config.trust_level))
-        except (TypeError, ValueError):
-            tl = config.trust_level
-        if tl in dict(OutreachSettings.TRUST_LEVEL_CHOICES):
-            config.trust_level = tl
+        # trust_level, daily_send_cap and outreach_active are no longer
+        # accepted here. They drive outreach/sender.py, gating.py and
+        # warming.py, whose beat entries were removed when sending moved
+        # to Instantly, so editing them changed nothing while looking
+        # exactly like the controls that govern sending. The fields
+        # remain on the model for historical EmailSent rows; they are
+        # simply no longer presented or writable from this page.
+        #
+        # An unchecked checkbox is absent from POST entirely, which is
+        # why this reads as membership rather than a value lookup.
+        config.instantly_sending_enabled = (
+            'instantly_sending_enabled' in request.POST)
 
-        # Daily send cap — clamp to a sane range
-        try:
-            cap = int(request.POST.get('daily_send_cap', config.daily_send_cap))
-            config.daily_send_cap = max(1, min(cap, 500))
-        except (TypeError, ValueError):
-            pass
-
-        # Outreach active — an unchecked checkbox is simply absent from POST
-        config.outreach_active = 'outreach_active' in request.POST
+        for field, lo, hi in (
+            ('min_warmup_score', 0, 100),
+            ('min_warmup_days', 0, 90),
+            ('min_ready_mailboxes', 1, 50),
+        ):
+            try:
+                value = int(request.POST.get(field, getattr(config, field)))
+                setattr(config, field, max(lo, min(value, hi)))
+            except (TypeError, ValueError):
+                pass
 
         config.save()
         return redirect(reverse('admin_dashboard:settings') + '?saved=1')
+
+    # Live mailbox state. Never raises -- warmup_readiness returns a dict
+    # carrying its own failure reason so the page can explain an outage
+    # rather than 500 or, worse, render blank and imply everything is fine.
+    from outreach import instantly
+
+    try:
+        warmup = instantly.warmup_readiness()
+    except Exception:            # noqa: BLE001 - the page must still render
+        logger.exception('settings_view: warmup readiness failed')
+        warmup = {'ready': False, 'reason': 'Could not read mailbox state.',
+                  'ready_mailboxes': 0, 'required': 0, 'daily_capacity': 0,
+                  'detail': []}
+    try:
+        sending_allowed, sending_reason = instantly.sending_allowed()
+    except Exception:            # noqa: BLE001
+        sending_allowed, sending_reason = False, 'Could not evaluate gates.'
 
     return render(request, 'admin_dashboard/settings.html', _admin_context(
         active='settings',
         config=config,
         warming=_warming_status(),
+        warmup=warmup,
+        sending_allowed=sending_allowed,
+        sending_reason=sending_reason,
         saved=request.GET.get('saved') == '1',
     ))
 
