@@ -539,6 +539,91 @@ _SPAM_EMAIL_DOMAINS = (
     'throwaway', 'yopmail', 'sharklasers', 'guerrillamailblock',
 )
 
+# ── What actually got through ──────────────────────────────────────────
+#
+# 35 of 35 contact-form leads on prod were spam, and every one cleared
+# the four layers already here. Read before loosening any of this:
+#
+#   "RobertBiz"  x8   the same "I wanted to know your price" in Bulgarian,
+#                     Latvian, Lithuanian, Igbo, Bosnian, Bengali,
+#                     Italian and Spanish, from eight different IPs
+#   "Andrew Walters"  "Dear Beloved, My name is Mr..." - a 419 advance-fee
+#   "Jason Roberts" x3 identical SEO solicitation, same body each time
+#   phishing@53.com   an actual submission
+#
+# The existing rules missed them for understandable reasons: the names
+# are short and plausible, the bodies carry no URLs, and each IP only
+# submitted once or twice so the per-IP caps never tripped. What they
+# have in common is not volume from one source - it is the CONTENT, and
+# in the multilingual case, the alphabet.
+
+# A US web-design studio selling to Texas and Georgia law firms receives
+# no genuine enquiries written in Cyrillic, Bengali or CJK. Latin-script
+# languages are deliberately NOT covered here: Spanish-speaking Texas
+# businesses are a real and wanted audience, and the Spanish/Italian
+# variants of this bot get caught by the repeated-body rule instead.
+_NON_LATIN_RANGES = (
+    (0x0400, 0x04FF),   # Cyrillic
+    (0x0500, 0x052F),   # Cyrillic supplement
+    (0x0600, 0x06FF),   # Arabic
+    (0x0900, 0x097F),   # Devanagari
+    (0x0980, 0x09FF),   # Bengali
+    (0x0E00, 0x0E7F),   # Thai
+    (0x4E00, 0x9FFF),   # CJK
+    (0x3040, 0x30FF),   # Kana
+    (0xAC00, 0xD7AF),   # Hangul
+)
+
+# Cold B2B solicitation. These are pitches, not enquiries: the sender
+# wants to sell TO Aspired rather than buy from it. Phrasing lifted from
+# the real submissions.
+_SOLICITATION_PHRASES = (
+    'are you seeking', 'we specialize in offering',
+    'high-quality backlink', 'backlink collabo', 'guest post',
+    'link building', 'link exchange', 'dear beloved',
+    'i am contacting you regarding my late', 'next of kin',
+    'business proposal for you', 'i have a business proposal',
+    'increase your website traffic', 'improve your google ranking',
+    'first page of google', 'we can rank your', 'outsourcing partner',
+    'white label seo', 'affordable seo', 'web design leads',
+    'i wanted to know your price', 'i wanted to know my price',
+)
+
+# How many times the same normalised message body may be seen across ALL
+# submitters before it is treated as a campaign rather than an enquiry.
+# The eight-language bot varied its language and its IP but not its
+# intent; three identical SEO pitches did not vary at all.
+_REPEAT_BODY_LIMIT = 2
+_REPEAT_BODY_WINDOW_SECS = 60 * 60 * 24 * 30
+
+
+def _non_latin_ratio(text):
+    """Share of letters outside the Latin alphabet, 0.0-1.0.
+
+    Punctuation and digits are ignored so "Здравейте, 2026" is judged on
+    its letters rather than diluted by its comma.
+    """
+    letters = [c for c in (text or '') if c.isalpha()]
+    if not letters:
+        return 0.0
+    foreign = sum(
+        1 for c in letters
+        if any(lo <= ord(c) <= hi for lo, hi in _NON_LATIN_RANGES))
+    return foreign / len(letters)
+
+
+def _body_fingerprint(message):
+    """Stable hash of a message, insensitive to trivial edits.
+
+    Case, whitespace and punctuation are stripped before hashing so a
+    bot that re-sends the same pitch with a different greeting still
+    collides with itself.
+    """
+    import hashlib
+    import re as _re
+    normalised = _re.sub(r'[^a-z0-9]+', '', (message or '').lower())
+    return hashlib.sha256(normalised.encode('utf-8')).hexdigest()[:32]
+
 
 def _classify_spam(cleaned):
     """
@@ -581,7 +666,50 @@ def _classify_spam(cleaned):
     if name and ' ' not in name and len(name) > 20:
         return f'bot-name pattern: {name!r}'
 
+    # Non-Latin script. A studio selling to Texas and Georgia law firms
+    # gets no genuine enquiries in Cyrillic or Bengali. Spanish and
+    # Italian are Latin and therefore untouched here on purpose —
+    # Spanish-speaking Texas businesses are a wanted audience.
+    ratio = _non_latin_ratio(message)
+    if ratio > 0.30:
+        return f'non-Latin script ({ratio:.0%} of letters)'
+
+    # Cold B2B solicitation — someone selling TO us, not asking to buy.
+    for phrase in _SOLICITATION_PHRASES:
+        if phrase in lower_msg:
+            return f'solicitation phrase: {phrase!r}'
+
+    # A name that is one word ending in a business-ish suffix, e.g.
+    # "RobertBiz". Real people rarely introduce themselves that way.
+    if name and ' ' not in name:
+        for suffix in ('biz', 'seo', 'marketing', 'agency', 'media',
+                       'digital', 'promo', 'ads'):
+            if lower_name.endswith(suffix) and len(name) > len(suffix) + 2:
+                return f'bot-name suffix: {name!r}'
+
     return ''
+
+
+def _is_repeated_body(message):
+    """Has this exact pitch been sent before, by anyone?
+
+    The per-IP caps assume a bot hammers from one address. The one that
+    beat them sent eight times from eight IPs, varying only the
+    language. What did not vary was the intent, and after normalisation
+    the SEO pitches did not vary at all.
+
+    Counts across every submitter, so a genuine second enquiry from the
+    same person is unaffected — nobody sends the same paragraph twice.
+    Returns (is_repeat, count_seen_before).
+    """
+    from django.core.cache import cache
+
+    if not (message or '').strip():
+        return False, 0
+    key = f'contact_body:{_body_fingerprint(message)}'
+    seen = cache.get(key, 0)
+    cache.set(key, seen + 1, _REPEAT_BODY_WINDOW_SECS)
+    return seen >= _REPEAT_BODY_LIMIT, seen
 
 
 def _signed_form_timestamp():
@@ -677,6 +805,19 @@ def contact(request):
                     'email=%s)',
                     ip, reason,
                     form.cleaned_data.get('email', '?'))
+                cache.set(cache_key, per_ip_count + 1, 3600)
+                return _silently_pretend_success(request)
+
+            # Layer 5 — the same pitch, from anyone. Runs after the
+            # content classifier so a message already rejected does not
+            # consume a fingerprint slot, and only on otherwise-valid
+            # submissions so raw POST garbage cannot poison the cache.
+            repeated, seen_before = _is_repeated_body(
+                form.cleaned_data.get('message', ''))
+            if repeated:
+                logger.info(
+                    'SPAM BLOCKED (repeat body IP=%s seen=%s email=%s)',
+                    ip, seen_before, form.cleaned_data.get('email', '?'))
                 cache.set(cache_key, per_ip_count + 1, 3600)
                 return _silently_pretend_success(request)
 
