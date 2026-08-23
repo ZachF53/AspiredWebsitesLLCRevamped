@@ -29,11 +29,20 @@ only thing that makes this sequence worth reading.
 
 WHEN NOTHING IS WRONG
 ---------------------
-A site scoring well everywhere gets the report and then nothing. There
-is no follow-up written for "your site is fine", because manufacturing a
-problem to justify one is how a useful free tool turns into a funnel
-people resent -- and this tool is a genuine lead magnet precisely
-because it tells the truth.
+A site scoring well everywhere gets its own track rather than silence.
+An earlier version sent healthy sites the report and then nothing, on
+the reasoning that inventing a problem to justify a follow-up is how a
+useful free tool turns into a funnel people resent. That reasoning still
+holds -- but "say nothing" was the wrong conclusion drawn from it.
+
+Somebody whose site scores well has demonstrably invested in it. They
+are a BETTER maintenance prospect than the firm with a broken site, not
+a worse one, and there is an honest thing to say to them: good sites
+drift. Content gets added without compression, plugins go stale, a
+certificate lapses, and the score that was 94 in August is 71 by March.
+
+So the healthy track sells maintenance rather than repair, and it does
+it without pretending anything is currently wrong.
 """
 
 import logging
@@ -123,6 +132,18 @@ CATEGORY_FIRST_FIX = {
         'silently break a contact form without anyone noticing.'
     ),
 }
+
+
+# What degrades first on a site that is currently fine. Truthful: these
+# are the ordinary ways a good score decays, not invented problems.
+HEALTHY_DRIFT_NOTE = (
+    'Sites like yours usually slip in one of three ways. Images get '
+    'added over time without being compressed, and performance drops a '
+    'few points a month. A plugin or library goes unmaintained and '
+    'quietly starts failing best-practices checks. Or a certificate '
+    'renews wrong and nobody notices until a visitor gets a warning '
+    'page.'
+)
 
 
 # ── Unsubscribe ────────────────────────────────────────────────────────
@@ -222,7 +243,32 @@ def build_report(audit_lead):
 
 
 def build_followup_1(audit_lead):
-    """Email 2 — the one thing to fix first. Useful without us."""
+    """Email 2 — the one thing to fix first, or how to stay this good."""
+    if audit_lead.is_healthy:
+        body = [
+            f'A few days ago you ran an audit on {audit_lead.url}.',
+            '',
+            f'It came back at {audit_lead.average_score}/100 on average, '
+            f'which is genuinely good. Most sites I look at do not.',
+            '',
+            'So this is not a list of things to fix. It is the one thing '
+            'worth knowing about sites that already score well:',
+            '',
+            HEALTHY_DRIFT_NOTE,
+            '',
+            'None of that is urgent today. It is just the reason a score '
+            'like yours is worth re-checking every few months rather '
+            'than assuming it holds.',
+            '',
+            'The audit tool is free and always will be, so run it again '
+            'whenever something changes on the site.',
+            '',
+            '- Zachery Long',
+            'Aspired Websites LLC',
+        ]
+        return (f'Your site scored well - here is what usually slips',
+                chr(10).join(body) + _footer(audit_lead))
+
     key, score = audit_lead.worst_category
     label = CATEGORY_LABELS[key]
 
@@ -251,6 +297,31 @@ def build_followup_1(audit_lead):
 
 def build_followup_2(audit_lead):
     """Email 3 — the offer, then silence."""
+    if audit_lead.is_healthy:
+        body = [
+            f'Last note about {audit_lead.url}, then I will leave you '
+            f'alone.',
+            '',
+            f'Your site scored {audit_lead.average_score}/100. Nothing '
+            f'needs fixing, so I am not going to pretend otherwise.',
+            '',
+            'The only thing I would offer someone in your position is '
+            'keeping it that way. I maintain sites for small firms in '
+            'Texas and Georgia -- updates, backups, uptime monitoring, '
+            'and a check on exactly the scores you just saw, so a slow '
+            'slide gets caught while it is still small. My background '
+            'is security: Masters in Cybersecurity and a CISSP.',
+            '',
+            'If that is ever useful, reply and I will tell you what it '
+            'involves. If not, genuinely no problem - you have a good '
+            'site and you clearly look after it.',
+            '',
+            '- Zachery Long',
+            'Aspired Websites LLC',
+        ]
+        return (f'Keeping {audit_lead.url} where it is',
+                chr(10).join(body) + _footer(audit_lead))
+
     key, score = audit_lead.worst_category
 
     body = [
@@ -359,11 +430,6 @@ def send_followup(audit_lead, number):
             'audit follow-up %s withheld: COMPANY_POSTAL_ADDRESS is not '
             'set, and CAN-SPAM requires a physical address on marketing '
             'email. Set it in .env on this server.', number)
-        return False
-
-    # Nothing worth following up about. Said once in the report, then
-    # left alone.
-    if audit_lead.is_healthy:
         return False
 
     if number == 1:

@@ -61,16 +61,44 @@ class TailoringTests(TestCase):
 
 
 class HealthySiteTests(TestCase):
-    """Manufacturing a problem to justify a follow-up is how a useful
-    free tool turns into a funnel people resent."""
+    """A good site gets its own track, not silence.
 
-    def test_healthy_site_gets_no_followups(self):
-        lead = audit(performance_score=95, seo_score=92,
+    Somebody whose site scores well has demonstrably invested in it,
+    which makes them a better maintenance prospect than the firm with a
+    broken one. The copy sells maintenance rather than repair, and says
+    plainly that nothing needs fixing - inventing a problem to justify
+    the email is the thing being avoided, not the email itself.
+    """
+
+    def _healthy(self, **kw):
+        return audit(performance_score=95, seo_score=92,
                      accessibility_score=90, best_practices_score=95,
-                     report_sent_at=timezone.now())
+                     **kw)
+
+    def test_healthy_site_does_get_followups(self):
+        lead = self._healthy(report_sent_at=timezone.now())
         self.assertTrue(lead.is_healthy)
-        self.assertFalse(send_followup(lead, 1))
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(send_followup(lead, 1))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_healthy_copy_does_not_invent_a_problem(self):
+        lead = self._healthy()
+        _, body = build_followup_1(lead)
+        self.assertIn('not a list of things to fix', body)
+        _, body2 = build_followup_2(lead)
+        self.assertIn('Nothing needs fixing', body2)
+
+    def test_healthy_copy_sells_maintenance_not_repair(self):
+        lead = self._healthy()
+        _, body = build_followup_2(lead)
+        for word in ('updates', 'backups', 'monitoring'):
+            self.assertIn(word, body)
+
+    def test_unhealthy_copy_is_different(self):
+        broken = audit(performance_score=20, seo_score=30,
+                       accessibility_score=25, best_practices_score=35)
+        self.assertNotEqual(build_followup_1(self._healthy())[1],
+                            build_followup_1(broken)[1])
 
     def test_healthy_site_still_gets_the_report(self):
         lead = audit(performance_score=95, seo_score=92,
@@ -109,12 +137,17 @@ class UnsubscribeTests(TestCase):
         lead.refresh_from_db()
         self.assertTrue(lead.unsubscribed)
 
-    def test_unsubscribing_also_suppresses_globally(self):
-        """Saying no is saying no to us, not to one mailing."""
+    def test_unsubscribe_is_scoped_to_the_audit_sequence(self):
+        """They opted out of follow-ups about an audit they ran, which is
+        not the same as refusing all future contact forever. The
+        trade-off: they stay eligible for cold outreach later, and may
+        mark it spam if it comes."""
         lead = audit()
         self.client.get(reverse('public:audit_unsubscribe',
                                 args=[unsubscribe_token(lead)]))
-        self.assertTrue(SuppressionList.objects.filter(
+        lead.refresh_from_db()
+        self.assertTrue(lead.unsubscribed)
+        self.assertFalse(SuppressionList.objects.filter(
             email=lead.email).exists())
 
     def test_bad_token_still_renders_the_page(self):

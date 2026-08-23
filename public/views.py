@@ -1487,13 +1487,23 @@ def audit_unsubscribe(request, token):
     instead -- which costs the sending domain far more than the
     unsubscribe ever would.
 
-    Also adds the address to the global SuppressionList, so opting out
-    here means opting out of cold outreach too. Somebody who says no is
-    saying no to us, not to one particular mailing.
+    SCOPE: this stops the audit sequence and nothing else.
+
+    An earlier version also wrote to the global SuppressionList, on the
+    reasoning that saying no is saying no to us rather than to one
+    mailing. That is defensible but it is not what the recipient asked
+    for: they opted out of follow-ups about an audit they ran, which is
+    not the same as refusing all future contact forever.
+
+    The trade-off is real and worth stating. Somebody who unsubscribes
+    here remains eligible for cold outreach later, and if that happens
+    they may well mark it spam. If that turns out to matter, the fix is
+    one line -- write to SuppressionList here as well -- and the cost of
+    being wrong in this direction is a complaint rather than a silently
+    discarded prospect.
     """
     from django.utils import timezone
 
-    from outreach.models import SuppressionList
     from public.audit_sequence import resolve_unsubscribe_token
 
     audit_lead = resolve_unsubscribe_token(token)
@@ -1502,14 +1512,7 @@ def audit_unsubscribe(request, token):
         audit_lead.unsubscribed = True
         audit_lead.unsubscribed_at = timezone.now()
         audit_lead.save(update_fields=['unsubscribed', 'unsubscribed_at'])
-        if audit_lead.email:
-            SuppressionList.objects.get_or_create(
-                email=audit_lead.email.lower(),
-                defaults={
-                    'reason': 'unsubscribed (audit follow-up)',
-                    'domain': audit_lead.email.rpartition('@')[2],
-                },
-            )
+
 
     # The same page renders whether or not the token resolved. A bad or
     # already-used token still says "you are unsubscribed", because the
