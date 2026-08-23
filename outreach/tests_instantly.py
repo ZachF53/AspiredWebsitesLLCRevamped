@@ -993,3 +993,49 @@ class EnrichmentQueueTests(TestCase):
         queued = self._queued()
         self.assertIn('GoodCo', queued)
         self.assertIn('GmailCo', queued)
+
+
+class HttpsFallbackTests(TestCase):
+    """A broken certificate does not mean the site is down.
+
+    Verified 2026-08-23: texashealthlawattorney.com fails TLS with a
+    hostname mismatch and returns 200 with 3,717 words over http. Without
+    a downgrade attempt it classified as 'unreachable' and the generator
+    announced that a working law firm's website was offline.
+
+    The true finding is stronger: a live site with no usable HTTPS, for a
+    firm handling protected health information.
+    """
+
+    def test_https_failure_falls_back_to_http(self):
+        from outreach import enricher
+        lead = make_lead(website='https://example-firm.com')
+        calls = []
+
+        def fake_get(url):
+            calls.append(url)
+            if url.startswith('https://'):
+                return '', url, False, 0
+            return '<html>' + ('word ' * 200) + '</html>', url, True, 200
+
+        with patch.object(enricher, '_http_get_status', side_effect=fake_get), \
+             patch.object(enricher, 'probe_tls',
+                          return_value=(False, 'hostname mismatch')), \
+             patch.object(enricher, '_run_pagespeed'), \
+             patch.object(enricher, '_extract_from_html'):
+            enricher._scrape_homepage(lead)
+
+        self.assertTrue(any(u.startswith('http://') for u in calls),
+                        'never attempted the http downgrade')
+        self.assertEqual(lead.site_status, '',
+                         'a reachable site must not be marked unreachable')
+        self.assertFalse(lead.has_ssl)
+        self.assertIn('hostname mismatch', lead.tls_error)
+
+    def test_live_site_with_broken_tls_yields_the_ssl_observation(self):
+        """Not 'no_real_website' -- the site is up, the certificate is not."""
+        lead = make_lead(site_status='', has_ssl=False,
+                         tls_error='certificate not valid (Hostname mismatch)')
+        keys = [k for k, _ in icebreaker.observations(lead)]
+        self.assertIn('no_ssl', keys)
+        self.assertNotIn('no_real_website', keys)

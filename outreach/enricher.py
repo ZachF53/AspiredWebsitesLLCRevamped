@@ -303,6 +303,23 @@ def _scrape_homepage(lead):
     # ── Content ───────────────────────────────────────────────────────
     if base_url.startswith('https://'):
         html, final_url, ok, status = _http_get_status(base_url)
+        if not ok:
+            # HTTPS failed. That does NOT mean the site is down -- plenty
+            # of small-business sites serve fine over http with a broken
+            # or mismatched certificate, and without this fallback they
+            # get classified 'unreachable' and the generator announces
+            # that their website is offline. It is not.
+            #
+            # Verified 2026-08-23: texashealthlawattorney.com fails TLS
+            # with a hostname mismatch and returns 200 with 3,717 words
+            # over http. The first version of this call produced "isn't
+            # resolving to a working site right now" for a site that
+            # loads perfectly well.
+            #
+            # The real finding is better anyway: a live site with no
+            # usable HTTPS, which has_ssl already records.
+            downgrade = 'http://' + base_url[len('https://'):]
+            html, final_url, ok, status = _http_get_status(downgrade)
     elif base_url.startswith('http://'):
         # Prefer https on the same host when it genuinely serves content.
         upgrade = 'https://' + base_url[len('http://'):]
