@@ -322,6 +322,48 @@ def build_actor_input(niche, city, state=None, fetch_count=50,
     return payload
 
 
+# Apollo-style industry strings -> the business_type values campaigns
+# target. Without this the segment gate in instantly.push_leads rejects
+# every lead: the actor returns "law practice" or "legal services", the
+# TX campaign asks for "Law Firm", and a straight string compare fails on
+# a list that is entirely correct.
+#
+# Mapped rather than loosened deliberately. Making the gate fuzzy would
+# also let a "Legal Staffing" company through, which is the exact
+# category the campaign is trying to exclude.
+_BUSINESS_TYPE_MAP = {
+    'law practice': 'Law Firm',
+    'legal services': 'Law Firm',
+    'law firm': 'Law Firm',
+    'attorney': 'Law Firm',
+    'attorneys': 'Law Firm',
+    'legal': 'Law Firm',
+    'dentist': 'Dentist',
+    'dental': 'Dentist',
+    'dentistry': 'Dentist',
+    'dental practice': 'Dentist',
+    'medical practice': 'Medical Practice',
+    'health, wellness & fitness': 'Medical Practice',
+    'hospital & health care': 'Medical Practice',
+    'accounting': 'Accounting',
+    'financial services': 'Financial Services',
+}
+
+
+def normalise_business_type(industry):
+    """Apollo's industry label -> our business_type.
+
+    Unknown industries pass through title-cased rather than being
+    blanked: an unmapped value is still information, and a blank
+    business_type would sail through a campaign's segment check instead
+    of being caught by it.
+    """
+    raw = (industry or '').strip()
+    if not raw:
+        return ''
+    return _BUSINESS_TYPE_MAP.get(raw.lower(), raw.title())
+
+
 def map_contact_to_lead(item):
     """One Apify contact row -> one ``import_leads`` dict.
 
@@ -349,7 +391,7 @@ def map_contact_to_lead(item):
         'address': (item.get('company_full_address') or '').strip(),
         'city': (item.get('company_city') or item.get('city') or '').strip(),
         'state': (item.get('company_state') or item.get('state') or '').strip(),
-        'business_type': (item.get('industry') or '').strip(),
+        'business_type': normalise_business_type(item.get('industry')),
         'linkedin_url': (item.get('company_linkedin') or '').strip(),
         # Kept as internal context for the drafter: job title and headline
         # are exactly the "one specific thing" the copy is told to

@@ -388,3 +388,65 @@ class DatasetImportTests(TestCase):
         from outreach.apify_source import ApifyError
         with self.assertRaises(ApifyError):
             apify_source.import_from_dataset('ds123')
+
+
+class BusinessTypeNormalisationTests(TestCase):
+    """Apollo says "law practice"; the TX campaign asks for "Law Firm".
+
+    Without the map, instantly.push_leads' segment gate rejects a list
+    that is entirely correct, and the failure looks like "0 leads
+    eligible" with no clue why.
+    """
+
+    def test_apollo_legal_industries_map_to_law_firm(self):
+        from outreach.apify_source import normalise_business_type
+        for raw in ('law practice', 'Law Practice', 'legal services',
+                    'LEGAL SERVICES', 'law firm'):
+            with self.subTest(raw=raw):
+                self.assertEqual(normalise_business_type(raw), 'Law Firm')
+
+    def test_unmapped_industry_passes_through_titled(self):
+        """An unmapped value is still information. Blanking it would let
+        the lead sail through a segment check instead of failing it."""
+        from outreach.apify_source import normalise_business_type
+        self.assertEqual(
+            normalise_business_type('marketing and advertising'),
+            'Marketing And Advertising')
+
+    def test_blank_stays_blank(self):
+        from outreach.apify_source import normalise_business_type
+        self.assertEqual(normalise_business_type(''), '')
+        self.assertEqual(normalise_business_type(None), '')
+
+    def test_legal_staffing_is_not_mapped_to_law_firm(self):
+        """The mapping is exact, not fuzzy, on purpose -- "Legal Staffing"
+        is precisely the category the law campaign excludes."""
+        from outreach.apify_source import normalise_business_type
+        self.assertNotEqual(
+            normalise_business_type('legal staffing'), 'Law Firm')
+
+    def test_mapped_lead_clears_the_tx_law_segment_gate(self):
+        """End to end: an Apollo row must survive the gate it would
+        otherwise fail."""
+        from outreach import instantly
+        from outreach.apify_source import map_contact_to_lead
+        from outreach.models import Lead, OutreachCampaign
+
+        mapped = map_contact_to_lead({
+            'company_name': 'Chen Law Group',
+            'full_name': 'Sarah Chen',
+            'email': 'sarah@chenlawgroup.com',
+            'industry': 'law practice',
+            'company_state': 'TX',
+        })
+        self.assertEqual(mapped['business_type'], 'Law Firm')
+
+        lead = Lead.objects.create(
+            firm_name=mapped['firm_name'], email=mapped['email'],
+            business_type=mapped['business_type'], state=mapped['state'],
+            source='apify')
+        campaign = OutreachCampaign.objects.create(
+            name='TX Law', slug='tx-law-seg', niche='law firm',
+            business_type='Law Firm', state='TX',
+            instantly_campaign_id='c1', active=True)
+        self.assertEqual(instantly.segment_mismatch(lead, campaign), '')
