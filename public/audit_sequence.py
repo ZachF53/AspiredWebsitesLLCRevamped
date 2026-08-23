@@ -281,6 +281,10 @@ def build_followup_2(audit_lead):
 
 # ── Sending ────────────────────────────────────────────────────────────
 
+def _postal_address():
+    return (getattr(settings, 'COMPANY_POSTAL_ADDRESS', '') or '').strip()
+
+
 def _may_send(audit_lead):
     """Whether this record may receive anything at all.
 
@@ -312,11 +316,24 @@ def _send(audit_lead, subject, body):
 
 
 def send_report(audit_lead):
-    """Email 1, immediately on email capture."""
+    """Email 1, immediately on email capture.
+
+    Sends even without a configured postal address, and logs loudly if
+    there is none. This is the report they asked for thirty seconds ago;
+    withholding it because a setting is missing punishes the visitor for
+    an operator mistake. The follow-ups, which are unambiguously
+    marketing, refuse instead.
+    """
     allowed, why = _may_send(audit_lead)
     if not allowed:
         logger.info('audit report not sent (%s): %s', why, audit_lead.pk)
         return False
+
+    if not _postal_address():
+        logger.error(
+            'COMPANY_POSTAL_ADDRESS is not set - the audit report is '
+            'going out without the physical address CAN-SPAM requires. '
+            'Set it in .env on this server.')
     subject, body = build_report(audit_lead)
     _send(audit_lead, subject, body)
     audit_lead.report_sent_at = timezone.now()
@@ -330,6 +347,18 @@ def send_followup(audit_lead, number):
     if not allowed:
         logger.info('audit follow-up %s not sent (%s): %s',
                     number, why, audit_lead.pk)
+        return False
+
+    # Unambiguously marketing, and nobody is sitting waiting for it, so
+    # a missing postal address is a reason to stop rather than to send
+    # something non-compliant. Discovered when the address turned out to
+    # be set locally but not on either server -- .env is gitignored, so
+    # it had never deployed.
+    if not _postal_address():
+        logger.error(
+            'audit follow-up %s withheld: COMPANY_POSTAL_ADDRESS is not '
+            'set, and CAN-SPAM requires a physical address on marketing '
+            'email. Set it in .env on this server.', number)
         return False
 
     # Nothing worth following up about. Said once in the report, then

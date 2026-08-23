@@ -183,3 +183,33 @@ class ScheduleTests(TestCase):
         lead.refresh_from_db()
         self.assertIsNotNone(lead.followup_1_sent_at)
         self.assertIsNone(lead.followup_2_sent_at)
+
+
+class PostalAddressTests(TestCase):
+    """Found in production: COMPANY_POSTAL_ADDRESS was set locally but on
+    neither server, because .env is gitignored and had never deployed.
+    The emails went out without the physical address CAN-SPAM requires.
+    """
+
+    from django.test import override_settings as _os
+
+    @_os(COMPANY_POSTAL_ADDRESS='8735 Dunwoody Place, Atlanta, GA')
+    def test_address_appears_in_every_email(self):
+        lead = audit()
+        for build in (build_report, build_followup_1, build_followup_2):
+            with self.subTest(build=build.__name__):
+                self.assertIn('Dunwoody', build(lead)[1])
+
+    @_os(COMPANY_POSTAL_ADDRESS='')
+    def test_followups_refuse_without_an_address(self):
+        """Marketing email, and nobody is waiting on it."""
+        lead = audit(report_sent_at=timezone.now())
+        self.assertFalse(send_followup(lead, 1))
+        self.assertEqual(len(mail.outbox), 0)
+
+    @_os(COMPANY_POSTAL_ADDRESS='')
+    def test_report_still_sends_without_an_address(self):
+        """They asked for it thirty seconds ago. Withholding it punishes
+        the visitor for an operator mistake."""
+        self.assertTrue(send_report(audit()))
+        self.assertEqual(len(mail.outbox), 1)
