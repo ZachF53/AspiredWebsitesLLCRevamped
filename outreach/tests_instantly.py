@@ -1205,3 +1205,138 @@ class OfferCompositionTests(TestCase):
             with self.subTest(offer=key):
                 self.assertTrue(spec['fulfilment_cost'].strip())
                 self.assertTrue(spec['appeals_to'].strip())
+
+
+# ── offers as rows ─────────────────────────────────────────────────────
+
+class OfferModelTests(TestCase):
+    """Offers moved from a dict in code to rows in the database.
+
+    A constant means changing an offer needs a deploy, which is wrong for
+    the same reason hardcoded prices are wrong, and makes the point of
+    measuring offers unreachable: an agent that learns which offer wins
+    but cannot act on it has learned nothing useful.
+    """
+
+    def _offer(self, **kw):
+        from outreach.models import Offer
+        defaults = {
+            'key': 'db_offer', 'name': 'DB offer',
+            'pitch': 'I will do the thing for free, no strings.',
+            'restate': 'the thing, free',
+            'ask': 'Reply "yes".',
+        }
+        defaults.update(kw)
+        return Offer.objects.create(**defaults)
+
+    def test_database_row_beats_the_code_constant(self):
+        """Same key in both -> the row wins, because the row is the one a
+        human can edit without a deploy."""
+        from outreach import sequences
+        self._offer(key='security_review',
+                    pitch='COMPLETELY DIFFERENT PITCH, free.',
+                    restate='a different thing, free',
+                    ask='Reply "sure".')
+        body = sequences.build_steps(
+            'texas-law', '1 Main St', offer='security_review')[0]['body']
+        self.assertIn('COMPLETELY DIFFERENT PITCH', body)
+        self.assertNotIn('within 48 hours', body)
+
+    def test_code_constant_is_the_fallback(self):
+        """Keeps the module usable on a fresh checkout before seeding."""
+        from outreach import sequences
+        body = sequences.build_steps(
+            'texas-law', '1 Main St', offer='security_review')[0]['body']
+        self.assertIn('security and performance review', body)
+
+    def test_an_offer_row_can_be_passed_directly(self):
+        from outreach import sequences
+        offer = self._offer()
+        body = sequences.build_steps(
+            'texas-law', '1 Main St', offer=offer)[0]['body']
+        self.assertIn('I will do the thing for free', body)
+
+    def test_new_offers_are_inactive_by_default(self):
+        """An agent-proposed offer is a proposal, never something that
+        starts going out on its own."""
+        self.assertFalse(self._offer().active)
+
+    def test_reply_rate_is_zero_before_any_sends(self):
+        offer = self._offer()
+        self.assertEqual(offer.reply_rate, 0.0)
+        offer.sends, offer.replies = 200, 8
+        self.assertAlmostEqual(offer.reply_rate, 0.04)
+
+    def test_unknown_key_names_where_to_fix_it(self):
+        from outreach import sequences
+        with self.assertRaises(sequences.SequenceError) as ctx:
+            sequences.build_steps('texas-law', '1 Main St', offer='nope')
+        self.assertIn('seed_offers', str(ctx.exception))
+
+
+class ComposeEmailTests(TestCase):
+    """compose_email is THE draft function. Both per-thing variables come
+    from different places and both are required:
+
+        offer      <- the campaign (the A/B arm)
+        icebreaker <- the lead     (that lead's own facts)
+    """
+
+    def setUp(self):
+        from outreach.models import Offer
+        self.offer = Offer.objects.create(
+            key='speed_test', name='Speed', active=True,
+            pitch='I will make your site fast, or you pay nothing.',
+            restate='your site made fast, or you pay nothing',
+            ask='Reply "yes".')
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law', slug='tx-compose', niche='law firm',
+            offer=self.offer, instantly_campaign_id='c1', active=True)
+
+    def test_uses_both_the_campaign_offer_and_the_lead_icebreaker(self):
+        from outreach import sequences
+        lead = make_lead(icebreaker='Twenty years in probate is unusual.')
+        d = sequences.compose_email(lead, campaign=self.campaign,
+                                    postal_address='1 Main St')
+        self.assertIn('Twenty years in probate is unusual.', d['body'])
+        self.assertIn('I will make your site fast', d['body'])
+        self.assertEqual(d['offer_key'], 'speed_test')
+        self.assertTrue(d['has_icebreaker'])
+        self.assertEqual(d['unresolved'], [])
+
+    def test_explicit_offer_overrides_the_campaign(self):
+        """Lets a caller preview an alternative without touching a live
+        campaign."""
+        from outreach import sequences
+        d = sequences.compose_email(
+            make_lead(), campaign=self.campaign, offer='security_review',
+            postal_address='1 Main St')
+        self.assertEqual(d['offer_key'], 'security_review')
+        self.assertNotIn('I will make your site fast', d['body'])
+
+    def test_missing_icebreaker_is_reported_not_hidden(self):
+        from outreach import sequences
+        d = sequences.compose_email(
+            make_lead(icebreaker=''), campaign=self.campaign,
+            postal_address='1 Main St')
+        self.assertFalse(d['has_icebreaker'])
+
+    def test_every_touch_composes_cleanly(self):
+        from outreach import sequences
+        lead = make_lead()
+        for touch in (1, 2, 3, 4):
+            with self.subTest(touch=touch):
+                d = sequences.compose_email(
+                    lead, campaign=self.campaign, touch=touch,
+                    postal_address='1 Main St')
+                self.assertEqual(d['unresolved'], [])
+                self.assertEqual(d['touch'], touch)
+
+    def test_campaign_without_an_offer_falls_back_to_default(self):
+        from outreach import sequences
+        bare = OutreachCampaign.objects.create(
+            name='Bare', slug='bare', niche='x')
+        d = sequences.compose_email(make_lead(), campaign=bare,
+                                    postal_address='1 Main St')
+        self.assertEqual(d['offer_key'], sequences.DEFAULT_OFFER)
+        self.assertEqual(d['unresolved'], [])

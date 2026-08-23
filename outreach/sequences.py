@@ -329,8 +329,44 @@ class SequenceError(Exception):
     """The copy is not fit to send."""
 
 
+def resolve_offer(offer):
+    """Turn a key, an Offer row, or None into the dict we substitute from.
+
+    The DATABASE is the source of truth. OFFERS above is the seed and the
+    fallback -- it keeps the module importable and testable before the
+    migration has run, and stops a fresh checkout being unable to build
+    copy at all. If a key exists in both, the row wins, because the row
+    is the one a human can edit without a deploy.
+    """
+    from outreach.models import Offer
+
+    if offer is None:
+        offer = DEFAULT_OFFER
+    if isinstance(offer, Offer):
+        return offer.as_dict()
+
+    key = str(offer)
+    try:
+        row = Offer.objects.filter(key=key).first()
+    except Exception:
+        # No table yet (fresh checkout, or a test DB mid-migration).
+        row = None
+    if row is not None:
+        return row.as_dict()
+
+    spec = OFFERS.get(key)
+    if spec is None:
+        raise SequenceError(
+            f'No offer named {key!r}. Known in code: {sorted(OFFERS)}. '
+            f'Add it at /admin/outreach/offer/ or seed with '
+            f'`manage.py seed_offers`.')
+    return spec
+
+
 def build_steps(slug, postal_address=None, offer=DEFAULT_OFFER):
     """Compose one sequence: template + chosen offer + CAN-SPAM footer.
+
+    ``offer`` accepts an Offer row, its key, or None for the default.
 
     Refuses to build without a postal address rather than quietly
     producing non-compliant copy - the point of putting the requirement
@@ -341,10 +377,7 @@ def build_steps(slug, postal_address=None, offer=DEFAULT_OFFER):
         raise SequenceError(
             f'No sequence named {slug!r}. Known: {sorted(SEQUENCES)}')
 
-    spec = OFFERS.get(offer)
-    if spec is None:
-        raise SequenceError(
-            f'No offer named {offer!r}. Known: {sorted(OFFERS)}')
+    spec = resolve_offer(offer)
 
     postal = (postal_address or _configured_postal_address()).strip()
     if not postal:
@@ -489,6 +522,53 @@ def render_for_lead(step, lead):
         'body': _sub(step.get('body', '')),
         'delay_days': step.get('delay_days', 0),
         'offer': step.get('offer', ''),
+    }
+
+
+def compose_email(lead, campaign=None, touch=1, offer=None,
+                  postal_address=None, sequence='texas-law'):
+    """The finished email for one lead: template + offer + icebreaker.
+
+    THIS IS THE DRAFT FUNCTION. Anything that needs to produce a real
+    email -- the preview command, an approval queue, and eventually
+    Prospect -- should call this rather than assembling the pieces
+    itself, because the pieces are easy to assemble WRONG.
+
+    The two per-thing variables come from two different places and both
+    are required:
+
+        offer       <- the CAMPAIGN (an Offer row; the A/B arm)
+        icebreaker  <- the LEAD     (written from that lead's own facts)
+
+    Precedence for the offer: explicit ``offer`` argument, else the
+    campaign's, else the default. That order lets a caller preview an
+    alternative offer against a live campaign without touching it.
+
+    Returns a dict with subject, body, offer_key and any unresolved
+    variables. A non-empty ``unresolved`` is a blocker, never a warning:
+    a surviving placeholder ships literally, and "Hi {{firstName}}," is
+    worse than sending nothing at all.
+    """
+    chosen = offer or (campaign.offer if campaign and campaign.offer_id
+                       else DEFAULT_OFFER)
+    steps = build_steps(sequence, postal_address, offer=chosen)
+
+    index = max(1, min(int(touch), len(steps))) - 1
+    rendered = render_for_lead(steps[index], lead)
+
+    spec_key = (chosen.key if hasattr(chosen, 'key')
+                else (chosen if isinstance(chosen, str) else DEFAULT_OFFER))
+    unresolved = (unresolved_variables(rendered['body'])
+                  + unresolved_variables(rendered['subject']))
+
+    return {
+        'subject': rendered['subject'],
+        'body': rendered['body'],
+        'touch': index + 1,
+        'delay_days': rendered['delay_days'],
+        'offer_key': spec_key,
+        'has_icebreaker': bool((lead.icebreaker or '').strip()),
+        'unresolved': unresolved,
     }
 
 

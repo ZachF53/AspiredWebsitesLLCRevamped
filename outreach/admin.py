@@ -7,6 +7,7 @@ from .models import (
     InstantlyEvent,
     Lead,
     LeadReviewQueue,
+    Offer,
     LeadNote,
     OutreachCampaign,
     OutreachSettings,
@@ -262,3 +263,49 @@ class LeadReviewQueueAdmin(admin.ModelAdmin):
         self.message_user(
             request,
             f'{n} lead(s) archived. They stay out of every campaign.')
+
+
+@admin.register(Offer)
+class OfferAdmin(admin.ModelAdmin):
+    """Offers live here, not in code, so changing one needs no deploy.
+
+    ``active`` defaults False on purpose. An agent-proposed offer is a
+    proposal awaiting a human, never something that starts going out on
+    its own -- the same guardrail EmailTemplateVariant has carried since
+    it was written.
+    """
+
+    list_display = ('name', 'key', 'active', 'appeals_to', 'proposed_by',
+                    'sends', 'replies', 'reply_rate_display')
+    list_filter = ('active', 'proposed_by')
+    search_fields = ('key', 'name', 'pitch', 'appeals_to')
+    readonly_fields = ('sends', 'replies', 'positive_replies', 'bookings',
+                       'created_at', 'updated_at')
+    fieldsets = (
+        ('Identity', {'fields': ('key', 'name', 'appeals_to', 'active',
+                                 'proposed_by')}),
+        ('Copy', {
+            'fields': ('pitch', 'restate', 'ask'),
+            'description': (
+                'pitch goes in touch 1. restate goes in touch 2 as '
+                '"...what I am offering: &lt;restate&gt;." so it should read '
+                'as a clause, not a sentence. ask is the call to action '
+                'and appears in touches 1, 2 and 3.'),
+        }),
+        ('What it costs you', {
+            'fields': ('fulfilment_cost',),
+            'description': (
+                'Be honest here. An offer with a great reply rate that '
+                'takes four hours to honour is a trap - succeed and you '
+                'have sold yourself into unpaid full-time work.'),
+        }),
+        ('Performance', {
+            'fields': ('sends', 'replies', 'positive_replies', 'bookings',
+                       'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def reply_rate_display(self, obj):
+        return f'{obj.reply_rate * 100:.1f}%' if obj.sends else '-'
+    reply_rate_display.short_description = 'Reply rate'

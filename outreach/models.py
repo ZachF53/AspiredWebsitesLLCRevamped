@@ -787,6 +787,103 @@ class BraveSearchUsage(models.Model):
         return row.query_count if row else 0
 
 
+class Offer(models.Model):
+    """What the prospect gets, and how they start. The A/B variable.
+
+    WHY THIS IS A ROW AND NOT A CONSTANT
+    ------------------------------------
+    Offers began life as a dict in ``outreach/sequences.py``. That made
+    changing one a code edit and a deploy, which is wrong for the same
+    reason hardcoded prices are wrong (CLAUDE.md: "NEVER hardcode prices
+    ... always query ServiceTier"). It also made the whole point
+    unreachable: an agent that measures which offer wins but cannot act
+    on it has learned nothing useful.
+
+    The guardrail from EmailTemplateVariant carries over intact --
+    ``active`` defaults False, so an agent-proposed offer is a proposal
+    awaiting a human, never something that starts going out on its own.
+
+    THE THREE PROPERTIES OF AN OFFER THAT WORKS
+    -------------------------------------------
+      1. Minimises financial risk   -> free, or money back
+      2. Minimises friction         -> one word starts it
+      3. Cheap for us to produce    -> or it stops scaling the moment it
+                                       starts working
+
+    ``fulfilment_cost`` records the third honestly, because it is the one
+    that gets ignored and then hurts. An offer with a 10% reply rate that
+    costs four hours to honour is a trap: succeed and you have sold
+    yourself into unpaid full-time work.
+    """
+
+    PROPOSED_BY_CHOICES = [
+        ('human', 'Human'),
+        ('agent', 'Agent'),
+    ]
+
+    key = models.SlugField(
+        max_length=60, unique=True,
+        help_text='Stable identifier, e.g. "security_review".')
+    name = models.CharField(
+        max_length=120, help_text='Shown in the admin and campaign names.')
+    appeals_to = models.CharField(
+        max_length=120, blank=True,
+        help_text='What motivation this offer targets. Keeps the set '
+                  'genuinely different rather than six rewordings.')
+    fulfilment_cost = models.TextField(
+        blank=True,
+        help_text='Honest note on what honouring this costs YOU. Read it '
+                  'before scaling an offer that is working.')
+
+    # The three slots the sequence template substitutes.
+    pitch = models.TextField(
+        help_text='Touch 1: the full offer, in your voice.')
+    restate = models.TextField(
+        help_text='Touch 2: the offer in one clause, no leading capital. '
+                  'Reads as "...what I am offering: <restate>."')
+    ask = models.TextField(
+        help_text='The one-line, low-friction call to action.')
+
+    active = models.BooleanField(
+        default=False, db_index=True,
+        help_text='False = proposed, awaiting approval. Default False so '
+                  'nothing an agent writes can start sending itself.')
+    proposed_by = models.CharField(
+        max_length=20, default='human', choices=PROPOSED_BY_CHOICES)
+
+    # Denormalised on purpose — read on every campaign summary, and a
+    # join across EmailSent for each would be pointless work.
+    sends = models.IntegerField(default=0)
+    replies = models.IntegerField(default=0)
+    positive_replies = models.IntegerField(default=0)
+    bookings = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-active', 'name']
+
+    def __str__(self):
+        return f'{self.name} ({"active" if self.active else "inactive"})'
+
+    @property
+    def reply_rate(self):
+        """Replies per send, 0.0 before anything has gone out."""
+        return (self.replies / self.sends) if self.sends else 0.0
+
+    def as_dict(self):
+        """The shape ``sequences.build_steps`` substitutes from."""
+        return {
+            'name': self.name,
+            'appeals_to': self.appeals_to,
+            'fulfilment_cost': self.fulfilment_cost,
+            'pitch': self.pitch,
+            'restate': self.restate,
+            'ask': self.ask,
+        }
+
+
 class OutreachCampaign(models.Model):
     """
     One niche × geography segment, mapped to one Instantly campaign.
@@ -821,6 +918,14 @@ class OutreachCampaign(models.Model):
         help_text='Stamped onto imported leads. Blank = infer from source.')
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=2, blank=True)
+
+    # Which offer this campaign makes. The A/B arm: one campaign per
+    # offer means per-campaign analytics IS per-offer reply rate, with
+    # exactly one variable differing between arms.
+    offer = models.ForeignKey(
+        Offer, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='campaigns',
+        help_text='Null falls back to the default offer at build time.')
 
     instantly_campaign_id = models.CharField(
         max_length=64, blank=True, db_index=True,
