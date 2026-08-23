@@ -1039,3 +1039,97 @@ class HttpsFallbackTests(TestCase):
         keys = [k for k, _ in icebreaker.observations(lead)]
         self.assertIn('no_ssl', keys)
         self.assertNotIn('no_real_website', keys)
+
+
+# ── manual review queue ────────────────────────────────────────────────
+
+class ReviewFlagTests(TestCase):
+    """Apollo mis-tags. Verified 2026-08-23, all four came back as
+    industry='Legal Services':
+
+        Bwa Video, Inc.                      title='Owner'
+        Kinney Recruiting                    title='Co-owner'
+        Patent Designs                       title='Owner'
+        National Employment Lawyers Assoc.   title='Owner'
+
+    No actor-side filter can exclude a recruiting company the source
+    calls a law practice -- a tightened run returned 100 identical rows
+    and excluded none of them. So the check runs here, on the one field
+    the source cannot mislabel: the company's own name.
+    """
+
+    def _flagged(self, name):
+        from outreach import review
+        return bool(review.describe_review_reasons(make_lead(firm_name=name)))
+
+    def test_the_four_real_offenders_are_flagged(self):
+        for name in ('Bwa Video, Inc.', 'Kinney Recruiting',
+                     'Patent Designs',
+                     'National Employment Lawyers Association'):
+            with self.subTest(name=name):
+                self.assertTrue(self._flagged(name))
+
+    def test_real_law_firms_are_not_flagged(self):
+        """False positives are the expensive failure -- these are all real
+        firms pulled from the live dataset."""
+        for name in ('Chalker Flores, Llp', 'The Stevenson Law Firm, Pc',
+                     'Davidson Law Group', 'Powers Taylor Llp',
+                     'Hill Law Firm Accident And Injury Lawyers',
+                     'Law Office Of Mark A. Ticer',
+                     'Givens & Johnston Pllc', 'The Monsour Law Firm Pc'):
+            with self.subTest(name=name):
+                self.assertFalse(self._flagged(name))
+
+    def test_law_wording_overrides_a_weak_marker(self):
+        """"Legal Solutions PLLC" is a real firm, not a software company."""
+        self.assertFalse(self._flagged('Legal Design Solutions PLLC'))
+        self.assertFalse(self._flagged('Law Offices of Media & Entertainment'))
+
+    def test_association_is_flagged_even_with_law_wording(self):
+        """A bar association is not a practice, however legal its name."""
+        self.assertTrue(self._flagged('Texas Trial Lawyers Association'))
+
+    def test_matching_is_word_level_not_substring(self):
+        """'design' inside 'designated', 'pc' inside 'pacific'."""
+        self.assertFalse(self._flagged('Designated Counsel PC'))
+        self.assertFalse(self._flagged('Pacific Law Partners'))
+
+    def test_flag_lead_persists_and_clears(self):
+        from outreach import review
+        lead = make_lead(firm_name='Kinney Recruiting')
+        self.assertTrue(review.flag_lead(lead))
+        lead.refresh_from_db()
+        self.assertTrue(lead.needs_review)
+        self.assertIn('recruiting', lead.review_reason.lower())
+
+        lead.firm_name = 'Kinney Law Firm'
+        self.assertFalse(review.flag_lead(lead))
+        lead.refresh_from_db()
+        self.assertFalse(lead.needs_review)
+
+
+@override_settings(INSTANTLY_TOKEN='t')
+class ReviewGateTests(TestCase):
+    """Flagged leads are HELD, not dropped. Clearing one releases it."""
+
+    def setUp(self):
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law', slug='tx-law-rev', niche='law firm',
+            instantly_campaign_id='c1', active=True)
+
+    def test_flagged_lead_is_not_pushed(self):
+        lead = make_lead(needs_review=True,
+                         review_reason='Name contains "recruiting"')
+        with patch.object(instantly, '_request',
+                          return_value={'id': 'x'}) as req:
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['pushed'], 0)
+        self.assertEqual(summary['skipped_needs_review'], 1)
+        req.assert_not_called()
+
+    def test_cleared_lead_pushes_normally(self):
+        lead = make_lead(needs_review=False)
+        with patch.object(instantly, '_request',
+                          return_value={'id': 'x'}):
+            summary = instantly.push_leads([lead], self.campaign)
+        self.assertEqual(summary['pushed'], 1)

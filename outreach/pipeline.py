@@ -98,6 +98,18 @@ def import_leads(scraped_data, source, business_type_override=None):
             )
             results['imported'] += 1
 
+            # Flag names that contradict the industry the source claims.
+            # Done here so it is visible the moment a batch lands, rather
+            # than surfacing at push time when someone is mid-send.
+            try:
+                from outreach.review import flag_lead
+                if flag_lead(lead):
+                    results['flagged_for_review'] = (
+                        results.get('flagged_for_review', 0) + 1)
+            except Exception:
+                logger.exception(
+                    'review flagging failed for lead %s', lead.pk)
+
             # 5. Background enrichment — fires the homepage scrape +
             # PageSpeed + Custom Search fallback off the request
             # thread so admin sees the import summary instantly while

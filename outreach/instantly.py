@@ -391,7 +391,7 @@ def push_leads(leads, campaign):
         'total': 0, 'pushed': 0, 'skipped_unsendable': 0,
         'skipped_suppressed': 0, 'skipped_no_icebreaker': 0,
         'skipped_already_pushed': 0, 'skipped_unsubscribed': 0,
-        'skipped_wrong_segment': 0,
+        'skipped_wrong_segment': 0, 'skipped_needs_review': 0,
         'errors': 0, 'reasons': {},
     }
 
@@ -421,6 +421,14 @@ def push_leads(leads, campaign):
             # A lead with no personalised line is a mail merge, which is
             # the thing this whole pipeline exists to stop sending.
             summary['skipped_no_icebreaker'] += 1
+            continue
+
+        if lead.needs_review:
+            # Flagged at import because the company name contradicts the
+            # industry the source claimed. Held rather than dropped: a
+            # human clears it in one click and it goes next cycle.
+            summary['skipped_needs_review'] += 1
+            _note(f'Awaiting review: {lead.review_reason[:100]}')
             continue
 
         mismatch = segment_mismatch(lead, campaign)

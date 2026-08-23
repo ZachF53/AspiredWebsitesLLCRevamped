@@ -1,10 +1,12 @@
 from django.contrib import admin
+from django.utils import timezone
 
 from .models import (
     EmailReply,
     EmailSent,
     InstantlyEvent,
     Lead,
+    LeadReviewQueue,
     LeadNote,
     OutreachCampaign,
     OutreachSettings,
@@ -213,3 +215,50 @@ class InstantlyEventAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# ── Manual review queue ────────────────────────────────────────────────
+
+@admin.register(LeadReviewQueue)
+class LeadReviewQueueAdmin(admin.ModelAdmin):
+    """Leads whose company NAME contradicts the industry the source gave.
+
+    Apollo tags "Bwa Video, Inc." and "Kinney Recruiting" as Legal
+    Services, and no actor-side filter can exclude a recruiting company
+    the source calls a law practice -- a tightened run returned 100
+    identical rows and excluded none of them.
+
+    Held, not dropped. push_leads refuses a flagged lead, so clearing one
+    here is what releases it to the next push.
+    """
+
+    list_display = ('firm_name', 'business_type', 'city', 'state',
+                    'email', 'review_reason')
+    list_filter = ('business_type', 'state', 'source')
+    search_fields = ('firm_name', 'email', 'review_reason')
+    actions = ('approve_leads', 'reject_leads')
+    readonly_fields = ('review_reason',)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(needs_review=True)
+
+    @admin.action(description='Approve - genuine, release to campaigns')
+    def approve_leads(self, request, queryset):
+        n = queryset.update(
+            needs_review=False,
+            reviewed_at=timezone.now(),
+            reviewed_by=request.user,
+        )
+        self.message_user(request, f'{n} lead(s) approved and released.')
+
+    @admin.action(description='Reject - not our target, archive')
+    def reject_leads(self, request, queryset):
+        n = queryset.update(
+            needs_review=False,
+            status='archived',
+            reviewed_at=timezone.now(),
+            reviewed_by=request.user,
+        )
+        self.message_user(
+            request,
+            f'{n} lead(s) archived. They stay out of every campaign.')

@@ -207,6 +207,22 @@ class Lead(models.Model):
     )
     icebreaker_generated_at = models.DateTimeField(null=True, blank=True)
 
+    # ── Manual review (outreach/review.py) ─────────────────────────────
+    # Set when the company NAME contradicts the industry the source
+    # claims. Apollo tags "Bwa Video, Inc." and "Kinney Recruiting" as
+    # Legal Services, and no actor-side filter can exclude a recruiting
+    # company the source calls a law practice.
+    #
+    # A flag, not a block: the signal is a heuristic on a name, and
+    # auto-discarding on a guess loses real prospects silently. This
+    # fails in the recoverable direction.
+    needs_review = models.BooleanField(default=False, db_index=True)
+    review_reason = models.CharField(max_length=255, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='+')
+
     # Internal CRM scratch — not visible to the lead.
     notes = models.TextField(blank=True)
 
@@ -896,3 +912,18 @@ class InstantlyEvent(models.Model):
     def __str__(self):
         who = self.lead_email or (self.lead.firm_name if self.lead else '?')
         return f'{self.event_type} — {who}'
+
+
+class LeadReviewQueue(Lead):
+    """Proxy over Lead: the manual-review queue as its own admin page.
+
+    A proxy rather than a new table -- these ARE leads, they just need a
+    glance before they can be emailed, and giving the queue its own
+    changelist means the reviewer never has to filter the main lead list
+    to find them.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Lead awaiting review'
+        verbose_name_plural = 'Leads awaiting review'
