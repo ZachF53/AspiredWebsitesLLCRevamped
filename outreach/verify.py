@@ -386,7 +386,12 @@ def verify_lead(lead, save=True):
     from django.utils import timezone
 
     if not lead.email:
-        status = INVALID
+        # "No address yet" is not "bad address". Maps-sourced leads
+        # arrive without one and only get an email during enrichment, so
+        # marking them INVALID here would permanently kill every lead
+        # from a source that does not carry contact details -- before the
+        # stage that finds those details has even run.
+        return PENDING
     else:
         try:
             status = verify_email(lead.email)

@@ -383,9 +383,22 @@ def run_outreach_pipeline_task():
     driven by ScrapeJob on its own schedule, so a pipeline retry can
     never re-trigger a paid scrape.
     """
+    # Verify runs TWICE, on purpose.
+    #
+    # Sources differ in whether a lead arrives with an email. The Apify
+    # person-level database supplies one, so screening before enrichment
+    # is what stops a role address costing a PageSpeed fetch and a Claude
+    # call. Google Places supplies none -- the address is only discovered
+    # DURING enrichment -- so a single pre-enrichment pass would leave
+    # every Maps lead permanently unverified and therefore unsendable.
+    #
+    # Both passes are cheap and idempotent: the second only looks at rows
+    # still PENDING or UNVERIFIED, which after the first pass means
+    # exactly the ones enrichment just found an address for.
     results = [
-        f'verify: {verify_leads_task()}',
+        f'verify(pre): {verify_leads_task()}',
         f'enrich: {enrich_pending_leads_task()}',
+        f'verify(post): {verify_leads_task()}',
         f'icebreak: {generate_icebreakers_task()}',
         f'push: {push_to_instantly_task()}',
     ]
@@ -436,10 +449,21 @@ def enrich_pending_leads_task(limit=25):
     from outreach.enricher import enrich_lead
     from outreach.models import Lead
 
+    # Newest first, NOT highest-scoring first.
+    #
+    # Score is derived FROM enrichment -- PageSpeed, TLS, copyright age.
+    # Before a lead is enriched its score reflects almost nothing, so
+    # ordering the enrichment queue by score inverts the priority it is
+    # trying to express: unenriched leads score low, so they enrich last,
+    # so they stay scored low.
+    #
+    # Observed 2026-08-23: a fresh scrape of 95 Texas law firms scored 1
+    # each and sat behind 90 older leads scoring 4-8. The batch you just
+    # pulled is the batch you want processed, so recency wins.
     leads = Lead.objects.filter(
         enrichment_completed_at__isnull=True,
         unsubscribed=False,
-    ).exclude(website='').order_by('-score', '-created_at')[:limit]
+    ).exclude(website='').order_by('-created_at')[:limit]
 
     done = failed = 0
     for lead in leads:

@@ -829,3 +829,64 @@ class ParkedSiteObservationTests(TestCase):
                          tls_error='certificate not valid (expired)')
         text = dict(icebreaker.observations(lead))['no_ssl']
         self.assertIn('expired', text)
+
+
+# ── email preview rendering ────────────────────────────────────────────
+
+class RenderPreviewTests(TestCase):
+    """Instantly substitutes variables on its own side at send time, so
+    the text a prospect actually receives is never visible from Django.
+    render_for_lead makes the thing being approved the thing being sent.
+    """
+
+    ADDR = '1 Main St, San Antonio, TX 78205'
+
+    def _first_touch(self, lead):
+        from outreach import sequences
+        steps = sequences.build_steps('texas-law', self.ADDR)
+        return sequences.render_for_lead(steps[0], lead)
+
+    def test_all_variables_are_substituted(self):
+        from outreach import sequences
+        lead = make_lead()
+        rendered = self._first_touch(lead)
+        self.assertEqual(
+            sequences.unresolved_variables(rendered['body']), [])
+        self.assertEqual(
+            sequences.unresolved_variables(rendered['subject']), [])
+
+    def test_first_name_only_not_full_name(self):
+        """"Hi Sarah Chen," reads like a mail merge; "Hi Sarah," does not."""
+        lead = make_lead(attorney_name='Sarah Chen')
+        body = self._first_touch(lead)['body']
+        self.assertIn('Hi Sarah,', body)
+        self.assertNotIn('Hi Sarah Chen,', body)
+
+    def test_icebreaker_appears_verbatim(self):
+        lead = make_lead(icebreaker='Your site scores 31/100 on PageSpeed.')
+        self.assertIn('Your site scores 31/100 on PageSpeed.',
+                      self._first_touch(lead)['body'])
+
+    def test_company_name_reaches_the_subject(self):
+        lead = make_lead(firm_name='Chen Law Group')
+        self.assertIn('Chen Law Group', self._first_touch(lead)['subject'])
+
+    def test_unresolved_variables_are_detected(self):
+        """A leftover placeholder ships literally. "Hi {{firstName}}," is
+        worse than sending nothing, and it is the classic merge failure."""
+        from outreach import sequences
+        self.assertEqual(
+            sequences.unresolved_variables('Hi {{firstName}}, re {{oops}}'),
+            ['firstName', 'oops'])
+
+    def test_missing_contact_name_leaves_no_placeholder(self):
+        """Apify rows without a full_name must not ship "Hi {{firstName}},"."""
+        from outreach import sequences
+        lead = make_lead(attorney_name='')
+        rendered = self._first_touch(lead)
+        self.assertEqual(
+            sequences.unresolved_variables(rendered['body']), [])
+        self.assertIn('Hi ,', rendered['body'])
+
+    def test_postal_address_survives_rendering(self):
+        self.assertIn(self.ADDR, self._first_touch(make_lead())['body'])

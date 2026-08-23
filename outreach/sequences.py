@@ -48,7 +48,10 @@ set to the real registered address before a single send. ``build_steps``
 refuses to produce copy while it is unset.
 """
 
-# ── CAN-SPAM ───────────────────────────────────────────────────────────
+import re
+
+
+# ── CAN-SPAM ───────────────────────────────────────────────────────
 # Lives in .env as COMPANY_POSTAL_ADDRESS, not here, so a home address
 # never reaches git and staging can differ from prod. Sending commercial
 # email without one is a CAN-SPAM violation at up to $53,088 per message,
@@ -64,6 +67,7 @@ refuses to produce copy while it is unset.
 def _configured_postal_address():
     from django.conf import settings
     return (getattr(settings, 'COMPANY_POSTAL_ADDRESS', '') or '').strip()
+
 
 FOOTER = (
     '\n\n---\n'
@@ -262,3 +266,57 @@ def describe_problems(steps):
             for p in copy_guard.describe_pricing_problems(body, subject))
 
     return problems
+
+
+# ── Preview ────────────────────────────────────────────────────────────
+
+def render_for_lead(step, lead):
+    """Substitute Instantly's variables so a human can read the real email.
+
+    Instantly does this substitution at send time on its own side, which
+    means the exact text a prospect receives is never visible from Django
+    -- you approve a template and hope. This renders it locally with one
+    lead's data so the thing being approved is the thing being sent.
+
+    Preview only. Nothing here is transmitted; Instantly still owns the
+    real substitution.
+    """
+    contact = (lead.attorney_name or '').strip()
+    first = contact.split(' ')[0] if contact else ''
+
+    values = {
+        'firstName': first,
+        'first_name': first,
+        'lastName': ' '.join(contact.split(' ')[1:]) if contact else '',
+        'companyName': lead.firm_name or '',
+        'company_name': lead.firm_name or '',
+        'icebreaker': lead.icebreaker or '',
+        'personalization': lead.icebreaker or '',
+        'city': lead.city or '',
+        'state': lead.state or '',
+        'website': lead.website or '',
+        'business_type': lead.business_type or '',
+    }
+
+    def _sub(text):
+        for key, value in values.items():
+            text = text.replace('{{' + key + '}}', value)
+        return text
+
+    return {
+        'subject': _sub(step.get('subject', '')),
+        'body': _sub(step.get('body', '')),
+        'delay_days': step.get('delay_days', 0),
+    }
+
+
+def unresolved_variables(text):
+    """Any {{placeholder}} the render did not fill.
+
+    A leftover placeholder ships literally to the prospect -- "Hi
+    {{firstName}}," is worse than no email at all, and it is the classic
+    mail-merge failure. Callers should treat a non-empty result as a
+    blocker.
+    """
+    return sorted(set(re.findall(r'\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}',
+                                 text or '')))

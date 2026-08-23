@@ -72,7 +72,18 @@ USER_AGENT = (
     '+https://aspiredwebsites.com/bot)')
 
 PAGESPEED_URL = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
-PAGESPEED_TIMEOUT = 60
+
+# 60s was the original value and it dominates wall-clock on a real batch.
+# Measured on a 95-lead Texas run 2026-08-23: the API times out often
+# enough that at 60s a batch of 15 took over 20 minutes, almost all of it
+# spent waiting on requests that were never going to answer.
+#
+# A successful PageSpeed call returns in roughly 10-20s. Anything past 30
+# is a request that has already failed, so waiting the extra 30 buys
+# nothing and costs half the batch's runtime. PageSpeed is also the most
+# expendable signal here -- a missing perf score just means the icebreaker
+# leans on TLS, copyright age, or writes an honest generic line.
+PAGESPEED_TIMEOUT = 30
 
 # Brave Search API — JSON endpoint, returns up to 20 results per
 # query. Free tier is 2000 queries/month at 1 req/sec.
