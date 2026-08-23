@@ -949,3 +949,47 @@ class SegmentGateTests(TestCase):
         self.assertEqual(summary['pushed'], 0)
         self.assertEqual(summary['skipped_wrong_segment'], 1)
         req.assert_not_called()
+
+
+class EnrichmentQueueTests(TestCase):
+    """Enrichment is ~30s and a PageSpeed call per lead. Spending it on an
+    address verification has already killed for good buys nothing."""
+
+    def _queued(self):
+        from outreach.models import Lead
+        from outreach import verify as v
+        return set(Lead.objects.filter(
+            enrichment_completed_at__isnull=True, unsubscribed=False,
+        ).exclude(
+            email_verification_status__in=[v.ROLE, v.INVALID],
+        ).exclude(website='').values_list('firm_name', flat=True))
+
+    def test_role_and_invalid_are_not_enriched(self):
+        make_lead(firm_name='RoleCo', email='info@x.com',
+                  website='https://x.com',
+                  email_verification_status=verify.ROLE)
+        make_lead(firm_name='DeadCo', email='a@y.com',
+                  website='https://y.com',
+                  email_verification_status=verify.INVALID)
+        queued = self._queued()
+        self.assertNotIn('RoleCo', queued)
+        self.assertNotIn('DeadCo', queued)
+
+    def test_pending_IS_enriched(self):
+        """A Places lead with no address yet is PENDING, and enrichment is
+        the stage that finds its email. Skipping it would strand exactly
+        the leads that need this most."""
+        make_lead(firm_name='NoEmailCo', email='',
+                  website='https://z.com',
+                  email_verification_status=verify.PENDING)
+        self.assertIn('NoEmailCo', self._queued())
+
+    def test_valid_and_consumer_are_enriched(self):
+        make_lead(firm_name='GoodCo', website='https://g.com',
+                  email_verification_status=verify.VALID)
+        make_lead(firm_name='GmailCo', email='a@gmail.com',
+                  website='https://h.com',
+                  email_verification_status=verify.CONSUMER)
+        queued = self._queued()
+        self.assertIn('GoodCo', queued)
+        self.assertIn('GmailCo', queued)

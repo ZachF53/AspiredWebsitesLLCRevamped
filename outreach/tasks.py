@@ -460,9 +460,23 @@ def enrich_pending_leads_task(limit=25):
     # Observed 2026-08-23: a fresh scrape of 95 Texas law firms scored 1
     # each and sat behind 90 older leads scoring 4-8. The batch you just
     # pulled is the batch you want processed, so recency wins.
+    # Skip leads verification has already killed for good.
+    #
+    # ROLE and INVALID are terminal verdicts about an address we already
+    # hold -- info@ is not going to stop being info@, and enrichment
+    # cannot change either verdict. Spending ~30s and a PageSpeed call on
+    # them buys nothing.
+    #
+    # PENDING is NOT skipped: for a Places-sourced lead it means "no
+    # address yet", and enrichment is the stage that finds one. Skipping
+    # it would strand exactly the leads that need this most.
+    from outreach import verify
+
     leads = Lead.objects.filter(
         enrichment_completed_at__isnull=True,
         unsubscribed=False,
+    ).exclude(
+        email_verification_status__in=[verify.ROLE, verify.INVALID],
     ).exclude(website='').order_by('-created_at')[:limit]
 
     done = failed = 0
