@@ -1,6 +1,7 @@
 """Tests for the AI Employees cockpit (COLD_OUTREACH_AGENT.md §8.2/§8.3)."""
 
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -30,10 +31,18 @@ class AIEmployeePageTests(TestCase):
         self.assertContains(r, 'Prospect')
         self.assertContains(r, 'Paused')
 
-    def test_list_page_states_runtime_is_not_built(self):
-        """The page must not imply the agent works when it does not."""
+    def test_list_page_no_longer_says_the_runtime_is_missing(self):
+        """The inverse of the original assertion.
+
+        This test used to require the "not built yet" banner, and that
+        was right at the time — the page must never imply the agent works
+        when it does not. The runtime now exists (outreach/agent_tools.py
+        and outreach/agent_runtime.py), so the same honesty requirement
+        points the other way: leaving the banner up would understate what
+        the system does and send someone looking for a missing feature.
+        """
         r = self.client.get(reverse('admin_dashboard:ai_employees'))
-        self.assertContains(r, 'agent runtime is not built yet')
+        self.assertNotContains(r, 'agent runtime is not built yet')
 
     def test_detail_page_renders(self):
         r = self.client.get(reverse(
@@ -81,20 +90,40 @@ class AIEmployeePageTests(TestCase):
 
     # ── the control that must NOT pretend to work ─────────────────────
 
-    def test_wake_is_refused_server_side_while_runtime_missing(self):
-        """Hiding the button in the template is not enough — a crafted
-        POST must not be able to fabricate a run either."""
-        r = self.client.post(
-            reverse('admin_dashboard:ai_employee_wake', args=['prospect']),
-            follow=True)
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(AIEmployeeRun.objects.count(), 0)
-        self.assertContains(r, 'Cannot wake')
+    def test_wake_queues_a_run_rather_than_running_it_inline(self):
+        """A run makes several Claude calls and can take minutes. Doing
+        that inside the request would hold a gunicorn worker and time out
+        behind nginx, so the view must hand off to Celery."""
+        with patch('outreach.tasks.run_prospect_task.delay') as delay:
+            r = self.client.post(
+                reverse('admin_dashboard:ai_employee_wake',
+                        args=['prospect']),
+                follow=True)
 
-    def test_wake_button_renders_disabled(self):
+        self.assertEqual(r.status_code, 200)
+        delay.assert_called_once_with(trigger='manual')
+        # The view itself must not create the run row — run_prospect does,
+        # inside the worker. A row created here would show a run that
+        # never happened if the broker were down.
+        self.assertEqual(AIEmployeeRun.objects.count(), 0)
+
+    def test_wake_reports_a_broker_failure_honestly(self):
+        """'Could not wake' sends someone to inspect the agent. The
+        cause is almost always Redis, so say that."""
+        with patch('outreach.tasks.run_prospect_task.delay',
+                   side_effect=OSError('connection refused')):
+            r = self.client.post(
+                reverse('admin_dashboard:ai_employee_wake',
+                        args=['prospect']),
+                follow=True)
+
+        self.assertContains(r, 'Redis')
+        self.assertEqual(AIEmployeeRun.objects.count(), 0)
+
+    def test_wake_button_is_enabled(self):
         r = self.client.get(reverse(
             'admin_dashboard:ai_employee_detail', args=['prospect']))
-        self.assertContains(r, 'Disabled until the agent runtime exists')
+        self.assertNotContains(r, 'Disabled until the agent runtime exists')
 
     # ── run log ───────────────────────────────────────────────────────
 

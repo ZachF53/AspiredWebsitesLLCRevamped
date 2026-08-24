@@ -246,6 +246,20 @@ class AIEmployeeAction(models.Model):
         'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='+')
     approved_at = models.DateTimeField(null=True, blank=True)
+
+    # When the approved call actually RAN.
+    #
+    # Approving is a decision, not an execution: ai_action_decide records
+    # the human's answer and returns, because a paid Apify scrape or a
+    # real send must not happen inside a request/response cycle. The next
+    # agent run picks approved-but-unexecuted actions up and performs
+    # them, then stamps this.
+    #
+    # Without this column, "approved" and "done" are the same state, and
+    # a scrape the operator approved once would be re-run on every
+    # subsequent wake-up — charging the card each time.
+    executed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

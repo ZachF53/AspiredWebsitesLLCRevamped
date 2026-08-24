@@ -339,6 +339,48 @@ def generate_icebreakers_task(limit=50):
 
 
 @shared_task
+def run_prospect_task(trigger='scheduled'):
+    """Wake the Prospect agent for one cycle.
+
+    Separate from run_outreach_pipeline_task on purpose. The pipeline is
+    mechanical and must keep running on its own schedule whether or not
+    the agent is healthy, paused, or out of budget — an agent failure
+    should never stop leads being verified and enriched.
+    """
+    from outreach.agent_runtime import run_prospect
+    return run_prospect(trigger=trigger)
+
+
+@shared_task
+def assign_campaigns_task(limit=500):
+    """Place ready leads into an A/B arm.
+
+    The stage between "personalised" and "pushed" that was missing, and
+    whose absence meant push_to_instantly_task selected from an empty set
+    forever. See outreach/assignment.py for why the arm is the offer and
+    not the city.
+    """
+    from outreach.assignment import assign_leads
+
+    summary = assign_leads(limit=limit)
+    parts = [f"assigned={summary['assigned']}"]
+    if summary['by_campaign']:
+        parts.append(' '.join(
+            f'{name}={n}' for name, n in summary['by_campaign'].items()))
+    if summary['skipped_no_campaign']:
+        # Named, not just counted. A lead that is ready but belongs to no
+        # arm is invisible in every other view -- it is not an error, so
+        # nothing logs it, and it is not in a campaign, so no campaign
+        # reports it.
+        reasons = '; '.join(
+            f'{reason} ({n})' if isinstance(n, int) else str(reason)
+            for reason, n in summary['reasons'].items())
+        parts.append(
+            f"unassigned={summary['skipped_no_campaign']} [{reasons}]")
+    return ' | '.join(parts)
+
+
+@shared_task
 def push_to_instantly_task():
     """Push ready leads into their campaign.
 
@@ -413,6 +455,10 @@ def run_outreach_pipeline_task():
         f'enrich: {enrich_pending_leads_task()}',
         f'verify(post): {verify_leads_task()}',
         f'icebreak: {generate_icebreakers_task()}',
+        # Assignment sits here and nowhere else: it needs the icebreaker
+        # written (an unpersonalised lead is not ready for an arm) and it
+        # must happen before push, which selects BY campaign.
+        f'assign: {assign_campaigns_task()}',
         f'push: {push_to_instantly_task()}',
     ]
     logger.info('run_outreach_pipeline_task: %s', ' | '.join(results))

@@ -277,6 +277,16 @@ def campaign_edit(request, campaign_id=None):
         campaign.offer = (Offer.objects.filter(pk=offer_id).first()
                           if offer_id else None)
 
+        raw_target = (request.POST.get('lead_target') or '').strip()
+        if raw_target:
+            try:
+                campaign.lead_target = max(0, int(raw_target))
+            except ValueError:
+                errors.append('Lead target must be a whole number (0 = '
+                              'unlimited).')
+        else:
+            campaign.lead_target = 0
+
         slug = (request.POST.get('slug') or '').strip() or campaign.name
         campaign.slug = slugify(slug)[:140]
 

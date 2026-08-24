@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         # models, 0006 seeded the Prospect agent, 0007 added the run
         # message history — so 0004 is long past being the tip. Promoting
         # this against a stale parent would branch the migration graph.
-        ('admin_dashboard', '0007_aiemployeerun_message_history'),
+        ('admin_dashboard', '0008_aiemployeeaction_executed_at'),
     ]
 
     operations = [

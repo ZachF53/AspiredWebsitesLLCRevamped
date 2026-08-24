@@ -1002,6 +1002,24 @@ class OutreachCampaign(models.Model):
     # receiving leads before someone has looked at it.
     active = models.BooleanField(default=False, db_index=True)
 
+    # How many leads this arm should collect before it stops taking more.
+    #
+    # This exists to make a statistically readable A/B possible. Six arms
+    # sharing one city's ~750 sendable leads is 125 each; at a 3% reply
+    # rate that is under four replies per arm, which cannot distinguish a
+    # 2% offer from a 5% one. Running two or three arms to 300-400 each
+    # can. The cap is what stops an arm quietly eating the whole pool
+    # before the comparison arm has filled.
+    #
+    # 0 means unlimited — correct once an offer has WON and is simply the
+    # one being sent, rather than one side of a test.
+    lead_target = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            'Stop assigning leads to this arm once it holds this many. '
+            '0 = unlimited. Use 300-400 per arm for a readable A/B.'),
+    )
+
     # Bookkeeping.
     leads_pushed = models.IntegerField(default=0)
     last_push_at = models.DateTimeField(null=True, blank=True)
@@ -1023,6 +1041,24 @@ class OutreachCampaign(models.Model):
     def is_pushable(self):
         """Whether push_leads may target this campaign at all."""
         return bool(self.active and self.instantly_campaign_id)
+
+    @property
+    def is_full(self):
+        """True when this arm has collected its target sample."""
+        if not self.lead_target:
+            return False
+        return self.leads.count() >= self.lead_target
+
+    @property
+    def accepts_leads(self):
+        """Whether assignment may put another lead in this arm.
+
+        Deliberately stricter than ``is_pushable``: an arm that has hit
+        its sample target is still pushable (its existing leads must
+        finish sending) but must stop accepting new ones, or the target
+        means nothing.
+        """
+        return self.is_pushable and not self.is_full
 
 
 class InstantlyEvent(models.Model):

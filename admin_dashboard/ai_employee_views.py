@@ -10,16 +10,25 @@ The agent RUNTIME (§5.2 tools, §5.3 memory, §5.4 scheduling) is not built.
 Prospect exists as a registry row with guardrails and a loop primitive
 behind it, and nothing that wakes it up.
 
-So this page deliberately distinguishes the two:
+So this page deliberately distinguished the two while the runtime was
+missing: pause/resume and task assignment were real, and "Wake now" was
+rendered DISABLED with the reason stated, because a button that appears
+to work and silently does nothing is worse than one that says why it
+cannot.
 
-  * Pause / resume, and assigning a task, are REAL. They persist, and a
-    task sits in `pending` until the first run picks it up.
-  * "Wake now" is rendered DISABLED, with the reason stated on the page.
+The runtime now exists — outreach/agent_tools.py (the tool registry and
+approval gate) and outreach/agent_runtime.py (run_prospect) — so
+RUNTIME_READY is True and the button is live. It queues a Celery task
+rather than running inline; the run log below is where the result
+appears.
 
-A button that appears to work and silently does nothing is worse than one
-that says why it cannot. When §5.4 lands, drop the `runtime_ready` flag
-below to False->True in one place and the button becomes live.
+What is still worth knowing when reading this page: a COMMIT-class tool
+call (a paid scrape, or a push that emails strangers) shows up here as
+an action AWAITING APPROVAL and has NOT run. Approving it records the
+decision; the work itself happens on the agent's next run.
 """
+
+import logging
 
 from django.contrib import messages
 from django.db.models import Count, Q
@@ -28,6 +37,8 @@ from django.views.decorators.http import require_POST
 
 from admin_dashboard.context import _admin_context
 from admin_dashboard.decorators import admin_required
+
+logger = logging.getLogger(__name__)
 from admin_dashboard.models import (
     AIEmployee,
     AIEmployeeAction,
@@ -36,10 +47,14 @@ from admin_dashboard.models import (
 )
 
 
-# Flip to True when §5.4 (scheduling / the run entrypoint) exists. Kept as
-# a single named constant so "is the runtime built?" has exactly one
-# answer, rather than being re-derived in a template condition.
-RUNTIME_READY = False
+# §5.2 (tools) and §5.4 (the run entrypoint) are built:
+#   outreach/agent_tools.py    the registry, executor and approval gate
+#   outreach/agent_runtime.py  run_prospect()
+#   beat entry 'prospect-agent'
+#
+# Kept as a single named constant so "is the runtime built?" has exactly
+# one answer rather than being re-derived in a template condition.
+RUNTIME_READY = True
 
 RUNTIME_PENDING_REASON = (
     'The agent runtime is not built yet — Prospect has no tools to call '
@@ -182,9 +197,28 @@ def ai_employee_wake(request, slug):
             f'Cannot wake {employee.name}: {RUNTIME_PENDING_REASON}')
         return redirect('admin_dashboard:ai_employee_detail', slug=slug)
 
-    # §5.4 wires the real Celery entrypoint here with trigger='manual'.
-    raise NotImplementedError(
-        'RUNTIME_READY is True but no run entrypoint is wired — see §5.4.')
+    # Queued, not run inline. A run makes several Claude calls and can
+    # take minutes; doing that in the request would hold a gunicorn
+    # worker and time out behind nginx. The run log is where the result
+    # appears.
+    from outreach.tasks import run_prospect_task
+
+    try:
+        run_prospect_task.delay(trigger='manual')
+        messages.success(
+            request,
+            f'{employee.name} is waking up. Refresh in a minute — the run '
+            f'and everything it did will appear below.')
+    except Exception as exc:  # noqa: BLE001
+        # Almost always Redis being down. Say which, because "could not
+        # wake" sends someone looking at the agent instead of the broker.
+        logger.exception('could not queue a manual run for %s', employee.slug)
+        messages.error(
+            request,
+            f'Could not queue the run — the task broker did not accept it '
+            f'({exc}). Check that Redis and the Celery worker are running.')
+
+    return redirect('admin_dashboard:ai_employee_detail', slug=slug)
 
 
 @admin_required

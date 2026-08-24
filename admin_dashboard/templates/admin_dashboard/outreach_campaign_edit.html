@@ -104,6 +104,28 @@
                     {% endfor %}
                 </select>
             </div>
+
+            <div class="of-field of-field--narrow">
+                <label class="of-field__label" for="c-target">Lead target</label>
+                <input type="number" id="c-target" name="lead_target" min="0"
+                       value="{{ campaign.lead_target }}">
+                <p class="of-field__hint">
+                    Stop assigning leads to this arm once it holds this
+                    many. <strong>0 = unlimited.</strong> For a readable
+                    A/B use 300&ndash;400 per arm &mdash; at a 3% reply
+                    rate, 125 leads produces about four replies, which
+                    cannot tell a 2% offer from a 5% one.
+                </p>
+            </div>
+
+            {% if campaign.pk %}
+                <p class="of-field__hint">
+                    Currently holding <strong>{{ campaign.leads.count }}</strong>
+                    lead{{ campaign.leads.count|pluralize }}{% if campaign.lead_target %}
+                    of {{ campaign.lead_target }}{% if campaign.is_full %}
+                    &mdash; <strong>full, no longer accepting</strong>{% endif %}{% endif %}.
+                </p>
+            {% endif %}
         </section>
 
         <section class="admin-card of-card">

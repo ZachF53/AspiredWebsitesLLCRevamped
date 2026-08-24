@@ -129,14 +129,38 @@ class Command(BaseCommand):
         campaigns = OutreachCampaign.objects.all()
         if not campaigns:
             w(warn('     No campaigns defined. Nothing can be pushed.'))
-            w('     Create one: /admin/outreach/outreachcampaign/add/')
+            w('     Create one: /admin-dashboard/outreach/campaigns/new/')
         for c in campaigns:
             state = ok('active') if c.is_pushable else warn('not pushable')
             linked = c.instantly_campaign_id or bad('NO INSTANTLY ID')
-            w(f'     {c.name:28} {state}  leads={c.leads.count():>5}  '
-              f'pushed={c.leads_pushed:>5}  {linked}')
+            target = f'/{c.lead_target}' if c.lead_target else ''
+            full = warn('  FULL') if c.is_full else ''
+            w(f'     {c.name:28} {state}  '
+              f'leads={c.leads.count():>5}{target}  '
+              f'pushed={c.leads_pushed:>5}  {linked}{full}')
             if c.last_push_error:
                 w(bad(f'        last error: {c.last_push_error[:70]}'))
+
+        # ── 5b. Assigned ──────────────────────────────────────────────
+        #
+        # This stage is printed separately because its failure is silent.
+        # A ready lead with no campaign is not an error and not in a
+        # campaign, so before this block existed nothing anywhere showed
+        # it -- the pipeline logged "nothing ready" and looked healthy.
+        w(bold('\n5b. ASSIGNED  (outreach/assignment.py)'))
+        from outreach.assignment import assignable_leads, open_campaigns
+        waiting = assignable_leads().count()
+        arms = open_campaigns()
+        w(f'     arms accepting leads : {len(arms)}')
+        w(f'     ready but unassigned : {waiting}')
+        if waiting and not arms:
+            w(bad('     !  These leads are finished and have nowhere to '
+                  'go. Every arm is'))
+            w(bad('        inactive, missing an Instantly id, or full.'))
+        elif waiting:
+            w('     Next pipeline run will place them. To preview the '
+              'split first:')
+            w('       python manage.py assign_campaigns --dry-run')
 
         # ── 6. Sending ────────────────────────────────────────────────
         w(bold('\n6. SENDING  (Instantly)'))
@@ -202,6 +226,10 @@ class Command(BaseCommand):
             blockers.append(
                 'No campaign has an instantly_campaign_id -- create the '
                 'campaign in Instantly and paste its id in.')
+        elif waiting and not arms:
+            blockers.append(
+                f'{waiting} leads are ready but every arm is full or '
+                f'closed -- raise lead_target or open another arm.')
 
         if blockers:
             for b in blockers:

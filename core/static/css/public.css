@@ -5868,3 +5868,30 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     margin-top: 0.35rem;
     font-size: 0.8rem;
 }
+
+/* ==========================================================================
+   Outreach management pages
+   --------------------------------------------------------------------------
+   Offers, campaigns and the review queue live outside Django admin, so they
+   need their own form and table styling.
+
+   The first pass reused `.settings-field`, which lays a label BESIDE its
+   input — correct for "15 emails / day", wrong for a real form, where it
+   pushed labels into a narrow right-hand column and let inputs run the full
+   width of the card. Labels belong above their input: the eye reads down a
+   form, not across it, and a label to the right of a filled field is read
+   after the answer it was supposed to prompt.
+   ========================================================================== */
+
+/* A number that means "how many", not "how much" — kept narrow so it does
+   not read as a text field. */
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+
+/* ── Status chips ─────────────────────────────────────────────────────── */
+
+/* ── Banners ──────────────────────────────────────────────────────────── */
+
+/* ── Email preview ────────────────────────────────────────────────────── */
+
+/* ── Index cards ──────────────────────────────────────────────────────── */

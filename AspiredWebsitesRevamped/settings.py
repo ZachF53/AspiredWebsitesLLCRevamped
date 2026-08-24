@@ -898,6 +898,21 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'outreach.tasks.run_outreach_pipeline_task',
         'schedule': crontab(minute=20, hour='8-19'),
     },
+    # Prospect wakes twice a day, not hourly.
+    #
+    # The mechanical pipeline above runs every hour and does the moving
+    # of leads. Prospect exists for the decisions between those runs --
+    # is this city exhausted, is an arm full, is anything stuck -- and
+    # those change on the scale of days, not minutes. Twelve wake-ups a
+    # day would spend twelve times the tokens to re-read a funnel that
+    # had not meaningfully moved.
+    #
+    # Offset from the pipeline (:20) so it reads a settled state rather
+    # than racing a run that is mid-enrichment.
+    'prospect-agent': {
+        'task': 'outreach.tasks.run_prospect_task',
+        'schedule': crontab(minute=45, hour='9,16'),
+    },
     # Replies arrive by polling the unibox -- Instantly gates outbound
     # webhooks behind a higher plan tier. Cheap: one API call.
     # Audit follow-ups. Warm, requested, and sent through SendGrid from
