@@ -18,6 +18,7 @@ from django.utils import timezone
 from admin_dashboard.models import AIEmployee, AIEmployeeRun
 from outreach import spend, variant_rotation
 from outreach.copy_guard import describe_pricing_problems
+from reporting.models import AISpendDay, ClaudeUsage
 from outreach.models import (
     EmailSent,
     EmailTemplateVariant,
@@ -181,27 +182,37 @@ class SpendCapTests(TestCase):
         self.assertTrue(allowed)
         self.assertEqual(reason, '')
 
-    def test_spend_accumulates_across_runs_today(self):
-        for amount in ('1.50', '2.00'):
-            AIEmployeeRun.objects.create(
-                employee=self.employee, trigger='scheduled',
-                spend_usd=Decimal(amount))
+    def test_spend_accumulates_across_calls_today(self):
+        """Recorded per API CALL, not per run.
+
+        This used to sum AIEmployeeRun.spend_usd, which counted only
+        calls made inside an agent run and missed every icebreaker,
+        classification and assistant call in the project. It now reads
+        reporting.AISpendDay, which ClaudeUsage.record() writes on every
+        call from any caller.
+        """
+        ClaudeUsage.record('claude-sonnet-5', 500_000, 100_000)   # $2.00
+        ClaudeUsage.record('claude-sonnet-5', 250_000, 100_000)   # $1.50
         self.assertEqual(spend.spent_today(), Decimal('3.50'))
         self.assertTrue(spend.check_spend_allowed()[0])
 
     def test_cap_blocks_once_reached(self):
-        AIEmployeeRun.objects.create(
-            employee=self.employee, trigger='scheduled',
-            spend_usd=Decimal('5.00'))
+        ClaudeUsage.record('claude-sonnet-5', 1_000_000, 300_000)  # $5.00
         allowed, reason = spend.check_spend_allowed()
         self.assertFalse(allowed)
         self.assertIn('Spend cap reached', reason)
 
-    def test_in_flight_run_counts_against_the_cap(self):
-        """A still-running run must count, or one long run walks past."""
-        AIEmployeeRun.objects.create(
-            employee=self.employee, trigger='manual',
-            status='running', spend_usd=Decimal('6.00'))
+    def test_in_flight_spend_counts_against_the_cap(self):
+        """A still-running run must count, or one long run walks past.
+
+        Better served now than before: spend lands in the ledger as each
+        API call returns, so a run that is still going has already been
+        billed for what it has used rather than only at the end.
+        """
+        run = AIEmployeeRun.objects.create(
+            employee=self.employee, trigger='manual', status='running')
+        ClaudeUsage.record('claude-sonnet-5', 1_000_000, 400_000)  # $6.00
+        self.assertEqual(run.status, 'running')
         self.assertFalse(spend.check_spend_allowed()[0])
 
     def test_zero_cap_blocks_everything(self):
@@ -211,11 +222,9 @@ class SpendCapTests(TestCase):
         self.assertFalse(spend.check_spend_allowed()[0])
 
     def test_yesterdays_spend_does_not_count(self):
-        run = AIEmployeeRun.objects.create(
-            employee=self.employee, trigger='scheduled',
-            spend_usd=Decimal('99.00'))
-        AIEmployeeRun.objects.filter(pk=run.pk).update(
-            started_at=timezone.now() - datetime.timedelta(days=1))
+        ClaudeUsage.record('claude-sonnet-5', 1_000_000, 0)
+        AISpendDay.objects.update(
+            day=timezone.now().date() - datetime.timedelta(days=1))
         self.assertEqual(spend.spent_today(), Decimal('0'))
 
     def test_known_model_is_priced(self):
@@ -509,10 +518,7 @@ class ApifyQuotaTests(TestCase):
     def test_apify_quota_is_independent_of_the_claude_cap(self):
         """Exhausting the LLM budget must not disable sourcing — one
         runaway scrape cannot eat the reasoning budget."""
-        employee = AIEmployee.objects.get(slug='prospect')
-        AIEmployeeRun.objects.create(
-            employee=employee, trigger='scheduled',
-            spend_usd=Decimal('999.00'))
+        ClaudeUsage.record('claude-sonnet-5', 100_000_000, 0)  # $200
 
         self.assertFalse(spend.check_spend_allowed()[0])
         self.assertTrue(spend.check_apify_allowed()[0])

@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('reporting', '0018_conversionevent_reporting_c_website_32bbec_idx_and_more'),
+        ('reporting', '0019_aispendday'),
     ]
 
     operations = [

@@ -5,6 +5,7 @@ AI blog posts, and the AI chatbot. All feed the monthly PDF and the portal.
 """
 
 import uuid
+from decimal import Decimal
 
 from django.db import models
 from django.utils import timezone
@@ -816,6 +817,97 @@ CLAUDE_PRICING_USD_PER_MTOK = {
 }
 
 
+class AISpendDay(models.Model):
+    """
+    Per-DAY Claude spend across the whole project — what the cap reads.
+
+    WHY THIS EXISTS SEPARATELY FROM ClaudeUsage
+    -------------------------------------------
+    ClaudeUsage is a per-MONTH rollup and structurally cannot answer "how
+    much today", which is the only question a daily cap asks.
+
+    Before this model, ``outreach.spend.spent_today()`` summed
+    ``AIEmployeeRun.spend_usd`` — every Claude call made INSIDE an agent
+    run. That covered Prospect and nothing else. Icebreaker generation,
+    reply classification and the admin assistant all run as ordinary
+    Celery tasks or views with no AIEmployeeRun attached, so they
+    contributed exactly zero to the ledger the cap consults.
+
+    Measured on 2026-08-25: 77 icebreaker calls ran to completion while
+    ``spent_today()`` reported $0.00 and ``check_spend_allowed()`` kept
+    returning True. The cap was real for the agent and fiction for the
+    pipeline — and the pipeline is the part that runs unattended every
+    hour.
+
+    Written by ``ClaudeUsage.record()``, so any call site already
+    reporting usage is covered automatically and no caller has to
+    remember a second step.
+    """
+
+    day = models.DateField(unique=True)
+    cost_usd = models.DecimalField(max_digits=10, decimal_places=6,
+                                   default=0)
+    request_count = models.IntegerField(default=0)
+    input_tokens = models.BigIntegerField(default=0)
+    output_tokens = models.BigIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-day']
+        verbose_name = 'AI Spend (day)'
+        verbose_name_plural = 'AI Spend (daily)'
+
+    def __str__(self):
+        return f'{self.day} — ${self.cost_usd:.4f} ({self.request_count})'
+
+    @classmethod
+    def cost_for(cls, model, input_tokens, output_tokens):
+        """USD for one call. Unknown model -> 0, never a crash.
+
+        An unpriced model is a real risk: it would spend without ever
+        moving the cap. It is logged rather than guessed at, because
+        inventing a rate would make the ledger confidently wrong.
+        """
+        rates = CLAUDE_PRICING_USD_PER_MTOK.get(model)
+        if not rates:
+            import logging
+            logging.getLogger(__name__).warning(
+                'AISpendDay: no pricing for model %r — its spend will not '
+                'count toward the daily cap. Add it to '
+                'CLAUDE_PRICING_USD_PER_MTOK.', model)
+            return Decimal('0')
+        return (Decimal(str(input_tokens or 0)) / Decimal('1000000')
+                * Decimal(str(rates['input']))
+                + Decimal(str(output_tokens or 0)) / Decimal('1000000')
+                * Decimal(str(rates['output'])))
+
+    @classmethod
+    def record(cls, model, input_tokens, output_tokens):
+        """Add one call to today's row. Atomic under concurrent writes."""
+        from django.db.models import F
+        from django.utils import timezone as _tz
+
+        input_tokens = int(input_tokens or 0)
+        output_tokens = int(output_tokens or 0)
+        if not (input_tokens or output_tokens):
+            return
+
+        day = _tz.now().astimezone(_tz.get_current_timezone()).date()
+        cls.objects.get_or_create(day=day)
+        cls.objects.filter(day=day).update(
+            cost_usd=F('cost_usd') + cls.cost_for(
+                model, input_tokens, output_tokens),
+            request_count=F('request_count') + 1,
+            input_tokens=F('input_tokens') + input_tokens,
+            output_tokens=F('output_tokens') + output_tokens,
+        )
+
+    @classmethod
+    def spent_on(cls, day):
+        row = cls.objects.filter(day=day).first()
+        return row.cost_usd if row else Decimal('0')
+
+
 class ClaudeUsage(models.Model):
     """
     Per-month, per-model token + cost accumulator.
@@ -872,6 +964,11 @@ class ClaudeUsage(models.Model):
         from django.utils import timezone as _tz
         return _tz.now().date().replace(day=1)
 
+    @staticmethod
+    def _current_day():
+        from django.utils import timezone as _tz
+        return _tz.now().astimezone(_tz.get_current_timezone()).date()
+
     @classmethod
     def record(cls, model, input_tokens, output_tokens):
         """Atomic-increment THIS month's row for the given model.
@@ -890,6 +987,7 @@ class ClaudeUsage(models.Model):
             return
 
         from django.db.models import F
+        from django.utils import timezone as _tz
         ym = cls._current_month()
         cls.objects.get_or_create(
             year_month=ym, model=model)
@@ -897,7 +995,28 @@ class ClaudeUsage(models.Model):
             input_tokens=F('input_tokens') + input_tokens,
             output_tokens=F('output_tokens') + output_tokens,
             request_count=F('request_count') + 1,
+            # Set EXPLICITLY. `last_request_at` is auto_now=True, and
+            # QuerySet.update() writes SQL directly without going through
+            # save(), so auto_now never fires here.
+            #
+            # The symptom was quiet and misleading rather than loud: token
+            # and request counts incremented correctly while the timestamp
+            # stayed frozen at whenever the month's row was created. The
+            # dashboard's AI Usage widget therefore showed a live system
+            # as last used days ago -- caught on 2026-08-25 when 77
+            # icebreaker calls moved request_count 118 -> 125 and left
+            # last_request_at reading 08-22.
+            last_request_at=_tz.now(),
         )
+        # Also bill the DAILY ledger, which is what the spend cap reads.
+        # Best-effort: a failure here must never mask the API response
+        # the caller is waiting on.
+        try:
+            AISpendDay.record(model, input_tokens, output_tokens)
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception(
+                'ClaudeUsage.record: AISpendDay.record failed')
 
     @classmethod
     def current_month_summary(cls):

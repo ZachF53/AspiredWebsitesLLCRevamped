@@ -52,33 +52,36 @@ _TOKENS_PER_MTOK = Decimal(1_000_000)
 
 
 def spent_today(now=None):
-    """Total USD spent by every AI employee run started today.
+    """Total USD of Claude spend today, from EVERY caller.
 
-    Returns Decimal('0') when the models are unavailable (fresh checkout
+    Reads ``reporting.AISpendDay``, which every ``ClaudeUsage.record()``
+    writes to — so icebreakers, reply classification, the admin assistant
+    and Prospect all land in the same ledger.
+
+    This used to sum ``AIEmployeeRun.spend_usd``, which counted only
+    calls made inside an agent run. Everything else in the project was
+    invisible to it: on 2026-08-25, 77 icebreaker calls completed while
+    this function returned $0.00 and the cap happily kept authorising
+    more. The cap was enforced against Prospect and unenforced against
+    the hourly pipeline, which is the half that runs unattended.
+
+    Returns Decimal('0') when the model is unavailable (fresh checkout
     before migrations) so the caller degrades to "nothing spent yet"
-    rather than exploding — the cap itself still applies on the next
-    call once migrations land.
+    rather than exploding — the cap applies again once migrations land.
     """
     try:
-        from admin_dashboard.models import AIEmployeeRun
+        from reporting.models import AISpendDay
     except Exception:  # noqa: BLE001
         return Decimal('0')
 
     today = (now or timezone.now()).astimezone(
         timezone.get_current_timezone()).date()
-    start = timezone.make_aware(
-        datetime.datetime.combine(today, datetime.time.min),
-        timezone.get_current_timezone())
-    end = start + datetime.timedelta(days=1)
 
     try:
-        total = AIEmployeeRun.objects.filter(
-            started_at__gte=start, started_at__lt=end,
-        ).aggregate(total=Sum('spend_usd'))['total']
+        return AISpendDay.spent_on(today)
     except Exception:  # noqa: BLE001
-        logger.exception('spent_today: could not read AIEmployeeRun')
+        logger.exception('spent_today: could not read AISpendDay')
         return Decimal('0')
-    return total or Decimal('0')
 
 
 def daily_cap():

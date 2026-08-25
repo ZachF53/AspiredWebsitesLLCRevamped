@@ -352,6 +352,24 @@ def run_prospect_task(trigger='scheduled'):
 
 
 @shared_task
+def google_profile_backfill_task(limit=50):
+    """Copy Google ratings onto qualified leads so openers have a fact.
+
+    Sits between verification and the icebreaker because it only spends
+    on leads already known to be contactable, and because the icebreaker
+    is what consumes the result.
+    """
+    from outreach.google_profile import backfill
+
+    summary = backfill(limit=limit)
+    if summary.get('reason'):
+        return summary['reason']
+    return (f"looked_up={summary['looked_up']} matched={summary['matched']} "
+            f"citable={summary['citable']} no_listing={summary['no_listing']} "
+            f"rejected={summary['rejected']} errors={summary['errors']}")
+
+
+@shared_task
 def assign_campaigns_task(limit=500):
     """Place ready leads into an A/B arm.
 
@@ -454,6 +472,11 @@ def run_outreach_pipeline_task():
         f'verify(pre): {verify_leads_task()}',
         f'enrich: {enrich_pending_leads_task()}',
         f'verify(post): {verify_leads_task()}',
+        # The Places join runs AFTER verification and BEFORE the
+        # icebreaker: after, so a paid lookup is only ever spent on a
+        # lead we know is contactable; before, because the rating it
+        # copies across is what the opener has to say.
+        f'gprofile: {google_profile_backfill_task()}',
         f'icebreak: {generate_icebreakers_task()}',
         # Assignment sits here and nowhere else: it needs the icebreaker
         # written (an unpersonalised lead is not ready for an arm) and it

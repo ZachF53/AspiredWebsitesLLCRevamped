@@ -84,6 +84,19 @@ class Lead(models.Model):
     google_review_count = models.IntegerField(default=0)
     has_google_business = models.BooleanField(default=False)
 
+    # When we last asked Google Places about this firm — see
+    # outreach/google_profile.py.
+    #
+    # Stamped on a MISS as well as a hit, which is the whole point: a firm
+    # with no Places listing would otherwise be re-queried on every run
+    # forever, paying per lookup to rediscover the same nothing.
+    google_profile_checked_at = models.DateTimeField(null=True, blank=True)
+    # Why a lookup did not produce a rating. Kept because "no rating" has
+    # several causes with different fixes — unlisted, name too generic to
+    # match safely, or a listing with no reviews yet — and a bare null
+    # cannot tell them apart.
+    google_profile_note = models.CharField(max_length=200, blank=True)
+
     # Website audit results (from PageSpeed)
     website_performance_score = models.IntegerField(null=True, blank=True)
     website_seo_score = models.IntegerField(null=True, blank=True)
@@ -612,6 +625,22 @@ class OutreachSettings(models.Model):
             'this is the main cost lever: 50 leads is ~$0.12 a run. The '
             'actor own default is 100000 — never let a run through '
             'without this clamp.'),
+    )
+
+    # Google Places lookups — the join that gives an Apify lead something
+    # true to say. Text Search (New) bills about $0.032 per call on the
+    # Essentials SKU, against Google's $200/month free credit, so 150/day
+    # is roughly $4.80/day and comfortably inside the credit.
+    #
+    # Capped separately from Apify and Claude for the same reason those
+    # are separate from each other: three budgets that cannot cannibalise
+    # one another, so a runaway in any one leaves the others working.
+    places_max_lookups_per_day = models.IntegerField(
+        default=150,
+        help_text=(
+            'Maximum Google Places profile lookups per day. Only ever '
+            'spent on QUALIFIED leads — verified, contactable, and not '
+            'held for review. 0 disables the lookup.'),
     )
 
     # ── The send switch ────────────────────────────────────────────────

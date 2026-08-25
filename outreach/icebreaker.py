@@ -91,12 +91,35 @@ def warm_facts(lead):
             f"Their stated practice areas: {lead.practice_areas}."))
     if lead.city:
         facts.append(('city', f"They are based in {lead.city}."))
-    if lead.google_review_count and lead.google_rating:
-        if lead.google_review_count >= 10 and float(lead.google_rating) >= 4.5:
-            facts.append((
-                'reviews',
-                f"{lead.google_review_count} Google reviews averaging "
-                f"{lead.google_rating} stars."))
+    # Google reviews, cited two different ways.
+    #
+    # The single 4.5-star rule left too much on the table: a firm with 200
+    # reviews at 4.2 is demonstrably busy and well regarded, and got
+    # nothing -- so its opener fell back to "X caught my attention", which
+    # is the generic line this whole module exists to avoid.
+    #
+    # But volume and rating are not interchangeable. Quoting "3.9 stars"
+    # back at someone is a criticism wearing a statistic, and the opener
+    # must only ever contain something the firm is pleased to hear. So:
+    #
+    #   strong rating  -> cite the rating AND the count
+    #   high volume    -> cite the COUNT ONLY, never the number of stars
+    #   weak rating    -> say nothing, and let another fact carry the line
+    #
+    # The second branch is the one the Places join unlocks. It never
+    # mentions stars, so it cannot become a backhanded compliment.
+    count = lead.google_review_count or 0
+    rating = float(lead.google_rating) if lead.google_rating else 0.0
+    if count >= 10 and rating >= 4.5:
+        facts.append((
+            'reviews',
+            f"{count} Google reviews averaging {rating} stars."))
+    elif count >= 40 and rating >= 4.0:
+        facts.append((
+            'review_volume',
+            f"{count} Google reviews - a lot of clients took the time to "
+            f"leave one. Mention the NUMBER of reviews only; do NOT "
+            f"mention the star rating."))
     return facts
 
 
