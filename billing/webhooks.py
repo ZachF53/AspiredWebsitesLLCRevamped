@@ -615,11 +615,18 @@ def _activate_website_plan_sub(sub_id):
 
     handled = False
     for Model in (MaintenancePlan, SocialMediaPlan):
-        plan = Model.objects.filter(stripe_subscription_id=sub_id).first()
-        if plan is None:
+        # Every matching row, not just `.first()`. A subscription that
+        # ended up with more than one plan row left the others stuck on
+        # `awaiting_payment` — and if the one row `.first()` happened to
+        # pick was the website-less one, the site's maintenance flag was
+        # never set at all.
+        plans = list(Model.objects.filter(stripe_subscription_id=sub_id))
+        if not plans:
             continue
         handled = True
-        if plan.status == 'awaiting_payment':
+        for plan in plans:
+            if plan.status != 'awaiting_payment':
+                continue
             plan.status = 'active'
             if not plan.started_at:
                 plan.started_at = timezone.now()
@@ -1505,6 +1512,10 @@ def _handle_self_checkout_subscription_created(event):
         subscription_id=(sub.get('id') or ''),
         hosting_upsell=(metadata.get('hosting_upsell') == '1'),
         customer_name=customer_name,
+        # plan_billing stamps the site on the subscription; without it
+        # this backstop can't tell which website the plan covers and
+        # lands a website-less row next to the real one.
+        website_id=(metadata.get('website_id') or ''),
     )
 
     # Email the magic set-password link to a buyer who hasn't set a

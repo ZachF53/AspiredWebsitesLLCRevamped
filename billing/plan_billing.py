@@ -164,6 +164,14 @@ def start_website_plan(website, service_type, tier_slug, *,
             plan.stripe_subscription_id = sub.id
             plan.status = 'active'
             plan.started_at = timezone.now()
+            # Commit the subscription id NOW. Stripe fires
+            # customer.subscription.created the instant the subscription
+            # exists, and that webhook looks this plan up by subscription
+            # id. Leaving the id in memory until the save at the end of
+            # this function gave the webhook an empty result, so it
+            # created a SECOND, website-less plan row for the same
+            # purchase. Persisting here closes that window.
+            plan.save()
         else:
             params['collection_method'] = 'send_invoice'
             params['days_until_due'] = 7
@@ -171,6 +179,10 @@ def start_website_plan(website, service_type, tier_slug, *,
             sub = stripe.Subscription.create(**params)
             plan.stripe_subscription_id = sub.id
             plan.status = 'awaiting_payment'
+            # Same race, and worse here: finalize + send below are two
+            # more blocking Stripe round-trips, which is exactly the gap
+            # the webhook was winning.
+            plan.save()
             inv = sub.latest_invoice if hasattr(sub, 'latest_invoice') else None
             inv_id = getattr(inv, 'id', None) or (
                 inv if isinstance(inv, str) else None)

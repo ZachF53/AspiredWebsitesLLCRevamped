@@ -21,9 +21,59 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def _plan_row_for_subscription(Model, account, subscription_id, website_id=''):
+    """Find the plan row this subscription belongs to, or build a new one.
+
+    Two writers race for this row. `plan_billing.start_website_plan` keys
+    it on (account, website); this path is driven by a webhook that only
+    knows the subscription. Keying on the subscription id ALONE created a
+    second, website-less row for the same purchase whenever the webhook
+    arrived before start_website_plan had committed the id.
+
+    Resolution order: the row already carrying this subscription, the row
+    for the website the subscription names in its metadata, then the
+    account's sole website. Only a genuinely account-level sale (or an
+    account with several sites and no hint) ends up website-less.
+    """
+    plan = Model.objects.filter(
+        account=account, stripe_subscription_id=subscription_id).first()
+    if plan is not None:
+        return plan
+
+    website = None
+    if website_id:
+        website = account.websites.filter(pk=website_id).first()
+    if website is None:
+        sites = list(account.websites.all()[:2])
+        if len(sites) == 1:
+            website = sites[0]
+
+    if website is not None:
+        existing = Model.objects.filter(
+            account=account, website=website).first()
+        if existing is not None:
+            return existing
+    return Model(account=account, website=website)
+
+
+def _drop_websiteless_twin(Model, account, subscription_id, keep):
+    """Delete a website-less duplicate left behind for this subscription.
+
+    Self-heals rows created by the old keying before this fix landed, so
+    an account never carries two plan rows for one subscription.
+    """
+    if keep.website_id is None:
+        return
+    Model.objects.filter(
+        account=account, stripe_subscription_id=subscription_id,
+        website__isnull=True,
+    ).exclude(pk=keep.pk).delete()
+
+
 def provision_self_checkout_account(*, email, customer_id, tier_slug,
                                     product_type, subscription_id='',
-                                    hosting_upsell=False, customer_name=''):
+                                    hosting_upsell=False, customer_name='',
+                                    website_id=''):
     """Idempotently create the account objects for a self-checkout sale.
 
     Returns the ``User`` (with a possibly-unusable password — the buyer
@@ -108,18 +158,22 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
         account = Account.objects.filter(user=user).first()
         if account is not None and subscription_id:
             if product_type == 'maintenance':
-                MaintenancePlan.objects.update_or_create(
-                    account=account,
-                    stripe_subscription_id=subscription_id,
-                    defaults={
-                        'tier_slug': tier_slug,
-                        'status': 'active',
-                        'started_at': timezone.now(),
-                        'hosting_move_over': bool(hosting_upsell),
-                        'hosting_move_over_at': (
-                            timezone.now() if hosting_upsell else None),
-                    },
-                )
+                plan = _plan_row_for_subscription(
+                    MaintenancePlan, account, subscription_id, website_id)
+                plan.stripe_subscription_id = subscription_id
+                plan.tier_slug = tier_slug
+                plan.status = 'active'
+                if not plan.started_at:
+                    plan.started_at = timezone.now()
+                plan.hosting_move_over = bool(hosting_upsell)
+                if hosting_upsell and not plan.hosting_move_over_at:
+                    plan.hosting_move_over_at = timezone.now()
+                # Field-by-field rather than update_or_create defaults, so
+                # an operator-set discount_percent / discount_duration on
+                # an existing row survives this backstop.
+                plan.save()
+                _drop_websiteless_twin(
+                    MaintenancePlan, account, subscription_id, plan)
                 # Mirror onto the sites the plan covers. Maintenance is
                 # sold per site, so a buyer with no website build has
                 # nothing to mirror onto — the MaintenancePlan row above
@@ -138,16 +192,17 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                 tier = ServiceTier.objects.filter(slug=tier_slug).first()
                 max_ch = (tier.max_channels if tier and tier.max_channels
                           else 2)
-                SocialMediaPlan.objects.update_or_create(
-                    account=account,
-                    stripe_subscription_id=subscription_id,
-                    defaults={
-                        'tier_slug': tier_slug,
-                        'status': 'active',
-                        'started_at': timezone.now(),
-                        'max_channels': max_ch,
-                    },
-                )
+                plan = _plan_row_for_subscription(
+                    SocialMediaPlan, account, subscription_id, website_id)
+                plan.stripe_subscription_id = subscription_id
+                plan.tier_slug = tier_slug
+                plan.status = 'active'
+                if not plan.started_at:
+                    plan.started_at = timezone.now()
+                plan.max_channels = max_ch
+                plan.save()
+                _drop_websiteless_twin(
+                    SocialMediaPlan, account, subscription_id, plan)
                 # Social is account-level, matching where the plan is
                 # sold and where its channels post from.
                 if account.stripe_social_subscription_id != subscription_id:
