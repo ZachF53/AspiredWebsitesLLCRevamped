@@ -10,6 +10,7 @@ from decimal import Decimal
 
 import stripe
 from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -450,51 +451,117 @@ def _sync_local_maintenance_after_change(client, tier, result):
             'updated_at'])
 
 
-def cancel_maintenance_subscription(client, reason=''):
+def _maintenance_plan_for(client, website=None):
+    """Return the MaintenancePlan holding this client's Stripe sub, or None.
+
+    Mirrors `_social_plan_for`. Null-safe for both an Account and a legacy
+    ClientProfile — both expose `.user`, and the Account hangs off it.
+    """
+    account = getattr(getattr(client, 'user', None), 'account', None)
+    if account is None:
+        return None
+    from clients.service_models import MaintenancePlan
+    qs = MaintenancePlan.objects.filter(account=account).exclude(
+        stripe_subscription_id='')
+    if website is not None:
+        qs = qs.filter(website=website)
+    plans = list(qs)
+    if not plans:
+        return None
+    # A live plan beats a finished one when a client has re-subscribed.
+    rank = {'active': 0, 'awaiting_payment': 1, 'cancelled': 2}
+    plans.sort(key=lambda p: (rank.get(p.status, 3), -p.created_at.timestamp()))
+    return plans[0]
+
+
+def _maintenance_sub_id(client, website=None):
+    """(subscription_id, plan) for this client's maintenance subscription.
+
+    The id lives on MaintenancePlan post-refactor; `Account` has no
+    `stripe_subscription_id` column at all, so the getattr fallback is what
+    keeps a legacy ClientProfile working without raising on an Account.
+    """
+    plan = _maintenance_plan_for(client, website)
+    sub_id = ((plan.stripe_subscription_id if plan else '')
+              or getattr(client, 'stripe_subscription_id', '') or '')
+    return sub_id, plan
+
+
+def _forget_dead_maintenance_sub(client, plan, sub_id):
+    """Drop a subscription id Stripe no longer recognises."""
+    if plan is not None and plan.stripe_subscription_id == sub_id:
+        plan.stripe_subscription_id = ''
+        plan.status = 'ended'
+        plan.save(update_fields=[
+            'stripe_subscription_id', 'status', 'updated_at'])
+    if getattr(client, 'stripe_subscription_id', '') == sub_id:
+        client.stripe_subscription_id = ''
+        fields = ['stripe_subscription_id', 'updated_at']
+        if hasattr(client, 'maintenance_active'):
+            client.maintenance_active = False
+            fields.insert(1, 'maintenance_active')
+        client.save(update_fields=fields)
+
+
+def cancel_maintenance_subscription(client, reason='', website=None):
     """
     Cancel the client's maintenance subscription at period end so they
     keep service through what they've already paid for. Local
     `maintenance_active` flips False only when the period actually
     ends (handled in `customer.subscription.deleted` webhook).
+
+    `client` is the Account, which has no `stripe_subscription_id` column —
+    reading it directly raised AttributeError, which the portal view
+    swallowed into "Could not cancel". The button therefore never worked
+    for any account-based client. Resolve through MaintenancePlan instead.
     """
     _init()
-    if not client.stripe_subscription_id:
+    sub_id, plan = _maintenance_sub_id(client, website)
+    if not sub_id:
         return None
     try:
-        sub = stripe.Subscription.retrieve(client.stripe_subscription_id)
+        sub = stripe.Subscription.retrieve(sub_id)
     except Exception:
-        client.stripe_subscription_id = ''
-        client.maintenance_active = False
-        client.save(update_fields=[
-            'stripe_subscription_id', 'maintenance_active', 'updated_at'])
+        _forget_dead_maintenance_sub(client, plan, sub_id)
         return None
     if getattr(sub, 'status', '') in ('canceled', 'incomplete_expired'):
         return sub
     _cancel_meta = _metadata_dict(sub)
     _cancel_meta['cancel_reason'] = reason[:200] if reason else ''
     updated = stripe.Subscription.modify(
-        client.stripe_subscription_id,
+        sub_id,
         cancel_at_period_end=True,
         metadata=_cancel_meta,
     )
+    if plan is not None and plan.status in ('active', 'awaiting_payment'):
+        plan.status = 'cancelled'
+        plan.cancelled_at = timezone.now()
+        plan.save(update_fields=['status', 'cancelled_at', 'updated_at'])
     logger.info(
         'cancel_maintenance_subscription: client %s sub %s '
         'cancel_at_period_end=True (reason=%s)',
-        client.pk, client.stripe_subscription_id, reason)
+        client.pk, sub_id, reason)
     return updated
 
 
-def resume_maintenance_subscription(client):
+def resume_maintenance_subscription(client, website=None):
     """
     Undo a pending cancel-at-period-end on the maintenance sub. No-op
-    if the sub already isn't scheduled to cancel.
+    if the sub already isn't scheduled to cancel. Resolves the
+    subscription the same way `cancel_maintenance_subscription` does.
     """
     _init()
-    if not client.stripe_subscription_id:
+    sub_id, plan = _maintenance_sub_id(client, website)
+    if not sub_id:
         return None
-    return stripe.Subscription.modify(
-        client.stripe_subscription_id, cancel_at_period_end=False,
+    updated = stripe.Subscription.modify(
+        sub_id, cancel_at_period_end=False,
     )
+    if plan is not None and plan.status == 'cancelled':
+        plan.status = 'active'
+        plan.cancelled_at = None
+        plan.save(update_fields=['status', 'cancelled_at', 'updated_at'])
+    return updated
 
 
 # ── Social media subscriptions ─────────────────────────────────────────────

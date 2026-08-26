@@ -2353,6 +2353,35 @@ def _ts_to_dt(value):
         return None
 
 
+def _subscription_discounted(stripe_sub, amount):
+    """Apply the subscription's live discount to a list-price amount.
+
+    A discounted subscription otherwise renders at list price: a plan
+    Stripe bills at $149.50 showed "$299/month" on the client's own
+    billing page, because the amount came straight off
+    `price.unit_amount` and nothing ever looked at the coupon. Handles
+    the `discounts` array and the legacy singular `discount`; entries
+    that arrive unexpanded (bare ids) are skipped rather than guessed at.
+    """
+    entries = list(getattr(stripe_sub, 'discounts', None) or [])
+    if not entries:
+        legacy = getattr(stripe_sub, 'discount', None)
+        entries = [legacy] if legacy is not None else []
+    for entry in entries:
+        if isinstance(entry, str):
+            continue
+        coupon = getattr(entry, 'coupon', None)
+        if coupon is None:
+            continue
+        percent_off = getattr(coupon, 'percent_off', None)
+        amount_off = getattr(coupon, 'amount_off', None)
+        if percent_off:
+            amount = amount * (1 - float(percent_off) / 100.0)
+        elif amount_off:
+            amount = amount - (float(amount_off) / 100.0)
+    return max(round(amount, 2), 0)
+
+
 def _subscription_card(stripe_sub):
     """Normalise a Stripe Subscription into a flat dict for the template.
 
@@ -2367,7 +2396,8 @@ def _subscription_card(stripe_sub):
         items_obj is not None and hasattr(items_obj, 'data')) else []
     price = items_data[0].price if items_data else None
 
-    amount = (getattr(price, 'unit_amount', 0) or 0) / 100 if price else 0
+    list_amount = (getattr(price, 'unit_amount', 0) or 0) / 100 if price else 0
+    amount = _subscription_discounted(stripe_sub, list_amount)
     recurring = getattr(price, 'recurring', None) if price else None
     interval = getattr(recurring, 'interval', '') if recurring else ''
 
@@ -2387,6 +2417,10 @@ def _subscription_card(stripe_sub):
         'id': getattr(stripe_sub, 'id', ''),
         'status': getattr(stripe_sub, 'status', ''),
         'amount': amount,
+        # List price, kept so a template can strike it through when a
+        # discount is in play. Equal to `amount` when there's no discount.
+        'list_amount': list_amount,
+        'is_discounted': amount != list_amount,
         'interval': interval,
         'product_name': product_name,
         'cancel_at_period_end': getattr(
@@ -2463,7 +2497,11 @@ def portal_subscriptions(request):
                 f'Hosting — {w.name}')
         for sub_id in label_by_sub:
             try:
-                sub = _stripe.Subscription.retrieve(sub_id)
+                # `discounts` must be expanded or it comes back as bare
+                # ids and the card can't tell a discounted plan from a
+                # full-price one.
+                sub = _stripe.Subscription.retrieve(
+                    sub_id, expand=['discounts'])
                 if getattr(sub, 'status', '') in (
                         'active', 'trialing', 'past_due', 'unpaid'):
                     card = _subscription_card(sub)
