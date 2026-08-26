@@ -2353,24 +2353,39 @@ def _ts_to_dt(value):
         return None
 
 
+def _coupon_from_discount(entry):
+    """The Coupon on a Stripe Discount, across API shapes.
+
+    On API 2026-04-22 the coupon moved to `discount.source.coupon`; older
+    versions put it at `discount.coupon`. Either can arrive expanded (a
+    Coupon object) or as a bare id string — a string is skipped rather
+    than guessed at, since the percentage isn't derivable from the id.
+    """
+    if isinstance(entry, str) or entry is None:
+        return None
+    coupon = getattr(entry, 'coupon', None)
+    if coupon is None:
+        source = getattr(entry, 'source', None)
+        coupon = getattr(source, 'coupon', None) if source is not None else None
+    if coupon is None or isinstance(coupon, str):
+        return None
+    return coupon
+
+
 def _subscription_discounted(stripe_sub, amount):
     """Apply the subscription's live discount to a list-price amount.
 
     A discounted subscription otherwise renders at list price: a plan
     Stripe bills at $149.50 showed "$299/month" on the client's own
     billing page, because the amount came straight off
-    `price.unit_amount` and nothing ever looked at the coupon. Handles
-    the `discounts` array and the legacy singular `discount`; entries
-    that arrive unexpanded (bare ids) are skipped rather than guessed at.
+    `price.unit_amount` and nothing ever looked at the coupon.
     """
     entries = list(getattr(stripe_sub, 'discounts', None) or [])
     if not entries:
         legacy = getattr(stripe_sub, 'discount', None)
         entries = [legacy] if legacy is not None else []
     for entry in entries:
-        if isinstance(entry, str):
-            continue
-        coupon = getattr(entry, 'coupon', None)
+        coupon = _coupon_from_discount(entry)
         if coupon is None:
             continue
         percent_off = getattr(coupon, 'percent_off', None)
@@ -2497,11 +2512,16 @@ def portal_subscriptions(request):
                 f'Hosting — {w.name}')
         for sub_id in label_by_sub:
             try:
-                # `discounts` must be expanded or it comes back as bare
-                # ids and the card can't tell a discounted plan from a
-                # full-price one.
-                sub = _stripe.Subscription.retrieve(
-                    sub_id, expand=['discounts'])
+                # The coupon must be expanded all the way down or it
+                # arrives as a bare id and the card can't tell a
+                # discounted plan from a full-price one. Falls back to a
+                # plain retrieve so an unsupported expand path costs the
+                # discount, not the whole card.
+                try:
+                    sub = _stripe.Subscription.retrieve(
+                        sub_id, expand=['discounts.source.coupon'])
+                except Exception:
+                    sub = _stripe.Subscription.retrieve(sub_id)
                 if getattr(sub, 'status', '') in (
                         'active', 'trialing', 'past_due', 'unpaid'):
                     card = _subscription_card(sub)

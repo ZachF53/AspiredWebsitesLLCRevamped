@@ -130,3 +130,24 @@ class SubscriptionCardShowsDiscountedPrice(TestCase):
 
         sub = SimpleNamespace(discounts=['di_bare_id'], discount=None)
         self.assertEqual(_subscription_discounted(sub, 299.00), 299.00)
+
+    def test_coupon_nested_under_source_is_applied(self):
+        """API 2026-04-22 moved the coupon to discount.source.coupon.
+
+        Reading only discount.coupon silently returned list price against
+        a live subscription that was genuinely 50% off.
+        """
+        from clients.views import _subscription_discounted
+
+        sub = SimpleNamespace(discounts=[SimpleNamespace(
+            coupon=None,
+            source=SimpleNamespace(coupon=SimpleNamespace(
+                percent_off=50.0, amount_off=None)))])
+        self.assertEqual(_subscription_discounted(sub, 299.00), 149.50)
+
+    def test_bare_coupon_id_under_source_is_skipped(self):
+        from clients.views import _subscription_discounted
+
+        sub = SimpleNamespace(discounts=[SimpleNamespace(
+            coupon=None, source=SimpleNamespace(coupon='pct50_forever'))])
+        self.assertEqual(_subscription_discounted(sub, 299.00), 299.00)
