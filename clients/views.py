@@ -930,18 +930,33 @@ def _on_intake_submitted(profile, project):
 
     from .emails import send_intake_received_email
 
+    # `profile` is the Website. `onboarding_complete` is an ACCOUNT
+    # column — the site has no such field, so assigning it merely stuck
+    # an attribute on the instance and `update_fields` then raised
+    # ValueError. That 500'd the submit *after* the intake had already
+    # been marked complete: the client's answers were saved, but they
+    # were shown a crash and no confirmation, and none of the work below
+    # (file copy, changelog, provisioning, confirmation email) ran.
     profile.onboarding_status = 'onboarding_complete'
-    profile.onboarding_complete = True
     # Flag the admin Needs You queue so the human review step is
     # tracked alongside the existing email-reply triage. Cleared
     # by the Mark Reviewed button in admin_dashboard.
     profile.needs_admin_review_at = timezone.now()
     profile.admin_reviewed_at = None
     profile.save(update_fields=[
-        'onboarding_status', 'onboarding_complete',
-        'needs_admin_review_at', 'admin_reviewed_at',
-        'updated_at',
+        'onboarding_status', 'needs_admin_review_at',
+        'admin_reviewed_at', 'updated_at',
     ])
+
+    # Account-level completion — what gates the portal out of the intake
+    # lock. Without it the client stays fenced on the intake page after
+    # submitting.
+    account = getattr(profile, 'account', None)
+    if account is not None:
+        account.onboarding_status = 'onboarding_complete'
+        account.onboarding_complete = True
+        account.save(update_fields=[
+            'onboarding_status', 'onboarding_complete', 'updated_at'])
 
     # Mirror the intake-complete flag onto the per-website record. The
     # ClientProfile above gates the portal, but the Website's OWN

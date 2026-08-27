@@ -664,11 +664,28 @@ class IntakeResponse(TimestampedModel):
 
 
 def intake_photo_path(instance, filename):
-    """Upload path: portal/intake/photos/<client_id>/<filename>."""
-    return (
-        f'portal/intake/photos/'
-        f'{instance.intake.project.client_id}/{filename}'
-    )
+    """Upload path: portal/intake/photos/<owner_id>/<filename>.
+
+    Keyed off the legacy `project.client_id`, which is null on every
+    intake created post-refactor — so saving a photo raised
+    AttributeError inside FileField.save(). The upload 500'd, htmx
+    swallowed the error response, and the picker just appeared to do
+    nothing. Prefer the canonical Website, then its Account, and fall
+    back to the legacy chain for rows that still carry it.
+    """
+    intake = instance.intake
+    website = getattr(intake, 'website_new', None)
+    if website is not None:
+        return f'portal/intake/photos/{website.pk}/{filename}'
+
+    project = getattr(intake, 'project', None)
+    owner_id = getattr(project, 'client_id', None) or getattr(
+        intake, 'client_id', None)
+    if owner_id:
+        return f'portal/intake/photos/{owner_id}/{filename}'
+    # Never lose the file over a missing owner — park it under the
+    # intake's own id, which always exists.
+    return f'portal/intake/photos/orphan/{intake.pk}/{filename}'
 
 
 class IntakePhoto(TimestampedModel):
