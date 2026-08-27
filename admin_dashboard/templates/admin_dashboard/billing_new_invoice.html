@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}New Invoice — Admin{% endblock %}
 
@@ -137,21 +138,11 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-    {% comment %}
-        Reveal the custom-amount input only when the "custom" package
-        option is selected. Plain vanilla JS — no inline handlers so
-        the page stays CSP-safe.
-    {% endcomment %}
-    (function () {
-        var sel = document.getElementById('package-select');
-        var row = document.getElementById('custom-amount-row');
-        if (!sel || !row) { return; }
-        function sync() {
-            row.style.display = (sel.value === 'custom') ? '' : 'none';
-        }
-        sel.addEventListener('change', sync);
-        sync();
-    })();
-</script>
+{% comment %}
+    External file, not an inline <script>. /admin-dashboard/ serves
+    CSP_ADMIN_DASHBOARD, whose `script-src 'self'` blocks inline blocks
+    outright — the previous inline version never executed, so the
+    custom-amount field could never be revealed.
+{% endcomment %}
+<script src="{% static 'js/invoice_custom_amount.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
