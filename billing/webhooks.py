@@ -96,15 +96,35 @@ def _record_payment(*, client, stripe_id, kind, amount, description='',
         return
     try:
         from clients.account_models import Account
-        from clients.models import PaymentRecord
+        from clients.models import ClientProfile, PaymentRecord
+
+        # Callers hand `client` whatever they resolved — which is an
+        # Account for every canonical client. `PaymentRecord.client` is
+        # a ClientProfile FK, so assigning one raised ValueError and the
+        # except below swallowed it: NO payment was ever written to the
+        # ledger for an account-based client. Their Invoices page stayed
+        # permanently empty and no receipt could be produced, while the
+        # payment itself had gone through fine.
+        profile = client if isinstance(client, ClientProfile) else None
         if account is None:
-            account = (website.account if website is not None
-                       else Account.objects.filter(
-                           legacy_client_profile=client).first())
+            if isinstance(client, Account):
+                account = client
+            elif website is not None:
+                account = website.account
+            elif profile is not None:
+                account = Account.objects.filter(
+                    legacy_client_profile=profile).first()
+
+        if account is None and profile is None:
+            logger.error(
+                'PaymentRecord skipped for %s — no account or profile to '
+                'attach it to.', stripe_id)
+            return
+
         PaymentRecord.objects.get_or_create(
             stripe_id=stripe_id,
             defaults={
-                'client': client,
+                'client': profile,
                 'account': account,
                 'website': website,
                 'kind': kind,
