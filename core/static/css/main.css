@@ -3231,15 +3231,34 @@ a.contact-list__value:hover {
     outline-offset: 2px;
 }
 
+/* The agreement HTML carries its own h1/h2/h3. Unscoped they inherit the
+   marketing site's display scale, which rendered "Services Agreement" at
+   headline size and left roughly three legible lines visible inside the
+   scroll box. These are document sizes, not page-heading sizes. */
 .contract-doc h1 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    line-height: 1.3;
     margin: 0 0 0.25rem;
+    color: var(--color-text);
 }
 
 .contract-doc h2 {
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
+    line-height: 1.35;
     margin: var(--space-3) 0 var(--space-1);
     color: var(--color-text);
+}
+
+.contract-doc h3 {
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    font-weight: 700;
+    margin: var(--space-2) 0 0.25rem;
+    color: var(--color-text);
+}
+
+.contract-doc > :first-child {
+    margin-top: 0;
 }
 
 .contract-doc p,
@@ -12802,6 +12821,20 @@ button.htmx-request {
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
 }
 .pay-card--info, .pay-card--success { text-align: center; }
+/* Contract signing reuses this shell but needs room for a legal
+   document rather than a single amount. */
+.pay-card--wide { max-width: 720px; }
+.pay-card__title--doc {
+    font-size: 22px;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+}
+/* Taller on the standalone page — there is no nav or footer competing
+   for the viewport, so more of the agreement is readable at once. */
+.pay-card .contract-scroll {
+    max-height: 54vh;
+    margin-top: 0;
+}
 .pay-card__head { margin-bottom: 24px; }
 .pay-card__eyebrow {
     display: inline-block;

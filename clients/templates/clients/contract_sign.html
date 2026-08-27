@@ -1,66 +1,84 @@
-{% extends "base.html" %}
-{% load owners %}
-{% load static %}
+{% load owners %}{% load static %}<!DOCTYPE html>
+{% comment %}
+    Standalone document, deliberately NOT extending base.html. Signing is
+    a focused transaction like paying an invoice: site nav and footer are
+    exits from a page the client is meant to finish, so this mirrors
+    billing/pay_invoice.html — same shell, same card, same footer.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign your contract — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
 
-{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
-{% block canonical %}{% endblock %}
-
-{% block title %}Sign Your Contract — Aspired Websites{% endblock %}
-
-{% block content %}
-<section class="section">
-    <div class="container">
-        <div class="contract-wrap">
-            <span class="eyebrow">Your Agreement</span>
-            <h1>Aspired Websites — Website Build Contract</h1>
-            <p class="muted">{{ contract|owner_label }}</p>
-
-            {% if already_signed %}
-                <div class="audit-email-confirmation" role="status">
-                    This contract was signed on
-                    {{ contract.signed_at|date:"F j, Y" }} by {{ contract.signed_name }}.
-                    No further action is needed — check your email for your invoice.
-                </div>
-            {% else %}
-                <p>Please read the full agreement below. The sign button activates
-                   once you&rsquo;ve scrolled to the end.</p>
-
-                {% if error %}
-                    <div class="form-error" role="alert">{{ error }}</div>
-                {% endif %}
-
-                <div class="contract-scroll" id="contract-scroll" tabindex="0"
-                     aria-label="Contract text — scroll to read in full">
-                    {{ contract.contract_text|safe }}
-                </div>
-
-                <form method="post" class="contract-sign-form" novalidate>
-                    {% csrf_token %}
-
-                    <div class="form-group">
-                        <label for="signed_name">Signed by &mdash; type your full legal name</label>
-                        <input type="text" id="signed_name" name="signed_name"
-                               class="form-control" autocomplete="name" required>
-                    </div>
-
-                    <label class="contract-agree">
-                        <input type="checkbox" name="agree" value="on" required>
-                        <span>I have read and agree to all terms of this Agreement.</span>
-                    </label>
-
-                    <p class="contract-scroll-hint" id="contract-scroll-hint">
-                        Scroll to the bottom of the agreement above to enable signing.
-                    </p>
-
-                    <button type="submit" class="btn-primary btn-block"
-                            id="contract-sign-btn">Sign &amp; Continue &rarr;</button>
-                </form>
-            {% endif %}
-        </div>
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
     </div>
-</section>
-{% endblock %}
 
-{% block extra_scripts %}
-<script src="{% static 'js/contract.js' %}?v={{ STATIC_VERSION }}" defer></script>
-{% endblock %}
+    <div class="pay-card pay-card--wide">
+
+        <div class="pay-card__head">
+            <span class="pay-card__eyebrow">Your agreement</span>
+            <h1 class="pay-card__title pay-card__title--doc">Services Agreement</h1>
+            <p class="pay-card__sub">{{ contract|owner_label }}</p>
+        </div>
+
+        {% if already_signed %}
+            <div class="audit-email-confirmation" role="status">
+                This contract was signed on
+                {{ contract.signed_at|date:"F j, Y" }} by {{ contract.signed_name }}.
+                No further action is needed — check your email for your invoice.
+            </div>
+        {% else %}
+            <p class="pay-card__sub" style="margin-bottom:16px;">
+                Please read the full agreement below. The sign button activates
+                once you&rsquo;ve scrolled to the end.
+            </p>
+
+            {% if error %}
+                <div class="form-error" role="alert">{{ error }}</div>
+            {% endif %}
+
+            <div class="contract-scroll contract-doc" id="contract-scroll" tabindex="0"
+                 aria-label="Contract text — scroll to read in full">
+                {{ contract.contract_text|safe }}
+            </div>
+
+            <form method="post" class="contract-sign-form" novalidate>
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label for="signed_name">Signed by &mdash; type your full legal name</label>
+                    <input type="text" id="signed_name" name="signed_name"
+                           class="form-control" autocomplete="name" required>
+                </div>
+
+                <label class="contract-agree">
+                    <input type="checkbox" name="agree" value="on" required>
+                    <span>I have read and agree to all terms of this Agreement.</span>
+                </label>
+
+                <p class="contract-scroll-hint" id="contract-scroll-hint">
+                    Scroll to the bottom of the agreement above to enable signing.
+                </p>
+
+                <button type="submit" class="btn-primary btn-block"
+                        id="contract-sign-btn">Sign &amp; Continue &rarr;</button>
+            </form>
+        {% endif %}
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+    <script src="{% static 'js/contract.js' %}?v={{ STATIC_VERSION }}" defer></script>
+</body>
+</html>
