@@ -135,6 +135,17 @@ def pay_success(request, token):
         setup_url = token_obj.get_setup_url()
 
     owner = _invoice_owner(invoice)
+
+    # Nothing to set up means they already have an account — a final
+    # balance, a second build. Send them to the portal rather than
+    # leaving them on a page that says "we'll be in touch".
+    portal_url = ''
+    if not setup_url:
+        user = getattr(owner, 'user', None)
+        if (user is not None and user.is_active
+                and user.has_usable_password()):
+            portal_url = request.build_absolute_uri('/portal/')
+
     return render(
         request,
         'billing/pay_success.html',
@@ -143,5 +154,6 @@ def pay_success(request, token):
             'client': owner,
             'client_name': _owner_name(owner),
             'setup_url': setup_url,
+            'portal_url': portal_url,
         },
     )

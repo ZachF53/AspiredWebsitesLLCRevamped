@@ -118,6 +118,20 @@ def _display_name(owner):
     contact = (getattr(owner, 'contact_name', '') or '').strip()
     if contact:
         return contact
+
+    # A Website has no `contact_name`, and owner_label() resolves it to
+    # the SITE's name — so build emails opened with "Hi Acme Law Site"
+    # instead of the person's name. Reach through to the Account, which
+    # is where the human is recorded.
+    account = getattr(owner, 'account', None)
+    if account is not None and account is not owner:
+        contact = (getattr(account, 'contact_name', '') or '').strip()
+        if contact:
+            return contact
+        org = (getattr(account, 'name', '') or '').strip()
+        if org:
+            return org
+
     label = owner_label(owner)
     if label and label != '(unassigned)':
         return label

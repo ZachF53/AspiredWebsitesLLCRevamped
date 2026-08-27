@@ -105,6 +105,49 @@ class FinalPaymentForAccountContract(TestCase):
         self.assertFalse(
             OnboardingInvoice.objects.filter(website_new=self.website).exists())
 
+    def test_deposit_row_survives_and_final_is_separate(self):
+        """The paid deposit used to be overwritten by the final charge."""
+        deposit = OnboardingInvoice.objects.create(
+            account_new=self.account, website_new=self.website,
+            contract=self.contract, is_deposit=True, status='paid',
+            line_items=[{'description': 'Deposit (50%)', 'amount': '375.00'}],
+            total_amount=Decimal('375'))
+
+        final = self._run()
+
+        deposit.refresh_from_db()
+        self.assertNotEqual(final.pk, deposit.pk, 'final reused the deposit row')
+        self.assertEqual(deposit.status, 'paid')
+        self.assertTrue(deposit.is_deposit)
+        self.assertEqual(
+            deposit.line_items[0]['description'], 'Deposit (50%)')
+
+        rows = OnboardingInvoice.objects.filter(website_new=self.website)
+        self.assertEqual(rows.count(), 2, 'both halves should be listed')
+        self.assertEqual(
+            {r.is_deposit for r in rows}, {True, False})
+
+    def test_retriggering_pre_launch_reuses_the_unpaid_final(self):
+        first = self._run()
+        second = self._run()
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(
+            OnboardingInvoice.objects.filter(
+                contract=self.contract, is_deposit=False).count(), 1)
+
+    def test_greeting_uses_the_person_not_the_site_name(self):
+        from clients.emails import _display_name, _first_name
+        self.account.contact_name = 'Ernest Bear'
+        self.account.save(update_fields=['contact_name'])
+        self.assertEqual(_display_name(self.website), 'Ernest Bear')
+        self.assertEqual(_first_name(self.website), 'Ernest')
+
+    def test_greeting_falls_back_to_the_org_not_the_site(self):
+        from clients.emails import _display_name
+        self.account.contact_name = ''
+        self.account.save(update_fields=['contact_name'])
+        self.assertEqual(_display_name(self.website), 'Final Co')
+
     def test_another_accounts_null_client_invoice_is_not_hijacked(self):
         other_u = User.objects.create_user(
             username='otherfinal', email='otherfinal@example.com', password='x')

@@ -1534,24 +1534,26 @@ def start_contract_final_payment(contract):
             return None
 
     line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
-    # filter(client=None) would match another account's legacy-null row
-    # and overwrite it with this build's final balance.
-    if client is not None:
-        existing = OnboardingInvoice.objects.filter(client=client)
-    elif website is not None:
-        existing = OnboardingInvoice.objects.filter(website_new=website)
-    else:
-        existing = OnboardingInvoice.objects.filter(account_new=account)
-    invoice = existing.order_by('-created_at').first()
+
+    # The final balance gets its OWN invoice row. This used to reuse
+    # whatever invoice the client already had — which was the paid
+    # deposit — rewriting its amount, description and status and
+    # clearing paid_at. The money was still recorded in PaymentRecord,
+    # but the invoice list showed a single row that mutated instead of
+    # a deposit and a final, so a client could not see what they had
+    # already paid. Only ever reuse an unpaid FINAL row (a re-trigger
+    # of Pre-Launch), never the deposit.
+    invoice = (OnboardingInvoice.objects
+               .filter(contract=contract, is_deposit=False)
+               .exclude(status='paid')
+               .order_by('-created_at')
+               .first())
     if invoice is None:
         invoice = OnboardingInvoice.objects.create(
             client=client, contract=contract, is_deposit=False,
             account_new=contract.account, website_new=contract.website_new,
             line_items=line_items, total_amount=amount, status='draft')
     else:
-        # Reuse the deposit's row for the final charge.
-        invoice.contract = contract
-        invoice.is_deposit = False
         invoice.account_new = contract.account
         invoice.website_new = contract.website_new
         invoice.line_items = line_items
@@ -1559,8 +1561,8 @@ def start_contract_final_payment(contract):
         invoice.status = 'draft'
         invoice.paid_at = None
         invoice.save(update_fields=[
-            'contract', 'is_deposit', 'account_new', 'website_new',
-            'line_items', 'total_amount', 'status', 'paid_at', 'updated_at'])
+            'account_new', 'website_new', 'line_items', 'total_amount',
+            'status', 'paid_at', 'updated_at'])
 
     try:
         pi = stripe.PaymentIntent.create(

@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0059_website_build_platform_website_custom_build_price'),
+        ('clients', '0060_alter_onboardinginvoice_client_and_more'),
     ]
 
     operations = [

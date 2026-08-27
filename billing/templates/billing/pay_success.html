@@ -38,7 +38,24 @@
                 Set up my account →
             </a>
             <p class="pay-success-redirect">
-                You'll be redirected automatically in <span id="redirect-countdown">8</span> seconds.
+                You'll be redirected automatically in
+                <span id="redirect-countdown" data-seconds="8">8</span> seconds.
+            </p>
+        {% elif portal_url %}
+            {% comment %}
+                Returning payer — already has an account, so there is
+                nothing to set up. Send them somewhere useful instead of
+                the "we'll be in touch" holding message.
+            {% endcomment %}
+            <p class="pay-success-cta-help">
+                Head back to your portal to track your project.
+            </p>
+            <a href="{{ portal_url }}" class="pay-submit pay-submit--success" style="display:inline-block;text-decoration:none;text-align:center;">
+                Go to my portal →
+            </a>
+            <p class="pay-success-redirect">
+                You'll be redirected automatically in
+                <span id="redirect-countdown" data-seconds="5">5</span> seconds.
             </p>
         {% else %}
             <p class="pay-success-cta-help">
@@ -52,8 +69,8 @@
         Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
     </div>
 
-    {% if setup_url %}
-        {{ setup_url|json_script:"setup-url" }}
+    {% if setup_url or portal_url %}
+        {{ setup_url|default:portal_url|json_script:"redirect-url" }}
         <script src="{% static 'js/payment_success.js' %}?v={{ STATIC_VERSION }}" defer></script>
     {% endif %}
 </body>

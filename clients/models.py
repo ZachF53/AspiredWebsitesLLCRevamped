@@ -2016,12 +2016,18 @@ class OnboardingInvoice(TimestampedModel):
         ('canceled', 'Canceled'),
     ]
 
-    # 1:1 with ClientProfile — at most one onboarding invoice per client.
-    # Follow-on / out-of-scope invoices use the existing MiniInvoice model.
-    client = models.OneToOneField(
+    # A build is billed in two halves — a 50% deposit and a final
+    # balance — so a client/website can hold more than one of these.
+    # These were 1:1, which forced the final payment to overwrite the
+    # paid deposit row in place: same row, amount and description
+    # rewritten, status flipped back to draft, paid_at cleared. The
+    # money survived in PaymentRecord but the client's invoice list
+    # showed a single mutating row instead of what they had paid and
+    # what was still owed.
+    client = models.ForeignKey(
         ClientProfile,
         on_delete=models.CASCADE,
-        related_name='onboarding_invoice',
+        related_name='onboarding_invoices',
         null=True, blank=True,
     )
     # Phase A — onboarding invoice is per-build (a second Website needs
@@ -2033,9 +2039,9 @@ class OnboardingInvoice(TimestampedModel):
         related_name='onboarding_invoices_new',
         null=True, blank=True,
     )
-    website_new = models.OneToOneField(
+    website_new = models.ForeignKey(
         'clients.Website', on_delete=models.CASCADE,
-        related_name='onboarding_invoice_new',
+        related_name='onboarding_invoices_new',
         null=True, blank=True,
     )
 
