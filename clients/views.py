@@ -989,12 +989,21 @@ def _on_intake_submitted(profile, project):
     # Enqueue Droplet provisioning — moved here from the webhook
     # (was previously triggered on deposit_paid, now waits for intake
     # so we don't waste a Droplet on a paid-but-stalled client).
-    try:
-        from billing.tasks import provision_droplet_task
-        provision_droplet_task.delay(str(profile.id))
-    except Exception:
-        logger.exception(
-            'Droplet provisioning enqueue failed for %s', profile.pk)
+    #
+    # A WordPress build is hosted by the client, so there is nothing for
+    # us to provision. This used to fire unconditionally, which would
+    # create and bill a server that never serves anything.
+    if project is not None and not project.needs_droplet:
+        logger.info(
+            'Droplet provisioning skipped for %s — website %s is %s',
+            profile.pk, project.pk, project.build_platform)
+    else:
+        try:
+            from billing.tasks import provision_droplet_task
+            provision_droplet_task.delay(str(profile.id))
+        except Exception:
+            logger.exception(
+                'Droplet provisioning enqueue failed for %s', profile.pk)
 
     # Auto-provision a GA4 property for this build (best-effort). `project`
     # is the active Website; its Measurement ID lands in the build.

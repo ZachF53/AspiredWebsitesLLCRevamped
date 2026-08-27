@@ -337,6 +337,36 @@ class Website(TimestampedModel):
     package = models.CharField(
         max_length=30, choices=PACKAGE_CHOICES, blank=True)
 
+    # ── What we are actually building ──
+    # A hand-coded build runs on a Droplet we provision. A WordPress site
+    # the client already hosts must NOT get one — intake completion
+    # enqueues provisioning unconditionally, which would spin up (and
+    # bill) a server nobody uses. Defaults to 'custom' so every existing
+    # website keeps its current behaviour.
+    BUILD_PLATFORM_CHOICES = [
+        ('custom',    'Custom build — Aspired-hosted (Droplet)'),
+        ('wordpress', 'WordPress — client-hosted (no Droplet)'),
+    ]
+    build_platform = models.CharField(
+        max_length=20, choices=BUILD_PLATFORM_CHOICES, default='custom',
+        help_text=('WordPress sites are hosted by the client, so no '
+                   'Droplet is provisioned at intake completion.'),
+    )
+
+    # Custom-priced build. When set, this overrides the ServiceTier price
+    # for the contract + deposit, so a one-off rate (friend discount,
+    # WordPress port, scoped project) can go through the normal
+    # contract → 50% deposit → intake flow instead of a flat invoice.
+    custom_build_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Overrides the package price on the build contract.',
+    )
+
+    @property
+    def needs_droplet(self):
+        """True when this build should get a provisioned Droplet."""
+        return self.build_platform != 'wordpress'
+
     # ── Per-website onboarding (intake form gate) ──
     onboarding_status = models.CharField(
         max_length=20,

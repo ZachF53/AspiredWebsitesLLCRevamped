@@ -166,8 +166,9 @@
 
     <div class="wd-grid">
     {% comment %}
-        Contract (per-website). One button — uses the build tier captured on
-        the website at booking. Signing flows into deposit → setup → intake.
+        Contract (per-website). Priced from the build tier captured at
+        booking, or from a custom amount entered on the form below.
+        Signing flows into deposit → setup → intake.
     {% endcomment %}
     <div class="admin-card">
         <div class="admin-card__header">
@@ -205,14 +206,38 @@
                 <p class="muted" style="margin-top:0;">No contract sent for this website yet.</p>
             {% endif %}
 
-            {% if can_send_contract %}
-                <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-primary btn-sm">Send contract ({{ website.get_package_display }})</button>
-                </form>
-            {% else %}
-                <p class="muted" style="margin:0;">Set the package to an Essential or Premium build (Status &amp; Stage card) to enable Send contract.</p>
-            {% endif %}
+            {% comment %}
+                Send-contract form. Price comes from the package tier
+                unless a custom amount is entered here, which is what
+                lets a one-off rate use the contract → 50% deposit →
+                intake flow instead of a flat pay-in-full invoice.
+                Platform decides whether intake provisions a Droplet.
+            {% endcomment %}
+            <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" class="wd-contract-form">
+                {% csrf_token %}
+                <div class="form-row">
+                    <span class="form-label">Custom build price (USD) — optional</span>
+                    <input class="form-control" type="number" min="1" step="0.01"
+                           name="custom_build_price"
+                           value="{{ website.custom_build_price|default_if_none:'' }}"
+                           placeholder="{% if website.package %}Leave blank to use {{ website.get_package_display }}{% else %}e.g. 750.00{% endif %}">
+                </div>
+                <div class="form-row">
+                    <span class="form-label">Platform</span>
+                    <select class="form-control" name="build_platform">
+                        {% for value, label in website.BUILD_PLATFORM_CHOICES %}
+                            <option value="{{ value }}" {% if website.build_platform == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary btn-sm">
+                    Send contract{% if website.package %} ({{ website.get_package_display }}){% endif %}
+                </button>
+                <p class="muted" style="margin:.5rem 0 0;">
+                    Client signs, then chooses 50% deposit or pay in full.
+                    {% if not website.package %}No package set — enter a custom price above.{% endif %}
+                </p>
+            </form>
         </div>
     </div>
 

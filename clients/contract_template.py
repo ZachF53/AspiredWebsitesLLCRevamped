@@ -71,6 +71,10 @@ def generate_combined_contract_text(client, services):
     client_name = client.contact_name or firm
 
     by_type = {s['service_type']: s['tier'] for s in services}
+    # The whole service dict too, so the build line can carry overrides
+    # (`price`, `name`, `platform`) for a custom-priced or WordPress build
+    # that has no ServiceTier behind it.
+    svc_by_type = {s['service_type']: s for s in services}
     build = by_type.get('build')
     maintenance = by_type.get('maintenance')
     social = by_type.get('social')
@@ -78,20 +82,48 @@ def generate_combined_contract_text(client, services):
     # ── Section 2 — Services & Pricing (one block per selected service) ──
     service_blocks = []
     n = 0
-    if build is not None:
+    build_svc = svc_by_type.get('build')
+    if build_svc is not None:
         n += 1
-        price = Decimal(build.price)
+        override = build_svc.get('price')
+        price = Decimal(override if override is not None else build.price)
         deposit = (price / 2).quantize(Decimal('0.01'))
         final = price - deposit
-        pages = build.pages_included or 0
-        practice = build.practice_areas_included or 0
-        weeks = build.timeline_weeks or 0
+        label = (build_svc.get('name')
+                 or (build.name if build is not None else 'Custom Website Build'))
+        weeks = build_svc.get('weeks') or (
+            build.timeline_weeks if build is not None else 0) or 0
+
+        if build_svc.get('platform') == 'wordpress':
+            # No page/practice-area counts: a WordPress engagement is
+            # scoped by agreement, and the site runs on the Client's own
+            # hosting, so the hand-coded/Droplet language does not apply.
+            scope = (
+                '<p>A WordPress website, mobile-responsive and '
+                'security-hardened, built on hosting the <strong>Client '
+                'provides and controls</strong>, in an estimated '
+                f'<strong>{weeks} weeks</strong> from receipt of the deposit '
+                'and all required Client assets. Hosting, domain, and '
+                'platform fees remain the Client&rsquo;s responsibility.</p>')
+        elif build is not None:
+            pages = build.pages_included or 0
+            practice = build.practice_areas_included or 0
+            scope = (
+                '<p>A hand-coded, mobile-responsive, security-hardened '
+                f'website of up to <strong>{pages} pages</strong> (including '
+                f'up to <strong>{practice} practice area pages</strong>), '
+                f'built in an estimated <strong>{weeks} weeks</strong> from '
+                'receipt of the deposit and all required Client assets.</p>')
+        else:
+            scope = (
+                '<p>A hand-coded, mobile-responsive, security-hardened '
+                'website, scoped as agreed in writing between the parties, '
+                f'built in an estimated <strong>{weeks} weeks</strong> from '
+                'receipt of the deposit and all required Client assets.</p>')
+
         service_blocks.append(f"""
-  <h3>2.{n} Website Development &mdash; {build.name}</h3>
-  <p>A hand-coded, mobile-responsive, security-hardened website of up to
-  <strong>{pages} pages</strong> (including up to <strong>{practice} practice
-  area pages</strong>), built in an estimated <strong>{weeks} weeks</strong>
-  from receipt of the deposit and all required Client assets.</p>
+  <h3>2.{n} Website Development &mdash; {label}</h3>
+  {scope}
   <p>One-time price: <strong>{_money(price)}</strong>, payable
   <strong>{_money(deposit)}</strong> (50%) before work begins and
   <strong>{_money(final)}</strong> (50%) on delivery, before launch. Includes

@@ -3582,7 +3582,7 @@ def website_send_contract(request, website_id):
     uses the build tier captured on the Website at booking). The Contract is
     tied to `website_new`; signing flows into deposit → setup → intake.
     """
-    from decimal import Decimal
+    from decimal import Decimal, InvalidOperation
 
     from django.contrib import messages as _messages
 
@@ -3605,27 +3605,72 @@ def website_send_contract(request, website_id):
     tier = (ServiceTier.objects.filter(slug=slug, category='website_build',
                                        is_active=True).first()
             if slug else None)
-    if tier is None:
+
+    # A custom price posted with the form (or already stored on the
+    # website) replaces the tier price, and stands in for the tier
+    # entirely when there isn't one. Without this a one-off rate had no
+    # route to the contract → 50% deposit → intake flow at all: the only
+    # alternative was a flat pay-in-full invoice.
+    custom_raw = (request.POST.get('custom_build_price') or '').strip()
+    custom_price = None
+    if custom_raw:
+        try:
+            custom_price = Decimal(custom_raw)
+            if custom_price <= 0:
+                raise InvalidOperation()
+        except (InvalidOperation, ValueError, TypeError):
+            _messages.error(
+                request, 'Custom build price must be a positive number.')
+            return redirect(
+                'admin_dashboard:website_detail', website_id=website.id)
+    elif website.custom_build_price:
+        custom_price = Decimal(website.custom_build_price)
+
+    if tier is None and custom_price is None:
         _messages.error(
             request,
-            'Set this website’s package to Essential or Premium build '
-            '(and run seed_pricing) before sending a contract.')
+            'Set this website’s package to Essential or Premium build, or '
+            'enter a custom build price, before sending a contract.')
         return redirect('admin_dashboard:website_detail', website_id=website.id)
 
-    price = Decimal(tier.price)
+    # Platform decides whether a Droplet is provisioned at intake, and
+    # which scope wording the contract carries.
+    platform = (request.POST.get('build_platform')
+                or website.build_platform or 'custom')
+    if platform not in dict(Website.BUILD_PLATFORM_CHOICES):
+        platform = 'custom'
+
+    price = custom_price if custom_price is not None else Decimal(tier.price)
+    deposit = (price / 2).quantize(Decimal('0.01'))
+    weeks = (tier.timeline_weeks if tier is not None else 0) or 4
+    label = (tier.name if tier is not None else 'Custom Website Build')
+
+    fields = []
+    if custom_price is not None and website.custom_build_price != custom_price:
+        website.custom_build_price = custom_price
+        fields.append('custom_build_price')
+    if website.build_platform != platform:
+        website.build_platform = platform
+        fields.append('build_platform')
+    if fields:
+        website.save(update_fields=fields + ['updated_at'])
+
     contract = Contract.objects.create(
         account=account, website_new=website,
         package=website.package,
         build_price=price,
-        deposit_amount=(price / 2).quantize(Decimal('0.01')),
-        timeline_weeks=tier.timeline_weeks or 4,
+        deposit_amount=deposit,
+        timeline_weeks=weeks,
         contract_text=generate_combined_contract_text(
-            profile, [{'service_type': 'build', 'tier': tier}]),
+            profile, [{'service_type': 'build', 'tier': tier,
+                       'price': price, 'name': label,
+                       'platform': platform, 'weeks': weeks}]),
     )
     ContractService.objects.create(
-        contract=contract, service_type='build', tier_slug=tier.slug,
-        tier_name=tier.name, price=price,
-        deposit_amount=(price / 2).quantize(Decimal('0.01')),
+        contract=contract, service_type='build',
+        tier_slug=(tier.slug if tier is not None else 'custom'),
+        tier_name=label, price=price,
+        deposit_amount=deposit,
         is_recurring=False, billing_interval='')
 
     website.lifecycle_status = 'contract_sent'
@@ -3640,8 +3685,8 @@ def website_send_contract(request, website_id):
 
     _messages.success(
         request,
-        f'Contract sent for {website.name} ({tier.name}). '
-        f'Signing link: {sign_url}')
+        f'Contract sent for {website.name} ({label} — ${price:,.2f}, '
+        f'${deposit:,.2f} deposit). Signing link: {sign_url}')
     return redirect('admin_dashboard:website_detail', website_id=website.id)
 
 
@@ -4124,7 +4169,11 @@ def website_detail(request, website_id):
         Contract.objects.filter(website_new=website)
         .order_by('-created_at')[:5])
     contract_sign_base = request.build_absolute_uri('/portal/contract/')
-    can_send_contract = (website.package in _PACKAGE_TO_BUILD_SLUG)
+    # A custom price is a valid basis for a contract on its own — the
+    # form below lets one be entered, so a website with no package tier
+    # is no longer a dead end.
+    can_send_contract = (website.package in _PACKAGE_TO_BUILD_SLUG
+                         or bool(website.custom_build_price))
     # Summary-strip flags — cheap derivations off the already-fetched list.
     contract_signed = any(c.signed for c in website_contracts)
     contract_pending = any(not c.signed for c in website_contracts)
