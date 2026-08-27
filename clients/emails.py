@@ -612,9 +612,22 @@ def send_intake_received_email(client):
     )
 
 
+def _contract_owner(contract):
+    """Who to address a contract email to.
+
+    `contract.client` is the legacy ClientProfile FK. Contracts raised
+    from the Website or Account pages set `account` and leave `client`
+    null, so this resolved to None — `_recipient(None)` is `[]` and
+    send_mail with an empty list is a silent no-op. The signing link was
+    therefore emailed to nobody, with a success message shown to the
+    operator either way.
+    """
+    return contract.client or contract.account
+
+
 def send_contract_ready_email(contract, sign_url):
     """Email the client their contract signing link (staff-triggered)."""
-    client = contract.client
+    client = _contract_owner(contract)
     name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
@@ -639,7 +652,7 @@ def send_contract_ready_email(contract, sign_url):
 
 def send_contract_signed_email(contract):
     """Confirm to the client that their contract was signed."""
-    client = contract.client
+    client = _contract_owner(contract)
     name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'

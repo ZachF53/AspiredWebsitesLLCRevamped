@@ -3683,10 +3683,23 @@ def website_send_contract(request, website_id):
     except Exception:
         logger.exception('contract-ready email failed for %s', contract.pk)
 
-    _messages.success(
-        request,
-        f'Contract sent for {website.name} ({label} — ${price:,.2f}, '
-        f'${deposit:,.2f} deposit). Signing link: {sign_url}')
+    # An owner with no address makes send_mail a silent no-op, and the
+    # operator was told "Contract sent" regardless. Say so instead — the
+    # signing link is in the message either way.
+    from clients.emails import _contract_owner, _recipient
+    to = _recipient(_contract_owner(contract))
+    if to:
+        _messages.success(
+            request,
+            f'Contract sent to {to[0]} for {website.name} '
+            f'({label} — ${price:,.2f}, ${deposit:,.2f} deposit). '
+            f'Signing link: {sign_url}')
+    else:
+        _messages.warning(
+            request,
+            f'Contract created for {website.name} ({label} — ${price:,.2f}, '
+            f'${deposit:,.2f} deposit) but NOT emailed — this account has no '
+            f'email address on file. Send the link manually: {sign_url}')
     return redirect('admin_dashboard:website_detail', website_id=website.id)
 
 

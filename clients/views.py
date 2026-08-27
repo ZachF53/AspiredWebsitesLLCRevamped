@@ -2016,15 +2016,20 @@ def contract_sign(request, contract_token):
             # recurring plans is handled separately (self-serve checkout or
             # operator setup).
             if contract.includes_build:
-                # Set the build fields on the client (post-2026-05-25 the
-                # former Project fields live directly on ClientProfile).
+                # Mirror onto the legacy ClientProfile when there is one.
+                # Contracts raised from the Website/Account pages set
+                # `account`, never `client`, so this was an AttributeError
+                # on None — signing crashed for every account-based
+                # contract. The per-website block below is the real
+                # source of truth; this is best-effort back-compat.
                 client = contract.client
-                client.package = (
-                    contract.package or client.package or '')
-                client.stage = 'intake'
-                client.payment_status = 'awaiting_deposit'
-                client.save(update_fields=[
-                    'package', 'stage', 'payment_status', 'updated_at'])
+                if client is not None:
+                    client.package = (
+                        contract.package or client.package or '')
+                    client.stage = 'intake'
+                    client.payment_status = 'awaiting_deposit'
+                    client.save(update_fields=[
+                        'package', 'stage', 'payment_status', 'updated_at'])
                 # Drive the per-website sales lifecycle (source of truth).
                 web = contract.website_new
                 if web is not None:
