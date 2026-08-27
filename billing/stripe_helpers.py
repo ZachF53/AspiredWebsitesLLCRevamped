@@ -1489,7 +1489,22 @@ def start_contract_final_payment(contract):
 
     from clients.models import OnboardingInvoice
 
+    # Same legacy-FK trap as start_contract_payment: `contract.client` is
+    # null on Website/Account-raised contracts, so every read below raised
+    # AttributeError. _issue_website_final_invoice swallows it, so moving
+    # a build to Pre-Launch quietly raised NO final invoice and sent NO
+    # email — while the launch gate went on blocking for a payment the
+    # client was never asked to make.
     client = contract.client
+    website = contract.website_new
+    account = contract.account
+    owner = client or account
+    if owner is None:
+        logger.error(
+            'start_contract_final_payment: contract %s has neither client '
+            'nor account — cannot bill anyone.', contract.pk)
+        return None
+
     amount = Decimal(contract.final_amount or 0)
     if amount <= 0:
         return None
@@ -1502,22 +1517,32 @@ def start_contract_final_payment(contract):
         return None
 
     # Reuse the customer that holds the saved card from the deposit.
-    customer_id = client.stripe_customer_id
+    customer_id = owner.stripe_customer_id
     if not customer_id:
         try:
             cust = stripe.Customer.create(
-                email=(client.user.email if client.user_id else ''),
-                name=client.firm_name)
+                email=((owner.user.email
+                        if getattr(owner, 'user_id', None) else '') or ''),
+                name=(getattr(owner, 'firm_name', '')
+                      or getattr(owner, 'name', '') or ''))
             customer_id = cust.id
-            client.stripe_customer_id = customer_id
-            client.save(update_fields=['stripe_customer_id', 'updated_at'])
+            owner.stripe_customer_id = customer_id
+            owner.save(update_fields=['stripe_customer_id', 'updated_at'])
         except Exception:
             logger.exception(
-                'final payment: customer create failed for %s', client.pk)
+                'final payment: customer create failed for %s', owner.pk)
             return None
 
     line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
-    invoice = OnboardingInvoice.objects.filter(client=client).first()
+    # filter(client=None) would match another account's legacy-null row
+    # and overwrite it with this build's final balance.
+    if client is not None:
+        existing = OnboardingInvoice.objects.filter(client=client)
+    elif website is not None:
+        existing = OnboardingInvoice.objects.filter(website_new=website)
+    else:
+        existing = OnboardingInvoice.objects.filter(account_new=account)
+    invoice = existing.order_by('-created_at').first()
     if invoice is None:
         invoice = OnboardingInvoice.objects.create(
             client=client, contract=contract, is_deposit=False,
@@ -1544,11 +1569,11 @@ def start_contract_final_payment(contract):
             description=f'Aspired Websites — {desc}'[:1000],
             metadata={
                 'source': 'aspired_websites', 'kind': 'onboarding',
-                'client_profile_id': str(client.id),
+                'client_profile_id': str(owner.id),
                 'invoice_id': str(invoice.id)})
     except Exception:
         logger.exception(
-            'final payment: PaymentIntent create failed for %s', client.pk)
+            'final payment: PaymentIntent create failed for %s', owner.pk)
         return None
 
     invoice.stripe_payment_intent_id = pi.id
