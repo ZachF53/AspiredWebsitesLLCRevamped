@@ -880,6 +880,12 @@ def _copy_intake_files_to_documents(profile, project):
     if intake_obj is None:
         return
 
+    # `profile` is the Website, which has no `user` — the owner hangs off
+    # its Account. Reading it raised AttributeError inside a best-effort
+    # try/except, so every intake logo and photo silently failed to reach
+    # the client's Files page with nothing surfaced anywhere.
+    uploader = getattr(getattr(profile, 'account', None), 'user', None)
+
     def _make_doc(label, file_field):
         """Copy file_field into a new ClientDocument unless one with
         this label already exists for the client."""
@@ -895,7 +901,7 @@ def _copy_intake_files_to_documents(profile, project):
                 direction='from_client',
                 label=label,
                 description='Uploaded via intake form.',
-                uploaded_by=profile.user,
+                uploaded_by=uploader,
                 file=File(file_field, name=os.path.basename(
                     file_field.name)),
             )
@@ -1046,17 +1052,23 @@ def _on_intake_submitted(profile, project):
                     send_gmb_create_email(profile)
             except Exception:
                 logger.exception('GMB email failed for %s', profile.pk)
-            if profile.user_id:
+            # `profile` is the Website — the user hangs off its Account.
+            # `profile.user_id` raised AttributeError here, taking the
+            # whole GMB follow-up down with it inside a best-effort
+            # except, so the setup task was never created.
+            todo_user = getattr(
+                getattr(profile, 'account', None), 'user', None)
+            if todo_user is not None:
                 from onboarding.todo_models import SetupTodo
                 title = (
                     'Add Aspired Websites as a manager on your Google '
                     'Business Profile' if gmb == 'have' else
                     'Create your Google Business Profile + add us as manager')
                 if not SetupTodo.objects.filter(
-                        user=profile.user, task_type='google_access',
+                        user=todo_user, task_type='google_access',
                         credential_type='gmb_manager').exists():
                     SetupTodo.objects.create(
-                        user=profile.user, task_type='google_access',
+                        user=todo_user, task_type='google_access',
                         credential_type='gmb_manager', title=title[:120],
                         description='See the email we just sent for '
                                     'step-by-step instructions.')

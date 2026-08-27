@@ -73,6 +73,33 @@ class IntakeSubmitCompletesOnboarding(TestCase):
         self.assertNotIn('onboarding_complete', web_fields)
         self.assertIn('onboarding_complete', acct_fields)
 
+    def test_intake_files_are_copied_to_the_files_page(self):
+        """`profile.user` on a Website killed this inside a best-effort
+        except, so logos and photos silently never appeared."""
+        from clients.models import ClientDocument
+        from clients.views import _copy_intake_files_to_documents
+
+        u = User.objects.create_user(
+            username='copyuser', email='copy@example.com', password='x')
+        account = Account.objects.filter(user=u).first() or (
+            Account.objects.create(user=u, name='Copy Co'))
+        account.websites.all().delete()
+        website = Website.objects.create(account=account, name='Copy Site')
+        intake = IntakeResponse.objects.create(
+            website_new=website,
+            logo=SimpleUploadedFile('logo.png', PNG, content_type='image/png'))
+        IntakePhoto.objects.create(
+            intake=intake,
+            file=SimpleUploadedFile('p1.png', PNG, content_type='image/png'))
+
+        _copy_intake_files_to_documents(website, website)
+
+        docs = ClientDocument.objects.filter(website_new=website)
+        self.assertEqual(docs.count(), 2)
+        self.assertEqual(
+            {d.uploaded_by for d in docs}, {u},
+            'uploader should be the account owner')
+
     def test_on_intake_submitted_marks_both_records(self):
         from clients.views import _on_intake_submitted
 
