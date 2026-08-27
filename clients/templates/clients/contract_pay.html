@@ -1,62 +1,84 @@
-{% extends "base.html" %}
-{% load owners %}
+{% load owners %}{% load static %}<!DOCTYPE html>
+{% comment %}
+    Standalone document, deliberately NOT extending base.html — the step
+    between signing and paying, so it matches contract_sign.html and
+    billing/pay_invoice.html on either side of it. Site nav and footer
+    are exits from a flow the client is meant to finish.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete your payment — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
 
-{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
-{% block canonical %}{% endblock %}
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
 
-{% block title %}Complete your payment — Aspired Websites{% endblock %}
+    <div class="pay-card">
 
-{% block content %}
-<section class="section login-page">
-    <div class="container">
-        <article class="card card--featured login-card">
-            <div class="contract-check" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img" aria-label="Signed">
-                    <path d="M5 13l4 4L19 7"></path>
-                </svg>
-            </div>
-            <h1 class="login-card__title">Contract signed — let's get started</h1>
-            <p class="login-card__subtitle">
+        <div class="contract-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" aria-label="Signed">
+                <path d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+
+        <div class="pay-card__head">
+            <span class="pay-card__eyebrow">Contract signed</span>
+            <h1 class="pay-card__title pay-card__title--doc">Let&rsquo;s get started</h1>
+            <p class="pay-card__sub">
                 {% with account=contract|owner_account owner=contract|owner_label %}
                 Thanks, {{ account.contact_name|default:owner }}.
                 {% endwith %}
-                Choose how you'd like to pay. Your project begins the moment your
-                payment clears, and you'll set up your account right after.
+                Choose how you&rsquo;d like to pay. Your project begins the moment
+                your payment clears, and you&rsquo;ll set up your account right after.
             </p>
+        </div>
 
-            {% comment %}
-                Two payment options. The 50% deposit is the minimum per the
-                signed agreement; paying in full now means no second invoice
-                on delivery. Each radio is its own labelled option; the single
-                Continue button posts the chosen amount.
-            {% endcomment %}
-            <form method="post" class="contract-pay-form">
-                {% csrf_token %}
+        {% comment %}
+            Two payment options. The 50% deposit is the minimum per the
+            signed agreement; paying in full now means no second invoice
+            on delivery. Each radio is its own labelled option; the single
+            Continue button posts the chosen amount.
+        {% endcomment %}
+        <form method="post" class="contract-pay-form">
+            {% csrf_token %}
 
-                <label class="pay-option">
-                    <span class="pay-option__row">
-                        <span><input type="radio" name="amount_choice" value="deposit" checked> Pay 50% deposit now</span>
-                        <span>${{ deposit|floatformat:2 }}</span>
-                    </span>
-                    <span class="pay-option__desc">
-                        The remaining ${{ remaining|floatformat:2 }} is invoiced on
-                        delivery, before your site goes live.
-                    </span>
-                </label>
+            <label class="pay-option">
+                <span class="pay-option__row">
+                    <span><input type="radio" name="amount_choice" value="deposit" checked> Pay 50% deposit now</span>
+                    <span>${{ deposit|floatformat:2 }}</span>
+                </span>
+                <span class="pay-option__desc">
+                    The remaining ${{ remaining|floatformat:2 }} is invoiced on
+                    delivery, before your site goes live.
+                </span>
+            </label>
 
-                <label class="pay-option">
-                    <span class="pay-option__row">
-                        <span><input type="radio" name="amount_choice" value="full"> Pay in full now</span>
-                        <span>${{ full|floatformat:2 }}</span>
-                    </span>
-                    <span class="pay-option__desc">
-                        Settle the whole build up front — no second invoice later.
-                    </span>
-                </label>
+            <label class="pay-option">
+                <span class="pay-option__row">
+                    <span><input type="radio" name="amount_choice" value="full"> Pay in full now</span>
+                    <span>${{ full|floatformat:2 }}</span>
+                </span>
+                <span class="pay-option__desc">
+                    Settle the whole build up front — no second invoice later.
+                </span>
+            </label>
 
-                <button type="submit" class="btn-primary btn-block">Continue to payment &rarr;</button>
-            </form>
-        </article>
+            <button type="submit" class="btn-primary btn-block">Continue to payment &rarr;</button>
+        </form>
+
     </div>
-</section>
-{% endblock %}
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+</body>
+</html>

@@ -76,12 +76,42 @@ class ContractSignPageIsStandalone(TestCase):
         html = self._get().content.decode()
         self.assertIn('noindex', html)
 
-    def test_signed_contract_shows_confirmation_not_the_form(self):
+    def _sign(self):
         from django.utils import timezone
         self.contract.signed = True
         self.contract.signed_at = timezone.now()
         self.contract.signed_name = 'Ernest'
         self.contract.save()
+
+    def test_signed_contract_shows_confirmation_not_the_form(self):
+        self._sign()
         html = self._get().content.decode()
         self.assertIn('Ernest', html)
         self.assertNotIn('contract-sign-btn', html)
+
+    def test_unpaid_signed_contract_offers_a_way_to_pay(self):
+        """Reopening the emailed link after signing was a dead end."""
+        from clients.models import ContractService
+        ContractService.objects.create(
+            contract=self.contract, service_type='build',
+            tier_slug='custom', tier_name='Custom Website Build',
+            price=Decimal('750'), deposit_amount=Decimal('375'),
+            is_recurring=False, billing_interval='')
+        self._sign()
+        html = self._get().content.decode()
+        self.assertIn('Continue to payment', html)
+        self.assertIn(f'/portal/contract/{self.contract.contract_token}/pay/',
+                      html)
+
+    def test_paid_contract_does_not_offer_payment_again(self):
+        from clients.models import ContractService
+        ContractService.objects.create(
+            contract=self.contract, service_type='build',
+            tier_slug='custom', tier_name='Custom Website Build',
+            price=Decimal('750'), deposit_amount=Decimal('375'),
+            is_recurring=False, billing_interval='')
+        self._sign()
+        self.website.payment_status = 'deposit_paid'
+        self.website.save(update_fields=['payment_status'])
+        html = self._get().content.decode()
+        self.assertNotIn('Continue to payment', html)

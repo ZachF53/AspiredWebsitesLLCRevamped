@@ -1374,19 +1374,40 @@ def start_contract_payment(contract, amount, *, is_deposit):
 
     from clients.models import OnboardingInvoice, OnboardingToken
 
+    # `contract.client` is the legacy ClientProfile FK and is null on every
+    # contract raised from the Website/Account pages. Reading it here meant
+    # payment could not be started at all for those: the view caught the
+    # AttributeError, got None back, and bounced the client to the generic
+    # "contract signed" page with no way to pay.
     client = contract.client
+    website = contract.website_new
+    account = contract.account
+    owner = client or account
+    if owner is None:
+        logger.error(
+            'start_contract_payment: contract %s has neither client nor '
+            'account — cannot bill anyone.', contract.pk)
+        return None
+
     amount = Decimal(amount)
     label = contract.get_package_display() or 'Website Build'
     desc = f'{label} — {"Deposit (50%)" if is_deposit else "Paid in full"}'
 
-    invoice = OnboardingInvoice.objects.filter(client=client).first()
+    # Find this build's existing unpaid invoice. Keyed on `client` alone,
+    # a null client matched ANY invoice whose legacy FK was unset — i.e.
+    # another account's row — and then overwrote it below.
+    if client is not None:
+        existing = OnboardingInvoice.objects.filter(client=client)
+    elif website is not None:
+        existing = OnboardingInvoice.objects.filter(website_new=website)
+    else:
+        existing = OnboardingInvoice.objects.filter(account_new=account)
+    invoice = existing.order_by('-created_at').first()
     if invoice is not None and invoice.status == 'paid':
         # Already paid — don't re-charge; just hand it back.
         return invoice
 
     line_items = [{'description': desc, 'amount': f'{amount:.2f}'}]
-    website = contract.website_new
-    account = contract.account
     if invoice is None:
         invoice = OnboardingInvoice.objects.create(
             client=client, contract=contract, is_deposit=is_deposit,
@@ -1405,12 +1426,18 @@ def start_contract_payment(contract, amount, *, is_deposit):
             'contract', 'is_deposit', 'account_new', 'website_new',
             'line_items', 'total_amount', 'status', 'updated_at'])
 
+    # Owner-agnostic: Account calls it `name`, ClientProfile `firm_name`.
+    owner_email = (owner.user.email if getattr(owner, 'user_id', None)
+                   else '') or ''
+    owner_name = (getattr(owner, 'firm_name', '')
+                  or getattr(owner, 'name', '') or '')
+
     try:
         customer, payment_intent = create_onboarding_payment_intent(
-            email=(client.user.email if client.user_id else ''),
-            name=client.firm_name,
+            email=owner_email,
+            name=owner_name,
             line_items=[{'description': desc, 'amount': amount}],
-            client_profile_id=client.id,
+            client_profile_id=owner.id,
             invoice_id=invoice.id,
         )
     except StripeNotConfigured:
@@ -1419,8 +1446,8 @@ def start_contract_payment(contract, amount, *, is_deposit):
             contract.pk)
         return None
 
-    client.stripe_customer_id = customer.id
-    client.save(update_fields=['stripe_customer_id', 'updated_at'])
+    owner.stripe_customer_id = customer.id
+    owner.save(update_fields=['stripe_customer_id', 'updated_at'])
 
     invoice.stripe_payment_intent_id = payment_intent.id
     invoice.stripe_client_secret = payment_intent.client_secret
@@ -1431,11 +1458,18 @@ def start_contract_payment(contract, amount, *, is_deposit):
         'status', 'sent_at', 'updated_at'])
 
     # Account-setup token for the post-payment /onboarding/setup/ step.
-    OnboardingToken.objects.get_or_create(client=client)
-    if client.onboarding_status not in (
+    # The token is account-level (account_new); keying it on a null
+    # `client` would have collided every account-based contract onto one
+    # row, since OneToOne treats them all as the same null.
+    if client is not None:
+        OnboardingToken.objects.get_or_create(client=client)
+    elif account is not None:
+        OnboardingToken.objects.get_or_create(account_new=account)
+
+    if owner.onboarding_status not in (
             'pending_intake', 'onboarding_complete'):
-        client.onboarding_status = 'pending_setup'
-        client.save(update_fields=['onboarding_status', 'updated_at'])
+        owner.onboarding_status = 'pending_setup'
+        owner.save(update_fields=['onboarding_status', 'updated_at'])
 
     return invoice
 

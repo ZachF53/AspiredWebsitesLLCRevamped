@@ -31,10 +31,25 @@
 
         {% if already_signed %}
             <div class="audit-email-confirmation" role="status">
-                This contract was signed on
-                {{ contract.signed_at|date:"F j, Y" }} by {{ contract.signed_name }}.
-                No further action is needed — check your email for your invoice.
+                Signed on {{ contract.signed_at|date:"F j, Y" }}
+                by {{ contract.signed_name }}.
             </div>
+
+            {% if awaiting_payment %}
+                <p class="pay-card__sub" style="margin:16px 0;">
+                    One step left — choose how you&rsquo;d like to pay to get
+                    your project started.
+                </p>
+                <a class="btn-primary btn-block"
+                   href="{% url 'clients:contract_pay' contract_token=contract.contract_token %}">
+                    Continue to payment &rarr;
+                </a>
+            {% else %}
+                <p class="pay-card__sub" style="margin-top:16px;">
+                    Your payment is recorded — nothing further is needed.
+                    We&rsquo;ll be in touch with next steps.
+                </p>
+            {% endif %}
         {% else %}
             <p class="pay-card__sub" style="margin-bottom:16px;">
                 Please read the full agreement below. The sign button activates

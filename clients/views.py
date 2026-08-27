@@ -1979,9 +1979,21 @@ def contract_sign(request, contract_token):
     contract = get_object_or_404(Contract, contract_token=contract_token)
 
     if contract.signed:
+        # Signing redirects straight to the payment choice, but anyone
+        # who closes the tab and reopens the emailed link lands back
+        # here. Without a way forward this page was a dead end telling
+        # them to wait for an invoice that the build flow never sends —
+        # they are supposed to choose deposit or pay-in-full themselves.
+        web = contract.website_new
+        paid_status = (getattr(web, 'payment_status', '')
+                       or getattr(contract.client, 'payment_status', '') or '')
+        awaiting_payment = (contract.includes_build
+                            and paid_status not in ('deposit_paid',
+                                                    'fully_paid'))
         return render(request, 'clients/contract_sign.html', {
             'contract': contract,
             'already_signed': True,
+            'awaiting_payment': awaiting_payment,
         })
 
     error = None
