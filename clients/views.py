@@ -3475,8 +3475,15 @@ def portal_referral(request):
 
 
 def _onboarding_first_name(client):
-    """First name for the setup page greeting; falls back to firm name."""
-    raw = (client.contact_name or client.firm_name or '').strip()
+    """First name for the setup page greeting; falls back to the org name.
+
+    `firm_name` exists only on ClientProfile — the Account calls it
+    `name`, and reading the wrong one raises AttributeError mid-greeting
+    on the setup page.
+    """
+    raw = (getattr(client, 'contact_name', '')
+           or getattr(client, 'firm_name', '')
+           or getattr(client, 'name', '') or '').strip()
     return raw.split(' ')[0] if raw else 'there'
 
 
@@ -3500,7 +3507,8 @@ def onboarding_setup(request, token):
 
     onboarding_token = (
         OnboardingToken.objects
-        .select_related('client', 'client__user')
+        .select_related('client', 'client__user',
+                        'account_new', 'account_new__user')
         .filter(token=token)
         .first()
     )
@@ -3512,8 +3520,21 @@ def onboarding_setup(request, token):
             status=404,
         )
 
-    client = onboarding_token.client
-    user = client.user
+    # The token is account-level now (`account_new`); the legacy
+    # `client` FK is null on every token minted for an account-based
+    # build. Reading it alone meant `client.user` raised AttributeError
+    # and the setup page 500'd — the buyer had paid and had nowhere to
+    # go. Account carries the same PIN + onboarding_status columns, so
+    # everything below works unchanged on either.
+    client = onboarding_token.client or onboarding_token.account_new
+    user = getattr(client, 'user', None)
+    if client is None or user is None:
+        return render(
+            request,
+            'clients/onboarding_setup_invalid.html',
+            {},
+            status=404,
+        )
 
     if onboarding_token.used:
         return render(

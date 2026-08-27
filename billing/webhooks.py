@@ -738,7 +738,18 @@ def _on_onboarding_invoice_paid(client, invoice=None):
     # Resend the setup link unless the token has already been used. The
     # admin view sent it once at invoice creation; this catches the
     # case where the prior send failed (e.g. SendGrid was down).
-    token = getattr(client, 'onboarding_token', None)
+    #
+    # `client` is an Account, whose token relation is `onboarding_token_new`
+    # — `onboarding_token` only exists on the legacy ClientProfile, so this
+    # resolved to None and the setup link was never resent. Create it if
+    # missing: without a token the buyer has no route into account setup
+    # at all. (RelatedObjectDoesNotExist subclasses AttributeError, so
+    # getattr's default covers a missing row.)
+    token = (getattr(client, 'onboarding_token_new', None)
+             or getattr(client, 'onboarding_token', None))
+    if token is None:
+        from clients.models import OnboardingToken
+        token, _ = OnboardingToken.objects.get_or_create(account_new=client)
     if token and not token.used:
         try:
             send_onboarding_setup_email(client, token)

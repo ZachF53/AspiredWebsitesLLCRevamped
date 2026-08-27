@@ -18,9 +18,52 @@ def _get_invoice_or_404(token):
     """Lookup helper — fetches the OnboardingInvoice by its payment_token."""
     from clients.models import OnboardingInvoice
     return get_object_or_404(
-        OnboardingInvoice.objects.select_related('client', 'client__user'),
+        OnboardingInvoice.objects.select_related(
+            'client', 'client__user', 'account_new', 'account_new__user'),
         payment_token=token,
     )
+
+
+def _invoice_owner(invoice):
+    """Who paid: the legacy ClientProfile, else the Account.
+
+    `invoice.client` is null on every invoice raised from a contract on
+    the Website/Account pages, which is why the success page greeted
+    people as "Thank you, ." — `client.firm_name` on None.
+    """
+    return invoice.client or invoice.account_new
+
+
+def _owner_name(owner):
+    """ClientProfile calls it firm_name; Account calls it name."""
+    if owner is None:
+        return ''
+    return (getattr(owner, 'firm_name', '')
+            or getattr(owner, 'name', '') or '')
+
+
+def _setup_token(invoice):
+    """The unused OnboardingToken for this buyer, or None.
+
+    The token is a reverse OneToOne on BOTH the legacy profile
+    (`onboarding_token`) and the Account (`onboarding_token_new`).
+    Account-based buyers only ever have the second, so looking only at
+    the first left setup_url empty and the client staring at "we'll be
+    in touch" with no way to set up their account.
+    """
+    from django.core.exceptions import ObjectDoesNotExist
+
+    for owner, attr in ((invoice.client, 'onboarding_token'),
+                        (invoice.account_new, 'onboarding_token_new')):
+        if owner is None:
+            continue
+        try:
+            token_obj = getattr(owner, attr)
+        except ObjectDoesNotExist:
+            continue
+        if token_obj is not None and not token_obj.used:
+            return token_obj
+    return None
 
 
 def pay_invoice(request, token):
@@ -56,12 +99,14 @@ def pay_invoice(request, token):
             f'{settings.SITE_BASE_URL}/pay/{token}/success/'),
     }
 
+    owner = _invoice_owner(invoice)
     return render(
         request,
         'billing/pay_invoice.html',
         {
             'invoice': invoice,
-            'client': invoice.client,
+            'client': owner,
+            'client_name': _owner_name(owner),
             'stripe_config': stripe_config,
         },
     )
@@ -85,16 +130,18 @@ def pay_success(request, token):
     # — if the token isn't there yet, the template falls back to a
     # generic "we'll be in touch" message.
     setup_url = ''
-    token_obj = getattr(invoice.client, 'onboarding_token', None)
-    if token_obj and not token_obj.used:
+    token_obj = _setup_token(invoice)
+    if token_obj is not None:
         setup_url = token_obj.get_setup_url()
 
+    owner = _invoice_owner(invoice)
     return render(
         request,
         'billing/pay_success.html',
         {
             'invoice': invoice,
-            'client': invoice.client,
+            'client': owner,
+            'client_name': _owner_name(owner),
             'setup_url': setup_url,
         },
     )

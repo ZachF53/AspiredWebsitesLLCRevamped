@@ -20,7 +20,7 @@
         <div class="pay-card__head">
             <span class="pay-card__eyebrow">Invoice</span>
             <h1 class="pay-card__title">${{ invoice.total_amount|floatformat:2 }}</h1>
-            <p class="pay-card__sub">Due now · for {{ client.firm_name }}</p>
+            <p class="pay-card__sub">Due now{% if client_name %} · for {{ client_name }}{% endif %}</p>
         </div>
 
         {# Line items #}
