@@ -436,6 +436,8 @@ urlpatterns = [
          views.website_change_stage, name='website_change_stage'),
     path('websites/<uuid:website_id>/send-contract/',
          views.website_send_contract, name='website_send_contract'),
+    path('contracts/<uuid:contract_id>/edit/',
+         views.contract_edit, name='contract_edit'),
     path('websites/<uuid:website_id>/add-plan/',
          views.website_add_plan, name='website_add_plan'),
     path('websites/<uuid:website_id>/intake-complete/',

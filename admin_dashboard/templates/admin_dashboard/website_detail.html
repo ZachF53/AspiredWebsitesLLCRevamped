@@ -178,7 +178,7 @@
         <div class="admin-card__body">
             {% if website_contracts %}
                 <table class="lead-table" style="margin-bottom:1rem;">
-                    <thead><tr><th>Status</th><th>Created</th><th>Signing link</th></tr></thead>
+                    <thead><tr><th>Status</th><th>Created</th><th>Signing link</th><th></th></tr></thead>
                     <tbody>
                         {% for c in website_contracts %}
                             <tr>
@@ -194,9 +194,15 @@
                                 <td>
                                     {% if c.signed %}<span class="muted">—</span>
                                     {% else %}
-                                        <input type="text" class="form-control" readonly onclick="this.select()"
+                                        <input type="text" class="form-control" readonly
                                                style="font-size:.75rem;" value="{{ contract_sign_base }}{{ c.contract_token }}/">
                                     {% endif %}
+                                </td>
+                                <td>
+                                    <a class="btn-secondary btn-sm"
+                                       href="{% url 'admin_dashboard:contract_edit' c.id %}">
+                                        {% if c.signed %}View{% else %}Edit{% endif %}
+                                    </a>
                                 </td>
                             </tr>
                         {% endfor %}

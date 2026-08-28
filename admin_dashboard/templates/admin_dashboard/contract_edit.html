@@ -1,0 +1,135 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Edit Contract — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                {% if contract.website_new %}
+                    <a href="{% url 'admin_dashboard:website_detail' contract.website_new.id %}" class="admin-back-link">&larr; {{ contract.website_new.name }}</a>
+                {% else %}
+                    <a href="{% url 'admin_dashboard:accounts_list' %}" class="admin-back-link">&larr; Accounts</a>
+                {% endif %}
+            </span>
+            <h1 class="admin-page-title">Edit Contract</h1>
+            <p class="muted" style="margin:.25rem 0 0;">
+                {{ contract.account.name|default:"—" }}
+                {% if contract.build_price %}
+                    &middot; ${{ contract.build_price|floatformat:2 }} build
+                    {% if contract.deposit_amount %}(${{ contract.deposit_amount|floatformat:2 }} deposit){% endif %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if contract.signed %}
+        {% comment %}
+            Signed contracts are read-only. signed_content_hash is a
+            SHA-256 of the text as displayed at signing; editing would
+            destroy the proof that nothing changed afterwards.
+        {% endcomment %}
+        <div class="admin-card" style="border-color:#10b981;">
+            <div class="admin-card__body">
+                <h2 class="admin-card__title" style="margin-top:0;">Signed &mdash; read only</h2>
+                <p class="muted" style="margin:0;">
+                    Signed on <strong>{{ contract.signed_at|date:"F j, Y" }}</strong>
+                    by <strong>{{ contract.signed_name }}</strong>{% if contract.signed_ip %}
+                    from {{ contract.signed_ip }}{% endif %}.
+                    The signature is bound to a cryptographic hash of the exact
+                    text below, so it can no longer be edited. To change terms,
+                    send a new contract.
+                </p>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="wd-grid">
+        <div class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Agreement text</h2>
+                <span class="muted">HTML &mdash; {% if contract.signed %}read only{% else %}saved exactly as written{% endif %}</span>
+            </div>
+            <div class="admin-card__body">
+                {% if contract.signed %}
+                    <textarea class="form-control" rows="26" readonly
+                              style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8125rem;line-height:1.5;">{{ contract.contract_text }}</textarea>
+                {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <p class="muted" style="margin-top:0;">
+                            Starts from the generated template. Edit the wording,
+                            add clauses, or delete what doesn&rsquo;t apply &mdash;
+                            headings use <code>&lt;h2&gt;</code>, body copy uses
+                            <code>&lt;p&gt;</code>. Renumber headings yourself if
+                            you add or remove a section.
+                        </p>
+                        <textarea class="form-control" name="contract_text" rows="26"
+                                  style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8125rem;line-height:1.5;">{{ contract.contract_text }}</textarea>
+                        <div class="admin-form-actions" style="margin-top:1rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save changes</button>
+                            <button type="submit" name="action" value="regenerate"
+                                    class="btn-secondary btn-sm">Reset to generated template</button>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">Preview</h2>
+                <span class="muted">What the client sees</span>
+            </div>
+            <div class="admin-card__body">
+                <div class="contract-scroll contract-doc" style="max-height:560px;">
+                    {{ contract.contract_text|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Services on this contract</h2>
+            <span class="muted">Drives “Reset to generated template”</span>
+        </div>
+        <div class="admin-card__body">
+            {% if services %}
+                <table class="lead-table">
+                    <thead><tr><th>Service</th><th>Tier</th><th>Price</th><th>Deposit</th></tr></thead>
+                    <tbody>
+                        {% for s in services %}
+                            <tr>
+                                <td>{{ s.get_service_type_display }}</td>
+                                <td>{{ s.tier_name|default:s.tier_slug }}</td>
+                                <td>${{ s.price|floatformat:2 }}</td>
+                                <td>{% if s.deposit_amount %}${{ s.deposit_amount|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="muted" style="margin:0;">No service lines — “Reset to generated template” is unavailable.</p>
+            {% endif %}
+
+            {% if not contract.signed %}
+                <p class="muted" style="margin:1rem 0 0;">
+                    Signing link (already emailed — edits here are picked up
+                    automatically, no need to resend):
+                </p>
+                {% comment %}
+                    No onclick="this.select()" here — CSP_ADMIN_DASHBOARD
+                    sets script-src 'self', which blocks inline event
+                    handlers as well as inline blocks, so it would be a
+                    dead affordance.
+                {% endcomment %}
+                <input type="text" class="form-control" readonly
+                       style="font-size:.75rem;" value="{{ sign_url }}">
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

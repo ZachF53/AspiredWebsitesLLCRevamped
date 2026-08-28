@@ -3703,6 +3703,109 @@ def website_send_contract(request, website_id):
     return redirect('admin_dashboard:website_detail', website_id=website.id)
 
 
+def _regenerate_contract_text(contract):
+    """Rebuild a contract's text from its ContractService rows.
+
+    Mirrors what website_send_contract / account_send_contract produce,
+    so "Reset to template" gives back exactly the generated wording —
+    including the custom price, name and platform for a build with no
+    ServiceTier behind it. Returns None if there is nothing to rebuild.
+    """
+    from billing.pricing_models import ServiceTier
+    from clients.contract_template import generate_combined_contract_text
+
+    website = contract.website_new
+    services = []
+    for svc in contract.services.all():
+        tier = ServiceTier.objects.filter(slug=svc.tier_slug).first()
+        entry = {'service_type': svc.service_type, 'tier': tier}
+        if svc.service_type == 'build':
+            entry.update({
+                'price': svc.price,
+                'name': svc.tier_name or 'Custom Website Build',
+                'platform': getattr(website, 'build_platform', 'custom'),
+                'weeks': contract.timeline_weeks or 4,
+            })
+        services.append(entry)
+    if not services:
+        return None
+    owner = contract.account or contract.client
+    if owner is None:
+        return None
+    return generate_combined_contract_text(owner, services)
+
+
+@admin_required
+def contract_edit(request, contract_id):
+    """Read and edit a contract's text before it is signed.
+
+    The generated template is the starting point — this is for the
+    per-client wording that a generator can't know about. Everything on
+    the page is the real document: what is saved here is exactly what
+    the client reads, signs, and gets hashed into the audit trail.
+
+    A SIGNED contract is read-only. `signed_content_hash` is a SHA-256
+    of the text as displayed at signing; editing afterwards would break
+    the one thing that proves the document wasn't altered after the
+    fact, which is the whole ESIGN/UETA defence.
+    """
+    from django.contrib import messages as _messages
+
+    from clients.models import Contract
+
+    contract = get_object_or_404(
+        Contract.objects.select_related('account', 'website_new'),
+        id=contract_id)
+
+    if request.method == 'POST':
+        if contract.signed:
+            _messages.error(
+                request,
+                'This contract was signed on '
+                f'{contract.signed_at:%b %d, %Y} and can no longer be '
+                'edited — the signature is bound to the exact text. '
+                'Send a new contract instead.')
+            return redirect(
+                'admin_dashboard:contract_edit', contract_id=contract.id)
+
+        if (request.POST.get('action') or '').strip() == 'regenerate':
+            text = _regenerate_contract_text(contract)
+            if not text:
+                _messages.error(
+                    request,
+                    'Could not rebuild this contract — it has no service '
+                    'lines to generate from.')
+            else:
+                contract.contract_text = text
+                contract.save(update_fields=['contract_text', 'updated_at'])
+                _messages.success(
+                    request, 'Contract reset to the generated template.')
+        else:
+            text = (request.POST.get('contract_text') or '').strip()
+            if not text:
+                _messages.error(request, 'Contract text cannot be empty.')
+            else:
+                contract.contract_text = text
+                contract.save(update_fields=['contract_text', 'updated_at'])
+                _messages.success(
+                    request,
+                    'Contract saved. The client sees this immediately — '
+                    'the signing link does not need resending.')
+        return redirect(
+            'admin_dashboard:contract_edit', contract_id=contract.id)
+
+    sign_url = request.build_absolute_uri(
+        reverse('clients:contract_sign', args=[contract.contract_token]))
+    return render(
+        request, 'admin_dashboard/contract_edit.html',
+        _admin_context(
+            'accounts',
+            contract=contract,
+            services=list(contract.services.all()),
+            sign_url=sign_url,
+        ))
+
+
 @admin_required
 @require_POST
 def website_add_plan(request, website_id):

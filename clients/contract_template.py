@@ -150,17 +150,29 @@ def generate_combined_contract_text(client, services):
     has_recurring = maintenance is not None or social is not None
 
     # ── Conditional clauses ──
+    #
+    # Section numbers are assigned at render time, not written into the
+    # headings. Ownership, Revisions and Recurring Services are all
+    # conditional, but their numbers used to be hardcoded 4/5/6 — so a
+    # build-only agreement (no recurring plan) ran 1,2,3,4,5,7,8,9,10 and
+    # a maintenance-only one skipped 4 and 5. The cross-reference in
+    # Signatures ("see Section 9") was hardcoded too and drifted with it.
+    # Keyed on whether a BUILD WAS SOLD, not on whether a ServiceTier
+    # object exists. `build` is the tier, and a custom-priced build has
+    # no tier — so these three clauses silently vanished from every
+    # custom contract. T-Bear's live agreement went out with no
+    # ownership clause (the site stays ours until final payment — the
+    # single most important term we have), no revision limit, and no
+    # out-of-scope hourly rate.
     ownership = ''
     revisions = ''
-    if build is not None:
+    if build_svc is not None:
         ownership = """
-  <h2>4. Ownership</h2>
   <p>All build work product, including the website and its source code, remains
   the property of Aspired Websites LLC until the final build payment has cleared
   in full, at which point ownership transfers to the Client. The Client owns
   their domain name at all times.</p>"""
         revisions = f"""
-  <h2>5. Revisions &amp; Out-of-Scope Work</h2>
   <p>The build includes <strong>two (2) major revisions</strong>. Additional
   major revisions, post-launch changes, and any work outside the scope above
   are billed at <strong>{hourly_rate} per hour</strong>, quoted and invoiced
@@ -169,45 +181,37 @@ def generate_combined_contract_text(client, services):
     recurring_clause = ''
     if has_recurring:
         recurring_clause = """
-  <h2>6. Recurring Services</h2>
   <p>Maintenance and social media plans are <strong>month-to-month</strong>,
   billed monthly through Stripe, and may be cancelled at any time with
   <strong>30 days&rsquo; written notice</strong>. There are no annual contracts
   and no long-term lock-in.</p>"""
 
-    return f"""
-<div class="contract-doc">
-  <h1>Services Agreement</h1>
-  <p class="contract-doc__meta">Aspired Websites LLC &mdash; {LOCATION_STATEMENT}</p>
-
-  <h2>1. Parties</h2>
+    # (heading, body) in document order. A body of '' drops the section
+    # entirely, and numbering closes up behind it.
+    sections = [
+        ('Parties', f"""
   <p>This Services Agreement (the &ldquo;Agreement&rdquo;) is entered into
   between <strong>Aspired Websites LLC</strong> (&ldquo;Aspired Websites,&rdquo;
   &ldquo;we,&rdquo; &ldquo;us&rdquo;) and <strong>{firm}</strong>
-  (&ldquo;Client,&rdquo; &ldquo;you&rdquo;), represented by {client_name}.</p>
-
-  <h2>2. Services &amp; Pricing</h2>
+  (&ldquo;Client,&rdquo; &ldquo;you&rdquo;), represented by {client_name}.</p>"""),
+        ('Services &amp; Pricing', f"""
   <p>Aspired Websites will provide the following service(s) to the Client:</p>
-{services_section}
-
-  <h2>3. Payment</h2>
+{services_section}"""),
+        ('Payment', """
   <p>All invoices are issued and paid through Stripe. One-time build work does
   not begin until the deposit has cleared. Recurring plans begin on activation
-  and bill on a monthly cycle.</p>
-{ownership}
-{revisions}
-{recurring_clause}
-
-  <h2>7. 30-Day Money-Back Guarantee (Build)</h2>
+  and bill on a monthly cycle.</p>"""),
+        ('Ownership', ownership),
+        ('Revisions &amp; Out-of-Scope Work', revisions),
+        ('Recurring Services', recurring_clause),
+        ('30-Day Money-Back Guarantee (Build)', """
   <p>If the Client is not satisfied with a website build, they may request a
   full refund of the build fee within <strong>30 days</strong> of signing this
-  Agreement.</p>
-
-  <h2>8. Governing Law</h2>
+  Agreement.</p>""" if build_svc is not None else ''),
+        ('Governing Law', """
   <p>This Agreement is governed by and construed in accordance with the laws of
-  the <strong>State of Georgia</strong>.</p>
-
-  <h2>9. Electronic Signature Consent (ESIGN / UETA)</h2>
+  the <strong>State of Georgia</strong>.</p>"""),
+        ('Electronic Signature Consent (ESIGN / UETA)', """
   <p>By typing your name and submitting the signature form on the prior page,
   you (the Client) acknowledge and agree that:</p>
   <ul>
@@ -227,16 +231,40 @@ def generate_combined_contract_text(client, services):
   </ul>
   <p>This Agreement is intended to satisfy the federal <strong>ESIGN Act</strong>
   and the <strong>Uniform Electronic Transactions Act (UETA)</strong> as adopted
-  in Texas and Georgia.</p>
+  in Texas and Georgia.</p>"""),
+    ]
 
-  <h2>10. Signatures</h2>
+    rendered = []
+    number = 0
+    esign_number = 0
+    for heading, body in sections:
+        if not (body or '').strip():
+            continue
+        number += 1
+        if heading.startswith('Electronic Signature Consent'):
+            esign_number = number
+        rendered.append(f'  <h2>{number}. {heading}</h2>{body}')
+
+    # Signatures always closes the document, and its cross-reference has
+    # to track whatever number the ESIGN section actually landed on.
+    number += 1
+    esign_ref = (f', including the Electronic Signature Consent in Section '
+                 f'{esign_number}' if esign_number else '')
+    rendered.append(f"""  <h2>{number}. Signatures</h2>
   <p>By signing below, the Client acknowledges they have read, understood, and
-  agreed to all terms of this Agreement, including the Electronic Signature
-  Consent in Section 9.</p>
+  agreed to all terms of this Agreement{esign_ref}.</p>
   <div class="contract-doc__sigblock">
     <p><strong>Aspired Websites LLC</strong><br>Zachery Long, Owner</p>
     <p><strong>Client:</strong> {firm}<br>Signed electronically &mdash; see signature record below.</p>
-  </div>
+  </div>""")
+
+    body_html = '\n\n'.join(rendered)
+    return f"""
+<div class="contract-doc">
+  <h1>Services Agreement</h1>
+  <p class="contract-doc__meta">Aspired Websites LLC &mdash; {LOCATION_STATEMENT}</p>
+
+{body_html}
 </div>
 """.strip()
 
