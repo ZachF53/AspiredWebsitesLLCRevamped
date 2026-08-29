@@ -126,7 +126,8 @@ def budget_status():
 # ── The one entry point ────────────────────────────────────────────────
 
 def run_lead_search(niche, city, state=None, max_results=None,
-                    job_titles=None, label='', timeout_secs=RUN_TIMEOUT_SECS):
+                    job_titles=None, label='', timeout_secs=RUN_TIMEOUT_SECS,
+                    business_type=None):
     """Start an Apify run, wait for it, return dicts for ``import_leads``.
 
     Returns ``(leads, apify_run)``. Raises ``ApifyQuotaReached`` when a
@@ -182,7 +183,8 @@ def run_lead_search(niche, city, state=None, max_results=None,
     run_input = build_actor_input(
         niche=niche, city=city, state=state,
         fetch_count=requested, job_titles=job_titles,
-        label=label or f'{niche} in {city}')
+        label=label or f'{niche} in {city}',
+        business_type=business_type)
 
     # Cost is recorded BEFORE the call. A run that dies mid-flight still
     # consumed compute; costing it only on success under-reports exactly
@@ -223,7 +225,8 @@ def run_lead_search(niche, city, state=None, max_results=None,
         logger.error('Apify actor refused the run: %s', exc)
         raise
 
-    kept, rejected = screen_contacts(items, target_state=state)
+    kept, rejected = screen_contacts(
+        items, target_state=state, target_business_type=business_type)
     for row, reason in rejected:
         logger.info('Apify ICP screen rejected %s (%s): %s',
                     row.get('full_name') or '?',
@@ -250,7 +253,8 @@ def run_lead_search(niche, city, state=None, max_results=None,
     return leads, ledger
 
 
-def import_from_dataset(dataset_id, label='', target_state=None):
+def import_from_dataset(dataset_id, label='', target_state=None,
+                        target_business_type=None):
     """Import leads from a dataset produced by a UI-triggered run.
 
     THE FREE-PLAN PATH. ``code_crafter/leads-finder`` refuses
@@ -296,7 +300,9 @@ def import_from_dataset(dataset_id, label='', target_state=None):
     # The same screen as the API path. A UI-triggered run is sourced from
     # the identical actor and is no more trustworthy for being pasted in
     # by hand — a filter that guards only one door is not a filter.
-    kept, rejected = screen_contacts(items, target_state=target_state)
+    kept, rejected = screen_contacts(
+        items, target_state=target_state,
+        target_business_type=target_business_type)
     for row, reason in rejected:
         logger.info('Apify ICP screen rejected %s (%s): %s',
                     row.get('full_name') or '?',
@@ -314,7 +320,7 @@ def import_from_dataset(dataset_id, label='', target_state=None):
 
 
 def build_actor_input(niche, city, state=None, fetch_count=50,
-                      job_titles=None, label=''):
+                      job_titles=None, label='', business_type=None):
     """Map our search terms onto the actor's real input schema.
 
     Field names and enum values verified against the live build
@@ -357,6 +363,14 @@ def build_actor_input(niche, city, state=None, fetch_count=50,
         payload['contact_city'] = [city]
     if niche:
         payload['company_keywords'] = [niche]
+    # `company_keywords` is free text and matches companies that SERVE
+    # the niche as readily as the niche itself. A 2026-08-29 run for
+    # 'law firm' returned a legal-staffing agency and a legal-marketing
+    # consultancy — both correctly blocked at push, both after paying to
+    # verify and personalise them. The industry enum is exact.
+    industries = industries_for_business_type(business_type)
+    if industries:
+        payload['company_industry'] = industries
     return payload
 
 
@@ -419,7 +433,8 @@ def _title_tokens(title):
     return {t for t in re.split(r'[^a-z0-9]+', (title or '').lower()) if t}
 
 
-def screen_contact(item, target_state=None, max_size=None):
+def screen_contact(item, target_state=None, max_size=None,
+                   target_business_type=None):
     """Why this row is not an ICP match. '' means it is.
 
     Fails closed on the size check only when a size is actually
@@ -457,10 +472,20 @@ def screen_contact(item, target_state=None, max_size=None):
             return (f'Company is in {raw or "an unknown state"}; '
                     f'targeting {want}.')
 
+    if target_business_type:
+        # Compared through normalise_business_type, the same function the
+        # mapper uses, so this screen and the push-time segment gate
+        # always reach the same verdict about the same row.
+        got_type = normalise_business_type(item.get('industry'))
+        if got_type.strip().lower() != target_business_type.strip().lower():
+            return (f'{item.get("company_name") or "Company"} is '
+                    f'{got_type or "an unknown industry"}; '
+                    f'targeting {target_business_type}.')
+
     return ''
 
 
-def screen_contacts(items, target_state=None):
+def screen_contacts(items, target_state=None, target_business_type=None):
     """Split rows into (kept, rejections). Rejections are [(row, reason)].
 
     Never silent — the caller logs the count and writes it to the run
@@ -471,7 +496,9 @@ def screen_contacts(items, target_state=None):
     for it in items:
         if not isinstance(it, dict):
             continue
-        reason = screen_contact(it, target_state=target_state)
+        reason = screen_contact(
+            it, target_state=target_state,
+            target_business_type=target_business_type)
         (rejected.append((it, reason)) if reason else kept.append(it))
     return kept, rejected
 
@@ -516,6 +543,41 @@ def normalise_business_type(industry):
     if not raw:
         return ''
     return _BUSINESS_TYPE_MAP.get(raw.lower(), raw.title())
+
+
+# Values the actor's `company_industry` enum actually accepts, verified
+# against the live build 2026-08-29. _BUSINESS_TYPE_MAP also carries our
+# own normalisation spellings ('attorney', 'legal', 'dental') which are
+# NOT Apollo values — sending one would be an invalid enum — so the two
+# sets are intersected below rather than used interchangeably.
+_ACTOR_INDUSTRY_ENUM = frozenset({
+    'law practice', 'legal services', 'accounting', 'financial services',
+    'medical practice', 'hospital & health care', 'mental health care',
+    'health, wellness & fitness', 'alternative medicine',
+    'marketing & advertising', 'staffing & recruiting',
+})
+
+
+def industries_for_business_type(business_type):
+    """Apollo industry values that normalise to ``business_type``.
+
+    DERIVED from _BUSINESS_TYPE_MAP, never written out separately, so
+    the actor filter and the segment gate cannot disagree. Every value
+    sent to the actor is one `normalise_business_type` maps back to the
+    type the campaign wants; if it did not, the lead would be fetched,
+    verified, personalised, and then blocked at push having cost money
+    at every stage.
+
+    Returns [] when nothing maps, which means "do not constrain" — a
+    niche we have no mapping for is better sourced broadly and screened
+    than silently sourced as nothing.
+    """
+    want = (business_type or '').strip().lower()
+    if not want:
+        return []
+    derived = {k for k, v in _BUSINESS_TYPE_MAP.items()
+               if v.strip().lower() == want}
+    return sorted(derived & _ACTOR_INDUSTRY_ENUM)
 
 
 def map_contact_to_lead(item):

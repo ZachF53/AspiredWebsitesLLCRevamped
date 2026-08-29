@@ -373,7 +373,9 @@ def _start_scrape(tool_input):
     try:
         leads, ledger = run_lead_search(
             niche=niche, city=city, state=state, max_results=limit,
-            label=f'{niche} in {city}, {state} (Prospect)')
+            label=f'{niche} in {city}, {state} (Prospect)',
+            business_type=(tool_input.get('business_type')
+                           or niche.title()))
     except ApifyQuotaReached as exc:
         return {'scraped': False, 'quota_reached': True, 'reason': str(exc)}
     except ApifyActorRefused as exc:

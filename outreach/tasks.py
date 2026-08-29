@@ -191,7 +191,11 @@ def run_scrape_jobs_task():
                 try:
                     raw, _ledger = run_lead_search(
                         niche=job.niche, city=job.city, state=job.state,
-                        max_results=job.max_results, label=job.name)
+                        max_results=job.max_results, label=job.name,
+                        # Same value import_leads stamps below, so the
+                        # industry filter, the ICP screen and the
+                        # push-time segment gate all judge by one type.
+                        business_type=job.niche.title())
                 except ApifyQuotaReached as exc:
                     logger.info('scrape job %s: %s', job.pk, exc)
                     job.last_run_at = timezone.now()

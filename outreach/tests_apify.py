@@ -626,3 +626,85 @@ class ActorInputICPTests(TestCase):
         self.assertEqual(
             build_actor_input('law firm', 'Austin', fetch_count=25)
             ['fetch_count'], 25)
+
+
+class IndustryFilterTests(TestCase):
+    """`company_keywords` is free text and matches companies that SERVE
+    the niche. A 2026-08-29 run for 'law firm' in TX returned a legal
+    staffing agency and a legal marketing consultancy alongside real
+    firms. Both were blocked at push — after being verified and
+    personalised at our expense.
+    """
+
+    STAFFING = {
+        'company_name': 'Newhouse + Noblin Llc', 'full_name': 'Russell Newhouse',
+        'job_title': 'Owner', 'email': 'rnewhouse@nnlegalsearch.com',
+        'industry': 'Staffing & Recruiting', 'company_size': 4,
+        'company_city': 'Dallas', 'company_state': 'Texas',
+    }
+    MARKETING = {
+        'company_name': 'Stacey E. Burke, P.c.', 'full_name': 'Stacey Burke',
+        'job_title': 'Owner', 'email': 'stacey@staceyeburke.com',
+        'industry': 'Marketing & Advertising', 'company_size': 6,
+        'company_city': 'Houston', 'company_state': 'Texas',
+    }
+    LAW_FIRM = {
+        'company_name': 'Toler Law Group Pc', 'full_name': 'Jeff Toler',
+        'job_title': 'Owner', 'email': 'jtoler@tlgiplaw.com',
+        'industry': 'Law Practice', 'company_size': 11,
+        'company_city': 'Austin', 'company_state': 'Texas',
+    }
+
+    def test_law_firm_maps_to_the_actors_own_enum_values(self):
+        self.assertEqual(
+            apify_source.industries_for_business_type('Law Firm'),
+            ['law practice', 'legal services'])
+
+    def test_our_normalisation_spellings_are_never_sent(self):
+        """_BUSINESS_TYPE_MAP also holds 'attorney', 'legal', 'law firm'.
+        Those are inputs to OUR normalisation, not Apollo values — the
+        actor would reject them as invalid enum members."""
+        sent = apify_source.industries_for_business_type('Law Firm')
+        for bogus in ('attorney', 'attorneys', 'legal', 'law firm'):
+            self.assertNotIn(bogus, sent)
+
+    def test_every_sourced_industry_normalises_back_to_the_target(self):
+        """The invariant that keeps the actor filter and the push-time
+        segment gate from ever disagreeing. If a value we ask the actor
+        for normalises to a different business_type, that lead is fetched
+        and paid for and then blocked at the gate."""
+        for wanted in ('Law Firm', 'Accounting', 'Financial Services',
+                       'Medical Practice'):
+            for industry in apify_source.industries_for_business_type(wanted):
+                self.assertEqual(
+                    apify_source.normalise_business_type(industry), wanted,
+                    f'{industry!r} would be sourced for {wanted!r} and then '
+                    f'blocked at push')
+
+    def test_unmapped_type_does_not_constrain(self):
+        """No mapping means source broadly and screen, not source
+        nothing."""
+        self.assertEqual(
+            apify_source.industries_for_business_type('Yoga Studio'), [])
+        payload = build_actor_input('yoga', 'Austin', 'TX',
+                                    business_type='Yoga Studio')
+        self.assertNotIn('company_industry', payload)
+
+    def test_industry_is_sent_to_the_actor(self):
+        payload = build_actor_input('law firm', 'Austin', 'TX',
+                                    business_type='Law Firm')
+        self.assertEqual(payload['company_industry'],
+                         ['law practice', 'legal services'])
+
+    def test_adjacent_industries_are_screened_before_the_paid_stages(self):
+        for row in (self.STAFFING, self.MARKETING):
+            reason = apify_source.screen_contact(
+                row, target_state='TX', target_business_type='Law Firm')
+            self.assertIn('targeting Law Firm', reason)
+        self.assertEqual(apify_source.screen_contact(
+            self.LAW_FIRM, target_state='TX',
+            target_business_type='Law Firm'), '')
+
+    def test_no_target_type_means_no_industry_constraint(self):
+        self.assertEqual(
+            apify_source.screen_contact(self.STAFFING, target_state='TX'), '')
