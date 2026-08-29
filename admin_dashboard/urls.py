@@ -540,6 +540,23 @@ urlpatterns = [
     path('ai-employees/action/<int:action_id>/decide/',
          views.ai_action_decide, name='ai_action_decide'),
 
+    # Chat with an agent (§5.1). `chat/` opens the most recent thread;
+    # `chat/<id>/` opens a specific one from the history sidebar.
+    path('ai-employees/<slug:slug>/chat/', views.ai_employee_chat,
+         name='ai_employee_chat'),
+    path('ai-employees/<slug:slug>/chat/new/', views.ai_chat_new,
+         name='ai_chat_new'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/',
+         views.ai_employee_chat, name='ai_employee_chat_thread'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/send/',
+         views.ai_chat_send, name='ai_chat_send'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/thread/',
+         views.ai_chat_thread_fragment, name='ai_chat_thread_fragment'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/archive/',
+         views.ai_chat_archive, name='ai_chat_archive'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/rename/',
+         views.ai_chat_rename, name='ai_chat_rename'),
+
     # System Alerts — X3 error visibility
     path('alerts/',
          __import__('core.system_alerts_views',

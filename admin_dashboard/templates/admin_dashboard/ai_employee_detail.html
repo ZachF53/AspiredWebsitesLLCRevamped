@@ -61,6 +61,16 @@
                     title="{{ runtime_pending_reason }}">Wake now</button>
             <small>Disabled until the agent runtime exists.</small>
         {% endif %}
+
+        {% comment %}
+        "Wake now" runs the scheduled cycle and reports back in the run
+        log below. Chat is the other direction — you ask, it answers, and
+        it remembers the thread. Both are ordinary runs and both show up
+        in the same log and spend ledger.
+        {% endcomment %}
+        <a class="btn" href="{% url 'admin_dashboard:ai_employee_chat' slug=employee.slug %}">
+            Chat with {{ employee.name }}
+        </a>
     </section>
 
     <section class="admin-section">

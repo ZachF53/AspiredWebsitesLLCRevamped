@@ -33,6 +33,7 @@ import logging
 from django.contrib import messages
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from admin_dashboard.context import _admin_context
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 from admin_dashboard.models import (
     AIEmployee,
     AIEmployeeAction,
+    AIEmployeeConversation,
     AIEmployeeRun,
     AIEmployeeTask,
 )
@@ -250,3 +252,165 @@ def ai_action_decide(request, action_id):
     return redirect(
         'admin_dashboard:ai_employee_detail',
         slug=action.run.employee.slug)
+
+
+# ── Chat (COLD_OUTREACH_AGENT.md §5.1) ─────────────────────────────────
+#
+# Talking to Prospect rather than reading what it did overnight. Every
+# message is a normal AIEmployeeRun with trigger='chat', so the spend
+# ledger, the action log and the approval queue all keep working with no
+# parallel machinery.
+#
+# WHY THE ANSWER ARRIVES BY POLLING
+# A turn makes several Claude calls and can take a minute. Doing that in
+# the POST would hold a gunicorn worker and time out behind nginx at 30s.
+# So: the POST records your message and queues the work, then the
+# messages fragment polls itself until the run stops running. The
+# fragment carries its own hx-trigger only while a turn is in flight, so
+# an idle thread makes no requests at all.
+
+
+def _conversation(slug, conversation_id):
+    return get_object_or_404(
+        AIEmployeeConversation,
+        pk=conversation_id, employee__slug=slug)
+
+
+def _thread_context(conversation, error=''):
+    """What both the full page and the polled fragment need."""
+    from outreach.agent_chat import render_transcript
+
+    pending = conversation.runs.filter(status='running').exists()
+    last_failed = (conversation.runs.filter(status='failed')
+                   .order_by('-started_at').first())
+    return {
+        'conversation': conversation,
+        'transcript': render_transcript(conversation.messages),
+        'pending': pending,
+        'chat_error': error,
+        # Surfaced only when it is the most recent thing that happened,
+        # so an old failure does not sit under a healthy thread forever.
+        'last_failure': (
+            last_failed if (last_failed and not pending
+                            and last_failed == conversation.runs.first())
+            else None),
+    }
+
+
+def _conversation_list(employee):
+    return list(
+        AIEmployeeConversation.objects
+        .filter(employee=employee, archived=False)
+        .order_by('-updated_at')[:50]
+    )
+
+
+@admin_required
+def ai_employee_chat(request, slug, conversation_id=None):
+    """The chat page: thread history on the left, one conversation open."""
+    employee = get_object_or_404(AIEmployee, slug=slug)
+    conversations = _conversation_list(employee)
+
+    conversation = None
+    if conversation_id is not None:
+        conversation = _conversation(slug, conversation_id)
+    elif conversations:
+        conversation = conversations[0]
+
+    ctx = {'conversation': None, 'transcript': [], 'pending': False,
+           'chat_error': '', 'last_failure': None}
+    if conversation is not None:
+        ctx = _thread_context(conversation)
+
+    return render(request, 'admin_dashboard/ai_employee_chat.html',
+                  _admin_context(
+                      active='ai_employees',
+                      employee=employee,
+                      conversations=conversations,
+                      runtime_ready=RUNTIME_READY,
+                      **ctx))
+
+
+@admin_required
+@require_POST
+def ai_chat_new(request, slug):
+    """Start an empty thread and open it."""
+    from outreach.agent_chat import start_conversation
+
+    employee = get_object_or_404(AIEmployee, slug=slug)
+    conversation = start_conversation(employee=employee, user=request.user)
+    return redirect('admin_dashboard:ai_employee_chat_thread',
+                    slug=slug, conversation_id=conversation.pk)
+
+
+@admin_required
+@require_POST
+def ai_chat_send(request, slug, conversation_id):
+    """Record a message and queue the turn that answers it."""
+    from outreach.agent_chat import queue_turn
+
+    conversation = _conversation(slug, conversation_id)
+
+    # One turn at a time. Two in flight would race on
+    # conversation.messages and the loser's answer would vanish.
+    if conversation.runs.filter(status='running').exists():
+        return render(request, 'admin_dashboard/_chat_thread.html',
+                      _thread_context(
+                          conversation,
+                          error='Prospect is still answering — wait for '
+                                'this reply before sending another.'))
+
+    run, error = queue_turn(conversation, request.POST.get('message'))
+    if error:
+        return render(request, 'admin_dashboard/_chat_thread.html',
+                      _thread_context(conversation, error=error))
+
+    from outreach.tasks import run_chat_turn_task
+    try:
+        run_chat_turn_task.delay(run.pk)
+    except Exception as exc:  # noqa: BLE001
+        # Almost always Redis. Fail the run rather than leaving it
+        # 'running' forever with the fragment polling a corpse.
+        logger.exception('could not queue chat turn %s', run.pk)
+        run.status = 'failed'
+        run.summary = (
+            f'Could not queue the reply — the task broker did not accept '
+            f'it ({exc}). Check Redis and the Celery worker.')
+        run.finished_at = timezone.now()
+        run.save(update_fields=['status', 'summary', 'finished_at'])
+
+    conversation.refresh_from_db()
+    return render(request, 'admin_dashboard/_chat_thread.html',
+                  _thread_context(conversation))
+
+
+@admin_required
+def ai_chat_thread_fragment(request, slug, conversation_id):
+    """The polled fragment. Stops polling itself once the run finishes."""
+    conversation = _conversation(slug, conversation_id)
+    return render(request, 'admin_dashboard/_chat_thread.html',
+                  _thread_context(conversation))
+
+
+@admin_required
+@require_POST
+def ai_chat_archive(request, slug, conversation_id):
+    """Hide a thread from the sidebar. Never deletes — the runs, actions
+    and spend attached to it stay auditable."""
+    conversation = _conversation(slug, conversation_id)
+    conversation.archived = True
+    conversation.save(update_fields=['archived', 'updated_at'])
+    messages.success(request, 'Conversation archived.')
+    return redirect('admin_dashboard:ai_employee_chat', slug=slug)
+
+
+@admin_required
+@require_POST
+def ai_chat_rename(request, slug, conversation_id):
+    conversation = _conversation(slug, conversation_id)
+    title = (request.POST.get('title') or '').strip()
+    if title:
+        conversation.title = title[:120]
+        conversation.save(update_fields=['title', 'updated_at'])
+    return redirect('admin_dashboard:ai_employee_chat_thread',
+                    slug=slug, conversation_id=conversation.pk)

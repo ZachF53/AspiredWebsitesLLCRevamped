@@ -165,6 +165,57 @@ class AIEmployee(models.Model):
         return f'{self.name} ({"active" if self.active else "paused"})'
 
 
+class AIEmployeeConversation(models.Model):
+    """One chat thread with an agent — §5.1's "future-proofed, not built".
+
+    A RUN is one execution of the agent loop. A CONVERSATION is a thread
+    of them: every message you send starts a new run, linked here, so the
+    chat inherits the run log, the spend ledger and the approval queue
+    rather than growing a parallel set of each.
+
+    ``messages`` is the canonical thread in Anthropic wire shape and is
+    what gets passed back to ``claude_agent_loop`` as ``prior_messages``.
+    It holds real tool_use / tool_result blocks and thinking signatures,
+    not rendered text — reconstructing those from display strings is
+    lossy and the API rejects a turn whose ids do not pair up.
+
+    The rendered transcript is derived from this on read. There is
+    deliberately no second "display messages" column: two copies of the
+    same conversation drift, and the wire format is the one the model
+    must agree with.
+    """
+
+    employee = models.ForeignKey(
+        AIEmployee, on_delete=models.CASCADE, related_name='conversations')
+    title = models.CharField(
+        max_length=120, blank=True,
+        help_text='Auto-titled from your first message; editable.')
+    messages = models.JSONField(default=list, blank=True)
+
+    started_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+')
+    archived = models.BooleanField(default=False, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Ordering key for the history sidebar — bumped on every turn, so a
+    # thread you came back to yesterday sits above one you abandoned last
+    # month regardless of when either started.
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = 'AI Conversation'
+        verbose_name_plural = 'AI Conversations'
+
+    def __str__(self):
+        return self.title or f'Conversation {self.pk}'
+
+    @property
+    def display_title(self):
+        return self.title or 'New conversation'
+
+
 class AIEmployeeRun(models.Model):
     """One row per wake-up cycle — the running log."""
 
@@ -172,6 +223,7 @@ class AIEmployeeRun(models.Model):
         ('scheduled', 'Scheduled'),
         ('manual', 'Manual'),
         ('reply_webhook', 'Reply'),
+        ('chat', 'Chat'),
     ]
     STATUS_CHOICES = [
         ('running', 'Running'),
@@ -181,6 +233,11 @@ class AIEmployeeRun(models.Model):
 
     employee = models.ForeignKey(
         AIEmployee, on_delete=models.CASCADE, related_name='runs')
+    # Set for trigger='chat'. Null for scheduled and manual runs, which
+    # belong to no thread.
+    conversation = models.ForeignKey(
+        AIEmployeeConversation, on_delete=models.CASCADE,
+        related_name='runs', null=True, blank=True)
     trigger = models.CharField(max_length=20, choices=TRIGGER_CHOICES)
     started_at = models.DateTimeField(auto_now_add=True, db_index=True)
     finished_at = models.DateTimeField(null=True, blank=True)

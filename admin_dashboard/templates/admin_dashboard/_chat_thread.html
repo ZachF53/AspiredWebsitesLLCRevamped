@@ -1,0 +1,72 @@
+{% comment %}
+One conversation's messages, plus the in-flight indicator.
+
+This fragment is both the initial render and what the poll swaps in, so
+it must be able to describe every state of a thread on its own: empty,
+answered, still thinking, and failed.
+
+The polling element exists ONLY while a turn is in flight. An idle thread
+therefore issues no requests at all — the poll stops because the markup
+that polls stops being rendered, not because a script decided to.
+{% endcomment %}
+
+{% if chat_error %}
+    <div class="chat-note chat-note--warn" role="status">{{ chat_error }}</div>
+{% endif %}
+
+{% if not transcript and not pending %}
+    <div class="chat-empty">
+        <p><strong>Ask Prospect something.</strong></p>
+        <p class="muted">
+            It can read the funnel, per-city progress, campaign arms and
+            lead counts, and answer from real numbers. It cannot spend
+            money or send mail from here — anything that would costs money
+            gets filed for your approval instead.
+        </p>
+    </div>
+{% endif %}
+
+{% for item in transcript %}
+    {% if item.kind == 'user' %}
+        <div class="chat-msg chat-msg--you">
+            <div class="chat-msg__who">You</div>
+            <div class="chat-msg__body">{{ item.text|linebreaksbr }}</div>
+        </div>
+    {% elif item.kind == 'assistant' %}
+        <div class="chat-msg chat-msg--agent">
+            <div class="chat-msg__who">{{ conversation.employee.name }}</div>
+            <div class="chat-msg__body">{{ item.text|linebreaksbr }}</div>
+        </div>
+    {% else %}
+        <div class="chat-tool" title="{{ item.tool_input }}">
+            <span class="chat-tool__dot"></span>
+            read <code>{{ item.tool_name }}</code>
+        </div>
+    {% endif %}
+{% endfor %}
+
+{% if pending %}
+    {% comment %}
+    Polls the same fragment back into its own container. Two seconds is
+    slow enough not to hammer gunicorn and fast enough that a short
+    answer does not feel stuck.
+    {% endcomment %}
+    <div class="chat-msg chat-msg--agent chat-thinking"
+         hx-get="{% url 'admin_dashboard:ai_chat_thread_fragment' slug=conversation.employee.slug conversation_id=conversation.pk %}"
+         hx-trigger="every 2s"
+         hx-target="#chat-thread"
+         hx-swap="innerHTML">
+        <div class="chat-msg__who">{{ conversation.employee.name }}</div>
+        <div class="chat-msg__body muted">
+            <span class="chat-dots"><i></i><i></i><i></i></span>
+            thinking&hellip;
+        </div>
+    </div>
+{% endif %}
+
+{% if last_failure %}
+    <div class="chat-note chat-note--error" role="alert">
+        <strong>That turn failed.</strong>
+        {{ last_failure.summary|default:"No detail was recorded." }}
+    </div>
+{% endif %}

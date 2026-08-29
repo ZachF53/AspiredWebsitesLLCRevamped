@@ -1,0 +1,235 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Chat — {{ employee.name }} — Admin{% endblock %}
+
+{% block extra_head %}
+<style>
+{% comment %}
+Scoped to .chat-* so nothing here can leak into the rest of the admin.
+Uses the existing palette variables rather than new colours — this is
+the same dashboard, not a separate product.
+{% endcomment %}
+.chat-layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .chat-layout { grid-template-columns: 1fr; }
+    .chat-history { order: 2; }
+}
+
+.chat-history__list { display: flex; flex-direction: column; gap: .15rem; }
+.chat-history__item {
+    display: block;
+    padding: .5rem .6rem;
+    border-radius: 6px;
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: .88rem;
+    line-height: 1.35;
+    border: 1px solid transparent;
+}
+.chat-history__item:hover { background: rgba(255, 255, 255, .05); }
+.chat-history__item--active {
+    background: var(--color-orange-glow);
+    border-color: var(--color-orange);
+}
+.chat-history__when {
+    display: block;
+    font-size: .72rem;
+    color: var(--color-text-muted);
+    margin-top: .15rem;
+}
+
+.chat-window {
+    display: flex;
+    flex-direction: column;
+    min-height: 60vh;
+    max-height: 74vh;
+}
+.chat-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: .25rem .25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+}
+
+.chat-msg { max-width: 46rem; }
+.chat-msg--you { align-self: flex-end; text-align: right; }
+.chat-msg__who {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--color-text-muted);
+    margin-bottom: .2rem;
+}
+.chat-msg__body {
+    padding: .6rem .8rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, .03);
+    line-height: 1.5;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.chat-msg--you .chat-msg__body {
+    background: var(--color-orange-glow);
+    border-color: rgba(232, 101, 10, .35);
+}
+
+.chat-tool {
+    font-size: .78rem;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+.chat-tool__dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--color-teal); flex: 0 0 auto;
+}
+.chat-tool code { color: var(--color-teal-light); }
+
+.chat-dots i {
+    display: inline-block; width: 4px; height: 4px; margin-right: 2px;
+    border-radius: 50%; background: var(--color-text-muted);
+    animation: chatpulse 1.2s infinite ease-in-out;
+}
+.chat-dots i:nth-child(2) { animation-delay: .18s; }
+.chat-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes chatpulse { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .chat-dots i { animation: none; opacity: .6; }
+}
+
+.chat-empty { color: var(--color-text-muted); padding: 1.25rem .25rem; }
+.chat-empty p { margin: 0 0 .5rem; }
+
+.chat-note {
+    padding: .55rem .75rem; border-radius: 8px; font-size: .87rem;
+    border: 1px solid var(--color-border-strong);
+}
+.chat-note--warn { border-color: rgba(232, 101, 10, .5); }
+.chat-note--error { border-color: rgba(248, 113, 113, .5); }
+
+.chat-composer { display: flex; gap: .5rem; align-items: flex-end; }
+.chat-composer textarea {
+    flex: 1 1 auto; resize: vertical; min-height: 2.75rem; max-height: 12rem;
+    font: inherit; line-height: 1.45;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:ai_employee_detail' slug=employee.slug %}">{{ employee.name }}</a>
+            </span>
+            <h1 class="admin-page-title">Chat</h1>
+            <p class="admin-page-sub">
+                Ask {{ employee.name }} about the funnel. It answers from
+                live data, and remembers this conversation. Anything that
+                costs money or sends mail is filed for approval, not done.
+            </p>
+        </div>
+        <form method="post" action="{% url 'admin_dashboard:ai_chat_new' slug=employee.slug %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">New conversation</button>
+        </form>
+    </div>
+
+    <div class="chat-layout">
+
+        <aside class="admin-card chat-history">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">History</h2>
+                <span class="muted">{{ conversations|length }}</span>
+            </div>
+            <div class="admin-card__body">
+                {% if conversations %}
+                    <nav class="chat-history__list">
+                        {% for c in conversations %}
+                            <a class="chat-history__item {% if conversation and c.pk == conversation.pk %}chat-history__item--active{% endif %}"
+                               href="{% url 'admin_dashboard:ai_employee_chat_thread' slug=employee.slug conversation_id=c.pk %}">
+                                {{ c.display_title }}
+                                <span class="chat-history__when">{{ c.updated_at|timesince }} ago</span>
+                            </a>
+                        {% endfor %}
+                    </nav>
+                {% else %}
+                    <p class="muted">No conversations yet.</p>
+                {% endif %}
+            </div>
+        </aside>
+
+        <section class="admin-card chat-window">
+            <div class="admin-card__header">
+                <h2 class="admin-card__title">
+                    {% if conversation %}{{ conversation.display_title }}{% else %}New conversation{% endif %}
+                </h2>
+                {% if conversation %}
+                    <form method="post"
+                          action="{% url 'admin_dashboard:ai_chat_archive' slug=employee.slug conversation_id=conversation.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary">Archive</button>
+                    </form>
+                {% endif %}
+            </div>
+
+            <div class="admin-card__body chat-scroll" id="chat-thread">
+                {% include "admin_dashboard/_chat_thread.html" %}
+            </div>
+
+            <div class="admin-card__body">
+                {% if conversation %}
+                    <form class="chat-composer"
+                          hx-post="{% url 'admin_dashboard:ai_chat_send' slug=employee.slug conversation_id=conversation.pk %}"
+                          hx-target="#chat-thread"
+                          hx-swap="innerHTML"
+                          hx-on::after-request="this.reset(); this.message.focus();">
+                        {% csrf_token %}
+                        <textarea name="message" class="form-control" rows="2"
+                                  placeholder="Ask about the funnel, a city, or what is blocking a campaign…"
+                                  required></textarea>
+                        <button type="submit" class="btn-primary">Send</button>
+                    </form>
+                    <p class="muted" style="margin:.5rem 0 0;font-size:.78rem;">
+                        Enter for a new line · click Send to submit
+                    </p>
+                {% else %}
+                    <p class="muted">
+                        Start a conversation to talk to {{ employee.name }}.
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+{% comment %}
+Keep the newest message in view. Runs on load and after every htmx swap
+into the thread, which covers both sending and each poll tick.
+{% endcomment %}
+(function () {
+    function scrollThread() {
+        var el = document.getElementById('chat-thread');
+        if (el) { el.scrollTop = el.scrollHeight; }
+    }
+    document.addEventListener('DOMContentLoaded', scrollThread);
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+        if (e.target && e.target.id === 'chat-thread') { scrollThread(); }
+    });
+})();
+</script>
+{% endblock %}

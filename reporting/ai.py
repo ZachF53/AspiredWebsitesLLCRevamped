@@ -234,7 +234,7 @@ _DEFAULT_AGENT_MAX_TOKENS = 8_000
 def claude_agent_loop(system, tools, tool_executor, user_message,
                       model=MODEL_CONTENT, max_steps=10,
                       max_tokens=_DEFAULT_AGENT_MAX_TOKENS,
-                      effort=None, on_usage=None):
+                      effort=None, on_usage=None, prior_messages=None):
     """Run a full tool-use loop rather than a single call.
 
     Args:
@@ -258,6 +258,18 @@ def claude_agent_loop(system, tools, tool_executor, user_message,
                      This is how the daily spend cap stays honest: an
                      8-call run reports 8 times, incrementally, so a run
                      that crashes halfway still counted what it spent.
+      prior_messages: earlier turns of an ongoing conversation, in the
+                     same wire shape this function returns as
+                     ``messages``. ``user_message`` is appended after
+                     them. This is what makes a chat pane possible: the
+                     model sees what was already said, including the
+                     tool_use / tool_result pairs, rather than being
+                     handed a lossy prose summary of it. Omit for a
+                     one-shot run.
+
+                     Passed through verbatim on purpose — thinking-block
+                     signatures and tool_use ids must survive intact or
+                     the API rejects the turn.
 
     Returns:
       {'transcript': [...], 'final_text': str,
@@ -278,7 +290,10 @@ def claude_agent_loop(system, tools, tool_executor, user_message,
     from anthropic import Anthropic
     client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    messages = [{'role': 'user', 'content': user_message}]
+    # Copied, never mutated in place — the caller's stored history must
+    # not grow a turn as a side effect of a run that then fails.
+    messages = list(prior_messages or [])
+    messages.append({'role': 'user', 'content': user_message})
     transcript = []
     final_text = ''
     stopped_reason = 'max_steps'
@@ -325,6 +340,17 @@ def claude_agent_loop(system, tools, tool_executor, user_message,
         # No tool calls => Claude is done.
         if not tool_uses:
             stopped_reason = 'done'
+            # Record the closing turn before leaving. It is the one
+            # carrying the ANSWER, and until this existed `messages`
+            # ended on a dangling tool_result with the reply present only
+            # in `final_text`. A one-shot run never noticed — it reads
+            # final_text. Resuming that history in a chat did: the reply
+            # was missing from the thread, and the next turn appended a
+            # second user message straight after the first.
+            messages.append({
+                'role': 'assistant',
+                'content': _serialise_content_blocks(response.content),
+            })
             break
 
         # Echo the assistant turn back verbatim — dropping tool_use blocks

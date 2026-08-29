@@ -223,9 +223,19 @@ TOOLS = [
 _BY_NAME = {t['name']: t for t in TOOLS}
 
 
-def anthropic_tools():
-    """TOOLS minus our own bookkeeping, in the shape the API expects."""
-    return [{k: v for k, v in t.items() if k != 'kind'} for t in TOOLS]
+def anthropic_tools(exclude=()):
+    """TOOLS minus our own bookkeeping, in the shape the API expects.
+
+    ``exclude`` withholds tools by name. Withholding is a real guard —
+    the model cannot call a tool it was never offered — whereas telling
+    it not to in the system prompt is a request competing with every
+    other line in the prompt. The chat pane uses this to drop
+    write_journal, which would otherwise let a passing question overwrite
+    the memory a scheduled run wrote.
+    """
+    drop = set(exclude or ())
+    return [{k: v for k, v in t.items() if k != 'kind'}
+            for t in TOOLS if t['name'] not in drop]
 
 
 def tool_kind(name):

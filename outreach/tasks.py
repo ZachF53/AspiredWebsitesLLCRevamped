@@ -356,6 +356,22 @@ def run_prospect_task(trigger='scheduled'):
 
 
 @shared_task
+def run_chat_turn_task(run_id):
+    """Answer one chat message.
+
+    Queued rather than run in the request: a turn makes several Claude
+    calls and can take a minute, which would hold a gunicorn worker and
+    time out behind nginx. The page polls for the answer instead.
+
+    All the real work — and all the failure handling — is in
+    ``agent_chat.run_chat_turn``, so the same turn can be executed from a
+    shell or a test without a broker.
+    """
+    from outreach.agent_chat import run_chat_turn
+    return run_chat_turn(run_id)
+
+
+@shared_task
 def google_profile_backfill_task(limit=50):
     """Copy Google ratings onto qualified leads so openers have a fact.
 

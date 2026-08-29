@@ -5075,7 +5075,13 @@ from .views_scans import (  # noqa: E402,F401
 # ──────────────────────────────────────────────────────────────────────────
 from .ai_employee_views import (  # noqa: E402,F401
     ai_action_decide,
+    ai_chat_archive,
+    ai_chat_new,
+    ai_chat_rename,
+    ai_chat_send,
+    ai_chat_thread_fragment,
     ai_employee_add_task,
+    ai_employee_chat,
     ai_employee_detail,
     ai_employee_toggle_active,
     ai_employee_wake,
