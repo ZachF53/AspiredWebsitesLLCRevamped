@@ -798,6 +798,10 @@ class ApifyRun(models.Model):
 
     results_requested = models.IntegerField(default=0)
     results_returned = models.IntegerField(default=0)
+    # Rows the actor billed us for and the ICP screen then discarded —
+    # wrong company size, non-decision-maker title, wrong state. Recorded
+    # so a run that returns 50 rows and keeps 6 cannot read as a good run.
+    results_rejected = models.IntegerField(default=0)
     leads_imported = models.IntegerField(default=0)
 
     estimated_cost_usd = models.DecimalField(

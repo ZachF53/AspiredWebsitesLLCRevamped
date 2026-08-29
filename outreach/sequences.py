@@ -121,7 +121,17 @@ OFFERS = {
     'security_review': {
         'name': 'Free security + performance review',
         'appeals_to': 'compliance risk',
-        'fulfilment_cost': 'Low - scan_runner automates it, ~10 min review.',
+        'fulfilment_cost': (
+            'MEDIUM today, not low - assemble the first ones by hand. '
+            'scan_runner covers the security half but is CLIENT-scoped: '
+            'generate_scan_pdf dereferences scan.client.id, so a scan '
+            'raised against a Lead stores its findings and then produces '
+            'no report at all (the failure is caught and logged, and the '
+            'scan still reads "complete"). The performance half is not in '
+            'scan_runner at all - no PageSpeed, no Lighthouse; that number '
+            'is already on the lead from enricher.py. Both halves are '
+            'deliverable manually, which is the right speed until a real '
+            'reply tells you what the report should actually say.'),
         'pitch': (
             "Here's what I'd like to offer: I'll run a full security and "
             "performance review of your site and send you the report "

@@ -51,6 +51,7 @@ Three independent guards, because one is never enough with money:
 """
 
 import logging
+import re
 import time
 from decimal import Decimal
 
@@ -222,12 +223,18 @@ def run_lead_search(niche, city, state=None, max_results=None,
         logger.error('Apify actor refused the run: %s', exc)
         raise
 
-    leads = [m for m in (map_contact_to_lead(i) for i in items) if m]
+    kept, rejected = screen_contacts(items, target_state=state)
+    for row, reason in rejected:
+        logger.info('Apify ICP screen rejected %s (%s): %s',
+                    row.get('full_name') or '?',
+                    row.get('company_name') or '?', reason)
+    leads = [m for m in (map_contact_to_lead(i) for i in kept) if m]
 
     ledger.status = 'succeeded'
     ledger.apify_run_id = run.get('id', '')
     ledger.dataset_id = run.get('defaultDatasetId', '')
     ledger.results_returned = len(items)
+    ledger.results_rejected = len(rejected)
     ledger.finished_at = timezone.now()
     actual = (run.get('usageTotalUsd')
               or (run.get('stats') or {}).get('computeUnits'))
@@ -236,13 +243,14 @@ def run_lead_search(niche, city, state=None, max_results=None,
     ledger.save()
 
     logger.info(
-        'Apify run %s: %s items, %s mappable, est $%s actual $%s',
-        ledger.apify_run_id, len(items), len(leads),
+        'Apify run %s: %s items, %s screened out, %s mappable, '
+        'est $%s actual $%s',
+        ledger.apify_run_id, len(items), len(rejected), len(leads),
         ledger.estimated_cost_usd, ledger.actual_cost_usd)
     return leads, ledger
 
 
-def import_from_dataset(dataset_id, label=''):
+def import_from_dataset(dataset_id, label='', target_state=None):
     """Import leads from a dataset produced by a UI-triggered run.
 
     THE FREE-PLAN PATH. ``code_crafter/leads-finder`` refuses
@@ -285,13 +293,23 @@ def import_from_dataset(dataset_id, label=''):
         ledger.save(update_fields=['status', 'error', 'finished_at'])
         raise
 
-    leads = [m for m in (map_contact_to_lead(i) for i in items) if m]
+    # The same screen as the API path. A UI-triggered run is sourced from
+    # the identical actor and is no more trustworthy for being pasted in
+    # by hand — a filter that guards only one door is not a filter.
+    kept, rejected = screen_contacts(items, target_state=target_state)
+    for row, reason in rejected:
+        logger.info('Apify ICP screen rejected %s (%s): %s',
+                    row.get('full_name') or '?',
+                    row.get('company_name') or '?', reason)
+    leads = [m for m in (map_contact_to_lead(i) for i in kept) if m]
     ledger.status = 'succeeded'
     ledger.results_returned = len(items)
+    ledger.results_rejected = len(rejected)
     ledger.finished_at = timezone.now()
     ledger.save()
-    logger.info('Apify dataset %s imported: %s items, %s mappable',
-                dataset_id, len(items), len(leads))
+    logger.info('Apify dataset %s imported: %s items, %s screened out, '
+                '%s mappable', dataset_id, len(items), len(rejected),
+                len(leads))
     return leads, ledger
 
 
@@ -299,9 +317,15 @@ def build_actor_input(niche, city, state=None, fetch_count=50,
                       job_titles=None, label=''):
     """Map our search terms onto the actor's real input schema.
 
-    Field names verified against the live build 2026-08-22 — this is a
-    contact database, so the knobs are person/company filters rather than
-    a Maps-style free-text query.
+    Field names and enum values verified against the live build
+    2026-08-29 — this is a contact database, so the knobs are
+    person/company filters rather than a Maps-style free-text query.
+
+    ``state`` is deliberately NOT sent. The actor's ``contact_location``
+    enum is countries only ('united states', 'germany', …); there is no
+    US-state input. State is enforced post-fetch in ``screen_contact``
+    instead. The parameter stays in the signature because callers pass
+    it and the screen needs it.
     """
     # Decision-makers only. Emailing a junior employee about a website
     # rebuild wastes a send and a lead.
@@ -314,12 +338,142 @@ def build_actor_input(niche, city, state=None, fetch_count=50,
         'fetch_count': int(fetch_count),
         'file_name': (label or f'{niche} {city}')[:200],
         'contact_job_title': list(job_titles or default_titles),
+        # The single highest-value filter. A 2026-08-29 run without it
+        # returned Norton Rose Fulbright (3000 staff) and DJC Law (64)
+        # against an ICP of 1-20. Filtering at the actor means an
+        # oversized firm is never fetched and never billed.
+        'size': list(ICP_SIZE_BUCKETS),
+        # Structured seniority rather than relying on title keywords
+        # alone. Note this does NOT replace the title screen: Apollo
+        # classifies "AI Product Owner" as seniority=owner, so this
+        # filter would have let that row through by itself.
+        'seniority_level': ['founder', 'owner', 'partner', 'c_suite'],
+        # Vendor-side email validation. Cheaper than paying
+        # MillionVerifier to discover the same thing downstream.
+        'email_status': ['validated'],
+        'contact_location': ['united states'],
     }
     if city:
         payload['contact_city'] = [city]
     if niche:
         payload['company_keywords'] = [niche]
     return payload
+
+
+# ── ICP screen ─────────────────────────────────────────────────────────
+#
+# Runs BEFORE verification and icebreaker generation. Both of those cost
+# real money per lead (MillionVerifier per address, a Claude call per
+# icebreaker), so a row rejected here saves more than a send.
+#
+# `segment_mismatch` in instantly.py already blocks an out-of-state lead
+# at push time. That gate stays — it is the last line — but by then the
+# money is spent. This is the same rule applied where it is still cheap.
+
+# Buckets the actor accepts. 1-20 employees is the ICP.
+ICP_SIZE_BUCKETS = ['1-10', '11-20']
+
+# Our own ceiling, re-checked per row. The bucket filter is the actor's
+# job; this is ours. `company_size` comes back as a raw headcount and a
+# row can carry a headcount that disagrees with its bucket.
+ICP_MAX_COMPANY_SIZE = 20
+
+# Titles that contain a decision-maker word but do not belong to the
+# decision maker. "Product Owner" is the one that actually got through:
+# Apollo scores it seniority=owner, and `contact_job_title: ['owner']`
+# matches it on a substring.
+_TITLE_DISQUALIFIERS = (
+    'product owner', 'process owner', 'product manager',
+    'program manager', 'project manager', 'scrum master',
+    'business analyst', 'account manager', 'account executive',
+    'office manager', 'marketing manager', 'operations manager',
+    'legal assistant', 'legal secretary', 'paralegal',
+    'executive assistant', 'recruiter', 'intern',
+)
+
+# Whole tokens that identify someone who can say yes to a website
+# rebuild. Matched as TOKENS, never as substrings — the substring match
+# is the bug this exists to prevent.
+_DECISION_MAKER_TOKENS = frozenset({
+    'owner', 'founder', 'cofounder', 'president', 'principal',
+    'partner', 'ceo', 'proprietor', 'shareholder', 'member',
+    'attorney', 'lawyer', 'esq', 'esquire', 'counsel',
+    'dentist', 'dds', 'dmd', 'physician', 'cpa',
+})
+
+
+def _headcount_or_none(value):
+    """Employee count as a non-negative int, or None when unusable.
+
+    Apollo sends this as an int on some rows and a string on others.
+    """
+    try:
+        n = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if n >= 0 else None
+
+
+def _title_tokens(title):
+    """Lowercase alphanumeric tokens of a job title."""
+    return {t for t in re.split(r'[^a-z0-9]+', (title or '').lower()) if t}
+
+
+def screen_contact(item, target_state=None, max_size=None):
+    """Why this row is not an ICP match. '' means it is.
+
+    Fails closed on the size check only when a size is actually
+    reported: a missing `company_size` is missing data, not evidence of
+    a small firm, but rejecting every row without one would discard
+    good small firms that Apollo simply has no headcount for. Size is
+    therefore enforced when known and left to the other checks when not.
+    """
+    max_size = ICP_MAX_COMPANY_SIZE if max_size is None else max_size
+
+    # NOT _int_or_none — that one clamps to 1700..2100 because it parses
+    # founding years, so every real headcount comes back None and the
+    # ceiling silently never fires.
+    size = _headcount_or_none(item.get('company_size'))
+    if size is not None and size > max_size:
+        return (f'{item.get("company_name") or "Company"} has ~{size} '
+                f'staff; ICP is {max_size} or fewer.')
+
+    title = (item.get('job_title') or '').strip()
+    lowered = title.lower()
+    for phrase in _TITLE_DISQUALIFIERS:
+        if phrase in lowered:
+            return f'Job title {title!r} is not a decision maker.'
+
+    if title and not (_title_tokens(title) & _DECISION_MAKER_TOKENS):
+        return f'Job title {title!r} carries no decision-maker term.'
+
+    if target_state:
+        from outreach.instantly import _STATE_ABBREV
+        raw = (item.get('company_state') or item.get('state') or '').strip()
+        got = _STATE_ABBREV.get(raw.lower(), raw).upper()
+        want = _STATE_ABBREV.get(
+            target_state.strip().lower(), target_state).upper()
+        if got != want:
+            return (f'Company is in {raw or "an unknown state"}; '
+                    f'targeting {want}.')
+
+    return ''
+
+
+def screen_contacts(items, target_state=None):
+    """Split rows into (kept, rejections). Rejections are [(row, reason)].
+
+    Never silent — the caller logs the count and writes it to the run
+    ledger. A filter that drops rows without saying so is how a bad list
+    looks like a good one.
+    """
+    kept, rejected = [], []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        reason = screen_contact(it, target_state=target_state)
+        (rejected.append((it, reason)) if reason else kept.append(it))
+    return kept, rejected
 
 
 # Apollo-style industry strings -> the business_type values campaigns

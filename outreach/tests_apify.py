@@ -41,6 +41,13 @@ REAL_ROW = {
     'seniority_level': 'owner',
 }
 
+# REAL_ROW is a real row but a 58-person staffing company, so the ICP
+# screen rejects it on size — correctly. Tests that exercise the ledger
+# and mapping paths rather than the screen use this ICP-compliant
+# variant, so a screen change cannot quietly turn them green or red for
+# reasons that have nothing to do with what they assert.
+ICP_ROW = dict(REAL_ROW, company_size=12)
+
 
 class CostTests(TestCase):
 
@@ -252,7 +259,7 @@ class LedgerTests(TestCase):
             return_value={'id': 'run1', 'defaultDatasetId': 'ds1',
                           'status': 'SUCCEEDED', 'usageTotalUsd': 0.11},
         ), patch.object(
-            apify_source, '_fetch_dataset', return_value=[REAL_ROW],
+            apify_source, '_fetch_dataset', return_value=[ICP_ROW],
         ):
             leads, ledger = apify_source.run_lead_search(
                 'law firm', 'Austin', label='TX law')
@@ -260,8 +267,33 @@ class LedgerTests(TestCase):
         self.assertEqual(len(leads), 1)
         self.assertEqual(ledger.status, 'succeeded')
         self.assertEqual(ledger.results_returned, 1)
+        self.assertEqual(ledger.results_rejected, 0)
         self.assertEqual(ledger.apify_run_id, 'run1')
         self.assertEqual(ledger.actual_cost_usd, Decimal('0.11'))
+
+    @override_settings(APIFY_TOKEN='t', APIFY_MONTHLY_BUDGET_USD=5.0)
+    def test_screened_out_rows_are_counted_on_the_ledger(self):
+        """A run that returns 2 rows and keeps 1 must not read as a
+        clean run. The count is what makes a bad list visible."""
+        cfg = OutreachSettings.load()
+        cfg.apify_max_results_per_run = 50
+        cfg.save()
+
+        oversized = dict(REAL_ROW, company_size=3000)
+        with patch.object(
+            apify_source, '_start_and_wait',
+            return_value={'id': 'run2', 'defaultDatasetId': 'ds2',
+                          'status': 'SUCCEEDED'},
+        ), patch.object(
+            apify_source, '_fetch_dataset',
+            return_value=[ICP_ROW, oversized],
+        ):
+            leads, ledger = apify_source.run_lead_search(
+                'law firm', 'Austin', label='TX law')
+
+        self.assertEqual(len(leads), 1)
+        self.assertEqual(ledger.results_returned, 2)
+        self.assertEqual(ledger.results_rejected, 1)
 
     def test_apify_ledger_is_visible_to_the_quota_gate(self):
         """spend.apify_runs_today() must now find the model."""
@@ -348,13 +380,25 @@ class DatasetImportTests(TestCase):
     @override_settings(APIFY_TOKEN='t')
     def test_imports_and_maps_a_ui_dataset(self):
         with patch.object(
-                apify_source, '_fetch_dataset', return_value=[REAL_ROW]):
+                apify_source, '_fetch_dataset', return_value=[ICP_ROW]):
             leads, ledger = apify_source.import_from_dataset(
                 'ds123', label='UI run')
         self.assertEqual(len(leads), 1)
         self.assertEqual(leads[0]['email'], 'christina@jmiresource.com')
         self.assertEqual(ledger.status, 'succeeded')
         self.assertEqual(ledger.dataset_id, 'ds123')
+
+    @override_settings(APIFY_TOKEN='t')
+    def test_ui_import_applies_the_same_icp_screen(self):
+        """A dataset pasted in by hand comes from the identical actor
+        and is no more trustworthy for it. A filter that guards only one
+        door is not a filter."""
+        with patch.object(
+                apify_source, '_fetch_dataset', return_value=[REAL_ROW]):
+            leads, ledger = apify_source.import_from_dataset(
+                'ds124', label='UI run')
+        self.assertEqual(leads, [])
+        self.assertEqual(ledger.results_rejected, 1)
 
     @override_settings(APIFY_TOKEN='t')
     def test_import_does_not_charge_the_monthly_budget(self):
@@ -450,3 +494,135 @@ class BusinessTypeNormalisationTests(TestCase):
             business_type='Law Firm', state='TX',
             instantly_campaign_id='c1', active=True)
         self.assertEqual(instantly.segment_mismatch(lead, campaign), '')
+
+
+class ICPScreenTests(TestCase):
+    """The screen that keeps money off rows we would never email.
+
+    Every row here is real, from run XVpSSDrt47Y2uypQa (2026-08-29) —
+    the smoke test that proved API runs work on the Starter plan and
+    incidentally proved the list was 40% junk.
+    """
+
+    # Norton Rose Fulbright: a genuine law firm, ~3000 staff, and the
+    # contact is a product manager. Apollo scores them seniority=owner.
+    NORTON_ROSE = {
+        'company_name': 'Norton Rose Fulbright',
+        'full_name': 'Les Sierra', 'job_title': 'AI Product Owner',
+        'seniority_level': 'owner', 'functional_level': 'product_management',
+        'email': 'les.sierra@nortonrosefulbright.com',
+        'industry': 'Law Practice', 'company_size': 3000,
+        'company_city': 'Orlando', 'company_state': 'Florida',
+        'company_phone': '+44 20 7283 6000',
+    }
+    # DJC Law: right state, right industry, real owner — 64 staff. This
+    # one cleared every gate that existed before this screen.
+    DJC_LAW = {
+        'company_name': 'Djc Law', 'full_name': 'Dan Christensen',
+        'job_title': 'Owner', 'seniority_level': 'owner',
+        'email': 'dan@texasjustice.com', 'industry': 'Legal Services',
+        'company_size': 64,
+        'company_city': 'Austin', 'company_state': 'Texas',
+    }
+    # Hanna & Plaut: the shape we actually want.
+    HANNA_PLAUT = {
+        'company_name': 'Hanna & Plaut Llp', 'full_name': 'David Plaut',
+        'job_title': 'Owner', 'seniority_level': 'owner',
+        'email': 'dplaut@hannaplaut.com', 'industry': 'Law Practice',
+        'company_size': 11,
+        'company_city': 'Austin', 'company_state': 'Texas',
+    }
+
+    def test_oversized_firm_is_rejected(self):
+        reason = apify_source.screen_contact(self.NORTON_ROSE)
+        self.assertIn('3000', reason)
+
+    def test_midsize_firm_below_the_year_clamp_is_rejected(self):
+        """Regression: the size check first used ``_int_or_none``, which
+        clamps to 1700..2100 because it parses founding years. Every
+        realistic headcount came back None and the ceiling never fired —
+        DJC Law's 64 sailed through while Norton Rose's 3000 did not."""
+        reason = apify_source.screen_contact(self.DJC_LAW)
+        self.assertIn('64', reason)
+        self.assertEqual(apify_source._headcount_or_none(64), 64)
+        self.assertEqual(apify_source._headcount_or_none('64'), 64)
+
+    def test_product_owner_is_not_an_owner(self):
+        """'owner' matched as a SUBSTRING of 'AI Product Owner'. The
+        title screen must match whole tokens and know the phrase."""
+        row = dict(self.NORTON_ROSE, company_size=8)
+        self.assertIn('not a decision maker',
+                      apify_source.screen_contact(row))
+
+    def test_genuine_owner_at_a_small_firm_passes(self):
+        self.assertEqual(apify_source.screen_contact(self.HANNA_PLAUT), '')
+
+    def test_title_without_a_decision_maker_term_is_rejected(self):
+        row = dict(self.HANNA_PLAUT, job_title='Associate Attorney At Law')
+        # 'attorney' is a decision-maker token, so this one survives.
+        self.assertEqual(apify_source.screen_contact(row), '')
+        row = dict(self.HANNA_PLAUT, job_title='Marketing Coordinator')
+        self.assertIn('no decision-maker term',
+                      apify_source.screen_contact(row))
+
+    def test_missing_headcount_does_not_reject(self):
+        """Absent size is missing data, not evidence of a small firm.
+        Rejecting on it would discard good firms Apollo has no count
+        for; the other checks still apply."""
+        row = dict(self.HANNA_PLAUT)
+        row.pop('company_size')
+        self.assertEqual(apify_source.screen_contact(row), '')
+
+    def test_state_is_enforced_before_the_paid_stages(self):
+        # Florida row, TX campaign — caught here rather than at push,
+        # after MillionVerifier and a Claude call have been paid for.
+        self.assertIn('targeting TX', apify_source.screen_contact(
+            dict(self.NORTON_ROSE, company_size=5, job_title='Owner'),
+            target_state='TX'))
+        self.assertEqual(apify_source.screen_contact(
+            self.HANNA_PLAUT, target_state='TX'), '')
+        # Long form and abbreviation are the same state.
+        self.assertEqual(apify_source.screen_contact(
+            dict(self.HANNA_PLAUT, company_state='TX'),
+            target_state='Texas'), '')
+
+    def test_no_target_state_means_no_state_constraint(self):
+        self.assertEqual(
+            apify_source.screen_contact(
+                dict(self.NORTON_ROSE, company_size=5, job_title='Owner')),
+            '')
+
+    def test_screen_contacts_partitions_and_counts(self):
+        rows = [self.NORTON_ROSE, self.DJC_LAW, self.HANNA_PLAUT]
+        kept, rejected = apify_source.screen_contacts(rows, target_state='TX')
+        self.assertEqual([r['company_name'] for r in kept],
+                         ['Hanna & Plaut Llp'])
+        self.assertEqual(len(rejected), 2)
+        self.assertTrue(all(reason for _, reason in rejected))
+
+
+class ActorInputICPTests(TestCase):
+
+    def test_size_buckets_are_sent_so_big_firms_are_never_billed(self):
+        payload = build_actor_input('law firm', 'Austin', 'TX',
+                                    fetch_count=50)
+        self.assertEqual(payload['size'], ['1-10', '11-20'])
+
+    def test_size_buckets_do_not_exceed_the_icp_ceiling(self):
+        """The bucket list and the post-fetch ceiling must agree, or the
+        actor bills for rows the screen then throws away."""
+        top = apify_source.ICP_SIZE_BUCKETS[-1]
+        self.assertEqual(int(top.split('-')[1]),
+                         apify_source.ICP_MAX_COMPANY_SIZE)
+
+    def test_state_is_not_sent_to_the_actor(self):
+        """contact_location's enum is countries only — there is no
+        US-state input. Sending one would be silently ignored."""
+        payload = build_actor_input('law firm', 'Austin', 'TX')
+        self.assertEqual(payload['contact_location'], ['united states'])
+        self.assertNotIn('TX', str(payload.get('contact_location')))
+
+    def test_fetch_count_is_still_always_explicit(self):
+        self.assertEqual(
+            build_actor_input('law firm', 'Austin', fetch_count=25)
+            ['fetch_count'], 25)
