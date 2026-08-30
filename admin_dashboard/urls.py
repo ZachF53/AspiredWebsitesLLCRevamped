@@ -554,6 +554,9 @@ urlpatterns = [
          views.ai_chat_thread_fragment, name='ai_chat_thread_fragment'),
     path('ai-employees/<slug:slug>/chat/<int:conversation_id>/live/',
          views.ai_chat_live_fragment, name='ai_chat_live_fragment'),
+    path('ai-employees/<slug:slug>/chat/<int:conversation_id>/decide/'
+         '<int:action_id>/',
+         views.ai_chat_decide, name='ai_chat_decide'),
     path('ai-employees/<slug:slug>/chat/<int:conversation_id>/archive/',
          views.ai_chat_archive, name='ai_chat_archive'),
     path('ai-employees/<slug:slug>/chat/<int:conversation_id>/rename/',

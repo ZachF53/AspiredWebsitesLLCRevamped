@@ -291,18 +291,120 @@ def run_chat_turn(run_id):
     return 'ok'
 
 
+# ── Approving a COMMIT call from inside the conversation ───────────────
+#
+# The COMMIT class still means "a human decides". What changed is WHERE
+# and WHEN: the decision is made in the thread that asked for it, and
+# approval executes the work immediately instead of parking it until the
+# next scheduled wake-up.
+#
+# That parking was correct for a nightly agent and useless for a chat.
+# Asking Prospect to source San Antonio, approving it, and then having to
+# find the detail page and click "Wake now" is three screens to do one
+# thing, and the middle screen exists only because the original design
+# had no conversation to put the button in.
+#
+# What did NOT change: the model cannot approve its own call, nothing is
+# executed without a human click, and the spend caps still apply.
+
+def run_approved_action(action_id):
+    """Execute one approved COMMIT call and report back into its thread.
+
+    Returns a short status string. Never raises for an operational
+    reason — the failure is written where the person who clicked Approve
+    is looking.
+    """
+    from admin_dashboard.models import AIEmployeeAction, AIEmployeeRun
+    from outreach.agent_tools import action_reporter, _resolve
+
+    action = (AIEmployeeAction.objects
+              .select_related('run', 'run__conversation', 'run__employee')
+              .filter(pk=action_id).first())
+    if action is None:
+        return 'no such action'
+    if not action.approved:
+        return 'not approved'
+    if action.executed_at:
+        # The idempotence guard. Approval is permanent, so without this a
+        # double-click or a retried task charges the card twice.
+        return 'already executed'
+
+    conversation = action.run.conversation
+    impl = _resolve(action.tool_name)
+    if impl is None:
+        return f'no implementation for {action.tool_name}'
+
+    # A separate run, so the work has its own spend row and its own
+    # progress, and is not confused with the turn that merely asked.
+    run = AIEmployeeRun.objects.create(
+        employee=action.run.employee,
+        conversation=conversation,
+        trigger='chat',
+        status='running',
+    )
+    action.run = run
+    action.save(update_fields=['run'])
+    report = action_reporter(action)
+
+    try:
+        result = impl(action.tool_input or {}, report)
+        ok = True
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('approved action %s failed', action_id)
+        result = f'{action.tool_name} failed: {exc}'
+        ok = False
+
+    action.result = str(result)[:4000]
+    action.executed_at = timezone.now()
+    action.save(update_fields=['result', 'executed_at'])
+
+    run.status = 'completed' if ok else 'failed'
+    run.summary = f'{action.tool_name}: {str(result)[:2000]}'
+    run.finished_at = timezone.now()
+    run.save(update_fields=['status', 'summary', 'finished_at'])
+
+    if conversation is not None:
+        _append_system_turn(
+            conversation,
+            f'[{action.tool_name} was approved and has now RUN. '
+            f'Result: {result}]')
+    return 'ok' if ok else 'failed'
+
+
+def _append_system_turn(conversation, text):
+    """Put an out-of-band fact into the thread as a user turn.
+
+    A user turn rather than an assistant one on purpose: it is
+    information given TO Prospect, not something it said. Writing it as
+    an assistant turn would let it later cite its own summary as though
+    it had observed the result itself.
+    """
+    conversation.messages = list(conversation.messages or []) + [
+        {'role': 'user', 'content': text}]
+    conversation.save(update_fields=['messages', 'updated_at'])
+
+
 # ── Rendering ──────────────────────────────────────────────────────────
 
-def render_transcript(messages):
+def render_transcript(messages, actions=None):
     """Wire-format thread -> what the template draws.
 
-    Returns a list of ``{'kind', 'text', 'tool_name', 'tool_input'}``.
+    Returns a list of
+    ``{'kind', 'text', 'tool_name', 'tool_input', 'progress'}``.
 
     The subtlety worth stating: a ``user`` turn whose content is a LIST
     is not something a human said — it is the tool_result block answering
     the assistant's tool_use. Rendering it as a user bubble would put
     JSON in the chat under Zachery's name.
+
+    ``actions`` are this conversation's AIEmployeeAction rows in creation
+    order, which is the order their tool_use blocks appear. They carry
+    the progress lines a long tool emitted. Matched positionally but
+    CHECKED by name: attaching "82 imported" under the wrong tool is
+    worse than showing no progress at all, so a mismatch drops the
+    attachment instead of guessing.
     """
+    pending_actions = list(actions or [])
     out = []
     for msg in messages or []:
         role = msg.get('role')
@@ -311,7 +413,8 @@ def render_transcript(messages):
         if role == 'user':
             if isinstance(content, str):
                 out.append({'kind': 'user', 'text': content,
-                            'tool_name': '', 'tool_input': None})
+                            'tool_name': '', 'tool_input': None,
+                            'progress': []})
             # A list here is tool_result blocks — the results are already
             # shown against the tool_use that asked for them.
             continue
@@ -322,7 +425,8 @@ def render_transcript(messages):
         if isinstance(content, str):
             if content.strip():
                 out.append({'kind': 'assistant', 'text': content,
-                            'tool_name': '', 'tool_input': None})
+                            'tool_name': '', 'tool_input': None,
+                            'progress': []})
             continue
 
         for block in content or []:
@@ -331,13 +435,24 @@ def render_transcript(messages):
                 text = (block.get('text') or '').strip()
                 if text:
                     out.append({'kind': 'assistant', 'text': text,
-                                'tool_name': '', 'tool_input': None})
+                                'tool_name': '', 'tool_input': None,
+                                'progress': []})
             elif btype == 'tool_use':
+                name = block.get('name') or 'tool'
+                progress = []
+                if pending_actions:
+                    if pending_actions[0].tool_name == name:
+                        progress = list(pending_actions.pop(0).progress or [])
+                    else:
+                        # Out of step. Drop this action rather than hang
+                        # its lines on a tool that did not produce them.
+                        pending_actions.pop(0)
                 out.append({
                     'kind': 'tool',
                     'text': '',
-                    'tool_name': block.get('name') or 'tool',
+                    'tool_name': name,
                     'tool_input': block.get('input') or {},
+                    'progress': progress,
                 })
             # Thinking blocks are stored (the API needs their signatures
             # on replay) but not rendered — they are working, not answer.

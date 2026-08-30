@@ -558,6 +558,60 @@ _ACTOR_INDUSTRY_ENUM = frozenset({
 })
 
 
+# A search niche is not a business type. "family law", "personal injury"
+# and "estate planning attorney" are all searches for LAW FIRMS, and the
+# campaign that will receive them targets business_type "Law Firm".
+#
+# Longest needle first so 'dental law' cannot match 'law' before
+# 'dental' — order here is the tie-break, not a preference.
+_NICHE_TYPE_HINTS = (
+    ('orthodont', 'Dentist'),
+    ('dentist', 'Dentist'),
+    ('dental', 'Dentist'),
+    ('chiropract', 'Medical Practice'),
+    ('medical', 'Medical Practice'),
+    ('clinic', 'Medical Practice'),
+    ('bookkeep', 'Accounting'),
+    ('accounting', 'Accounting'),
+    ('cpa', 'Accounting'),
+    ('financial', 'Financial Services'),
+    ('wealth', 'Financial Services'),
+    ('attorney', 'Law Firm'),
+    ('lawyer', 'Law Firm'),
+    ('legal', 'Law Firm'),
+    ('law', 'Law Firm'),
+)
+
+
+def business_type_for_niche(niche):
+    """Free-text search niche -> the segment's business_type, or ''.
+
+    WHY THIS IS NOT ``niche.title()``
+    --------------------------------
+    It used to be. A scrape for "family law" therefore ran with
+    business_type "Family Law", and:
+
+      * ``industries_for_business_type('Family Law')`` is empty, so no
+        industry filter reached the actor;
+      * the post-fetch screen compared Apollo's "Law Practice" — which
+        normalises to "Law Firm" — against "Family Law" and rejected
+        EVERY row;
+      * any survivor would carry business_type "Family Law" and be
+        blocked again by the campaign segment gate at push.
+
+    So the run billed in full and imported nothing, and the reason was
+    three layers down. Returns '' for an unrecognised niche, which means
+    "do not constrain on type": the size, title and state screens still
+    apply, and importing leads that need a segment correction beats
+    importing none.
+    """
+    text = (niche or '').lower()
+    for needle, business_type in _NICHE_TYPE_HINTS:
+        if needle in text:
+            return business_type
+    return ''
+
+
 def industries_for_business_type(business_type):
     """Apollo industry values that normalise to ``business_type``.
 

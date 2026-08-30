@@ -1,13 +1,9 @@
 {% comment %}
-One conversation's messages, plus the in-flight indicator.
+One conversation's messages, plus anything waiting on a decision.
 
 This fragment is both the initial render and what the poll swaps in, so
-it must be able to describe every state of a thread on its own: empty,
-answered, still thinking, and failed.
-
-The polling element exists ONLY while a turn is in flight. An idle thread
-therefore issues no requests at all — the poll stops because the markup
-that polls stops being rendered, not because a script decided to.
+it must describe every state of a thread on its own: empty, answered,
+still thinking, waiting for approval, and failed.
 {% endcomment %}
 
 {% if chat_error %}
@@ -18,10 +14,12 @@ that polls stops being rendered, not because a script decided to.
     <div class="chat-empty">
         <p><strong>Ask Prospect something.</strong></p>
         <p class="muted">
-            It can read the funnel, per-city progress, campaign arms and
-            lead counts, and answer from real numbers. It cannot spend
-            money or send mail from here — anything that would costs money
-            gets filed for your approval instead.
+            It reads the funnel, individual leads and their icebreakers,
+            campaign arms, offers, replies, sourcing history and spend —
+            and answers from real numbers. It can run the pipeline
+            (verify, enrich, personalise, assign) on its own. Anything
+            that costs money or creates a campaign stops here for your
+            approval first.
         </p>
     </div>
 {% endif %}
@@ -38,11 +36,53 @@ that polls stops being rendered, not because a script decided to.
             <div class="chat-msg__body">{{ item.text|linebreaksbr }}</div>
         </div>
     {% else %}
-        <div class="chat-tool" title="{{ item.tool_input }}">
-            <span class="chat-tool__dot"></span>
-            read <code>{{ item.tool_name }}</code>
+        <div class="chat-tool">
+            <div class="chat-tool__head">
+                <span class="chat-tool__dot"></span>
+                <code>{{ item.tool_name }}</code>
+            </div>
+            {% for line in item.progress %}
+                <div class="chat-tool__line">{{ line }}</div>
+            {% endfor %}
         </div>
     {% endif %}
+{% endfor %}
+
+{% comment %}
+COMMIT calls waiting on a click, shown in the thread that asked for
+them. Approving here EXECUTES — that is the difference from the detail
+page, where approving only records the decision.
+{% endcomment %}
+{% for action in awaiting_approval %}
+    <div class="chat-approve">
+        <div class="chat-approve__head">
+            Needs your approval — <code>{{ action.tool_name }}</code>
+        </div>
+        {% if action.tool_input.reason %}
+            <p class="chat-approve__why">{{ action.tool_input.reason }}</p>
+        {% endif %}
+        <dl class="chat-approve__args">
+            {% for key, value in action.tool_input.items %}
+                {% if key != 'reason' %}
+                    <div><dt>{{ key }}</dt><dd>{{ value }}</dd></div>
+                {% endif %}
+            {% endfor %}
+        </dl>
+        <div class="chat-approve__buttons">
+            <form hx-post="{% url 'admin_dashboard:ai_chat_decide' slug=conversation.employee.slug conversation_id=conversation.pk action_id=action.pk %}"
+                  hx-target="#chat-thread" hx-swap="innerHTML">
+                {% csrf_token %}
+                <input type="hidden" name="decision" value="approve">
+                <button type="submit" class="btn-primary">Approve &amp; run</button>
+            </form>
+            <form hx-post="{% url 'admin_dashboard:ai_chat_decide' slug=conversation.employee.slug conversation_id=conversation.pk action_id=action.pk %}"
+                  hx-target="#chat-thread" hx-swap="innerHTML">
+                {% csrf_token %}
+                <input type="hidden" name="decision" value="reject">
+                <button type="submit" class="btn-secondary">Reject</button>
+            </form>
+        </div>
+    </div>
 {% endfor %}
 
 {% comment %}

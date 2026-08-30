@@ -288,6 +288,17 @@ def _live_context(conversation):
         'conversation': conversation,
         'pending': run is not None,
         'streamed_text': (run.partial_text if run else '') or '',
+        # What the running tool is saying about itself, so a four-minute
+        # scrape shows its stages instead of a spinner.
+        'live_actions': list(
+            run.actions.order_by('created_at')) if run else [],
+        # COMMIT calls waiting on a click, rendered in the thread that
+        # asked for them.
+        'awaiting_approval': list(
+            AIEmployeeAction.objects
+            .filter(run__conversation=conversation,
+                    requires_approval=True, approved__isnull=True)
+            .order_by('created_at')),
         # True only when this fragment was fetched by the poll. The
         # finished branch does a one-shot reload of the whole thread, and
         # the whole thread includes this fragment again — so if that
@@ -305,11 +316,22 @@ def _thread_context(conversation, error=''):
     pending = live['pending']
     last_failed = (conversation.runs.filter(status='failed')
                    .order_by('-started_at').first())
+    # Progress lines are attached to the settled transcript by walking
+    # the actions in the order they were created, which is the order the
+    # tool_use blocks appear. render_transcript refuses to attach when
+    # the names disagree rather than guessing.
+    actions = list(
+        AIEmployeeAction.objects
+        .filter(run__conversation=conversation)
+        .order_by('created_at'))
     return {
         'conversation': conversation,
-        'transcript': render_transcript(conversation.messages),
+        'transcript': render_transcript(conversation.messages,
+                                        actions=actions),
         'pending': pending,
         'streamed_text': live['streamed_text'],
+        'live_actions': live['live_actions'],
+        'awaiting_approval': live['awaiting_approval'],
         # See _live_context: the one-shot reload belongs to the poll only.
         'live_poll': False,
         'chat_error': error,
@@ -430,6 +452,66 @@ def ai_chat_live_fragment(request, slug, conversation_id):
     conversation = _conversation(slug, conversation_id)
     return render(request, 'admin_dashboard/_chat_live.html',
                   _live_context(conversation))
+
+
+@admin_required
+@require_POST
+def ai_chat_decide(request, slug, conversation_id, action_id):
+    """Approve or reject a COMMIT call from inside the conversation.
+
+    Unlike ai_action_decide, approving here EXECUTES. That is the whole
+    point: parking approved work until the next scheduled wake-up made
+    sense for a nightly agent and made the chat useless — you would
+    approve a scrape and nothing would happen until morning.
+
+    The execution still does not happen in this request. It is queued,
+    and the thread polls for it exactly as it does for a reply, because a
+    paid scrape inside a request/response cycle would block the worker
+    and a timeout would leave "did it charge me?" unanswerable.
+    """
+    conversation = _conversation(slug, conversation_id)
+    action = get_object_or_404(
+        AIEmployeeAction, pk=action_id,
+        run__conversation=conversation,
+        requires_approval=True, approved__isnull=True)
+
+    approve = (request.POST.get('decision') or '') == 'approve'
+    action.approved = approve
+    action.approved_by = (
+        request.user if request.user.is_authenticated else None)
+    action.approved_at = timezone.now()
+    action.save(update_fields=['approved', 'approved_by', 'approved_at'])
+
+    if not approve:
+        from outreach.agent_chat import _append_system_turn
+        _append_system_turn(
+            conversation,
+            f'[{action.tool_name} was REJECTED by Zachery and will not '
+            f'run. Do not ask for it again unless something changes.]')
+        conversation.refresh_from_db()
+        return render(request, 'admin_dashboard/_chat_thread.html',
+                      _thread_context(conversation))
+
+    from outreach.tasks import run_approved_action_task
+    try:
+        run_approved_action_task.delay(action.pk)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('could not queue approved action %s', action.pk)
+        # Hand the approval back rather than leaving a row marked
+        # approved that nothing will ever execute.
+        action.approved = None
+        action.approved_at = None
+        action.save(update_fields=['approved', 'approved_at'])
+        return render(request, 'admin_dashboard/_chat_thread.html',
+                      _thread_context(
+                          conversation,
+                          error=f'Could not start it — the task broker '
+                                f'refused ({exc}). Check Redis and the '
+                                f'Celery worker, then approve again.'))
+
+    conversation.refresh_from_db()
+    return render(request, 'admin_dashboard/_chat_thread.html',
+                  _thread_context(conversation))
 
 
 @admin_required

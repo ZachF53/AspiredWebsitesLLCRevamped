@@ -10,18 +10,37 @@ script decided to stop it.
 {% endcomment %}
 
 {% if pending %}
-    <div id="chat-live"
-         class="chat-msg chat-msg--agent"
+    <div id="chat-live" class="chat-live"
          hx-get="{% url 'admin_dashboard:ai_chat_live_fragment' slug=conversation.employee.slug conversation_id=conversation.pk %}"
          hx-trigger="every 900ms"
          hx-swap="outerHTML">
-        <div class="chat-msg__who">{{ conversation.employee.name }}</div>
-        <div class="chat-msg__body">
-            {% if streamed_text %}
-                {{ streamed_text|linebreaksbr }}<span class="chat-caret"></span>
-            {% else %}
-                <span class="chat-dots"><i></i><i></i><i></i></span>
-            {% endif %}
+
+        {% comment %}
+        What the running tool is saying about itself. A scrape plus a
+        full pipeline pass takes minutes, and a chat that says nothing
+        for that long is indistinguishable from one that has died.
+        {% endcomment %}
+        {% for action in live_actions %}
+            <div class="chat-tool">
+                <div class="chat-tool__head">
+                    <span class="chat-tool__dot"></span>
+                    <code>{{ action.tool_name }}</code>
+                </div>
+                {% for line in action.progress %}
+                    <div class="chat-tool__line">{{ line }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+
+        <div class="chat-msg chat-msg--agent">
+            <div class="chat-msg__who">{{ conversation.employee.name }}</div>
+            <div class="chat-msg__body">
+                {% if streamed_text %}
+                    {{ streamed_text|linebreaksbr }}<span class="chat-caret"></span>
+                {% else %}
+                    <span class="chat-dots"><i></i><i></i><i></i></span>
+                {% endif %}
+            </div>
         </div>
     </div>
 {% elif live_poll %}

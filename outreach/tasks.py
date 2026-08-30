@@ -186,16 +186,21 @@ def run_scrape_jobs_task():
                 # day's sourcing is done, so record and move on quietly.
                 from outreach.apify_source import (
                     ApifyQuotaReached,
+                    business_type_for_niche,
                     run_lead_search,
                 )
+                # NOT job.niche.title(). A ScrapeJob for "family law"
+                # would run as business_type "Family Law", which no
+                # Apollo industry normalises to — the ICP screen would
+                # reject every row the run just paid for. Resolved once
+                # and reused below so the industry filter, the screen and
+                # the push-time segment gate all judge by one type.
+                job_type = business_type_for_niche(job.niche)
                 try:
                     raw, _ledger = run_lead_search(
                         niche=job.niche, city=job.city, state=job.state,
                         max_results=job.max_results, label=job.name,
-                        # Same value import_leads stamps below, so the
-                        # industry filter, the ICP screen and the
-                        # push-time segment gate all judge by one type.
-                        business_type=job.niche.title())
+                        business_type=job_type)
                 except ApifyQuotaReached as exc:
                     logger.info('scrape job %s: %s', job.pk, exc)
                     job.last_run_at = timezone.now()
@@ -205,7 +210,7 @@ def run_scrape_jobs_task():
                     continue
                 summary = import_leads(
                     raw, source='apify',
-                    business_type_override=job.niche.title())
+                    business_type_override=job_type or None)
             elif job.source == 'google_maps':
                 state_full = 'Texas' if job.state == 'TX' else 'Georgia'
                 raw, _ = scrape_google_maps_sync(
@@ -369,6 +374,38 @@ def run_chat_turn_task(run_id):
     """
     from outreach.agent_chat import run_chat_turn
     return run_chat_turn(run_id)
+
+
+@shared_task
+def run_approved_action_task(action_id):
+    """Execute an approved COMMIT call, then let Prospect carry on.
+
+    The follow-up turn is what makes "source San Antonio and run the
+    pipeline" one instruction instead of two. Prospect sees the real
+    result of the scrape it asked for and can immediately call the next
+    step, which is free and needs no approval.
+
+    Chained here rather than inside run_approved_action so the execution
+    stands on its own: if the follow-up turn fails, the scrape still
+    happened and is still recorded.
+    """
+    from admin_dashboard.models import AIEmployeeAction, AIEmployeeRun
+    from outreach.agent_chat import run_approved_action, run_chat_turn
+
+    status = run_approved_action(action_id)
+
+    action = (AIEmployeeAction.objects
+              .select_related('run__conversation', 'run__employee')
+              .filter(pk=action_id).first())
+    conversation = action.run.conversation if action else None
+    if conversation is None:
+        return status
+
+    follow_up = AIEmployeeRun.objects.create(
+        employee=action.run.employee, conversation=conversation,
+        trigger='chat')
+    run_chat_turn(follow_up.pk)
+    return status
 
 
 @shared_task

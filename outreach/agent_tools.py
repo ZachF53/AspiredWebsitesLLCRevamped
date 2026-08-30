@@ -32,14 +32,27 @@ approved call is executed on the NEXT run rather than inside the click
 (see ``execute_approved`` below). Two people have to agree — one of whom
 is a person — before money moves or mail goes out.
 
-WHY APPROVAL IS NOT EXECUTION
------------------------------
-``ai_action_decide`` records the answer and returns. It does not run the
-tool. A paid Apify scrape inside a request/response cycle would block the
-worker, and a timeout would leave "did it charge me?" unanswerable. The
-approved row is picked up at the start of the next run, executed once,
-and stamped with ``executed_at`` — which is also what stops a scrape the
-operator approved once from re-running on every subsequent wake-up.
+WHEN AN APPROVED CALL ACTUALLY RUNS
+-----------------------------------
+Two paths, and they differ on purpose.
+
+``ai_action_decide`` — the detail page — records the answer and returns.
+The approved row is picked up at the start of the NEXT run by
+``execute_approved``. That is right for a nightly agent: nobody is
+watching, and there is no reason to run a scrape inside a click.
+
+``ai_chat_decide`` — the Approve button in a conversation — queues the
+work immediately and the thread polls for it. Parking it would have made
+the chat useless: you would approve a scrape and nothing would happen
+until morning, in a window you are sitting in front of waiting.
+
+Neither runs the tool inside the request. A paid Apify scrape in a
+request/response cycle would block the worker, and a timeout would leave
+"did it charge me?" unanswerable.
+
+Both stamp ``executed_at``, and both refuse to act on a row that already
+carries one. Approval is permanent, so without that guard a retried task
+or a double-click charges the card twice.
 """
 
 import json
@@ -53,6 +66,19 @@ from outreach import spend
 logger = logging.getLogger(__name__)
 
 READ, ACT, COMMIT = 'read', 'act', 'commit'
+
+
+def _noop_report(_line):
+    """Default progress reporter — drops the line.
+
+    Defined up here because every tool implementation takes it as a
+    DEFAULT ARGUMENT, and defaults are evaluated when the `def` runs.
+    Declaring it lower down beside the real reporter raised NameError at
+    import time.
+
+    Tools call report() unconditionally; when nobody is listening the
+    line goes nowhere rather than being guarded at every call site.
+    """
 
 
 # ── Tool definitions ──────────────────────────────────────────────────
@@ -131,11 +157,13 @@ TOOLS = [
         'description': (
             'Source new leads for one city from Apify. THIS COSTS MONEY '
             'and requires human approval before it runs — calling it '
-            'files a request and returns immediately; the scrape happens '
-            'after a human approves, on the next run. Only request this '
-            'when the current city is genuinely exhausted. Requesting a '
-            'second scrape while one is already awaiting approval is '
-            'wasteful; check funnel_status first.'),
+            'files a request and returns immediately, having done '
+            'nothing. Zachery sees an Approve button in the chat; if he '
+            'clicks it the scrape runs straight away and you are told '
+            'the result. Say plainly that it is filed and has NOT run. '
+            'Only request this when the current city is genuinely '
+            'exhausted, and never while one is already awaiting '
+            'approval — check funnel_status first.'),
         'input_schema': {
             'type': 'object',
             'properties': {
@@ -181,15 +209,59 @@ TOOLS = [
         },
     },
     {
+        'name': 'create_campaign',
+        'kind': COMMIT,
+        'description': (
+            'Create a NEW campaign in Instantly, PAUSED, and register the '
+            'matching arm in Django so leads can later be assigned to it. '
+            'Requires human approval. Creates nothing that can send on '
+            'its own: the campaign is paused on arrival and only a human '
+            'can start it in Instantly\'s own UI. Use this when leads are '
+            'ready but there is no arm for their niche and state — '
+            'list_campaigns tells you whether one already exists. Do NOT '
+            'use it to fix a campaign that exists but is missing an '
+            'Instantly id; say so instead.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'name': {
+                    'type': 'string',
+                    'description': 'Human label, e.g. '
+                                   '"TX Law [security review]".'},
+                'niche': {'type': 'string',
+                          'description': 'e.g. "family law".'},
+                'state': {'type': 'string',
+                          'description': 'Two-letter code, e.g. TX.'},
+                'offer': {
+                    'type': 'string',
+                    'description': 'Offer key the copy carries, e.g. '
+                                   'security_review. list_offers shows '
+                                   'them.'},
+                'sequence': {
+                    'type': 'string',
+                    'description': 'Sequence template slug. Defaults to '
+                                   'texas-law, the only one written.'},
+                'reason': {
+                    'type': 'string',
+                    'description': 'Why a new arm is needed rather than '
+                                   'an existing one.'},
+            },
+            'required': ['name', 'niche', 'state', 'reason'],
+        },
+    },
+    {
         'name': 'push_to_instantly',
         'kind': COMMIT,
         'description': (
             'Push assigned leads into their Instantly campaigns, which '
             'queues REAL EMAILS TO REAL STRANGERS. Requires human '
-            'approval. This is also gated independently by the warmup '
-            'check and the sending switch — if mailboxes are not warm '
-            'enough, approval alone will not send. Say in `reason` how '
-            'many leads and which arms.'),
+            'approval; calling it files a request and does nothing. Also '
+            'gated independently by the warmup check and the sending '
+            'switch — approval alone will not send if mailboxes are not '
+            'warm. Only ever pushes into a campaign that already exists '
+            'and is active: if the leads have no arm, use create_campaign '
+            'first and wait for that to be approved and started. Say in '
+            '`reason` how many leads and which arms.'),
         'input_schema': {
             'type': 'object',
             'properties': {
@@ -367,7 +439,7 @@ def tool_kind(name):
 
 # ── Implementations ───────────────────────────────────────────────────
 
-def _funnel_status(_input):
+def _funnel_status(_input, report=_noop_report):
     from outreach.assignment import assignable_leads, open_campaigns
     from outreach.models import Lead, OutreachCampaign
     from outreach import instantly, verify
@@ -410,7 +482,7 @@ def _funnel_status(_input):
     }
 
 
-def _city_progress(tool_input):
+def _city_progress(tool_input, report=_noop_report):
     from django.db.models import Count, Q
     from outreach.models import Lead
 
@@ -452,31 +524,55 @@ def _city_progress(tool_input):
             'city_count': len(cities)}
 
 
-def _run_pipeline(_input):
+def _run_pipeline(_input, report=_noop_report):
     from outreach.tasks import (
         assign_campaigns_task, enrich_pending_leads_task,
         generate_icebreakers_task, verify_leads_task,
     )
     allowed, why = spend.check_spend_allowed()
     if not allowed:
+        report('refused — daily AI spend cap reached')
         return {'ran': False, 'reason': why}
+
+    # Each stage reports as it finishes. This can run for minutes on a
+    # fresh batch, and a chat that says nothing for four minutes is
+    # indistinguishable from one that has died.
+    report('verifying addresses…')
+    verify_pre = verify_leads_task()
+    report(f'verify: {verify_pre}')
+
+    report('enriching (PageSpeed, TLS, socials)…')
+    enrich = enrich_pending_leads_task()
+    report(f'enrich: {enrich}')
+
+    report('re-verifying anything enrichment changed…')
+    verify_post = verify_leads_task()
+    report(f'verify: {verify_post}')
+
+    report('writing icebreakers…')
+    icebreakers = generate_icebreakers_task()
+    report(f'icebreakers: {icebreakers}')
+
+    report('assigning to campaign arms…')
+    assign = assign_campaigns_task()
+    report(f'assign: {assign}')
 
     return {
         'ran': True,
-        'verify_pre': verify_leads_task(),
-        'enrich': enrich_pending_leads_task(),
-        'verify_post': verify_leads_task(),
-        'icebreakers': generate_icebreakers_task(),
-        'assign': assign_campaigns_task(),
+        'verify_pre': verify_pre,
+        'enrich': enrich,
+        'verify_post': verify_post,
+        'icebreakers': icebreakers,
+        'assign': assign,
     }
 
 
-def _assign_campaigns(tool_input):
+def _assign_campaigns(tool_input, report=_noop_report):
     from outreach.assignment import assign_leads
     return assign_leads(dry_run=bool(tool_input.get('dry_run')))
 
 
-def _start_scrape(tool_input):
+def _start_scrape(tool_input, report=_noop_report):
     """Runs only after approval — see execute_approved.
 
     Two failure modes are reported as outcomes rather than errors,
@@ -502,12 +598,19 @@ def _start_scrape(tool_input):
     if not city:
         return {'scraped': False, 'reason': 'city is required.'}
 
+    # NOT niche.title(). "family law" is a search for a LAW FIRM; using
+    # the niche as the type rejects every row and still bills the run.
+    # See apify_source.business_type_for_niche.
+    from outreach.apify_source import business_type_for_niche
+    business_type = ((tool_input.get('business_type') or '').strip()
+                     or business_type_for_niche(niche))
+
+    report(f'searching Apify — {niche} in {city}, {state} (max {limit})')
     try:
         leads, ledger = run_lead_search(
             niche=niche, city=city, state=state, max_results=limit,
             label=f'{niche} in {city}, {state} (Prospect)',
-            business_type=(tool_input.get('business_type')
-                           or niche.title()))
+            business_type=business_type)
     except ApifyQuotaReached as exc:
         return {'scraped': False, 'quota_reached': True, 'reason': str(exc)}
     except ApifyActorRefused as exc:
@@ -525,14 +628,30 @@ def _start_scrape(tool_input):
     except ApifyError as exc:
         return {'scraped': False, 'reason': str(exc)}
 
-    result = import_leads(leads, source='apify')
+    report(f'{ledger.results_returned} returned by Apify')
+    if ledger.results_rejected:
+        report(f'{ledger.results_rejected} rejected by the ICP screen '
+               f'(size, title, state or industry)')
+    report(f'{len(leads)} usable — importing')
+
+    # Stamp the segment type, not the search phrase, or the leads clear
+    # the ICP screen and are then blocked at push for being "Family Law"
+    # in a "Law Firm" campaign.
+    result = import_leads(leads, source='apify',
+                          business_type_override=business_type or None)
+    report(f"imported {result.get('imported', 0)} new, "
+           f"{result.get('duplicates', 0)} duplicates, "
+           f"${float(ledger.actual_cost_usd or 0):.2f} spent")
     result['apify_run_id'] = ledger.apify_run_id
     result['cost_usd'] = float(ledger.actual_cost_usd or 0)
+    result['returned_by_apify'] = ledger.results_returned
+    result['rejected_by_icp_screen'] = ledger.results_rejected
+    result['business_type'] = business_type or '(unconstrained)'
     result['scraped'] = True
     return result
 
 
-def _import_dataset(tool_input):
+def _import_dataset(tool_input, report=_noop_report):
     """Import an Apify dataset a human triggered in the Console.
 
     The free-plan path. Dataset reads are NOT billed, so unlike
@@ -559,20 +678,116 @@ def _import_dataset(tool_input):
     return result
 
 
-def _push_to_instantly(_input):
+def _create_campaign(tool_input, report=_noop_report):
+    """Build one campaign arm. Runs only after approval.
+
+    Two guards that are not negotiable:
+
+    * The copy goes through ``sequences.describe_problems`` BEFORE
+      anything is created. Instantly is where copy becomes email; a
+      campaign built from copy that fails pre-flight is a campaign
+      someone eventually starts.
+    * The campaign is created PAUSED and this never activates it. That
+      click stays a human one in Instantly's own UI, because it is the
+      irreversible step that puts mail in front of strangers.
+    """
+    from django.utils.text import slugify
+
+    from outreach import instantly, sequences
+    from outreach.apify_source import business_type_for_niche
+    from outreach.models import Offer, OutreachCampaign
+
+    name = (tool_input.get('name') or '').strip()
+    niche = (tool_input.get('niche') or '').strip()
+    state = (tool_input.get('state') or '').strip().upper()
+    if not (name and niche and state):
+        return {'created': False,
+                'reason': 'name, niche and state are all required.'}
+
+    slug = slugify(name)[:50]
+    if OutreachCampaign.objects.filter(slug=slug).exists():
+        return {'created': False,
+                'reason': f'A campaign with slug {slug!r} already exists. '
+                          f'Use list_campaigns and say what is wrong with '
+                          f'it rather than creating a duplicate.'}
+
+    offer_key = (tool_input.get('offer') or sequences.DEFAULT_OFFER).strip()
+    offer = Offer.objects.filter(key=offer_key).first()
+    if offer is None:
+        return {'created': False,
+                'reason': f'No offer with key {offer_key!r}. '
+                          f'Call list_offers.'}
+
+    sequence = (tool_input.get('sequence') or 'texas-law').strip()
+    report(f'building {sequence} copy with the {offer.name} offer')
+    try:
+        steps = sequences.build_steps(sequence, offer=offer)
+    except sequences.SequenceError as exc:
+        return {'created': False, 'reason': str(exc)}
+
+    problems = sequences.describe_problems(steps)
+    if problems:
+        report(f'pre-flight FAILED: {len(problems)} problem(s)')
+        return {
+            'created': False,
+            'reason': 'The copy failed pre-flight and nothing was created.',
+            'problems': problems,
+        }
+    report(f'pre-flight passed — {len(steps)} touches')
+
+    report('creating the campaign in Instantly (paused)')
+    try:
+        result = instantly.create_campaign(name, steps)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('create_campaign failed')
+        return {'created': False, 'reason': f'Instantly refused: {exc}'}
+
+    campaign_id = (result or {}).get('id') or (result or {}).get('campaign_id')
+    if not campaign_id:
+        return {'created': False,
+                'reason': f'Instantly returned no campaign id: '
+                          f'{str(result)[:200]}'}
+
+    business_type = business_type_for_niche(niche)
+    campaign = OutreachCampaign.objects.create(
+        name=name, slug=slug, niche=niche, state=state,
+        business_type=business_type, offer=offer,
+        instantly_campaign_id=campaign_id,
+        # Never active on arrival. Assignment will not fill it and push
+        # will not touch it until a human turns both this and the
+        # Instantly campaign on.
+        active=False,
+    )
+    report(f'created {name} — paused, id {campaign_id}')
+    return {
+        'created': True,
+        'campaign': campaign.name,
+        'slug': campaign.slug,
+        'instantly_campaign_id': campaign_id,
+        'business_type': business_type or '(unconstrained)',
+        'active': False,
+        'next_step': (
+            'The campaign exists but is PAUSED and inactive, so nothing '
+            'will be assigned or pushed to it. A human must start it in '
+            'Instantly and mark the Django arm active before it can '
+            'receive leads.'),
+    }
+
+
+def _push_to_instantly(_input, report=_noop_report):
     """Runs only after approval — see execute_approved."""
     from outreach.tasks import push_to_instantly_task
     return {'result': push_to_instantly_task()}
 
 
-def _write_journal(tool_input, run=None):
+def _write_journal(tool_input, report=_noop_report, run_obj=None):
     entry = (tool_input.get('entry') or '').strip()
     if not entry:
         return {'saved': False, 'reason': 'entry was empty.'}
-    if run is not None:
-        run.summary = entry
-        run.save(update_fields=['summary'])
-        employee = run.employee
+    if run_obj is not None:
+        run_obj.summary = entry
+        run_obj.save(update_fields=['summary'])
+        employee = run_obj.employee
         employee.last_journal_entry = entry
         employee.save(update_fields=['last_journal_entry'])
     return {'saved': True, 'characters': len(entry)}
@@ -594,6 +809,7 @@ _IMPL = {
     'start_scrape': '_start_scrape',
     'import_dataset': '_import_dataset',
     'push_to_instantly': '_push_to_instantly',
+    'create_campaign': '_create_campaign',
     'find_leads': '_find_leads',
     'lead_detail': '_lead_detail',
     'list_campaigns': '_list_campaigns',
@@ -608,6 +824,37 @@ def _resolve(name):
     """The callable implementing ``name``, or None."""
     func_name = _IMPL.get(name)
     return globals().get(func_name) if func_name else None
+
+
+# ── Progress reporting ────────────────────────────────────────────────
+#
+# _noop_report lives at the top of the module — it is a default argument
+# on every implementation, so it has to exist before they are defined.
+
+def action_reporter(action):
+    """A ``report(line)`` bound to one AIEmployeeAction.
+
+    Each line is written straight through rather than buffered: they are
+    a handful per tool, they arrive seconds apart, and the whole point is
+    that the page can see them WHILE the tool runs. Buffering would make
+    them appear all at once at the end, which is the spinner we are
+    replacing.
+
+    Failures are swallowed. A progress line is a nicety; losing the
+    scrape it was describing is not.
+    """
+    def report(line):
+        text = str(line).strip()
+        if not text:
+            return
+        try:
+            type(action).objects.filter(pk=action.pk).update(
+                progress=(list(action.progress or []) + [text])[-40:])
+            action.progress = (list(action.progress or []) + [text])[-40:]
+        except Exception:  # noqa: BLE001
+            logger.exception('could not record progress for action %s',
+                             action.pk)
+    return report
 
 
 # ── Lookup implementations ────────────────────────────────────────────
@@ -647,7 +894,7 @@ def _lead_row(lead):
     }
 
 
-def _find_leads(tool_input):
+def _find_leads(tool_input, report=_noop_report):
     from outreach.models import Lead
 
     limit = _clamp(tool_input.get('limit'), 25, 100)
@@ -685,7 +932,7 @@ def _find_leads(tool_input):
     }
 
 
-def _lead_detail(tool_input):
+def _lead_detail(tool_input, report=_noop_report):
     from outreach.models import Lead
 
     ref = (tool_input.get('lead') or '').strip()
@@ -741,7 +988,7 @@ def _lead_detail(tool_input):
     return row
 
 
-def _list_campaigns(_input):
+def _list_campaigns(_input, report=_noop_report):
     from outreach.models import OutreachCampaign
 
     out = []
@@ -765,7 +1012,7 @@ def _list_campaigns(_input):
     return {'campaigns': out, 'count': len(out)}
 
 
-def _list_offers(_input):
+def _list_offers(_input, report=_noop_report):
     from outreach.models import Offer
 
     return {'offers': [
@@ -785,7 +1032,7 @@ def _list_offers(_input):
     ]}
 
 
-def _recent_replies(tool_input):
+def _recent_replies(tool_input, report=_noop_report):
     from outreach.models import EmailReply
 
     limit = _clamp(tool_input.get('limit'), 15, 50)
@@ -807,7 +1054,7 @@ def _recent_replies(tool_input):
     return {'total': total, 'returned': len(rows), 'replies': rows}
 
 
-def _sourcing_history(tool_input):
+def _sourcing_history(tool_input, report=_noop_report):
     from outreach.models import ApifyRun
 
     limit = _clamp(tool_input.get('limit'), 10, 30)
@@ -826,7 +1073,7 @@ def _sourcing_history(tool_input):
     return {'runs': rows, 'count': len(rows)}
 
 
-def _spend_summary(_input):
+def _spend_summary(_input, report=_noop_report):
     from outreach import spend
     from outreach.apify_source import budget_status
     from outreach.models import OutreachSettings
@@ -865,7 +1112,7 @@ def make_executor(run):
         if name == 'write_journal':
             action = AIEmployeeAction.objects.create(
                 run=run, tool_name=name, tool_input=tool_input)
-            result = _write_journal(tool_input, run=run)
+            result = _write_journal(tool_input, run_obj=run)
             action.result = json.dumps(result)[:4000]
             action.executed_at = timezone.now()
             action.save(update_fields=['result', 'executed_at'])
@@ -894,7 +1141,7 @@ def make_executor(run):
         action = AIEmployeeAction.objects.create(
             run=run, tool_name=name, tool_input=tool_input)
         try:
-            result = _resolve(name)(tool_input)
+            result = _resolve(name)(tool_input, action_reporter(action))
         except Exception as exc:  # noqa: BLE001
             logger.exception('tool %r failed', name)
             action.result = f'FAILED: {exc}'[:4000]

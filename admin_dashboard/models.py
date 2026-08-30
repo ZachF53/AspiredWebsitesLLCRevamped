@@ -304,6 +304,16 @@ class AIEmployeeAction(models.Model):
     tool_input = models.JSONField(default=dict)
     result = models.TextField(blank=True)
 
+    # Short human lines a long-running tool emits as it works —
+    # "100 fetched", "18 rejected (state)", "82 imported". Written while
+    # the tool runs so the chat can show what is happening instead of a
+    # spinner, and kept afterwards so the history explains itself.
+    #
+    # On the ACTION rather than the run because a run makes several tool
+    # calls and the lines only mean anything attached to the one that
+    # produced them.
+    progress = models.JSONField(default=list, blank=True)
+
     requires_approval = models.BooleanField(default=False, db_index=True)
     approved = models.BooleanField(null=True, blank=True)  # null = pending
     approved_by = models.ForeignKey(
