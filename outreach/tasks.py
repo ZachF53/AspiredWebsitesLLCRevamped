@@ -270,6 +270,36 @@ def run_scrape_jobs_task():
 
 
 @shared_task
+def check_niche_task(limit=200):
+    """Verify leads against their own homepages.
+
+    Runs FIRST, ahead of paid verification, because it is the cheapest
+    gate available: fetching is free and the classification is about
+    $0.001 a lead. An off-niche lead is worth zero verification credits
+    and zero writer-model calls, so dropping it here is what makes the
+    rest of the pipeline cheap.
+
+    Skips leads that already carry a verdict, so re-running spends
+    nothing.
+    """
+    from outreach import site_check
+    from outreach.models import Lead
+
+    leads = list(
+        Lead.objects.filter(niche_verdict=Lead.NICHE_PENDING)
+        .exclude(email='')
+        .order_by('-score')[:limit]
+    )
+    if not leads:
+        return 'nothing to check'
+    counts = site_check.check_leads(leads)
+    return (f"checked={counts['checked']} "
+            f"confirmed={counts['confirmed']} "
+            f"rejected={counts['rejected']} "
+            f"unconfirmed={counts['unconfirmed']}")
+
+
+@shared_task
 def verify_leads_task(limit=500):
     """Verify unverified leads. Cheap, safe to run often.
 
@@ -291,9 +321,16 @@ def verify_leads_task(limit=500):
             and getattr(settings, 'EMAIL_VERIFY_API_KEY', '')):
         statuses.append(verify.UNVERIFIED)
 
+    # Do not spend verification credits on a lead the homepage already
+    # ruled out. Leads still at NICHE_PENDING are allowed through: the
+    # niche stage runs first in the pipeline so that is rare, and
+    # requiring `confirmed` outright would silently halt verification on
+    # every lead that predates this stage.
     leads = Lead.objects.filter(
         email_verification_status__in=statuses,
-    ).exclude(email='').order_by('-score')[:limit]
+    ).exclude(email='').exclude(
+        niche_verdict__in=[Lead.NICHE_REJECTED, Lead.NICHE_UNCONFIRMED],
+    ).order_by('-score')[:limit]
 
     counts = {}
     for lead in leads:
@@ -319,10 +356,15 @@ def generate_icebreakers_task(limit=50):
     # icebreaker costs a Claude call, and cold-email copy for somebody
     # who already wrote to us is money spent on a thing that must never
     # be sent.
+    # Niche-confirmed only. An icebreaker is a writer-model call, and
+    # spending one on a business whose homepage says it is a steel
+    # fabricator produces copy addressed to a law firm that does not
+    # exist. Held leads keep their place in the review queue.
     candidates = Lead.objects.filter(
         icebreaker='',
         unsubscribed=False,
         enrichment_completed_at__isnull=False,
+        niche_verdict=Lead.NICHE_CONFIRMED,
     ).exclude(
         source__in=Lead.INBOUND_SOURCES,
     ).exclude(email='').order_by('-score')[:limit * 3]
@@ -526,6 +568,11 @@ def run_outreach_pipeline_task():
     # still PENDING or UNVERIFIED, which after the first pass means
     # exactly the ones enrichment just found an address for.
     results = [
+        # Niche check FIRST. Fetching is free and the classification is
+        # about $0.001 a lead, so it is the cheapest gate available —
+        # every lead it drops is verification credits and a writer-model
+        # call not spent.
+        f'niche: {check_niche_task()}',
         f'verify(pre): {verify_leads_task()}',
         f'enrich: {enrich_pending_leads_task()}',
         f'verify(post): {verify_leads_task()}',

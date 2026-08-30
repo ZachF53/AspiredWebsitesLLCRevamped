@@ -78,6 +78,20 @@ def warm_facts(lead):
     from django.utils import timezone
 
     facts = []
+    # What the firm says about itself, on its own homepage. Placed first
+    # because it is the best material available: the provider's
+    # description is either absent or filler of the shape "X is a law
+    # company based out of <street address>", and a line built from that
+    # either reads as generic or quotes the address back at the
+    # recipient, which reads like surveillance.
+    #
+    # site_summary is extracted from the page by site_check, so every
+    # clause in it is something the business published about itself and
+    # the fabrication guard can be pointed at the same text.
+    if (lead.site_summary or '').strip():
+        facts.append((
+            'site_summary',
+            f"From their own website: {lead.site_summary.strip()}"))
     if lead.founded_year:
         years = timezone.now().year - lead.founded_year
         if 0 < years <= 150:
@@ -351,6 +365,13 @@ def describe_problems(line, lead):
     if years:
         known = {str(y) for y in (lead.founded_year, lead.copyright_year)
                  if y}
+        # A year the firm states on its OWN homepage is a fact we hold,
+        # the same as founded_year — site_summary is extracted from that
+        # page, not inferred. Without this, "serving Austin since 1998"
+        # read straight off their site is rejected as fabricated, which
+        # is the opposite of what the guard is for.
+        known |= set(re.findall(r'\b(?:19|20)\d{2}\b',
+                                lead.site_summary or ''))
         unknown = [y for y in years if y not in known]
         if unknown:
             problems.append(

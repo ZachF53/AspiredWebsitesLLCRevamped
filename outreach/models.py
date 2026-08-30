@@ -268,6 +268,51 @@ class Lead(models.Model):
     # fails in the recoverable direction.
     needs_review = models.BooleanField(default=False, db_index=True)
     review_reason = models.CharField(max_length=255, blank=True)
+
+    # ── Niche verification, read off the company's own homepage ────────
+    #
+    # The data provider's industry tag is wrong often enough to matter.
+    # A 50-lead batch labelled "Accounting" contained a steel fabricator,
+    # an insulation manufacturer, an insurance agency, a medical-billing
+    # company, a software vendor, and a business whose homepage says it
+    # has permanently closed — 12%. Sending "your accounting firm" to a
+    # fabricator earns a spam complaint, and complaints are shared across
+    # every future send from the domain.
+    #
+    # Neither the company name nor the provider's description can settle
+    # it; plenty of real firms are named after a person. The homepage
+    # settles it, and the same fetch yields the material the icebreaker
+    # should have been using all along.
+    #
+    # FAIL CLOSED: only `confirmed` is sendable. A failed fetch is NOT
+    # evidence of being off-niche — real businesses block scrapers, park
+    # domains and render client-side — so an unreadable page falls back
+    # to a name/domain signal and lands in `unconfirmed`, held for
+    # review, never deleted.
+    NICHE_PENDING = 'pending'
+    NICHE_CONFIRMED = 'confirmed'
+    NICHE_REJECTED = 'rejected'
+    NICHE_UNCONFIRMED = 'unconfirmed'
+    NICHE_VERDICT_CHOICES = [
+        (NICHE_PENDING, 'Not checked yet'),
+        (NICHE_CONFIRMED, 'Confirmed in niche'),
+        (NICHE_REJECTED, 'Rejected — different kind of business'),
+        (NICHE_UNCONFIRMED, 'Unconfirmed — page and name said nothing'),
+    ]
+    niche_verdict = models.CharField(
+        max_length=12, choices=NICHE_VERDICT_CHOICES,
+        default=NICHE_PENDING, db_index=True)
+    niche_checked_at = models.DateTimeField(null=True, blank=True)
+    # How the verdict was reached: the page, the name fallback, or
+    # nothing. Kept so a run can be audited without re-fetching.
+    niche_evidence = models.CharField(max_length=255, blank=True)
+
+    # What the homepage actually says the business does — factual
+    # clauses extracted from the page, not the provider's
+    # auto-generated "X is an accounting company based out of <street
+    # address>" filler. This is the icebreaker's raw material; quoting
+    # a street address back at a stranger reads like surveillance.
+    site_summary = models.TextField(blank=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     reviewed_by = models.ForeignKey(
         'auth.User', on_delete=models.SET_NULL,

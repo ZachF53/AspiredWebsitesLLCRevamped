@@ -709,10 +709,18 @@ def _contact_note(item):
         bits.append(f"Founded: {item['company_founded_year']}")
     if item.get('company_size'):
         bits.append(f"Company size: {item['company_size']}")
-    # Skipped when it is the generic Apollo filler, which says nothing
-    # and would tempt the model into inventing something around it.
-    desc = (item.get('company_description') or '').strip()
-    if desc and 'based out of' not in desc.lower() and len(desc) > 60:
+    # Apollo's description opens with generated filler — "X is a law
+    # company based out of <street address>" — which says nothing and,
+    # if quoted, hands the recipient their own address back.
+    #
+    # The whole field used to be discarded whenever that phrase
+    # appeared, which also threw away the records where real copy the
+    # business wrote follows the filler. Only the generated SENTENCE is
+    # stripped now; whatever survives is kept.
+    from outreach.site_check import strip_provider_boilerplate
+
+    desc = strip_provider_boilerplate(item.get('company_description') or '')
+    if desc and len(desc) > 60:
         bits.append(f"About: {desc[:400]}")
     if item.get('company_linkedin'):
         bits.append(f"LinkedIn: {item['company_linkedin']}")
