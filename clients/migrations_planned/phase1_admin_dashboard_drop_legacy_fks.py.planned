@@ -11,11 +11,14 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Re-pointed at the current leaf. 0005 added the AI Employees
-        # models, 0006 seeded the Prospect agent, 0007 added the run
-        # message history — so 0004 is long past being the tip. Promoting
-        # this against a stale parent would branch the migration graph.
-        ('admin_dashboard', '0008_aiemployeeaction_executed_at'),
+        # Re-pointed at the current leaf, again. 0005 added the AI
+        # Employees models, 0006 seeded the Prospect agent, 0007 added
+        # the run message history, 0008 the action executed_at stamp,
+        # and then the chat pane added three more: 0009 conversations,
+        # 0010 the streamed partial_text, 0011 per-action progress
+        # lines. Promoting this against a stale parent would branch the
+        # migration graph.
+        ('admin_dashboard', '0011_aiemployeeaction_progress'),
     ]
 
     operations = [
