@@ -118,10 +118,27 @@ the same dashboard, not a separate product.
     margin: 0 0 .6rem; font-size: .8rem;
     color: var(--color-text-muted);
 }
-.chat-approve__args div { display: flex; gap: .4rem; }
-.chat-approve__args dt { font-weight: 600; }
+.chat-approve__arg { display: flex; gap: .4rem; margin-bottom: .3rem; }
+.chat-approve__args dt { font-weight: 600; flex: 0 0 auto; }
 .chat-approve__args dt::after { content: ':'; }
-.chat-approve__args dd { margin: 0; }
+.chat-approve__args dd { margin: 0; min-width: 0; }
+/* Email bodies. Preserve the author's line breaks and let long copy
+   scroll inside the card instead of stretching the whole thread. */
+.chat-approve__copy {
+    margin: .2rem 0 0;
+    padding: .5rem .6rem;
+    max-height: 18rem;
+    overflow: auto;
+    background: rgba(0, 0, 0, .25);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem;
+    line-height: 1.5;
+    color: var(--color-text);
+}
 .chat-approve__buttons { display: flex; gap: .5rem; }
 
 .chat-dots i {

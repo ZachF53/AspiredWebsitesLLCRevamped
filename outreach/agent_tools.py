@@ -209,6 +209,115 @@ TOOLS = [
         },
     },
     {
+        'name': 'campaign_stats',
+        'kind': READ,
+        'description': (
+            'Every campaign arm with its LIVE Instantly numbers — leads, '
+            'emails sent, opens, replies, bounces — merged with what '
+            'Django knows about it (offer, assigned, pushed, whether it '
+            'can push at all). Use this whenever asked how campaigns are '
+            'doing, which arm is winning, or what exists. It reports '
+            'whether each arm has enough volume for its reply rate to '
+            'mean anything; below that, say the rate is noise rather '
+            'than ranking arms by it.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'campaign': {
+                    'type': 'string',
+                    'description': 'Optional name or slug to limit to '
+                                   'one arm.'},
+            },
+        },
+    },
+    {
+        'name': 'preview_sequence',
+        'kind': READ,
+        'description': (
+            'Show the actual email copy a sequence would send — every '
+            'touch, its subject, its body and how many days after the '
+            'previous one it goes. Free and writes nothing. Give an '
+            'offer key to see how that offer reads, or a campaign to see '
+            'what that arm is currently set to send. ALWAYS use this '
+            'before set_campaign_sequence, and show Zachery the copy: he '
+            'should read what strangers will receive before approving '
+            'it, not after.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'offer': {
+                    'type': 'string',
+                    'description': 'Offer key, e.g. security_review. '
+                                   'list_offers shows them.'},
+                'sequence': {
+                    'type': 'string',
+                    'description': 'Sequence template slug. Defaults to '
+                                   'texas-law.'},
+                'campaign': {
+                    'type': 'string',
+                    'description': 'Campaign name or slug — preview what '
+                                   'this arm is set up to send.'},
+            },
+        },
+    },
+    {
+        'name': 'set_campaign_sequence',
+        'kind': COMMIT,
+        'description': (
+            'Write the email sequence into an EXISTING campaign, '
+            'replacing whatever it currently sends. Requires human '
+            'approval. Two ways to use it: give an `offer` key to '
+            'compose the approved template around a different offer '
+            '(preferred — that copy has already been through '
+            'pre-flight), or give `steps` to write the copy yourself. '
+            'Either way the copy is pre-flighted before anything is '
+            'written, and Zachery sees the full text on the approval '
+            'card. Preview it with preview_sequence and show him first. '
+            'This never starts a campaign — a paused arm stays paused.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'campaign': {
+                    'type': 'string',
+                    'description': 'Campaign name or slug to write into.'},
+                'offer': {
+                    'type': 'string',
+                    'description': 'Compose the standard template around '
+                                   'this offer key.'},
+                'sequence': {
+                    'type': 'string',
+                    'description': 'Template slug. Defaults to texas-law.'},
+                'steps': {
+                    'type': 'array',
+                    'description': 'Custom copy, one object per touch. '
+                                   'Use only when asked for bespoke '
+                                   'wording — the template is safer.',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'subject': {
+                                'type': 'string',
+                                'description': 'Blank on follow-ups so '
+                                               'they thread under touch '
+                                               'one.'},
+                            'body': {'type': 'string'},
+                            'delay_days': {
+                                'type': 'integer',
+                                'description': 'Days to wait after the '
+                                               'previous touch.'},
+                        },
+                        'required': ['body'],
+                    },
+                },
+                'reason': {
+                    'type': 'string',
+                    'description': 'What is changing and why. Zachery '
+                                   'reads this when deciding.'},
+            },
+            'required': ['campaign', 'reason'],
+        },
+    },
+    {
         'name': 'create_campaign',
         'kind': COMMIT,
         'description': (
@@ -678,6 +787,265 @@ def _import_dataset(tool_input, report=_noop_report):
     return result
 
 
+# Below this many delivered emails, one arm's reply rate cannot be told
+# apart from another's. The system prompt says the same thing in prose;
+# reporting it per arm makes it a number the model cannot round past.
+MIN_MEANINGFUL_SENDS = 300
+
+
+def _first_of(d, *keys, default=0):
+    """First present key. Instantly has renamed these fields before, and
+    a stats tool that silently reports 0 for 'replies' because the key
+    moved is worse than one that reports nothing."""
+    for k in keys:
+        if isinstance(d, dict) and d.get(k) is not None:
+            return d[k]
+    return default
+
+
+def _campaign_stats(tool_input, report=_noop_report):
+    """Local arms merged with live Instantly counters."""
+    from outreach import instantly
+    from outreach.models import OutreachCampaign
+
+    only = (tool_input.get('campaign') or '').strip()
+    campaigns = OutreachCampaign.objects.select_related('offer').all()
+    if only:
+        campaign, err = _find_campaign(only)
+        if err:
+            return err
+        campaigns = [campaign]
+
+    report('reading Instantly analytics')
+    analytics_by_id, analytics_error = {}, ''
+    try:
+        rows = instantly.campaign_analytics() or []
+        for row in rows:
+            key = _first_of(row, 'campaign_id', 'id', default=None)
+            if key:
+                analytics_by_id[str(key)] = row
+    except Exception as exc:  # noqa: BLE001
+        # Reported, not raised. The local half is still worth having, and
+        # "Instantly is unreachable" is itself an answer.
+        logger.exception('campaign_analytics failed')
+        analytics_error = str(exc)[:300]
+
+    out = []
+    for c in campaigns:
+        live = analytics_by_id.get(str(c.instantly_campaign_id or ''), {})
+        sent = int(_first_of(live, 'emails_sent_count', 'sent_count',
+                             'contacted_count'))
+        replies = int(_first_of(live, 'reply_count', 'replies_count'))
+        opens = int(_first_of(live, 'open_count', 'opens_count'))
+        bounces = int(_first_of(live, 'bounced_count', 'bounce_count'))
+
+        row = {
+            'name': c.name,
+            'slug': c.slug,
+            'niche': c.niche,
+            'state': c.state,
+            'business_type': c.business_type,
+            'offer': c.offer.name if c.offer_id else None,
+            'active': c.active,
+            'has_instantly_id': bool(c.instantly_campaign_id),
+            'pushable': bool(c.active and c.instantly_campaign_id),
+            'leads_assigned': c.leads.count(),
+            'leads_pushed': c.leads_pushed,
+            'emails_sent': sent,
+            'opens': opens,
+            'replies': replies,
+            'bounces': bounces,
+        }
+        if sent:
+            row['reply_rate_pct'] = round(replies * 100.0 / sent, 2)
+            row['bounce_rate_pct'] = round(bounces * 100.0 / sent, 2)
+            # Above 3% Google and Microsoft start filtering the domain,
+            # and no amount of warming undoes it.
+            row['bounce_rate_is_dangerous'] = (
+                bounces * 100.0 / sent) > 3.0
+        row['enough_data_to_judge'] = sent >= MIN_MEANINGFUL_SENDS
+        if not row['enough_data_to_judge']:
+            row['caveat'] = (
+                f'{sent} sends is below {MIN_MEANINGFUL_SENDS}; any reply '
+                f'rate here is noise and must not be used to rank arms.')
+        out.append(row)
+
+    result = {
+        'campaigns': out,
+        'count': len(out),
+        'min_sends_before_a_rate_means_anything': MIN_MEANINGFUL_SENDS,
+    }
+    if analytics_error:
+        result['instantly_unreachable'] = analytics_error
+        result['note'] = ('Live send/open/reply numbers are missing — '
+                          'those columns are zero because Instantly could '
+                          'not be reached, NOT because nothing was sent.')
+    return result
+
+
+def _find_campaign(ref):
+    """Resolve a campaign by slug or name. Returns (campaign, error)."""
+    from outreach.models import OutreachCampaign
+
+    ref = (ref or '').strip()
+    if not ref:
+        return None, 'Name the campaign.'
+    campaign = OutreachCampaign.objects.filter(slug=ref).first()
+    if campaign is None:
+        matches = list(OutreachCampaign.objects.filter(name__icontains=ref)[:5])
+        if len(matches) > 1:
+            names = ', '.join(m.slug for m in matches)
+            return None, (f'{ref!r} matches several campaigns ({names}). '
+                          f'Use the slug.')
+        campaign = matches[0] if matches else None
+    if campaign is None:
+        return None, (f'No campaign matches {ref!r}. Call list_campaigns.')
+    return campaign, ''
+
+
+def _steps_from_input(tool_input, campaign=None):
+    """Custom steps if given, otherwise compose the template.
+
+    Returns ``(steps, source, error)``.
+    """
+    from outreach import sequences
+
+    raw_steps = tool_input.get('steps')
+    if raw_steps:
+        steps = []
+        for i, step in enumerate(raw_steps, 1):
+            if not isinstance(step, dict):
+                return None, '', f'Step {i} is not an object.'
+            steps.append({
+                'subject': (step.get('subject') or '').strip(),
+                'body': (step.get('body') or '').strip(),
+                'delay_days': int(step.get('delay_days') or (0 if i == 1
+                                                             else 3)),
+            })
+        return steps, 'custom copy', ''
+
+    from outreach.models import Offer
+    offer_key = (tool_input.get('offer') or '').strip()
+    if not offer_key and campaign is not None and campaign.offer_id:
+        offer_key = campaign.offer.key
+    offer_key = offer_key or sequences.DEFAULT_OFFER
+
+    offer = Offer.objects.filter(key=offer_key).first()
+    if offer is None:
+        return None, '', f'No offer with key {offer_key!r}. Call list_offers.'
+
+    slug = (tool_input.get('sequence') or 'texas-law').strip()
+    try:
+        steps = sequences.build_steps(slug, offer=offer)
+    except sequences.SequenceError as exc:
+        return None, '', str(exc)
+    return steps, f'{slug} template with the {offer.name} offer', ''
+
+
+def _preview_sequence(tool_input, report=_noop_report):
+    """Show the copy without writing it anywhere. Free."""
+    campaign = None
+    ref = (tool_input.get('campaign') or '').strip()
+    if ref:
+        campaign, err = _find_campaign(ref)
+        if err:
+            return err
+
+    steps, source, err = _steps_from_input(tool_input, campaign=campaign)
+    if err:
+        return {'previewed': False, 'reason': err}
+
+    from outreach import sequences
+    problems = sequences.describe_problems(steps)
+    return {
+        'previewed': True,
+        'campaign': campaign.name if campaign else None,
+        'source': source,
+        'touches': len(steps),
+        'would_pass_preflight': not problems,
+        'problems': problems,
+        'steps': [
+            {
+                'touch': i,
+                'sends': ('immediately' if i == 1
+                          else f"{s.get('delay_days', 3)} days after "
+                               f"touch {i - 1}"),
+                'subject': s.get('subject') or '(blank — threads under '
+                                               'the previous email)',
+                'body': s.get('body', ''),
+                'words': len(s.get('body', '').split()),
+            }
+            for i, s in enumerate(steps, 1)
+        ],
+    }
+
+
+def _set_campaign_sequence(tool_input, report=_noop_report):
+    """Write a sequence into an existing campaign. Runs after approval.
+
+    Pre-flight is not skippable and runs BEFORE anything reaches
+    Instantly. describe_problems enforces length, plain text, the
+    CAN-SPAM footer and no invented pricing — the rules that decide
+    whether copy is fit to put in front of a stranger. A campaign whose
+    copy fails them is a campaign somebody eventually starts.
+    """
+    from outreach import instantly, sequences
+
+    campaign, err = _find_campaign(tool_input.get('campaign'))
+    if err:
+        return {'updated': False, 'reason': err}
+    if not campaign.instantly_campaign_id:
+        return {
+            'updated': False,
+            'reason': (f'{campaign.name} has no Instantly campaign id, so '
+                       f'there is nothing to write the sequence into. It '
+                       f'exists in Django only. Say so rather than '
+                       f'creating a second campaign.'),
+        }
+
+    steps, source, err = _steps_from_input(tool_input, campaign=campaign)
+    if err:
+        return {'updated': False, 'reason': err}
+
+    report(f'composing {len(steps)} touches from {source}')
+    problems = sequences.describe_problems(steps)
+    if problems:
+        report(f'pre-flight FAILED: {len(problems)} problem(s)')
+        return {
+            'updated': False,
+            'reason': 'The copy failed pre-flight; nothing was written.',
+            'problems': problems,
+        }
+    report(f'pre-flight passed — writing to {campaign.name}')
+
+    try:
+        instantly.update_campaign_sequence(
+            campaign.instantly_campaign_id, steps)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('set_campaign_sequence failed')
+        return {'updated': False, 'reason': f'Instantly refused: {exc}'}
+
+    if not tool_input.get('steps'):
+        offer_key = (tool_input.get('offer') or '').strip()
+        if offer_key:
+            from outreach.models import Offer
+            offer = Offer.objects.filter(key=offer_key).first()
+            if offer is not None and campaign.offer_id != offer.pk:
+                campaign.offer = offer
+                campaign.save(update_fields=['offer', 'updated_at'])
+
+    report(f'{campaign.name} now sends {len(steps)} touches')
+    return {
+        'updated': True,
+        'campaign': campaign.name,
+        'touches': len(steps),
+        'source': source,
+        'active': campaign.active,
+        'note': ('The copy is written. This did not start the campaign — '
+                 'if it was paused it is still paused.'),
+    }
+
+
 def _create_campaign(tool_input, report=_noop_report):
     """Build one campaign arm. Runs only after approval.
 
@@ -810,6 +1178,9 @@ _IMPL = {
     'import_dataset': '_import_dataset',
     'push_to_instantly': '_push_to_instantly',
     'create_campaign': '_create_campaign',
+    'campaign_stats': '_campaign_stats',
+    'preview_sequence': '_preview_sequence',
+    'set_campaign_sequence': '_set_campaign_sequence',
     'find_leads': '_find_leads',
     'lead_detail': '_lead_detail',
     'list_campaigns': '_list_campaigns',

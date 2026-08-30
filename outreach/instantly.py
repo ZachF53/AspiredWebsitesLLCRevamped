@@ -335,21 +335,13 @@ def campaign_analytics(campaign_id=None):
 
 # ── Write ──────────────────────────────────────────────────────────────
 
-def create_campaign(name, sequence_steps, *, daily_limit=None,
-                    account_emails=None):
-    """Create a campaign, PAUSED.
+def build_sequence_payload(sequence_steps):
+    """Our step dicts -> Instantly's sequence shape.
 
-    ``sequence_steps`` is a list of dicts:
-        [{'subject': '...', 'body': '...', 'delay_days': 0}, ...]
-
-    Body text may reference custom variables with Instantly's
-    double-brace syntax — ``{{firstName}}``, ``{{companyName}}``,
-    ``{{icebreaker}}``. ``icebreaker`` is ours, pushed per lead by
-    ``push_leads``.
-
-    The campaign is created in a paused state and this module offers no
-    way to start it. Activating puts real mail in front of real people,
-    and that stays a deliberate click in Instantly's UI.
+    Shared by create_campaign and update_campaign_sequence so a sequence
+    written into an existing campaign is validated and shaped exactly
+    like one created with a new campaign. Two copies of this drift, and
+    the drift only shows up as mail that threads wrongly.
     """
     if not sequence_steps:
         raise InstantlyError('A campaign needs at least one sequence step.')
@@ -372,6 +364,46 @@ def create_campaign(name, sequence_steps, *, daily_limit=None,
                 'body': body,
             }],
         })
+    return steps
+
+
+def update_campaign_sequence(campaign_id, sequence_steps):
+    """Replace the sequence on an existing campaign. Does NOT start it.
+
+    Replace rather than append: a campaign carries one sequence, and
+    "add a touch" against a live campaign is how someone ends up with
+    two step-ones going to the same person.
+
+    This cannot activate anything. If the campaign is paused it stays
+    paused; if a human has already started it, changing the copy affects
+    only mail not yet sent, which is why the caller gates this on
+    approval.
+    """
+    steps = build_sequence_payload(sequence_steps)
+    result = _request('PATCH', f'campaigns/{campaign_id}',
+                      json={'sequences': [{'steps': steps}]})
+    logger.info('replaced sequence on Instantly campaign %s (%s steps)',
+                campaign_id, len(steps))
+    return result
+
+
+def create_campaign(name, sequence_steps, *, daily_limit=None,
+                    account_emails=None):
+    """Create a campaign, PAUSED.
+
+    ``sequence_steps`` is a list of dicts:
+        [{'subject': '...', 'body': '...', 'delay_days': 0}, ...]
+
+    Body text may reference custom variables with Instantly's
+    double-brace syntax — ``{{firstName}}``, ``{{companyName}}``,
+    ``{{icebreaker}}``. ``icebreaker`` is ours, pushed per lead by
+    ``push_leads``.
+
+    The campaign is created in a paused state and this module offers no
+    way to start it. Activating puts real mail in front of real people,
+    and that stays a deliberate click in Instantly's UI.
+    """
+    steps = build_sequence_payload(sequence_steps)
 
     payload = {
         'name': name,

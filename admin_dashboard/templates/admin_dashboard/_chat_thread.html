@@ -61,10 +61,25 @@ page, where approving only records the decision.
         {% if action.tool_input.reason %}
             <p class="chat-approve__why">{{ action.tool_input.reason }}</p>
         {% endif %}
+        {% comment %}
+        Long values — an email body above all — get their own block
+        rather than a cramped definition-list row. You are being asked
+        to approve copy that goes to strangers; it has to be readable
+        before the click, not after.
+        {% endcomment %}
         <dl class="chat-approve__args">
             {% for key, value in action.tool_input.items %}
                 {% if key != 'reason' %}
-                    <div><dt>{{ key }}</dt><dd>{{ value }}</dd></div>
+                    <div class="chat-approve__arg">
+                        <dt>{{ key }}</dt>
+                        <dd>
+                            {% if value|stringformat:"s"|length > 90 %}
+                                <pre class="chat-approve__copy">{{ value }}</pre>
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </dd>
+                    </div>
                 {% endif %}
             {% endfor %}
         </dl>

@@ -348,3 +348,213 @@ class CreateCampaignToolTests(TestCase):
         create.assert_not_called()
         self.assertFalse(out['created'])
         self.assertIn('already exists', out['reason'])
+
+
+class SequenceToolTests(TestCase):
+    """Reading and writing the copy a campaign sends."""
+
+    def setUp(self):
+        from outreach.models import Offer, OutreachCampaign
+        # Offers are seeded by a management command, not a migration, so
+        # the test database has none. Build the two this class needs.
+        self.offer, _ = Offer.objects.get_or_create(
+            key='security_review',
+            defaults={'name': 'Free security + performance review',
+                      'pitch': 'p', 'restate': 'r', 'ask': 'a'})
+        self.other_offer, _ = Offer.objects.get_or_create(
+            key='speed_guarantee',
+            defaults={'name': 'Speed fix, guaranteed or free',
+                      'pitch': 'p', 'restate': 'r', 'ask': 'a'})
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law [security review]', slug='tx-law-security',
+            niche='law firm', state='TX', business_type='Law Firm',
+            offer=self.offer, instantly_campaign_id='camp_1', active=False)
+
+    def test_preview_is_free_and_writes_nothing(self):
+        self.assertEqual(agent_tools.tool_kind('preview_sequence'),
+                         agent_tools.READ)
+        with patch('outreach.instantly.update_campaign_sequence') as write:
+            out = agent_tools._preview_sequence({'offer': 'security_review'})
+        write.assert_not_called()
+        self.assertTrue(out['previewed'])
+        self.assertEqual(out['touches'], 4)
+        self.assertTrue(out['would_pass_preflight'])
+        self.assertIn('Subject', str(out['steps'][0]).replace('subject',
+                                                              'Subject'))
+
+    def test_preview_shows_the_body_not_a_summary(self):
+        """He has to be able to read what strangers receive."""
+        out = agent_tools._preview_sequence({'campaign': 'tx-law-security'})
+        first = out['steps'][0]
+        self.assertGreater(len(first['body']), 200)
+        self.assertGreater(first['words'], 50)
+
+    def test_writing_a_sequence_needs_approval(self):
+        self.assertEqual(agent_tools.tool_kind('set_campaign_sequence'),
+                         agent_tools.COMMIT)
+
+    def test_sequence_is_written_to_the_named_campaign(self):
+        with patch('outreach.instantly.update_campaign_sequence') as write:
+            out = agent_tools._set_campaign_sequence({
+                'campaign': 'tx-law-security', 'offer': 'security_review',
+                'reason': 'switching the angle'})
+        self.assertTrue(out['updated'])
+        write.assert_called_once()
+        campaign_id, steps = write.call_args.args
+        self.assertEqual(campaign_id, 'camp_1')
+        self.assertEqual(len(steps), 4)
+
+    def test_custom_copy_is_accepted_when_it_passes_preflight(self):
+        body = ('Hi {{firstName}},\n\n{{icebreaker}}\n\nI build websites '
+                'for law firms.\n\nZachery Long\nAspired Websites LLC\n'
+                '123 Main St, Austin TX\nUnsubscribe: {{unsubscribe}}')
+        with patch('outreach.sequences.describe_problems', return_value=[]), \
+                patch('outreach.instantly.update_campaign_sequence') as write:
+            out = agent_tools._set_campaign_sequence({
+                'campaign': 'tx-law-security',
+                'steps': [{'subject': 'quick question', 'body': body}],
+                'reason': 'bespoke wording for this arm'})
+        self.assertTrue(out['updated'])
+        self.assertEqual(out['source'], 'custom copy')
+        _, steps = write.call_args.args
+        self.assertEqual(len(steps), 1)
+
+    def test_copy_that_fails_preflight_never_reaches_instantly(self):
+        """Instantly is where copy becomes email. A campaign whose copy
+        fails pre-flight is a campaign somebody eventually starts."""
+        with patch('outreach.sequences.describe_problems',
+                   return_value=['Step 1: missing the CAN-SPAM footer.']), \
+                patch('outreach.instantly.update_campaign_sequence') as write:
+            out = agent_tools._set_campaign_sequence({
+                'campaign': 'tx-law-security',
+                'steps': [{'subject': 's', 'body': 'no footer here'}],
+                'reason': 'x'})
+        write.assert_not_called()
+        self.assertFalse(out['updated'])
+        self.assertIn('CAN-SPAM', out['problems'][0])
+
+    def test_campaign_without_an_instantly_id_is_refused(self):
+        from outreach.models import OutreachCampaign
+        OutreachCampaign.objects.create(
+            name='Django only', slug='django-only', niche='law firm',
+            state='TX', business_type='Law Firm')
+        with patch('outreach.instantly.update_campaign_sequence') as write:
+            out = agent_tools._set_campaign_sequence({
+                'campaign': 'django-only', 'reason': 'x'})
+        write.assert_not_called()
+        self.assertFalse(out['updated'])
+        self.assertIn('no Instantly campaign id', out['reason'])
+
+    def test_unknown_campaign_is_an_answer_not_a_crash(self):
+        out = agent_tools._set_campaign_sequence({
+            'campaign': 'nope', 'reason': 'x'})
+        self.assertFalse(out['updated'])
+        self.assertIn('No campaign matches', out['reason'])
+
+    def test_writing_a_sequence_never_activates_the_campaign(self):
+        with patch('outreach.instantly.update_campaign_sequence'):
+            agent_tools._set_campaign_sequence({
+                'campaign': 'tx-law-security', 'reason': 'x'})
+        self.campaign.refresh_from_db()
+        self.assertFalse(self.campaign.active)
+
+    def test_changing_the_offer_updates_the_django_arm_too(self):
+        with patch('outreach.instantly.update_campaign_sequence'):
+            agent_tools._set_campaign_sequence({
+                'campaign': 'tx-law-security', 'offer': self.other_offer.key,
+                'reason': 'testing a different angle'})
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.offer_id, self.other_offer.pk)
+
+    def test_both_sequence_tools_are_offered_in_chat(self):
+        from outreach import agent_chat
+        names = {t['name'] for t in agent_tools.anthropic_tools(
+            exclude=agent_chat.CHAT_WITHHELD_TOOLS)}
+        self.assertIn('preview_sequence', names)
+        self.assertIn('set_campaign_sequence', names)
+        self.assertIn('create_campaign', names)
+        self.assertIn('campaign_stats', names)
+
+
+class CampaignStatsTests(TestCase):
+    """"What campaigns do I have and how are they doing" — local arms
+    merged with live Instantly counters."""
+
+    def setUp(self):
+        from outreach.models import Offer, OutreachCampaign
+        offer, _ = Offer.objects.get_or_create(
+            key='security_review',
+            defaults={'name': 'Free security review', 'pitch': 'p',
+                      'restate': 'r', 'ask': 'a'})
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law [security review]', slug='tx-law-sec',
+            niche='law firm', state='TX', business_type='Law Firm',
+            offer=offer, instantly_campaign_id='camp_1', active=True,
+            leads_pushed=400)
+
+    def test_it_is_read_class(self):
+        self.assertEqual(agent_tools.tool_kind('campaign_stats'),
+                         agent_tools.READ)
+
+    def test_live_counters_are_merged_onto_the_local_arm(self):
+        with patch('outreach.instantly.campaign_analytics', return_value=[
+                {'campaign_id': 'camp_1', 'emails_sent_count': 400,
+                 'open_count': 160, 'reply_count': 12,
+                 'bounced_count': 4}]):
+            out = agent_tools._campaign_stats({})
+        row = out['campaigns'][0]
+        self.assertEqual(row['emails_sent'], 400)
+        self.assertEqual(row['replies'], 12)
+        self.assertEqual(row['reply_rate_pct'], 3.0)
+        self.assertTrue(row['pushable'])
+
+    def test_a_thin_arm_is_labelled_as_noise(self):
+        """Ranking arms on 20 sends is how you learn the wrong lesson
+        and then scale it."""
+        with patch('outreach.instantly.campaign_analytics', return_value=[
+                {'campaign_id': 'camp_1', 'emails_sent_count': 20,
+                 'reply_count': 2}]):
+            out = agent_tools._campaign_stats({})
+        row = out['campaigns'][0]
+        self.assertFalse(row['enough_data_to_judge'])
+        self.assertIn('noise', row['caveat'])
+
+    def test_a_dangerous_bounce_rate_is_flagged(self):
+        """Above 3% Google and Microsoft start filtering the domain."""
+        with patch('outreach.instantly.campaign_analytics', return_value=[
+                {'campaign_id': 'camp_1', 'emails_sent_count': 400,
+                 'bounced_count': 20}]):
+            out = agent_tools._campaign_stats({})
+        self.assertTrue(out['campaigns'][0]['bounce_rate_is_dangerous'])
+
+    def test_renamed_instantly_fields_still_read(self):
+        """A stats tool that reports 0 replies because a key moved is
+        worse than one that reports nothing."""
+        with patch('outreach.instantly.campaign_analytics', return_value=[
+                {'id': 'camp_1', 'sent_count': 100,
+                 'replies_count': 5}]):
+            out = agent_tools._campaign_stats({})
+        row = out['campaigns'][0]
+        self.assertEqual(row['emails_sent'], 100)
+        self.assertEqual(row['replies'], 5)
+
+    def test_instantly_being_down_is_said_out_loud(self):
+        """Zeroes that mean "unreachable" must not read as "nothing was
+        sent"."""
+        with patch('outreach.instantly.campaign_analytics',
+                   side_effect=RuntimeError('connection refused')):
+            out = agent_tools._campaign_stats({})
+        self.assertIn('instantly_unreachable', out)
+        self.assertIn('NOT because nothing was sent', out['note'])
+        # The local half still arrives.
+        self.assertEqual(out['campaigns'][0]['leads_pushed'], 400)
+
+    def test_can_be_limited_to_one_arm(self):
+        from outreach.models import OutreachCampaign
+        OutreachCampaign.objects.create(
+            name='GA Law', slug='ga-law', niche='law firm', state='GA',
+            business_type='Law Firm')
+        with patch('outreach.instantly.campaign_analytics', return_value=[]):
+            out = agent_tools._campaign_stats({'campaign': 'ga-law'})
+        self.assertEqual(out['count'], 1)
+        self.assertEqual(out['campaigns'][0]['slug'], 'ga-law')
