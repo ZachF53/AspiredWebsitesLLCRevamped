@@ -280,6 +280,13 @@ class AIEmployeeRun(models.Model):
     spend_usd = models.DecimalField(
         max_digits=8, decimal_places=4, default=0)
 
+    # Text streamed back so far on a turn that is still running, so the
+    # chat can show the reply arriving instead of a spinner. Written
+    # throttled (a few times a second, not per token) and cleared when
+    # the run finishes — the settled answer lives in the conversation
+    # from that point, and two copies of a finished reply would drift.
+    partial_text = models.TextField(blank=True)
+
     class Meta:
         ordering = ['-started_at']
 

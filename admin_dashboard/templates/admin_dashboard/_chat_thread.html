@@ -45,24 +45,12 @@ that polls stops being rendered, not because a script decided to.
     {% endif %}
 {% endfor %}
 
-{% if pending %}
-    {% comment %}
-    Polls the same fragment back into its own container. Two seconds is
-    slow enough not to hammer gunicorn and fast enough that a short
-    answer does not feel stuck.
-    {% endcomment %}
-    <div class="chat-msg chat-msg--agent chat-thinking"
-         hx-get="{% url 'admin_dashboard:ai_chat_thread_fragment' slug=conversation.employee.slug conversation_id=conversation.pk %}"
-         hx-trigger="every 2s"
-         hx-target="#chat-thread"
-         hx-swap="innerHTML">
-        <div class="chat-msg__who">{{ conversation.employee.name }}</div>
-        <div class="chat-msg__body muted">
-            <span class="chat-dots"><i></i><i></i><i></i></span>
-            thinking&hellip;
-        </div>
-    </div>
-{% endif %}
+{% comment %}
+The live bubble lives in its own fragment so a streaming reply can be
+polled without re-rendering everything above it. When nothing is in
+flight this include renders an inert placeholder that issues no requests.
+{% endcomment %}
+{% include "admin_dashboard/_chat_live.html" %}
 
 {% if last_failure %}
     <div class="chat-note chat-note--error" role="alert">

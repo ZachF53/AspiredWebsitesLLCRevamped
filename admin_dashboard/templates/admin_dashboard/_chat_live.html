@@ -1,0 +1,43 @@
+{% comment %}
+The in-flight part of a thread, and nothing else.
+
+Swaps ITSELF (hx-swap="outerHTML") roughly once a second while a turn is
+running, so the settled transcript above is never re-rendered mid-reply.
+When the run stops this renders the "finished" branch instead, which asks
+once for the full thread and then contains no polling markup at all — the
+loop ends because the element that polls stops existing, not because a
+script decided to stop it.
+{% endcomment %}
+
+{% if pending %}
+    <div id="chat-live"
+         class="chat-msg chat-msg--agent"
+         hx-get="{% url 'admin_dashboard:ai_chat_live_fragment' slug=conversation.employee.slug conversation_id=conversation.pk %}"
+         hx-trigger="every 900ms"
+         hx-swap="outerHTML">
+        <div class="chat-msg__who">{{ conversation.employee.name }}</div>
+        <div class="chat-msg__body">
+            {% if streamed_text %}
+                {{ streamed_text|linebreaksbr }}<span class="chat-caret"></span>
+            {% else %}
+                <span class="chat-dots"><i></i><i></i><i></i></span>
+            {% endif %}
+        </div>
+    </div>
+{% elif live_poll %}
+    {% comment %}
+    Done, and we got here from the poll. Ask once for the settled thread;
+    that render replaces this element with the inert branch below, so no
+    further requests are made.
+    {% endcomment %}
+    <div id="chat-live"
+         hx-get="{% url 'admin_dashboard:ai_chat_thread_fragment' slug=conversation.employee.slug conversation_id=conversation.pk %}"
+         hx-trigger="load"
+         hx-target="#chat-thread"
+         hx-swap="innerHTML"></div>
+{% else %}
+    {% comment %}
+    Idle. No attributes at all — an idle thread must issue no requests.
+    {% endcomment %}
+    <div id="chat-live"></div>
+{% endif %}

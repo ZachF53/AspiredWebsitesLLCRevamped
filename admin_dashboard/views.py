@@ -5078,6 +5078,7 @@ from .ai_employee_views import (  # noqa: E402,F401
     ai_chat_archive,
     ai_chat_new,
     ai_chat_rename,
+    ai_chat_live_fragment,
     ai_chat_send,
     ai_chat_thread_fragment,
     ai_employee_add_task,

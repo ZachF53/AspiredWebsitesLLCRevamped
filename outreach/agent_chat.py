@@ -38,6 +38,7 @@ what you typed is a better label than a model's paraphrase of it.
 """
 
 import logging
+import time
 
 from django.utils import timezone
 
@@ -157,6 +158,39 @@ def queue_turn(conversation, text):
     return run, ''
 
 
+class _PartialWriter:
+    """Persist streamed text often enough to look live, rarely enough
+    not to write to the database once per token.
+
+    A turn producing 400 tokens would otherwise be 400 UPDATEs. At a
+    0.4s floor it is a handful, and the page polls at roughly the same
+    rate, so nothing is lost by being coarser than the token stream.
+    """
+
+    FLUSH_SECONDS = 0.4
+
+    def __init__(self, run):
+        self.run = run
+        self.chunks = []
+        self._last_flush = 0.0
+
+    def __call__(self, chunk):
+        self.chunks.append(chunk)
+        now = time.monotonic()
+        if now - self._last_flush >= self.FLUSH_SECONDS:
+            self.flush()
+
+    def flush(self):
+        self._last_flush = time.monotonic()
+        text = ''.join(self.chunks)
+        try:
+            type(self.run).objects.filter(pk=self.run.pk).update(
+                partial_text=text)
+        except Exception:  # noqa: BLE001
+            logger.exception('could not persist streamed text for run %s',
+                             self.run.pk)
+
+
 def run_chat_turn(run_id):
     """Answer the last user message on this run's conversation.
 
@@ -182,8 +216,10 @@ def run_chat_turn(run_id):
     def fail(message):
         run.status = 'failed'
         run.summary = message
+        run.partial_text = ''
         run.finished_at = timezone.now()
-        run.save(update_fields=['status', 'summary', 'finished_at'])
+        run.save(update_fields=['status', 'summary', 'partial_text',
+                                'finished_at'])
         return message
 
     history = list(conversation.messages or [])
@@ -203,6 +239,7 @@ def run_chat_turn(run_id):
         run.spend_usd = (run.spend_usd or 0) + cost
         run.save(update_fields=['spend_usd'])
 
+    streamer = _PartialWriter(run)
     try:
         result = ai.claude_agent_loop(
             system=CHAT_SYSTEM_PROMPT,
@@ -214,6 +251,7 @@ def run_chat_turn(run_id):
             max_steps=CHAT_MAX_STEPS,
             effort=run.employee.reasoning_effort,
             on_usage=on_usage,
+            on_text=streamer,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception('run_chat_turn: agent loop failed on run %s', run_id)
@@ -243,9 +281,13 @@ def run_chat_turn(run_id):
     run.message_history = messages
     run.summary = final_text[:8000]
     run.status = 'completed'
+    # Cleared deliberately. From here the settled answer lives in the
+    # conversation, and leaving a copy on the run would give the fragment
+    # two sources for the same reply to disagree about.
+    run.partial_text = ''
     run.finished_at = timezone.now()
     run.save(update_fields=['steps_used', 'message_history', 'summary',
-                            'status', 'finished_at'])
+                            'status', 'partial_text', 'finished_at'])
     return 'ok'
 
 

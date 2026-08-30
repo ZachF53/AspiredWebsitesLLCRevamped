@@ -45,6 +45,7 @@ operator approved once from re-running on every subsequent wake-up.
 import json
 import logging
 
+from django.db.models import Q
 from django.utils import timezone
 
 from outreach import spend
@@ -217,6 +218,127 @@ TOOLS = [
             },
             'required': ['entry'],
         },
+    },
+
+    # ── Lookup tools ──────────────────────────────────────────────────
+    #
+    # Added for the chat pane. The original set answered "what should I
+    # do next" — aggregate counts and actions — and could not answer
+    # "show me the icebreaker for the people we have now", which is the
+    # first thing a human actually asks. All READ: they only look.
+
+    {
+        'name': 'find_leads',
+        'kind': READ,
+        'description': (
+            'Search leads and get them back one row per lead — firm, '
+            'contact name, email, city, status, score, and whether an '
+            'icebreaker has been written. Use this whenever you are asked '
+            'about specific leads, "who have we got", or anything that '
+            'needs names rather than totals. Every filter is optional; '
+            'with none you get the most recent leads.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'query': {
+                    'type': 'string',
+                    'description': 'Match against firm name, contact name '
+                                   'or email.'},
+                'city': {'type': 'string'},
+                'state': {'type': 'string',
+                          'description': 'TX or GA.'},
+                'status': {'type': 'string',
+                           'description': 'Lead status, e.g. new.'},
+                'has_icebreaker': {
+                    'type': 'boolean',
+                    'description': 'True for only leads with a written '
+                                   'icebreaker, False for only those '
+                                   'without.'},
+                'limit': {'type': 'integer',
+                          'description': 'Default 25, maximum 100.'},
+            },
+        },
+    },
+    {
+        'name': 'lead_detail',
+        'kind': READ,
+        'description': (
+            'Everything known about ONE lead, including the full '
+            'icebreaker text, the measured site signals it was written '
+            'from (PageSpeed, TLS, copyright year), verification status, '
+            'campaign assignment and notes. Identify the lead by id, '
+            'email, or firm name. Use this when asked to show or judge '
+            'the actual copy for someone.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'lead': {
+                    'type': 'string',
+                    'description': 'Lead id, email address, or firm name.'},
+            },
+            'required': ['lead'],
+        },
+    },
+    {
+        'name': 'list_campaigns',
+        'kind': READ,
+        'description': (
+            'Every campaign arm: its niche and state, which offer it '
+            'carries, whether it is active and pushable, how many leads '
+            'are assigned, and how many have been pushed. Use this when '
+            'asked why leads are not going anywhere, or which arm is '
+            'which.'),
+        'input_schema': {'type': 'object', 'properties': {}},
+    },
+    {
+        'name': 'list_offers',
+        'kind': READ,
+        'description': (
+            'The offers a campaign can carry — name, what it appeals to, '
+            'the honest fulfilment cost, the pitch text, and its sends / '
+            'replies / bookings counters. Use this when asked what an '
+            'offer actually says or which is performing.'),
+        'input_schema': {'type': 'object', 'properties': {}},
+    },
+    {
+        'name': 'recent_replies',
+        'kind': READ,
+        'description': (
+            'Inbound replies with how each was classified and whether it '
+            'still needs a human. Use this when asked whether anyone has '
+            'replied, or what they said.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'limit': {'type': 'integer',
+                          'description': 'Default 15, maximum 50.'},
+            },
+        },
+    },
+    {
+        'name': 'sourcing_history',
+        'kind': READ,
+        'description': (
+            'Recent Apify sourcing runs: what was asked for, how many '
+            'rows came back, how many the ICP screen rejected and why, '
+            'and what each run cost. Use this when asked where leads came '
+            'from, why so few survived, or what sourcing has cost.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'limit': {'type': 'integer',
+                          'description': 'Default 10, maximum 30.'},
+            },
+        },
+    },
+    {
+        'name': 'spend_summary',
+        'kind': READ,
+        'description': (
+            'Money: your own Claude spend today against the daily cap, '
+            'and Apify spend this month against its budget. Use this when '
+            'asked what anything has cost or how much room is left.'),
+        'input_schema': {'type': 'object', 'properties': {}},
     },
 ]
 
@@ -472,6 +594,13 @@ _IMPL = {
     'start_scrape': '_start_scrape',
     'import_dataset': '_import_dataset',
     'push_to_instantly': '_push_to_instantly',
+    'find_leads': '_find_leads',
+    'lead_detail': '_lead_detail',
+    'list_campaigns': '_list_campaigns',
+    'list_offers': '_list_offers',
+    'recent_replies': '_recent_replies',
+    'sourcing_history': '_sourcing_history',
+    'spend_summary': '_spend_summary',
 }
 
 
@@ -479,6 +608,242 @@ def _resolve(name):
     """The callable implementing ``name``, or None."""
     func_name = _IMPL.get(name)
     return globals().get(func_name) if func_name else None
+
+
+# ── Lookup implementations ────────────────────────────────────────────
+#
+# These exist so the chat can answer about SPECIFICS. Everything here
+# reads; nothing writes, nothing spends.
+#
+# Results are capped and the cap is reported back in the payload. A tool
+# that silently returns the first 25 of 900 lets the model say "we have
+# 25 leads" with total confidence, which is worse than saying nothing.
+
+
+def _clamp(value, default, maximum):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(n, maximum))
+
+
+def _lead_row(lead):
+    """The compact shape find_leads returns — one line per lead."""
+    return {
+        'id': lead.pk,
+        'firm': lead.firm_name,
+        'contact': lead.attorney_name or '',
+        'email': lead.email or '',
+        'city': lead.city or '',
+        'state': lead.state or '',
+        'business_type': lead.business_type or '',
+        'status': lead.status,
+        'verification': lead.email_verification_status,
+        'score': lead.score,
+        'has_icebreaker': bool((lead.icebreaker or '').strip()),
+        'campaign': lead.campaign.name if lead.campaign_id else None,
+        'pushed': bool(lead.pushed_to_instantly_at),
+    }
+
+
+def _find_leads(tool_input):
+    from outreach.models import Lead
+
+    limit = _clamp(tool_input.get('limit'), 25, 100)
+    qs = Lead.objects.select_related('campaign').all()
+
+    query = (tool_input.get('query') or '').strip()
+    if query:
+        qs = qs.filter(
+            Q(firm_name__icontains=query)
+            | Q(attorney_name__icontains=query)
+            | Q(email__icontains=query))
+    city = (tool_input.get('city') or '').strip()
+    if city:
+        qs = qs.filter(city__icontains=city)
+    state = (tool_input.get('state') or '').strip()
+    if state:
+        qs = qs.filter(state__icontains=state)
+    status = (tool_input.get('status') or '').strip()
+    if status:
+        qs = qs.filter(status=status)
+
+    has_ice = tool_input.get('has_icebreaker')
+    if has_ice is True:
+        qs = qs.exclude(icebreaker='').exclude(icebreaker__isnull=True)
+    elif has_ice is False:
+        qs = qs.filter(Q(icebreaker='') | Q(icebreaker__isnull=True))
+
+    total = qs.count()
+    rows = [_lead_row(lead) for lead in qs.order_by('-created_at')[:limit]]
+    return {
+        'matched': total,
+        'returned': len(rows),
+        'truncated': total > len(rows),
+        'leads': rows,
+    }
+
+
+def _lead_detail(tool_input):
+    from outreach.models import Lead
+
+    ref = (tool_input.get('lead') or '').strip()
+    if not ref:
+        return 'Give a lead id, email, or firm name.'
+
+    lead = None
+    if ref.isdigit():
+        lead = Lead.objects.filter(pk=int(ref)).first()
+    if lead is None and '@' in ref:
+        lead = Lead.objects.filter(email__iexact=ref).first()
+    if lead is None:
+        matches = list(Lead.objects.filter(firm_name__icontains=ref)[:5])
+        if len(matches) > 1:
+            return {
+                'ambiguous': True,
+                'detail': f'{ref!r} matches several leads — ask by id.',
+                'candidates': [
+                    {'id': m.pk, 'firm': m.firm_name, 'city': m.city}
+                    for m in matches],
+            }
+        lead = matches[0] if matches else None
+    if lead is None:
+        return f'No lead matches {ref!r}.'
+
+    row = _lead_row(lead)
+    row.update({
+        'website': lead.website or '',
+        'phone': lead.phone or '',
+        'icebreaker': lead.icebreaker or '',
+        'icebreaker_written_at': lead.icebreaker_generated_at,
+        # The measured facts the icebreaker was allowed to draw on. Given
+        # alongside the copy on purpose: judging whether a line is honest
+        # is impossible without the numbers it claims to describe.
+        'measured': {
+            'pagespeed_performance': lead.website_performance_score,
+            'pagespeed_mobile': lead.website_mobile_score,
+            'pagespeed_seo': lead.website_seo_score,
+            'has_ssl': lead.has_ssl,
+            'site_status': lead.site_status or 'live',
+            'copyright_year': lead.copyright_year,
+            'founded_year': lead.founded_year,
+            'practice_areas': lead.practice_areas or '',
+        },
+        'source': lead.source,
+        'sequence_step': lead.sequence_step,
+        'unsubscribed': lead.unsubscribed,
+        'needs_review': lead.needs_review,
+        'review_reason': lead.review_reason or '',
+        'notes': (lead.notes or '')[:1500],
+        'created_at': lead.created_at,
+    })
+    return row
+
+
+def _list_campaigns(_input):
+    from outreach.models import OutreachCampaign
+
+    out = []
+    for c in OutreachCampaign.objects.select_related('offer').all():
+        assigned = c.leads.count() if hasattr(c, 'leads') else 0
+        out.append({
+            'name': c.name,
+            'slug': c.slug,
+            'niche': c.niche,
+            'business_type': c.business_type,
+            'state': c.state,
+            'offer': c.offer.name if c.offer_id else None,
+            'active': c.active,
+            'instantly_campaign_id': c.instantly_campaign_id or None,
+            # Both are required. Saying "inactive" when the real problem
+            # is a missing Instantly id sends someone to the wrong switch.
+            'pushable': bool(c.active and c.instantly_campaign_id),
+            'leads_assigned': assigned,
+            'leads_pushed': c.leads_pushed,
+        })
+    return {'campaigns': out, 'count': len(out)}
+
+
+def _list_offers(_input):
+    from outreach.models import Offer
+
+    return {'offers': [
+        {
+            'key': o.key,
+            'name': o.name,
+            'active': o.active,
+            'appeals_to': o.appeals_to,
+            'fulfilment_cost': o.fulfilment_cost,
+            'pitch': o.pitch,
+            'sends': o.sends,
+            'replies': o.replies,
+            'positive_replies': o.positive_replies,
+            'bookings': o.bookings,
+        }
+        for o in Offer.objects.all()
+    ]}
+
+
+def _recent_replies(tool_input):
+    from outreach.models import EmailReply
+
+    limit = _clamp(tool_input.get('limit'), 15, 50)
+    qs = EmailReply.objects.select_related('lead').order_by('-received_at')
+    total = qs.count()
+    rows = []
+    for r in qs[:limit]:
+        rows.append({
+            'lead': r.lead.firm_name if r.lead_id else None,
+            'lead_email': r.lead.email if r.lead_id else None,
+            'subject': r.subject or '',
+            'received_at': r.received_at,
+            'classification': r.classification,
+            'needs_human': r.needs_human,
+            'handled': r.handled,
+            'body': (r.body or '')[:600],
+            'draft_reply': (r.ai_suggested_reply or '')[:600],
+        })
+    return {'total': total, 'returned': len(rows), 'replies': rows}
+
+
+def _sourcing_history(tool_input):
+    from outreach.models import ApifyRun
+
+    limit = _clamp(tool_input.get('limit'), 10, 30)
+    rows = []
+    for r in ApifyRun.objects.all()[:limit]:
+        rows.append({
+            'started_at': r.started_at,
+            'status': r.status,
+            'label': r.label,
+            'requested': r.results_requested,
+            'returned': r.results_returned,
+            'rejected_by_icp_screen': r.results_rejected,
+            'cost_usd': float(r.cost_usd or 0),
+            'error': (r.error or '')[:300],
+        })
+    return {'runs': rows, 'count': len(rows)}
+
+
+def _spend_summary(_input):
+    from outreach import spend
+    from outreach.apify_source import budget_status
+    from outreach.models import OutreachSettings
+
+    cfg = OutreachSettings.load()
+    allowed, why = spend.check_spend_allowed()
+    apify = budget_status()
+    return {
+        'claude_today_usd': float(spend.spent_today()),
+        'claude_daily_cap_usd': float(spend.daily_cap()),
+        'claude_allowed_now': allowed,
+        'claude_reason': why,
+        'apify_month_to_date_usd': float(apify['spent_usd']),
+        'apify_monthly_budget_usd': float(apify['budget_usd']),
+        'apify_runs_today': spend.apify_runs_today(),
+        'apify_max_runs_per_day': cfg.apify_max_runs_per_day,
+    }
 
 
 # ── The executor ──────────────────────────────────────────────────────

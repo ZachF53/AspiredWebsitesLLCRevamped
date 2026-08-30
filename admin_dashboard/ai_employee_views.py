@@ -276,17 +276,42 @@ def _conversation(slug, conversation_id):
         pk=conversation_id, employee__slug=slug)
 
 
+def _live_context(conversation):
+    """Just the in-flight part of a thread.
+
+    Polled on its own so a streaming reply does not re-render the whole
+    transcript every second — swapping the entire thread that often
+    destroys text selection and makes long threads flicker.
+    """
+    run = conversation.runs.filter(status='running').first()
+    return {
+        'conversation': conversation,
+        'pending': run is not None,
+        'streamed_text': (run.partial_text if run else '') or '',
+        # True only when this fragment was fetched by the poll. The
+        # finished branch does a one-shot reload of the whole thread, and
+        # the whole thread includes this fragment again — so if that
+        # branch rendered inside a thread render too, the two would fetch
+        # each other forever.
+        'live_poll': True,
+    }
+
+
 def _thread_context(conversation, error=''):
     """What both the full page and the polled fragment need."""
     from outreach.agent_chat import render_transcript
 
-    pending = conversation.runs.filter(status='running').exists()
+    live = _live_context(conversation)
+    pending = live['pending']
     last_failed = (conversation.runs.filter(status='failed')
                    .order_by('-started_at').first())
     return {
         'conversation': conversation,
         'transcript': render_transcript(conversation.messages),
         'pending': pending,
+        'streamed_text': live['streamed_text'],
+        # See _live_context: the one-shot reload belongs to the poll only.
+        'live_poll': False,
         'chat_error': error,
         # Surfaced only when it is the most recent thing that happened,
         # so an old failure does not sit under a healthy thread forever.
@@ -386,10 +411,25 @@ def ai_chat_send(request, slug, conversation_id):
 
 @admin_required
 def ai_chat_thread_fragment(request, slug, conversation_id):
-    """The polled fragment. Stops polling itself once the run finishes."""
+    """The whole thread. Rendered on send and once a turn completes."""
     conversation = _conversation(slug, conversation_id)
     return render(request, 'admin_dashboard/_chat_thread.html',
                   _thread_context(conversation))
+
+
+@admin_required
+def ai_chat_live_fragment(request, slug, conversation_id):
+    """The streaming bubble, polled about once a second while a turn runs.
+
+    Small on purpose: it carries only the text arriving now, so the poll
+    stays cheap and the settled transcript above it is left alone. When
+    the run stops, the fragment asks once for the full thread and stops
+    polling — that final swap is what moves the answer from "streaming"
+    into the conversation proper.
+    """
+    conversation = _conversation(slug, conversation_id)
+    return render(request, 'admin_dashboard/_chat_live.html',
+                  _live_context(conversation))
 
 
 @admin_required

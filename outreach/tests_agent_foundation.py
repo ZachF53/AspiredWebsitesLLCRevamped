@@ -222,9 +222,13 @@ class SpendCapTests(TestCase):
         self.assertFalse(spend.check_spend_allowed()[0])
 
     def test_yesterdays_spend_does_not_count(self):
+        # localdate(), not now().date(). spent_today() resolves "today" in
+        # TIME_ZONE (America/Chicago); the UTC date is already tomorrow
+        # from 19:00 Chicago onward, so subtracting a day from it lands
+        # the row on local TODAY and this test failed every evening.
         ClaudeUsage.record('claude-sonnet-5', 1_000_000, 0)
         AISpendDay.objects.update(
-            day=timezone.now().date() - datetime.timedelta(days=1))
+            day=timezone.localdate() - datetime.timedelta(days=1))
         self.assertEqual(spend.spent_today(), Decimal('0'))
 
     def test_known_model_is_priced(self):

@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}Chat — {{ employee.name }} — Admin{% endblock %}
 
@@ -103,8 +104,19 @@ the same dashboard, not a separate product.
 .chat-dots i:nth-child(2) { animation-delay: .18s; }
 .chat-dots i:nth-child(3) { animation-delay: .36s; }
 @keyframes chatpulse { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+/* Trails the streamed text so a pause reads as "still writing" rather
+   than as a finished, oddly short answer. */
+.chat-caret {
+    display: inline-block; width: 2px; height: 1em; margin-left: 2px;
+    background: var(--color-orange); vertical-align: text-bottom;
+    animation: chatcaret 1s steps(2, start) infinite;
+}
+@keyframes chatcaret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 @media (prefers-reduced-motion: reduce) {
     .chat-dots i { animation: none; opacity: .6; }
+    .chat-caret { animation: none; }
 }
 
 .chat-empty { color: var(--color-text-muted); padding: 1.25rem .25rem; }
@@ -190,19 +202,26 @@ the same dashboard, not a separate product.
 
             <div class="admin-card__body">
                 {% if conversation %}
-                    <form class="chat-composer"
+                    {% comment %}
+                    No hx-on and no inline script anywhere on this page.
+                    /admin-dashboard/ runs under script-src 'self', which
+                    blocks both silently — the reset and Enter-to-send
+                    behaviour lives in static/js/agent_chat.js and hooks
+                    these data- attributes.
+                    {% endcomment %}
+                    <form class="chat-composer" data-chat-composer
                           hx-post="{% url 'admin_dashboard:ai_chat_send' slug=employee.slug conversation_id=conversation.pk %}"
                           hx-target="#chat-thread"
-                          hx-swap="innerHTML"
-                          hx-on::after-request="this.reset(); this.message.focus();">
+                          hx-swap="innerHTML">
                         {% csrf_token %}
                         <textarea name="message" class="form-control" rows="2"
-                                  placeholder="Ask about the funnel, a city, or what is blocking a campaign…"
+                                  data-chat-input
+                                  placeholder="Ask about the funnel, a lead, an offer, or what a campaign is waiting on…"
                                   required></textarea>
                         <button type="submit" class="btn-primary">Send</button>
                     </form>
                     <p class="muted" style="margin:.5rem 0 0;font-size:.78rem;">
-                        Enter for a new line · click Send to submit
+                        Enter to send · Shift+Enter for a new line
                     </p>
                 {% else %}
                     <p class="muted">
@@ -216,20 +235,10 @@ the same dashboard, not a separate product.
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
 {% comment %}
-Keep the newest message in view. Runs on load and after every htmx swap
-into the thread, which covers both sending and each poll tick.
+External, not inline: this page is served with script-src 'self'. An
+inline block is blocked and fails silently, which is exactly how the
+textarea ended up not clearing after a send.
 {% endcomment %}
-(function () {
-    function scrollThread() {
-        var el = document.getElementById('chat-thread');
-        if (el) { el.scrollTop = el.scrollHeight; }
-    }
-    document.addEventListener('DOMContentLoaded', scrollThread);
-    document.body.addEventListener('htmx:afterSwap', function (e) {
-        if (e.target && e.target.id === 'chat-thread') { scrollThread(); }
-    });
-})();
-</script>
+<script src="{% static 'js/agent_chat.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

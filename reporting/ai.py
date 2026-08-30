@@ -234,7 +234,8 @@ _DEFAULT_AGENT_MAX_TOKENS = 8_000
 def claude_agent_loop(system, tools, tool_executor, user_message,
                       model=MODEL_CONTENT, max_steps=10,
                       max_tokens=_DEFAULT_AGENT_MAX_TOKENS,
-                      effort=None, on_usage=None, prior_messages=None):
+                      effort=None, on_usage=None, prior_messages=None,
+                      on_text=None):
     """Run a full tool-use loop rather than a single call.
 
     Args:
@@ -270,6 +271,12 @@ def claude_agent_loop(system, tools, tool_executor, user_message,
                      Passed through verbatim on purpose — thinking-block
                      signatures and tool_use ids must survive intact or
                      the API rejects the turn.
+      on_text:       optional callable ``(chunk: str) -> None`` fired as
+                     visible text arrives, so a caller can show the reply
+                     being written instead of a spinner. Supplying it
+                     switches the call to streaming. Text only — thinking
+                     is not emitted. Exceptions raised by it are logged
+                     and swallowed.
 
     Returns:
       {'transcript': [...], 'final_text': str,
@@ -313,7 +320,8 @@ def claude_agent_loop(system, tools, tool_executor, user_message,
             kwargs['output_config'] = {'effort': effort}
 
         try:
-            response = _agent_api_call(client, kwargs, max_tokens)
+            response = _agent_api_call(
+                client, kwargs, max_tokens, on_text=on_text)
         except Exception as exc:  # noqa: BLE001
             logger.exception('claude_agent_loop: API call failed on step %s',
                              steps_used)
@@ -449,13 +457,29 @@ def _serialise_content_blocks(content):
     return out
 
 
-def _agent_api_call(client, kwargs, max_tokens):
-    """One API call, streaming when max_tokens is large enough that a
-    non-streaming request would risk the SDK's HTTP timeout."""
-    if max_tokens > _STREAMING_THRESHOLD_TOKENS:
-        with client.messages.stream(**kwargs) as stream:
-            return stream.get_final_message()
-    return client.messages.create(**kwargs)
+def _agent_api_call(client, kwargs, max_tokens, on_text=None):
+    """One API call.
+
+    Streams when the caller wants text deltas, or when max_tokens is
+    large enough that a non-streaming request would risk the SDK's HTTP
+    timeout. ``text_stream`` yields visible text only — thinking blocks
+    are not emitted through it, which is what we want: thinking is
+    working, not answer.
+
+    A failing ``on_text`` is logged and swallowed. Rendering is not worth
+    losing a reply that has already been paid for.
+    """
+    if on_text is None and max_tokens <= _STREAMING_THRESHOLD_TOKENS:
+        return client.messages.create(**kwargs)
+
+    with client.messages.stream(**kwargs) as stream:
+        if on_text is not None:
+            for chunk in stream.text_stream:
+                try:
+                    on_text(chunk)
+                except Exception:  # noqa: BLE001
+                    logger.exception('claude_agent_loop: on_text failed')
+        return stream.get_final_message()
 
 
 def _record_agent_usage(response, model, on_usage):
