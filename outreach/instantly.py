@@ -367,6 +367,35 @@ def build_sequence_payload(sequence_steps):
     return steps
 
 
+def update_campaign_sending(campaign_id, daily_limit=None,
+                            account_emails=None):
+    """Set a campaign's daily send limit and/or which mailboxes it uses.
+
+    Both are optional and only what is passed gets written — sending
+    ``email_list=None`` would read as "no mailboxes" and silently stop
+    the campaign sending anything.
+
+    Assigning mailboxes REPLACES the list rather than adding to it,
+    matching Instantly's own semantics. The caller is expected to have
+    validated that each address exists and is connected; a campaign
+    pointed at a mailbox that was never hooked up looks configured and
+    sends nothing.
+    """
+    payload = {}
+    if daily_limit is not None:
+        payload['daily_limit'] = int(daily_limit)
+    if account_emails is not None:
+        payload['email_list'] = list(account_emails)
+    if not payload:
+        raise InstantlyError(
+            'Nothing to change — pass a daily limit, mailboxes, or both.')
+
+    result = _request('PATCH', f'campaigns/{campaign_id}', json=payload)
+    logger.info('updated Instantly campaign %s sending: %s',
+                campaign_id, sorted(payload))
+    return result
+
+
 def update_campaign_sequence(campaign_id, sequence_steps):
     """Replace the sequence on an existing campaign. Does NOT start it.
 

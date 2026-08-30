@@ -582,6 +582,16 @@ INSTANTLY_WEBHOOK_SECRET = env('INSTANTLY_WEBHOOK_SECRET', '')
 # run dumping thousands of unverified rows into a live campaign.
 INSTANTLY_MAX_PUSH_PER_DAY = int(env('INSTANTLY_MAX_PUSH_PER_DAY', '200'))
 
+# Emails the Instantly PLAN allows per month, as opposed to what the
+# mailboxes could physically send. Verified 2026-08-29: the workspace is
+# on plan_id 'pid_g_v2' (Growth, $47/mo) which allows 5,000/month, while
+# 18 mailboxes at 30/day is ~16,200/month of raw capacity.
+#
+# So the plan, not the hardware, is the ceiling — and a per-campaign
+# daily limit set from capacity would burn the month in nine days. Kept
+# in env so a plan change is a config edit, not a code hunt.
+INSTANTLY_MONTHLY_EMAIL_CAP = int(env('INSTANTLY_MONTHLY_EMAIL_CAP', '5000'))
+
 
 # ── Email verification — the stage that did not exist ──────────────────
 #

@@ -558,3 +558,169 @@ class CampaignStatsTests(TestCase):
             out = agent_tools._campaign_stats({'campaign': 'ga-law'})
         self.assertEqual(out['count'], 1)
         self.assertEqual(out['campaigns'][0]['slug'], 'ga-law')
+
+
+# One connected mailbox and one that was never hooked up. The second is
+# the interesting case: Instantly accepts an assignment to it and the
+# campaign then looks configured and sends nothing.
+_ACCOUNTS = [
+    {'email': 'zach@getaspiredwebsites.com', 'status': 1,
+     'setup_pending': False, 'daily_limit': 30, 'stat_warmup_score': 100},
+    {'email': 'zach@goaspiredwebsites.com', 'status': 1,
+     'setup_pending': False, 'daily_limit': 30, 'stat_warmup_score': 100},
+    {'email': 'never@connected.com', 'status': 2,
+     'setup_pending': True, 'daily_limit': 30, 'stat_warmup_score': None},
+]
+
+
+class MailboxToolTests(TestCase):
+
+    def test_it_is_read_class(self):
+        self.assertEqual(agent_tools.tool_kind('list_mailboxes'),
+                         agent_tools.READ)
+
+    def test_capacity_and_plan_ceiling_are_both_reported(self):
+        """The plan, not the hardware, is the real ceiling — 18 mailboxes
+        at 30/day is 16,200/month against a 5,000/month plan."""
+        with patch('outreach.instantly.list_accounts',
+                   return_value=_ACCOUNTS), \
+                patch('outreach.instantly.warmup_readiness',
+                      return_value={'detail': []}):
+            out = agent_tools._list_mailboxes({})
+        self.assertEqual(out['total'], 3)
+        self.assertEqual(out['connected'], 2)
+        self.assertEqual(out['daily_capacity'], 60)
+        self.assertEqual(out['monthly_plan_cap'], 5000)
+
+    def test_a_capacity_that_would_burn_the_plan_is_called_out(self):
+        big = [dict(a, daily_limit=200) for a in _ACCOUNTS[:2]]
+        with patch('outreach.instantly.list_accounts', return_value=big), \
+                patch('outreach.instantly.warmup_readiness',
+                      return_value={'detail': []}):
+            out = agent_tools._list_mailboxes({})
+        self.assertTrue(out['capacity_exceeds_plan'])
+        self.assertIn('exhaust the month', out['note'])
+
+    def test_warmup_verdict_matches_the_push_gate(self):
+        """Not a second, kinder opinion — the same four checks."""
+        with patch('outreach.instantly.list_accounts',
+                   return_value=_ACCOUNTS), \
+                patch('outreach.instantly.warmup_readiness', return_value={
+                    'detail': [
+                        {'email': 'zach@getaspiredwebsites.com',
+                         'ready': False,
+                         'problems': ['warming 6d < 14d']}]}):
+            out = agent_tools._list_mailboxes({})
+        row = [m for m in out['mailboxes']
+               if m['email'] == 'zach@getaspiredwebsites.com'][0]
+        self.assertFalse(row['passes_warmup_gate'])
+        self.assertEqual(row['problems'], ['warming 6d < 14d'])
+
+    def test_instantly_being_down_is_an_answer(self):
+        with patch('outreach.instantly.list_accounts',
+                   side_effect=RuntimeError('connection refused')):
+            self.assertIn('Could not reach Instantly',
+                          agent_tools._list_mailboxes({}))
+
+
+class SetCampaignSendingTests(TestCase):
+
+    def setUp(self):
+        from outreach.models import OutreachCampaign
+        self.campaign = OutreachCampaign.objects.create(
+            name='TX Law [security review]', slug='tx-law-sec',
+            niche='law firm', state='TX', business_type='Law Firm',
+            instantly_campaign_id='camp_1', active=False)
+
+    def _call(self, **kw):
+        payload = {'campaign': 'tx-law-sec', 'reason': 'setting it up'}
+        payload.update(kw)
+        with patch('outreach.instantly.list_accounts',
+                   return_value=_ACCOUNTS), \
+                patch('outreach.instantly.update_campaign_sending') as write:
+            out = agent_tools._set_campaign_sending(payload)
+        return out, write
+
+    def test_it_needs_approval(self):
+        self.assertEqual(agent_tools.tool_kind('set_campaign_sending'),
+                         agent_tools.COMMIT)
+
+    def test_daily_limit_is_written(self):
+        out, write = self._call(daily_limit=40)
+        self.assertTrue(out['updated'])
+        self.assertEqual(write.call_args.kwargs['daily_limit'], 40)
+        # Mailboxes untouched — passing None would read as "no mailboxes"
+        # and silently stop the campaign sending anything.
+        self.assertIsNone(write.call_args.kwargs['account_emails'])
+
+    def test_mailboxes_are_assigned(self):
+        out, write = self._call(
+            mailboxes=['zach@getaspiredwebsites.com',
+                       'ZACH@goaspiredwebsites.com'])
+        self.assertTrue(out['updated'])
+        # Case-insensitive match, canonical address written back.
+        self.assertEqual(write.call_args.kwargs['account_emails'],
+                         ['zach@getaspiredwebsites.com',
+                          'zach@goaspiredwebsites.com'])
+
+    def test_an_unknown_mailbox_is_refused_with_the_real_list(self):
+        out, write = self._call(mailboxes=['nobody@nowhere.com'])
+        write.assert_not_called()
+        self.assertFalse(out['updated'])
+        self.assertIn('not mailboxes in the workspace', out['reason'])
+        self.assertIn('available', out)
+
+    def test_an_unconnected_mailbox_is_refused(self):
+        """Instantly accepts it and the campaign then looks configured
+        and sends nothing — no error, no mail."""
+        out, write = self._call(mailboxes=['never@connected.com'])
+        write.assert_not_called()
+        self.assertFalse(out['updated'])
+        self.assertIn('not connected', out['reason'])
+
+    def test_a_limit_above_the_mailboxes_capacity_warns(self):
+        out, _ = self._call(
+            daily_limit=500,
+            mailboxes=['zach@getaspiredwebsites.com'])
+        self.assertTrue(out['updated'])
+        self.assertTrue(any('real ceiling' in w for w in out['warnings']))
+
+    def test_a_limit_that_would_burn_the_monthly_plan_warns(self):
+        out, _ = self._call(daily_limit=400)
+        self.assertTrue(out['updated'])
+        self.assertTrue(any('exhaust the plan' in w
+                            for w in out['warnings']))
+
+    def test_nothing_to_change_is_refused(self):
+        out, write = self._call()
+        write.assert_not_called()
+        self.assertIn('daily_limit, mailboxes, or both', out['reason'])
+
+    def test_a_django_only_campaign_is_refused(self):
+        from outreach.models import OutreachCampaign
+        OutreachCampaign.objects.create(
+            name='No Instantly', slug='no-instantly', niche='law firm',
+            state='TX', business_type='Law Firm')
+        with patch('outreach.instantly.update_campaign_sending') as write:
+            out = agent_tools._set_campaign_sending({
+                'campaign': 'no-instantly', 'daily_limit': 10,
+                'reason': 'x'})
+        write.assert_not_called()
+        self.assertIn('no Instantly campaign id', out['reason'])
+
+    def test_it_never_activates_the_campaign(self):
+        self._call(daily_limit=30)
+        self.campaign.refresh_from_db()
+        self.assertFalse(self.campaign.active)
+
+    def test_a_bad_limit_is_rejected_before_the_api_call(self):
+        out, write = self._call(daily_limit='lots')
+        write.assert_not_called()
+        self.assertIn('whole number', out['reason'])
+
+    def test_both_new_tools_are_offered_in_chat(self):
+        from outreach import agent_chat
+        names = {t['name'] for t in agent_tools.anthropic_tools(
+            exclude=agent_chat.CHAT_WITHHELD_TOOLS)}
+        self.assertIn('list_mailboxes', names)
+        self.assertIn('set_campaign_sending', names)

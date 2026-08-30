@@ -209,6 +209,53 @@ TOOLS = [
         },
     },
     {
+        'name': 'list_mailboxes',
+        'kind': READ,
+        'description': (
+            'Every sending mailbox in Instantly: address, its own daily '
+            'limit, whether it is connected, its warmup score and how '
+            'long it has been warming, and whether it currently passes '
+            'the warmup gate. Also the total daily capacity and the '
+            'monthly plan ceiling. Use this before assigning mailboxes '
+            'to a campaign, and whenever asked what we can send from or '
+            'how much we can send.'),
+        'input_schema': {'type': 'object', 'properties': {}},
+    },
+    {
+        'name': 'set_campaign_sending',
+        'kind': COMMIT,
+        'description': (
+            'Set how much a campaign may send per day and which '
+            'mailboxes it sends from. Requires human approval. Pass '
+            'either or both; whatever you omit is left alone. Assigning '
+            'mailboxes REPLACES the campaign\'s list — say which ones '
+            'and why in `reason`. Call list_mailboxes first: assigning '
+            'an address that is not connected leaves a campaign that '
+            'looks configured and sends nothing. This never starts a '
+            'campaign.'),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'campaign': {
+                    'type': 'string',
+                    'description': 'Campaign name or slug.'},
+                'daily_limit': {
+                    'type': 'integer',
+                    'description': 'Max emails per day for this campaign.'},
+                'mailboxes': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Exact mailbox addresses from '
+                                   'list_mailboxes. Replaces the current '
+                                   'list.'},
+                'reason': {
+                    'type': 'string',
+                    'description': 'What is changing and why.'},
+            },
+            'required': ['campaign', 'reason'],
+        },
+    },
+    {
         'name': 'campaign_stats',
         'kind': READ,
         'description': (
@@ -350,6 +397,18 @@ TOOLS = [
                     'type': 'string',
                     'description': 'Sequence template slug. Defaults to '
                                    'texas-law, the only one written.'},
+                'daily_limit': {
+                    'type': 'integer',
+                    'description': 'Max emails per day for this campaign. '
+                                   'Omit to leave Instantly\'s default; '
+                                   'set it with set_campaign_sending '
+                                   'later if unsure.'},
+                'mailboxes': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Exact addresses from list_mailboxes '
+                                   'to send this arm from. Omit to use '
+                                   'the workspace default.'},
                 'reason': {
                     'type': 'string',
                     'description': 'Why a new arm is needed rather than '
@@ -803,6 +862,196 @@ def _first_of(d, *keys, default=0):
     return default
 
 
+def _list_mailboxes(_input, report=_noop_report):
+    """Sending mailboxes, their capacity, and whether they are usable."""
+    from django.conf import settings
+
+    from outreach import instantly
+
+    try:
+        accounts = instantly.list_accounts()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('list_accounts failed')
+        return f'Could not reach Instantly: {exc}'
+
+    # warmup_readiness applies the same four checks the push gate uses,
+    # so "ready" here means the same thing it will mean at send time
+    # rather than a second, kinder opinion.
+    try:
+        readiness = instantly.warmup_readiness()
+    except Exception:  # noqa: BLE001
+        readiness = {'detail': [], 'ready': False,
+                     'reason': 'warmup check unavailable'}
+    ready_by_email = {d.get('email'): d for d in readiness.get('detail', [])}
+
+    rows = []
+    for a in accounts:
+        email = a.get('email', '')
+        verdict = ready_by_email.get(email, {})
+        rows.append({
+            'email': email,
+            'domain': email.rpartition('@')[2],
+            'daily_limit': int(a.get('daily_limit') or 0),
+            'connected': (a.get('status') == 1
+                          and not a.get('setup_pending')),
+            'warmup_score': a.get('stat_warmup_score'),
+            'warmup_started': a.get('timestamp_warmup_start'),
+            'passes_warmup_gate': bool(verdict.get('ready')),
+            'problems': verdict.get('problems', []),
+        })
+
+    connected = [r for r in rows if r['connected']]
+    daily = sum(r['daily_limit'] for r in connected)
+    cap = int(getattr(settings, 'INSTANTLY_MONTHLY_EMAIL_CAP', 0) or 0)
+    out = {
+        'mailboxes': sorted(rows, key=lambda r: r['email']),
+        'total': len(rows),
+        'connected': len(connected),
+        'daily_capacity': daily,
+        'warmup_gate_passing': sum(
+            1 for r in rows if r['passes_warmup_gate']),
+    }
+    if cap:
+        out['monthly_plan_cap'] = cap
+        out['implied_monthly_at_full_capacity'] = daily * 30
+        # The plan, not the hardware, is the real ceiling.
+        out['capacity_exceeds_plan'] = (daily * 30) > cap
+        if out['capacity_exceeds_plan']:
+            out['note'] = (
+                f'The mailboxes could send {daily * 30}/month but the '
+                f'plan allows {cap}. Sending at full capacity would '
+                f'exhaust the month in about {max(1, cap // max(daily, 1))} '
+                f'days. Set per-campaign daily limits accordingly.')
+    return out
+
+
+def _set_campaign_sending(tool_input, report=_noop_report):
+    """Daily limit and mailbox assignment for one campaign.
+
+    Validates the mailboxes against the live workspace BEFORE writing.
+    Instantly will accept an address it does not know and the campaign
+    then looks configured and sends nothing, which is the worst of both
+    outcomes: no error, no mail.
+    """
+    from django.conf import settings
+
+    from outreach import instantly
+
+    campaign, err = _find_campaign(tool_input.get('campaign'))
+    if err:
+        return {'updated': False, 'reason': err}
+    if not campaign.instantly_campaign_id:
+        return {'updated': False,
+                'reason': (f'{campaign.name} has no Instantly campaign id — '
+                           f'it exists in Django only, so there is nothing '
+                           f'to configure.')}
+
+    raw_limit = tool_input.get('daily_limit')
+    mailboxes = tool_input.get('mailboxes')
+    if raw_limit is None and not mailboxes:
+        return {'updated': False,
+                'reason': 'Give a daily_limit, mailboxes, or both.'}
+
+    daily_limit = None
+    if raw_limit is not None:
+        try:
+            daily_limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return {'updated': False,
+                    'reason': f'daily_limit must be a whole number, '
+                              f'got {raw_limit!r}.'}
+        if daily_limit < 0:
+            return {'updated': False,
+                    'reason': 'daily_limit cannot be negative.'}
+
+    warnings = []
+    chosen = None
+    if mailboxes:
+        report('checking the mailboxes against the workspace')
+        try:
+            accounts = instantly.list_accounts()
+        except Exception as exc:  # noqa: BLE001
+            return {'updated': False,
+                    'reason': f'Could not reach Instantly to verify the '
+                              f'mailboxes: {exc}'}
+        by_email = {str(a.get('email', '')).lower(): a for a in accounts}
+
+        chosen, unknown, unusable = [], [], []
+        for raw in mailboxes:
+            key = str(raw).strip().lower()
+            account = by_email.get(key)
+            if account is None:
+                unknown.append(raw)
+                continue
+            if account.get('status') != 1 or account.get('setup_pending'):
+                unusable.append(raw)
+                continue
+            chosen.append(account.get('email'))
+
+        if unknown:
+            return {
+                'updated': False,
+                'reason': f'These are not mailboxes in the workspace: '
+                          f'{unknown}. Call list_mailboxes and use the '
+                          f'exact addresses.',
+                'available': sorted(by_email),
+            }
+        if unusable:
+            return {
+                'updated': False,
+                'reason': f'These mailboxes are not connected, so a '
+                          f'campaign assigned to them would send nothing: '
+                          f'{unusable}. Finish their setup in Instantly '
+                          f'first.',
+            }
+        if not chosen:
+            return {'updated': False,
+                    'reason': 'No usable mailboxes were named.'}
+
+        capacity = sum(
+            int(by_email[e.lower()].get('daily_limit') or 0) for e in chosen)
+        if daily_limit is not None and daily_limit > capacity:
+            warnings.append(
+                f'daily_limit {daily_limit} is above what those '
+                f'{len(chosen)} mailbox(es) can send ({capacity}/day), so '
+                f'{capacity} is the real ceiling.')
+
+    cap = int(getattr(settings, 'INSTANTLY_MONTHLY_EMAIL_CAP', 0) or 0)
+    if daily_limit and cap and daily_limit * 30 > cap:
+        warnings.append(
+            f'{daily_limit}/day is {daily_limit * 30}/month against a '
+            f'{cap}/month plan — it would exhaust the plan in about '
+            f'{max(1, cap // daily_limit)} days.')
+
+    report('writing the sending config')
+    try:
+        instantly.update_campaign_sending(
+            campaign.instantly_campaign_id,
+            daily_limit=daily_limit, account_emails=chosen)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('set_campaign_sending failed')
+        return {'updated': False, 'reason': f'Instantly refused: {exc}'}
+
+    changed = []
+    if daily_limit is not None:
+        changed.append(f'daily limit {daily_limit}')
+    if chosen:
+        changed.append(f'{len(chosen)} mailbox(es)')
+    report(f"{campaign.name}: set {' and '.join(changed)}")
+
+    result = {
+        'updated': True,
+        'campaign': campaign.name,
+        'daily_limit': daily_limit,
+        'mailboxes': chosen,
+        'active': campaign.active,
+        'note': 'Configuration only — this did not start the campaign.',
+    }
+    if warnings:
+        result['warnings'] = warnings
+    return result
+
+
 def _campaign_stats(tool_input, report=_noop_report):
     """Local arms merged with live Instantly counters."""
     from outreach import instantly
@@ -851,6 +1100,10 @@ def _campaign_stats(tool_input, report=_noop_report):
             'pushable': bool(c.active and c.instantly_campaign_id),
             'leads_assigned': c.leads.count(),
             'leads_pushed': c.leads_pushed,
+            # How much this arm may send and from where — Instantly's
+            # own config, not our copy of it, so it cannot go stale.
+            'daily_limit': _first_of(live, 'daily_limit', default=None),
+            'mailboxes': _first_of(live, 'email_list', default=None),
             'emails_sent': sent,
             'opens': opens,
             'replies': replies,
@@ -1103,9 +1356,43 @@ def _create_campaign(tool_input, report=_noop_report):
         }
     report(f'pre-flight passed — {len(steps)} touches')
 
+    # Mailboxes are validated the same way set_campaign_sending does it,
+    # because a campaign created against an address that was never
+    # connected looks configured and sends nothing.
+    mailboxes = tool_input.get('mailboxes') or None
+    chosen = None
+    if mailboxes:
+        try:
+            accounts = instantly.list_accounts()
+        except Exception as exc:  # noqa: BLE001
+            return {'created': False,
+                    'reason': f'Could not verify the mailboxes: {exc}'}
+        by_email = {str(a.get('email', '')).lower(): a for a in accounts}
+        bad = [m for m in mailboxes
+               if by_email.get(str(m).strip().lower()) is None
+               or by_email[str(m).strip().lower()].get('status') != 1
+               or by_email[str(m).strip().lower()].get('setup_pending')]
+        if bad:
+            return {'created': False,
+                    'reason': f'Unknown or unconnected mailboxes: {bad}. '
+                              f'Call list_mailboxes.',
+                    'available': sorted(by_email)}
+        chosen = [by_email[str(m).strip().lower()]['email']
+                  for m in mailboxes]
+
+    daily_limit = tool_input.get('daily_limit')
+    if daily_limit is not None:
+        try:
+            daily_limit = int(daily_limit)
+        except (TypeError, ValueError):
+            return {'created': False,
+                    'reason': f'daily_limit must be a whole number, '
+                              f'got {daily_limit!r}.'}
+
     report('creating the campaign in Instantly (paused)')
     try:
-        result = instantly.create_campaign(name, steps)
+        result = instantly.create_campaign(
+            name, steps, daily_limit=daily_limit, account_emails=chosen)
     except Exception as exc:  # noqa: BLE001
         logger.exception('create_campaign failed')
         return {'created': False, 'reason': f'Instantly refused: {exc}'}
@@ -1133,6 +1420,8 @@ def _create_campaign(tool_input, report=_noop_report):
         'slug': campaign.slug,
         'instantly_campaign_id': campaign_id,
         'business_type': business_type or '(unconstrained)',
+        'daily_limit': daily_limit,
+        'mailboxes': chosen or '(workspace default)',
         'active': False,
         'next_step': (
             'The campaign exists but is PAUSED and inactive, so nothing '
@@ -1179,6 +1468,8 @@ _IMPL = {
     'push_to_instantly': '_push_to_instantly',
     'create_campaign': '_create_campaign',
     'campaign_stats': '_campaign_stats',
+    'list_mailboxes': '_list_mailboxes',
+    'set_campaign_sending': '_set_campaign_sending',
     'preview_sequence': '_preview_sequence',
     'set_campaign_sequence': '_set_campaign_sequence',
     'find_leads': '_find_leads',
