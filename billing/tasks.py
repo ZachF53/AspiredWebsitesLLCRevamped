@@ -6,6 +6,8 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
+DAY_SECONDS = 24 * 60 * 60
+
 
 @shared_task
 def provision_droplet_task(client_id):
@@ -60,6 +62,21 @@ def send_payment_failed_email_task(client_id, day):
 
     Account-level: the card that failed belongs to the customer, not to
     one of their sites.
+
+    Two things this has to check before sending, both learned the hard
+    way on 2026-09-02 when a client who had paid a week earlier was told
+    her payment had failed:
+
+    1. `payment_failure_started_at` — the same reinstatement guard the
+       14/21/30/60-day escalation tasks read. Nulling it on payment is
+       what cancels the whole in-flight chain, but this task never
+       looked at it, so the emails kept going out to a paid-up customer
+       while her site was (correctly) left alone. A dunning email is a
+       claim about the account's state, so it has to re-read that state
+       at send time, not trust the state from when it was queued.
+
+    2. A send-once marker — see `_claim_dunning_send`. Belt and braces
+       against duplicate delivery of the same message.
     """
     from clients.account_models import Account
     from clients.emails import send_payment_failed_email
@@ -67,7 +84,54 @@ def send_payment_failed_email_task(client_id, day):
     client = Account.objects.filter(id=client_id).first()
     if client is None:
         return
+
+    if client.payment_failure_started_at is None:
+        # Paid / reinstated in the meantime — cancel by no-op, exactly
+        # as the escalation tasks do.
+        logger.info(
+            'send_payment_failed_email_task: account %s is paid up — '
+            'Day-%s dunning email suppressed', client_id, day)
+        return
+
+    if not _claim_dunning_send(client_id, day):
+        logger.warning(
+            'send_payment_failed_email_task: Day-%s email for account %s '
+            'already sent — duplicate delivery suppressed', day, client_id)
+        return
+
     send_payment_failed_email(client, day)
+
+
+def _claim_dunning_send(client_id, day):
+    """Claim the right to send this (account, day) dunning email once.
+
+    True on the first call, False for every later one within the window.
+
+    The guard above stops the common case, but it can't stop duplicates
+    of the *same* fire: when the broker redelivers a parked ETA message,
+    every copy sees an identical, still-delinquent account and all of
+    them send. This makes the send itself idempotent so a genuinely
+    delinquent client gets one Day-7 email rather than one per copy.
+
+    `cache.add` is atomic on Redis, so the first caller wins. The window
+    is 30 days: comfortably longer than the Day-7 → Day-14 gap, so the
+    two stages never collide with each other (the key includes `day`)
+    and a redelivery arriving days late is still recognised.
+
+    Fails OPEN — if the cache is down, send. A duplicate dunning email is
+    an annoyance; silently swallowing the real one lets an account slide
+    toward the droplet-destroy chain with no warning to the client.
+    """
+    from django.core.cache import cache
+
+    try:
+        return bool(cache.add(f'dunning-email:{client_id}:{day}', 1,
+                              timeout=30 * DAY_SECONDS))
+    except Exception:
+        logger.exception(
+            '_claim_dunning_send: cache unavailable for %s day %s — '
+            'sending anyway', client_id, day)
+        return True
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -730,6 +730,33 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_BROKER_POOL_LIMIT = 4
 CELERY_REDIS_MAX_CONNECTIONS = 4
 
+# Redis has no native delayed-delivery, so an `apply_async(countdown=...)`
+# message is delivered to a worker immediately and parked in memory until
+# its ETA. The broker treats it as in-flight the whole time, and once
+# `visibility_timeout` elapses it decides the worker died and redelivers
+# the SAME message. Kombu's default is 3600s — one hour — while the
+# dunning chain schedules 7, 14, 21, 30 and 60-day countdowns. Every one
+# of those got redelivered over and over, and each copy ran on the ETA.
+#
+# Measured on prod 2026-09-02: a single payment failure on 2026-08-26 had
+# accumulated 42 copies of each of its five tasks. The Day-7 email fired
+# 42 times at one client; the Day-30 task would have taken 42 DigitalOcean
+# snapshots of the same droplet before destroying it.
+#
+# The timeout MUST exceed the longest countdown we schedule (60 days, in
+# billing/webhooks.py `_handle_invoice_payment_failed`). 70 days leaves
+# headroom. The trade-off is real and accepted: a worker that dies while
+# genuinely holding a task now waits this long for redelivery instead of
+# an hour. Our tasks are short and re-runnable, and losing one is far
+# cheaper than running the droplet-destroy chain dozens of times.
+#
+# If the dunning countdowns are ever lengthened past 70 days, raise this
+# with them or the storm comes back silently.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': 60 * 60 * 24 * 70,  # 70 days
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = CELERY_BROKER_TRANSPORT_OPTIONS
+
 # ── Celery beat schedule ────────────────────────────────────────────────────
 from celery.schedules import crontab  # noqa: E402
 

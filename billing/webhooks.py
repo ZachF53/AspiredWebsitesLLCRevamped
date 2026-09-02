@@ -827,6 +827,45 @@ def _handle_invoice_payment_failed(event):
     invoice = event['data']['object']
     client = _client_for_customer(invoice.get('customer'))
 
+    # `subscription_create` is the very first invoice on a brand-new
+    # subscription — i.e. the charge that happens while the buyer is
+    # still sitting on the checkout form. A decline there is a checkout
+    # retry, not a delinquency: there is no service to suspend, no
+    # droplet to destroy, and the buyer is right there looking at the
+    # error and re-entering their card. Every one of our subscription
+    # creates handles that inline (`default_incomplete` on the checkout
+    # form, `error_if_incomplete` on the helper paths, `send_invoice`
+    # when there's no card on file).
+    #
+    # Treating it as a delinquency is what burned Burgland Technology on
+    # 2026-08-26: their first attempt declined, the retry a minute later
+    # succeeded and the invoice was paid, but the failure had already
+    # opened a dunning window, queued the Day-3/7/14 emails and armed the
+    # droplet-destroy chain. It also incremented
+    # `payment_failure_offenses` to 1, which would have auto-charged them
+    # the $75 second-offence reinstatement fee on their next genuine
+    # hiccup.
+    #
+    # A first invoice that is never paid is still handled — Stripe moves
+    # the subscription to `past_due`/`unpaid` and the renewal-cycle
+    # failures that follow carry `billing_reason='subscription_cycle'`,
+    # which lands below as normal.
+    billing_reason = invoice.get('billing_reason') or ''
+    if billing_reason == 'subscription_create':
+        SyncLog.objects.create(
+            source_site='stripe',
+            event_type='invoice.payment_failed',
+            payload_received=_safe_payload(invoice),
+            status='skipped',
+            error_message=(
+                'First-invoice decline at checkout — not a delinquency. '
+                'Dunning and escalation intentionally not started.'),
+        )
+        logger.info(
+            'invoice.payment_failed (subscription_create) for customer %s '
+            '— checkout retry, dunning not started', invoice.get('customer'))
+        return
+
     SyncLog.objects.create(
         source_site='stripe',
         event_type='invoice.payment_failed',
