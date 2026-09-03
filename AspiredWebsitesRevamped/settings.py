@@ -823,6 +823,15 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_scan_schedule',
         'schedule': crontab(hour=3, minute=0),                    # daily 3am
     },
+    # Payment-failure dunning. This one task replaced nine
+    # `apply_async(countdown=...)` messages that used to be queued weeks
+    # ahead — see billing/dunning.py. It must stay a sweep: anything that
+    # schedules dunning work into the future reintroduces both the
+    # stale-state bug and the Redis redelivery storm.
+    'dunning-sweep': {
+        'task': 'billing.tasks.run_dunning_sweep_task',
+        'schedule': crontab(hour=7, minute=30),                   # daily 7:30am
+    },
     'calculate-health-scores': {
         'task': 'clients.tasks.calculate_all_health_scores',
         'schedule': crontab(hour=6, minute=0),                    # daily 6am

@@ -104,6 +104,7 @@ NAVIGATION = (
         NavItem('Billing', 'admin_dashboard:billing_list'),
         NavItem('New Invoice', 'admin_dashboard:new_invoice'),
         NavItem('Pricing', 'admin_dashboard:pricing_list'),
+        NavItem('Dunning', 'admin_dashboard:dunning'),
     )),
 
     # Work that grows an existing account.

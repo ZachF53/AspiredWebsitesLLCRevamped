@@ -665,174 +665,92 @@ class InvoicePaidTests(TestCase):
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
 )
 class InvoicePaymentFailedTests(TestCase):
-    """invoice.payment_failed — Day-3 email + 4-task escalation chain."""
+    """invoice.payment_failed opens a window and does nothing else.
+
+    This handler used to send an immediate email and queue nine
+    `apply_async(countdown=...)` messages covering Day 3 to Day 60. Both
+    are gone — `billing.dunning.run_dunning_sweep` derives what is due
+    from current state each day instead. The stage behaviour itself is
+    covered in billing/tests_dunning_sweep.py; what matters here is that
+    the webhook stamps the guard and schedules nothing.
+    """
 
     def _post(self, body):
         return self.client.post(
             reverse('billing:stripe_webhook'),
             data=json.dumps(body), content_type='application/json')
 
-    @patch('billing.tasks.set_site_maintenance_mode_task.apply_async')
-    @patch('billing.tasks.set_site_offline_task.apply_async')
-    @patch('billing.tasks.destroy_client_droplet_task.apply_async')
-    @patch('billing.tasks.delete_client_snapshot_task.apply_async')
-    @patch('billing.tasks.send_payment_failed_email_task.apply_async')
-    def test_schedules_full_chain_and_stamps_window(
-            self, mock_email_task, mock_delete, mock_destroy, mock_offline,
-            mock_maint):
-        from django.core import mail
-        c = _new_client(firm='Failed LLC')
-        # Billing state is the Account's: one customer, one card.
-        c = c.migrated_account
-        c.stripe_customer_id = 'cus_failed'
-        c.save()
-
-        body = {
+    def _body(self, customer, billing_reason='subscription_cycle'):
+        return {
             'type': 'invoice.payment_failed',
             'data': {'object': {
                 'id': 'in_failed_1',
-                'customer': 'cus_failed',
+                'customer': customer,
                 'subscription': '',
+                'billing_reason': billing_reason,
             }},
         }
-        r = self._post(body)
+
+    def test_stamps_window_and_sends_nothing(self):
+        from django.core import mail
+
+        c = _new_client(firm='Failed LLC').migrated_account
+        c.stripe_customer_id = 'cus_failed'
+        c.save()
+
+        mail.outbox = []
+        r = self._post(self._body('cus_failed'))
         self.assertEqual(r.status_code, 200)
 
         c.refresh_from_db()
         self.assertIsNotNone(c.payment_failure_started_at)
+        # The Day-3 email is the sweep's job now, on day 3 — not an
+        # instant alarm fired off a single declined attempt.
+        self.assertEqual(len(mail.outbox), 0)
 
-        # All 4 escalation tasks scheduled with correct countdowns
-        mock_maint.assert_called_once()
-        self.assertEqual(mock_maint.call_args.kwargs.get('countdown'),
-                         14 * 24 * 60 * 60)
-        mock_offline.assert_called_once()
-        self.assertEqual(mock_offline.call_args.kwargs.get('countdown'),
-                         21 * 24 * 60 * 60)
-        mock_destroy.assert_called_once()
-        self.assertEqual(mock_destroy.call_args.kwargs.get('countdown'),
-                         30 * 24 * 60 * 60)
-        mock_delete.assert_called_once()
-        self.assertEqual(mock_delete.call_args.kwargs.get('countdown'),
-                         60 * 24 * 60 * 60)
+    def test_schedules_no_celery_work(self):
+        """The regression that started all of this.
 
-    @patch('billing.tasks.set_site_maintenance_mode_task.apply_async')
-    @patch('billing.tasks.set_site_offline_task.apply_async')
-    @patch('billing.tasks.destroy_client_droplet_task.apply_async')
-    @patch('billing.tasks.delete_client_snapshot_task.apply_async')
-    @patch('billing.tasks.send_payment_failed_email_task.apply_async')
-    def test_window_stamped_only_on_first_failure(
-            self, *mocks):
-        """Repeat failures within the same window leave started_at alone."""
-        c = _new_client(firm='Repeat LLC')
+        Anything queued with a multi-day countdown is redelivered by
+        Redis until the worker holds dozens of copies, and acts on state
+        captured days earlier. Nothing here may schedule.
+        """
+        c = _new_client(firm='NoSchedule LLC').migrated_account
+        c.stripe_customer_id = 'cus_noschedule'
+        c.save()
+
+        with patch('celery.app.task.Task.apply_async') as mock_apply:
+            self._post(self._body('cus_noschedule'))
+        mock_apply.assert_not_called()
+
+    def test_window_stamped_only_on_first_failure(self):
+        """Repeat failures within the same window leave started_at alone,
+        so the day count keeps running from the original miss."""
+        c = _new_client(firm='Repeat LLC').migrated_account
         c.stripe_customer_id = 'cus_repeat'
         first_failure = timezone.now() - timezone.timedelta(days=3)
         c.payment_failure_started_at = first_failure
         c.save()
 
-        body = {
-            'type': 'invoice.payment_failed',
-            'data': {'object': {
-                'id': 'in_repeat',
-                'customer': 'cus_repeat',
-                'subscription': '',
-            }},
-        }
-        self._post(body)
+        self._post(self._body('cus_repeat'))
         c.refresh_from_db()
-        # Same timestamp (allow microsecond-level equality)
         self.assertEqual(c.payment_failure_started_at, first_failure)
 
+    def test_a_first_invoice_decline_still_opens_a_window(self):
+        """`subscription_create` is no longer special-cased.
 
-def _site_for(client):
-    """The client's first Website, with the account guard reset."""
-    account = client.migrated_account
-    site = account.websites.first()
-    return account, site
+        It used to be skipped outright, which stopped the false alarms
+        but also meant a first invoice that genuinely went unpaid never
+        dunned. The sweep's Stripe re-check handles the false positive
+        instead: the window opens, and closes itself next sweep.
+        """
+        c = _new_client(firm='Checkout Retry LLC').migrated_account
+        c.stripe_customer_id = 'cus_checkout_retry'
+        c.save()
 
-
-class EscalationTaskGuardTests(TestCase):
-    """Phase 1.2 — each escalation task must no-op when the guard is None.
-
-    The guard lives on the Account (billing is account-level); the droplet
-    the task acts on lives on the Website. So the task takes a website id
-    and reads the guard one hop out.
-    """
-
-    def _guarded_site(self, firm, *, guard=None, droplet_id=''):
-        client = _new_client(firm=firm)
-        account, site = _site_for(client)
-        account.payment_failure_started_at = guard
-        account.save(update_fields=[
-            'payment_failure_started_at', 'updated_at'])
-        if droplet_id:
-            site.do_droplet_id = droplet_id
-            site.save(update_fields=['do_droplet_id', 'updated_at'])
-        return site
-
-    def test_maintenance_task_noop_when_guard_none(self):
-        from billing.tasks import set_site_maintenance_mode_task
-        site = self._guarded_site('Guard1')
-        with patch('billing.do_helpers.set_site_maintenance_mode') as mock_h:
-            set_site_maintenance_mode_task(str(site.id))
-        mock_h.assert_not_called()
-
-    def test_offline_task_noop_when_guard_none(self):
-        from billing.tasks import set_site_offline_task
-        site = self._guarded_site('Guard2')
-        with patch('billing.do_helpers.set_site_offline') as mock_h:
-            set_site_offline_task(str(site.id))
-        mock_h.assert_not_called()
-
-    def test_destroy_task_noop_when_guard_none(self):
-        from billing.tasks import destroy_client_droplet_task
-        site = self._guarded_site('Guard3')
-        with patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(site.id))
-        mock_h.assert_not_called()
-
-    def test_delete_snapshot_task_noop_when_guard_none(self):
-        from billing.tasks import delete_client_snapshot_task
-        site = self._guarded_site('Guard4')
-        with patch('billing.do_helpers.delete_client_snapshot') as mock_h:
-            delete_client_snapshot_task(str(site.id))
-        mock_h.assert_not_called()
-
-    def test_destroy_task_fires_when_guard_set(self):
-        from billing.tasks import destroy_client_droplet_task
-        site = self._guarded_site(
-            'GuardActive', guard=timezone.now(), droplet_id='12345')
-        with patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(site.id))
-        mock_h.assert_called_once()
-        self.assertEqual(mock_h.call_args[0][0].id, site.id)
-
-    def test_an_unresolvable_site_raises_an_alert_rather_than_no_oping(self):
-        """A cancellation and a stale id both used to return silently,
-        so a chain scheduled against a deleted site looked exactly like a
-        client who had paid. One of those needs a human."""
-        import uuid
-
-        from billing.tasks import destroy_client_droplet_task
-
-        with patch('core.system_alerts.record_alert') as mock_alert, \
-                patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(uuid.uuid4()))
-        mock_h.assert_not_called()
-        mock_alert.assert_called_once()
-        self.assertEqual(mock_alert.call_args.kwargs['severity'], 'error')
-
-    def test_a_paid_up_account_cancels_silently(self):
-        """The normal path must NOT raise an alert -- reinstatement is
-        expected, and alerting on it would train everyone to ignore the
-        alert that matters."""
-        from billing.tasks import destroy_client_droplet_task
-
-        site = self._guarded_site('GuardPaid')
-        with patch('core.system_alerts.record_alert') as mock_alert, \
-                patch('billing.do_helpers.destroy_client_droplet') as mock_h:
-            destroy_client_droplet_task(str(site.id))
-        mock_h.assert_not_called()
-        mock_alert.assert_not_called()
+        self._post(self._body('cus_checkout_retry', 'subscription_create'))
+        c.refresh_from_db()
+        self.assertIsNotNone(c.payment_failure_started_at)
 
 
 @override_settings(DO_API_TOKEN='test-do-token')

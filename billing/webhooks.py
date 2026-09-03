@@ -19,7 +19,6 @@ from django.views.decorators.http import require_POST
 from billing.account_provisioning import provision_self_checkout_account
 from clients.emails import (
     send_onboarding_setup_email,
-    send_payment_failed_email,
     send_welcome_email,
 )
 from clients.models import IntakeResponse
@@ -827,45 +826,6 @@ def _handle_invoice_payment_failed(event):
     invoice = event['data']['object']
     client = _client_for_customer(invoice.get('customer'))
 
-    # `subscription_create` is the very first invoice on a brand-new
-    # subscription — i.e. the charge that happens while the buyer is
-    # still sitting on the checkout form. A decline there is a checkout
-    # retry, not a delinquency: there is no service to suspend, no
-    # droplet to destroy, and the buyer is right there looking at the
-    # error and re-entering their card. Every one of our subscription
-    # creates handles that inline (`default_incomplete` on the checkout
-    # form, `error_if_incomplete` on the helper paths, `send_invoice`
-    # when there's no card on file).
-    #
-    # Treating it as a delinquency is what burned Burgland Technology on
-    # 2026-08-26: their first attempt declined, the retry a minute later
-    # succeeded and the invoice was paid, but the failure had already
-    # opened a dunning window, queued the Day-3/7/14 emails and armed the
-    # droplet-destroy chain. It also incremented
-    # `payment_failure_offenses` to 1, which would have auto-charged them
-    # the $75 second-offence reinstatement fee on their next genuine
-    # hiccup.
-    #
-    # A first invoice that is never paid is still handled — Stripe moves
-    # the subscription to `past_due`/`unpaid` and the renewal-cycle
-    # failures that follow carry `billing_reason='subscription_cycle'`,
-    # which lands below as normal.
-    billing_reason = invoice.get('billing_reason') or ''
-    if billing_reason == 'subscription_create':
-        SyncLog.objects.create(
-            source_site='stripe',
-            event_type='invoice.payment_failed',
-            payload_received=_safe_payload(invoice),
-            status='skipped',
-            error_message=(
-                'First-invoice decline at checkout — not a delinquency. '
-                'Dunning and escalation intentionally not started.'),
-        )
-        logger.info(
-            'invoice.payment_failed (subscription_create) for customer %s '
-            '— checkout retry, dunning not started', invoice.get('customer'))
-        return
-
     SyncLog.objects.create(
         source_site='stripe',
         event_type='invoice.payment_failed',
@@ -876,62 +836,42 @@ def _handle_invoice_payment_failed(event):
     if client is None:
         return
 
-    # Stamp the failure window on first failure (idempotent — only on
-    # the first miss; subsequent failures within the same window leave
-    # the timestamp alone). This is the GUARD field every scheduled
-    # escalation task checks before acting; setting it to None
-    # (reinstatement) is what self-cancels the chain.
+    # Open the failure window and stop. That is the entire job of this
+    # handler now.
+    #
+    # It used to also send an immediate email and queue nine
+    # `apply_async(countdown=...)` messages covering Day 3 through Day 60.
+    # Both halves of that were wrong. The queued messages made the
+    # decision here, days or weeks before the action ran, so they acted on
+    # state that had since changed — and because Redis has no delayed
+    # delivery it kept redelivering them, so prod ended up holding 42
+    # copies of each. See billing/dunning.py for the full account.
+    #
+    # `billing.dunning.run_dunning_sweep` now derives what is due from
+    # current state once a day, and re-verifies against Stripe before it
+    # acts. So this window opening does not have to be right: a card that
+    # declines at checkout and clears on the retry opens a window that the
+    # next sweep closes by itself, having sent nothing and touched
+    # nothing. That self-healing is why the old
+    # `billing_reason == 'subscription_create'` skip is gone — it bought
+    # the same protection at the cost of never dunning a first invoice
+    # that genuinely went unpaid.
+    #
+    # Idempotent: only the first failure stamps. Later failures inside the
+    # same window leave the timestamp alone, so the day count keeps
+    # running from the original miss.
     if client.payment_failure_started_at is None:
         client.payment_failure_started_at = timezone.now()
         client.save(update_fields=[
             'payment_failure_started_at', 'updated_at'])
+        logger.info(
+            'invoice.payment_failed: opened dunning window for %s — the '
+            'daily sweep will verify and act', client.pk)
 
-    # Day 3 email now, then schedule Day 7 + Day 14 follow-ups.
-    send_payment_failed_email(client, day=3)
-    try:
-        from billing.tasks import send_payment_failed_email_task
-        send_payment_failed_email_task.apply_async((str(client.id), 7), countdown=7 * DAY)
-        send_payment_failed_email_task.apply_async((str(client.id), 14), countdown=14 * DAY)
-    except Exception:
-        logger.exception('Could not schedule payment-failure follow-ups for %s',
-                         client.pk)
-
-    # Phase 1.1 — schedule the full 14/21/30/60 escalation chain, once
-    # per site under the account.
-    #
-    # The chain acts on droplets, and droplets are per site. Scheduling it
-    # once per account meant only one site was ever taken down for
-    # non-payment: on a two-site account the second stayed live and served
-    # traffic indefinitely while the customer was in dunning, and the
-    # snapshot/destroy steps never touched its droplet, so it also kept
-    # billing us. Each task still self-checks the account-level guard, so
-    # a reinstatement cancels every branch at once.
-    try:
-        from billing.tasks import (
-            set_site_maintenance_mode_task,
-            set_site_offline_task,
-            destroy_client_droplet_task,
-            delete_client_snapshot_task,
-        )
-        sites = _sites_for_escalation(client)
-        if not sites:
-            logger.error(
-                'No website resolved for %s — dunning escalation not '
-                'scheduled', client.pk)
-            _alert_no_escalation_target(client)
-        for site_id in sites:
-            set_site_maintenance_mode_task.apply_async(
-                (site_id,), countdown=14 * DAY)
-            set_site_offline_task.apply_async(
-                (site_id,), countdown=21 * DAY)
-            destroy_client_droplet_task.apply_async(
-                (site_id,), countdown=30 * DAY)
-            delete_client_snapshot_task.apply_async(
-                (site_id,), countdown=60 * DAY)
-    except Exception:
-        logger.exception(
-            'Could not schedule dunning escalation chain for %s',
-            client.pk)
+    if not _sites_for_escalation(client):
+        # A delinquent account with nothing to take down has no
+        # enforcement path at all, and would otherwise be silent.
+        _alert_no_escalation_target(client)
 
 
 def _sites_for_escalation(account):

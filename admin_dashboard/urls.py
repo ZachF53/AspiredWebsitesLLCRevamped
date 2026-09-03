@@ -575,4 +575,23 @@ urlpatterns = [
          __import__('core.system_alerts_views',
                     fromlist=['alert_resolve_all']).alert_resolve_all,
          name='system_alerts_resolve_all'),
+
+    # Payment-failure dunning — open windows, and the destructive steps
+    # that hold for a human rather than running themselves.
+    path('dunning/',
+         __import__('billing.dunning_views',
+                    fromlist=['dunning_list']).dunning_list,
+         name='dunning'),
+    path('dunning/<uuid:event_id>/approve/',
+         __import__('billing.dunning_views',
+                    fromlist=['dunning_approve']).dunning_approve,
+         name='dunning_approve'),
+    path('dunning/<uuid:event_id>/cancel/',
+         __import__('billing.dunning_views',
+                    fromlist=['dunning_cancel']).dunning_cancel,
+         name='dunning_cancel'),
+    path('dunning/account/<uuid:account_id>/close/',
+         __import__('billing.dunning_views',
+                    fromlist=['dunning_close_window']).dunning_close_window,
+         name='dunning_close_window'),
 ]

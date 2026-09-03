@@ -1,0 +1,179 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Dunning — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Money</span>
+            <h1 class="admin-page-title">Payment-Failure Dunning</h1>
+            <p class="admin-page-sub">
+                A daily sweep re-derives what each open window owes from
+                current state, and re-checks Stripe before it acts. The
+                reversible steps run themselves; destroying a droplet or
+                deleting its snapshot waits for you here.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="admin-messages">
+            {% for m in messages %}
+                <div class="admin-message admin-message--{{ m.tags }}">{{ m }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% comment %}
+    Steps that came due, are irreversible, and stopped for a human.
+    These are listed first because they are the only thing on this page
+    that is actually blocked on the operator.
+    {% endcomment %}
+    <h2 class="admin-section-title">Waiting for your approval</h2>
+    {% if not pending %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:1.5rem 0;">
+                    ✓ Nothing waiting. No irreversible step is due.
+                </p>
+            </div>
+        </section>
+    {% else %}
+        {% for e in pending %}
+            <section class="admin-card alert-card alert-card--critical">
+                <div class="admin-card__header">
+                    <div>
+                        <strong>{{ e.account }}</strong>
+                        <span class="muted">{{ e.get_stage_display }}</span>
+                    </div>
+                    <div style="display:flex; gap:.5rem;">
+                        <form method="post"
+                              action="{% url 'admin_dashboard:dunning_approve' e.pk %}"
+                              style="margin:0;"
+                              onsubmit="return confirm('Run &quot;{{ e.get_stage_display }}&quot; for {{ e.account }}? This cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-danger btn-sm">Approve &amp; run</button>
+                        </form>
+                        <form method="post"
+                              action="{% url 'admin_dashboard:dunning_cancel' e.pk %}"
+                              style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">Cancel step</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="admin-card__body">
+                    <p>
+                        Window opened {{ e.window_started_at|date:"M j, Y" }}.
+                        {% if e.website %}Site {{ e.website.pk }}.{% endif %}
+                    </p>
+                    <p class="muted">
+                        Stripe is re-checked when you approve — if the client
+                        has paid since, the step is refused and the window
+                        closes instead.
+                    </p>
+                </div>
+            </section>
+        {% endfor %}
+    {% endif %}
+
+    <h2 class="admin-section-title">Open failure windows</h2>
+    {% if not open_windows %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:1.5rem 0;">
+                    ✓ No client is currently behind on payment.
+                </p>
+            </div>
+        </section>
+    {% else %}
+        {% for w in open_windows %}
+            <section class="admin-card">
+                <div class="admin-card__header">
+                    <div>
+                        <strong>{{ w.account }}</strong>
+                        <span class="muted">
+                            day {{ w.days }} — opened {{ w.started_at|date:"M j, Y" }}
+                        </span>
+                    </div>
+                    <form method="post"
+                          action="{% url 'admin_dashboard:dunning_close_window' w.account.pk %}"
+                          style="margin:0;"
+                          onsubmit="return confirm('Close the dunning window for {{ w.account }}? Any suspended site is restored and no fee is charged.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Close window</button>
+                    </form>
+                </div>
+                <div class="admin-card__body">
+                    {% if not w.events %}
+                        <p class="muted">Nothing has run yet for this window.</p>
+                    {% else %}
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Step</th><th>Status</th>
+                                    <th>Site</th><th>When</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for e in w.events %}
+                                    <tr>
+                                        <td>{{ e.get_stage_display }}</td>
+                                        <td>{{ e.get_status_display }}</td>
+                                        <td class="muted">
+                                            {% if e.website %}{{ e.website.pk }}{% else %}—{% endif %}
+                                        </td>
+                                        <td class="muted">{{ e.created_at|date:"M j H:i" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% endif %}
+                </div>
+            </section>
+        {% endfor %}
+    {% endif %}
+
+    <h2 class="admin-section-title">Recent history</h2>
+    {% if not recent %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <p class="muted" style="text-align:center; padding:1.5rem 0;">
+                    No dunning steps have run.
+                </p>
+            </div>
+        </section>
+    {% else %}
+        <section class="admin-card">
+            <div class="admin-card__body">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Account</th><th>Step</th>
+                            <th>Status</th><th>When</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in recent %}
+                            <tr>
+                                <td>{{ e.account }}</td>
+                                <td>{{ e.get_stage_display }}</td>
+                                <td>
+                                    {{ e.get_status_display }}
+                                    {% if e.detail %}
+                                        <span class="muted">— {{ e.detail|truncatechars:120 }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="muted">{{ e.created_at|date:"M j H:i" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
+</div>
+{% endblock %}
