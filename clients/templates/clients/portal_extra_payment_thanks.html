@@ -1,0 +1,27 @@
+{% extends "clients/base.html" %}
+{% load static %}
+
+{% block title %}Thank you{% endblock %}
+
+{% block portal_content %}
+<div class="maint-success">
+    <div class="maint-success__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="3" />
+            <path d="M20 32l8 8 16-16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </div>
+    <h1 class="maint-success__title">
+        Thank you{% if amount %} for the extra ${{ amount|floatformat:2 }}{% endif %}!
+    </h1>
+    <p class="maint-success__lead">
+        Your payment went through — we really appreciate it. A receipt from Stripe
+        will land in your inbox shortly.
+    </p>
+
+    <div class="maint-success__cta">
+        <a href="{% url 'clients:portal_subscriptions' %}" class="btn-primary">Back to billing</a>
+        <a href="{% url 'clients:dashboard' %}" class="btn-secondary">Back to portal</a>
+    </div>
+</div>
+{% endblock %}

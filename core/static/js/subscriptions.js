@@ -223,6 +223,12 @@
 
     var stripe = null;
     var elements = null;
+    var lastAmount = '';
+
+    function thanksUrl() {
+        return '/portal/subscriptions/extra-payment/thanks/'
+            + (lastAmount ? '?amount=' + encodeURIComponent(lastAmount) : '');
+    }
 
     function startExtraPayment(e) {
         e.preventDefault();
@@ -242,6 +248,7 @@
             showFormMessage('Enter an amount greater than $0.');
             return;
         }
+        lastAmount = amount;
 
         setStartLoading(true);
 
@@ -295,7 +302,10 @@
         stripe.confirmPayment({
             elements: elements,
             confirmParams: {
-                return_url: window.location.href,
+                // Only reached for 3DS-style flows that must leave the
+                // page — most cards resolve in-page and we redirect
+                // ourselves below instead.
+                return_url: window.location.origin + thanksUrl(),
             },
             redirect: 'if_required',
         }).then(function (result) {
@@ -305,7 +315,7 @@
                 setPayLoading(false);
                 return;
             }
-            window.location.reload();
+            window.location.href = thanksUrl();
         }).catch(function (err) {
             showModalMessage('Unexpected error: '
                 + (err.message || err));

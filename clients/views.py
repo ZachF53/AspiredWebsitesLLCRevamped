@@ -2808,6 +2808,26 @@ def portal_extra_payment_intent(request):
 
 
 @client_required
+def portal_extra_payment_thanks(request):
+    """Thank-you page shown after a successful extra payment. `amount` is
+    cosmetic only — the JS passes along what the client typed in so this
+    page can greet them by figure; the PaymentRecord ledger (written by
+    the webhook, which may still be in flight) is the source of truth."""
+    from decimal import Decimal, InvalidOperation
+
+    amount = None
+    raw = request.GET.get('amount', '')
+    if raw:
+        try:
+            amount = Decimal(raw)
+        except InvalidOperation:
+            amount = None
+
+    ctx = _portal_context(request, 'subscriptions', amount=amount)
+    return render(request, 'clients/portal_extra_payment_thanks.html', ctx)
+
+
+@client_required
 @require_POST
 def portal_payment_method_remove(request, pm_id):
     """Remove (detach) a saved card."""

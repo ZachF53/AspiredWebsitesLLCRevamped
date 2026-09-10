@@ -54,6 +54,9 @@ urlpatterns = [
     path('subscriptions/extra-payment/',
          views.portal_extra_payment_intent,
          name='portal_extra_payment_intent'),
+    path('subscriptions/extra-payment/thanks/',
+         views.portal_extra_payment_thanks,
+         name='portal_extra_payment_thanks'),
 
     # Maintenance-plan upsell + signup
     path('maintenance/', views.portal_maintenance,
