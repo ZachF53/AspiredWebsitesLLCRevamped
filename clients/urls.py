@@ -50,6 +50,10 @@ urlpatterns = [
     path('subscriptions/<str:sub_id>/payment-method/',
          views.portal_subscription_payment_method,
          name='portal_subscription_payment_method'),
+    # Client-initiated "send us extra money" payment.
+    path('subscriptions/extra-payment/',
+         views.portal_extra_payment_intent,
+         name='portal_extra_payment_intent'),
 
     # Maintenance-plan upsell + signup
     path('maintenance/', views.portal_maintenance,

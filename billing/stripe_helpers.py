@@ -1039,6 +1039,48 @@ def create_setup_intent_for_customer(customer_id):
     return intent
 
 
+def create_extra_payment_intent(account, amount, note=''):
+    """
+    One-off PaymentIntent for a client-initiated "send us extra money"
+    payment on the portal billing page — the client picks the amount, we
+    don't. Reuses the account's existing Stripe customer (present once
+    they've paid anything); only creates one if truly missing, unlike
+    `create_onboarding_payment_intent` which always mints a fresh
+    customer — that would orphan this client's saved cards/history onto
+    a second, unrelated Stripe customer.
+    """
+    _init()
+    customer_id = account.stripe_customer_id
+    if not customer_id:
+        customer = stripe.Customer.create(
+            email=(account.user.email
+                   if getattr(account, 'user_id', None) else '') or '',
+            name=account.name or '',
+            metadata={
+                'source': 'aspired_websites', 'account_id': str(account.id)},
+        )
+        customer_id = customer.id
+        account.stripe_customer_id = customer_id
+        account.save(update_fields=['stripe_customer_id', 'updated_at'])
+
+    return stripe.PaymentIntent.create(
+        amount=_cents(amount),
+        currency='usd',
+        customer=customer_id,
+        # Card-only — matches every other client-facing payment flow.
+        payment_method_types=['card'],
+        description=(
+            f'Aspired Websites — Additional payment ({account.name})'
+        )[:1000],
+        metadata={
+            'source': 'aspired_websites',
+            'kind': 'extra_payment',
+            'account_id': str(account.id),
+            'note': (note or '')[:500],
+        },
+    )
+
+
 def create_onboarding_payment_intent(*, email, name, line_items,
                                      client_profile_id, invoice_id):
     """

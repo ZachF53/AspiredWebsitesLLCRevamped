@@ -272,6 +272,56 @@
     {% endif %}
 </section>
 
+{# ── Send an additional payment ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">Send us an additional payment</h2>
+    <p class="form-hint form-hint--block">
+        Want to send something beyond your regular billing? Enter an amount below —
+        it's charged right away to whatever card you enter.
+    </p>
+    <form id="extra-payment-form">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="extra-payment-amount">Amount (USD)</label>
+            <input type="number" id="extra-payment-amount" name="amount"
+                   class="form-control" min="1" max="25000" step="0.01"
+                   placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+            <label for="extra-payment-note">Note (optional)</label>
+            <textarea id="extra-payment-note" name="note" class="form-control"
+                      rows="2" maxlength="500"></textarea>
+        </div>
+        <div id="extra-payment-form-message" class="add-card-modal__message" hidden></div>
+        <button type="submit" id="extra-payment-start" class="btn-primary btn-sm">Send payment</button>
+    </form>
+</section>
+
+{# ── Extra-payment modal (hidden by default, shown by JS) ── #}
+<div id="extra-payment-modal" class="add-card-modal" hidden>
+    <div class="add-card-modal__backdrop" data-extra-payment-close></div>
+    <div class="add-card-modal__panel">
+        <div class="add-card-modal__head">
+            <h3>Complete your payment</h3>
+            <button type="button" class="add-card-modal__close" data-extra-payment-close aria-label="Close">&times;</button>
+        </div>
+
+        <form id="extra-payment-pay-form" novalidate>
+            <div id="extra-payment-element">
+                {# Stripe Payment Element mounts here #}
+            </div>
+            <div id="extra-payment-message" class="add-card-modal__message" hidden></div>
+            <button type="submit" id="extra-payment-submit" class="btn-primary btn-block">
+                <span id="extra-payment-text">Pay now</span>
+                <span id="extra-payment-spinner" class="pay-spinner" hidden></span>
+            </button>
+        </form>
+        <p class="add-card-modal__secure">
+            Secured by Stripe — your card details never touch our servers.
+        </p>
+    </div>
+</div>
+
 {# ── Add-card modal (hidden by default, shown by JS) ── #}
 <div id="add-card-modal" class="add-card-modal" hidden>
     <div class="add-card-modal__backdrop" data-add-card-close></div>

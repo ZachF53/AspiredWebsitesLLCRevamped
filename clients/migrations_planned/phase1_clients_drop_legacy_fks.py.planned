@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0060_alter_onboardinginvoice_client_and_more'),
+        ('clients', '0061_alter_paymentrecord_kind'),
     ]
 
     operations = [

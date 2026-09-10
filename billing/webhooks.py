@@ -166,6 +166,9 @@ def _handle_payment_intent_succeeded(event):
 
     pi = event['data']['object']
     metadata = pi.get('metadata') or {}
+    if metadata.get('kind') == 'extra_payment':
+        _handle_extra_payment_succeeded(pi, metadata)
+        return
     if metadata.get('kind') != 'onboarding':
         # Some other PaymentIntent — ignore. Subscription PIs, etc.
         logger.info(
@@ -313,6 +316,50 @@ def _handle_payment_intent_succeeded(event):
     logger.info(
         'payment_intent.succeeded: OnboardingInvoice %s paid '
         '(client=%s)', invoice.pk, client.pk)
+
+
+def _handle_extra_payment_succeeded(pi, metadata):
+    """A client sent extra money via the portal billing page's "send an
+    additional payment" widget — no invoice to reconcile against, the
+    amount came straight from the PaymentIntent we created moments
+    earlier from validated form input. Just log it and tell Zach."""
+    from clients.account_models import Account
+
+    account_id = metadata.get('account_id')
+    account = Account.objects.filter(id=account_id).first()
+    if account is None:
+        logger.error(
+            'payment_intent.succeeded (extra_payment): no Account for '
+            '%s (pi=%s)', account_id, pi.get('id'))
+        return
+
+    amount = (pi.get('amount_received') or pi.get('amount') or 0) / 100
+    note = metadata.get('note') or ''
+    _record_payment(
+        client=account, stripe_id=pi.get('id'), kind='extra',
+        amount=amount, description=note or 'Additional payment',
+        paid_at=timezone.now(), account=account)
+
+    logger.info(
+        'payment_intent.succeeded (extra_payment): %s sent $%.2f (pi=%s)',
+        account.name, amount, pi.get('id'))
+
+    try:
+        from django.core.mail import send_mail
+        body = f'{account.name} just sent an additional payment of ${amount:,.2f}.'
+        if note:
+            body += f'\n\nNote from client:\n{note}'
+        send_mail(
+            subject=f'Extra payment from {account.name} — ${amount:,.2f}',
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=['zacherylong@aspiredwebsites.com'],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception(
+            'extra_payment notification email failed for account %s',
+            account.pk)
 
 
 def _verify_event(payload, sig_header):
@@ -659,10 +706,44 @@ def _activate_website_plan_sub(sub_id):
                 w.save(update_fields=[
                     'maintenance_active', 'maintenance_started_at',
                     'stripe_maintenance_subscription_id', 'updated_at'])
+            _promote_to_autopay(sub_id)
             logger.info(
                 'invoice.paid: website plan %s activated (sub %s)',
                 plan.pk, sub_id)
     return handled
+
+
+def _promote_to_autopay(sub_id):
+    """A send_invoice subscription's first invoice just got paid, which is
+    how the customer's card ends up on file — Stripe never upgrades the
+    subscription itself, so left alone every renewal after this one would
+    keep landing in the client's inbox as a manual invoice instead of
+    billing that card. Switch it to charge_automatically now that a
+    payment method exists."""
+    import stripe as _stripe
+    _stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        sub = _stripe.Subscription.retrieve(sub_id).to_dict()
+        if sub.get('collection_method') != 'send_invoice':
+            return
+        customer_id = sub.get('customer')
+        cust = _stripe.Customer.retrieve(customer_id).to_dict()
+        pm = cust.get('invoice_settings', {}).get('default_payment_method')
+        if not pm:
+            pms = _stripe.PaymentMethod.list(
+                customer=customer_id, type='card', limit=1)
+            pm = pms.data[0].id if pms.data else None
+        if not pm:
+            return
+        _stripe.Subscription.modify(
+            sub_id, collection_method='charge_automatically',
+            default_payment_method=pm)
+        logger.info(
+            'invoice.paid: sub %s promoted to charge_automatically', sub_id)
+    except Exception:
+        logger.exception(
+            'invoice.paid: could not promote sub %s to charge_automatically',
+            sub_id)
 
 
 def _on_onboarding_invoice_paid(client, invoice=None):

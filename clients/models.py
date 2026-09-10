@@ -2120,6 +2120,7 @@ class PaymentRecord(TimestampedModel):
         ('social', 'Social Media'),
         ('hosting', 'Hosting'),
         ('addon', 'Add-on / Out-of-scope'),
+        ('extra', 'Additional Payment'),
         ('other', 'Payment'),
     ]
 

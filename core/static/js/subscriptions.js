@@ -159,3 +159,175 @@
         init();
     }
 })();
+
+/*
+ * "Send us an additional payment" widget — client types any amount,
+ * we mint a fresh PaymentIntent and confirm it with the Payment Element.
+ * Same shape as the add-card flow above, kept separate because it has
+ * its own form (amount + note) to read before the modal even opens.
+ */
+(function () {
+    'use strict';
+
+    function csrfToken() {
+        var el = document.querySelector(
+            '#extra-payment-form input[name="csrfmiddlewaretoken"]');
+        return el ? el.value : '';
+    }
+
+    function readPublishableKey() {
+        var raw = document.getElementById('stripe-publishable-key');
+        if (!raw) { return ''; }
+        try { return JSON.parse(raw.textContent); }
+        catch (e) { return ''; }
+    }
+
+    function showFormMessage(text) {
+        var el = document.getElementById('extra-payment-form-message');
+        if (!el) { return; }
+        el.textContent = text;
+        el.className = 'add-card-modal__message add-card-modal__message--error';
+        el.hidden = false;
+    }
+
+    function showModalMessage(text) {
+        var el = document.getElementById('extra-payment-message');
+        if (!el) { return; }
+        el.textContent = text;
+        el.className = 'add-card-modal__message add-card-modal__message--error';
+        el.hidden = false;
+    }
+
+    function setStartLoading(isLoading) {
+        var btn = document.getElementById('extra-payment-start');
+        if (btn) { btn.disabled = isLoading; }
+    }
+
+    function setPayLoading(isLoading) {
+        var btn = document.getElementById('extra-payment-submit');
+        var text = document.getElementById('extra-payment-text');
+        var spin = document.getElementById('extra-payment-spinner');
+        if (btn) { btn.disabled = isLoading; }
+        if (text) { text.hidden = isLoading; }
+        if (spin) { spin.hidden = !isLoading; }
+    }
+
+    function openModal() {
+        var modal = document.getElementById('extra-payment-modal');
+        if (modal) { modal.hidden = false; }
+    }
+    function closeModal() {
+        var modal = document.getElementById('extra-payment-modal');
+        if (modal) { modal.hidden = true; }
+    }
+
+    var stripe = null;
+    var elements = null;
+
+    function startExtraPayment(e) {
+        e.preventDefault();
+        var pk = readPublishableKey();
+        if (!pk) {
+            showFormMessage('Stripe is not configured on this account.');
+            return;
+        }
+        if (typeof Stripe !== 'function') {
+            return setTimeout(function () { startExtraPayment(e); }, 200);
+        }
+
+        var amountInput = document.getElementById('extra-payment-amount');
+        var noteInput = document.getElementById('extra-payment-note');
+        var amount = amountInput ? amountInput.value : '';
+        if (!amount || Number(amount) <= 0) {
+            showFormMessage('Enter an amount greater than $0.');
+            return;
+        }
+
+        setStartLoading(true);
+
+        fetch('/portal/subscriptions/extra-payment/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': csrfToken(),
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'amount=' + encodeURIComponent(amount)
+                + '&note=' + encodeURIComponent(noteInput ? noteInput.value : ''),
+        }).then(function (r) { return r.json(); })
+          .then(function (data) {
+              setStartLoading(false);
+              if (data.error) {
+                  showFormMessage(data.error);
+                  return;
+              }
+              openModal();
+              stripe = Stripe(pk);
+              elements = stripe.elements({
+                  clientSecret: data.client_secret,
+                  appearance: {
+                      theme: 'night',
+                      variables: {
+                          colorPrimary: '#E8650A',
+                          colorBackground: '#070614',
+                          colorText: '#F8FAFC',
+                          colorDanger: '#EF4444',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+                          borderRadius: '8px',
+                      },
+                  },
+              });
+              var pe = elements.create('payment', { layout: 'tabs' });
+              pe.mount('#extra-payment-element');
+          })
+          .catch(function (err) {
+              setStartLoading(false);
+              showFormMessage('Could not start payment: '
+                  + (err.message || err));
+          });
+    }
+
+    function submitExtraPayment(e) {
+        e.preventDefault();
+        if (!stripe || !elements) { return; }
+        setPayLoading(true);
+
+        stripe.confirmPayment({
+            elements: elements,
+            confirmParams: {
+                return_url: window.location.href,
+            },
+            redirect: 'if_required',
+        }).then(function (result) {
+            if (result.error) {
+                showModalMessage(result.error.message
+                    || 'Could not process payment.');
+                setPayLoading(false);
+                return;
+            }
+            window.location.reload();
+        }).catch(function (err) {
+            showModalMessage('Unexpected error: '
+                + (err.message || err));
+            setPayLoading(false);
+        });
+    }
+
+    function init() {
+        var form = document.getElementById('extra-payment-form');
+        var payForm = document.getElementById('extra-payment-pay-form');
+        var closers = document.querySelectorAll('[data-extra-payment-close]');
+
+        if (form) { form.addEventListener('submit', startExtraPayment); }
+        if (payForm) { payForm.addEventListener('submit', submitExtraPayment); }
+        closers.forEach(function (c) {
+            c.addEventListener('click', closeModal);
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

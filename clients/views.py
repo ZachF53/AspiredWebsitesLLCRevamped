@@ -2768,6 +2768,47 @@ def portal_payment_method_add(request):
 
 @client_required
 @require_POST
+def portal_extra_payment_intent(request):
+    """
+    Client-initiated "send us extra money" payment — the client picks the
+    amount, not us. Creates a fresh PaymentIntent and hands back its
+    client_secret; the portal JS confirms it with Stripe Elements.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from django.http import JsonResponse
+
+    from billing.stripe_helpers import (
+        StripeNotConfigured, create_extra_payment_intent,
+    )
+
+    try:
+        amount = Decimal(str(request.POST.get('amount', '')))
+    except InvalidOperation:
+        return JsonResponse({'error': 'Enter a valid dollar amount.'}, status=400)
+    # Sanity bounds — catches empty/negative/fat-finger input. No upper
+    # limit in the spec beyond "not a typo", so the ceiling is generous.
+    if amount <= 0 or amount > Decimal('25000'):
+        return JsonResponse(
+            {'error': 'Enter an amount between $1 and $25,000.'}, status=400)
+
+    note = (request.POST.get('note', '') or '').strip()[:500]
+
+    try:
+        intent = create_extra_payment_intent(request.account, amount, note)
+    except StripeNotConfigured as exc:
+        return JsonResponse({'error': str(exc)}, status=500)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Extra payment PaymentIntent create failed')
+        return JsonResponse({'error': str(exc)[:200]}, status=500)
+
+    return JsonResponse({
+        'client_secret': intent.client_secret,
+    })
+
+
+@client_required
+@require_POST
 def portal_payment_method_remove(request, pm_id):
     """Remove (detach) a saved card."""
     from billing.stripe_helpers import (
