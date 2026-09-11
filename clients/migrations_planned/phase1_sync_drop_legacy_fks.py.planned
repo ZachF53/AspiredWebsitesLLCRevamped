@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sync', '0002_syncjob_account_new_syncjob_website_new'),
+        ('sync', '0003_synclog_event_id_syncjob_event_id'),
     ]
 
     operations = [

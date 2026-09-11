@@ -12,6 +12,13 @@ ownership CLAUDE.md specifies:
 
     Moonieful owns  email, name, business info, intake answers  -> Account
     Aspired owns    project stages, revisions, maintenance      -> Website
+
+The fixture below is a literal copy of Moonieful's actual bundle shape
+(sync/bundle.py on the Moonieful side, pinned in docs/sync_contract.md in
+both repos) — not a shape guessed from what the handlers happen to read.
+An earlier version of this fixture WAS reverse-engineered from the (buggy)
+handler code, which is exactly why these tests passed despite the real
+bundle never matching what the handlers expected.
 """
 
 from django.contrib.auth import get_user_model
@@ -19,25 +26,50 @@ from django.test import TestCase
 from django.utils import timezone
 
 from clients.account_models import Account, Website
-from clients.models import ClientDocument, IntakeResponse, ProjectStageLog
+from clients.models import ClientDocument, IntakeResponse
 
 User = get_user_model()
 
 
 def _bundle(**over):
     data = {
+        'schema_version': 1,
+        'source_site': 'moonieful',
+        'event_type': 'client_created',
+        'event_id': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        'synced_at': '2026-01-02T00:00:00+00:00',
         'client': {
-            'id': '11111111-1111-1111-1111-111111111111',
-            'email': 'moon@example.com',
-            'name': 'Dana Moon',
-            'firm_name': 'Moon Studio',
+            'moonieful_client_id': '11111111-1111-1111-1111-111111111111',
+            'created_at': '2026-01-01T00:00:00+00:00',
+            'updated_at': '2026-01-02T00:00:00+00:00',
+            'account': {
+                'email': 'moon@example.com',
+                'username': 'danamoon',
+                'first_name': 'Dana',
+                'last_name': 'Moon',
+                'is_active': True,
+                'password_hash': 'pbkdf2_sha256$fake$fakehash',
+            },
+            'business_name': 'Moon Studio',
             'phone': '210-555-0142',
             'website': 'https://moonstudio.example',
-            'package': 'Brand + Site',
+            'moonieful_package': 'Brand + Site',
+            'status': 'active',
         },
-        'intake': {'brand_colours': 'sage, cream'},
-        'stage_history': [{'stage': 'brand', 'at': '2026-01-02'}],
+        'stage_history': [
+            {'id': 'sh-1', 'stage_name': 'brand', 'note': '',
+             'created_at': '2026-01-02T00:00:00+00:00',
+             'updated_at': '2026-01-02T00:00:00+00:00'},
+        ],
         'documents': [],
+        'intake': [
+            {'form_title': 'Brand Intake', 'submitted_at': '2026-01-01T00:00:00+00:00',
+             'answers': [
+                 {'question_text': 'Brand colours', 'question_type': 'text',
+                  'value_text': 'sage, cream', 'file_ref': None},
+             ]},
+        ],
+        'revision_requests': [],
     }
     data.update(over)
     return data
@@ -67,6 +99,7 @@ class ClientCreatedTests(TestCase):
         self.assertEqual(
             str(account.moonieful_client_id),
             '11111111-1111-1111-1111-111111111111')
+        self.assertEqual(account.user.password, 'pbkdf2_sha256$fake$fakehash')
 
     def test_website_carries_the_build_state(self):
         """Stage and package are Aspired's, and per site."""
@@ -92,10 +125,10 @@ class ClientCreatedTests(TestCase):
     def test_intake_attaches_to_the_website(self):
         from sync.handlers import handle_client_created
 
-        site = handle_client_created(_bundle()).websites.first()
+        bundle = _bundle()
+        site = handle_client_created(bundle).websites.first()
         intake = IntakeResponse.objects.get(website_new=site)
-        self.assertEqual(
-            intake.moonieful_intake_raw, {'brand_colours': 'sage, cream'})
+        self.assertEqual(intake.moonieful_intake_raw, bundle['intake'])
 
     def test_a_second_delivery_does_not_duplicate_the_website(self):
         """Sync jobs retry. The handler must be idempotent, or a retry
@@ -137,9 +170,36 @@ class ClientCreatedTests(TestCase):
         from sync.handlers import handle_client_created
 
         bundle = _bundle()
-        bundle['client']['email'] = ''
+        bundle['client']['account']['email'] = ''
         with self.assertRaises(ValueError):
             handle_client_created(bundle)
+
+    def test_a_pre_existing_unrelated_website_is_never_hijacked(self):
+        """An Account can own multiple Websites. If this person is already
+        an Aspired-direct client with their own build, a Moonieful referral
+        must create a SECOND, distinct Website — never overwrite the
+        existing one's stage/business_type/package with referral data."""
+        from sync.handlers import handle_client_created
+
+        user = User.objects.create_user(
+            username='existing2', email='moon@example.com', password='x')
+        account = Account.objects.create(user=user, name='Existing Direct Co')
+        original_site = Website.objects.create(
+            account=account, name='Existing Direct Build',
+            business_type='Law Firm', stage='live', package='core')
+
+        synced_account = handle_client_created(_bundle())
+
+        self.assertEqual(synced_account.pk, account.pk)
+        original_site.refresh_from_db()
+        self.assertEqual(original_site.business_type, 'Law Firm')
+        self.assertEqual(original_site.stage, 'live')
+        self.assertFalse(original_site.moonieful_referred)
+
+        self.assertEqual(account.websites.count(), 2)
+        referred = account.websites.filter(moonieful_referred=True).get()
+        self.assertEqual(referred.stage, 'intake')
+        self.assertEqual(referred.business_type, '')
 
 
 class ClientUpdatedTests(TestCase):
@@ -151,9 +211,10 @@ class ClientUpdatedTests(TestCase):
     def test_updates_the_account_and_the_site_url(self):
         from sync.handlers import handle_client_updated
 
-        bundle = _bundle()
-        bundle['client']['firm_name'] = 'Moon Studio Co'
+        bundle = _bundle(event_type='client_updated')
+        bundle['client']['business_name'] = 'Moon Studio Co'
         bundle['client']['website'] = 'https://new.example'
+        bundle['client']['updated_at'] = timezone.now().isoformat()
         handle_client_updated(bundle)
 
         self.account.refresh_from_db()
@@ -164,8 +225,9 @@ class ClientUpdatedTests(TestCase):
     def test_an_unknown_moonieful_id_raises(self):
         from sync.handlers import handle_client_updated
 
-        bundle = _bundle()
-        bundle['client']['id'] = '99999999-9999-9999-9999-999999999999'
+        bundle = _bundle(event_type='client_updated')
+        bundle['client']['moonieful_client_id'] = (
+            '99999999-9999-9999-9999-999999999999')
         with self.assertRaises(ValueError):
             handle_client_updated(bundle)
 
@@ -173,13 +235,30 @@ class ClientUpdatedTests(TestCase):
         """Staleness check: a bundle older than our row does not win."""
         from sync.handlers import handle_client_updated
 
-        bundle = _bundle()
-        bundle['client']['firm_name'] = 'Should Not Apply'
-        bundle['updated_at'] = '2020-01-01T00:00:00+00:00'
+        bundle = _bundle(event_type='client_updated')
+        bundle['client']['business_name'] = 'Should Not Apply'
+        bundle['client']['updated_at'] = '2020-01-01T00:00:00+00:00'
         handle_client_updated(bundle)
 
         self.account.refresh_from_db()
         self.assertEqual(self.account.name, 'Moon Studio')
+
+    def test_does_not_touch_an_unrelated_website_on_the_same_account(self):
+        """The update must resolve the Moonieful-referred site specifically,
+        not just 'the account's first website'."""
+        from sync.handlers import handle_client_updated
+
+        other_site = Website.objects.create(
+            account=self.account, name='Unrelated Direct Build',
+            url='https://unrelated.example')
+
+        bundle = _bundle(event_type='client_updated')
+        bundle['client']['website'] = 'https://new.example'
+        bundle['client']['updated_at'] = timezone.now().isoformat()
+        handle_client_updated(bundle)
+
+        other_site.refresh_from_db()
+        self.assertEqual(other_site.url, 'https://unrelated.example')
 
 
 class ProjectCompleteTests(TestCase):
@@ -191,9 +270,9 @@ class ProjectCompleteTests(TestCase):
     def test_moves_the_website_live_and_stamps_the_handoff(self):
         from sync.handlers import handle_project_complete
 
-        handle_project_complete(_bundle())
+        handle_project_complete(_bundle(event_type='project_complete'))
 
-        site = self.account.websites.first()
+        site = self.account.websites.get(moonieful_referred=True)
         site.refresh_from_db()
         self.assertEqual(site.stage, 'live')
         self.assertIsNotNone(site.moonieful_handoff_at)
@@ -201,15 +280,16 @@ class ProjectCompleteTests(TestCase):
     def test_logs_the_stage_change_against_the_website(self):
         from sync.handlers import handle_project_complete
 
-        handle_project_complete(_bundle())
+        handle_project_complete(_bundle(event_type='project_complete'))
 
         # WebsiteStageLog, because that is the relation the portal's
         # Activity Log and project timeline read. A ProjectStageLog row
         # satisfied this assertion while being invisible to the client.
         from clients.account_models import WebsiteStageLog
 
+        site = self.account.websites.get(moonieful_referred=True)
         log = WebsiteStageLog.objects.get()
-        self.assertEqual(log.website_id, self.account.websites.first().id)
+        self.assertEqual(log.website_id, site.id)
         self.assertEqual(log.from_stage, 'intake')
         self.assertEqual(log.to_stage, 'live')
         self.assertEqual(log.set_by, 'sync')
@@ -220,9 +300,83 @@ class ProjectCompleteTests(TestCase):
         from sync.handlers import handle_project_complete
 
         mail.outbox = []
-        handle_project_complete(_bundle())
+        handle_project_complete(_bundle(event_type='project_complete'))
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('/maintenance/start/?token=', mail.outbox[0].body)
+
+
+class DocumentAddedTests(TestCase):
+
+    def setUp(self):
+        from sync.handlers import handle_client_created
+        self.account = handle_client_created(_bundle())
+
+    def test_attaches_documents_to_the_moonieful_referred_website(self):
+        from sync.handlers import handle_document_added
+
+        other_site = Website.objects.create(
+            account=self.account, name='Unrelated Direct Build')
+
+        bundle = _bundle(event_type='document_added', documents=[
+            {'id': '33333333-3333-3333-3333-333333333333',
+             'label': 'Logo files'},
+        ])
+        handle_document_added(bundle)
+
+        referred_site = self.account.websites.get(moonieful_referred=True)
+        doc = ClientDocument.objects.get(moonieful_document_id=
+                                          '33333333-3333-3333-3333-333333333333')
+        self.assertEqual(doc.website_new_id, referred_site.id)
+        self.assertNotEqual(doc.website_new_id, other_site.id)
+
+    def test_no_documents_raises(self):
+        from sync.handlers import handle_document_added
+
+        bundle = _bundle(event_type='document_added', documents=[])
+        with self.assertRaises(ValueError):
+            handle_document_added(bundle)
+
+
+class StageChangedTests(TestCase):
+
+    def setUp(self):
+        from sync.handlers import handle_client_created
+        self.account = handle_client_created(_bundle())
+
+    def test_mirrors_moonieful_stage_history_without_touching_own_stage(self):
+        from sync.handlers import handle_stage_changed
+
+        site = self.account.websites.get(moonieful_referred=True)
+        self.assertEqual(site.stage, 'intake')
+
+        bundle = _bundle(event_type='stage_changed')
+        bundle['stage_history'] = [
+            {'id': 'sh-1', 'stage_name': 'brand', 'note': '',
+             'created_at': '2026-01-02T00:00:00+00:00',
+             'updated_at': '2026-01-02T00:00:00+00:00'},
+            {'id': 'sh-2', 'stage_name': 'design', 'note': 'moving on',
+             'created_at': '2026-01-05T00:00:00+00:00',
+             'updated_at': '2026-01-05T00:00:00+00:00'},
+        ]
+        handle_stage_changed(bundle)
+
+        site.refresh_from_db()
+        self.assertEqual(len(site.moonieful_stage_history), 2)
+        self.assertEqual(site.moonieful_stage_history[1]['stage_name'], 'design')
+        # Aspired's own build stage is untouched — it is Aspired-owned.
+        self.assertEqual(site.stage, 'intake')
+
+    def test_does_not_touch_an_unrelated_website(self):
+        from sync.handlers import handle_stage_changed
+
+        other_site = Website.objects.create(
+            account=self.account, name='Unrelated Direct Build', stage='live')
+
+        handle_stage_changed(_bundle(event_type='stage_changed'))
+
+        other_site.refresh_from_db()
+        self.assertEqual(other_site.stage, 'live')
+        self.assertEqual(other_site.moonieful_stage_history, [])
 
 
 class HandoffTokenCompatibilityTests(TestCase):
@@ -352,7 +506,8 @@ class HandoffAppearsOnTheClientTimelineTests(TestCase):
             moonieful_client_id='11111111-1111-1111-1111-111111111111',
             synced_from_moonieful=True)
         self.website = Website.objects.create(
-            account=self.account, name='Handoff Site', stage='review')
+            account=self.account, name='Handoff Site', stage='review',
+            moonieful_referred=True)
 
     def _complete(self):
         from unittest.mock import patch
@@ -360,7 +515,9 @@ class HandoffAppearsOnTheClientTimelineTests(TestCase):
 
         with patch('sync.handlers.send_maintenance_handoff_email'):
             return handle_project_complete({
-                'client': {'id': str(self.account.moonieful_client_id)},
+                'client': {
+                    'moonieful_client_id': str(self.account.moonieful_client_id),
+                },
             })
 
     def test_the_site_goes_live(self):

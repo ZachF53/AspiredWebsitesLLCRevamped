@@ -7,8 +7,6 @@ Failed jobs back off 1 / 5 / 15 / 60 minutes and are marked failed after
 five attempts.
 """
 
-import hashlib
-import hmac
 import json
 import time
 from datetime import timedelta
@@ -20,6 +18,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from sync.models import SyncJob
+from sync.security import SIGNATURE_VERSION, sign
 
 # Minutes to wait before the next attempt, keyed by attempts-so-far.
 BACKOFF_MINUTES = {1: 1, 2: 5, 3: 15, 4: 60}
@@ -75,21 +74,27 @@ class Command(BaseCommand):
         return now >= job.last_attempt_at + timedelta(minutes=wait)
 
     def _deliver(self, job, url):
-        """POST one job with a freshly computed signature + timestamp."""
+        """POST one job with a freshly computed signature + timestamp.
+
+        payload_snapshot is already shaped as {'moonieful_client_id': ...,
+        'data': {...}} (see sync/signals.py) — the spread below supplies
+        those two top-level keys, matching what Moonieful's handlers read
+        (docs/sync_contract.md).
+        """
         envelope = {
             'schema_version': 1,
+            'source_site': 'aspired',
             'event_type': job.event_type,
+            'event_id': str(job.event_id),
             **(job.payload_snapshot or {}),
         }
         body = json.dumps(envelope, sort_keys=True).encode()
         timestamp = str(int(time.time()))
-        signature = hmac.new(
-            settings.MOONIEFUL_SYNC_SECRET.encode(), body, hashlib.sha256,
-        ).hexdigest()
         headers = {
             'Content-Type': 'application/json',
+            'X-Sync-Version': SIGNATURE_VERSION,
             'X-Sync-Timestamp': timestamp,
-            'X-Sync-Signature': signature,
+            'X-Sync-Signature': sign(timestamp, body),
         }
         try:
             resp = requests.post(url, data=body, headers=headers, timeout=20)

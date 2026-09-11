@@ -5,6 +5,8 @@ SyncJob is the outbound queue (Aspired → Moonieful). SyncLog is the inbound
 audit trail (Moonieful → Aspired). Both inherit TimestampedModel per CLAUDE.md.
 """
 
+import uuid
+
 from django.db import models
 
 
@@ -54,6 +56,10 @@ class SyncJob(TimestampedModel):
     )
     moonieful_client_id = models.UUIDField(null=True, blank=True)
     event_type = models.CharField(max_length=30, choices=SYNC_EVENT_CHOICES)
+    # Unique per event, sent in the envelope and remembered by the receiver
+    # (SyncLog.event_id on the Moonieful side), so a retry is applied once
+    # rather than twice.
+    event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     payload = models.JSONField(default=dict, blank=True)
     # Frozen at job creation — the HMAC/timestamp are recomputed fresh on every
     # send attempt, but this snapshot of the data never changes.
@@ -84,6 +90,9 @@ class SyncLog(TimestampedModel):
 
     source_site = models.CharField(max_length=100, blank=True)
     event_type = models.CharField(max_length=100, blank=True)
+    # The sender's event id. Looked up before applying anything, so a
+    # redelivered event is acknowledged rather than applied a second time.
+    event_id = models.CharField(max_length=64, blank=True, db_index=True)
     payload_received = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES)
     error_message = models.TextField(blank=True)

@@ -11,6 +11,12 @@ intake answers, which are account-level; Aspired owns the build stages,
 which are per site. So a synced client materialises as one Account plus
 one Website, and `stage` / `moonieful_handoff_at` are written to the
 Website rather than to the account.
+
+Bundle shape is a locked cross-repo contract — see docs/sync_contract.md.
+Every event ships the FULL current bundle (never a partial diff), nested as
+`bundle['client']` (with account/login fields nested again under
+`bundle['client']['account']`), plus top-level `stage_history`, `documents`,
+and `intake` lists.
 """
 
 import logging
@@ -51,10 +57,51 @@ def _parse_dt(value):
     return dt
 
 
+def _contact_name(account_data):
+    first = (account_data.get('first_name') or '').strip()
+    last = (account_data.get('last_name') or '').strip()
+    return f'{first} {last}'.strip()
+
+
+def _moonieful_website(profile):
+    """The Website tied to THIS account's Moonieful referral, or None.
+
+    Deliberately filtered on moonieful_referred=True rather than just
+    "the account's oldest website" (the previous behavior): one Account can
+    own multiple Websites (a pre-existing or later Aspired-direct build,
+    plus a Moonieful referral), and picking the wrong one silently
+    overwrites a project's stage/business_type/handoff status with data
+    that belongs to a completely different build.
+    """
+    return (
+        profile.websites.filter(moonieful_referred=True)
+        .order_by('created_at')
+        .first()
+    )
+
+
+def _upsert_documents(site, docs):
+    """get_or_create every document in a bundle's `documents` list against
+    the given Website. Safe to call with the full list every time — already
+    idempotent via moonieful_document_id."""
+    for doc in docs or []:
+        if not doc.get('id'):
+            continue
+        ClientDocument.objects.get_or_create(
+            moonieful_document_id=doc.get('id'),
+            defaults={
+                'website_new': site,
+                'direction': 'to_client',
+                'label': doc.get('label') or 'Moonieful document',
+            },
+        )
+
+
 def handle_client_created(bundle):
     """Create (or link) a client synced over from Moonieful."""
     data = bundle.get('client') or {}
-    email = (data.get('email') or '').strip().lower()
+    account_data = data.get('account') or {}
+    email = (account_data.get('email') or '').strip().lower()
     if not email:
         raise ValueError('client_created: bundle is missing client email')
 
@@ -63,7 +110,7 @@ def handle_client_created(bundle):
     conflict = False
     if user is None:
         user = User(username=_unique_username(email), email=email)
-        password_hash = data.get('password_hash')
+        password_hash = account_data.get('password_hash')
         if password_hash:
             # Moonieful sends an already-hashed password — store it directly,
             # NOT via set_password() (which would hash the hash).
@@ -76,24 +123,24 @@ def handle_client_created(bundle):
         # conflict, and never overwrite the existing password.
         conflict = True
 
-    name = (data.get('firm_name') or data.get('name')
-            or 'Moonieful Client')
+    name = data.get('business_name') or 'Moonieful Client'
     profile, _ = Account.objects.get_or_create(
         user=user, defaults={'name': name},
     )
-    profile.name = data.get('firm_name') or profile.name
-    profile.contact_name = data.get('name') or profile.contact_name
+    profile.name = data.get('business_name') or profile.name
+    profile.contact_name = _contact_name(account_data) or profile.contact_name
     profile.phone = data.get('phone') or profile.phone
-    profile.moonieful_client_id = data.get('id')
+    profile.moonieful_client_id = data.get('moonieful_client_id')
     profile.synced_from_moonieful = True
     profile.sync_conflict_flagged = conflict
     profile.last_synced_at = timezone.now()
     profile._from_sync = True
     profile.save()
 
-    # The build is the site's. Adopt the Website the account-autocreate
-    # signal has already made rather than adding a second one.
-    site = profile.websites.order_by('created_at').first()
+    # This account may already have an unrelated Website (a pre-existing
+    # Aspired-direct build) — never adopt that one. Only ever adopt a
+    # website already flagged as this account's Moonieful referral.
+    site = _moonieful_website(profile)
     if site is None:
         site = Website(account=profile, name=profile.name)
     site.name = profile.name or site.name
@@ -104,7 +151,7 @@ def handle_client_created(bundle):
     site.stage = 'intake'
     site.package = 'moonieful_referred'
     site.moonieful_referred = True
-    site.moonieful_package = data.get('package') or ''
+    site.moonieful_package = data.get('moonieful_package') or ''
     site.moonieful_stage_history = bundle.get('stage_history') or []
     site._from_sync = True
     site.save()
@@ -114,17 +161,7 @@ def handle_client_created(bundle):
     intake.moonieful_intake_raw = bundle.get('intake') or {}
     intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
 
-    for doc in bundle.get('documents') or []:
-        if not doc.get('id'):
-            continue
-        ClientDocument.objects.get_or_create(
-            moonieful_document_id=doc.get('id'),
-            defaults={
-                'website_new': site,
-                'direction': 'to_client',
-                'label': doc.get('label') or 'Moonieful document',
-            },
-        )
+    _upsert_documents(site, bundle.get('documents'))
 
     logger.info('sync: created client %s from Moonieful (%s)', profile.pk,
                 profile.moonieful_client_id)
@@ -134,31 +171,33 @@ def handle_client_created(bundle):
 def handle_client_updated(bundle):
     """Update Moonieful-owned fields on an already-synced client."""
     data = bundle.get('client') or {}
+    account_data = data.get('account') or {}
     profile = Account.objects.filter(
-        moonieful_client_id=data.get('id')
+        moonieful_client_id=data.get('moonieful_client_id')
     ).first()
     if profile is None:
         raise ValueError('client_updated: no client for that Moonieful id')
 
-    incoming = _parse_dt(bundle.get('updated_at'))
+    incoming = _parse_dt(data.get('updated_at'))
     if incoming is not None and profile.updated_at and profile.updated_at > incoming:
         logger.info('sync: skipping stale client_updated for %s', profile.pk)
         return profile
 
-    site = profile.websites.order_by('created_at').first()
+    site = _moonieful_website(profile)
 
-    if data.get('name'):
-        profile.contact_name = data['name']
-    if data.get('firm_name'):
-        profile.name = data['firm_name']
+    contact_name = _contact_name(account_data)
+    if contact_name:
+        profile.contact_name = contact_name
+    if data.get('business_name'):
+        profile.name = data['business_name']
     if data.get('phone'):
         profile.phone = data['phone']
     if data.get('website') and site is not None:
         site._from_sync = True
         site.url = data['website']
         site.save(update_fields=['url', 'updated_at'])
-    if data.get('email'):
-        profile.user.email = data['email'].strip().lower()
+    if account_data.get('email'):
+        profile.user.email = account_data['email'].strip().lower()
         profile.user.save(update_fields=['email'])
 
     if 'intake' in bundle and site is not None:
@@ -177,16 +216,16 @@ def handle_client_updated(bundle):
 def handle_project_complete(bundle):
     """Moonieful marked the project complete — hand off to Aspired maintenance."""
     data = bundle.get('client') or {}
-    moonieful_id = data.get('id') or bundle.get('moonieful_client_id')
+    moonieful_id = data.get('moonieful_client_id')
     profile = Account.objects.filter(
         moonieful_client_id=moonieful_id).first()
     if profile is None:
         raise ValueError('project_complete: no client for that Moonieful id')
 
-    site = profile.websites.order_by('created_at').first()
+    site = _moonieful_website(profile)
     if site is None:
         raise ValueError(
-            'project_complete: account has no website to hand off')
+            'project_complete: account has no Moonieful-referred website to hand off')
 
     old_stage = site.stage
     site.stage = 'live'
@@ -219,26 +258,54 @@ def handle_project_complete(bundle):
 
 
 def handle_document_added(bundle):
-    """Register a document Moonieful added — the file follows via /api/sync/file/."""
+    """Register documents Moonieful added — files follow via /api/sync/file/.
+
+    Moonieful always ships the full current `documents` list, not a single
+    new one, so this reuses the same upsert path client_created uses —
+    already idempotent per document via moonieful_document_id.
+    """
     data = bundle.get('client') or {}
-    moonieful_id = data.get('id') or bundle.get('moonieful_client_id')
+    moonieful_id = data.get('moonieful_client_id')
     profile = Account.objects.filter(
         moonieful_client_id=moonieful_id).first()
     if profile is None:
         raise ValueError('document_added: no client for that Moonieful id')
 
-    doc = bundle.get('document') or {}
-    if not doc.get('id'):
-        raise ValueError('document_added: bundle is missing document id')
-    site = profile.websites.order_by('created_at').first()
-    ClientDocument.objects.get_or_create(
-        moonieful_document_id=doc.get('id'),
-        defaults={
-            'website_new': site,
-            'direction': 'to_client',
-            'label': doc.get('label') or 'Moonieful document',
-        },
-    )
+    docs = bundle.get('documents') or []
+    if not docs:
+        raise ValueError('document_added: bundle has no documents')
+
+    site = _moonieful_website(profile)
+    if site is None:
+        raise ValueError(
+            'document_added: account has no Moonieful-referred website')
+
+    _upsert_documents(site, docs)
+    return profile
+
+
+def handle_stage_changed(bundle):
+    """Mirror Moonieful's own stage history for Miki's visibility only.
+
+    This never touches `site.stage` — that's Aspired's own build-stage
+    field and is Aspired-owned per the field-ownership map. It only updates
+    the read-only `moonieful_stage_history` snapshot.
+    """
+    data = bundle.get('client') or {}
+    moonieful_id = data.get('moonieful_client_id')
+    profile = Account.objects.filter(
+        moonieful_client_id=moonieful_id).first()
+    if profile is None:
+        raise ValueError('stage_changed: no client for that Moonieful id')
+
+    site = _moonieful_website(profile)
+    if site is None:
+        raise ValueError(
+            'stage_changed: account has no Moonieful-referred website')
+
+    site.moonieful_stage_history = bundle.get('stage_history') or []
+    site._from_sync = True
+    site.save(update_fields=['moonieful_stage_history', 'updated_at'])
     return profile
 
 
@@ -253,5 +320,6 @@ HANDLERS = {
     'client_updated': handle_client_updated,
     'project_complete': handle_project_complete,
     'document_added': handle_document_added,
+    'stage_changed': handle_stage_changed,
     'revision_created': handle_revision_created,
 }

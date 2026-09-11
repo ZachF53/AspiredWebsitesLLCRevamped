@@ -1,17 +1,15 @@
 """
 Inbound sync endpoints (Moonieful → Aspired).
 
-Both endpoints authenticate with an HMAC-SHA256 signature over the raw
-request body, keyed by MOONIEFUL_SYNC_SECRET (the same value must be
-configured on Miki's server). The inbound event endpoint additionally
-requires a fresh X-Sync-Timestamp (within 5 minutes) to block replays.
+Both endpoints authenticate with the versioned, timestamp-bound HMAC scheme
+in sync/security.py, keyed by MOONIEFUL_SYNC_SECRET (the same value must be
+configured on Miki's server). See docs/sync_contract.md for the exact wire
+format this must match — it is a locked cross-repo contract, not a local
+convention.
 """
 
-import hashlib
-import hmac
 import json
 import logging
-import time
 
 from django.conf import settings
 from django.contrib.auth import login
@@ -25,6 +23,7 @@ from clients.account_models import Account, Website
 from clients.models import ClientDocument
 from sync.handlers import HANDLERS
 from sync.models import SyncLog
+from sync.security import secret_configured, timestamp_fresh, verify
 from sync.token_utils import generate_handoff_token, validate_handoff_token
 
 logger = logging.getLogger(__name__)
@@ -51,25 +50,17 @@ def _account_for_token(subject_id):
         legacy_client_profile_id=subject_id).first()
 
 
-TIMESTAMP_TOLERANCE = 300  # seconds — reject events older/newer than 5 minutes
+def _authenticated(raw_body, timestamp, signature):
+    """True if the signature covers THIS body AND THIS timestamp.
 
-
-def _timestamp_fresh(raw_ts):
-    if not raw_ts:
+    Fails closed: with no secret configured, verify() refuses rather than
+    checking against an empty key (see sync/security.py).
+    """
+    if not secret_configured():
         return False
-    try:
-        ts = int(float(raw_ts))
-    except (TypeError, ValueError):
+    if not timestamp_fresh(timestamp):
         return False
-    return abs(time.time() - ts) <= TIMESTAMP_TOLERANCE
-
-
-def _signature_valid(body, provided_sig):
-    secret = settings.MOONIEFUL_SYNC_SECRET
-    if not secret or not provided_sig:
-        return False
-    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, provided_sig)
+    return verify(timestamp, raw_body, signature)
 
 
 @csrf_exempt
@@ -80,14 +71,11 @@ def sync_inbound(request):
     timestamp = request.META.get('HTTP_X_SYNC_TIMESTAMP', '')
     signature = request.META.get('HTTP_X_SYNC_SIGNATURE', '')
 
-    if not _timestamp_fresh(timestamp):
-        return JsonResponse({'error': 'stale or missing timestamp'}, status=403)
-
-    if not _signature_valid(raw, signature):
+    if not _authenticated(raw, timestamp, signature):
         SyncLog.objects.create(
             source_site='moonieful', event_type='unknown',
             payload_received={}, status='failed',
-            error_message='HMAC signature mismatch',
+            error_message='HMAC signature/timestamp check failed',
         )
         return JsonResponse({'error': 'invalid signature'}, status=403)
 
@@ -101,8 +89,25 @@ def sync_inbound(request):
         return JsonResponse({'error': 'unsupported schema_version'}, status=400)
 
     event_type = bundle.get('event_type', '')
+    event_id = str(bundle.get('event_id') or '')
+
+    # Idempotency. The sender retries, so the same event can arrive more
+    # than once (e.g. a successful delivery whose response got lost to a
+    # network blip); without this, a retry re-runs the handler and
+    # re-sends emails / duplicates log rows. Returning ok rather than an
+    # error is deliberate — from the sender's point of view the event HAS
+    # been applied, and an error would make it retry forever.
+    if event_id:
+        already = SyncLog.objects.filter(
+            source_site='moonieful', event_id=event_id, status='processed',
+        ).first()
+        if already is not None:
+            return JsonResponse({
+                'status': 'ok', 'detail': 'already applied', 'duplicate': True,
+            })
+
     log = SyncLog.objects.create(
-        source_site='moonieful', event_type=event_type,
+        source_site='moonieful', event_type=event_type, event_id=event_id,
         payload_received=bundle, status='processed',
     )
 
@@ -132,9 +137,11 @@ def sync_inbound(request):
 @require_POST
 def sync_file(request, document_id):
     """POST /api/sync/file/<document_id>/ — receive a document's file body."""
-    raw = request.body  # read first so multipart parsing reuses the cached body
+    raw = request.body
+    timestamp = request.META.get('HTTP_X_SYNC_TIMESTAMP', '')
     signature = request.META.get('HTTP_X_SYNC_SIGNATURE', '')
-    if not _signature_valid(raw, signature):
+    signed_over = f'{request.build_absolute_uri()}\n{len(raw)}'.encode('utf-8')
+    if not _authenticated(signed_over, timestamp, signature):
         return JsonResponse({'error': 'invalid signature'}, status=403)
 
     document = ClientDocument.objects.filter(
@@ -143,13 +150,20 @@ def sync_file(request, document_id):
     if document is None:
         return JsonResponse({'error': 'document not found'}, status=404)
 
-    upload = request.FILES.get('file')
-    if upload is None:
-        return JsonResponse({'error': 'no file provided'}, status=400)
-
-    # Phase 7.5 — even with HMAC gating, validate type + size so a
-    # compromised Moonieful server can't push arbitrary executables.
+    # Moonieful streams the file as the raw request body
+    # (Content-Type: application/octet-stream), not a multipart upload —
+    # request.FILES is never populated for that, so this used to reject
+    # every real file Moonieful ever sent. The filename travels in a
+    # header the sender controls, so only its base name is trusted (no
+    # path traversal), and the reconstructed upload runs through the same
+    # type/size validation a multipart upload would have gotten.
     import os
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    raw_name = request.headers.get('X-Sync-Filename', '') or f'{document_id}.bin'
+    filename = os.path.basename(raw_name.replace('\\', '/')).strip() or f'{document_id}.bin'
+
     SYNC_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
     SYNC_ALLOWED_EXTS = {
         'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
@@ -158,15 +172,16 @@ def sync_file(request, document_id):
         'mp4', 'mov', 'webm', 'mp3', 'wav', 'm4a',
         'psd', 'ai', 'sketch', 'fig',
     }
-    if upload.size > SYNC_MAX_SIZE:
+    if len(raw) > SYNC_MAX_SIZE:
         return JsonResponse(
             {'error': 'file too large (50 MB max)'}, status=400)
-    ext = os.path.splitext(upload.name)[1].lower().lstrip('.')
+    ext = os.path.splitext(filename)[1].lower().lstrip('.')
     if ext not in SYNC_ALLOWED_EXTS:
         return JsonResponse(
             {'error': f'file type ".{ext}" not allowed'}, status=400)
 
-    document.file.save(upload.name, upload, save=True)
+    upload = SimpleUploadedFile(filename, raw)
+    document.file.save(filename, upload, save=True)
     return JsonResponse({'status': 'ok'}, status=200)
 
 
