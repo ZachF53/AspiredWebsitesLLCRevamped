@@ -97,6 +97,33 @@ def _upsert_documents(site, docs):
         )
 
 
+def _upsert_intake_file_documents(site, intake):
+    """A ClientDocument row for every file_ref inside `intake[].answers[]`.
+
+    An intake answer's file (a logo upload, say) is referenced by
+    file_ref just like a top-level document, and Moonieful's file
+    transport (iter_bundle_files) streams it to the same
+    /api/sync/file/<file_ref>/ endpoint either way. Without a matching
+    ClientDocument row created here first, that endpoint 404s on every
+    intake attachment — found by actually running the bridge end-to-end
+    rather than trusting the handler tests alone, since the test fixture
+    never set a real file_ref.
+    """
+    for entry in intake or []:
+        for answer in entry.get('answers') or []:
+            file_ref = answer.get('file_ref')
+            if not file_ref:
+                continue
+            ClientDocument.objects.get_or_create(
+                moonieful_document_id=file_ref,
+                defaults={
+                    'website_new': site,
+                    'direction': 'to_client',
+                    'label': answer.get('question_text') or 'Moonieful intake file',
+                },
+            )
+
+
 def handle_client_created(bundle):
     """Create (or link) a client synced over from Moonieful."""
     data = bundle.get('client') or {}
@@ -162,6 +189,7 @@ def handle_client_created(bundle):
     intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
 
     _upsert_documents(site, bundle.get('documents'))
+    _upsert_intake_file_documents(site, bundle.get('intake'))
 
     logger.info('sync: created client %s from Moonieful (%s)', profile.pk,
                 profile.moonieful_client_id)
@@ -206,6 +234,7 @@ def handle_client_updated(bundle):
             intake._from_sync = True
             intake.moonieful_intake_raw = bundle['intake']
             intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
+        _upsert_intake_file_documents(site, bundle['intake'])
 
     profile.last_synced_at = timezone.now()
     profile._from_sync = True

@@ -154,6 +154,23 @@ class ClientCreatedTests(TestCase):
         self.assertEqual(User.objects.filter(
             email__iexact='moon@example.com').count(), 1)
 
+    def test_intake_answer_files_get_a_document_landing_spot(self):
+        """An intake answer's file_ref is streamed to the same
+        /api/sync/file/<file_ref>/ endpoint a top-level document uses
+        (found by running the bridge end-to-end, not by the fixture,
+        which previously always set file_ref to None) — so it needs its
+        own ClientDocument row, not just documents[]."""
+        from sync.handlers import handle_client_created
+
+        bundle = _bundle()
+        bundle['intake'][0]['answers'][0]['file_ref'] = (
+            '77777777-7777-7777-7777-777777777777')
+        site = handle_client_created(bundle).websites.first()
+
+        doc = ClientDocument.objects.get(
+            moonieful_document_id='77777777-7777-7777-7777-777777777777')
+        self.assertEqual(doc.website_new_id, site.id)
+
     def test_documents_attach_to_the_website(self):
         from sync.handlers import handle_client_created
 
@@ -242,6 +259,23 @@ class ClientUpdatedTests(TestCase):
 
         self.account.refresh_from_db()
         self.assertEqual(self.account.name, 'Moon Studio')
+
+    def test_a_new_intake_file_answer_gets_a_document_on_update(self):
+        """client_updated fires for a fresh intake submission (see
+        Moonieful's on_intake_response_saved signal) — its file answers
+        need the same landing spot a client_created bundle's do."""
+        from sync.handlers import handle_client_updated
+
+        bundle = _bundle(event_type='client_updated')
+        bundle['client']['updated_at'] = timezone.now().isoformat()
+        bundle['intake'][0]['answers'][0]['file_ref'] = (
+            '88888888-8888-8888-8888-888888888888')
+        handle_client_updated(bundle)
+
+        site = self.account.websites.get(moonieful_referred=True)
+        doc = ClientDocument.objects.get(
+            moonieful_document_id='88888888-8888-8888-8888-888888888888')
+        self.assertEqual(doc.website_new_id, site.id)
 
     def test_does_not_touch_an_unrelated_website_on_the_same_account(self):
         """The update must resolve the Moonieful-referred site specifically,
