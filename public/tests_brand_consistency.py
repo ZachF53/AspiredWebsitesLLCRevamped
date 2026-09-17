@@ -476,6 +476,70 @@ class CustomWebsiteCostPriceConsistencyTests(TestCase):
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class LawFirmCostArticleNeutralityTests(TestCase):
+    """
+    "How Much Does Law Firm Web Design Cost?" was rewritten Sept 2026 to
+    strip Aspired out as a named vendor and stand as neutral market
+    information — every price in it is now a market observation, not
+    Aspired's price list (see public/migrations/
+    0010_law_firm_cost_neutral_rewrite.py).
+
+    This is the inverse of CustomWebsiteCostPriceConsistencyTests above:
+    it asserts the retired self-quote figures are gone, AND that
+    Aspired's current live prices don't appear either. If a future
+    ServiceTier price change happens to land on one of this article's
+    market-rate figures, that coincidence is worth a human look, not
+    something that should pass silently.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_pricing')
+        call_command('seed_insights')
+
+    def _body(self):
+        from public.models import Article
+        return Article.objects.get(
+            slug='how-much-does-law-firm-web-design-cost').body
+
+    def test_retired_self_quote_prices_are_gone(self):
+        body = self._body()
+        retired = ('$4,500', '$299', '$150–$200', '$150/year')
+        for figure in retired:
+            with self.subTest(figure=figure):
+                self.assertNotIn(figure, body, (
+                    f'"{figure}" is a retired Aspired price still in the '
+                    'law-firm-cost article body — it is meant to read '
+                    'as market information now, not a stale self-quote.'))
+
+    def test_no_longer_names_aspired_as_the_vendor(self):
+        body = self._body()
+        self.assertNotIn('Ours.', body, (
+            'The article names Aspired as the vendor in the three-way '
+            'comparison — it was rewritten to be a neutral market '
+            'observation instead.'))
+
+    def test_current_live_prices_do_not_coincidentally_appear(self):
+        from billing.pricing_models import ServiceTier
+
+        body = self._body()
+        for slug in ('hvac-build-full', 'hvac-build-installment',
+                     'hvac-full-plan', 'hvac-plan-paid-in-full',
+                     'hvac-hosting-security'):
+            tier = ServiceTier.objects.get(slug=slug)
+            price_string = f'${tier.price:,.0f}'
+            with self.subTest(slug=slug):
+                self.assertNotIn(
+                    price_string, body,
+                    f'"{price_string}" (current {tier.name} price) '
+                    'appears in the law-firm-cost article, which is '
+                    "meant to read as neutral market information, not "
+                    "Aspired's current price list. Confirm this is a "
+                    'coincidental match with a market-rate figure and '
+                    'not a reintroduced self-quote.')
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
 class FounderPortraitTests(TestCase):
     """Owner approved publishing the portrait on 2026-08-16. It replaced
     an initials placeholder, so it is real content, not decoration."""

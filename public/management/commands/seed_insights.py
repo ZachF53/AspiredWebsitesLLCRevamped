@@ -219,7 +219,7 @@ being straight with you.</p>
             'ask before signing anything.'
         ),
         'related_url': '/services/web-design/',
-        'related_label': 'See our web design services →',
+        'related_label': 'See what we build now →',
         'body': """
 <p>Law firm websites are priced differently from other small-business
 sites, and not always for good reasons. Here is what the options
@@ -239,11 +239,14 @@ take with you.</p>
 designer will not know to ask about: practice-area structure, bar
 advertising rules, and intake that handles sensitive facts properly.</p>
 
-<h3>Custom build — $2,500–$4,500 once</h3>
-<p>Ours. You own the code, the content and the domain. Additional
-practice-area pages are $150–$200 each. Hosting is $150/year.
-Maintenance is optional from $299/month, and the site keeps working if
-you stop.</p>
+<h3>Custom build — typically $3,000–$6,000 once</h3>
+<p>The most durable option, if you find the right developer. You own
+the code, the content and the domain, and the site keeps working
+whether or not you keep paying anyone afterward. Price depends heavily
+on scope: how many practice-area pages, how much custom functionality,
+how much of the copy you are supplying versus having written. Extra
+practice-area pages typically add to the quote rather than coming
+free.</p>
 
 <h2>The number that actually matters</h2>
 <p>Not the invoice — the five-year total, and what you hold at the end
@@ -251,10 +254,11 @@ of it.</p>
 <ul>
   <li><strong>Vendor at $300/month:</strong> $18,000, and you own
   nothing.</li>
-  <li><strong>Custom at $3,500 + hosting:</strong> about $4,250, and you
-  own everything.</li>
+  <li><strong>Custom at roughly $4,000 once, plus hosting at around
+  $150–$300/year:</strong> about $5,000 over five years — and you own
+  everything.</li>
 </ul>
-<p>Even adding maintenance for all five years, the custom route
+<p>Even adding ongoing maintenance for all five years, the custom route
 finishes with an asset instead of a cancelled subscription.</p>
 
 <h2>What drives a law firm quote up</h2>
@@ -291,6 +295,11 @@ results, and how testimonials may be used. Build the site so required
 disclaimers are easy to place and keep current. Confirming what your
 state bar requires is the attorney's call — this is information, not
 legal advice.</p>
+
+<p><em>A note on who wrote this: Aspired Websites now builds for
+<a href="/services/web-design/">HVAC contractors</a>, not law firms.
+This article stays up because the math and the questions above are
+still accurate no matter who ends up building the site.</em></p>
 """,
     },
 ]
