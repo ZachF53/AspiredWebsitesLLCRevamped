@@ -118,12 +118,14 @@ def case_study_new(request):
 
         is_published = request.POST.get('is_published') == 'on'
         is_hvac = request.POST.get('is_hvac') == 'on'
+        is_concept = request.POST.get('is_concept') == 'on'
 
         cs = CaseStudy.objects.create(
             # Stays None for a marketing case study with no client attached.
             website_new=website,
             city=city,
             is_hvac=is_hvac,
+            is_concept=is_concept,
             title=(request.POST.get('title') or '').strip()[:300],
             business_type=(request.POST.get('business_type')
                            or _website_business_type(website)
@@ -189,6 +191,7 @@ def case_study_edit(request, cs_id):
         cs.website_new = website
         cs.city = _city_or_none(request.POST.get('city_id'))
         cs.is_hvac = request.POST.get('is_hvac') == 'on'
+        cs.is_concept = request.POST.get('is_concept') == 'on'
         cs.title = (request.POST.get('title') or '').strip()[:300]
         cs.business_type = (request.POST.get('business_type')
                             or '').strip()[:100]

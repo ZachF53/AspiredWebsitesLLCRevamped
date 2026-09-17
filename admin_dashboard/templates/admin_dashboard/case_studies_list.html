@@ -24,6 +24,7 @@
                         <th>Title</th>
                         <th>City</th>
                         <th>HVAC</th>
+                        <th>Concept</th>
                         <th>Metrics</th>
                         <th>Status</th>
                         <th>Created</th>
@@ -37,6 +38,7 @@
                             <td><a href="{% url 'admin_dashboard:case_study_edit' cs.id %}">{{ cs.title }}</a></td>
                             <td>{{ cs.city.name|default:"—" }}</td>
                             <td>{% if cs.is_hvac %}<span class="status-badge status-badge--active">HVAC</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td>{% if cs.is_concept %}<span class="status-badge status-badge--paused">Concept</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                             <td>
                                 {% with mets=cs.metrics %}
                                     {% if mets %}{{ mets|length }} metric{{ mets|length|pluralize }}{% else %}<span class="muted">—</span>{% endif %}

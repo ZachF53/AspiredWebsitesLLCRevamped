@@ -35,7 +35,8 @@ business entity for the whole site).
     "description": "{{ city.schema_description }}",
     "offers": {
         "@type": "Offer",
-        "priceRange": "$2,500 - $4,500"
+        "price": "{{ build_full.price|default:'0'|floatformat:0 }}",
+        "priceCurrency": "USD"
     }
 }
 </script>
@@ -56,7 +57,7 @@ business entity for the whole site).
                 <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
             </div>
             <p class="hero__meta">
-                From $2,500 &middot; <a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
+                {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
             </p>
         </div>
     </div>

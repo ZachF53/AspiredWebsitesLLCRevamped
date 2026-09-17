@@ -56,14 +56,27 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
 
 
 class StrongIntentSitemap(_StaticPageMixin, Sitemap):
-    """Pricing, portfolio, audit — high-intent funnels."""
-    priority = 0.8
+    """
+    Pricing, portfolio, audit — high-intent funnels.
+
+    portfolio_other added Sept 2026 once its noindex was lifted — it's
+    the only real proof of finished work while the HVAC portfolio is
+    still empty. Lower priority than the HVAC portfolio it isn't
+    meant to compete with, so priority is a per-item method rather than
+    the mixin's flat class attribute.
+    """
     changefreq = 'monthly'
     pages = [
         'public:pricing',
         'public:portfolio',
         'public:audit',
     ]
+
+    def items(self):
+        return list(self.pages) + ['public:portfolio_other']
+
+    def priority(self, item):
+        return 0.6 if item == 'public:portfolio_other' else 0.8
 
 
 class SecondarySitemap(_StaticPageMixin, Sitemap):

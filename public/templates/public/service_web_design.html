@@ -33,7 +33,8 @@ rather than re-declaring it (Master Plan D8).
     "description": "Custom, hand-coded, security-hardened websites for HVAC contractors, with automated review generation built in. No templates, no page builders.",
     "offers": {
         "@type": "Offer",
-        "priceRange": "$2,500 - $4,500"
+        "price": "{{ build_full.price|default:'0'|floatformat:0 }}",
+        "priceCurrency": "USD"
     }
 }
 </script>
@@ -130,7 +131,7 @@ rather than re-declaring it (Master Plan D8).
 
             <div class="value-tile">
                 <h3>SEO Foundation</h3>
-                <p>Clean semantic HTML, schema markup, sitemap, meta tags, and a structure Google can understand and rank. Want it pushed further? See our <a href="{% url 'public:service_seo' %}">SEO services</a>.</p>
+                <p>Clean semantic HTML, schema markup, sitemap, meta tags, and a structure Google can understand and rank. Built in on every site, not sold separately.</p>
             </div>
 
             <div class="value-tile">
@@ -199,104 +200,13 @@ rather than re-declaring it (Master Plan D8).
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Investment</span>
-            <h2>Two Build Tiers. Flat Pricing. No Games.</h2>
+            <h2>One Build. Flat Pricing. No Games.</h2>
             <p>No hourly billing. No "let's get on a call to discuss budget." You see the number before you ever pick up the phone.</p>
         </div>
 
-        <div class="cards cards--2col">
-            <article class="card">
-                <span class="eyebrow">Essential</span>
-                <h3>$2,500</h3>
-                <p>5&ndash;7 page custom site, mobile-perfect, speed-tuned, SEO-ready. Hand-coded, you own it, launches in ~4 weeks.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
-            </article>
-
-            <article class="card">
-                <span class="eyebrow">Premium</span>
-                <h3>$4,500</h3>
-                <p>Everything in Essential plus advanced lead capture, custom integrations, deeper SEO foundation, and extended conversion-focused copywriting.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">See what's included </a>
-            </article>
-        </div>
-
         <div class="section-cta">
-            <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Start Your Project</a>
-            <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Audit My Current Site First</a>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider section-divider--teal" aria-hidden="true">
-
-{# ───────── Cross-sell ───────── #}
-<section class="section section--alt">
-    <div class="container">
-        <div class="section-header">
-            <span class="eyebrow">Already Have A Site?</span>
-            <h2>You Probably Don't Need A New Build.</h2>
-            <p>If your site loads fast and ranks well, you don't need us to rebuild it &mdash; you need someone to drive traffic to it, or just to keep it running smoothly for you going forward. Three ways we help:</p>
-        </div>
-
-        <div class="cards cards--3col">
-            <article class="card">
-                <h3>Search Engine Optimization</h3>
-                <p>We make Google show your site to the people searching for what you sell. Local-first, technical-foundation, content-driven.</p>
-                <a class="card__link" href="{% url 'public:service_seo' %}">SEO services </a>
-            </article>
-
-            <article class="card">
-                <h3>Digital Marketing &amp; Social</h3>
-                <p>We get you found on the platforms your audience already uses. Monthly content, brand voice, real engagement.</p>
-                <a class="card__link" href="{% url 'public:service_digital_marketing' %}">Marketing services </a>
-            </article>
-
-            <article class="card">
-                <h3>Website Maintenance</h3>
-                <p>Updates, backups, monitoring, security patching, and content tweaks &mdash; on the site you already have. Three monthly tiers, cancel any time, no annual contract.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">Maintenance plans </a>
-            </article>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider" aria-hidden="true">
-
-{% comment %}
-Hub → child links. Master Plan §8 internal-link clusters. This hub
-owns generic "web design company" intent (18,100/mo) and routes
-specialist intent down rather than competing with the child pages
-for the same queries (§6.1, one page one intent).
-{% endcomment %}
-<hr class="section-divider section-divider--teal" aria-hidden="true">
-
-<section class="section section--alt">
-    <div class="container">
-        <div class="section-header">
-            <span class="eyebrow">Specialist Builds</span>
-            <h2>In This Section</h2>
-            <p>If one of these describes you more precisely, start there &mdash; it goes deeper than this page can.</p>
-        </div>
-
-        <div class="cards">
-            <article class="card card--accent-left">
-                <h3><a href="{% url 'public:service_law_firm_web_design' %}">Law Firm Web Design</a></h3>
-                <p>Attorney websites built around practice-area architecture, security-hardened intake, and full code ownership. Our highest-value vertical, with two builds completed.</p>
-            </article>
-
-            <article class="card card--accent-left">
-                <h3><a href="{% url 'public:service_small_business_web_design' %}">Small Business Web Design</a></h3>
-                <p>A custom site for a business that needs it to actually do something &mdash; take bookings, drive calls, outclass the competitor using the same template. From $2,500.</p>
-            </article>
-
-            <article class="card card--accent-left">
-                <h3><a href="{% url 'public:service_custom_web_development' %}">Custom Web Development</a></h3>
-                <p>What &ldquo;custom&rdquo; actually means, how it compares to WordPress, and the honest cases where it isn&rsquo;t worth the money.</p>
-            </article>
-
-            <article class="card card--accent-left">
-                <h3><a href="{% url 'public:service_website_redesign' %}">Website Redesign</a></h3>
-                <p>Already have a site? Rebuilding it without losing the rankings you&rsquo;ve earned is a different job &mdash; URL mapping and baselines first, design second.</p>
-            </article>
+            <a class="btn-primary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+            <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Start Your Project</a>
         </div>
     </div>
 </section>

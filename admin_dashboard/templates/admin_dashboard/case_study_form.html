@@ -157,6 +157,12 @@
                     HVAC industry work — shows on the main portfolio and above the divider on city pages
                 </label>
             </div>
+            <div class="form-row form-row--checkbox">
+                <label>
+                    <input type="checkbox" name="is_concept" {% if case_study.is_concept %}checked{% endif %}>
+                    Concept site — demonstration site, not a paid client project. Shows a visible "Concept site" label on the card and detail page.
+                </label>
+            </div>
         </section>
 
         <div class="admin-form__actions">

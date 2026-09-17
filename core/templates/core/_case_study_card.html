@@ -14,6 +14,9 @@ own indexable URL).
 <article class="card card--with-visual{% if compact %} card--compact{% endif %}">
     {% include "core/_case_study_visual.html" with study=study %}
     <div class="card__body">
+        {% if study.is_concept %}
+            <p class="concept-label">Concept site: built to demonstrate design and functionality, not a paid client project.</p>
+        {% endif %}
         {% if study.business_type or study.location %}
             <span class="pill-tag">{{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}</span>
         {% endif %}

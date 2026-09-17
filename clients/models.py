@@ -1511,6 +1511,19 @@ class CaseStudy(TimestampedModel):
                   "on the 'other businesses' page and below the divider.",
     )
 
+    # Sept 2026 — the first HVAC entries on the site are three mock sites
+    # built to demonstrate design and functionality, not paid client
+    # work. Publishing them without a visible marker would misrepresent
+    # them as client projects, so is_concept drives a clear label on both
+    # the card and the detail page rather than relying on someone to
+    # remember to word the copy carefully every time.
+    is_concept = models.BooleanField(
+        default=False,
+        help_text="Demonstration/concept site, not a paid client project. "
+                  "Shows a visible 'Concept site' label on the card and "
+                  "detail page instead of presenting it as client work.",
+    )
+
     # Structured city relation — added alongside the free-text `location`
     # field rather than replacing it. `location` stays so existing rows
     # and any code path still keying off it keep working; `city` is what

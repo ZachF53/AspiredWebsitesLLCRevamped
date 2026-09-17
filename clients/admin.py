@@ -331,9 +331,10 @@ class UptimeAlertAdmin(admin.ModelAdmin):
 class CaseStudyAdmin(admin.ModelAdmin):
     list_display = (
         'title', 'business_type', 'city', 'location', 'is_hvac',
-        'is_published', 'published_at',
+        'is_concept', 'is_published', 'published_at',
     )
-    list_filter = ('is_hvac', 'is_published', 'city', 'engagement_type')
+    list_filter = ('is_hvac', 'is_concept', 'is_published', 'city',
+                    'engagement_type')
     search_fields = ('title', 'business_type', 'location', 'summary')
     readonly_fields = ('created_at', 'updated_at', 'slug')
     list_select_related = ('city', 'website_new')

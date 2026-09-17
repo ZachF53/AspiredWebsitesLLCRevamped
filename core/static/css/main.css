@@ -1810,6 +1810,29 @@ textarea.form-control {
     text-align: center;
 }
 
+/* Concept-site disclosure (demo sites shown as case studies before a
+   real HVAC client exists). Sized and colored to read as a real label
+   at a glance, not fine print underneath it. */
+.concept-label {
+    display: block;
+    background-color: rgba(13, 148, 136, 0.10);
+    border: 1px solid rgba(13, 148, 136, 0.35);
+    border-left: 3px solid var(--color-teal-light);
+    border-radius: 6px;
+    color: var(--color-teal-light);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.4;
+    padding: 0.625rem 0.875rem;
+    margin-bottom: var(--space-2);
+}
+
+.concept-label--hero {
+    max-width: 42rem;
+    margin-inline: auto;
+    margin-bottom: var(--space-2);
+}
+
 /* Small pill label (used above titles in cards) */
 .pill-tag {
     display: inline-block;

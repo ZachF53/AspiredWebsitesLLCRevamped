@@ -248,9 +248,17 @@ def case_study_detail(request, slug):
 
 
 def service_web_design(request):
+    # CLAUDE.md: never hardcode a price. Sept 2026 cleanup — this page's
+    # schema previously carried a hardcoded "$2,500 - $4,500" priceRange
+    # left over from the pre-pivot Essential/Premium tiers; the build is
+    # one flat-priced product now, so this reads the live number.
+    from billing.pricing_models import ServiceTier
+    build_full = ServiceTier.objects.filter(
+        slug='hvac-build-full', is_active=True).first()
     return render(request, 'public/service_web_design.html', {
         'active_nav': 'services',
         'active_service': 'web_design',
+        'build_full': build_full,
         'breadcrumbs': [
             ('Services', '/services/web-design/'),
             ('Custom Web Design', None),
@@ -306,11 +314,13 @@ def service_review_automation(request):
     explain how it actually works. Built the same way as the other
     service pages (hero, Service + FAQ schema, FAQ section, CTA).
     """
+    # No 'Services' index page exists to point a parent crumb at —
+    # /services/web-design/ is a specific page, not a hub — so the
+    # trail is just this page rather than a crumb pointing sideways.
     return render(request, 'public/service_review_automation.html', {
         'active_nav': 'services',
         'active_service': 'review_automation',
         'breadcrumbs': [
-            ('Services', '/services/web-design/'),
             ('Review Automation', None),
         ],
     })
@@ -365,14 +375,26 @@ def location_city(request, slug):
     vs. what changed.
     """
     from django.shortcuts import get_object_or_404
+    from billing.pricing_models import ServiceTier
     from clients.models import CaseStudy
     from public.models import City
 
     city = get_object_or_404(City, slug=slug, is_active=True)
 
+    # CLAUDE.md: never hardcode a price in a template. The build price
+    # shown here has to track the same hvac-build-full row the pricing
+    # page reads, so a price change there doesn't leave this page
+    # quoting a retired number.
+    build_full = ServiceTier.objects.filter(
+        slug='hvac-build-full', is_active=True).first()
+    build_installment = ServiceTier.objects.filter(
+        slug='hvac-build-installment', is_active=True).first()
+
     return render(request, 'public/location_city.html', {
         'active_nav': '',
         'city': city,
+        'build_full': build_full,
+        'build_installment': build_installment,
         'hvac_studies': CaseStudy.objects.filter(
             is_published=True, is_hvac=True, city=city,
         ).order_by('-published_at'),

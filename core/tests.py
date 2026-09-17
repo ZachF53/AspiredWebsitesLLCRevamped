@@ -580,10 +580,13 @@ class StructuredDataTests(TestCase):
                 self.assertEqual(orgs, 1)
 
     def test_breadcrumbs_on_service_pages(self):
+        # No 'Services' index page exists to point an intermediate crumb
+        # at — /services/web-design/ is a specific page, not a hub — so
+        # this trail is just Home > current page (Sept 2026 cleanup).
         crumbs = next(b for b in self._blocks('/services/review-automation/')
                       if b.get('@type') == 'BreadcrumbList')
         names = [i['name'] for i in crumbs['itemListElement']]
-        self.assertEqual(names, ['Home', 'Services', 'Review Automation'])
+        self.assertEqual(names, ['Home', 'Review Automation'])
         self.assertEqual(crumbs['itemListElement'][0]['item'],
                          'https://aspiredwebsites.com/')
         # The current page is the last crumb and carries no link.

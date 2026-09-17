@@ -47,6 +47,9 @@ Organisation entity, canonical and og:image come from base.html (D8).
             <span class="eyebrow">Case Study</span>
             <h1>{{ study.title }}</h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
+            {% if study.is_concept %}
+                <p class="concept-label concept-label--hero">Concept site: built to demonstrate design and functionality, not a paid client project.</p>
+            {% endif %}
             {% if study.summary %}<p class="hero__lead">{{ study.summary }}</p>{% endif %}
             {% if study.business_type or study.location %}
                 <p class="hero__meta">
