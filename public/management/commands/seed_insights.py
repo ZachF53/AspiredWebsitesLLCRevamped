@@ -33,9 +33,10 @@ ARTICLES = [
         'related_label': 'See our full pricing →',
         'body': """
 <p>Nobody publishes this number, which is why you are reading a fourth
-article about it. So: <strong>a custom, hand-coded website costs
-$2,500 to $4,500</strong> for most small businesses and law firms.
-Hosting is $150 a year. Optional maintenance starts at $299 a month.</p>
+article about it. So: <strong>a custom, hand-coded website for an HVAC
+company costs $2,000 upfront, or $105 a month for 24 months</strong>
+($2,520 total, financed). Hosting and security runs $45 a month on its
+own, or bundled into the Full Plan below.</p>
 
 <p>That is our pricing, published, not a range designed to get you on a
 call. What follows is what actually moves the number, and where the
@@ -56,10 +57,12 @@ cheaper, and the result is only as good as the theme. The common
 failure is that it looks identical to three competitors who bought the
 same one.</p>
 
-<h3>$2,500–$4,500 — custom build</h3>
-<p>Where we sit. Every page designed around your business and written
-from scratch. No theme to fight, no plugin to break, and the structure
-can be built around how people actually search for what you do.</p>
+<h3>$2,000 — custom build</h3>
+<p>Where we sit. Flat price, no range: $2,000 upfront, or $105 a month
+for 24 months if you would rather spread it out. Every page designed
+around your business and written from scratch. No theme to fight, no
+plugin to break, and the structure can be built around how homeowners
+actually search when a unit fails.</p>
 
 <h3>$10,000+ — agency</h3>
 <p>A team, a strategist, a project manager, and an office to pay for.
@@ -78,9 +81,8 @@ Sometimes worth it. Often you are buying the overhead.</p>
   not, we write it — that is real work and it is the stage that most
   often slips.</li>
   <li><strong>Migration.</strong> Moving an existing site means mapping
-  every old URL so you do not lose the rankings you already have. See
-  <a href="/services/web-design/website-redesign/">website redesign</a>
-  for why that matters more than the design.</li>
+  every old URL so you do not lose the rankings you already have. That
+  is real work, and it matters more than the design.</li>
 </ul>
 
 <h2>The costs people forget</h2>
@@ -88,13 +90,19 @@ Sometimes worth it. Often you are buying the overhead.</p>
 <ul>
   <li><strong>Domain</strong> — $12–$20/year, and you should own it, not
   your developer.</li>
-  <li><strong>Hosting</strong> — $150/year with us.</li>
-  <li><strong>Maintenance</strong> — optional, $299/month and up. Updates,
-  monitoring, backups, support. If you skip it, the site keeps working;
-  you are just on your own.</li>
+  <li><strong>Hosting and security</strong> — $45/month on its own, or
+  bundled into the Full Plan.</li>
+  <li><strong>The Full Plan</strong> — $250/month, build payment
+  included, covering hosting, maintenance, unlimited content updates
+  and automated review generation. Drops to $145/month automatically
+  once the build is paid off at month 24. If you paid the build
+  upfront, the same plan is $145/month from day one.</li>
+  <li><strong>Out-of-scope work</strong> — $85/hour, invoiced before it
+  starts, for anything outside the original build.</li>
   <li><strong>SEO</strong> — a separate ongoing discipline. A well-built
-  site can be found. Being found <em>first</em> is
-  <a href="/services/seo/local-seo/">ongoing work</a>.</li>
+  site can be found. Being found <em>first</em>, especially in the map
+  pack, comes from reviews as much as it does from the build. See
+  <a href="/services/review-automation/">automated review generation</a>.</li>
 </ul>
 
 <h2>A decision framework</h2>
@@ -123,8 +131,8 @@ and if the range does not fit, you have lost nothing but a minute.</p>
             'Seven reasons, ordered by how often they are actually the '
             'cause — with the fix for each and how long it takes.'
         ),
-        'related_url': '/services/seo/local-seo/',
-        'related_label': 'See our local SEO services →',
+        'related_url': '/services/review-automation/',
+        'related_label': 'See automated review generation →',
         'body': """
 <p>You searched for your own business, did not find it, and now you are
 here. Below are the seven causes, roughly in the order they turn out to
@@ -166,10 +174,10 @@ in weeks.</p>
 <p>The single biggest structural mistake. A "Services" page listing
 eight things cannot be the best answer for eight different searches.
 Google picks whoever wrote a whole page about the one thing.</p>
-<p><strong>Fix:</strong> a real page per service. For law firms this is
-practice areas and it is decisive — see
-<a href="/services/seo/law-firm-seo/">law firm SEO</a>.
-<strong>Timeline:</strong> two to three months to see movement.</p>
+<p><strong>Fix:</strong> a real page per service. For an HVAC company
+that usually means AC repair, heating repair, installation and
+maintenance plans, each getting its own page instead of one combined
+list. <strong>Timeline:</strong> two to three months to see movement.</p>
 
 <h2>6. Your site is too slow</h2>
 <p>Speed is both a ranking factor and a conversion factor. If your
@@ -210,8 +218,8 @@ being straight with you.</p>
             'more than the invoice says, and the contract questions to '
             'ask before signing anything.'
         ),
-        'related_url': '/services/web-design/law-firm-web-design/',
-        'related_label': 'See our law firm web design →',
+        'related_url': '/services/web-design/',
+        'related_label': 'See our web design services →',
         'body': """
 <p>Law firm websites are priced differently from other small-business
 sites, and not always for good reasons. Here is what the options

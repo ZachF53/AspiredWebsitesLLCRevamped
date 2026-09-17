@@ -298,6 +298,183 @@ class TemplateCommentHygieneTests(TestCase):
             'them to {% comment %}...{% endcomment %}.'))
 
 
+class DeadInternalLinkTests(TestCase):
+    """
+    Guards the bug class caught twice now: an internal link pointing at
+    a URL that itself 301s elsewhere (public/urls.py's
+    _RETIRED_TO_WEB_DESIGN). First in service_web_design.html's
+    Specialist Builds section; then, in a fresh session, in
+    location_city.html's value tiles and in three published Insights
+    articles' bodies and CTA buttons. Both times it survived because
+    nothing asserted "no live content links to a retired URL" — this
+    does, across every place that kind of link can hide: City rows,
+    Article bodies/CTAs, CaseStudy rows, and every public template.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_insights')
+        call_command('seed_case_studies', verbosity=0)
+
+    @staticmethod
+    def _retired_names_and_paths():
+        from django.urls import reverse
+
+        from public.urls import _RETIRED_TO_WEB_DESIGN, urlpatterns
+
+        names = {
+            pattern.name for pattern in urlpatterns
+            if getattr(pattern, 'callback', None) is _RETIRED_TO_WEB_DESIGN
+        }
+        paths = {reverse(f'public:{name}') for name in names}
+        return names, paths
+
+    def test_no_model_field_links_to_a_retired_url(self):
+        from clients.models import CaseStudy
+        from public.models import Article, City
+
+        _, retired_paths = self._retired_names_and_paths()
+        offenders = []
+
+        city_fields = (
+            'hero_heading_html', 'hero_lead', 'honesty_html',
+            'secondary_html', 'cross_link_html', 'cta_body_html',
+        )
+        for city in City.objects.all():
+            for field in city_fields:
+                value = getattr(city, field) or ''
+                for path in retired_paths:
+                    if path in value:
+                        offenders.append(
+                            f'City({city.slug}).{field} -> {path}')
+
+        for article in Article.objects.filter(status='published'):
+            for path in retired_paths:
+                if path in (article.body or ''):
+                    offenders.append(
+                        f'Article({article.slug}).body -> {path}')
+            if article.related_url in retired_paths:
+                offenders.append(
+                    f'Article({article.slug}).related_url -> '
+                    f'{article.related_url}')
+
+        # CaseStudy has no HVAC rows yet — checked anyway so this stays
+        # covered as HVAC case studies get published, without waiting
+        # for a bug to show up in one first.
+        cs_fields = (
+            'summary', 'challenge', 'solution', 'results',
+            'testimonial_quote',
+        )
+        for cs in CaseStudy.objects.all():
+            label = cs.slug or f'pk={cs.pk}'
+            for field in cs_fields:
+                value = getattr(cs, field) or ''
+                for path in retired_paths:
+                    if path in value:
+                        offenders.append(
+                            f'CaseStudy({label}).{field} -> {path}')
+
+        self.assertEqual(offenders, [], (
+            'Internal link(s) to a retired (301) URL, found in database '
+            f'content: {offenders}'))
+
+    def test_no_public_template_links_to_a_retired_url(self):
+        import pathlib
+
+        retired_names, retired_paths = self._retired_names_and_paths()
+
+        # Templates behind an unrouted, deliberately-retired view are
+        # dead code kept on disk on purpose (see the _RETIRED_TO_WEB_DESIGN
+        # comment in public/urls.py) — not a page a visitor or crawler
+        # can reach, so its links aren't held to this standard. Derived
+        # from the retired url names themselves — this codebase's
+        # convention is one template per view, named after it — rather
+        # than a hand-maintained list, so a page retired this way in the
+        # future is skipped automatically instead of needing this test
+        # updated too.
+        skip_templates = {f'{name}.html' for name in retired_names}
+
+        offenders = []
+        for root in ('public/templates/public', 'core/templates'):
+            for path in pathlib.Path(root).rglob('*.html'):
+                if path.name in skip_templates:
+                    continue
+                source = path.read_text(encoding='utf-8', errors='replace')
+                # The actual bug shape: {% url 'public:name' %} pointing
+                # at a retired url name — the literal path never appears
+                # in the template source, only after Django resolves it.
+                for name in retired_names:
+                    if (f"'public:{name}'" in source
+                            or f'"public:{name}"' in source):
+                        offenders.append(f'{path} -> public:{name}')
+                # Belt and suspenders: a hardcoded path instead of a
+                # {% url %} tag would still be a dead link.
+                for target in retired_paths:
+                    if f'href="{target}"' in source:
+                        offenders.append(f'{path} -> {target}')
+
+        self.assertEqual(offenders, [], (
+            f'Live template(s) link to a retired (301) URL: {offenders}'))
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class CustomWebsiteCostPriceConsistencyTests(TestCase):
+    """
+    "How Much Does a Custom Website Cost?" quoted retired pricing for
+    months (~121 impressions/month in Search Console — one of the
+    better-performing pages on the site) because Article.body is raw
+    stored HTML (`{{ article.body|safe }}` in insight_detail.html) — it
+    never passes through the Django template engine, so it can't pull a
+    live price the way a real template can with
+    `{% include "core/_price.html" %}`. The numbers are hardcoded in
+    public/migrations/0009_custom_website_cost_live_pricing.py and
+    seed_insights.py instead, so this asserts them against the live
+    ServiceTier/AddonPricing rows on every test run — a price change in
+    the pricing admin that isn't mirrored in both places fails here
+    instead of the article quietly going stale again.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_pricing')
+        call_command('seed_insights')
+
+    def test_article_prices_match_the_live_tiers(self):
+        from billing.pricing_models import AddonPricing, ServiceTier
+        from public.models import Article
+
+        body = Article.objects.get(
+            slug='how-much-does-a-custom-website-cost').body
+
+        tiers = {
+            'build (upfront)': ServiceTier.objects.get(
+                slug='hvac-build-full'),
+            'build (installment)': ServiceTier.objects.get(
+                slug='hvac-build-installment'),
+            'Full Plan': ServiceTier.objects.get(slug='hvac-full-plan'),
+            'Full Plan (paid in full)': ServiceTier.objects.get(
+                slug='hvac-plan-paid-in-full'),
+            'hosting + security': ServiceTier.objects.get(
+                slug='hvac-hosting-security'),
+        }
+        for label, tier in tiers.items():
+            price_string = f'${tier.price:,.0f}'
+            with self.subTest(tier=label):
+                self.assertIn(price_string, body, (
+                    f'"{price_string}" ({label}) not found in the '
+                    'how-much-does-a-custom-website-cost article body — '
+                    'it may be quoting a stale price. Update the body in '
+                    'public/migrations/'
+                    '0009_custom_website_cost_live_pricing.py and '
+                    'seed_insights.py to match ServiceTier.'))
+
+        hourly = AddonPricing.objects.get(slug='addon-hourly')
+        hourly_string = f'${hourly.price_min:,.0f}'
+        self.assertIn(hourly_string, body, (
+            f'"{hourly_string}" (out-of-scope hourly rate) not found in '
+            'the article body.'))
+
+
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
 class FounderPortraitTests(TestCase):
     """Owner approved publishing the portrait on 2026-08-16. It replaced
