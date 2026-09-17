@@ -65,6 +65,26 @@
                            placeholder="San Antonio, TX">
                 </label>
             </div>
+
+            {% comment %}
+            City is the structured relation the /locations/ pages and the
+            city-page HVAC/other split actually filter on — `location`
+            above stays as free-text display copy. Blank is valid: not
+            every case study is tied to one of the three location pages.
+            {% endcomment %}
+            <div class="form-row form-row--split">
+                <label>City (for /locations/ pages)
+                    <select name="city_id">
+                        <option value="">— None —</option>
+                        {% for c in cities %}
+                            <option value="{{ c.id }}"
+                                    {% if case_study.city_id == c.id %}selected{% endif %}>
+                                {{ c.name }}{% if c.state %}, {{ c.state }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
         </section>
 
         <section class="admin-section">
@@ -129,6 +149,12 @@
                 <label>
                     <input type="checkbox" name="is_published" {% if case_study.is_published %}checked{% endif %}>
                     Publish to portfolio
+                </label>
+            </div>
+            <div class="form-row form-row--checkbox">
+                <label>
+                    <input type="checkbox" name="is_hvac" {% if case_study.is_hvac %}checked{% endif %}>
+                    HVAC industry work — shows on the main portfolio and above the divider on city pages
                 </label>
             </div>
         </section>

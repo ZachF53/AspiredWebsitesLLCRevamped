@@ -71,6 +71,24 @@ def _website_business_type(website):
     return website.business_type or ''
 
 
+def _city_or_none(raw):
+    """Resolve a City id from form input, tolerating junk."""
+    from public.models import City
+
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    try:
+        return City.objects.get(id=raw)
+    except (City.DoesNotExist, ValueError, TypeError):
+        return None
+
+
+def _active_cities():
+    from public.models import City
+    return City.objects.filter(is_active=True)
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # Phase 7 Part 2 - Case studies
 # ────────────────────────────────────────────────────────────────────────────
@@ -80,7 +98,7 @@ def case_studies_list(request):
     """List view of CaseStudy rows."""
     from clients.models import CaseStudy
     case_studies = (CaseStudy.objects
-                    .select_related('website_new', 'website_new__account')
+                    .select_related('website_new', 'website_new__account', 'city')
                     .order_by('-created_at'))
     return render(request, 'admin_dashboard/case_studies_list.html',
                   _admin_context(
@@ -96,12 +114,16 @@ def case_study_new(request):
 
     if request.method == 'POST':
         website = _website_or_none(request.POST.get('website_id'))
+        city = _city_or_none(request.POST.get('city_id'))
 
         is_published = request.POST.get('is_published') == 'on'
+        is_hvac = request.POST.get('is_hvac') == 'on'
 
         cs = CaseStudy.objects.create(
             # Stays None for a marketing case study with no client attached.
             website_new=website,
+            city=city,
+            is_hvac=is_hvac,
             title=(request.POST.get('title') or '').strip()[:300],
             business_type=(request.POST.get('business_type')
                            or _website_business_type(website)
@@ -139,6 +161,7 @@ def case_study_new(request):
                   _admin_context(
                       'case_studies',
                       websites=_selectable_websites(),
+                      cities=_active_cities(),
                       case_study=None,
                       preselect_website=preselect_website,
                   ))
@@ -164,6 +187,8 @@ def case_study_edit(request, cs_id):
         is_published = request.POST.get('is_published') == 'on'
 
         cs.website_new = website
+        cs.city = _city_or_none(request.POST.get('city_id'))
+        cs.is_hvac = request.POST.get('is_hvac') == 'on'
         cs.title = (request.POST.get('title') or '').strip()[:300]
         cs.business_type = (request.POST.get('business_type')
                             or '').strip()[:100]
@@ -197,6 +222,7 @@ def case_study_edit(request, cs_id):
                   _admin_context(
                       'case_studies',
                       websites=_selectable_websites(),
+                      cities=_active_cities(),
                       case_study=cs,
                       preselect_website=cs.website_new,
                   ))

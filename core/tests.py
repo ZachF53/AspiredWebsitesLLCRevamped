@@ -1011,8 +1011,23 @@ class CaseStudyScreenshotTests(TestCase):
         return study
 
     def _first_published(self):
+        """
+        First published fixture study, forced HVAC-flagged.
+
+        These tests are about the card partial's rendering mechanics
+        (screenshot vs. gradient fallback, dimensions, lazy loading, alt
+        text) — not about which industry the study is really in. None
+        of the seed_case_studies fixtures are actually HVAC clients, so
+        /portfolio/ (Sept 2026 repositioning, is_hvac=True only) would
+        show none of them without this. Forcing the flag here, in a
+        TestCase whose transaction rolls back after each test, is
+        test-only and never touches real data.
+        """
         from clients.models import CaseStudy
-        return CaseStudy.objects.filter(is_published=True).first()
+        study = CaseStudy.objects.filter(is_published=True).first()
+        study.is_hvac = True
+        study.save(update_fields=['is_hvac'])
+        return study
 
     def test_card_shows_the_screenshot_when_present(self):
         study = self._attach_screenshot(self._first_published())
@@ -1023,6 +1038,7 @@ class CaseStudyScreenshotTests(TestCase):
     def test_card_falls_back_to_the_gradient_without_one(self):
         """No screenshot must degrade, never render a broken <img>."""
         from clients.models import CaseStudy
+        self._first_published()  # ensures at least one is_hvac=True
         CaseStudy.objects.filter(is_published=True).update(screenshot='')
         html = self.client.get('/portfolio/').content.decode()
         self.assertNotIn('card__visual--shot', html)
@@ -1074,8 +1090,14 @@ class CaseStudyScreenshotTests(TestCase):
         firm does family law and adoption — because hardcoded proof
         about a real client goes stale silently. Driving it from the
         same rows as /portfolio/ is what stops that recurring.
+
+        Since the Sept 2026 repositioning the strip (like /portfolio/)
+        only shows is_hvac=True rows, so this test flags every fixture
+        study HVAC to exercise the database-driven rendering — the
+        HVAC/other split itself is covered separately.
         """
         from clients.models import CaseStudy
+        CaseStudy.objects.filter(is_published=True).update(is_hvac=True)
         html = self.client.get('/').content.decode()
         self.assertNotIn('personal-injury', html)
         for study in CaseStudy.objects.filter(is_published=True)[:4]:
@@ -1152,12 +1174,30 @@ class CaseStudyTests(TestCase):
                 self.assertEqual(html.count('rel="canonical"'), 1)
                 self.assertNotIn('noindex', html)
 
-    def test_portfolio_links_to_every_study(self):
+    def test_portfolio_links_to_every_hvac_study_and_other_page_the_rest(self):
+        """
+        Sept 2026 repositioning — /portfolio/ only links HVAC-flagged
+        studies; everything else moved to /portfolio/other/ rather than
+        off the site. None of the seed_case_studies fixtures are
+        actually HVAC, so this splits them to exercise both pages.
+        """
         from clients.models import CaseStudy
-        html = self.client.get('/portfolio/').content.decode()
-        for study in CaseStudy.objects.filter(is_published=True):
-            with self.subTest(slug=study.slug):
-                self.assertIn(study.get_absolute_url(), html)
+        studies = list(CaseStudy.objects.filter(is_published=True))
+        hvac, other = studies[:2], studies[2:]
+        CaseStudy.objects.filter(
+            pk__in=[s.pk for s in hvac]).update(is_hvac=True)
+
+        portfolio_html = self.client.get('/portfolio/').content.decode()
+        other_html = self.client.get('/portfolio/other/').content.decode()
+
+        for study in hvac:
+            with self.subTest(slug=study.slug, page='portfolio'):
+                self.assertIn(study.get_absolute_url(), portfolio_html)
+                self.assertNotIn(study.get_absolute_url(), other_html)
+        for study in other:
+            with self.subTest(slug=study.slug, page='other'):
+                self.assertIn(study.get_absolute_url(), other_html)
+                self.assertNotIn(study.get_absolute_url(), portfolio_html)
 
     def test_unpublished_study_404s(self):
         from clients.models import CaseStudy
@@ -1526,21 +1566,29 @@ class GeorgiaLocationPageTests(TestCase):
         self.assertIn('Georgia-Based, Not Atlanta-Based', html)
         self.assertIn('Warner Robins', html)
 
-    def test_atlanta_page_admits_it_has_no_atlanta_clients(self):
+    def test_atlanta_page_has_no_proof_section_with_no_atlanta_clients(self):
         """
-        §15's thin-city-page line. With no Atlanta case studies the
-        page must say so outright — and must stop saying so by itself
-        once an Atlanta client is published, rather than needing a
-        template edit.
+        §15's thin-city-page line used to be enforced by an explicit
+        "No Atlanta clients yet" note. The Sept 2026 repositioning
+        (Change 6) replaced the whole proof section with a strict
+        is_hvac split that hides each group — and the divider and
+        heading between them — when empty, with no substitute honesty
+        copy for the all-empty case. That's a real trade-off, flagged
+        to the client rather than decided silently: the old page said
+        outright why there was no local proof; the new one just shows
+        nothing there until an Atlanta case study exists (in either
+        group). This test guards the new behavior; if the honesty note
+        should come back, it needs a product decision, not a test fix.
         """
         from clients.models import CaseStudy
         self.assertFalse(
             CaseStudy.objects.filter(is_published=True,
                                      location__icontains='Atlanta').exists(),
             'Seed data now has an Atlanta client — this test guards the '
-            'no-clients-yet copy and should be updated with the page.')
+            'no-proof-section-when-empty behavior and should be updated '
+            'with the page.')
         html = self.client.get('/locations/atlanta/').content.decode()
-        self.assertIn('No Atlanta clients yet', html)
+        self.assertNotIn('Here are other businesses we helped out', html)
 
     def test_warner_robins_page_claims_local_because_it_is_true(self):
         """
@@ -1632,21 +1680,28 @@ class CityIntentOwnershipTests(TestCase):
         self.assertIn('Atlanta', title)
 
     def test_homepage_title_still_carries_the_service(self):
-        """Dropping the city must not cost the head term."""
+        """
+        Sept 2026 repositioning retitled the homepage for HVAC intent
+        (Change 2/10) — dropping the city must still not cost the head
+        term, now "HVAC" rather than "Custom Web Design".
+        """
         html = self.client.get('/').content.decode()
         title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
-        self.assertIn('Custom Web Design', title)
+        self.assertIn('HVAC', title)
         self.assertLessEqual(len(title), 65, f'Title too long: {title}')
 
-    def test_homepage_h1_is_unchanged(self):
-        """D9 — the retitle is a <title> change only."""
+    def test_homepage_h1_carries_the_hvac_repositioning(self):
+        """
+        Sept 2026 repositioning (Change 2) rewrote the H1 for HVAC
+        intent — this replaces the old D9 "H1 unchanged" guard now that
+        the H1 itself is the thing that changed.
+        """
         html = self.client.get('/').content.decode()
         h1 = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.S).group(1)
         # The H1 wraps its last words in a <span class="accent">, so
         # compare the text content rather than the raw markup.
         text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', h1)).strip()
-        self.assertEqual(
-            text, 'Custom Web Design Built to Work as Hard as You Do')
+        self.assertIn('HVAC', text)
 
 
 @override_settings(PRODUCTION_HOST='testserver')
@@ -1700,13 +1755,20 @@ class ConversionBlockTests(TestCase):
             self.assertIn(claim, html)
 
     def test_pricing_objection_faq_covers_the_required_questions(self):
+        """
+        Change 8 rebuilt the FAQ around the questions a financed HVAC
+        build actually raises — month 24, ownership before payoff, and
+        what an "unlimited" content update covers — alongside the
+        carried-over objection questions.
+        """
         html = self.client.get('/pricing/').content.decode()
-        for question in ('Do I own my website?',
+        for question in ('What happens at month 24?',
+                         'What does ownership mean before payoff?',
+                         'What counts as an unlimited content update?',
+                         'Do I own my website?',
                          'Is there a contract?',
                          'Can I move the site later?',
                          'How long does a build take?',
-                         'Is hosting included?',
-                         'Do you write the content?',
                          'Is SEO included?',
                          'What counts as out of scope?'):
             with self.subTest(question=question):
@@ -1725,16 +1787,22 @@ class ConversionBlockTests(TestCase):
 
     def test_pricing_card_splits_the_price_into_sized_parts(self):
         """
-        The $1,199 maintenance tier is the widest price on the site. It
-        must reach the page as three spans, not one flat string —
-        rendered flat at the card's 3rem numeral size it overflowed a
-        3-up card and broke mid-number ("$1,199/mont" + "h").
+        A price must reach the page as three spans, not one flat
+        string — rendered flat at the card's 3rem numeral size it
+        overflows a card and breaks mid-number ("$1,199/mont" + "h").
+
+        The pricing() view fetches specific hvac-* slugs by name since
+        Change 8 (not by category), and this test's DB has no seeded
+        pricing data (no test here calls seed_pricing), so the tier has
+        to be created under that exact slug or the view will never see
+        it — an ad-hoc tier under a different slug, as the
+        pre-repositioning version of this test used, renders nothing.
         """
         from decimal import Decimal
 
         from billing.pricing_models import ServiceTier
         ServiceTier.objects.create(
-            category='maintenance', name='Dominant', slug='dominant-test',
+            category='maintenance', name='Full Plan', slug='hvac-full-plan',
             price=Decimal('1199'), is_recurring=True,
             billing_interval='month', is_active=True)
         html = self.client.get('/pricing/').content.decode()

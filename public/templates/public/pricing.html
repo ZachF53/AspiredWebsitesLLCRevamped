@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Custom Website Pricing | Aspired Websites{% endblock %}
+{% block title %}HVAC Website Pricing | Aspired Websites{% endblock %}
+{% block meta_description %}Transparent pricing for HVAC contractor websites: a $2,000 build (or $105/mo), a $250/mo Full Plan with hosting, maintenance and automated review generation, or hosting and security alone at $45/mo.{% endblock %}
 
 {% comment %}
-FAQPage schema for the objection FAQ further down. §8 permits it only
-where the FAQs are genuinely visible on-page, which they are.
+Sept 2026 repositioning (Change 8) — rebuilt for HVAC-only pricing.
+Numbers come from the hvac-* ServiceTier rows (billing/management/
+commands/seed_pricing.py), not hardcoded here, per the project's
+pricing rule. FAQPage schema covers the FAQ cards further down since
+they're genuinely visible on-page.
 {% endcomment %}
 {% block extra_head %}
 <script type="application/ld+json">
@@ -14,10 +18,26 @@ where the FAQs are genuinely visible on-page, which they are.
     "mainEntity": [
         {
             "@type": "Question",
-            "name": "Do I own my website?",
+            "name": "What happens at month 24?",
             "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Completely — the source code, the content, the domain and the data. If you leave, you take every file and the site keeps working."
+                "text": "On the Full Plan, the $105 build portion ends and the rate drops automatically to $145/month for hosting, maintenance, unlimited content updates, security patching, and automated review generation. No action needed on your end. It's month-to-month after that, and you can cancel anytime."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What does ownership mean before payoff?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Aspired Websites LLC retains ownership of the website until it's paid in full, either the $2,000 upfront or the 24 monthly payments. The site stays live and working for your business the whole time. Ownership transfers to you once the build is paid off."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What counts as an unlimited content update?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Text changes, photo swaps, hours, service areas, pricing updates, new promotions. Routine edits to the site you already have. It does not include a redesign, new pages built from scratch, or new functionality, all of which are quoted separately at $85/hour."
             }
         },
         {
@@ -25,55 +45,15 @@ where the FAQs are genuinely visible on-page, which they are.
             "name": "Is there a contract?",
             "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Month-to-month with 30 days notice. No annual lock-in and no exit fee."
+                "text": "The build is a 24-month term if you choose the installment option. Everything else is month-to-month with 30 days notice and no annual lock-in."
             }
         },
         {
             "@type": "Question",
-            "name": "How long does a website build take?",
+            "name": "Do I own my website?",
             "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Three weeks for an Essential build and four for Premium: discovery, structure, design, content, review and launch. More practice areas or unwritten content extends it."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Is hosting included?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Hosting is $150 per year, billed separately from the build. Every client gets their own isolated server rather than shared hosting."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Is SEO included?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "The foundation is included: clean semantic markup, schema, sitemap, heading structure and fast load times. Ongoing ranking work is a separate monthly service. We never promise rankings."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "What happens if I stop paying for maintenance?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "The website keeps working. Maintenance covers updates, monitoring, backups and support — not the right to keep your own site online."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "What counts as out of scope?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Two major revisions are included in a build. Anything beyond that, or work outside the agreed scope, is $85 per hour, quoted and approved before it starts."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Do you take payment up front?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "A 50% deposit starts the project and the balance is due before launch. Paying in full up front is also an option."
+                "text": "Once the build is paid in full, yes, completely. Source code, content, domain and data are yours to take anywhere."
             }
         }
     ]
@@ -88,9 +68,9 @@ where the FAQs are genuinely visible on-page, which they are.
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Transparent Pricing</span>
-            <h1>Transparent Pricing for <span class="accent">Custom Websites</span></h1>
+            <h1>Transparent Pricing for <span class="accent">HVAC Websites</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">No hidden fees. No annual lock-in. Cancel anytime.</p>
+            <p class="hero__lead">No hidden fees. No annual lock-in on maintenance. Cancel anytime.</p>
             <span class="badge-guarantee">
                 <span class="badge-guarantee__icon" aria-hidden="true">&#10003;</span>
                 30-Day Money-Back Guarantee on All Builds
@@ -101,153 +81,136 @@ where the FAQs are genuinely visible on-page, which they are.
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
-{# ───────── Website Builds ───────── #}
+{# ───────── Website Build ───────── #}
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Website Builds</span>
-            <h2>Choose Your Build</h2>
-            <p>Hand-coded from scratch for law firms, contractors, healthcare, retail, and growing small businesses. No templates. No shortcuts.</p>
+            <span class="eyebrow">Website Build</span>
+            <h2>Choose How You Pay</h2>
+            <p>Custom-coded for HVAC contractors. No templates. Same build either way, whether you pay in full or spread it out.</p>
         </div>
 
         <div class="cards cards--2col">
-            {% for tier in builds %}
-                <article class="card card--pricing {% if tier.is_featured %}card--featured{% endif %}">
-                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
-                    {% if tier.timeline_weeks %}<span class="card__timeline-badge">Launches in {{ tier.timeline_weeks }} weeks</span>{% endif %}
-                    <h3 class="card__title">{{ tier.name }}</h3>
-                    {% include "core/_price.html" with tier=tier %}
-                    <p class="card__price-meta">50% upfront &middot; 50% on delivery</p>
+            {% if build_full %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ build_full.name }}</h3>
+                    {% include "core/_price.html" with tier=build_full %}
                     <ul class="feature-list">
-                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                        {% for feature in build_full.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
-                    {# Web design = Schedule a Call (NOT self-checkout) #}
-                    <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="/design/schedule/">Schedule a Call</a>
+                    <a class="btn-secondary" href="/design/schedule/">Schedule a Call</a>
                 </article>
-            {% endfor %}
+            {% endif %}
+
+            {% if build_installment %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ build_installment.name }}</h3>
+                    {% include "core/_price.html" with tier=build_installment %}
+                    <p class="card__price-note">for 24 months</p>
+                    <p class="card__price-meta">$2,520 total</p>
+                    <ul class="feature-list">
+                        {% for feature in build_installment.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="btn-secondary" href="/design/schedule/">Schedule a Call</a>
+                </article>
+            {% endif %}
         </div>
 
-        {% if addons %}
-            <p class="pricing-note">
-                {% for addon in addons %}{{ addon.name }}: {{ addon.get_price_display }}{% if not forloop.last %} &nbsp;&middot;&nbsp; {% endif %}{% endfor %}
-            </p>
-        {% endif %}
+        <p class="pricing-note">Aspired Websites LLC retains ownership of the website until paid in full.</p>
     </div>
 </section>
 
 <hr class="section-divider" aria-hidden="true">
 
-{# ───────── Maintenance Plans ───────── #}
+{# ───────── Full Plan — highlighted, plus the paid-in-full variant ───────── #}
 <section class="section">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Monthly Maintenance</span>
-            <h2>Keep Your Site Sharp</h2>
-            <p>Month-to-month. Cancel anytime. No annual contracts. Pairs with our <a href="{% url 'public:service_web_design' %}">custom web design</a> builds &mdash; or applies to any existing site we take over.</p>
+            <span class="eyebrow">Most Popular</span>
+            <h2>The Full Plan</h2>
+            <p>Hosting, maintenance, unlimited content updates, and automated review generation. Priced differently depending on how you paid for the build.</p>
         </div>
 
-        <div class="cards">
-            {% for tier in maintenance %}
-                <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
-                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
-                    <h3 class="card__title">{{ tier.name }}</h3>
-                    {% include "core/_price.html" with tier=tier %}
+        <div class="cards cards--2col">
+            {% if full_plan %}
+                <article class="card card--pricing card--featured">
+                    <span class="card__badge">Most Popular</span>
+                    <h3 class="card__title">{{ full_plan.name }}</h3>
+                    {% include "core/_price.html" with tier=full_plan %}
+                    <p class="card__price-meta">Drops to $145/mo automatically after month 24</p>
                     <ul class="feature-list">
-                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-                        <li class="feature-list__hosting-opt">Optional hosting move-over — $50 off first year</li>
+                        {% for feature in full_plan.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
-                    {% comment %}
-                        Logged-in clients subscribe from inside the portal
-                        (card already on file); anonymous visitors go to the
-                        public Stripe checkout.
-                    {% endcomment %}
-                    {% if request.user.is_authenticated %}
-                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'clients:portal_maintenance' %}">Buy Now</a>
-                    {% else %}
-                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
-                    {% endif %}
+                    <a class="btn-primary" href="{% url 'public:contact' %}">Get Started</a>
                 </article>
-            {% endfor %}
-        </div>
+            {% endif %}
 
-        <div class="callout">
-            <strong>Social media management is not included in maintenance plans</strong> &mdash; it&rsquo;s priced separately below.
+            {% if plan_paid_in_full %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ plan_paid_in_full.name }}</h3>
+                    {% include "core/_price.html" with tier=plan_paid_in_full %}
+                    <p class="card__price-meta">For clients who paid the $2,000 build upfront</p>
+                    <ul class="feature-list">
+                        {% for feature in plan_paid_in_full.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
+                </article>
+            {% endif %}
         </div>
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
-{# ───────── Social Media ───────── #}
+{# ───────── Hosting + Security Only ───────── #}
+{% if hosting_security %}
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Social Media Management</span>
-            <h2>Stay Visible. Stay Consistent.</h2>
-            <p>Sold separately. Not included in maintenance plans. Full details: <a href="{% url 'public:service_digital_marketing' %}">digital marketing &amp; social media services</a>.</p>
+            <span class="eyebrow">Hosting</span>
+            <h2>Already Have a Site? Hosting + Security Only</h2>
         </div>
 
-        <div class="cards">
-            {% for tier in social %}
-                <article class="card card--pricing {% if tier.is_featured %}card--featured{% else %}card--teal{% endif %}">
-                    {% if tier.is_featured %}<span class="card__badge">Most Popular</span>{% endif %}
-                    <h3 class="card__title">{{ tier.name }}</h3>
-                    {% include "core/_price.html" with tier=tier %}
-                    <ul class="feature-list">
-                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-                        {% if tier.max_channels %}<li>{{ tier.max_channels }} channels of your choice</li>{% endif %}
-                        {% if tier.reply_handling == 'none' %}<li>You handle replies &amp; DMs</li>
-                        {% elif tier.reply_handling == 'triage' %}<li>Reply/DM triage — we flag, you respond</li>
-                        {% elif tier.reply_handling == 'full' %}<li>Full reply &amp; DM management</li>
-                        {% endif %}
-                    </ul>
-                    {% comment %}
-                        Logged-in clients subscribe from the portal's social
-                        plans page; anonymous visitors go to public checkout.
-                    {% endcomment %}
-                    {% if request.user.is_authenticated %}
-                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'clients:portal_social_plans' %}">Buy Now</a>
-                    {% else %}
-                        <a class="{% if tier.is_featured %}btn-primary{% else %}btn-secondary{% endif %}" href="{% url 'billing:checkout_page' tier.slug %}">Buy Now</a>
-                    {% endif %}
-                </article>
-            {% endfor %}
+        <article class="hosting-banner card card--teal">
+            <div class="hosting-banner__lead">
+                <h3 class="card__title">{{ hosting_security.name }}</h3>
+                {% include "core/_price.html" with tier=hosting_security %}
+                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
+            </div>
+            <ul class="feature-list hosting-banner__features">
+                {% for feature in hosting_security.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+            </ul>
+        </article>
+
+        <div class="callout">
+            No content edits, no code changes, no review system &mdash; that&rsquo;s the Full Plan above.
         </div>
     </div>
 </section>
 
 <hr class="section-divider" aria-hidden="true">
+{% endif %}
 
-{# ───────── Hosting ───────── #}
-{% if hosting %}
+{# ───────── Out of scope ───────── #}
 <section class="section">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Hosting</span>
-            <h2>{{ hosting.get_price_display }}. Flat.</h2>
+            <span class="eyebrow">Out of Scope</span>
+            <h2>Anything Beyond the Plan</h2>
         </div>
 
-        <article class="hosting-banner card card--teal">
-            <div class="hosting-banner__lead">
-                <h3 class="card__title">{{ hosting.name }}</h3>
-                {% include "core/_price.html" with tier=hosting %}
-                <a class="btn-secondary" href="{% url 'public:contact' %}">Get Started</a>
-            </div>
-            <ul class="feature-list hosting-banner__features">
-                {% for feature in hosting.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-            </ul>
+        <article class="card card--accent-left">
+            <p>{% if hourly %}{{ hourly.get_price_display }}{% else %}$85/hour{% endif %}, quoted and approved before anything starts. Covers redesigns, new pages, new functionality, and hands-on migration to a third-party host if you ever want to leave.</p>
+            <p><strong>Your website files and database are always provided free of charge at payoff</strong> &mdash; migrating them out is the only thing billed hourly, not the handoff itself.</p>
         </article>
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
-{% endif %}
 
 {% comment %}
-Ownership block — Master Plan §7.3 calls this "the cleanest
-anti-FindLaw contrast" and requires it on the pricing page. It is the
-one argument no vendor-platform competitor can answer, so it gets its
-own section rather than a bullet inside a plan card.
+Ownership block — kept from the pre-repositioning page. Still the
+cleanest argument against a vendor-locked platform, and still true.
 {% endcomment %}
 <section class="section">
     <div class="container">
@@ -259,41 +222,35 @@ own section rather than a bullet inside a plan card.
 
         <div class="cards cards--2col">
             <article class="card card--accent-left">
-                <h3>What You Own</h3>
+                <h3>What You Own Once Paid Off</h3>
                 <ul class="bullet-list">
                     <li><strong>The source code.</strong> Every file. Yours to take, host anywhere, or hand to another developer.</li>
                     <li><strong>The content.</strong> Copy, images, structure &mdash; including anything we wrote for you.</li>
                     <li><strong>The domain.</strong> Registered in your name. We never hold a client&rsquo;s domain.</li>
-                    <li><strong>The data.</strong> Form submissions go to you, not into a platform you rent access to.</li>
+                    <li><strong>The data.</strong> Form submissions and reviews go to you, not into a platform you rent access to.</li>
                 </ul>
             </article>
 
             <article class="card card--accent-left">
                 <h3>What Happens If You Leave</h3>
                 <ul class="bullet-list">
-                    <li><strong>The site keeps working.</strong> Cancelling maintenance stops updates and support &mdash; not your website.</li>
-                    <li><strong>You take everything.</strong> We hand over the files and help you move them.</li>
-                    <li><strong>30 days notice.</strong> Month-to-month, no annual contract, no exit fee.</li>
+                    <li><strong>The site keeps working.</strong> Cancelling the Full Plan stops updates and support &mdash; not your website.</li>
+                    <li><strong>You take everything.</strong> Files and database provided free of charge at payoff.</li>
+                    <li><strong>Month-to-month after the build term.</strong> No annual contract, no exit fee.</li>
                     <li><strong>No hostage negotiation.</strong> Leaving is a support ticket, not a dispute.</li>
                 </ul>
             </article>
         </div>
-
-        <p class="section-note">
-            This is the clearest difference between a custom build and a
-            vendor-hosted platform. If you&rsquo;re currently on one, the
-            <a href="{% url 'public:law_firms' %}">law firm page</a> covers how
-            switching actually works.
-        </p>
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
 {% comment %}
-Objection FAQ — §7.3 lists these questions explicitly and states the
-goal: "kill every objection before the call." FAQPage schema is
-included because the answers are visible on the page (§8).
+FAQ — matches the FAQPage schema above. Leads with the month-24,
+ownership, and unlimited-updates questions Change 8 calls out
+specifically, since those are the ones a financed build actually
+raises.
 {% endcomment %}
 <section class="section section--alt">
     <div class="container">
@@ -305,63 +262,53 @@ included because the answers are visible on the page (§8).
 
         <div class="cards cards--2col">
             <article class="card">
-                <h3>Do I own my website?</h3>
-                <p>Completely &mdash; code, content, domain and data. See the ownership section above.</p>
+                <h3>What happens at month 24?</h3>
+                <p>On the Full Plan, the $105 build portion ends and the rate drops automatically to $145/month for hosting, maintenance, unlimited content updates, security patching, and automated review generation. No action needed on your end.</p>
+            </article>
+
+            <article class="card">
+                <h3>What does ownership mean before payoff?</h3>
+                <p>Aspired Websites LLC retains ownership of the website until it&rsquo;s paid in full. The site stays live and working for your business the whole time; ownership transfers to you once the build is paid off.</p>
+            </article>
+
+            <article class="card">
+                <h3>What counts as an unlimited content update?</h3>
+                <p>Text changes, photo swaps, hours, service areas, pricing updates, new promotions. Not included: a redesign, new pages built from scratch, or new functionality &mdash; that&rsquo;s $85/hour, quoted first.</p>
             </article>
 
             <article class="card">
                 <h3>Is there a contract?</h3>
-                <p>Month-to-month with 30 days notice. No annual lock-in, ever. Long contracts exist to protect agencies during quiet months; we&rsquo;d rather earn the next one.</p>
+                <p>The build is a 24-month term if you choose the installment. Everything else is month-to-month with 30 days notice.</p>
+            </article>
+
+            <article class="card">
+                <h3>Do I own my website?</h3>
+                <p>Once the build is paid in full, yes &mdash; completely. Source code, content, domain and data are yours to take anywhere.</p>
             </article>
 
             <article class="card">
                 <h3>Can I move the site later?</h3>
-                <p>Yes. It&rsquo;s standard code on standard hosting &mdash; any competent developer can take it over. We&rsquo;ll help with the handover.</p>
+                <p>Yes, once it&rsquo;s paid off. Standard code on standard hosting &mdash; any competent developer can take it over. Hands-on migration help is $85/hour; the files themselves are free.</p>
             </article>
 
             <article class="card">
                 <h3>How long does a build take?</h3>
-                <p>Three weeks for an Essential build and four for Premium: discovery, structure, design, content, review, launch. More practice areas or unwritten content extends it. You always know which stage you&rsquo;re in.</p>
-            </article>
-
-            <article class="card">
-                <h3>Is hosting included?</h3>
-                <p>Hosting is $150/year, billed separately from the build. Every client gets their own isolated server &mdash; never shared hosting.</p>
-            </article>
-
-            <article class="card">
-                <h3>Can you redesign my current site?</h3>
-                <p>Yes, and it&rsquo;s a distinct job &mdash; the URL mapping matters more than the design. See <a href="{% url 'public:service_website_redesign' %}">website redesign</a>.</p>
-            </article>
-
-            <article class="card">
-                <h3>Do you write the content?</h3>
-                <p>Yes. We draft it and you edit &mdash; content is the stage that stalls most projects, so we don&rsquo;t wait on a blank page. Legal copy should be reviewed by the attorney whose name is on it.</p>
+                <p>Three to four weeks: discovery, structure, design, content, review, launch. You always know which stage you&rsquo;re in.</p>
             </article>
 
             <article class="card">
                 <h3>Is SEO included?</h3>
-                <p>The foundation is: clean markup, schema, sitemap, headings, fast load. Ongoing ranking work is separate &mdash; see <a href="{% url 'public:service_seo' %}">SEO services</a>. We never promise rankings.</p>
+                <p>Yes &mdash; clean markup, schema, sitemap, headings, fast load are part of every build, not a separate product. We never promise rankings.</p>
             </article>
 
             <article class="card">
-                <h3>Will you maintain a site you didn&rsquo;t build?</h3>
-                <p>Sometimes. We audit first. If the platform can&rsquo;t be maintained safely, or you don&rsquo;t own the code, we&rsquo;ll say so rather than take the money.</p>
-            </article>
-
-            <article class="card">
-                <h3>What if I stop paying maintenance?</h3>
-                <p>The site keeps working. Maintenance buys updates, monitoring, backups and support &mdash; not the right to keep your own website online.</p>
+                <h3>What if I stop paying the Full Plan?</h3>
+                <p>The site keeps working. The Full Plan buys updates, monitoring, backups, review generation, and support &mdash; not the right to keep your own website online.</p>
             </article>
 
             <article class="card">
                 <h3>What counts as out of scope?</h3>
-                <p>Two major revisions are included in a build. Beyond that, or work outside the agreed scope, is $85/hour &mdash; quoted and approved before anything starts. No surprise invoices.</p>
-            </article>
-
-            <article class="card">
-                <h3>Do you take payment up front?</h3>
-                <p>50% deposit to start, balance before launch. You can also pay in full up front if you prefer.</p>
+                <p>Anything outside the agreed build or the Full Plan&rsquo;s content updates &mdash; $85/hour, quoted and approved before anything starts. No surprise invoices.</p>
             </article>
         </div>
     </div>
@@ -373,7 +320,7 @@ included because the answers are visible on the page (§8).
 <section class="cta-block">
     <div class="container">
         <div class="cta-block__inner">
-            <h2>Not Sure Which Plan Is Right for You?</h2>
+            <h2>Not Sure Which Option Is Right for You?</h2>
             <p>Book a free 30-minute Strategy Call. We&rsquo;ll figure it out together &mdash; no pressure, no jargon.</p>
             <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
         </div>

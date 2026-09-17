@@ -169,17 +169,17 @@ measuring.
 <hr class="section-divider" aria-hidden="true">
 
 {% comment %}
-Geographic cluster link. Three of the four case studies are San
-Antonio clients, so an SA study should route the reader to the SA
-page — that page's whole claim to substance is this proof, and §8
-wants the cluster wired both ways.
+Geographic cluster link, driven by the study's `city` FK rather than a
+text match against `location` — generalizes the old San-Antonio-only
+check to any city with its own /locations/ page. §8 wants the cluster
+wired both ways.
 {% endcomment %}
-{% if 'San Antonio' in study.location %}
+{% if study.city and study.city.url_name %}
     <section class="section section--alt">
         <div class="container">
             <p class="section-note">
-                This was a San Antonio project. See more of
-                <a href="{% url 'public:location_san_antonio' %}">our San Antonio work</a>.
+                This was a {{ study.city.name }} project. See more of
+                <a href="{{ study.city.get_absolute_url }}">our {{ study.city.name }} work</a>.
             </p>
         </div>
     </section>

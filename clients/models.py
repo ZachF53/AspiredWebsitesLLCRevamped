@@ -1504,6 +1504,22 @@ class CaseStudy(TimestampedModel):
 
     pdf_path = models.CharField(max_length=500, blank=True)
 
+    is_hvac = models.BooleanField(
+        default=False,
+        help_text="HVAC industry work. Shown on the main portfolio and "
+                  "above the divider on city pages. Unchecked items appear "
+                  "on the 'other businesses' page and below the divider.",
+    )
+
+    # Structured city relation — added alongside the free-text `location`
+    # field rather than replacing it. `location` stays so existing rows
+    # and any code path still keying off it keep working; `city` is what
+    # the location pages (public/views.py location_city) filter on.
+    city = models.ForeignKey(
+        'public.City', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='case_studies',
+    )
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Case Study'

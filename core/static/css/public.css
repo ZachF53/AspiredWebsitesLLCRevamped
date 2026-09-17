@@ -1217,109 +1217,12 @@ p {
 }
 
 /* ── 12. Portfolio strip — teal premium card ───────────────── */
-.portfolio-strip {
-    display: grid;
-    gap: var(--space-3);
-}
-
-.portfolio-item {
-    border-radius: 16px;
-    overflow: hidden;
-    background: var(--color-bg-raised);
-    border: 1px solid rgba(13, 148, 136, 0.2);
-    box-shadow:
-        0 0 0 1px rgba(13, 148, 136, 0.05),
-        0 4px 24px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(13, 148, 136, 0.06);
-    transition: transform var(--transition), box-shadow var(--transition);
-}
-
-.portfolio-item:hover {
-    transform: translateY(-4px);
-    box-shadow:
-        0 0 0 1px rgba(13, 148, 136, 0.15),
-        0 8px 40px rgba(0, 0, 0, 0.5),
-        0 0 60px rgba(13, 148, 136, 0.12);
-}
-
-.portfolio-item__visual {
-    aspect-ratio: 16 / 10;
-    background: linear-gradient(135deg, var(--color-bg-deep) 0%, #1E293B 100%);
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text);
-    font-weight: 700;
-    font-size: 1.125rem;
-    padding: var(--space-3);
-    text-align: center;
-    border-bottom: 1px solid rgba(13, 148, 136, 0.15);
-}
-
-.portfolio-item__visual::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 70% 30%, rgba(232, 101, 10, 0.25), transparent 60%),
-        radial-gradient(circle at 30% 70%, rgba(13, 148, 136, 0.18), transparent 60%);
-}
 
 /* Real screenshot in the homepage strip. Same reasoning as the
    portfolio cards: the tinted wash exists to give a flat gradient
    depth, and laying it over a client's site would misrepresent their
    colours. The name-plate padding/centring is dropped too — the
    image is the content now. */
-.portfolio-item__visual--shot {
-    padding: 0;
-    display: block;
-    overflow: hidden;
-    background: var(--color-bg-deep);
-}
-
-.portfolio-item__visual--shot::after {
-    content: none;
-}
-
-.portfolio-item__visual--shot img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: top center;
-}
-
-.portfolio-item__visual span {
-    position: relative;
-    z-index: 1;
-}
-
-.portfolio-item__body {
-    padding: var(--space-3);
-}
-
-.portfolio-item__type {
-    font-size: 0.75rem;
-    color: var(--color-teal-light);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    font-weight: 700;
-    margin-bottom: var(--space-1);
-}
-
-.portfolio-item__title {
-    font-size: 1.0625rem;
-    font-weight: 700;
-    color: var(--color-text);
-    margin-bottom: var(--space-1);
-}
-
-.portfolio-item__desc {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
-    margin: 0;
-}
 
 /* ── 12b. Card inversion: deep cards on raised sections ───── */
 .section--alt .card,
@@ -1349,6 +1252,10 @@ p {
 .cta-block--deep {
     background: var(--color-bg-deep);
 }
+
+/* Card-style variant: adds left/right borders to match the top/bottom
+   ones already there, so the block reads as a bordered card rather than
+   a full-bleed banner. Used by core/_not_hvac_cta.html. */
 
 .cta-block::before {
     content: '';
@@ -1608,6 +1515,15 @@ textarea.form-control {
     grid-template-columns: 1fr;
 }
 
+/* Card grid variant: dense compact strip — 1 col mobile, 2 col tablet,
+   4 col desktop (breakpoints match .portfolio-strip). Pairs with
+   .card--compact below for the homepage "Selected Work" section and
+   anywhere else a shorter, denser row of case-study cards fits better
+   than the full-size /portfolio/ grid. */
+.cards.cards--compact-grid {
+    grid-template-columns: 1fr;
+}
+
 /* Card modifier: thin teal ribbon on the left edge */
 .card--accent-left {
     position: relative;
@@ -1718,6 +1634,42 @@ textarea.form-control {
 .card--with-visual .card__body > .btn-primary {
     margin-top: auto;
     align-self: flex-start;
+}
+
+/* Card modifier: smaller body + clamped summary, for dense strips like
+   the homepage "Selected Work" section — pairs with .cards--compact-grid
+   above. Same card, same visual, just less vertical space per card. */
+.card--compact .card__body {
+    padding: var(--space-2);
+    gap: 0.25rem;
+}
+
+.card--compact .card__body h3 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.card--compact .card__body p {
+    font-size: 0.875rem;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.card--compact .pill-tag {
+    font-size: 0.6875rem;
+}
+
+/* "Coming soon" / no-results card inside a cards grid — spans and
+   centers itself instead of sitting flush left in one column with the
+   rest of the row empty. */
+.card--empty-state {
+    grid-column: 1 / -1;
+    max-width: 480px;
+    margin-inline: auto;
+    text-align: center;
 }
 
 /* Small pill label (used above titles in cards) */
@@ -1885,6 +1837,10 @@ textarea.form-control {
     .cards.cards--2col {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .cards.cards--compact-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .bullet-list {
         grid-template-columns: repeat(2, 1fr);
         column-gap: var(--space-4);
@@ -1960,20 +1916,6 @@ textarea.form-control {
 }
 
 /* Timeline pill (e.g. "Launches in 3 weeks") */
-.card__timeline-badge {
-    display: inline-block;
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--color-teal-light);
-    font-weight: 700;
-    padding: 0.3125rem 0.75rem;
-    border-radius: 999px;
-    background: rgba(13, 148, 136, 0.12);
-    border: 1px solid rgba(13, 148, 136, 0.25);
-    margin-bottom: var(--space-2);
-    align-self: flex-start;
-}
 
 .card--featured .card__timeline-badge {
     color: var(--color-orange-light);
@@ -2030,6 +1972,15 @@ textarea.form-control {
     font-size: 0.8125rem;
     color: var(--color-text-muted);
     margin: 0 0 var(--space-3);
+}
+
+/* Like .card__price-meta but in the main text color, not muted — for a
+   detail that should read as part of the price itself (e.g. "for 24
+   months") rather than a footnote. */
+.card__price-note {
+    font-size: 0.9375rem;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
 }
 
 /* Checklist used inside pricing cards */
@@ -3432,9 +3383,7 @@ button.htmx-request {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .portfolio-strip {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    
 
     .footer-grid {
         grid-template-columns: 1.4fr 1fr 1fr 1fr;
@@ -3493,8 +3442,10 @@ button.htmx-request {
         grid-template-columns: repeat(3, 1fr);
     }
 
-    .portfolio-strip {
-        grid-template-columns: repeat(4, 1fr);
+    
+
+    .cards.cards--compact-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 

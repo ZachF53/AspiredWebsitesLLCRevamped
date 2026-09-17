@@ -4,6 +4,126 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 
+class City(models.Model):
+    """
+    One /locations/<city>/ page's worth of content.
+
+    Backs the generic `location_city` view (public/views.py) — one view
+    and one template now serve every city page. Before this model, each
+    city was a fully hand-written view + template with its own copy,
+    schema and section structure; this model exists to hold that same
+    copy as data instead of markup, so a new city doesn't need a new
+    view/template pair.
+
+    URL paths and their `name=` reversals are UNCHANGED — each city
+    still gets its own literal `path()` entry in public/urls.py (see
+    the comment there), routed to the one shared view with this row's
+    `slug` passed as a URL kwarg. `url_name` stores the matching
+    reversible name so `get_absolute_url()` and cross-links elsewhere
+    (e.g. case_study_detail.html) don't have to special-case city slugs.
+
+    Several fields hold raw HTML (``*_html``) rather than being broken
+    into further sub-fields. The three original pages disagreed on
+    structure as much as content — Warner Robins doesn't have a "Who We
+    Work With" section at all, Atlanta has a Georgia cross-link that San
+    Antonio doesn't — so the sections that varied in shape as well as
+    wording are stored as blocks an editor writes directly, matching
+    what was already hand-written per page. A block left blank hides
+    that section entirely rather than rendering an empty one.
+    """
+
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=100, unique=True)
+    state = models.CharField(max_length=2, blank=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    # The reversible URL name for this city's page, e.g.
+    # 'public:location_san_antonio' — see public/urls.py. Used by
+    # get_absolute_url() and by any page that links to a specific city.
+    url_name = models.CharField(max_length=100, blank=True)
+
+    # ── <head> ───────────────────────────────────────────────────────
+    meta_title = models.CharField(max_length=200, blank=True)
+    meta_description = models.CharField(max_length=300, blank=True)
+    og_title = models.CharField(max_length=200, blank=True)
+    og_description = models.CharField(max_length=300, blank=True)
+
+    # ── Hero ─────────────────────────────────────────────────────────
+    hero_eyebrow = models.CharField(max_length=100, blank=True)
+    hero_heading_html = models.CharField(
+        max_length=300, blank=True,
+        help_text='Full <h1> inner markup, e.g. \'Web Design for '
+                  '<span class="accent">San Antonio</span> Businesses\'.',
+    )
+    hero_lead = models.TextField(blank=True)
+
+    # ── "How we actually work here" section ─────────────────────────
+    honesty_eyebrow = models.CharField(
+        max_length=100, blank=True, default='Straight Up')
+    honesty_heading = models.CharField(max_length=200, blank=True)
+    honesty_subheading = models.CharField(max_length=300, blank=True)
+    honesty_html = models.TextField(
+        blank=True,
+        help_text='Raw HTML for this section\'s card(s).',
+    )
+
+    # ── Proof (case studies) section ─────────────────────────────────
+    proof_eyebrow = models.CharField(
+        max_length=100, blank=True, default='Proof')
+    proof_heading = models.CharField(
+        max_length=200, blank=True,
+        default='Work You Can Go And Look At',
+    )
+    proof_subheading = models.CharField(max_length=300, blank=True)
+
+    # ── "What You Get" value-tile section — blank heading hides it ──
+    value_tiles_eyebrow = models.CharField(max_length=100, blank=True)
+    value_tiles_heading = models.CharField(max_length=200, blank=True)
+
+    # ── Secondary section — "Who We Work With" / local-need cards /
+    # whatever this city's second proof-of-fit section actually is.
+    # Blank heading hides the section.
+    secondary_eyebrow = models.CharField(max_length=100, blank=True)
+    secondary_heading = models.CharField(max_length=200, blank=True)
+    secondary_html = models.TextField(blank=True)
+
+    # ── Cross-link to sibling city pages — blank hides it ───────────
+    cross_link_html = models.TextField(blank=True)
+
+    # ── CTA ──────────────────────────────────────────────────────────
+    cta_heading = models.CharField(max_length=200, blank=True)
+    cta_body_html = models.TextField(blank=True)
+
+    # ── Service schema (Master Plan §8/D8 — one Organization node,
+    # everything else references it; this feeds the page's Service
+    # block, never a second LocalBusiness/Organization node) ─────────
+    schema_service_name = models.CharField(max_length=200, blank=True)
+    schema_description = models.TextField(blank=True)
+    schema_area_served = models.JSONField(
+        default=list, blank=True,
+        help_text=('List of {"type": "City"|"AdministrativeArea"|'
+                   '"State", "name": "..."} for the Service schema\'s '
+                   'areaServed.'),
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'City'
+        verbose_name_plural = 'Cities'
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        if self.url_name:
+            return reverse(self.url_name)
+        return ''
+
+
 class Article(models.Model):
     """
     An /insights/ post — Aspired's own marketing blog.

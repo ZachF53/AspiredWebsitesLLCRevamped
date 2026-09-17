@@ -164,6 +164,101 @@ TIERS = [
             'SSL certificate management',
         ],
     },
+    # ─── HVAC pricing (Sept 2026 repositioning) ───
+    # Additive only — none of the tiers above are touched. These are new
+    # rows for the public pricing page; existing clients' build/maintenance/
+    # social/hosting tiers (and their live Stripe Price IDs) are untouched.
+    # `stripe_price_id` stays blank until Zach runs sync_stripe_products or
+    # sets one by hand — see the Change 8 billing note in pricing.html and
+    # the deliverable report for what checkout wiring these still need.
+    {
+        'slug': 'hvac-build-full', 'category': 'website_build',
+        'name': 'Website Build — Pay in Full', 'price': Decimal('2000.00'),
+        'is_recurring': False, 'billing_interval': '',
+        'sort_order': 20, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_BUILD_FULL',
+        'tagline': 'Own it outright from day one.',
+        'description': ('Aspired Websites LLC retains ownership of the '
+                        'website until paid in full.'),
+        'features': [
+            'Custom-coded, not a template',
+        ],
+    },
+    {
+        'slug': 'hvac-build-installment', 'category': 'website_build',
+        'name': 'Website Build — 24-Month Installment',
+        'price': Decimal('105.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'price_display': '$105/mo',
+        'sort_order': 21, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_BUILD_INSTALLMENT',
+        'tagline': '$2,520 total — same build, spread out.',
+        'description': ('Aspired Websites LLC retains ownership of the '
+                        'website until paid in full.'),
+        'features': [
+            'Custom-coded, not a template',
+            '24 payments of $105 ($2,520 total)',
+        ],
+    },
+    {
+        'slug': 'hvac-full-plan', 'category': 'maintenance',
+        'name': 'Full Plan', 'price': Decimal('250.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'sort_order': 0, 'is_featured': True,
+        'env': 'STRIPE_PRICE_HVAC_FULL_PLAN',
+        'tagline': 'Build payment plus hosting, maintenance, and the '
+                   'automated review system — bundled into one plan.',
+        'description': ('Includes the $105/month build payment plus '
+                        '$145/month for hosting, maintenance, unlimited '
+                        'content updates, security patching, and the '
+                        'automated review system. After the build is '
+                        'paid off at month 24, the rate drops '
+                        'automatically to $145/month. Month-to-month '
+                        'after that — cancel anytime.'),
+        'features': [
+            'Includes the $105/mo build payment',
+            'Hosting, maintenance, and unlimited content updates',
+            'Security patching included',
+            'Automated review generation included',
+            'Drops to $145/mo automatically after month 24',
+            'Month-to-month after the build term — cancel anytime',
+        ],
+    },
+    {
+        'slug': 'hvac-plan-paid-in-full', 'category': 'maintenance',
+        'name': 'Full Plan — Build Paid in Full', 'price': Decimal('145.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'sort_order': 1, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_PLAN_PAID_IN_FULL',
+        'tagline': 'For clients who paid the $2,000 build upfront — '
+                   'no build payment folded into the monthly rate.',
+        'description': ('Hosting, maintenance, unlimited content '
+                        'updates, security patching, and the automated '
+                        'review system. Month-to-month, cancel anytime.'),
+        'features': [
+            'Hosting, maintenance, and unlimited content updates',
+            'Security patching included',
+            'Automated review generation included',
+            'Month-to-month from day one — cancel anytime',
+        ],
+    },
+    {
+        'slug': 'hvac-hosting-security', 'category': 'hosting',
+        'name': 'Hosting + Security Only', 'price': Decimal('45.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'sort_order': 20, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_HOSTING_SECURITY',
+        'tagline': 'Server and OS patching, SSL renewal, security '
+                   'updates. Forms stay live.',
+        'description': ('No content edits, no code changes, no review '
+                        'system.'),
+        'features': [
+            'Server and OS patching',
+            'SSL certificate renewal',
+            'Application and dependency security updates',
+            'Forms stay live',
+        ],
+    },
     # ─── Domain registrations ───
     {
         'slug': 'domain-standard', 'category': 'addon',
@@ -264,6 +359,9 @@ class Command(BaseCommand):
                     'category': data['category'],
                     'name': data['name'],
                     'price': data['price'],
+                    'price_display': data.get('price_display', ''),
+                    'tagline': data.get('tagline', ''),
+                    'description': data.get('description', ''),
                     'is_recurring': data['is_recurring'],
                     'billing_interval': data['billing_interval'],
                     'stripe_price_id': preserve_id,

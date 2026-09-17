@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Web Design Portfolio | Aspired Websites{% endblock %}
+{% block title %}HVAC Website Design Portfolio | Aspired Websites{% endblock %}
+
+{% block meta_description %}Custom-coded websites built for HVAC contractors by Aspired Websites. Real projects, real screenshots, hand-coded and mobile-first.{% endblock %}
 
 {% block content %}
 
@@ -9,9 +11,9 @@
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Our Work</span>
-            <h1>Real Websites. Real Businesses. <span class="accent">Real Results.</span></h1>
+            <h1>Real HVAC Websites. Real Contractors. <span class="accent">Real Results.</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">Real sites for real businesses. Hand-coded, mobile-first, built to convert.</p>
+            <p class="hero__lead">Custom-coded sites for HVAC contractors, built mobile-first and tied to our automated review system.</p>
         </div>
     </div>
 </section>
@@ -23,13 +25,14 @@
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Portfolio</span>
-            <h2>Recent Projects</h2>
+            <h2>Recent HVAC Projects</h2>
         </div>
 
         {% comment %}
-        Rendered from published CaseStudy rows rather than hardcoded
-        markup, so each project can have its own indexable URL (§11).
-        Seeded by `manage.py seed_case_studies`.
+        Rendered from published CaseStudy rows where is_hvac=True rather
+        than hardcoded markup, so each project can have its own indexable
+        URL (§11). Seeded by `manage.py seed_case_studies`; is_hvac is
+        set per row in the admin.
 
         The primary link is now the case study, not the live client
         site — an outbound link sends the visitor away, whereas the
@@ -38,28 +41,22 @@
         {% endcomment %}
         <div class="cards cards--2col">
             {% for study in case_studies %}
-                <article class="card card--with-visual">
-                    {% include "core/_case_study_visual.html" with study=study %}
-                    <div class="card__body">
-                        {% if study.business_type or study.location %}
-                            <span class="pill-tag">{{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}</span>
-                        {% endif %}
-                        <h3><a href="{{ study.get_absolute_url }}">{{ study.title }}</a></h3>
-                        {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
-                        <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>
-                    </div>
-                </article>
+                {% include "core/_case_study_card.html" with study=study %}
             {% empty %}
-                <article class="card">
+                <article class="card card--empty-state">
                     <div class="card__body">
-                        <h3>Case studies coming soon</h3>
-                        <p>Our project write-ups are being published. In the meantime, <a href="{% url 'public:contact' %}">get in touch</a> and we&rsquo;ll walk you through relevant work directly.</p>
+                        <h3>HVAC case studies coming soon</h3>
+                        <p>Our HVAC project write-ups are being published. In the meantime, <a href="{% url 'public:contact' %}">get in touch</a> and we&rsquo;ll walk you through relevant work directly.</p>
                     </div>
                 </article>
             {% endfor %}
         </div>
     </div>
 </section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{% include "core/_not_hvac_cta.html" %}
 
 <hr class="section-divider" aria-hidden="true">
 

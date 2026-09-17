@@ -27,6 +27,7 @@ from .account_models import Account, Website, WebsiteStageLog
 from .contract_template import generate_contract_text
 from .emails import send_contract_ready_email
 from .models import (
+    CaseStudy,
     ClientDocument,
     Contract,
     ContractService,
@@ -324,3 +325,15 @@ class UptimeAlertAdmin(admin.ModelAdmin):
     search_fields = WEBSITE_SEARCH
     readonly_fields = ('created_at', 'updated_at', 'alerted_at')
     list_select_related = ('website_new',)
+
+
+@admin.register(CaseStudy)
+class CaseStudyAdmin(admin.ModelAdmin):
+    list_display = (
+        'title', 'business_type', 'city', 'location', 'is_hvac',
+        'is_published', 'published_at',
+    )
+    list_filter = ('is_hvac', 'is_published', 'city', 'engagement_type')
+    search_fields = ('title', 'business_type', 'location', 'summary')
+    readonly_fields = ('created_at', 'updated_at', 'slug')
+    list_select_related = ('city', 'website_new')

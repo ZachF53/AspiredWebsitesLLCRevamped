@@ -41,6 +41,26 @@ from django.utils import timezone
 
 from clients.models import CaseStudy
 
+
+def _city_for_location(location):
+    """
+    Best-effort City match from the free-text `location` field, same
+    priority order as public.migrations.0006_seed_cities' one-time
+    backfill. Keeps freshly-seeded/re-seeded rows linked to their City
+    (used by /locations/<city>/'s HVAC/other split) without requiring
+    every seed source to know about the City model directly.
+    """
+    from public.models import City
+    text = (location or '').lower()
+    for slug, needles in (
+        ('san-antonio', ['san antonio']),
+        ('atlanta', ['atlanta']),
+        ('warner-robins', ['warner robins', 'macon']),
+    ):
+        if any(needle in text for needle in needles):
+            return City.objects.filter(slug=slug).first()
+    return None
+
 STUDIES = [
     {
         'slug': 'denis-law-group',
@@ -194,12 +214,21 @@ class Command(BaseCommand):
             existing = CaseStudy.objects.filter(slug=slug).first()
 
             if existing and not options['force']:
-                # Publish it if it somehow is not, but never clobber
-                # copy that may have been edited in the admin.
+                # Publish it if it somehow is not, and link a missing
+                # City if one can be inferred — neither touches copy
+                # that may have been edited in the admin.
+                healed = False
                 if not existing.is_published:
                     existing.is_published = True
                     existing.published_at = (existing.published_at
                                              or timezone.now())
+                    healed = True
+                if existing.city_id is None:
+                    city = _city_for_location(existing.location)
+                    if city is not None:
+                        existing.city = city
+                        healed = True
+                if healed:
                     existing.save()
                     updated += 1
                     self.stdout.write(f'  published: {slug}')
@@ -210,6 +239,7 @@ class Command(BaseCommand):
             fields = dict(data)
             fields.pop('slug')
             fields['is_published'] = True
+            fields['city'] = _city_for_location(fields.get('location'))
 
             if existing:
                 for key, value in fields.items():

@@ -6,7 +6,6 @@ import requests
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
-from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -113,16 +112,21 @@ def home(request):
     # the firm actually does family law and adoption. Driving it from
     # the same CaseStudy rows as /portfolio/ fixes the wrong detail,
     # brings in the real screenshots, and means it cannot drift again.
+    #
+    # HVAC-only since the Sept 2026 repositioning — non-HVAC work is
+    # still on the site (public:portfolio_other), just not on the page
+    # that's supposed to be selling to HVAC contractors specifically.
     from clients.models import CaseStudy
     return render(request, 'public/home.html', {
         'active_nav': 'home',
         'studies': CaseStudy.objects.filter(
-            is_published=True).order_by('-published_at')[:4],
-        'meta_title': 'Custom Websites for Law Firms and Small Businesses',
+            is_published=True, is_hvac=True,
+        ).order_by('-published_at')[:4],
+        'meta_title': 'Custom Websites for HVAC Contractors',
         'meta_description': (
-            'Aspired Websites builds hand-coded, security-hardened websites '
-            'for law firms and small businesses in Texas and Georgia. Led by '
-            'a CISSP-certified cybersecurity engineer.'
+            'Aspired Websites builds custom-coded websites and automated '
+            'review generation for HVAC contractors. Led by a '
+            'CISSP-certified cybersecurity engineer.'
         ),
     })
 
@@ -177,17 +181,47 @@ def portfolio(request):
     Previously four hardcoded cards. Master Plan §11 requires each
     project to have its own indexable URL, which needs them to be data
     rather than markup. Seeded by `manage.py seed_case_studies`.
+
+    HVAC-only since the Sept 2026 repositioning (Change 5) — non-HVAC
+    work moved to /portfolio/other/ (portfolio_other, below) rather than
+    off the site, and this page links to it.
     """
     from clients.models import CaseStudy
     return render(request, 'public/portfolio.html', {
         'active_nav': 'portfolio',
         'case_studies': CaseStudy.objects.filter(
-            is_published=True).order_by('-published_at', '-created_at'),
-        'meta_title': 'Portfolio — Aspired Websites',
+            is_published=True, is_hvac=True,
+        ).order_by('-published_at', '-created_at'),
+        'meta_title': 'HVAC Website Design Portfolio | Aspired Websites',
         'meta_description': (
-            'Recent work by Aspired Websites: Denis Law Group, '
-            'Food Trucks of San Antonio, Moonieful Designs, and '
-            'Burgland Technologies. Hand-coded, mobile-first.'
+            'Custom-coded websites built for HVAC contractors by '
+            'Aspired Websites. Real projects, real screenshots, '
+            'hand-coded and mobile-first.'
+        ),
+    })
+
+
+def portfolio_other(request):
+    """
+    /portfolio/other/ — non-HVAC work (Sept 2026 repositioning, Change 4).
+
+    Aspired's public positioning narrowed to HVAC contractors only; this
+    page is where the pre-repositioning work stays visible — reachable
+    from the main portfolio's "Not an HVAC company?" CTA — rather than
+    disappearing from the site. Same grid, card and filtering as
+    /portfolio/, just is_hvac=False instead of True.
+    """
+    from clients.models import CaseStudy
+    return render(request, 'public/portfolio_other.html', {
+        'active_nav': 'portfolio',
+        'case_studies': CaseStudy.objects.filter(
+            is_published=True, is_hvac=False,
+        ).order_by('-published_at', '-created_at'),
+        'meta_title': 'Other Web Design Work | Aspired Websites',
+        'meta_description': (
+            'Aspired Websites now focuses on HVAC contractors, but '
+            'here is the custom, hand-coded work we’ve built for '
+            'other businesses, including law firms and food trucks.'
         ),
     })
 
@@ -286,94 +320,46 @@ def service_custom_web_development(request):
         })
 
 
-def location_san_antonio(request):
+def location_city(request, slug):
     """
-    /locations/san-antonio/ — the one location page (D5).
+    /locations/<city>/ — one generic view for every city page.
 
-    2,860/mo explicit demand, 14x the build threshold, and the only
-    city the homepage cannot credibly serve because the homepage is
-    Atlanta-branded.
+    Was three hand-written view/template pairs (location_san_antonio,
+    location_atlanta, location_warner_robins) with their own copy and
+    schema hardcoded into each template. That content now lives on the
+    City model (public.models.City) — seeded verbatim from the three
+    original templates by the public.0006_seed_cities data migration —
+    so a new city needs a City row, not a new view/template pair.
 
-    Served 100% remotely — there is no San Antonio office and the page
-    says so outright (§15: no fake offices). What makes it substantive
-    rather than a thin city page is that three of our four case
-    studies are genuinely San Antonio clients.
+    URL paths and their name= reversals are unchanged: public/urls.py
+    still has one literal path() per city, each passing its slug as a
+    kwarg to this same view, so 'public:location_atlanta' etc. keep
+    resolving exactly where they always did.
+
+    The case-study section below the hero follows the HVAC/other split
+    (Sept 2026 repositioning): HVAC work for this city above the
+    divider, everything else below it, either group hidden entirely
+    when empty. This replaces the old per-city "no local clients yet"
+    fallback copy — see the City model docstring for what's preserved
+    vs. what changed.
     """
+    from django.shortcuts import get_object_or_404
     from clients.models import CaseStudy
-    return render(request, 'public/location_san_antonio.html', {
+    from public.models import City
+
+    city = get_object_or_404(City, slug=slug, is_active=True)
+
+    return render(request, 'public/location_city.html', {
         'active_nav': '',
-        'sa_studies': CaseStudy.objects.filter(
-            is_published=True, location__icontains='San Antonio'
+        'city': city,
+        'hvac_studies': CaseStudy.objects.filter(
+            is_published=True, is_hvac=True, city=city,
+        ).order_by('-published_at'),
+        'other_studies': CaseStudy.objects.filter(
+            is_published=True, is_hvac=False, city=city,
         ).order_by('-published_at'),
         'breadcrumbs': [
-            ('San Antonio Web Design', None),
-        ],
-    })
-
-
-def _published_studies(limit=4):
-    """Published case studies, newest first — shared by the location pages."""
-    from clients.models import CaseStudy
-    return CaseStudy.objects.filter(
-        is_published=True).order_by('-published_at')[:limit]
-
-
-def location_atlanta(request):
-    """
-    /locations/atlanta/ — revised D5, Aug 2026.
-
-    D5 originally said no Atlanta page because "the homepage already
-    owns Atlanta intent (title/H1/schema)". Two thirds of that is gone:
-    the Atlanta address was a registered-agent suite and was removed
-    from the footer and schema, and the homepage title has since been
-    retargeted to the service. 2,160/mo of explicit demand was left
-    with nothing pointed at it.
-
-    §15 bites harder here than on San Antonio, because there are no
-    Atlanta case studies to lean on. What the page has instead is true:
-    Aspired is a Georgia company ~100 miles down I-75, so "we can be
-    there" is a fact rather than a claim. `has_atlanta_study` drives an
-    explicit "no Atlanta clients yet" note — the page states the gap
-    rather than implying local work that does not exist, and it will
-    stop saying so on its own once an Atlanta client is published.
-    """
-    from clients.models import CaseStudy
-    return render(request, 'public/location_atlanta.html', {
-        'active_nav': '',
-        'studies': _published_studies(),
-        'has_atlanta_study': CaseStudy.objects.filter(
-            is_published=True, location__icontains='Atlanta').exists(),
-        'breadcrumbs': [
-            ('Atlanta Web Design', None),
-        ],
-    })
-
-
-def location_warner_robins(request):
-    """
-    /locations/warner-robins/ — revised D5, Aug 2026.
-
-    Rejected originally on volume (~10/mo explicit, under the 50/mo
-    floor) and on volume alone that was correct. Built anyway because
-    it is the only page on the site where "we are local to you" is
-    literally true: the ProfessionalService schema and footer NAP both
-    resolve to Warner Robins.
-
-    That makes it the anchor the Google Business Profile work needs — a
-    service-area GBP wants a crawlable page whose city matches the
-    profile and the site's schema. It is a credibility and local-signal
-    asset, not a traffic play, and should not be judged on sessions.
-    """
-    from clients.models import CaseStudy
-    local = Q(location__icontains='Warner Robins') | Q(
-        location__icontains='Macon') | Q(location__icontains='GA')
-    return render(request, 'public/location_warner_robins.html', {
-        'active_nav': '',
-        'studies': _published_studies(),
-        'has_local_study': CaseStudy.objects.filter(
-            local, is_published=True).exists(),
-        'breadcrumbs': [
-            ('Warner Robins Web Design', None),
+            (f'{city.name} Web Design', None),
         ],
     })
 
@@ -514,20 +500,46 @@ def service_website_redesign(request):
 
 
 def pricing(request):
+    """
+    /pricing/ — HVAC pricing (Sept 2026 repositioning, Change 8).
+
+    Pulls the four new hvac-* ServiceTier rows by slug rather than by
+    category, so this page doesn't mix in the pre-repositioning
+    builds/maintenance/social/hosting tiers — those rows are untouched
+    in the DB (existing clients' subscriptions still reference them),
+    just not shown here. See billing/management/commands/seed_pricing.py
+    for the seed data and the deliverable report for what checkout
+    wiring the Full Plan and the 24-month build installment still need
+    before "Buy Now" can go live on them.
+    """
     from billing.pricing_models import AddonPricing, ServiceTier
+
+    tiers = {
+        t.slug: t for t in ServiceTier.objects.filter(
+            slug__in=[
+                'hvac-build-full', 'hvac-build-installment',
+                'hvac-full-plan', 'hvac-plan-paid-in-full',
+                'hvac-hosting-security',
+            ],
+            is_active=True,
+        ).prefetch_related('features')
+    }
     return render(request, 'public/pricing.html', {
         'active_nav': 'pricing',
-        'meta_title': 'Pricing — Aspired Websites',
+        'meta_title': 'HVAC Website Pricing | Aspired Websites',
         'meta_description': (
-            'Transparent pricing for website builds, monthly maintenance, '
-            'social media management, and hosting. Month-to-month, '
-            'cancel anytime. No annual contracts.'
+            'Transparent pricing for HVAC contractor websites: a '
+            '$2,000 build (or $105/mo), a $250/mo Full Plan with '
+            'hosting, maintenance and automated review generation, '
+            'or hosting and security alone at $45/mo.'
         ),
-        'builds': ServiceTier.get_active('website_build'),
-        'maintenance': ServiceTier.get_active('maintenance'),
-        'social': ServiceTier.get_active('social_media'),
-        'hosting': ServiceTier.get_active('hosting').first(),
-        'addons': AddonPricing.objects.filter(is_active=True),
+        'build_full': tiers.get('hvac-build-full'),
+        'build_installment': tiers.get('hvac-build-installment'),
+        'full_plan': tiers.get('hvac-full-plan'),
+        'plan_paid_in_full': tiers.get('hvac-plan-paid-in-full'),
+        'hosting_security': tiers.get('hvac-hosting-security'),
+        'hourly': AddonPricing.objects.filter(
+            slug='addon-hourly', is_active=True).first(),
     })
 
 

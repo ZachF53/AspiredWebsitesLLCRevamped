@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ meta_title|default:"Aspired Websites" }} — Aspired Websites{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses in Texas and Georgia.' }}{% endblock %}">
+    <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC contractors.' }}{% endblock %}">
     <meta name="theme-color" content="#0C1121">
 
     {% comment %}
@@ -46,13 +46,13 @@
 
     <meta property="og:site_name" content="Aspired Websites">
     <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Aspired Websites' }}{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}{{ meta_description|default:'Custom, hand-coded, security-hardened websites for law firms and small businesses.' }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC contractors.' }}{% endblock %}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ CANONICAL_URL }}">
     {% block og_image %}<meta property="og:image" content="{{ SITE_BASE_URL }}{% static 'images/og-default.png' %}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Aspired Websites — hand-coded, security-first web design for law firms and small businesses">{% endblock %}
+    <meta property="og:image:alt" content="Aspired Websites: custom-coded websites for HVAC contractors">{% endblock %}
     <meta name="twitter:card" content="summary_large_image">
 
     {# Disable HTMX's auto-injected indicator <style> — blocked by our strict CSP. #}
@@ -201,7 +201,7 @@
                         <span class="logo-mark" aria-hidden="true"></span>
                         <span class="logo-text">Aspired Websites</span>
                     </a>
-                    <p>Custom, hand-coded, security-hardened websites for law firms and small businesses.</p>
+                    <p>Custom-coded websites and automated review generation for HVAC contractors.</p>
                     {% comment %}
                     NAP block — Master Plan §1.1.
 
@@ -233,11 +233,28 @@
                 <div class="footer-col">
                     <h3>Services</h3>
                     <ul>
-                        <li><a href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
+                        <li><a href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
+                        <li><a href="{% url 'public:pricing' %}">Automated Review Generation</a></li>
+                        <li><a href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
+                        <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
+                    </ul>
+                </div>
+
+                {% comment %}
+                Other Industries — Sept 2026 repositioning narrowed the
+                headline offer to HVAC only, but the pre-repositioning
+                service pages and law-firm/small-business work stay
+                reachable rather than disappearing (see
+                public:portfolio_other for the equivalent on the
+                portfolio side).
+                {% endcomment %}
+                <div class="footer-col">
+                    <h3>Other Industries</h3>
+                    <ul>
+                        <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
                         <li><a href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social Media</a></li>
                         <li><a href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
-                        <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
-                        <li><a href="{% url 'public:audit' %}">Free SEO Audit</a></li>
+                        <li><a href="{% url 'public:portfolio_other' %}">Other Businesses We&rsquo;ve Helped</a></li>
                     </ul>
                 </div>
 

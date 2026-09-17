@@ -1,18 +1,13 @@
 {% extends "base.html" %}
 
 {% comment %}
-Title carries the service, not a city — revised D5, Aug 2026.
-
-It used to read "Custom Web Design in Atlanta". Two things broke that.
-The Atlanta address in the footer and schema was a registered-agent
-suite and was removed, so the page asserted a city its own markup no
-longer claimed. And /locations/atlanta/ now exists to own that intent;
-leaving it here would put the homepage in direct competition with it,
-which is the cannibalisation §6.1 exists to prevent.
-
-The H1 is unchanged (D9).
+Sept 2026 repositioning — Aspired narrowed from general web design to
+one avatar: HVAC contractors. One offer, one avatar, one message.
+Social media and SEO stopped being standalone products (they're now
+just what's included in a build/maintenance plan); the homepage sells
+custom HVAC websites + automated review generation.
 {% endcomment %}
-{% block title %}Custom Web Design for Law Firms & Small Business | Aspired{% endblock %}
+{% block title %}Custom Websites for HVAC Contractors | Aspired{% endblock %}
 
 {% block content %}
 
@@ -20,11 +15,12 @@ The H1 is unchanged (D9).
 <section class="hero">
     <div class="container">
         <div class="hero__inner">
-            <h1>Custom Web Design Built to Work as Hard as <span class="accent">You Do</span></h1>
+            <h1>Custom Websites for HVAC Companies That <span class="accent">Book More Jobs</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
             <p class="hero__lead">
-                Hand-coded, security-hardened websites for law firms and small businesses
-                that turn visitors into clients. No templates. No page builders. No bloat.
+                Custom-coded, not a template, built specifically for HVAC contractors.
+                Automated review generation turns every finished job into a Google
+                review. No page builders. No bloat.
             </p>
             <div class="hero__ctas">
                 <a class="btn btn--primary btn--lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
@@ -42,8 +38,8 @@ The H1 is unchanged (D9).
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">What We Do</span>
-            <h2>Three Services. One Goal: Grow Your Business.</h2>
-            <p>Everything we build is owned by you, written in code we can hand off, and tuned for the clients you actually want.</p>
+            <h2>Three Services. One Goal: Book More Jobs.</h2>
+            <p>Everything we build is owned by you, written in code we can hand off, and built for HVAC customers specifically. Not a generic template with your logo on it.</p>
         </div>
 
         <div class="cards">
@@ -51,27 +47,27 @@ The H1 is unchanged (D9).
                 <div class="card__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M9 14h6"/></svg>
                 </div>
-                <h3>Custom Web Design</h3>
-                <p>Hand-coded websites built around your business and your clients. No templates, no drag-and-drop builders, no recycled themes.</p>
+                <h3>Custom HVAC Website</h3>
+                <p>Hand-coded, not built from a theme, and designed around how homeowners actually search for and book HVAC work. SEO fundamentals (clean markup, schema, fast load) are built in, not sold separately.</p>
                 <a class="card__link" href="{% url 'public:service_web_design' %}">Web design services </a>
             </article>
 
             <article class="card">
                 <div class="card__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M3 21V10"/><path d="M9 21V14"/><path d="M15 21V8"/><path d="M21 21V4"/><path d="M3 21h18"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.4 8 10 4.5-.6 8-5 8-10V6l-8-4z"/><path d="m9 12 2 2 4-4"/></svg>
                 </div>
-                <h3>Digital Marketing &amp; Social Media</h3>
-                <p>Get found, get followers, get clients. Content posted on the platforms where your audience actually is — managed monthly.</p>
-                <a class="card__link" href="{% url 'public:service_digital_marketing' %}">Marketing services </a>
+                <h3>Automated Review Generation</h3>
+                <p>Every completed job automatically triggers a review request. More Google reviews, without a technician or office manager having to remember to ask.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">See the Full Plan </a>
             </article>
 
             <article class="card">
                 <div class="card__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
                 </div>
-                <h3>Search Engine Optimization</h3>
-                <p>Show up first when people search for the services you offer. Local-first SEO for the cities where your business actually competes.</p>
-                <a class="card__link" href="{% url 'public:service_seo' %}">SEO services </a>
+                <h3>Hosting &amp; Maintenance</h3>
+                <p>Your own isolated server, security patching, unlimited content updates, and a real person who answers. Not a ticket queue.</p>
+                <a class="card__link" href="{% url 'public:pricing' %}">Hosting &amp; maintenance pricing </a>
             </article>
         </div>
     </div>
@@ -206,49 +202,35 @@ The H1 is unchanged (D9).
 <hr class="section-divider" aria-hidden="true">
 
 {# ───────── Portfolio strip ───────── #}
+{% comment %}
+Deliberately smaller and shorter than the full /portfolio/ grid — this
+is a homepage teaser, not the portfolio itself. Compact card variant +
+compact-grid (core/_case_study_card.html, core/static/css/main.css)
+instead of the old dedicated portfolio-item markup, so this is the same
+card component used everywhere else on the site, just sized down.
+
+HVAC-only (is_hvac=True, filtered in public.views.home) since the Sept
+2026 repositioning — will often be empty at first, hence the {% empty %}
+fallback below, until HVAC case studies exist.
+{% endcomment %}
 <section class="section">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Selected Work</span>
-            <h2>Recent Builds</h2>
+            <h2>Recent HVAC Builds</h2>
         </div>
 
-        {% comment %}
-        Driven by the CaseStudy table, same source as /portfolio/.
-
-        This used to be four hardcoded cards with placeholder visuals.
-        Two problems with that: the visuals were name plates rather than
-        the work, and the copy had drifted from reality — it called
-        Denis Law Group a "personal-injury practice" when the firm does
-        family law and adoption. Hardcoded proof about real clients goes
-        stale silently, which is the failure mode §15 cares about most.
-        {% endcomment %}
-        <div class="portfolio-strip">
+        <div class="cards cards--compact-grid">
             {% for study in studies %}
-                <a class="portfolio-item" href="{{ study.get_absolute_url }}">
-                    {% if study.screenshot %}
-                        <div class="portfolio-item__visual portfolio-item__visual--shot">
-                            <img src="{{ study.screenshot.url }}"
-                                 alt="{{ study.image_alt }}"
-                                 width="1200" height="750" loading="lazy" decoding="async">
-                        </div>
-                    {% else %}
-                        <div class="portfolio-item__visual"><span>{{ study.title }}</span></div>
-                    {% endif %}
-                    <div class="portfolio-item__body">
-                        {% if study.business_type %}<div class="portfolio-item__type">{{ study.business_type }}</div>{% endif %}
-                        <div class="portfolio-item__title">{{ study.title }}</div>
-                        {% if study.summary %}<p class="portfolio-item__desc">{{ study.summary }}</p>{% endif %}
-                    </div>
-                </a>
+                {% include "core/_case_study_card.html" with study=study compact=True %}
             {% empty %}
-                <a class="portfolio-item" href="{% url 'public:portfolio' %}">
-                    <div class="portfolio-item__visual"><span>Recent work</span></div>
-                    <div class="portfolio-item__body">
-                        <div class="portfolio-item__title">See the portfolio</div>
-                        <p class="portfolio-item__desc">Project write-ups are publishing shortly.</p>
+                <article class="card card--with-visual card--compact card--empty-state">
+                    <div class="card__visual gradient-blue" aria-hidden="true"></div>
+                    <div class="card__body">
+                        <h3><a href="{% url 'public:portfolio' %}">See the portfolio</a></h3>
+                        <p>HVAC project write-ups are publishing shortly.</p>
                     </div>
-                </a>
+                </article>
             {% endfor %}
         </div>
     </div>
@@ -256,12 +238,16 @@ The H1 is unchanged (D9).
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
+{% include "core/_not_hvac_cta.html" %}
+
+<hr class="section-divider" aria-hidden="true">
+
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">
     <div class="container">
         <div class="cta-block__inner">
-            <h2>Ready to Build a Website Your Business Deserves?</h2>
-            <p>Free 30-minute consultation. Hand-coded, security-hardened, built around your business — not a template.</p>
+            <h2>Ready to Build a Website That Books More HVAC Jobs?</h2>
+            <p>Free 30-minute consultation. Custom-coded, security-hardened, built around HVAC customers. Not a template.</p>
             <a class="btn btn--primary btn--lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
         </div>
     </div>

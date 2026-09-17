@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ city.meta_title }}{% endblock %}
+{% block meta_description %}{{ city.meta_description }}{% endblock %}
+{% block og_title %}{{ city.og_title }}{% endblock %}
+{% block og_description %}{{ city.og_description }}{% endblock %}
+
+{% comment %}
+Generic city page — see public.views.location_city and the City model
+docstring (public/models.py) for why this replaced three hand-written
+templates. Every per-city string here comes from the `city` object;
+this file holds the structure that's genuinely shared.
+
+Schema is a Service with this city's areaServed, provider pointing at
+the single sitewide organisation by @id — deliberately NOT a second
+LocalBusiness/Organization node (Master Plan §8/D8 — exactly one
+business entity for the whole site).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Web Design",
+    "name": "{{ city.schema_service_name }}",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": [
+        {% for area in city.schema_area_served %}
+        { "@type": "{{ area.type }}", "name": "{{ area.name }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    "description": "{{ city.schema_description }}",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$2,500 - $4,500"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            {% if city.hero_eyebrow %}<span class="eyebrow">{{ city.hero_eyebrow }}</span>{% endif %}
+            <h1>{{ city.hero_heading_html|safe }}</h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            {% if city.hero_lead %}<p class="hero__lead">{{ city.hero_lead }}</p>{% endif %}
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
+            </div>
+            <p class="hero__meta">
+                From $2,500 &middot; <a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── How we actually work here ───────── #}
+{% if city.honesty_heading %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            {% if city.honesty_eyebrow %}<span class="eyebrow">{{ city.honesty_eyebrow }}</span>{% endif %}
+            <h2>{{ city.honesty_heading }}</h2>
+            {% if city.honesty_subheading %}<p>{{ city.honesty_subheading }}</p>{% endif %}
+        </div>
+        {{ city.honesty_html|safe }}
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{% comment %}
+Proof — HVAC work above the divider, everything else below (Sept 2026
+repositioning). Either group hides itself, along with its heading and
+the divider between them, when empty — a city with no case studies of
+either kind yet renders nothing here at all rather than an empty
+section.
+{% endcomment %}
+{% if hvac_studies or other_studies %}
+<section class="section">
+    <div class="container">
+        {% if hvac_studies %}
+            <div class="section-header">
+                {% if city.proof_eyebrow %}<span class="eyebrow">{{ city.proof_eyebrow }}</span>{% endif %}
+                <h2>{{ city.proof_heading }}</h2>
+                {% if city.proof_subheading %}<p>{{ city.proof_subheading }}</p>{% endif %}
+            </div>
+            <div class="cards cards--2col">
+                {% for study in hvac_studies %}
+                    {% include "core/_case_study_card.html" with study=study %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if hvac_studies and other_studies %}
+            <hr class="section-divider" aria-hidden="true">
+        {% endif %}
+
+        {% if other_studies %}
+            <div class="section-header">
+                <h2>Here are other businesses we helped out in {{ city.name }}</h2>
+            </div>
+            <div class="cards cards--2col">
+                {% for study in other_studies %}
+                    {% include "core/_case_study_card.html" with study=study %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+{% endif %}
+
+{# ───────── What You Get ───────── #}
+{% if city.value_tiles_heading %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            {% if city.value_tiles_eyebrow %}<span class="eyebrow">{{ city.value_tiles_eyebrow }}</span>{% endif %}
+            <h2>{{ city.value_tiles_heading }}</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Custom, Not Templated</h3>
+                <p>Written for your business rather than adapted from a theme &mdash; so it doesn&rsquo;t look like the three competitors who bought the same one. See <a href="{% url 'public:service_custom_web_development' %}">custom web development</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Fast On A Phone</h3>
+                <p>Most local searches happen on mobile data, not office wifi. Our own site loads in about 1.5 seconds on mobile &mdash; measured, and you can check it yourself.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Built To Be Found Locally</h3>
+                <p>Clean structure, schema, and the on-site groundwork local search depends on. Ongoing map-pack work is <a href="{% url 'public:service_local_seo' %}">local SEO</a>.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Security-Hardened</h3>
+                <p>Built by a CISSP-certified engineer. HTTPS, security headers, server-side validation, rate-limited forms. Standard on every build.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>You Own It</h3>
+                <p>Code, content, domain, hosting. Leave whenever and take every file &mdash; the site keeps working.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>A Real Person Answers</h3>
+                <p>You talk to the engineer who built it, not an account manager relaying messages. We answer within 24 hours, seven days a week.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{% comment %}
+Secondary section — "Who We Work With" / local-fit cards, whatever this
+city's second proof-of-fit section is.
+{% endcomment %}
+{% if city.secondary_heading %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            {% if city.secondary_eyebrow %}<span class="eyebrow">{{ city.secondary_eyebrow }}</span>{% endif %}
+            <h2>{{ city.secondary_heading }}</h2>
+        </div>
+        {{ city.secondary_html|safe }}
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+{% endif %}
+
+{# ───────── Cross-link to sibling city pages ───────── #}
+{% if city.cross_link_html %}
+<section class="section section--alt">
+    <div class="container">
+        {{ city.cross_link_html|safe }}
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>{{ city.cta_heading }}</h2>
+            <p>{{ city.cta_body_html|safe }}</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

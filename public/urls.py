@@ -9,6 +9,10 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('for-law-firms/', views.law_firms, name='law_firms'),
     path('portfolio/', views.portfolio, name='portfolio'),
+    # Non-HVAC portfolio (Sept 2026 repositioning) — must come before the
+    # <slug:slug> pattern below, or '/portfolio/other/' would match it
+    # first with slug='other' and 404 as a case study that doesn't exist.
+    path('portfolio/other/', views.portfolio_other, name='portfolio_other'),
     # Master Plan §11 — every project gets its own indexable URL.
     path('portfolio/<slug:slug>/', views.case_study_detail,
          name='case_study_detail'),
@@ -59,12 +63,18 @@ urlpatterns = [
     #                 service-area GBP can point at
     # Still no /locations/ index — a hub listing three links, with
     # nothing to say of its own, is the thin page §15 forbids.
-    path('locations/san-antonio/', views.location_san_antonio,
-         name='location_san_antonio'),
-    path('locations/atlanta/', views.location_atlanta,
-         name='location_atlanta'),
-    path('locations/warner-robins/', views.location_warner_robins,
-         name='location_warner_robins'),
+    # One generic view (location_city) serves all three — each keeps its
+    # own literal path and name= so every existing URL and {% url %}
+    # reference (sitemaps.py, base.html footer, legacy_redirects.py,
+    # case_study_detail.html) resolves exactly where it always did. The
+    # per-city copy that used to be hardcoded in three templates now
+    # lives on the City model (see public/views.py location_city).
+    path('locations/san-antonio/', views.location_city,
+         {'slug': 'san-antonio'}, name='location_san_antonio'),
+    path('locations/atlanta/', views.location_city,
+         {'slug': 'atlanta'}, name='location_atlanta'),
+    path('locations/warner-robins/', views.location_city,
+         {'slug': 'warner-robins'}, name='location_warner_robins'),
     path('contact/', views.contact, name='contact'),
     path('contact/thanks/', views.contact_thanks, name='contact_thanks'),
     path('about/', views.about, name='about'),

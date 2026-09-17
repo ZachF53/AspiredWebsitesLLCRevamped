@@ -1,0 +1,24 @@
+{% comment %}
+Shared case-study card. Expects `study` (a CaseStudy) and optionally
+`compact` (bool) for the smaller variant.
+
+One partial now used by /portfolio/, /portfolio/other/, every city page,
+and the homepage "Selected Work" strip — replacing the two markup
+systems (card--with-visual on the portfolio-style pages vs. a separate
+portfolio-item system on the homepage) that used to render the same
+CaseStudy data two different ways. Always links to the study's own
+indexable /portfolio/<slug>/ page rather than opening a modal — see the
+case_study_detail view for why (Master Plan §11: every project gets its
+own indexable URL).
+{% endcomment %}
+<article class="card card--with-visual{% if compact %} card--compact{% endif %}">
+    {% include "core/_case_study_visual.html" with study=study %}
+    <div class="card__body">
+        {% if study.business_type or study.location %}
+            <span class="pill-tag">{{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}</span>
+        {% endif %}
+        <h3><a href="{{ study.get_absolute_url }}">{{ study.title }}</a></h3>
+        {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
+        <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>
+    </div>
+</article>

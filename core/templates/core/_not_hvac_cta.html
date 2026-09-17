@@ -1,0 +1,16 @@
+{% comment %}
+"Not an HVAC company?" CTA block. Aspired repositioned to sell
+exclusively to HVAC contractors (Sept 2026); this partial is how the
+non-HVAC work already on the site — and any visitor who isn't in HVAC —
+stays reachable without it heading the page. Rendered near the bottom of
+public pages, above the footer. Points at /portfolio/other/.
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Not an HVAC company?</h2>
+            <p>We still take on a limited number of projects outside HVAC. Take a look at the other businesses we&rsquo;ve built for.</p>
+            <a class="btn-secondary btn-lg" href="{% url 'public:portfolio_other' %}">See Other Businesses We&rsquo;ve Helped</a>
+        </div>
+    </div>
+</section>

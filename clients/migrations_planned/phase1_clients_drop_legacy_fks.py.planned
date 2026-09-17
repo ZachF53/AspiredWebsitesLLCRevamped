@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0061_alter_paymentrecord_kind'),
+        ('clients', '0062_casestudy_city_casestudy_is_hvac'),
     ]
 
     operations = [
