@@ -49,15 +49,24 @@ LEGACY_REDIRECTS = [
     #   georgia-marketing  → unchanged; there is no Georgia marketing
     #                        page and inventing one to catch a redirect
     #                        would be backwards
-    ('services/georgia-seo', 'public:service_local_seo'),
+    #
+    # Repointed again Sept 2026: service_local_seo and
+    # service_digital_marketing are themselves now 301s to
+    # service_web_design (repositioning to HVAC-only, see
+    # public/urls.py) — pointing here at names that are now redirects
+    # would create a two-hop chain, which is exactly what this module's
+    # docstring says not to do. Point straight at the final page.
+    ('services/georgia-seo', 'public:service_web_design'),
     ('services/web-design-georgia', 'public:location_atlanta'),
-    ('services/georgia-marketing', 'public:service_digital_marketing'),
+    ('services/georgia-marketing', 'public:service_web_design'),
 
     # ── Old WordPress blog ──────────────────────────────────────────
     # /blog/ became /insights/. These two posts had crawl history; each
     # goes to the service page covering the same topic rather than to
     # the /insights/ index, which would be a soft 404.
-    ('blog/what-is-seo', 'public:service_seo'),
+    # service_seo is also now a redirect (see above) — points straight
+    # at service_web_design rather than chaining through it.
+    ('blog/what-is-seo', 'public:service_web_design'),
     ('blog/advantages-of-having-a-professional-web-design',
      'public:service_web_design'),
 

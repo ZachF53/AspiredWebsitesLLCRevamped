@@ -611,9 +611,7 @@ p {
     /* Nav submenu group labels are 11px uppercase. Fine as a desktop
        mega-menu label, tight on a phone where the menu is the primary
        navigation. */
-    .nav-submenu__heading {
-        font-size: 0.75rem;
-    }
+    
 }
 
 /* ── Article body (/insights/) ───────────────────────────────
@@ -751,26 +749,10 @@ p {
     color: var(--color-orange);
 }
 
-.nav-submenu__group + .nav-submenu__group {
-    margin-top: var(--space-2);
-    padding-top: var(--space-2);
-    border-top: 1px solid rgba(148, 163, 184, 0.14);
-}
-
 /* Group label. Deliberately not a heading element — it labels a menu,
    and injecting h4s into the header would corrupt the page's heading
    outline (§5.4 requires a logical H2/H3 hierarchy per page).
    Shares --nav-panel-pad with the links so the text aligns exactly. */
-.nav-submenu__heading {
-    margin: 0 0 6px;
-    padding: 0 var(--nav-panel-pad);
-    text-align: left;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--color-accent, #14B8A8);
-}
 
 @media (min-width: 1024px) {
     /* Side-by-side columns so nine links stay one glance. Columns are
@@ -795,13 +777,7 @@ p {
     }
     /* Columns sit beside each other — drop the stacked separator and
        give each its own hairline on the left instead. */
-    .nav-submenu__group + .nav-submenu__group {
-        margin-top: 0;
-        padding-top: 0;
-        padding-left: var(--space-3);
-        border-top: 0;
-        border-left: 1px solid rgba(148, 163, 184, 0.12);
-    }
+    
 }
 
 /* ── 7. Hero — cinematic, serif headline ────────────────────── */
@@ -3386,7 +3362,11 @@ button.htmx-request {
     
 
     .footer-grid {
-        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+        /* 5 columns: brand + Services / Locations / Company / Contact.
+           Explicit 5-track grid — anything less and the 5th column
+           wraps to a new row instead of sitting beside the rest,
+           leaving a gap under the shorter columns above it. */
+        grid-template-columns: 1.3fr 1fr 0.9fr 0.9fr 0.9fr;
     }
 
     .footer-bottom {

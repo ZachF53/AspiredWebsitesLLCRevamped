@@ -353,8 +353,8 @@ class CanonicalTests(TestCase):
 
     def test_exactly_one_canonical_per_page(self):
         """Duplicated canonicals were a real defect before base.html owned it."""
-        for path in ('/', '/services/web-design/', '/services/seo/',
-                     '/services/digital-marketing/', '/for-law-firms/',
+        for path in ('/', '/services/web-design/',
+                     '/services/review-automation/',
                      '/pricing/', '/portfolio/', '/about/', '/contact/',
                      '/audit/'):
             with self.subTest(path=path):
@@ -394,9 +394,9 @@ class LegacyRedirectTests(TestCase):
         redirect would be the tail wagging the dog.
         """
         cases = {
-            '/services/georgia-seo': '/services/seo/local-seo/',
+            '/services/georgia-seo': '/services/web-design/',
             '/services/web-design-georgia': '/locations/atlanta/',
-            '/services/georgia-marketing': '/services/digital-marketing/',
+            '/services/georgia-marketing': '/services/web-design/',
         }
         for old, target in cases.items():
             with self.subTest(old=old):
@@ -420,7 +420,7 @@ class LegacyRedirectTests(TestCase):
     def test_legacy_blog_posts_redirect_to_topical_pages(self):
         resp = self.client.get('/blog/what-is-seo')
         self.assertEqual(resp.status_code, 301)
-        self.assertEqual(resp['Location'], '/services/seo/')
+        self.assertEqual(resp['Location'], '/services/web-design/')
 
     def test_renamed_privacy_policy_redirects(self):
         resp = self.client.get('/our-privacy-policy')
@@ -437,7 +437,7 @@ class LegacyRedirectTests(TestCase):
 
     def test_live_routes_are_not_shadowed(self):
         """The legacy patterns must not intercept any real page."""
-        for path in ('/services/seo/', '/services/web-design/',
+        for path in ('/services/web-design/', '/services/review-automation/',
                      '/privacy-policy/', '/'):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
@@ -554,8 +554,8 @@ class StructuredDataTests(TestCase):
             {'Warner Robins', 'Macon', 'Atlanta', 'Georgia', 'San Antonio'})
 
     def test_service_pages_reference_the_org_by_id_not_a_copy(self):
-        for path in ('/services/web-design/', '/services/seo/',
-                     '/services/digital-marketing/'):
+        for path in ('/services/web-design/',
+                     '/services/review-automation/'):
             with self.subTest(path=path):
                 service = next(
                     b for b in self._blocks(path)
@@ -566,7 +566,8 @@ class StructuredDataTests(TestCase):
 
     def test_only_one_organization_node_sitewide(self):
         """No page may declare a second, competing business entity."""
-        for path in ('/', '/services/seo/', '/pricing/', '/about/'):
+        for path in ('/', '/services/review-automation/', '/pricing/',
+                     '/about/'):
             with self.subTest(path=path):
                 orgs = 0
                 for block in self._blocks(path):
@@ -579,10 +580,10 @@ class StructuredDataTests(TestCase):
                 self.assertEqual(orgs, 1)
 
     def test_breadcrumbs_on_service_pages(self):
-        crumbs = next(b for b in self._blocks('/services/seo/')
+        crumbs = next(b for b in self._blocks('/services/review-automation/')
                       if b.get('@type') == 'BreadcrumbList')
         names = [i['name'] for i in crumbs['itemListElement']]
-        self.assertEqual(names, ['Home', 'Services', 'SEO'])
+        self.assertEqual(names, ['Home', 'Services', 'Review Automation'])
         self.assertEqual(crumbs['itemListElement'][0]['item'],
                          'https://aspiredwebsites.com/')
         # The current page is the last crumb and carries no link.
@@ -764,18 +765,16 @@ class Phase2ServicePageTests(TestCase):
     done as the Phase 1 pages: indexable, one canonical, one H1,
     Service schema referencing the single org by @id, breadcrumbs,
     and no second Organization node (D8).
+
+    Sept 2026 repositioning: the six law-firm/small-business/SEO/
+    custom-web-dev pages this class used to cover now 301 to
+    service_web_design (public/urls.py) — RetiredServicePageTests below
+    covers the redirect behavior. /locations/san-antonio/ is still a
+    live Phase 2-equivalent page and stays here (also covered, more
+    thoroughly, by SanAntonioLocationPageTests).
     """
 
-    PAGES = [
-        '/services/seo/law-firm-seo/',
-        '/services/web-design/law-firm-web-design/',
-        '/services/seo/local-seo/',
-        '/services/web-design/small-business-web-design/',
-        '/services/web-design/website-redesign/',
-        # ── Phase 3 ──
-        '/services/web-design/custom-web-development/',
-        '/locations/san-antonio/',
-    ]
+    PAGES = ['/locations/san-antonio/']
 
     def _blocks(self, path):
         html = self.client.get(path).content.decode()
@@ -849,12 +848,6 @@ class Phase2ServicePageTests(TestCase):
                     stem = item['name'].split('?')[0][:24].replace("'", '')
                     self.assertIn(stem, html.replace('&rsquo;', ''))
 
-    def test_breadcrumbs_present(self):
-        crumbs = next(b for b in self._blocks('/services/seo/law-firm-seo/')
-                      if b.get('@type') == 'BreadcrumbList')
-        names = [i['name'] for i in crumbs['itemListElement']]
-        self.assertEqual(names, ['Home', 'Services', 'SEO', 'Law Firm SEO'])
-
     def test_pages_are_in_the_sitemap(self):
         """
         Path-only assertion on purpose: django.contrib.sitemaps builds
@@ -867,21 +860,6 @@ class Phase2ServicePageTests(TestCase):
         for path in self.PAGES:
             with self.subTest(path=path):
                 self.assertIn(f'<loc>http://testserver{path}</loc>', xml)
-
-    def test_hub_pages_link_down_to_children(self):
-        """§8 internal-link clusters must be wired both ways."""
-        seo_hub = self.client.get('/services/seo/').content.decode()
-        self.assertIn('/services/seo/law-firm-seo/', seo_hub)
-
-        design_hub = self.client.get(
-            '/services/web-design/').content.decode()
-        self.assertIn(
-            '/services/web-design/law-firm-web-design/', design_hub)
-
-        law_hub = self.client.get('/for-law-firms/').content.decode()
-        self.assertIn('/services/seo/law-firm-seo/', law_hub)
-        self.assertIn(
-            '/services/web-design/law-firm-web-design/', law_hub)
 
     def test_no_ranking_guarantees_anywhere(self):
         """
@@ -901,18 +879,59 @@ class Phase2ServicePageTests(TestCase):
             'guaranteed first-page', 'guaranteed top 3',
             'ranking guaranteed',
         )
-        for path in self.PAGES + ['/services/seo/']:
+        for path in self.PAGES + ['/services/web-design/']:
             with self.subTest(path=path):
                 html = self.client.get(path).content.decode().lower()
                 for phrase in promises:
                     self.assertNotIn(phrase, html)
 
-    def test_seo_pages_state_the_no_guarantee_position(self):
-        """The disclaimer must be present, not merely the absence of a promise."""
-        html = self.client.get(
-            '/services/seo/law-firm-seo/').content.decode().lower()
-        self.assertIn('no ranking guarantees', html)
-        self.assertIn('nobody controls', html)
+
+@override_settings(SITE_BASE_URL='https://aspiredwebsites.com',
+                   PRODUCTION_HOST='testserver')
+class RetiredServicePageTests(TestCase):
+    """
+    Sept 2026 repositioning — the law-firm/small-business/SEO/custom-
+    web-dev service pages Phase2ServicePageTests used to cover are no
+    longer sold as distinct products (site sells to HVAC contractors
+    only). Rather than delete them, each 301s to service_web_design
+    (public/urls.py, _RETIRED_TO_WEB_DESIGN) — this class guards that
+    redirect and confirms they no longer claim sitemap space.
+    """
+
+    RETIRED_PATHS = [
+        '/for-law-firms/',
+        '/services/digital-marketing/',
+        '/services/seo/',
+        '/services/seo/law-firm-seo/',
+        '/services/web-design/law-firm-web-design/',
+        '/services/seo/local-seo/',
+        '/services/web-design/small-business-web-design/',
+        '/services/web-design/website-redesign/',
+        '/services/web-design/custom-web-development/',
+    ]
+
+    def test_retired_pages_redirect_permanently_to_web_design(self):
+        for path in self.RETIRED_PATHS:
+            with self.subTest(path=path):
+                resp = self.client.get(path)
+                self.assertEqual(resp.status_code, 301)
+                self.assertEqual(resp['Location'], '/services/web-design/')
+
+    def test_retired_pages_are_not_in_the_sitemap(self):
+        xml = self.client.get('/sitemap.xml').content.decode()
+        for path in self.RETIRED_PATHS:
+            with self.subTest(path=path):
+                self.assertNotIn(f'<loc>http://testserver{path}</loc>', xml)
+
+    def test_review_automation_page_is_live_and_in_the_sitemap(self):
+        """The new page these six retired ones effectively point traffic
+        toward (via service_web_design's own cross-link) must itself
+        render and be indexable."""
+        resp = self.client.get('/services/review-automation/')
+        self.assertEqual(resp.status_code, 200)
+        xml = self.client.get('/sitemap.xml').content.decode()
+        self.assertIn(
+            '<loc>http://testserver/services/review-automation/</loc>', xml)
 
 
 @override_settings(PRODUCTION_HOST='aspiredwebsites.com',
@@ -936,14 +955,14 @@ class NonProductionHostTests(TestCase):
     STAGING = {'HTTP_HOST': 'staging.aspiredwebsites.com'}
 
     def test_staging_is_noindex_sitewide(self):
-        for path in ('/', '/pricing/', '/services/seo/law-firm-seo/'):
+        for path in ('/', '/pricing/', '/services/review-automation/'):
             with self.subTest(path=path):
                 html = self.client.get(path, **self.STAGING).content.decode()
                 self.assertIn('name="robots" content="noindex, nofollow"',
                               html)
 
     def test_production_is_not_noindex(self):
-        for path in ('/', '/pricing/', '/services/seo/law-firm-seo/'):
+        for path in ('/', '/pricing/', '/services/review-automation/'):
             with self.subTest(path=path):
                 html = self.client.get(path, **self.PROD).content.decode()
                 self.assertNotIn('noindex', html)
@@ -1106,15 +1125,6 @@ class CaseStudyScreenshotTests(TestCase):
                 self.assertIn(study.get_absolute_url(), html)
                 self.assertIn(study.title, html)
 
-    def test_law_firms_proof_section_only_shows_legal_clients(self):
-        """
-        The section is headed "Sites We've Built for Legal" — a
-        non-legal client under it would be a false claim.
-        """
-        html = self.client.get('/for-law-firms/').content.decode()
-        self.assertNotIn('Food Trucks of San Antonio', html)
-        self.assertIn('Denis Law Group', html)
-
     def test_no_placeholder_visuals_remain_where_a_screenshot_exists(self):
         study = self._attach_screenshot(self._first_published())
         for path in ('/', '/portfolio/'):
@@ -1250,7 +1260,7 @@ class CaseStudyTests(TestCase):
             with self.subTest(phrase=phrase):
                 self.assertNotIn(phrase, blob)
 
-        for path in (study.get_absolute_url(), '/for-law-firms/'):
+        for path in (study.get_absolute_url(),):
             html = self.client.get(path).content.decode().lower()
             with self.subTest(path=path):
                 self.assertNotIn('built from scratch', html)
@@ -1663,7 +1673,7 @@ class CityIntentOwnershipTests(TestCase):
 
     def test_only_the_atlanta_page_targets_atlanta_in_its_title(self):
         offenders = []
-        for path in ('/', '/services/seo/', '/contact/',
+        for path in ('/', '/services/review-automation/', '/contact/',
                      '/services/web-design/', '/pricing/', '/about/'):
             html = self.client.get(path).content.decode()
             title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
@@ -1702,43 +1712,6 @@ class CityIntentOwnershipTests(TestCase):
         # compare the text content rather than the raw markup.
         text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', h1)).strip()
         self.assertIn('HVAC', text)
-
-
-@override_settings(PRODUCTION_HOST='testserver')
-class CustomWebDevPageTests(TestCase):
-    """
-    Keyword positioning for /custom-web-development/.
-
-    The trap this guards: "hand coded" is the brand story but gets 10
-    searches/mo, while "custom" gets ~3,780. Leading with the former
-    would feel on-brand and cost the head term.
-    """
-
-    PATH = '/services/web-design/custom-web-development/'
-
-    def test_h1_leads_with_custom_not_hand_coded(self):
-        html = self.client.get(self.PATH).content.decode()
-        h1 = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.S).group(1).lower()
-        self.assertIn('custom', h1)
-        self.assertNotIn('hand coded', h1)
-        self.assertNotIn('hand-coded', h1)
-
-    def test_title_and_meta_carry_the_head_terms(self):
-        html = self.client.get(self.PATH).content.decode()
-        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1).lower()
-        self.assertIn('custom web development', title)
-        desc = re.search(
-            r'<meta name="description" content="([^"]*)', html).group(1).lower()
-        self.assertIn('custom', desc)
-
-    def test_still_makes_the_wordpress_comparison(self):
-        """The differentiator belongs in the body, not the H1."""
-        html = self.client.get(self.PATH).content.decode().lower()
-        self.assertIn('wordpress', html)
-
-    def test_admits_when_custom_is_the_wrong_choice(self):
-        html = self.client.get(self.PATH).content.decode().lower()
-        self.assertIn('isn&rsquo;t worth it', html)
 
 
 @override_settings(PRODUCTION_HOST='testserver')
@@ -1812,14 +1785,6 @@ class ConversionBlockTests(TestCase):
             '<span class="card__price-unit">/month</span></div>',
             html)
 
-    def test_law_firms_has_switching_faq(self):
-        html = self.client.get('/for-law-firms/').content.decode()
-        for topic in ('locked into a contract', 'owns my domain',
-                      'take my content', 'site go down',
-                      'lose my Google rankings'):
-            with self.subTest(topic=topic):
-                self.assertIn(topic, html)
-
     def test_about_links_credentials_to_verification(self):
         """§11 — an unverifiable credential claim is worth less than none."""
         html = self.client.get('/about/').content.decode()
@@ -1834,10 +1799,10 @@ class ConversionBlockTests(TestCase):
     def test_security_claims_stay_honest(self):
         """
         §15 forbids implying security itself boosts rankings. The about
-        and law-firm-seo pages both make security arguments, so assert
+        and web-design pages both make security arguments, so assert
         neither crosses that line.
         """
-        for path in ('/about/', '/services/seo/law-firm-seo/'):
+        for path in ('/about/', '/services/web-design/'):
             with self.subTest(path=path):
                 html = self.client.get(path).content.decode().lower()
                 for claim in ('security improves your ranking',
@@ -1883,9 +1848,9 @@ class AccessibilityStructureTests(TestCase):
     """
 
     PAGES = ['/', '/pricing/', '/contact/', '/portfolio/', '/about/',
-             '/audit/', '/insights/', '/for-law-firms/',
+             '/audit/', '/insights/', '/portfolio/other/',
              '/locations/atlanta/', '/locations/warner-robins/',
-             '/services/seo/law-firm-seo/', '/design/schedule/']
+             '/services/review-automation/', '/design/schedule/']
 
     def _levels(self, html):
         return [int(m) for m in re.findall(r'<h([1-6])[\s>]', html)]

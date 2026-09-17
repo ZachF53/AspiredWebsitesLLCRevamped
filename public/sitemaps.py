@@ -38,27 +38,17 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
     """
     Service pages — the SEO money pages.
 
-    Phase 2 children sit at the same 0.9 priority as their hubs: the
-    law-firm pages carry more measured commercial value than the
-    generic hubs above them (law firm SEO alone is 8,000 searches/mo
-    at $31-165 bids), so demoting them by depth would misrepresent
-    their importance.
+    Sept 2026 repositioning: the law-firm/small-business/SEO/social
+    pages that used to sit here now 301 to service_web_design (see
+    public/urls.py) rather than rendering, so they're gone from this
+    list — a sitemap must only contain canonical, indexable, HTTP-200
+    URLs (§8), same rule CaseStudySitemap below already follows.
     """
     priority = 0.9
     changefreq = 'monthly'
     pages = [
         'public:service_web_design',
-        'public:service_digital_marketing',
-        'public:service_seo',
-        'public:law_firms',
-        # ── Phase 2 ──
-        'public:service_law_firm_seo',
-        'public:service_law_firm_web_design',
-        'public:service_local_seo',
-        'public:service_small_business_web_design',
-        'public:service_website_redesign',
-        # ── Phase 3 ──
-        'public:service_custom_web_development',
+        'public:service_review_automation',
         'public:location_san_antonio',
         'public:location_atlanta',
         'public:location_warner_robins',

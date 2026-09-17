@@ -127,47 +127,20 @@
                                 <span class="nav-caret" aria-hidden="true">&#9662;</span>
                             </button>
                             {% comment %}
-                            Grouped submenu. A flat list hit 9 items once the
-                            Phase 2 service pages landed, which is past the
-                            point a dropdown stays scannable. Grouping by
-                            discipline also mirrors the URL hierarchy
-                            (/services/web-design/* and /services/seo/*), so
-                            the nav teaches the site structure.
-
-                            Each group is its own <ul> with an aria-labelledby
-                            heading, so screen readers announce "Web Design,
-                            list, 4 items" rather than one undifferentiated
-                            run of nine links.
+                            Sept 2026 repositioning cut this from a 9-item,
+                            3-group mega-menu (Web Design / SEO / More) down
+                            to the three things Aspired actually sells now —
+                            a flat list, so the plain .nav-submenu is enough;
+                            .nav-submenu--grouped's multi-column layout would
+                            be overkill for 3 items. The old law-firm/SEO/
+                            social pages 301 to service_web_design (see
+                            public/urls.py) rather than living in this menu.
                             {% endcomment %}
-                            <div class="nav-submenu nav-submenu--grouped" id="services-submenu">
-                                <div class="nav-submenu__group">
-                                    <p class="nav-submenu__heading" id="nav-grp-design">Web Design</p>
-                                    <ul role="menu" aria-labelledby="nav-grp-design">
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom Web Design</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'law_firm_web_design' %}is-active{% endif %}" href="{% url 'public:service_law_firm_web_design' %}">Law Firm Web Design</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'small_business_web_design' %}is-active{% endif %}" href="{% url 'public:service_small_business_web_design' %}">Small Business Web Design</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'custom_web_development' %}is-active{% endif %}" href="{% url 'public:service_custom_web_development' %}">Custom Web Development</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'website_redesign' %}is-active{% endif %}" href="{% url 'public:service_website_redesign' %}">Website Redesign</a></li>
-                                    </ul>
-                                </div>
-
-                                <div class="nav-submenu__group">
-                                    <p class="nav-submenu__heading" id="nav-grp-seo">SEO</p>
-                                    <ul role="menu" aria-labelledby="nav-grp-seo">
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'seo' %}is-active{% endif %}" href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'law_firm_seo' %}is-active{% endif %}" href="{% url 'public:service_law_firm_seo' %}">Law Firm SEO</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'local_seo' %}is-active{% endif %}" href="{% url 'public:service_local_seo' %}">Local SEO</a></li>
-                                    </ul>
-                                </div>
-
-                                <div class="nav-submenu__group">
-                                    <p class="nav-submenu__heading" id="nav-grp-more">More</p>
-                                    <ul role="menu" aria-labelledby="nav-grp-more">
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_nav == 'law_firms' %}is-active{% endif %}" href="{% url 'public:law_firms' %}">For Law Firms</a></li>
-                                        <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'digital_marketing' %}is-active{% endif %}" href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social</a></li>
-                                    </ul>
-                                </div>
-                            </div>
+                            <ul class="nav-submenu" id="services-submenu" role="menu">
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'review_automation' %}is-active{% endif %}" href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink" href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
+                            </ul>
                         </li>
                         <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
                         <li><a class="nav-link {% if active_nav == 'insights' %}is-active{% endif %}" href="{% url 'public:insights' %}">Insights</a></li>
@@ -230,40 +203,32 @@
                     <p class="footer-locations">Serving Warner Robins &nbsp;·&nbsp; Macon &nbsp;·&nbsp; Atlanta &nbsp;·&nbsp; San Antonio &nbsp;·&nbsp; remote nationwide</p>
                 </div>
 
+                {% comment %}
+                4 columns here plus brand = 5 total, matching
+                .footer-grid's grid-template-columns (5 explicit
+                tracks). Adding a 6th without widening that CSS rule
+                wraps it to a new row and leaves a gap under the
+                shorter columns above it — the bug this replaced.
+
+                The old law-firm/SEO/social service pages 301 to
+                service_web_design now (Sept 2026 repositioning, see
+                public/urls.py), so they're gone from here rather than
+                linking to a redirect. /portfolio/other/ is the one
+                genuinely distinct piece of pre-repositioning content
+                left, so it's folded into Services below instead of
+                keeping its own column for one link.
+                {% endcomment %}
                 <div class="footer-col">
                     <h3>Services</h3>
                     <ul>
                         <li><a href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
-                        <li><a href="{% url 'public:pricing' %}">Automated Review Generation</a></li>
+                        <li><a href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
                         <li><a href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
                         <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
-                    </ul>
-                </div>
-
-                {% comment %}
-                Other Industries — Sept 2026 repositioning narrowed the
-                headline offer to HVAC only, but the pre-repositioning
-                service pages and law-firm/small-business work stay
-                reachable rather than disappearing (see
-                public:portfolio_other for the equivalent on the
-                portfolio side).
-                {% endcomment %}
-                <div class="footer-col">
-                    <h3>Other Industries</h3>
-                    <ul>
-                        <li><a href="{% url 'public:law_firms' %}">For Law Firms</a></li>
-                        <li><a href="{% url 'public:service_digital_marketing' %}">Digital Marketing &amp; Social Media</a></li>
-                        <li><a href="{% url 'public:service_seo' %}">Search Engine Optimization</a></li>
                         <li><a href="{% url 'public:portfolio_other' %}">Other Businesses We&rsquo;ve Helped</a></li>
                     </ul>
                 </div>
 
-                {% comment %}
-                Locations get their own footer column now that there are
-                three. Sitewide footer links are the main internal path
-                to these pages — they are deliberately not in the main
-                nav, which is organised by service, not geography.
-                {% endcomment %}
                 <div class="footer-col">
                     <h3>Locations</h3>
                     <ul>
@@ -274,15 +239,17 @@
                 </div>
 
                 <div class="footer-col">
-                    <h3>Quick Links</h3>
+                    <h3>Company</h3>
                     <ul>
-                        <li><a href="{% url 'public:home' %}">Home</a></li>
-                        <li><a href="{% url 'public:pricing' %}">Pricing</a></li>
                         <li><a href="{% url 'public:portfolio' %}">Portfolio</a></li>
-                        <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
                         <li><a href="{% url 'public:insights' %}">Insights</a></li>
                         <li><a href="{% url 'public:about' %}">About Me</a></li>
                         <li><a href="{% url 'public:contact' %}">Contact</a></li>
+                        {% if request.user.is_authenticated %}
+                            <li><a href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
+                        {% else %}
+                            <li><a href="{% url 'public:login' %}">Client Login</a></li>
+                        {% endif %}
                     </ul>
                 </div>
 
@@ -292,11 +259,6 @@
                         <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
                         <li><a href="tel:+12108962536">(210) 896-2536</a></li>
                         <li class="footer-hours">Open any time — we answer within 24&nbsp;hours</li>
-                        {% if request.user.is_authenticated %}
-                            <li><a href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
-                        {% else %}
-                            <li><a href="{% url 'public:login' %}">Client Login</a></li>
-                        {% endif %}
                     </ul>
                 </div>
             </div>

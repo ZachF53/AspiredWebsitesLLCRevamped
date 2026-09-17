@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Automated Review Generation for HVAC | Aspired Websites{% endblock %}
+
+{% block meta_description %}Automated Google review generation for HVAC contractors — every completed job triggers a review request automatically. No technician or office manager has to remember to ask.{% endblock %}
+
+{% block og_title %}Automated Review Generation for HVAC — Aspired Websites{% endblock %}
+{% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% endblock %}
+
+{% comment %}
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Automated Review Generation",
+    "name": "Automated Review Generation for HVAC Contractors",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "description": "Automated Google review request system for HVAC contractors, included with the Full Plan. Every completed job triggers a review request automatically.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$$"
+    }
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "How does automated review generation work?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "When a job is marked complete, the system automatically sends the customer a request to leave a Google review. No one on your team has to remember to ask — it happens the same way every time."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can I control when the request goes out?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. The request is timed to go out after the job is marked complete, when the work is freshest in the customer's mind."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Does this violate Google's review policies?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. The system asks every customer the same way after a real completed job — it never incentivizes a review, filters for positive ones only, or offers anything in exchange. That kind of selective or incentivized asking is what actually violates Google's policies."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Is review automation sold on its own?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "It's included in the Full Plan, not sold as a standalone product. See pricing for what's bundled with it."
+            }
+        }
+    ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Review Automation</span>
+            <h1>Every Finished Job Becomes a <span class="accent">Google Review</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                A completed job automatically triggers a review request. No
+                technician has to remember to ask, and no office manager has
+                to chase it down afterward.
+            </p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See the Full Plan</a>
+            </div>
+            <p class="hero__meta">Included in the Full Plan &middot; Not sold on its own</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Why it matters for HVAC ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why It Matters</span>
+            <h2>Reviews Are How HVAC Customers Actually Choose</h2>
+            <p>A homeowner searching for emergency AC repair picks from what Google shows them. Review count and recency decide who gets the call.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Asking Doesn&rsquo;t Scale</h3>
+                <p>A busy technician isn&rsquo;t going to remember to ask for a review on every job, every time. Automating the ask means it happens consistently instead of depending on someone remembering.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Recent Reviews Carry More Weight</h3>
+                <p>Forty five-star reviews from three years ago read as stale. A steady stream of recent reviews signals a business that&rsquo;s actually active right now.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── How it works ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>Three Steps, No Manual Follow-Up</h2>
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>Job Marked Complete</h3>
+                <p>The job is marked done in your system, same as any other completed call.</p>
+            </div>
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>Request Sent Automatically</h3>
+                <p>The customer gets a review request while the work is still fresh, with a direct link to your Google profile.</p>
+            </div>
+            <div class="step">
+                <div class="step__num" aria-hidden="true"></div>
+                <h3>Reviews Build Up On Their Own</h3>
+                <p>No spreadsheet, no reminder, no one on your team chasing it down after the fact.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Honesty ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Answers</span>
+            <h2>What This Is And Isn&rsquo;t</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What It Does</h3>
+                <ul class="bullet-list">
+                    <li>Asks every customer the same way after every completed job</li>
+                    <li>Sends the request while the work is still fresh</li>
+                    <li>Runs without anyone on your team remembering to do it</li>
+                </ul>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What It Doesn&rsquo;t Do</h3>
+                <ul class="bullet-list">
+                    <li>Filter for happy customers only or hide unhappy ones</li>
+                    <li>Offer a discount or incentive for a review</li>
+                    <li>Write or post reviews on a customer&rsquo;s behalf</li>
+                </ul>
+            </article>
+        </div>
+
+        <p class="section-note">
+            Asking every customer the same way, without incentives, is what keeps this
+            inside Google&rsquo;s policies &mdash; selective or paid-for review
+            requests are what actually get accounts penalized.
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Review Automation, Answered</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>How does it work?</h3>
+                <p>When a job is marked complete, the system automatically sends the customer a request to leave a Google review. No one has to remember to ask.</p>
+            </article>
+
+            <article class="card">
+                <h3>Can I control the timing?</h3>
+                <p>Yes. The request goes out after the job is marked complete, while the work is still fresh in the customer&rsquo;s mind.</p>
+            </article>
+
+            <article class="card">
+                <h3>Does this risk violating Google&rsquo;s policies?</h3>
+                <p>No. The system asks every customer the same way after a real completed job, with no incentive and no filtering for positive reviews only. That consistency is what keeps it compliant.</p>
+            </article>
+
+            <article class="card">
+                <h3>Is this sold by itself?</h3>
+                <p>No, it&rsquo;s included in the Full Plan alongside hosting, maintenance, and unlimited content updates. See <a href="{% url 'public:pricing' %}">pricing</a> for the full breakdown.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Want Reviews Building Up Without Chasing Them Down?</h2>
+            <p>A free 30-minute call to walk through how it fits with your build.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See the Full Plan</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

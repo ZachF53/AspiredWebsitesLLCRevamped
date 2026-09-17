@@ -11,8 +11,6 @@ of database-driven values. They deliberately do not assert any business
 fact that `docs/brand_fact_matrix.md` still lists as PENDING.
 """
 
-from decimal import Decimal
-
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
@@ -21,25 +19,20 @@ from django.test import TestCase, override_settings
 class SocialPlanSourceOfTruthTests(TestCase):
     """The digital-marketing page hardcoded plan names, prices and channel
     counts that contradicted the seeded ServiceTier rows, and hardcoded
-    prices at all — which CLAUDE.md forbids."""
+    prices at all — which CLAUDE.md forbids.
+
+    Sept 2026 repositioning: /services/digital-marketing/ now 301s to
+    service_web_design (social media isn't sold as a standalone product
+    to HVAC contractors) rather than rendering — the two tests that
+    exercised its live rendering are retired below. The template file
+    itself is untouched (nothing here was deleted, just unrouted), so
+    the source-hygiene checks against it still run and still matter if
+    the page is ever revived.
+    """
 
     @classmethod
     def setUpTestData(cls):
         call_command('seed_pricing')
-
-    def test_social_plans_render_from_active_service_tiers(self):
-        from billing.pricing_models import ServiceTier
-
-        html = self.client.get('/services/digital-marketing/').content.decode()
-        tiers = ServiceTier.get_active('social_media')
-        self.assertTrue(tiers.exists(), 'seed_pricing produced no social tiers')
-
-        for tier in tiers:
-            with self.subTest(slug=tier.slug):
-                self.assertIn(tier.name, html)
-                # Every entitlement shown comes from a TierFeature row.
-                for feature in tier.features.all():
-                    self.assertIn(feature.text, html)
 
     TEMPLATE = 'public/templates/public/service_digital_marketing.html'
 
@@ -68,28 +61,13 @@ class SocialPlanSourceOfTruthTests(TestCase):
             f'{self.TEMPLATE} hardcodes entitlements {found}; these come '
             'from TierFeature rows.'))
 
-    def test_price_change_flows_through_to_the_service_page(self):
-        """Proves the page really is database-driven rather than
-        coincidentally matching the seed."""
-        from billing.pricing_models import ServiceTier
-
-        tier = ServiceTier.get_active('social_media').first()
-        tier.price = Decimal('1234.00')
-        tier.save(update_fields=['price'])
-
-        html = self.client.get('/services/digital-marketing/').content.decode()
-        self.assertIn('1,234', html)
-
-
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
 class UnsupportedClaimTests(TestCase):
     """Claims the review found broader than the evidence behind them."""
 
     PAGES = [
-        '/', '/services/web-design/', '/services/seo/',
-        '/services/digital-marketing/', '/for-law-firms/',
-        '/services/seo/law-firm-seo/',
-        '/services/web-design/law-firm-web-design/',
+        '/', '/services/web-design/', '/services/review-automation/',
+        '/pricing/', '/portfolio/',
     ]
 
     def _html(self, path):
@@ -121,14 +99,11 @@ class UnsupportedClaimTests(TestCase):
             with self.subTest(path=path):
                 self.assertNotIn('privileged intake', self._html(path))
 
-    def test_aspired_does_not_claim_to_verify_bar_compliance(self):
-        """The law-firm hub claimed Aspired verifies bar advertising
-        compliance before launch, contradicting the service page and
-        overstating what Aspired can be responsible for."""
-        html = self._html('/for-law-firms/')
-        self.assertNotIn('we verify before anything goes live', html)
-        self.assertNotIn('compliant with state bar advertising guidelines',
-                         html)
+    # test_aspired_does_not_claim_to_verify_bar_compliance retired
+    # Sept 2026 — the claim it guarded against lived on the law-firm
+    # hub (/for-law-firms/), which now 301s to service_web_design
+    # (Sept 2026 repositioning) rather than rendering. The claim can't
+    # appear on a live page that doesn't render.
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)

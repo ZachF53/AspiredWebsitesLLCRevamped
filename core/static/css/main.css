@@ -5316,7 +5316,11 @@ button.htmx-request {
     }
 
     .footer-grid {
-        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+        /* 5 columns: brand + Services / Locations / Company / Contact.
+           Explicit 5-track grid — anything less and the 5th column
+           wraps to a new row instead of sitting beside the rest,
+           leaving a gap under the shorter columns above it. */
+        grid-template-columns: 1.3fr 1fr 0.9fr 0.9fr 0.9fr;
     }
 
     .footer-bottom {

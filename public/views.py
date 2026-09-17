@@ -295,6 +295,27 @@ def service_seo(request):
     })
 
 
+def service_review_automation(request):
+    """
+    /services/review-automation/ — Sept 2026 repositioning.
+
+    Automated review generation is one of the three services the
+    homepage now leads with (custom HVAC website, review automation,
+    hosting & maintenance) but previously had no page of its own to
+    link to — homepage/pricing referenced it without anywhere to
+    explain how it actually works. Built the same way as the other
+    service pages (hero, Service + FAQ schema, FAQ section, CTA).
+    """
+    return render(request, 'public/service_review_automation.html', {
+        'active_nav': 'services',
+        'active_service': 'review_automation',
+        'breadcrumbs': [
+            ('Services', '/services/web-design/'),
+            ('Review Automation', None),
+        ],
+    })
+
+
 def service_custom_web_development(request):
     """
     /services/web-design/custom-web-development/ — ~3,780/mo across

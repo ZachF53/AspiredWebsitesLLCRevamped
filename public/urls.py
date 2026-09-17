@@ -1,13 +1,24 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
+from django.views.generic import RedirectView
 
 from . import views
 
 app_name = 'public'
 
+# Sept 2026 repositioning — the site sells to HVAC contractors only now,
+# so the law-firm/small-business/SEO/social service pages below are no
+# longer sold as distinct products. Rather than delete them (real
+# ranking history on some of these, per public/legacy_redirects.py's
+# reasoning) or leave them live selling a product that doesn't exist
+# anymore, each 301s to the HVAC web design page. Views and templates
+# stay on disk, unreferenced by any URL — nothing here is deleted.
+_RETIRED_TO_WEB_DESIGN = RedirectView.as_view(
+    pattern_name='public:service_web_design', permanent=True)
+
 urlpatterns = [
     path('', views.home, name='home'),
-    path('for-law-firms/', views.law_firms, name='law_firms'),
+    path('for-law-firms/', _RETIRED_TO_WEB_DESIGN, name='law_firms'),
     path('portfolio/', views.portfolio, name='portfolio'),
     # Non-HVAC portfolio (Sept 2026 repositioning) — must come before the
     # <slug:slug> pattern below, or '/portfolio/other/' would match it
@@ -24,33 +35,32 @@ urlpatterns = [
          name='insight_detail'),
     path('services/web-design/', views.service_web_design,
          name='service_web_design'),
-    path('services/digital-marketing/', views.service_digital_marketing,
+    path('services/review-automation/', views.service_review_automation,
+         name='service_review_automation'),
+    path('services/digital-marketing/', _RETIRED_TO_WEB_DESIGN,
          name='service_digital_marketing'),
-    path('services/seo/', views.service_seo, name='service_seo'),
+    path('services/seo/', _RETIRED_TO_WEB_DESIGN, name='service_seo'),
 
-    # ── Phase 2 service pages ──────────────────────────────────────
-    # Ordered here by measured commercial value (Keyword Planner,
-    # 2026-08-02). law-firm-seo is the highest-value page on the site:
-    # 8,000 searches/mo at $31-165 top-of-page bids, because the
-    # lifetime value is an SEO retainer rather than a one-off build.
-    # See .claude/improvements/KEYWORD_RESEARCH_FINDINGS.md.
-    path('services/seo/law-firm-seo/', views.service_law_firm_seo,
+    # ── Phase 2 service pages — retired Sept 2026, see
+    # _RETIRED_TO_WEB_DESIGN above. Names kept so every existing
+    # {% url %} reference still resolves; each now 301s. ────────────
+    path('services/seo/law-firm-seo/', _RETIRED_TO_WEB_DESIGN,
          name='service_law_firm_seo'),
     path('services/web-design/law-firm-web-design/',
-         views.service_law_firm_web_design,
+         _RETIRED_TO_WEB_DESIGN,
          name='service_law_firm_web_design'),
-    path('services/seo/local-seo/', views.service_local_seo,
+    path('services/seo/local-seo/', _RETIRED_TO_WEB_DESIGN,
          name='service_local_seo'),
     path('services/web-design/small-business-web-design/',
-         views.service_small_business_web_design,
+         _RETIRED_TO_WEB_DESIGN,
          name='service_small_business_web_design'),
     path('services/web-design/website-redesign/',
-         views.service_website_redesign,
+         _RETIRED_TO_WEB_DESIGN,
          name='service_website_redesign'),
 
-    # ── Phase 3 ────────────────────────────────────────────────────
+    # ── Phase 3 — retired Sept 2026 ──────────────────────────────────
     path('services/web-design/custom-web-development/',
-         views.service_custom_web_development,
+         _RETIRED_TO_WEB_DESIGN,
          name='service_custom_web_development'),
     # Location pages — D5, revised Aug 2026. Three now, not one:
     #   san-antonio   2,860/mo · three real clients there
