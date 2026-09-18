@@ -11,9 +11,9 @@
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Our Work</span>
-            <h1>Real HVAC Websites. Real Contractors. <span class="accent">Real Results.</span></h1>
+            <h1>HVAC Work <span class="accent">In Progress</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">Custom-coded sites for HVAC contractors, built mobile-first and tied to our automated review system.</p>
+            <p class="hero__lead">Custom-coded sites for HVAC contractors, built mobile-first and tied to automated review generation. Project write-ups are publishing shortly &mdash; in the meantime, see the businesses I&rsquo;ve already built for.</p>
         </div>
     </div>
 </section>
@@ -47,6 +47,37 @@
                     <div class="card__body">
                         <h3>HVAC case studies coming soon</h3>
                         <p>Our HVAC project write-ups are being published. In the meantime, <a href="{% url 'public:contact' %}">get in touch</a> and we&rsquo;ll walk you through relevant work directly.</p>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{% comment %}
+Concept/demo builds, kept strictly separate from the real-client grid
+above (view filters is_concept=False there, is_concept=True here) so
+demonstration work never reads as a paid client project. Hard rule:
+this section's heading must never contain "clients", "contractors",
+"results", or "case studies".
+{% endcomment %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <h2>Concept Designs</h2>
+            <p>These are demonstration builds, not client sites &mdash; they show how I approach HVAC layout, speed, and intake. Real project write-ups are coming.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            {% for study in concept_studies %}
+                {% include "core/_case_study_card.html" with study=study %}
+            {% empty %}
+                <article class="card card--empty-state">
+                    <div class="card__body">
+                        <h3>Concept designs coming soon</h3>
+                        <p>HVAC concept builds are being added shortly.</p>
                     </div>
                 </article>
             {% endfor %}

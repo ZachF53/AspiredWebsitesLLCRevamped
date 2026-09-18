@@ -190,7 +190,13 @@ def portfolio(request):
     return render(request, 'public/portfolio.html', {
         'active_nav': 'portfolio',
         'case_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=True,
+            is_published=True, is_hvac=True, is_concept=False,
+        ).order_by('-published_at', '-created_at'),
+        # Concept/demo builds get their own section (never mixed into
+        # the real-client grid above) — see the "Concept Designs"
+        # section in portfolio.html.
+        'concept_studies': CaseStudy.objects.filter(
+            is_published=True, is_hvac=True, is_concept=True,
         ).order_by('-published_at', '-created_at'),
         'meta_title': 'HVAC Website Design Portfolio | Aspired Websites',
         'meta_description': (
