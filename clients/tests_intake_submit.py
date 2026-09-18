@@ -118,7 +118,7 @@ class IntakeSubmitCompletesOnboarding(TestCase):
 
         website.refresh_from_db()
         account.refresh_from_db()
-        self.assertEqual(website.onboarding_status, 'onboarding_complete')
+        self.assertEqual(website.onboarding_status, 'intake_complete')
         self.assertIsNotNone(website.needs_admin_review_at)
         self.assertTrue(account.onboarding_complete)
-        self.assertEqual(account.onboarding_status, 'onboarding_complete')
+        self.assertEqual(account.onboarding_status, 'complete')

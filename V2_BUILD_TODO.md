@@ -61,16 +61,50 @@ constraints in the build prompt for the full list.
 
 All Phase 0 assumptions held. Proceeding.
 
-## Phase 1 — Fix intake status bug (clients/, shared code)
+## Phase 1 — Fix intake status bug (clients/, shared code) — DONE
 
-- [ ] 1a. Fix `_on_intake_submitted` so a normal submission sets
-      `Website.onboarding_status` to `'intake_complete'` (valid value).
-- [ ] 1b. Management command `fix_stuck_onboarding_status` (--dry-run default,
-      report-only, no auto-fix).
-- [ ] 1c. Tests: submit -> `intake_complete`; command detects invalid values;
-      portal access gate unchanged.
-- [ ] 1d. Verify portal gate (`decorators.py`, checks `== 'pending_intake'`)
-      behavior is identical before/after.
+- [x] 1a. Fixed `_on_intake_submitted` (clients/views.py). When `profile` is a
+      `Website` (the new-flow aliased call), it now advances
+      `pending_intake` -> `intake_complete` in place instead of stomping
+      `'onboarding_complete'`. When `profile` is the legacy `ClientProfile`,
+      unchanged (`'onboarding_complete'` stays valid there). Also fixed the
+      extra bug found in Phase 0: `Account.onboarding_status` now gets
+      `'complete'` instead of the invalid `'onboarding_complete'`. The later
+      "mirror onto Website" block is kept for the legacy call shape
+      (`project is not profile`) — harmless no-op in the new-flow case since
+      profile/project already share the fix.
+- [x] 1b. `clients/management/commands/fix_stuck_onboarding_status.py` —
+      scans both `Website` and `Account` for out-of-choices values, reports
+      only, never writes (no `--apply` path exists at all in this build).
+- [x] 1c. Tests: `clients/tests_intake_submit.py::test_on_intake_submitted_marks_both_records`
+      updated to assert `intake_complete`/`complete` (was asserting the bug);
+      new `clients/tests_fix_stuck_onboarding_status.py` (4 tests) covers the
+      command finding Website/Account drift, reporting cleanly when none
+      exists, and never writing. `clients/tests_portal_gate.py` (7 tests) run
+      unmodified and pass, confirming the access gate is unaffected.
+- [x] 1d. Verified by reading `clients/decorators.py:103-109` — the gate's
+      only comparison is `request.website.onboarding_status ==
+      'pending_intake'`; every other value (old buggy `'onboarding_complete'`
+      or the new correct `'intake_complete'`/`'complete'`) falls through to
+      the same `else: status = 'onboarding_complete'` (a local sentinel
+      variable, unrelated to the model field) and is admitted. Confirmed by
+      code reading and by `tests_portal_gate.py` passing unmodified.
+
+Targeted run: `python manage.py test clients.tests_intake_submit
+clients.tests_fix_stuck_onboarding_status clients.tests_portal_gate` — 18/18
+pass.
+
+**Found but NOT fixed (pre-existing, out of scope):**
+`clients.tests.GmbIntakeFollowupTests.test_have_sends_add_manager_and_creates_todo`
+and `test_need_sends_create_and_creates_todo` were ALREADY FAILING before
+any change in this build (confirmed via `git stash` against the Phase-0-only
+commit). `_on_intake_submitted` tries `SiteChangelogEntry.objects.create(
+website_new=profile, ...)` where `profile` is a legacy `ClientProfile`
+(that test's call shape), but `website_new` is FK'd to `Website` — raises
+`ValueError`, caught by the surrounding best-effort `except Exception`, but
+something downstream of that (the GMB SetupTodo creation) never runs as a
+result, so `_has_todo()` is False. Unrelated to the onboarding_status bug
+this phase targets; left alone per "additive only" / narrow-scope rules.
 
 ## Phase 2 — v2 scaffolding
 

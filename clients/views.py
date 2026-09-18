@@ -934,16 +934,24 @@ def _on_intake_submitted(profile, project):
     """
     from datetime import date
 
+    from .account_models import Website
     from .emails import send_intake_received_email
 
-    # `profile` is the Website. `onboarding_complete` is an ACCOUNT
-    # column — the site has no such field, so assigning it merely stuck
-    # an attribute on the instance and `update_fields` then raised
-    # ValueError. That 500'd the submit *after* the intake had already
-    # been marked complete: the client's answers were saved, but they
-    # were shown a crash and no confirmation, and none of the work below
-    # (file copy, changelog, provisioning, confirmation email) ran.
-    profile.onboarding_status = 'onboarding_complete'
+    # `profile` is either the legacy ClientProfile (valid choice
+    # 'onboarding_complete') or a Website — and the new portal flow
+    # calls this with the SAME Website object as both `profile` and
+    # `project` (see intake() above). 'onboarding_complete' is not a
+    # valid Website.onboarding_status choice (pending_intake /
+    # intake_complete / complete), and writing it here used to also
+    # silently defeat the "only advance from pending_intake" guard
+    # further down: when profile IS project, that guard read this same
+    # object AFTER this line had already overwritten its status, so its
+    # `== 'pending_intake'` check was always False.
+    if isinstance(profile, Website):
+        if profile.onboarding_status == 'pending_intake':
+            profile.onboarding_status = 'intake_complete'
+    else:
+        profile.onboarding_status = 'onboarding_complete'
     # Flag the admin Needs You queue so the human review step is
     # tracked alongside the existing email-reply triage. Cleared
     # by the Mark Reviewed button in admin_dashboard.
@@ -956,23 +964,25 @@ def _on_intake_submitted(profile, project):
 
     # Account-level completion — what gates the portal out of the intake
     # lock. Without it the client stays fenced on the intake page after
-    # submitting.
+    # submitting. 'complete' is the only "done" value in
+    # Account.ONBOARDING_STATUS_CHOICES (pending_setup / complete) —
+    # 'onboarding_complete' was invalid here too.
     account = getattr(profile, 'account', None)
     if account is not None:
-        account.onboarding_status = 'onboarding_complete'
+        account.onboarding_status = 'complete'
         account.onboarding_complete = True
         account.save(update_fields=[
             'onboarding_status', 'onboarding_complete', 'updated_at'])
 
-    # Mirror the intake-complete flag onto the per-website record. The
-    # ClientProfile above gates the portal, but the Website's OWN
-    # onboarding_status is what the admin Website page shows — without
-    # this it stays "Pending Intake" forever after the client submits.
-    # Only advance from pending_intake, never downgrade a later state.
+    # Mirror the intake-complete flag onto the per-website record for the
+    # legacy call shape, where `project` is a Website distinct from
+    # `profile` (a ClientProfile). When profile IS project (new flow)
+    # this is already handled above and is a no-op here. Only advance
+    # from pending_intake, never downgrade a later state.
     try:
-        from .account_models import Website
-        if isinstance(project, Website) and (
-                project.onboarding_status == 'pending_intake'):
+        if (project is not None and project is not profile
+                and isinstance(project, Website)
+                and project.onboarding_status == 'pending_intake'):
             project.onboarding_status = 'intake_complete'
             project.save(update_fields=['onboarding_status', 'updated_at'])
     except Exception:
