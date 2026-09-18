@@ -50,7 +50,13 @@
                     <div class="svc-card__top">
                         <div class="svc-card__lead">
                             <h3 class="sub-card__title">{{ sub.product_name|default:"Subscription" }}</h3>
+                            {% if sub.is_discounted %}
+                                <div class="svc-card__list-price" style="font-size:0.9rem;color:var(--color-text-muted);text-decoration:line-through;">${{ sub.list_amount|floatformat:2 }}</div>
+                            {% endif %}
                             <div class="svc-card__price">${{ sub.amount|floatformat:2 }}<span class="svc-card__interval">{% if sub.interval %} / {{ sub.interval }}{% endif %}</span></div>
+                            {% if sub.is_discounted %}
+                                <p class="svc-card__renews">Discount applied</p>
+                            {% endif %}
                             {% if sub.trial_end %}
                                 <p class="svc-card__renews">Next charge {{ sub.trial_end|date:"M j, Y" }}</p>
                             {% elif sub.current_period_end %}
