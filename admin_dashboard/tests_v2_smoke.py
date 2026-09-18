@@ -91,9 +91,90 @@ class V2SmokeTests(TestCase):
             f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
         self.assertEqual(r.status_code, 200)
 
+    def test_account_detail_mirrors_v1_sections(self):
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
+        html = r.content.decode()
+        for label in ('Identity', 'Mailing / WHOIS Address',
+                      'Account State', 'Communication Preferences',
+                      'Onboarding', 'Internal', 'Payments &amp; invoices',
+                      'Login &amp; Password', 'Delete this Account'):
+            with self.subTest(section=label):
+                self.assertIn(label, html)
+        # Delete modal markup present (JS-driven, no server round trip
+        # needed to verify it rendered).
+        self.assertIn('id="delete-account-modal"', html)
+        self.assertIn('id="delete-account-confirm-input"', html)
+
+    def test_account_detail_save_updates_fields(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/', {
+                'name': 'Live Co Renamed',
+                'contact_name': 'Jordan',
+                'status': 'active',
+                'preferred_contact_method': 'email',
+                'onboarding_status': 'complete',
+            })
+        self.assertEqual(r.status_code, 302)
+        self.account_live.refresh_from_db()
+        self.assertEqual(self.account_live.name, 'Live Co Renamed')
+        self.assertEqual(self.account_live.contact_name, 'Jordan')
+
+    def test_account_detail_login_toggle_present_in_post_enables(self):
+        """Mirrors v1's exact (checkbox-only, no hidden fallback) logic:
+        the field is only written when the key is present in POST at
+        all. A real unchecked HTML checkbox sends no key, so this is a
+        pre-existing v1 quirk carried over deliberately, not something
+        this build changed — see the account_detail view docstring."""
+        self.account_live.user.is_active = False
+        self.account_live.user.save(update_fields=['is_active'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/', {
+                'name': self.account_live.name,
+                'user_is_active': 'on',
+            })
+        self.assertEqual(r.status_code, 302)
+        self.account_live.user.refresh_from_db()
+        self.assertTrue(self.account_live.user.is_active)
+
     def test_account_create_get_renders(self):
         r = self.client.get('/admin-dashboard/v2/accounts/new/')
         self.assertEqual(r.status_code, 200)
+
+    def test_account_create_enables_login_and_sets_pending_setup(self):
+        r = self.client.post('/admin-dashboard/v2/accounts/new/', {
+            'name': 'Fresh Record Co', 'email': 'freshrecord@example.com',
+            'contact_name': 'Sam', 'phone': '555-9999',
+        })
+        self.assertEqual(r.status_code, 302)
+        account = Account.objects.get(name='Fresh Record Co')
+        self.assertTrue(account.user.is_active)
+        self.assertEqual(account.onboarding_status, 'pending_setup')
+
+    def test_website_create_get_renders(self):
+        r = self.client.get('/admin-dashboard/v2/websites/new/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_website_create_post_creates_and_redirects_to_v1(self):
+        r = self.client.post('/admin-dashboard/v2/websites/new/', {
+            'account_id': str(self.account_new_site.id),
+            'name': 'Freshly Created Site',
+            'build_platform': 'wordpress',
+        })
+        self.assertEqual(r.status_code, 302)
+        site = Website.objects.get(name='Freshly Created Site')
+        self.assertEqual(site.account_id, self.account_new_site.id)
+        self.assertEqual(site.build_platform, 'wordpress')
+        self.assertIn(f'/admin-dashboard/websites/{site.id}/', r.url)
+
+    def test_website_create_requires_account_and_name(self):
+        r = self.client.post('/admin-dashboard/v2/websites/new/', {
+            'account_id': '', 'name': '', 'build_platform': 'custom',
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(
+            Website.objects.filter(name='').exists())
 
     def test_account_create_post_creates_record_and_sends_nothing(self):
         from django.core import mail

@@ -45,6 +45,55 @@ def _block_if_live_subscription(request, website):
 
 
 @admin_required
+def website_create(request):
+    """Tag a new Website to an existing Account and pick its build
+    platform. No standalone "create website" form existed in v1 (sites
+    are otherwise created inline as part of the onboarding-invoice /
+    lead-conversion flows) — this is new, but it's a single
+    Website.objects.create() with the same fields those flows set, not
+    new business logic.
+
+    Redirects to v1's website_detail page for now, per instruction —
+    v2's own website page is still being built out; v1's is the fully-
+    featured one today.
+    """
+    from clients.account_models import Account
+
+    if request.method == 'POST':
+        account_id = request.POST.get('account_id')
+        name = (request.POST.get('name') or '').strip()
+        build_platform = request.POST.get('build_platform') or 'custom'
+
+        account = (Account.objects.filter(id=account_id).first()
+                   if account_id else None)
+        valid_platforms = {v for v, _ in Website.BUILD_PLATFORM_CHOICES}
+
+        if not account:
+            messages.error(request, 'Pick an account.')
+        elif not name:
+            messages.error(request, 'Website name is required.')
+        elif build_platform not in valid_platforms:
+            messages.error(request, 'Pick a valid build platform.')
+        else:
+            website = Website.objects.create(
+                account=account, name=name, build_platform=build_platform)
+            messages.success(
+                request, f'{website.name} created under {account.name}.')
+            return redirect('admin_dashboard:website_detail',
+                             website_id=website.id)
+
+        return render(request, 'admin_dashboard/v2/website_create.html', {
+            'accounts': Account.objects.order_by('name'),
+            'name': name, 'build_platform': build_platform,
+            'selected_account_id': account_id,
+        })
+
+    return render(request, 'admin_dashboard/v2/website_create.html', {
+        'accounts': Account.objects.order_by('name'),
+    })
+
+
+@admin_required
 def websites_list(request):
     q = (request.GET.get('q') or '').strip()
     stage = (request.GET.get('stage') or '').strip()

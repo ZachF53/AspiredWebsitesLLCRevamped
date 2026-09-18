@@ -38,6 +38,8 @@ urlpatterns = [
          name='v2_account_reset_password'),
 
     path('websites/', views_websites.websites_list, name='v2_websites_list'),
+    path('websites/new/', views_websites.website_create,
+         name='v2_website_create'),
     path('websites/<uuid:website_id>/', views_websites.website_detail,
          name='v2_website_detail'),
     path('websites/<uuid:website_id>/stage/', views_websites.website_stage,
