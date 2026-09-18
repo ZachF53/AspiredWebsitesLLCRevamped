@@ -11,7 +11,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import NoReverseMatch, reverse
 
-from admin_dashboard.navigation import NAVIGATION, all_items, is_active
+from admin_dashboard.navigation import (
+    NAVIGATION, NAVIGATION_V2, all_items, is_active)
 
 
 User = get_user_model()
@@ -120,6 +121,75 @@ class NavigationRenderingTests(TestCase):
         html = self.client.get('/admin-dashboard/').content.decode()
         self.assertIn('aria-current="page"', html)
         self.assertEqual(html.count('aria-current="page"'), 1)
+
+
+class NavigationV2DefinitionTests(TestCase):
+    """Same properties as NavigationDefinitionTests, run against
+    NAVIGATION_V2. v1's assertions above are untouched."""
+
+    def test_every_link_resolves(self):
+        broken = []
+        for item in all_items(NAVIGATION_V2):
+            try:
+                reverse(item.url_name)
+            except NoReverseMatch:
+                broken.append(f'{item.label} -> {item.url_name}')
+        self.assertEqual(broken, [])
+
+    def test_no_two_items_point_at_the_same_page(self):
+        targets = {}
+        for item in all_items(NAVIGATION_V2):
+            targets.setdefault(reverse(item.url_name), []).append(item.label)
+        duplicates = {
+            url: labels for url, labels in targets.items() if len(labels) > 1
+        }
+        self.assertEqual(duplicates, {})
+
+    def test_labels_are_unique(self):
+        labels = [item.label for item in all_items(NAVIGATION_V2)]
+        self.assertEqual(len(labels), len(set(labels)))
+
+    def test_exactly_six_items_in_this_order(self):
+        labels = [item.label for item in all_items(NAVIGATION_V2)]
+        self.assertEqual(labels, [
+            'Dashboard', 'Accounts', 'Websites', 'Domains', 'Billing',
+            'Vault',
+        ])
+
+
+class ToggleTests(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='togglestaff', email='toggle@example.com',
+            password='test-pass-123', is_staff=True, is_superuser=True)
+        self.client.force_login(self.staff)
+
+    def test_default_session_renders_v1_nav(self):
+        html = self.client.get('/admin-dashboard/').content.decode()
+        self.assertIn('>Needs You</span>', html)
+        self.assertIn('>View New Dashboard</span>', html)
+
+    def test_use_v2_switches_session_and_nav(self):
+        self.client.get('/admin-dashboard/use-v2/')
+        html = self.client.get('/admin-dashboard/v2/').content.decode()
+        self.assertIn('>Accounts</span>', html)
+        self.assertIn('>View Old Dashboard</span>', html)
+        self.assertNotIn('>Needs You</span>', html)
+
+    def test_use_v1_switches_back(self):
+        self.client.get('/admin-dashboard/use-v2/')
+        self.client.get('/admin-dashboard/use-v1/')
+        html = self.client.get('/admin-dashboard/').content.decode()
+        self.assertIn('>Needs You</span>', html)
+
+    def test_v2_flag_follows_into_vault(self):
+        """The whole reason the toggle is a session flag and not a URL
+        prefix — v2 must survive a click into another app's page."""
+        self.client.get('/admin-dashboard/use-v2/')
+        html = self.client.get('/admin-dashboard/vault/').content.decode()
+        self.assertIn('>Accounts</span>', html)
+        self.assertNotIn('>Needs You</span>', html)
 
 
 class ViewModuleSplitTests(TestCase):

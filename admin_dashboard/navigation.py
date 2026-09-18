@@ -139,12 +139,27 @@ NAVIGATION = (
 )
 
 
-def all_items():
-    for group in NAVIGATION:
+# v2 dashboard (admin_dashboard/v2/) — six items, nothing else. Pipeline
+# and Growth stay reachable only by toggling back to v1 (see `navigation()`
+# below). Vault points at the same vault app v1 uses.
+NAVIGATION_V2 = (
+    NavGroup(None, (
+        NavItem('Dashboard', 'admin_dashboard:v2_home'),
+        NavItem('Accounts', 'admin_dashboard:v2_accounts_list'),
+        NavItem('Websites', 'admin_dashboard:v2_websites_list'),
+        NavItem('Domains', 'admin_dashboard:v2_domains_list'),
+        NavItem('Billing', 'admin_dashboard:v2_billing_list'),
+        NavItem('Vault', 'vault:home'),
+    )),
+)
+
+
+def all_items(nav=NAVIGATION):
+    for group in nav:
         yield from group.items
 
 
-def active_item(path):
+def active_item(path, nav=NAVIGATION):
     """The item whose URL is the longest prefix of `path`, or None.
 
     Longest-prefix rather than "first match" is what makes nesting work
@@ -152,7 +167,7 @@ def active_item(path):
     """
     best = None
     best_length = 0
-    for item in all_items():
+    for item in all_items(nav):
         item_path = item.path
         if not item_path or not path.startswith(item_path):
             continue
@@ -161,17 +176,35 @@ def active_item(path):
     return best
 
 
-def is_active(item, path):
+def is_active(item, path, nav=NAVIGATION):
     """Whether `item` should render as the current page."""
-    return active_item(path) is item
+    return active_item(path, nav) is item
 
 
 def navigation(request):
-    """Context processor: the sidebar, resolved for this request."""
+    """Context processor: the sidebar, resolved for this request.
+
+    Branches on the `dashboard_version` session flag (default 'v1') rather
+    than a URL prefix. The flag has to follow the user into every other
+    app under this same base template — Vault, Ops Sessions, GBP, Social —
+    all of which `{% extends "admin_dashboard/base.html" %}` and render
+    whatever this function returns. A URL-prefixed v2 would dump a v2 user
+    back into the 41-item v1 sidebar the moment they clicked Vault.
+
+    The "View New/Old Dashboard" toggle link is injected here as a plain
+    item on the first group rather than added to base.html's markup —
+    base.html's sidebar loop is already generic over `admin_nav`, so this
+    needs no template change and v1's template stays untouched.
+    """
     path = getattr(request, 'path', '') or ''
-    current = active_item(path)
+    session = getattr(request, 'session', None)
+    version = (session.get('dashboard_version', 'v1')
+               if session is not None else 'v1')
+    nav = NAVIGATION_V2 if version == 'v2' else NAVIGATION
+
+    current = active_item(path, nav)
     groups = []
-    for group in NAVIGATION:
+    for group in nav:
         groups.append({
             'label': group.label,
             'items': [
@@ -184,4 +217,18 @@ def navigation(request):
                 for item in group.items
             ],
         })
-    return {'admin_nav': groups}
+
+    if version == 'v2':
+        toggle = {'label': 'View Old Dashboard',
+                  'url_name': 'admin_dashboard:use_v1',
+                  'badge': None, 'active': False}
+    else:
+        toggle = {'label': 'View New Dashboard',
+                  'url_name': 'admin_dashboard:use_v2',
+                  'badge': None, 'active': False}
+    if groups:
+        groups[0]['items'].insert(0, toggle)
+    else:
+        groups.append({'label': None, 'items': [toggle]})
+
+    return {'admin_nav': groups, 'dashboard_version': version}
