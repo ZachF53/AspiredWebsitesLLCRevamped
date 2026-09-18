@@ -278,3 +278,165 @@ def get_money_summary():
     }
     cache.set(MONEY_CACHE_KEY, summary, MONEY_CACHE_SECONDS)
     return summary
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Account editor — moved out of admin_dashboard/v2/views_accounts.py so it
+# stops growing a second copy of v1's account_detail logic. v1 keeps its
+# own copy in admin_dashboard/views.py, untouched and not calling these —
+# v1 is off-limits. _ACCOUNT_EDIT_SECTIONS / _account_field_spec are still
+# imported from v1 (not duplicated here) so the section definitions can't
+# drift between the two dashboards.
+# ─────────────────────────────────────────────────────────────────────────
+
+def apply_account_edit_fields(account, post):
+    """Apply the account field editor's POST data onto `account` in
+    memory, plus the linked User's is_active toggle (written
+    immediately, since it lives on a different row than the rest of
+    the form). Returns a list of validation error strings; the caller
+    calls account.save() itself when the list is empty, exactly as the
+    view did before this was extracted.
+    """
+    from admin_dashboard.views import _ACCOUNT_EDIT_SECTIONS, _account_field_spec
+
+    user = account.user
+    if 'user_is_active' in post and user is not None:
+        new_active = post.get('user_is_active') == 'on'
+        if user.is_active != new_active:
+            user.is_active = new_active
+            user.save(update_fields=['is_active'])
+
+    errors = []
+    allowed = {
+        fname for _, group in _ACCOUNT_EDIT_SECTIONS for fname, _, _ in group
+    }
+    checkbox_fields = {
+        fname for _, group in _ACCOUNT_EDIT_SECTIONS
+        for fname, _, ftype in group if ftype == 'checkbox'
+    }
+    for field in allowed:
+        # An unchecked checkbox sends no key at all — still has to be
+        # processed so unchecking actually clears it.
+        if field not in post and field not in checkbox_fields:
+            continue
+        spec = _account_field_spec(field)
+        if spec['type'] == 'checkbox':
+            setattr(account, field, post.get(field) == 'on')
+        elif spec['type'] == 'select':
+            value = (post.get(field) or '').strip()
+            choices = dict(account._meta.get_field(field).choices or [])
+            if value and value not in choices:
+                errors.append(f'{field}: invalid value {value!r}')
+            else:
+                setattr(account, field, value)
+        else:
+            value = (post.get(field) or '').strip()
+            setattr(account, field, value)
+    return errors
+
+
+def build_account_edit_sections(account):
+    """Render data for the account editor's sections, current values
+    pulled from `account`. Section labels/fields/types come from v1's
+    _ACCOUNT_EDIT_SECTIONS so the two dashboards can't drift apart.
+    """
+    from admin_dashboard.views import _ACCOUNT_EDIT_SECTIONS
+
+    sections = []
+    for section_label, fields in _ACCOUNT_EDIT_SECTIONS:
+        rendered = []
+        for fname, flabel, ftype in fields:
+            current = getattr(account, fname, '')
+            choices = []
+            if ftype == 'select':
+                choices = list(account._meta.get_field(fname).choices or [])
+            rendered.append({
+                'name': fname, 'label': flabel, 'type': ftype,
+                'value': current, 'choices': choices,
+            })
+        sections.append({'label': section_label, 'fields': rendered})
+    return sections
+
+
+def compute_account_delete_impact(account):
+    """Everything the delete-confirmation modal shows the admin before
+    they type the account name — same counts v1's modal shows.
+    """
+    from django.db.models import Count, Q
+
+    from clients.account_models import Website
+    from clients.models import SupportTicket
+
+    websites = list(account.websites.all())
+    domains = list(account.domains.all())
+
+    site_ids = [w.pk for w in websites]
+    counts = Website.objects.filter(pk__in=site_ids).aggregate(
+        documents=Count('documents_new', distinct=True),
+        revisions=Count('revisions_new', distinct=True),
+        scans=Count('vulnerability_scans_new', distinct=True),
+        credentials=Count('vault_credentials_new', distinct=True),
+    ) if site_ids else {}
+
+    delete_impact = {
+        'websites': len(websites),
+        'domains': len(domains),
+        'vault_credentials': counts.get('credentials', 0) or 0,
+        'support_tickets': SupportTicket.objects.filter(
+            Q(account_new=account) | Q(website_new__account=account)
+        ).distinct().count(),
+        'documents': counts.get('documents', 0) or 0,
+        'revisions': counts.get('revisions', 0) or 0,
+        'scans': counts.get('scans', 0) or 0,
+        'active_droplets': 0,
+        'active_subscriptions': 0,
+    }
+    for w in websites:
+        if w.do_droplet_id:
+            delete_impact['active_droplets'] += 1
+        if (w.stripe_hosting_subscription_id
+                or w.stripe_maintenance_subscription_id):
+            delete_impact['active_subscriptions'] += 1
+    return delete_impact
+
+
+def send_account_password_reset(account, request):
+    """Fires the same Django PasswordResetForm flow the public
+    /password-reset/ page uses. Returns (ok, msg) — the caller attaches
+    the message to the request and redirects; this function does
+    neither, so it's usable from any view without assuming Django's
+    messages framework is what should surface the result.
+    """
+    from django.contrib.auth.forms import PasswordResetForm
+
+    user = account.user
+    if not user or not user.is_active or not user.email:
+        return False, 'This account has no active login to send a reset to.'
+
+    form = PasswordResetForm({'email': user.email})
+    if form.is_valid():
+        form.save(
+            request=request, use_https=request.is_secure(),
+            email_template_name='public/password_reset_email.txt',
+            subject_template_name='public/password_reset_subject.txt',
+            from_email=None)
+        return True, f'Password reset email sent to {user.email}.'
+    return False, 'Could not send a password reset email.'
+
+
+def account_payments_summary(account):
+    """The onboarding/deposit invoice plus recent out-of-scope mini
+    invoices for this account — same data account_detail (v1 and v2)
+    show in the Payments & invoices card.
+    """
+    onboarding_invoice = account.onboarding_invoices_new.order_by(
+        '-created_at').first()
+    try:
+        mini_invoices = list(
+            account.mini_invoices_new.all().order_by('-created_at')[:10])
+    except Exception:
+        mini_invoices = []
+    return {
+        'onboarding_invoice': onboarding_invoice,
+        'mini_invoices': mini_invoices,
+    }

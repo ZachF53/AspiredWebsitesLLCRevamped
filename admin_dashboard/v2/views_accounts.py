@@ -5,7 +5,6 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import PasswordResetForm
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -126,11 +125,7 @@ def account_detail(request, account_id):
     Deliberately NOT brought over from v1: Comp products, Contracts,
     Scheduling & add-ons, GBP — not asked for. Add if wanted.
     """
-    from django.db.models import Count, Q
-
-    from admin_dashboard.views import _ACCOUNT_EDIT_SECTIONS, _account_field_spec
-    from clients.account_models import Website
-    from clients.models import SupportTicket
+    from admin_dashboard.v2 import services
 
     account = get_object_or_404(
         Account.objects.select_related('user'), id=account_id)
@@ -141,40 +136,7 @@ def account_detail(request, account_id):
             return redirect('admin_dashboard:v2_account_detail',
                              account_id=account.id)
 
-        # Login-enabled lives on User, not Account — handled first so
-        # the one Save button writes both, exactly like v1.
-        if 'user_is_active' in request.POST and user is not None:
-            new_active = request.POST.get('user_is_active') == 'on'
-            if user.is_active != new_active:
-                user.is_active = new_active
-                user.save(update_fields=['is_active'])
-
-        errors = []
-        allowed = {
-            fname for _, group in _ACCOUNT_EDIT_SECTIONS for fname, _, _ in group
-        }
-        checkbox_fields = {
-            fname for _, group in _ACCOUNT_EDIT_SECTIONS
-            for fname, _, ftype in group if ftype == 'checkbox'
-        }
-        for field in allowed:
-            # An unchecked checkbox sends no key at all — still has to
-            # be processed so unchecking actually clears it.
-            if field not in request.POST and field not in checkbox_fields:
-                continue
-            spec = _account_field_spec(field)
-            if spec['type'] == 'checkbox':
-                setattr(account, field, request.POST.get(field) == 'on')
-            elif spec['type'] == 'select':
-                value = (request.POST.get(field) or '').strip()
-                choices = dict(account._meta.get_field(field).choices or [])
-                if value and value not in choices:
-                    errors.append(f'{field}: invalid value {value!r}')
-                else:
-                    setattr(account, field, value)
-            else:
-                value = (request.POST.get(field) or '').strip()
-                setattr(account, field, value)
+        errors = services.apply_account_edit_fields(account, request.POST)
 
         if errors:
             for e in errors:
@@ -188,58 +150,16 @@ def account_detail(request, account_id):
             except Exception as exc:
                 messages.error(request, f'Save failed: {exc}')
 
-    sections = []
-    for section_label, fields in _ACCOUNT_EDIT_SECTIONS:
-        rendered = []
-        for fname, flabel, ftype in fields:
-            current = getattr(account, fname, '')
-            choices = []
-            if ftype == 'select':
-                choices = list(account._meta.get_field(fname).choices or [])
-            rendered.append({
-                'name': fname, 'label': flabel, 'type': ftype,
-                'value': current, 'choices': choices,
-            })
-        sections.append({'label': section_label, 'fields': rendered})
+    sections = services.build_account_edit_sections(account)
 
     websites = list(account.websites.all().order_by('name'))
     domains = list(account.domains.all().order_by('domain_name'))
 
-    site_ids = [w.pk for w in websites]
-    counts = Website.objects.filter(pk__in=site_ids).aggregate(
-        documents=Count('documents_new', distinct=True),
-        revisions=Count('revisions_new', distinct=True),
-        scans=Count('vulnerability_scans_new', distinct=True),
-        credentials=Count('vault_credentials_new', distinct=True),
-    ) if site_ids else {}
+    delete_impact = services.compute_account_delete_impact(account)
 
-    delete_impact = {
-        'websites': len(websites),
-        'domains': len(domains),
-        'vault_credentials': counts.get('credentials', 0) or 0,
-        'support_tickets': SupportTicket.objects.filter(
-            Q(account_new=account) | Q(website_new__account=account)
-        ).distinct().count(),
-        'documents': counts.get('documents', 0) or 0,
-        'revisions': counts.get('revisions', 0) or 0,
-        'scans': counts.get('scans', 0) or 0,
-        'active_droplets': 0,
-        'active_subscriptions': 0,
-    }
-    for w in websites:
-        if w.do_droplet_id:
-            delete_impact['active_droplets'] += 1
-        if (w.stripe_hosting_subscription_id
-                or w.stripe_maintenance_subscription_id):
-            delete_impact['active_subscriptions'] += 1
-
-    onboarding_invoice = account.onboarding_invoices_new.order_by(
-        '-created_at').first()
-    try:
-        mini_invoices = list(
-            account.mini_invoices_new.all().order_by('-created_at')[:10])
-    except Exception:
-        mini_invoices = []
+    payments = services.account_payments_summary(account)
+    onboarding_invoice = payments['onboarding_invoice']
+    mini_invoices = payments['mini_invoices']
 
     token = getattr(account, 'onboarding_token_new', None)
     setup_cooldown_remaining = None
@@ -355,25 +275,15 @@ def account_reset_password(request, account_id):
         return redirect('admin_dashboard:v2_account_detail',
                          account_id=account_id)
 
+    from admin_dashboard.v2 import services
+
     account = get_object_or_404(Account.objects.select_related('user'),
                                  id=account_id)
-    user = account.user
-    if not user or not user.is_active or not user.email:
-        messages.error(
-            request, 'This account has no active login to send a reset to.')
-        return redirect('admin_dashboard:v2_account_detail',
-                         account_id=account.id)
-
-    form = PasswordResetForm({'email': user.email})
-    if form.is_valid():
-        form.save(
-            request=request, use_https=request.is_secure(),
-            email_template_name='public/password_reset_email.txt',
-            subject_template_name='public/password_reset_subject.txt',
-            from_email=None)
-        messages.success(request, f'Password reset email sent to {user.email}.')
+    ok, msg = services.send_account_password_reset(account, request)
+    if ok:
+        messages.success(request, msg)
     else:
-        messages.error(request, 'Could not send a password reset email.')
+        messages.error(request, msg)
     return redirect('admin_dashboard:v2_account_detail', account_id=account.id)
 
 
