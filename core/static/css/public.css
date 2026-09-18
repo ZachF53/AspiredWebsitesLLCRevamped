@@ -5901,3 +5901,10 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 /* ── Email preview ────────────────────────────────────────────────────── */
 
 /* ── Index cards ──────────────────────────────────────────────────────── */
+
+/* ── v2 dashboard (admin_dashboard/v2/) ──────────────────────────────────
+   Additive only — reuses every existing token/class (admin-card,
+   lead-table, status-badge, btn-*) for the page chrome. These rules cover
+   only the handful of components v1 never needed: the merged action
+   list, stat tiles, the website-detail tab bar, and a couple of small
+   read-only layouts (key/value table, photo grid). */
