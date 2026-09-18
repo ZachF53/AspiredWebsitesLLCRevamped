@@ -187,6 +187,45 @@ class V2SmokeTests(TestCase):
         self.assertIsNotNone(self.website_new_site.payment_verified_at)
         self.assertIn('Zelle', self.website_new_site.payment_verification_note)
 
+    def test_live_subscription_website_stage_write_is_blocked(self):
+        """Hard constraint: no write path may touch a Website row with a
+        non-null Stripe subscription id (the two real paying clients)."""
+        self.website_live.stripe_hosting_subscription_id = 'sub_live123'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+        original_stage = self.website_live.stage
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/stage/',
+            {'new_stage': 'revisions'})
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(self.website_live.stage, original_stage)
+
+    def test_live_subscription_website_payment_override_is_blocked(self):
+        self.website_live.stripe_maintenance_subscription_id = 'sub_maint123'
+        self.website_live.payment_status = 'deposit_paid'
+        self.website_live.save(update_fields=[
+            'stripe_maintenance_subscription_id', 'payment_status'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/stage/',
+            {'action': 'payment_override', 'override_reason': 'test'})
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(self.website_live.payment_status, 'deposit_paid')
+
+    def test_live_subscription_website_auto_send_toggle_is_blocked(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_live456'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+        before = self.website_live.auto_send_scan_reports
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/'
+            'toggle-auto-send-scan/')
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(before, self.website_live.auto_send_scan_reports)
+
     def test_toggle_auto_send_scan(self):
         before = self.website_live.auto_send_scan_reports
         r = self.client.post(

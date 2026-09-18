@@ -20,6 +20,30 @@ def _setter_name(request):
             or request.user.username or 'admin')
 
 
+def _has_live_subscription(website):
+    """True if this Website carries a live Stripe subscription id.
+
+    Hard constraint from the build brief: no write path in this build may
+    touch a Website row where stripe_maintenance_subscription_id or
+    stripe_hosting_subscription_id is non-null (Burgland Tech, Denis Law
+    Group — the two real paying clients). Every view in this module that
+    writes a field on the Website row itself checks this first.
+    """
+    return bool(website.stripe_hosting_subscription_id
+                or website.stripe_maintenance_subscription_id)
+
+
+def _block_if_live_subscription(request, website):
+    if _has_live_subscription(website):
+        messages.error(
+            request,
+            'This website has a live Stripe subscription — v2 write '
+            'actions are disabled for it in this build. Use v1 if a '
+            'change is genuinely needed.')
+        return True
+    return False
+
+
 @admin_required
 def websites_list(request):
     q = (request.GET.get('q') or '').strip()
@@ -137,6 +161,7 @@ def website_detail(request, website_id):
         'website': website,
         'account': website.account,
         'active_tab': active_tab,
+        'has_live_subscription': _has_live_subscription(website),
         'stage_choices': website._meta.get_field('stage').choices,
         # Onboarding
         'onboarding_steps': _onboarding_steps(website),
@@ -171,6 +196,10 @@ def website_stage(request, website_id):
                          website_id=website_id)
 
     website = get_object_or_404(Website, id=website_id)
+    if _block_if_live_subscription(request, website):
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
     action = request.POST.get('action')
 
     if action == 'payment_override':
@@ -333,6 +362,8 @@ def website_toggle_auto_send_scan(request, website_id):
         return redirect('admin_dashboard:v2_website_detail',
                          website_id=website_id)
     website = get_object_or_404(Website, id=website_id)
+    if _block_if_live_subscription(request, website):
+        return redirect(f"{reverse_v2_website_tab(website.id, 'security')}")
     website.auto_send_scan_reports = not website.auto_send_scan_reports
     website.save(update_fields=['auto_send_scan_reports', 'updated_at'])
     messages.success(

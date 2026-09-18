@@ -28,6 +28,15 @@
         <a class="v2-tab {% if active_tab == 'monitoring' %}active{% endif %}" href="?tab=monitoring">Monitoring</a>
     </div>
 
+    {% if has_live_subscription %}
+        <div class="admin-card" style="border-color: var(--color-orange);">
+            <div class="admin-card__body">
+                <p><strong>This website has a live Stripe subscription.</strong>
+                Stage changes and the payment override are disabled in v2 for this build — use v1 if a change is genuinely needed.</p>
+            </div>
+        </div>
+    {% endif %}
+
     {% if active_tab == 'overview' %}
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Status</h2></div>
@@ -45,6 +54,7 @@
             </div>
         </div>
 
+        {% if not has_live_subscription %}
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Stage control</h2></div>
             <div class="admin-card__body">
@@ -89,6 +99,7 @@
                 </p>
             </div>
         </div>
+        {% endif %}
         {% endif %}
 
     {% elif active_tab == 'onboarding' %}
@@ -228,7 +239,7 @@
                 </form>
                 <form method="post" action="{% url 'admin_dashboard:v2_website_toggle_auto_send_scan' website.id %}" style="margin-bottom: 1rem;">
                     {% csrf_token %}
-                    <button type="submit" class="btn-secondary btn-sm">
+                    <button type="submit" class="btn-secondary btn-sm" {% if has_live_subscription %}disabled title="Disabled for live-subscription websites in this build"{% endif %}>
                         {% if website.auto_send_scan_reports %}Disable{% else %}Enable{% endif %} auto-send scan reports
                     </button>
                 </form>
