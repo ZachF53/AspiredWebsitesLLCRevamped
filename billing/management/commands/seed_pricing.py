@@ -222,7 +222,7 @@ TIERS = [
             'Automated review generation included',
             'Drops to $145/mo automatically after month 24',
             'Month-to-month after the build term: cancel anytime',
-            'Monthly security report — an automated scan of your site, '
+            'Monthly security report: an automated scan of your site, '
             'summarized in a one-page PDF emailed to you on the 1st. '
             'Included in every plan.',
         ],
@@ -243,7 +243,7 @@ TIERS = [
             'Security patching included',
             'Automated review generation included',
             'Month-to-month from day one: cancel anytime',
-            'Monthly security report — an automated scan of your site, '
+            'Monthly security report: an automated scan of your site, '
             'summarized in a one-page PDF emailed to you on the 1st. '
             'Included in every plan.',
         ],

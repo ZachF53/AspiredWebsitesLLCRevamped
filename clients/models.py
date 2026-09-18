@@ -1568,9 +1568,9 @@ class CaseStudy(TimestampedModel):
         """
         base = f'Homepage of {self.title}'
         suffix = {
-            'built': ' — built by Aspired Websites',
-            'redesigned': ' — redesigned by Aspired Websites',
-            'maintained': ' — maintained and improved by Aspired Websites',
+            'built': ', built by Aspired Websites',
+            'redesigned': ', redesigned by Aspired Websites',
+            'maintained': ', maintained and improved by Aspired Websites',
             'consulted': '',
         }.get(self.engagement_type, '')
         return f'{base}{suffix}'
