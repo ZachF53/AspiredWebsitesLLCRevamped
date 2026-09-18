@@ -36,6 +36,9 @@ urlpatterns = [
     path('accounts/<uuid:account_id>/reset-password/',
          views_accounts.account_reset_password,
          name='v2_account_reset_password'),
+    path('accounts/<uuid:account_id>/delete/',
+         views_accounts.account_delete,
+         name='v2_account_delete'),
 
     path('websites/', views_websites.websites_list, name='v2_websites_list'),
     path('websites/new/', views_websites.website_create,

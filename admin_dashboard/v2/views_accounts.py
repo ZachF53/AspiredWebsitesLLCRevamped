@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from admin_dashboard.decorators import admin_required
 from clients.account_models import Account
@@ -22,6 +23,39 @@ _SORT_FIELDS = {
     'created': 'created_at',
     '-created': '-created_at',
 }
+
+
+def _live_subscription_websites(account):
+    """Websites on this account carrying a live Stripe subscription id.
+
+    v1's account_delete has no check for this — it only refuses
+    self-delete and staff/superuser delete, and merely warns (does not
+    block) when the modal detects an active subscription. Deleting
+    cascades the Account and its Websites, destroying the local record
+    of a subscription that keeps billing in Stripe. v2 refuses outright
+    rather than warn.
+    """
+    return [
+        w for w in account.websites.all()
+        if w.stripe_hosting_subscription_id
+        or w.stripe_maintenance_subscription_id
+    ]
+
+
+def _live_subscription_block_message(blocking_websites):
+    parts = []
+    for w in blocking_websites:
+        subs = []
+        if w.stripe_hosting_subscription_id:
+            subs.append(f'hosting subscription {w.stripe_hosting_subscription_id}')
+        if w.stripe_maintenance_subscription_id:
+            subs.append(
+                f'maintenance subscription {w.stripe_maintenance_subscription_id}')
+        parts.append(f'{w.name} ({" and ".join(subs)})')
+    return (
+        'Cannot delete this account — cancel the following in Stripe '
+        'first: ' + '; '.join(parts) + '.'
+    )
 
 
 @admin_required
@@ -192,6 +226,8 @@ def account_detail(request, account_id):
         if elapsed < SETUP_EMAIL_COOLDOWN:
             setup_cooldown_remaining = SETUP_EMAIL_COOLDOWN - elapsed
 
+    blocking_websites = _live_subscription_websites(account)
+
     ctx = {
         'account': account,
         'user': user,
@@ -199,6 +235,7 @@ def account_detail(request, account_id):
         'websites': websites,
         'domains': domains,
         'delete_impact': delete_impact,
+        'delete_blocked_websites': blocking_websites,
         'onboarding_invoice': onboarding_invoice,
         'mini_invoices': mini_invoices,
         'token': token,
@@ -206,6 +243,36 @@ def account_detail(request, account_id):
         'setup_cooldown_remaining': setup_cooldown_remaining,
     }
     return render(request, 'admin_dashboard/v2/account_detail.html', ctx)
+
+
+@admin_required
+@require_POST
+def account_delete(request, account_id):
+    """Guard in front of v1's admin_dashboard.views.account_delete.
+
+    v1's view has no live-subscription check — it only refuses
+    self-delete and staff/superuser delete, and the confirmation modal
+    merely *warns* about an active subscription without blocking.
+    Deleting cascades the Account and its Websites, which would destroy
+    the local record of a subscription still billing in Stripe.
+
+    This view refuses outright (server-side — the template also disables
+    the button, but that alone is not a guard) when any website on the
+    account has a live stripe_hosting_subscription_id or
+    stripe_maintenance_subscription_id. When clear, it calls v1's
+    account_delete directly — not reimplemented, not duplicated — so
+    v1's confirm-by-name check, safety rails, and cascade transaction
+    run completely unchanged.
+    """
+    account = get_object_or_404(Account, id=account_id)
+    blocking_websites = _live_subscription_websites(account)
+    if blocking_websites:
+        messages.error(request, _live_subscription_block_message(blocking_websites))
+        return redirect('admin_dashboard:v2_account_detail',
+                         account_id=account.id)
+
+    from admin_dashboard.views import account_delete as v1_account_delete
+    return v1_account_delete(request, account_id)
 
 
 @admin_required

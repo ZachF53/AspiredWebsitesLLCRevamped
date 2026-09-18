@@ -315,3 +315,88 @@ class V2SmokeTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.website_live.refresh_from_db()
         self.assertNotEqual(before, self.website_live.auto_send_scan_reports)
+
+    # ── Account delete — live-subscription guard ──
+
+    def test_delete_button_disabled_when_website_has_live_subscription(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_delete_guard1'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
+        html = r.content.decode()
+        self.assertIn('sub_delete_guard1', html)
+        # The button carries `disabled` when blocked.
+        btn_start = html.index('id="open-delete-account-modal"')
+        btn_tag = html[btn_start:html.index('>', btn_start)]
+        self.assertIn('disabled', btn_tag)
+
+    def test_delete_button_enabled_when_no_live_subscription(self):
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_new_site.id}/')
+        html = r.content.decode()
+        btn_start = html.index('id="open-delete-account-modal"')
+        btn_tag = html[btn_start:html.index('>', btn_start)]
+        self.assertNotIn('disabled', btn_tag)
+
+    def test_delete_refused_by_direct_post_when_live_subscription(self):
+        """The guard is server-side — a crafted POST with the correct
+        confirm_name must still be refused, not just the button."""
+        self.website_live.stripe_maintenance_subscription_id = 'sub_delete_guard2'
+        self.website_live.save(
+            update_fields=['stripe_maintenance_subscription_id'])
+        account_id = self.account_live.id
+        user_id = self.account_live.user_id
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{account_id}/delete/',
+            {'confirm_name': self.account_live.name})
+
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Account.objects.filter(id=account_id).exists())
+        self.assertTrue(Website.objects.filter(id=self.website_live.id).exists())
+        self.assertTrue(User.objects.filter(id=user_id).exists())
+
+    def test_delete_message_names_website_and_subscription(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_named_123'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/delete/',
+            {'confirm_name': self.account_live.name}, follow=True)
+
+        messages = [str(m) for m in r.context['messages']]
+        joined = ' '.join(messages)
+        self.assertIn(self.website_live.name, joined)
+        self.assertIn('sub_named_123', joined)
+
+    def test_delete_succeeds_via_v2_when_no_live_subscription(self):
+        account_id = self.account_new_site.id
+        website_id = self.website_new_site.id
+        user_id = self.account_new_site.user_id
+        account_name = self.account_new_site.name
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{account_id}/delete/',
+            {'confirm_name': account_name})
+
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(Account.objects.filter(id=account_id).exists())
+        self.assertFalse(Website.objects.filter(id=website_id).exists())
+        self.assertFalse(User.objects.filter(id=user_id).exists())
+
+    def test_v1_account_delete_view_unchanged_still_has_no_guard(self):
+        """Confirms this fix did not touch v1's view — v1 keeps deleting
+        a live-subscription account when posted to directly, exactly as
+        before. This is a characterization test of v1's existing
+        behavior, not an endorsement of it."""
+        self.website_live.stripe_hosting_subscription_id = 'sub_v1_unchanged'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+        account_id = self.account_live.id
+
+        r = self.client.post(
+            f'/admin-dashboard/accounts/{account_id}/delete/',
+            {'confirm_name': self.account_live.name})
+
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(Account.objects.filter(id=account_id).exists())
