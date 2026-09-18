@@ -25,7 +25,31 @@
         section list, imported from v1 rather than duplicated, so the
         two pages can't drift apart. The Login-enabled checkbox below
         submits into this same form via form="account-main-form".
+
+        When any website on this account carries a live Stripe
+        subscription id, every control here is disabled — the POST
+        handler refuses the whole save regardless (a disabled control
+        that still posted would not be a guard), this is belt and
+        suspenders. All-or-nothing rather than per-field: one Save
+        button writes one POST, so a partial guard would need its own
+        whitelist of "safe" fields with no clear rule for what belongs
+        on it.
     {% endcomment %}
+    {% if edit_blocked_websites %}
+        <div class="danger-modal__warning" style="margin-bottom:1rem;">
+            <strong>⚠ Editing blocked — live Stripe subscription(s):</strong>
+            <ul>
+                {% for w in edit_blocked_websites %}
+                    <li>
+                        {{ w.name }}
+                        {% if w.stripe_hosting_subscription_id %}&mdash; hosting subscription <code>{{ w.stripe_hosting_subscription_id }}</code>{% endif %}
+                        {% if w.stripe_maintenance_subscription_id %}&mdash; maintenance subscription <code>{{ w.stripe_maintenance_subscription_id }}</code>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+            <p class="muted" style="margin-bottom:0;">Cancel these in Stripe first, or use v1 if a change is genuinely needed &mdash; this account's fields cannot be saved through v2 until then.</p>
+        </div>
+    {% endif %}
     <form method="post" id="account-main-form" class="account-edit-form">
         {% csrf_token %}
         {% for section in sections %}
@@ -40,17 +64,17 @@
                             <div class="form-row__field">
                                 {% if f.type == 'text' or f.type == 'tel' or f.type == 'email' %}
                                     <input type="{{ f.type }}" name="{{ f.name }}" id="acc_{{ f.name }}"
-                                           value="{{ f.value }}" class="form-control">
+                                           value="{{ f.value }}" class="form-control" {% if edit_blocked_websites %}disabled{% endif %}>
                                 {% elif f.type == 'textarea' %}
-                                    <textarea name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control" rows="4">{{ f.value }}</textarea>
+                                    <textarea name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control" rows="4" {% if edit_blocked_websites %}disabled{% endif %}>{{ f.value }}</textarea>
                                 {% elif f.type == 'checkbox' %}
                                     <label class="checkbox-row">
                                         <input type="checkbox" name="{{ f.name }}" id="acc_{{ f.name }}"
-                                               {% if f.value %}checked{% endif %}>
+                                               {% if f.value %}checked{% endif %} {% if edit_blocked_websites %}disabled{% endif %}>
                                         <span>{{ f.label }}</span>
                                     </label>
                                 {% elif f.type == 'select' %}
-                                    <select name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control">
+                                    <select name="{{ f.name }}" id="acc_{{ f.name }}" class="form-control" {% if edit_blocked_websites %}disabled{% endif %}>
                                         <option value=""{% if not f.value %} selected{% endif %}>— Not set —</option>
                                         {% for choice_value, choice_label in f.choices %}
                                             <option value="{{ choice_value }}"{% if choice_value == f.value %} selected{% endif %}>{{ choice_label }}</option>
@@ -65,7 +89,7 @@
         {% endfor %}
 
         <div class="form-actions">
-            <button type="submit" class="btn-primary">Save Account</button>
+            <button type="submit" class="btn-primary" {% if edit_blocked_websites %}disabled title="Blocked — see the live subscription(s) listed above"{% endif %}>Save Account</button>
         </div>
     </form>
 
@@ -218,9 +242,12 @@
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Login enabled</label>
                     <label class="checkbox-row">
-                        <input type="checkbox" name="user_is_active" form="account-main-form"{% if user.is_active %} checked{% endif %}>
+                        <input type="checkbox" name="user_is_active" form="account-main-form"{% if user.is_active %} checked{% endif %} {% if edit_blocked_websites %}disabled title="Blocked — see the live subscription(s) on this account"{% endif %}>
                         <span>User can sign in to the portal</span>
                     </label>
+                    {% if edit_blocked_websites %}
+                        <p class="muted" style="font-size:0.75rem; margin:0.25rem 0 0;">This toggle saves through the account editor above, which is blocked for the same reason.</p>
+                    {% endif %}
                 </div>
                 <div class="form-row form-row--inline">
                     <label class="form-row__label">Last login</label>

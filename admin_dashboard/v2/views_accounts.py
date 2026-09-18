@@ -42,7 +42,7 @@ def _live_subscription_websites(account):
     ]
 
 
-def _live_subscription_block_message(blocking_websites):
+def _live_subscription_block_message(blocking_websites, action='delete'):
     parts = []
     for w in blocking_websites:
         subs = []
@@ -53,9 +53,27 @@ def _live_subscription_block_message(blocking_websites):
                 f'maintenance subscription {w.stripe_maintenance_subscription_id}')
         parts.append(f'{w.name} ({" and ".join(subs)})')
     return (
-        'Cannot delete this account — cancel the following in Stripe '
+        f'Cannot {action} this account — cancel the following in Stripe '
         'first: ' + '; '.join(parts) + '.'
     )
+
+
+def _block_if_live_subscription(request, account):
+    """Guard for the account field editor — same check, same helper as
+    the delete guard (_live_subscription_websites), just a different
+    action word in the message. Blocks the whole save (including the
+    user_is_active toggle) rather than a subset of fields: the editor
+    is one Save button writing one POST, so a per-field guard would
+    need its own whitelist to stay in sync with _ACCOUNT_EDIT_SECTIONS
+    and would leave an unclear rule about which fields are "safe".
+    """
+    blocking_websites = _live_subscription_websites(account)
+    if blocking_websites:
+        messages.error(
+            request,
+            _live_subscription_block_message(blocking_websites, action='edit'))
+        return True
+    return False
 
 
 @admin_required
@@ -119,6 +137,10 @@ def account_detail(request, account_id):
     user = account.user
 
     if request.method == 'POST':
+        if _block_if_live_subscription(request, account):
+            return redirect('admin_dashboard:v2_account_detail',
+                             account_id=account.id)
+
         # Login-enabled lives on User, not Account — handled first so
         # the one Save button writes both, exactly like v1.
         if 'user_is_active' in request.POST and user is not None:
@@ -236,6 +258,7 @@ def account_detail(request, account_id):
         'domains': domains,
         'delete_impact': delete_impact,
         'delete_blocked_websites': blocking_websites,
+        'edit_blocked_websites': blocking_websites,
         'onboarding_invoice': onboarding_invoice,
         'mini_invoices': mini_invoices,
         'token': token,

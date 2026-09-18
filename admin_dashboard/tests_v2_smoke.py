@@ -400,3 +400,85 @@ class V2SmokeTests(TestCase):
 
         self.assertEqual(r.status_code, 302)
         self.assertFalse(Account.objects.filter(id=account_id).exists())
+
+    # ── Account field editor — live-subscription guard ──
+
+    def test_account_edit_refused_when_website_has_live_subscription(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_edit_guard1'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+        original_name = self.account_live.name
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/', {
+                'name': 'Renamed While Blocked',
+                'contact_name': 'Should Not Save',
+                'status': 'active',
+            })
+
+        self.assertEqual(r.status_code, 302)
+        self.account_live.refresh_from_db()
+        self.assertEqual(self.account_live.name, original_name)
+
+    def test_account_edit_login_toggle_refused_when_live_subscription(self):
+        """The user_is_active toggle writes via the same POST handler —
+        confirm the guard blocks it too, not just the Account fields."""
+        self.website_live.stripe_maintenance_subscription_id = 'sub_edit_guard2'
+        self.website_live.save(
+            update_fields=['stripe_maintenance_subscription_id'])
+        self.account_live.user.is_active = False
+        self.account_live.user.save(update_fields=['is_active'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/', {
+                'name': self.account_live.name,
+                'user_is_active': 'on',
+            })
+
+        self.assertEqual(r.status_code, 302)
+        self.account_live.user.refresh_from_db()
+        self.assertFalse(self.account_live.user.is_active)
+
+    def test_account_edit_message_names_website_and_subscription(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_edit_named_1'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/',
+            {'name': 'Attempted Rename'}, follow=True)
+
+        messages = [str(m) for m in r.context['messages']]
+        joined = ' '.join(messages)
+        self.assertIn(self.website_live.name, joined)
+        self.assertIn('sub_edit_named_1', joined)
+
+    def test_account_edit_controls_disabled_when_live_subscription(self):
+        self.website_live.stripe_hosting_subscription_id = 'sub_edit_disabled1'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
+        html = r.content.decode()
+        self.assertIn('sub_edit_disabled1', html)
+        save_start = html.index('Save Account')
+        save_tag_start = html.rindex('<button', 0, save_start)
+        save_tag = html[save_tag_start:html.index('>', save_tag_start)]
+        self.assertIn('disabled', save_tag)
+
+    def test_account_edit_controls_enabled_when_no_live_subscription(self):
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_new_site.id}/')
+        html = r.content.decode()
+        save_start = html.index('Save Account')
+        save_tag_start = html.rindex('<button', 0, save_start)
+        save_tag = html[save_tag_start:html.index('>', save_tag_start)]
+        self.assertNotIn('disabled', save_tag)
+
+    def test_account_edit_still_works_when_no_live_subscription(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/accounts/{self.account_new_site.id}/', {
+                'name': 'Brand New Co Renamed',
+                'contact_name': 'Someone',
+            })
+        self.assertEqual(r.status_code, 302)
+        self.account_new_site.refresh_from_db()
+        self.assertEqual(self.account_new_site.name, 'Brand New Co Renamed')
