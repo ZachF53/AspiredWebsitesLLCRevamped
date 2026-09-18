@@ -1,0 +1,55 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Accounts — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Accounts</h1>
+        </div>
+        <div>
+            <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:v2_account_create' %}">Create account</a>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <input type="search" name="q" value="{{ q }}" class="form-control lead-filter-bar__search"
+               placeholder="Search by name, contact, or email…">
+        <button type="submit" class="btn-primary">Search</button>
+        {% if q %}<a href="{% url 'admin_dashboard:v2_accounts_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
+    </form>
+
+    {% if rows %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Websites</th>
+                        <th>Status</th>
+                        <th>Onboarding</th>
+                        <th>MRR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:v2_account_detail' row.account.id %}">{{ row.account.name }}</a></td>
+                            <td>{{ row.account.contact_name|default:row.account.user.email|default:"—" }}</td>
+                            <td>{{ row.website_count }}</td>
+                            <td><span class="status-badge status-badge--{{ row.account.status }}">{{ row.account.get_status_display }}</span></td>
+                            <td>{{ row.account.get_onboarding_status_display }}</td>
+                            <td>{% if row.mrr %}${{ row.mrr|floatformat:0 }}{% else %}—{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">No accounts match "{{ q }}".</p>
+    {% endif %}
+</div>
+{% endblock %}

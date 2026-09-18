@@ -1,0 +1,55 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Domains — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Domains</h1>
+            <p class="admin-page-sub">Read-only in v2. Repoint and transfer stay in the existing Domains tool.</p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:admin_domain_list' %}">Manage in v1 &rarr;</a>
+        </div>
+    </div>
+
+    {% if domains %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Account</th>
+                        <th>Website</th>
+                        <th>Status</th>
+                        <th>Expires</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in domains %}
+                        <tr>
+                            <td>{{ d.domain_name }}</td>
+                            <td>{{ d.account_new.name|default:"—" }}</td>
+                            <td>
+                                {% if d.pointed_at_website %}
+                                    <a href="{% url 'admin_dashboard:v2_website_detail' d.pointed_at_website.id %}">{{ d.pointed_at_website.name }}</a>
+                                {% else %}
+                                    <span class="muted">Not pointed</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="status-badge">{{ d.get_status_display }}</span></td>
+                            <td>{{ d.expires_at|date:"M j, Y"|default:"—" }}</td>
+                            <td><a href="{% url 'admin_dashboard:admin_domain_detail' d.id %}">Manage &rarr;</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">No domains on record.</p>
+    {% endif %}
+</div>
+{% endblock %}

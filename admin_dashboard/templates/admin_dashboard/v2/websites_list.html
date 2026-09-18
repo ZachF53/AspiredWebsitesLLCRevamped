@@ -1,0 +1,62 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Websites — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Websites</h1>
+        </div>
+    </div>
+
+    <form class="lead-filter-bar" method="get">
+        <input type="search" name="q" value="{{ q }}" class="form-control lead-filter-bar__search"
+               placeholder="Search by site or account name…">
+        <select name="stage" class="form-control" style="max-width: 200px;">
+            <option value="">All stages</option>
+            {% for value, label in stage_choices %}
+                <option value="{{ value }}" {% if value == stage %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn-primary">Filter</button>
+        {% if q or stage %}<a href="{% url 'admin_dashboard:v2_websites_list' %}" class="lead-filter-bar__clear">Clear</a>{% endif %}
+    </form>
+
+    {% if rows %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Site</th>
+                        <th>Account</th>
+                        <th>Stage</th>
+                        <th>Status</th>
+                        <th>Platform</th>
+                        <th>Maintenance</th>
+                        <th>Next action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        {% with site=row.site %}
+                        <tr>
+                            <td><a class="lead-table__firm" href="{% url 'admin_dashboard:v2_website_detail' site.id %}">{{ site.name }}</a></td>
+                            <td>{{ site.account.name|default:"—" }}</td>
+                            <td>{{ site.get_stage_display }}</td>
+                            <td><span class="status-badge status-badge--{{ site.status }}">{{ site.get_status_display }}</span></td>
+                            <td>{{ site.get_build_platform_display }}</td>
+                            <td>{% if site.maintenance_active %}Active{% else %}—{% endif %}</td>
+                            <td>{{ row.next_action }}</td>
+                        </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">No websites match your filters.</p>
+    {% endif %}
+</div>
+{% endblock %}

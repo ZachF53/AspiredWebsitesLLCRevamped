@@ -1,0 +1,44 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Billing — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Billing</h1>
+            <p class="admin-page-sub">Everything outstanding, oldest first. Read-only.</p>
+        </div>
+    </div>
+
+    {% if rows %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Client</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Age</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>{{ row.kind }}</td>
+                            <td>{{ row.subject }}</td>
+                            <td>${{ row.amount }}</td>
+                            <td>{{ row.status }}</td>
+                            <td>{{ row.age_days }}d</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="admin-empty">Nothing outstanding.</p>
+    {% endif %}
+</div>
+{% endblock %}

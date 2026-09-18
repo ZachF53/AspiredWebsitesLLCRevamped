@@ -1,0 +1,77 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Dashboard — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Dashboard</h1>
+            <p class="admin-page-sub">What needs attention, then the numbers.</p>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header">
+            <h2 class="admin-card__title">Needs attention</h2>
+        </div>
+        <div class="admin-card__body">
+            {% if action_list %}
+                <div class="v2-action-list">
+                    {% for item in action_list %}
+                        <a class="v2-action-row" href="{{ item.url }}">
+                            <span class="v2-action-row__kind">{{ item.label }}</span>
+                            <span class="v2-action-row__subject">{{ item.subject }}</span>
+                            {% if item.detail %}<span class="v2-action-row__detail">{{ item.detail }}</span>{% endif %}
+                            <span class="v2-action-row__age">
+                                {% if item.age_days > 0 %}{{ item.age_days }}d{% else %}today{% endif %}
+                            </span>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="admin-empty">Nothing needs attention right now. Done for the day.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="v2-stat-grid">
+        <div class="v2-stat-tile">
+            <span class="v2-stat-tile__value">{{ counts.total_clients }}</span>
+            <span class="v2-stat-tile__label">Total clients</span>
+        </div>
+        <div class="v2-stat-tile">
+            <span class="v2-stat-tile__value">{{ counts.active_websites }}</span>
+            <span class="v2-stat-tile__label">Active websites</span>
+        </div>
+        <div class="v2-stat-tile">
+            <span class="v2-stat-tile__value">{{ counts.paying_clients }}</span>
+            <span class="v2-stat-tile__label">Paying clients</span>
+        </div>
+        <div class="v2-stat-tile">
+            <span class="v2-stat-tile__value">{{ counts.pending_setup }}</span>
+            <span class="v2-stat-tile__label">Pending setup</span>
+        </div>
+        <div class="v2-stat-tile">
+            <span class="v2-stat-tile__value">{{ counts.pending_intake }}</span>
+            <span class="v2-stat-tile__label">Pending intake</span>
+        </div>
+    </div>
+
+    {% comment %}
+        Money is loaded async, below the fold, so a slow or down Stripe-
+        adjacent data source never blocks the rest of the page. It reads
+        local ledger data only — see admin_dashboard/v2/services.py
+        get_money_summary for why.
+    {% endcomment %}
+    <div id="v2-money" hx-get="{% url 'admin_dashboard:v2_money_partial' %}" hx-trigger="load" hx-swap="innerHTML">
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Money</h2></div>
+            <div class="admin-card__body">
+                <p class="muted">Loading…</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

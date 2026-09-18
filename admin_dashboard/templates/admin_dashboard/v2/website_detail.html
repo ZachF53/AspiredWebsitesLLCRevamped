@@ -1,0 +1,350 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ website.name }} — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2 · Website</span>
+            <h1 class="admin-page-title">{{ website.name }}</h1>
+            <p class="admin-page-sub">{{ account.name|default:"No account" }} · {{ website.get_stage_display }}</p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_websites_list' %}">&larr; All websites</a>
+        </div>
+    </div>
+
+    <div class="v2-tabs">
+        <a class="v2-tab {% if active_tab == 'overview' %}active{% endif %}" href="?tab=overview">Overview</a>
+        <a class="v2-tab {% if active_tab == 'onboarding' %}active{% endif %}" href="?tab=onboarding">Onboarding</a>
+        <a class="v2-tab {% if active_tab == 'intake' %}active{% endif %}" href="?tab=intake">Intake</a>
+        {% if not is_wordpress %}
+            <a class="v2-tab {% if active_tab == 'infrastructure' %}active{% endif %}" href="?tab=infrastructure">Infrastructure</a>
+        {% endif %}
+        <a class="v2-tab {% if active_tab == 'security' %}active{% endif %}" href="?tab=security">Security</a>
+        <a class="v2-tab {% if active_tab == 'domains' %}active{% endif %}" href="?tab=domains">Domains</a>
+        <a class="v2-tab {% if active_tab == 'billing' %}active{% endif %}" href="?tab=billing">Billing</a>
+        <a class="v2-tab {% if active_tab == 'monitoring' %}active{% endif %}" href="?tab=monitoring">Monitoring</a>
+    </div>
+
+    {% if active_tab == 'overview' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Status</h2></div>
+            <div class="admin-card__body">
+                <p><strong>Stage:</strong> {{ website.get_stage_display }}</p>
+                <p><strong>Status:</strong> {{ website.get_status_display }}</p>
+                <p><strong>Site status:</strong> {{ website.get_site_status_display }}</p>
+                <p><strong>Package:</strong> {{ website.get_package_display|default:website.package|default:"—" }}</p>
+                <p><strong>Live URL:</strong> {% if website.live_url %}<a href="{{ website.live_url }}" target="_blank" rel="noopener">{{ website.live_url }}</a>{% else %}—{% endif %}</p>
+                <p><strong>Staging URL:</strong> {% if website.staging_url %}<a href="{{ website.staging_url }}" target="_blank" rel="noopener">{{ website.staging_url }}</a>{% else %}—{% endif %}</p>
+                <p><strong>Launch date:</strong> {{ website.launch_date|date:"M j, Y"|default:"—" }}</p>
+                <p><strong>Droplet IP:</strong> {{ website.do_droplet_ip|default:"—" }}</p>
+                <p><strong>Maintenance:</strong> {% if website.maintenance_active %}Active{% else %}Not active{% endif %}</p>
+                <p><strong>Payment status:</strong> {{ website.get_payment_status_display }}</p>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Stage control</h2></div>
+            <div class="admin-card__body">
+                <form method="post" action="{% url 'admin_dashboard:v2_website_stage' website.id %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>Move to stage</label>
+                        <select name="new_stage" class="form-control">
+                            {% for value, label in stage_choices %}
+                                <option value="{{ value }}" {% if value == website.stage %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Note (optional)</label>
+                        <input class="form-control" name="note">
+                    </div>
+                    <button type="submit" class="btn-primary btn-sm">Update stage</button>
+                </form>
+                <p class="muted" style="margin-top: 0.5rem;">
+                    Uses the guarded clients.services.change_client_stage — moving to Live is refused unless payment_status is Fully Paid.
+                </p>
+            </div>
+        </div>
+
+        {% if website.payment_status != 'fully_paid' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Manual override — payment received off-Stripe</h2></div>
+            <div class="admin-card__body">
+                <form method="post" action="{% url 'admin_dashboard:v2_website_stage' website.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="payment_override">
+                    <div class="form-group">
+                        <label>Reason <span class="required">*</span></label>
+                        <input class="form-control" name="override_reason" required
+                               placeholder="e.g. Paid in full via Zelle 9/15, confirmed by bank statement">
+                    </div>
+                    <button type="submit" class="btn-secondary btn-sm">Record payment &amp; move to Live</button>
+                </form>
+                <p class="muted" style="margin-top: 0.5rem;">
+                    Records who confirmed the payment and why (via the existing verify_website_payment command), sets payment_status to Fully Paid, then attempts to launch. Does not fabricate a Stripe record.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+    {% elif active_tab == 'onboarding' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Onboarding sequence</h2></div>
+            <div class="admin-card__body">
+                {% for step in onboarding_steps %}
+                    <div class="v2-onboarding-step {% if step.done %}v2-onboarding-step--done{% endif %}">
+                        <div>
+                            <strong>{{ step.label }}</strong>
+                            <span class="muted"> — {{ step.status_text }}{% if step.date %} ({{ step.date|date:"M j, Y" }}){% endif %}</span>
+                        </div>
+                        {% if step.done %}
+                            <span class="status-badge" style="background:#10b98122;color:#10b981;">Done</span>
+                        {% else %}
+                            {% if step.key == 'contract' %}
+                                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Resend contract</button>
+                            {% elif step.key == 'payment' %}
+                                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Send payment reminder</button>
+                            {% elif step.key == 'account_setup' %}
+                                {% if step.token %}
+                                    <form method="post" action="{% url 'admin_dashboard:v2_account_send_setup_email' account.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-primary btn-sm" {% if setup_cooldown %}disabled{% endif %}>
+                                            Send setup email
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <span class="muted">No token yet</span>
+                                {% endif %}
+                            {% elif step.key == 'intake' %}
+                                {% if step.token %}
+                                    <form method="post" action="{% url 'admin_dashboard:v2_website_send_intake_reminder' website.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-primary btn-sm" {% if intake_cooldown %}disabled{% endif %}>
+                                            Send intake reminder
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <span class="muted">No token yet</span>
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                {% if setup_cooldown %}<p class="muted">Setup email cooldown: available again in about {{ setup_cooldown|timeuntil }}.</p>{% endif %}
+                {% if intake_cooldown %}<p class="muted">Intake reminder cooldown: available again in about {{ intake_cooldown|timeuntil }}.</p>{% endif %}
+            </div>
+        </div>
+
+    {% elif active_tab == 'intake' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Submitted intake</h2></div>
+            <div class="admin-card__body">
+                {% if not intake %}
+                    <p class="admin-empty">No intake response exists yet for this website.</p>
+                {% elif not intake.completed %}
+                    <p class="admin-empty">Intake has not been submitted yet.</p>
+                {% else %}
+                    <p class="muted">Submitted {{ intake.completed_at|date:"M j, Y g:i A" }}</p>
+                    <table class="v2-kv-table">
+                        <tr><th>Brand colors</th><td>{{ intake.brand_colors|default:"—" }}</td></tr>
+                        <tr><th>Brand fonts</th><td>{{ intake.brand_fonts|default:"—" }}</td></tr>
+                        <tr><th>Logo</th><td>{% if intake.logo %}<a href="{{ intake.logo.url }}" target="_blank" rel="noopener">Download</a>{% else %}Not uploaded{% endif %}</td></tr>
+                        <tr><th>About copy</th><td>{{ intake.about_copy|linebreaksbr|default:"—" }}</td></tr>
+                        <tr><th>Practice areas / services</th><td>{{ intake.practice_areas|linebreaksbr|default:"—" }}</td></tr>
+                        <tr><th>Attorney/staff bios</th><td>{{ intake.attorney_bios|linebreaksbr|default:"—" }}</td></tr>
+                        <tr><th>Reference sites</th><td>{{ intake.reference_sites|linebreaksbr|default:"—" }}</td></tr>
+                        <tr><th>Competitors</th><td>{{ intake.competitors|linebreaksbr|default:"—" }}</td></tr>
+                        <tr><th>Domain name</th><td>{{ intake.domain_name|default:"—" }}</td></tr>
+                        <tr><th>Domain registrar</th><td>{{ intake.get_domain_registrar_display|default:"—" }}</td></tr>
+                        <tr><th>Google Business</th><td>{{ intake.get_gmb_status_display|default:"—" }}</td></tr>
+                        <tr><th>Facebook</th><td>{{ intake.facebook_url|default:"—" }}</td></tr>
+                        <tr><th>Instagram</th><td>{{ intake.instagram_url|default:"—" }}</td></tr>
+                        <tr><th>LinkedIn</th><td>{{ intake.linkedin_url|default:"—" }}</td></tr>
+                        <tr><th>Other social links</th><td>{{ intake.social_links|linebreaksbr|default:"—" }}</td></tr>
+                    </table>
+
+                    <h3 style="margin-top: 1.5rem;">Photos</h3>
+                    {% if intake_photos %}
+                        <div class="v2-photo-grid">
+                            {% for photo in intake_photos %}
+                                <a href="{{ photo.file.url }}" target="_blank" rel="noopener" class="v2-photo-grid__item">
+                                    <img src="{{ photo.file.url }}" alt="{{ photo.label|default:'Intake photo' }}" loading="lazy">
+                                    <span>{{ photo.label|default:"Photo" }}</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="admin-empty">No photos were uploaded.</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+    {% elif active_tab == 'infrastructure' and not is_wordpress %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Droplet</h2></div>
+            <div class="admin-card__body">
+                {% if has_droplet %}
+                    <p><strong>Name:</strong> {{ website.do_droplet_name|default:"—" }}</p>
+                    <p><strong>IP:</strong> {{ website.do_droplet_ip|default:"—" }}</p>
+                    <p><strong>Created:</strong> {{ website.do_droplet_created_at|date:"M j, Y"|default:"—" }}</p>
+                    <p>
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:droplet_metrics' website.do_droplet_id %}">Power controls &amp; metrics &rarr;</a>
+                    </p>
+                    <p class="muted">
+                        Power on/off and live metrics stay in the existing Droplets tool rather than being duplicated here — those actions can take a client's site offline.
+                    </p>
+                {% else %}
+                    <p class="admin-empty">No droplet has been provisioned yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Deploy &amp; SSH</h2></div>
+            <div class="admin-card__body">
+                <p><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:deploy_home' %}">Deploy runbook &rarr;</a></p>
+                <p><a class="btn-secondary btn-sm" href="{% url 'vault:ops_sessions_list' %}">Ops sessions / SSH history &rarr;</a></p>
+            </div>
+        </div>
+
+    {% elif active_tab == 'security' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Scans</h2></div>
+            <div class="admin-card__body">
+                <form method="post" action="{% url 'admin_dashboard:v2_website_run_scan' website.id %}" style="margin-bottom: 1rem;">
+                    {% csrf_token %}
+                    <select name="scan_type" class="form-control" style="max-width: 200px; display:inline-block;">
+                        <option value="quick">Quick</option>
+                        <option value="full">Full</option>
+                        <option value="ssl">SSL</option>
+                        <option value="ports">Ports</option>
+                        <option value="web">Web</option>
+                    </select>
+                    <button type="submit" class="btn-primary btn-sm">Run scan</button>
+                </form>
+                <form method="post" action="{% url 'admin_dashboard:v2_website_toggle_auto_send_scan' website.id %}" style="margin-bottom: 1rem;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary btn-sm">
+                        {% if website.auto_send_scan_reports %}Disable{% else %}Enable{% endif %} auto-send scan reports
+                    </button>
+                </form>
+                {% if scans %}
+                    <table class="v2-kv-table">
+                        <tr><th>Date</th><th>Type</th><th>Status</th><th>Findings</th><th></th></tr>
+                        {% for scan in scans %}
+                            <tr>
+                                <td>{{ scan.created_at|date:"M j, Y" }}</td>
+                                <td>{{ scan.get_scan_type_display }}</td>
+                                <td>{{ scan.get_status_display }}</td>
+                                <td>{{ scan.critical_count }} critical, {{ scan.high_count }} high</td>
+                                <td><a href="{% url 'admin_dashboard:scan_detail' scan.id %}">View &rarr;</a></td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No scans yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    {% elif active_tab == 'domains' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Domains</h2></div>
+            <div class="admin-card__body">
+                {% if domains %}
+                    <table class="v2-kv-table">
+                        <tr><th>Domain</th><th>Status</th><th>Expires</th><th></th></tr>
+                        {% for d in domains %}
+                            <tr>
+                                <td>{{ d.domain_name }}</td>
+                                <td>{{ d.get_status_display }}</td>
+                                <td>{{ d.expires_at|date:"M j, Y"|default:"—" }}</td>
+                                <td><a href="{% url 'admin_dashboard:admin_domain_detail' d.id %}">Manage &rarr;</a></td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No domains attached to this website.</p>
+                {% endif %}
+                <p class="muted" style="margin-top: 0.5rem;">
+                    DNS editing and repoint stay in the existing Domains tool for now — this tab is read-only in v2.
+                </p>
+            </div>
+        </div>
+
+    {% elif active_tab == 'billing' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Subscriptions</h2></div>
+            <div class="admin-card__body">
+                <p><strong>Hosting subscription:</strong> {% if website.stripe_hosting_subscription_id %}Active{% else %}None{% endif %}</p>
+                <p><strong>Maintenance subscription:</strong> {% if website.stripe_maintenance_subscription_id %}Active{% else %}None{% endif %}</p>
+                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Change plan</button>
+                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Cancel subscription</button>
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Invoices</h2></div>
+            <div class="admin-card__body">
+                {% if onboarding_invoices or mini_invoices %}
+                    <table class="v2-kv-table">
+                        <tr><th>Type</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+                        {% for inv in onboarding_invoices %}
+                            <tr><td>Onboarding</td><td>${{ inv.total_amount }}</td><td>{{ inv.get_status_display }}</td><td>{{ inv.created_at|date:"M j, Y" }}</td></tr>
+                        {% endfor %}
+                        {% for inv in mini_invoices %}
+                            <tr><td>Out-of-scope</td><td>${{ inv.amount }}</td><td>{{ inv.get_status_display }}</td><td>{{ inv.created_at|date:"M j, Y" }}</td></tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No invoices on record for this website.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    {% elif active_tab == 'monitoring' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Uptime</h2></div>
+            <div class="admin-card__body">
+                {% if uptime_records %}
+                    <table class="v2-kv-table">
+                        <tr><th>Checked</th><th>Up</th><th>Response</th></tr>
+                        {% for rec in uptime_records %}
+                            <tr>
+                                <td>{{ rec.checked_at|date:"M j, Y g:i A" }}</td>
+                                <td>{% if rec.is_up %}Yes{% else %}No{% endif %}</td>
+                                <td>{{ rec.response_time_ms|default:"—" }}ms</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No uptime data recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Changelog</h2></div>
+            <div class="admin-card__body">
+                {% if changelog_entries %}
+                    <ul class="v2-plain-list">
+                        {% for entry in changelog_entries %}
+                            <li><strong>{{ entry.date_of_change|date:"M j, Y" }}</strong> — {{ entry.title }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="admin-empty">No changelog entries yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Session recording</h2></div>
+            <div class="admin-card__body">
+                <p>{% if website.session_recording_enabled %}Enabled{% else %}Disabled{% endif %} — no in-dashboard viewer exists yet; noted in the build report.</p>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

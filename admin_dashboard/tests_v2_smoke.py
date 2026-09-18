@@ -1,0 +1,197 @@
+"""
+Smoke tests for the v2 dashboard (admin_dashboard/v2/) — every list page,
+every website-detail tab, in a handful of different website states
+(brand new / mid-build / live / wordpress), must render without a
+crash. Not exhaustive of every field combination, but catches template
+errors, bad {% url %} names, and missing context keys — the class of bug
+most likely in a large from-scratch template set.
+"""
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
+
+from clients.account_models import Account, Website
+
+User = get_user_model()
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class V2SmokeTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        u = User.objects.create_user(
+            username='v2staff', email='v2staff@example.com',
+            password='test-pass-123', is_staff=True, is_superuser=True)
+        cls.staff = u
+
+        u1 = User.objects.create_user(
+            username='v2client1', email='v2client1@example.com', password='x')
+        cls.account_new_site = Account.objects.filter(user=u1).first() or (
+            Account.objects.create(user=u1, name='Brand New Co'))
+        cls.account_new_site.websites.all().delete()
+        cls.website_new_site = Website.objects.create(
+            account=cls.account_new_site, name='Brand New Site',
+            build_platform='custom')
+
+        u2 = User.objects.create_user(
+            username='v2client2', email='v2client2@example.com', password='x')
+        cls.account_live = Account.objects.filter(user=u2).first() or (
+            Account.objects.create(user=u2, name='Live Co'))
+        cls.account_live.websites.all().delete()
+        cls.website_live = Website.objects.create(
+            account=cls.account_live, name='Live Site',
+            build_platform='custom', stage='live',
+            payment_status='fully_paid', maintenance_active=True,
+            site_status='live', status='active',
+            do_droplet_id='12345', do_droplet_ip='1.2.3.4')
+
+        u3 = User.objects.create_user(
+            username='v2client3', email='v2client3@example.com', password='x')
+        cls.account_wp = Account.objects.filter(user=u3).first() or (
+            Account.objects.create(user=u3, name='WordPress Co'))
+        cls.account_wp.websites.all().delete()
+        cls.website_wp = Website.objects.create(
+            account=cls.account_wp, name='WP Site',
+            build_platform='wordpress', stage='pre_launch')
+
+        u4 = User.objects.create_user(
+            username='v2client4', email='v2client4@example.com', password='x')
+        cls.account_archived = Account.objects.filter(user=u4).first() or (
+            Account.objects.create(user=u4, name='Archived Co',
+                                    status='archived'))
+        cls.account_archived.websites.all().delete()
+        cls.website_archived = Website.objects.create(
+            account=cls.account_archived, name='Archived Site',
+            status='archived', stage='live', payment_status='fully_paid')
+
+    def setUp(self):
+        self.client.force_login(self.staff)
+
+    def test_dashboard_renders(self):
+        r = self.client.get('/admin-dashboard/v2/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_money_partial_renders(self):
+        r = self.client.get('/admin-dashboard/v2/money-partial/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'MRR', r.content)
+
+    def test_accounts_list_renders(self):
+        r = self.client.get('/admin-dashboard/v2/accounts/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_accounts_list_search_renders(self):
+        r = self.client.get('/admin-dashboard/v2/accounts/?q=Live')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'Live Co', r.content)
+
+    def test_account_detail_renders(self):
+        r = self.client.get(
+            f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_account_create_get_renders(self):
+        r = self.client.get('/admin-dashboard/v2/accounts/new/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_account_create_post_creates_record_and_sends_nothing(self):
+        from django.core import mail
+        r = self.client.post('/admin-dashboard/v2/accounts/new/', {
+            'name': 'New Record Co', 'email': 'newrecord@example.com',
+            'contact_name': 'Pat', 'phone': '555-1234',
+        })
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(
+            Account.objects.filter(name='New Record Co').exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_websites_list_renders(self):
+        r = self.client.get('/admin-dashboard/v2/websites/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_websites_list_filter_renders(self):
+        r = self.client.get('/admin-dashboard/v2/websites/?stage=live')
+        self.assertEqual(r.status_code, 200)
+
+    def _tabs_for(self, website, expect_infrastructure):
+        tabs = ['overview', 'onboarding', 'intake', 'security', 'domains',
+                'billing', 'monitoring']
+        if expect_infrastructure:
+            tabs.append('infrastructure')
+        for tab in tabs:
+            with self.subTest(website=website.name, tab=tab):
+                r = self.client.get(
+                    f'/admin-dashboard/v2/websites/{website.id}/?tab={tab}')
+                self.assertEqual(r.status_code, 200)
+
+    def test_every_tab_renders_for_brand_new_website(self):
+        self._tabs_for(self.website_new_site, expect_infrastructure=True)
+
+    def test_every_tab_renders_for_live_website(self):
+        self._tabs_for(self.website_live, expect_infrastructure=True)
+
+    def test_every_tab_renders_for_wordpress_website(self):
+        self._tabs_for(self.website_wp, expect_infrastructure=False)
+
+    def test_every_tab_renders_for_archived_website(self):
+        self._tabs_for(self.website_archived, expect_infrastructure=True)
+
+    def test_infrastructure_tab_hidden_in_nav_for_wordpress(self):
+        r = self.client.get(
+            f'/admin-dashboard/v2/websites/{self.website_wp.id}/'
+            '?tab=overview')
+        self.assertNotIn(b'?tab=infrastructure', r.content)
+
+    def test_domains_list_renders(self):
+        r = self.client.get('/admin-dashboard/v2/domains/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_billing_list_renders(self):
+        r = self.client.get('/admin-dashboard/v2/billing/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_stage_change_respects_payment_guard(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}/stage/',
+            {'new_stage': 'live'})
+        self.assertEqual(r.status_code, 302)
+        self.website_new_site.refresh_from_db()
+        self.assertNotEqual(self.website_new_site.stage, 'live')
+
+    def test_stage_change_allows_valid_transition(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}/stage/',
+            {'new_stage': 'structure'})
+        self.assertEqual(r.status_code, 302)
+        self.website_new_site.refresh_from_db()
+        self.assertEqual(self.website_new_site.stage, 'structure')
+
+    def test_payment_override_requires_reason(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}/stage/',
+            {'action': 'payment_override', 'override_reason': ''})
+        self.assertEqual(r.status_code, 302)
+        self.website_new_site.refresh_from_db()
+        self.assertNotEqual(self.website_new_site.payment_status, 'fully_paid')
+
+    def test_payment_override_records_attestation_and_launches(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}/stage/',
+            {'action': 'payment_override',
+             'override_reason': 'Paid via Zelle, confirmed by bank statement'})
+        self.assertEqual(r.status_code, 302)
+        self.website_new_site.refresh_from_db()
+        self.assertEqual(self.website_new_site.payment_status, 'fully_paid')
+        self.assertEqual(self.website_new_site.stage, 'live')
+        self.assertIsNotNone(self.website_new_site.payment_verified_at)
+        self.assertIn('Zelle', self.website_new_site.payment_verification_note)
+
+    def test_toggle_auto_send_scan(self):
+        before = self.website_live.auto_send_scan_reports
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/'
+            'toggle-auto-send-scan/')
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertNotEqual(before, self.website_live.auto_send_scan_reports)

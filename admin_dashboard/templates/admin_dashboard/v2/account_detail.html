@@ -1,0 +1,115 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ account.name }} — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2 · Account</span>
+            <h1 class="admin-page-title">{{ account.name }}</h1>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_accounts_list' %}">&larr; All accounts</a>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Contact &amp; billing</h2></div>
+        <div class="admin-card__body">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_contact">
+                <div class="form-group">
+                    <label>Account name</label>
+                    <input class="form-control" name="name" value="{{ account.name }}">
+                </div>
+                <div class="form-group">
+                    <label>Contact name</label>
+                    <input class="form-control" name="contact_name" value="{{ account.contact_name }}">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input class="form-control" name="phone" value="{{ account.phone }}">
+                </div>
+                <div class="form-group">
+                    <label>Alternate email</label>
+                    <input class="form-control" name="email_alt" value="{{ account.email_alt }}">
+                </div>
+                <div class="form-group">
+                    <label>Address</label>
+                    <input class="form-control" name="address" value="{{ account.address }}">
+                </div>
+                <div class="form-group">
+                    <label>City</label>
+                    <input class="form-control" name="city" value="{{ account.city }}">
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <input class="form-control" name="state" value="{{ account.state }}">
+                </div>
+                <div class="form-group">
+                    <label>ZIP</label>
+                    <input class="form-control" name="zip_code" value="{{ account.zip_code }}">
+                </div>
+                <button type="submit" class="btn-primary btn-sm">Save</button>
+            </form>
+            <p class="muted" style="margin-top: 1rem;">
+                Login email: {{ account.user.email|default:"—" }} · Stripe customer:
+                {{ account.stripe_customer_id|default:"not linked" }} (read-only here)
+            </p>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Websites</h2></div>
+        <div class="admin-card__body">
+            {% if websites %}
+                <ul class="v2-plain-list">
+                    {% for site in websites %}
+                        <li>
+                            <a href="{% url 'admin_dashboard:v2_website_detail' site.id %}">{{ site.name }}</a>
+                            <span class="status-badge">{{ site.get_stage_display }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="admin-empty">No websites on this account yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Account setup</h2></div>
+        <div class="admin-card__body">
+            {% if setup_complete %}
+                <p>Account setup is complete.</p>
+            {% elif not token %}
+                <p class="admin-empty">No account-setup token exists yet — one is created when the onboarding invoice is generated.</p>
+            {% else %}
+                <form method="post" action="{% url 'admin_dashboard:v2_account_send_setup_email' account.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary btn-sm" {% if setup_cooldown_remaining %}disabled{% endif %}>
+                        {% if token.setup_reminders_sent %}Resend{% else %}Send{% endif %} account setup email
+                    </button>
+                </form>
+                {% if token.last_setup_reminder_at %}
+                    <p class="muted">Sent {{ token.last_setup_reminder_at|date:"M j, Y g:i A" }}.
+                        {% if setup_cooldown_remaining %}Available again in about {{ setup_cooldown_remaining|timeuntil }}.{% endif %}
+                    </p>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Password reset</h2></div>
+        <div class="admin-card__body">
+            <form method="post" action="{% url 'admin_dashboard:v2_account_reset_password' account.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary btn-sm">Send password reset email</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

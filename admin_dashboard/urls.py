@@ -1,13 +1,22 @@
-from django.urls import path
+from django.urls import include, path
 
 from . import views
 from . import views_outreach_admin as vo
+from .v2 import views_toggle as v2_toggle
 
 
 app_name = 'admin_dashboard'
 
 urlpatterns = [
     path('', views.home, name='home'),
+
+    # v2 dashboard (additive — see admin_dashboard/v2/). Session-flag
+    # toggle routes live here (not in v2/urls.py) since they sit outside
+    # the /v2/ prefix; see navigation.py for why the toggle is a session
+    # flag rather than a URL prefix.
+    path('v2/', include('admin_dashboard.v2.urls')),
+    path('use-v2/', v2_toggle.use_v2, name='use_v2'),
+    path('use-v1/', v2_toggle.use_v1, name='use_v1'),
 
     # Phase 7 Part 1 — Business Intelligence
     path('intelligence/', views.intelligence_dashboard,

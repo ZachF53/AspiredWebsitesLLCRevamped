@@ -1,0 +1,22 @@
+<div class="admin-card">
+    <div class="admin-card__header"><h2 class="admin-card__title">Money</h2></div>
+    <div class="admin-card__body">
+        {% if error %}
+            <p class="admin-empty">{{ error }}</p>
+        {% else %}
+            <div class="v2-stat-grid">
+                <div class="v2-stat-tile">
+                    <span class="v2-stat-tile__value">${{ money.mrr_total|floatformat:0 }}</span>
+                    <span class="v2-stat-tile__label">MRR ({{ money.active_maintenance_clients }} sites)</span>
+                </div>
+                <div class="v2-stat-tile">
+                    <span class="v2-stat-tile__value">${{ money.cash_collected_this_month|floatformat:0 }}</span>
+                    <span class="v2-stat-tile__label">Collected this month</span>
+                </div>
+            </div>
+            <p class="muted" style="margin-top: 0.75rem;">
+                As of {{ money.computed_at|date:"M j, g:i A" }}. Local ledger data, cached 5 minutes — not a live Stripe read.
+            </p>
+        {% endif %}
+    </div>
+</div>
