@@ -106,56 +106,188 @@ something downstream of that (the GMB SetupTodo creation) never runs as a
 result, so `_has_todo()` is False. Unrelated to the onboarding_status bug
 this phase targets; left alone per "additive only" / narrow-scope rules.
 
-## Phase 2 — v2 scaffolding
+## Phase 2 — v2 scaffolding — DONE
 
-- [ ] 2a. `admin_dashboard/v2/` package: views, urls, templates dir.
-      Included under `/dashboard/v2/`. Uses existing `admin_required`.
-- [ ] 2b. Toggle: session key `dashboard_version`, routes
-      `/dashboard/use-v2/` and `/dashboard/use-v1/`. navigation.py context
-      processor branches on it.
-- [ ] 2c. `NAVIGATION_V2`: Dashboard, Accounts, Websites, Domains, Billing, Vault.
-- [ ] 2d. Extend tests_navigation.py for NAVIGATION_V2 without touching v1 assertions.
-- [ ] 2e. v2 templates extend v1's base/layout; any new CSS goes in a marked
-      v2 section at the end of core/static/css/main.css.
+- [x] 2a. `admin_dashboard/v2/` package (services, views_*, urls, templates
+      dir at `admin_dashboard/templates/admin_dashboard/v2/`). **Mounted at
+      `/admin-dashboard/v2/`, not `/dashboard/v2/`** — the app's real mount
+      point (settings root urls.py) is `/admin-dashboard/`, established
+      before this build; `/dashboard/...` in the brief is read as shorthand
+      for that existing prefix. Same substitution applies to the toggle
+      routes below. Every v2 view uses the existing `admin_required`
+      (imported from `admin_dashboard.decorators`, never redefined).
+- [x] 2b. Toggle: session key `dashboard_version` (default `'v1'`), routes
+      `/admin-dashboard/use-v2/` and `/admin-dashboard/use-v1/`
+      (`admin_dashboard/v2/views_toggle.py`, registered directly in
+      `admin_dashboard/urls.py` since they sit outside `/v2/`).
+      `navigation.py`'s `navigation()` context processor branches on the
+      flag and builds `admin_nav` from `NAVIGATION_V2` instead of
+      `NAVIGATION` when set — `NAVIGATION` itself is never modified. The
+      "View New/Old Dashboard" link is injected as a plain item on the
+      first nav group by `navigation()`, not added to base.html's markup —
+      base.html's sidebar loop is already generic over `admin_nav`, so v1's
+      template needed zero edits. Verified with
+      `ToggleTests.test_v2_flag_follows_into_vault` — the v2 sidebar
+      renders on `/admin-dashboard/vault/` after toggling, which is the
+      entire reason the brief called for a session flag over a URL prefix.
+- [x] 2c. `NAVIGATION_V2`: Dashboard, Accounts, Websites, Domains, Billing,
+      Vault — verified as an exact ordered list by
+      `NavigationV2DefinitionTests.test_exactly_six_items_in_this_order`.
+- [x] 2d. `tests_navigation.py` extended with `NavigationV2DefinitionTests`
+      and `ToggleTests`; no v1 assertion changed.
+- [x] 2e. Every v2 template `{% extends "admin_dashboard/base.html" %}` —
+      no separate v2 base template exists. Reuses existing classes
+      (`admin-card`, `lead-table`, `lead-filter-bar`, `status-badge`,
+      `btn-*`, `form-*`) throughout. New CSS is confined to one clearly
+      marked `/* ── v2 dashboard ── */` section appended to the end of
+      `core/static/css/main.css` (action list rows, stat tiles, tab bar,
+      a key/value table, a photo grid, an onboarding-step row) — nothing
+      existing was touched.
 
-## Phase 3 — Landing dashboard (`/dashboard/v2/`)
+## Phase 3 — Landing dashboard (`/admin-dashboard/v2/`) — DONE
 
-- [ ] 3a. Merged, urgency-sorted action list (dunning, alerts, scans,
-      SSL expiry if available, site_status mismatch, invoices 30+ days,
-      pending setup, pending intake, needs_admin_review_at).
-- [ ] 3b. Counts block.
-- [ ] 3c. Money block (MRR + cash collected), async, 5-min cache, read-only,
-      never blocks render.
-- [ ] 3d. `admin_dashboard/v2/services.py` holds querysets/computations.
+- [x] 3a. Merged, urgency-sorted (longest-waiting-first) action list in
+      `services.get_action_list()`: dunning approvals (`DunningEvent`
+      awaiting_approval), unresolved `SystemAlert` rows, unreviewed
+      `VulnerabilityScan` rows with critical/high findings, `Website` rows
+      `status='active'` but `site_status != 'live'`, `OnboardingInvoice`
+      rows sent 30+ days ago and still unpaid (no due_date field exists
+      anywhere in billing — documented as sent-anchored, not due-date
+      anchored), `Account` rows `onboarding_status='pending_setup'`,
+      `Website` rows `onboarding_status='pending_intake'`, and `Website`
+      rows with `needs_admin_review_at` set (same filter v1's Needs You
+      queue uses — reused, not reinvented). **SSL cert expiry skipped
+      entirely** — confirmed via repo-wide grep that no model/field
+      anywhere tracks TLS certificate expiry (only domain-registration
+      expiry and a point-in-time SSL Labs scan grade exist, neither of
+      which is "certificate expires on X"). Each source is wrapped in
+      try/except so one bad query can't blank the list.
+- [x] 3b. Counts block: total clients, active websites, paying clients
+      (accounts with any `maintenance_active=True` website), pending
+      setup, pending intake.
+- [x] 3c. Money block: MRR + cash collected this month, HTMX
+      `hx-trigger="load"` below the fold, 5-minute Django cache. **Reads
+      local ledger data only** (`clients.revenue.get_current_mrr()` +
+      a `PaymentRecord` sum) — see decision log below for why this is
+      NOT a live Stripe API read despite the brief's wording.
+- [x] 3d. `admin_dashboard/v2/services.py` holds every query; views only
+      fetch and render.
 
-## Phase 4 — Accounts
+## Phase 4 — Accounts — DONE
 
-- [ ] 4a. List page.
-- [ ] 4b. Detail page: contact/billing info, websites, setup-email button
-      w/ 24h cooldown, password reset.
-- [ ] 4c. Create-account (records only, no email).
+- [x] 4a. `/admin-dashboard/v2/accounts/` — searchable (name/contact/email),
+      sortable, shows website count and per-account MRR (derived from
+      `get_current_mrr()`'s breakdown, not reimplemented).
+- [x] 4b. Detail page: editable contact/billing form (name, contact_name,
+      phone, email_alt, address/city/state/zip — Stripe customer ID shown
+      read-only, deliberately not editable); "Send account setup email"
+      button calls the existing `clients.emails.send_onboarding_setup_email`
+      with a 24h cooldown against `OnboardingToken.last_setup_reminder_at`
+      (existing field, no migration needed); shows "setup complete" state
+      instead of the button once `onboarding_status == 'complete'`; never
+      fires on account creation. Password reset via Django's
+      `PasswordResetForm` — see decision log for why this is a local
+      reimplementation of v1's `account_send_password_reset` rather than
+      a call to it.
+- [x] 4c. `/admin-dashboard/v2/accounts/new/` — creates an inactive `User`
+      + `Account` only. Sends nothing (verified:
+      `test_account_create_post_creates_record_and_sends_nothing` asserts
+      `len(mail.outbox) == 0`).
 
-## Phase 5 — Websites (core)
+## Phase 5 — Websites (core) — DONE
 
-- [ ] 5a. List page.
-- [ ] 5b. Detail page tabs: Overview, Onboarding, Intake, Infrastructure,
-      Security, Domains, Billing, Monitoring.
-- [ ] 5c. Every tab renders for any website state without crashing.
+- [x] 5a. `/admin-dashboard/v2/websites/` — searchable, filterable by stage.
+- [x] 5b. `/admin-dashboard/v2/websites/<id>/` tabs, all built:
+      **Overview** (status/stage/URLs/launch date/droplet IP/maintenance;
+      stage control via the GUARDED `clients.services.change_client_stage`,
+      never the ungated v1 `website_change_stage`; labeled manual override
+      for off-Stripe payments — required reason field, reuses the existing
+      `verify_website_payment` management command via `call_command` for
+      the attestation, then sets `payment_status='fully_paid'` and calls
+      `mark_live`). **Onboarding** (Contract/Payment/Account setup/Intake,
+      each collapsing to a status line once done; intake reminder resend
+      throttled 48h against `OnboardingToken.last_intake_reminder_at` —
+      v1's button has no such throttle; Contract/Payment incomplete states
+      show disabled "Coming soon" buttons — see below). **Intake** (every
+      submitted `IntakeResponse` field + inline `IntakePhoto` images,
+      downloadable — did not exist anywhere in the admin before this).
+      **Infrastructure** (hidden entirely when `build_platform ==
+      'wordpress'`; links to the existing Droplet metrics/power page,
+      Deploy runbook, and Vault ops sessions rather than duplicating power
+      controls). **Security** (run-scan creates a `VulnerabilityScan` +
+      enqueues the existing Celery task, exactly mirroring v1's
+      `run_scan`; auto-send toggle flips the existing
+      `Website.auto_send_scan_reports` field; scan history links to v1's
+      `scan_detail` for the PDF/findings view). **Domains** (read-only,
+      links to v1's `admin_domain_detail` for repoint/DNS). **Billing**
+      (read-only subscriptions + invoices; plan-change/cancel are disabled
+      "Coming soon"). **Monitoring** (uptime records, changelog,
+      session-recording status — no recording viewer exists yet, noted
+      below).
+- [x] 5c. Verified against FOUR website states (brand new / live /
+      wordpress / archived) via `tests_v2_smoke.py` — every tab, every
+      state, 200 OK, no crash.
 
-## Phase 6 — Domains / Billing list pages
+## Phase 6 — Domains / Billing list pages — DONE
 
-- [ ] 6a. `/dashboard/v2/domains/`
-- [ ] 6b. `/dashboard/v2/billing/`
+- [x] 6a. `/admin-dashboard/v2/domains/` — all `DomainRegistration` rows,
+      status, expiry, attached website. Read-only; links to v1's
+      `admin_domain_detail` for the actual repoint/DNS actions (no
+      transfer-out, no delete in v2, per the brief).
+- [x] 6b. `/admin-dashboard/v2/billing/` — unpaid `OnboardingInvoice` +
+      open `MiniInvoice` rows across every client, oldest first. Read-only,
+      existing data only.
 
-## Phase 7 — Verification
+## Phase 7 — Verification — DONE
 
-- [ ] 7a. Re-walk this list, verify by exercising, not memory.
-- [ ] 7b. v1 unchanged — full v1 test suite, nav renders, toggle works.
-- [ ] 7c. Grep diff for `stripe.` calls — must be zero new ones.
-- [ ] 7d. Confirm no write path reaches a Website with a non-null subscription id.
-- [ ] 7e. Full test suite — honest pass/fail.
-- [ ] 7f. `manage.py check --deploy`
+- [x] 7a. Walked every item above by hitting the actual URL/test, not from
+      memory — `tests_v2_smoke.py` (25 tests) exercises every v2 page,
+      every website-detail tab across 4 website states, the stage guard,
+      the payment override, the live-subscription block, and the
+      auto-send toggle.
+- [x] 7b. v1 unchanged: `tests_navigation.py`'s original v1 assertions
+      (unedited) pass — 41-item nav renders
+      (`test_sidebar_renders_every_item`), single `aria-current` marker,
+      group labels render. `ToggleTests` confirm the toggle moves between
+      v1 and v2 and that the v2 flag survives into Vault.
+- [x] 7c. `git diff main...v2-dashboard | grep 'stripe\.'` — zero hits in
+      actual code (the only match was this checklist line describing the
+      check itself).
+- [x] 7d. Found a real gap: `website_stage` (stage changes + the payment
+      override) and `website_toggle_auto_send_scan` write Website fields
+      directly and were NOT checking for a live subscription id. Fixed —
+      added `_block_if_live_subscription()`, checked before any write in
+      both views, plus a visible banner/disabled controls in the
+      template. Three new regression tests confirm the block. NOT
+      guarded (documented, not fixed): `website_run_scan` (creates a
+      related `VulnerabilityScan` row via FK — never writes the Website
+      row itself) and `website_send_intake_reminder` (writes
+      `OnboardingToken`/`Account` fields, not `Website`) — both fall
+      outside the constraint's literal text ("write to any Website row").
+      Account-level writes elsewhere (contact-info edit, password reset,
+      setup-email send) are also not guarded, since the constraint is
+      scoped to the Website model specifically, where the subscription id
+      columns actually live — flagged here for Zach to confirm that
+      scoping is what was intended.
+- [x] 7e. Full suite: **1720 tests, 4 failures, 1 skipped, 1716 passing.**
+      All 4 failures confirmed pre-existing and unrelated:
+      `GmbIntakeFollowupTests` (2) — confirmed via `git stash` against
+      the Phase-0-only commit, fails identically with zero build changes
+      applied (see Phase 1 notes). `LegacyChainDetectionTests` and
+      `PlannedMigrationDependencyTests` (2) — confirmed via
+      `git diff main...v2-dashboard --stat -- billing/` returning empty;
+      this build never touched `billing/`, so these are pre-existing
+      drift in that app (matches the queued "Legacy owner FK cleanup"
+      work). The skip is `pyflakes not installed` in this environment,
+      also pre-existing. One real failure WAS caused by this build —
+      `PublicCssBundleTests.test_bundle_is_not_stale`, because editing
+      `main.css` for the v2 CSS section left the generated `public.css`
+      bundle stale — fixed by running `manage.py build_public_css` and
+      committing the regenerated bundle.
+- [x] 7f. `manage.py check --deploy` — 5 pre-existing warnings (HSTS,
+      SSL redirect, cookie security, DEBUG), all settings.py-driven and
+      unrelated to this build (settings.py was never touched).
 
 ## Final report
 
-- [ ] Write `/V2_BUILD_REPORT.md`
+- [x] `/V2_BUILD_REPORT.md` written.
