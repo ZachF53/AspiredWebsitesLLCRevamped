@@ -19,7 +19,7 @@ def privacy_policy(request):
     return render(request, 'core/privacy_policy.html', {
         'active_nav': '',
         'effective_date': LEGAL_EFFECTIVE_DATE,
-        'meta_title': 'Privacy Policy — Aspired Websites',
+        'meta_title': 'Privacy Policy | Aspired Websites',
         'meta_description': (
             'How Aspired Websites LLC collects, uses, and protects '
             'your personal information.'
@@ -31,7 +31,7 @@ def terms_of_service(request):
     return render(request, 'core/terms.html', {
         'active_nav': '',
         'effective_date': LEGAL_EFFECTIVE_DATE,
-        'meta_title': 'Terms of Service — Aspired Websites',
+        'meta_title': 'Terms of Service | Aspired Websites',
         'meta_description': (
             'Terms governing the use of aspiredwebsites.com and '
             'services from Aspired Websites LLC.'
@@ -43,7 +43,7 @@ def refund_policy(request):
     return render(request, 'core/refund_policy.html', {
         'active_nav': '',
         'effective_date': LEGAL_EFFECTIVE_DATE,
-        'meta_title': 'Refund Policy — Aspired Websites',
+        'meta_title': 'Refund Policy | Aspired Websites',
         'meta_description': (
             'Refund terms for builds, maintenance, social media, '
             'hosting, and add-on services from Aspired Websites LLC.'

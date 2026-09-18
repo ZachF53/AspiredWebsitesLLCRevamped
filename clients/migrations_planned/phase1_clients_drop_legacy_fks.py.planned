@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0063_casestudy_is_concept'),
+        ('clients', '0064_case_studies_remove_em_dashes'),
     ]
 
     operations = [

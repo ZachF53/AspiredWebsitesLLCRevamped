@@ -3,9 +3,9 @@
 
 {% block title %}{{ study.title }} Case Study | Aspired Websites{% endblock %}
 
-{% block meta_description %}{% if study.summary %}{{ study.summary }}{% else %}How Aspired Websites built {{ study.title }} — a custom, hand-coded, security-hardened website.{% endif %}{% endblock %}
+{% block meta_description %}{% if study.summary %}{{ study.summary }}{% else %}How Aspired Websites built {{ study.title }}: a custom, hand-coded, security-hardened website.{% endif %}{% endblock %}
 
-{% block og_title %}{{ study.title }} — Case Study{% endblock %}
+{% block og_title %}{{ study.title }}: Case Study{% endblock %}
 {% block og_description %}{{ study.summary|default:"A custom website build by Aspired Websites." }}{% endblock %}
 
 {% comment %}
@@ -26,7 +26,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
     "@context": "https://schema.org",
     "@type": "Article",
     "@id": "{{ CANONICAL_URL }}#case-study",
-    "headline": "{{ study.title|escapejs }} — Case Study",
+    "headline": "{{ study.title|escapejs }}: Case Study",
     "url": "{{ CANONICAL_URL }}",
     "author": { "@id": "{{ SITE_BASE_URL }}/#zachery-long" },
     "publisher": { "@id": "{{ SITE_BASE_URL }}/#organization" },
@@ -87,7 +87,7 @@ measuring.
                  width="1200" height="750" decoding="async">
             {% if study.live_url %}
                 <figcaption>
-                    Captured from the live site &mdash;
+                    Captured from the live site:
                     <a href="{{ study.live_url }}" target="_blank" rel="noopener">{{ study.live_url }}</a>
                 </figcaption>
             {% endif %}
@@ -162,7 +162,7 @@ measuring.
         <figure class="card pull-quote">
             <blockquote><p>{{ study.testimonial_quote }}</p></blockquote>
             {% if study.testimonial_name %}
-                <figcaption>&mdash; {{ study.testimonial_name }}</figcaption>
+                <figcaption>{{ study.testimonial_name }}</figcaption>
             {% endif %}
         </figure>
     </div>

@@ -66,7 +66,7 @@ _IMPACT_STATEMENTS = {
         'needs-work': 'Slow load times are costing you visitors. Most people '
                       'leave if a site takes more than 3 seconds to load.',
         'critical':   'Your site is critically slow. Visitors are leaving '
-                      'before they even see your content — and Google is '
+                      'before they even see your content, and Google is '
                       'penalizing your ranking.',
     },
     'seo': {
@@ -79,7 +79,7 @@ _IMPACT_STATEMENTS = {
     },
     'best_practices': {
         'strong':     'Your site follows web standards and security best '
-                      'practices — a good foundation.',
+                      'practices, a good foundation.',
         'needs-work': 'Your site has technical issues that affect security '
                       'and user trust.',
         'critical':   'Serious technical and security issues detected. These '
@@ -88,7 +88,7 @@ _IMPACT_STATEMENTS = {
     'accessibility': {
         'strong':     'Your site is accessible to all users including those '
                       'using assistive technology.',
-        'needs-work': 'Some users may have difficulty using your site — this '
+        'needs-work': 'Some users may have difficulty using your site. This '
                       'also affects SEO.',
         'critical':   'Major accessibility barriers detected. A significant '
                       'portion of visitors cannot fully use your site.',
@@ -428,7 +428,7 @@ def insights_index(request):
         'meta_title': 'Insights',
         'meta_description': (
             'Straight answers on what websites cost, why custom beats '
-            'templates, and how to get found on Google — written by a '
+            'templates, and how to get found on Google. Written by a '
             'CISSP-certified engineer who builds them.'
         ),
     })
@@ -926,7 +926,7 @@ def contact(request):
     return render(request, 'public/contact.html', {
         'active_nav': 'contact',
         'form': form,
-        'meta_title': 'Contact — Aspired Websites',
+        'meta_title': 'Contact | Aspired Websites',
         'meta_description': (
             'Get in touch about your project. Free consultation, no obligation. '
             f'{LOCATION_STATEMENT}'
@@ -937,8 +937,8 @@ def contact(request):
 def contact_thanks(request):
     return render(request, 'public/thanks.html', {
         'active_nav': 'contact',
-        'meta_title': 'Message Received — Aspired Websites',
-        'meta_description': 'Thanks — we’ll be in touch within 24 hours.',
+        'meta_title': 'Message Received | Aspired Websites',
+        'meta_description': 'Thanks, we’ll be in touch within 24 hours.',
     })
 
 
@@ -953,15 +953,15 @@ def _client_ip(request):
 def _send_lead_auto_reply(lead):
     body = (
         f'Hi {lead.attorney_name},\n\n'
-        f'Thanks for reaching out — I got your message and will be back in touch '
+        f'Thanks for reaching out. I got your message and will be back in touch '
         f'within 24 hours.\n\n'
         f'In the meantime, feel free to call or text me directly at 210-896-2536.\n\n'
-        f'— Zachery Long\n'
+        f'Zachery Long\n'
         f'Aspired Websites LLC\n'
         f'aspiredwebsites.com\n'
     )
     send_mail(
-        subject='Got your message — Aspired Websites',
+        subject='Got your message',
         message=body,
         from_email=settings.EMAIL_FROM_CONTACT,
         recipient_list=[lead.email],
@@ -997,9 +997,9 @@ def _send_lead_internal_notification(lead):
 def about(request):
     return render(request, 'public/about.html', {
         'active_nav': 'about',
-        'meta_title': 'About Zachery Long — Aspired Websites',
+        'meta_title': 'About Zachery Long | Aspired Websites',
         'meta_description': (
-            'Aspired Websites is built by Zachery Long — CISSP-certified, '
+            'Aspired Websites is built by Zachery Long, CISSP-certified, '
             f'M.S. in Cybersecurity, {LOCATION_PHRASE}. '
             'Direct access, no outsourcing, security-first.'
         ),
@@ -1047,7 +1047,7 @@ def audit(request):
     return render(request, 'public/audit.html', {
         'active_nav': 'audit',
         'form': form,
-        'meta_title': 'Free Website Audit — Aspired Websites',
+        'meta_title': 'Free Website Audit | Aspired Websites',
         'meta_description': (
             'Free website audit. Speed, SEO, accessibility, best-practices '
             'scores in under 30 seconds. No email required.'
@@ -1139,7 +1139,7 @@ def audit_results(request):
         'audit_summary': _audit_summary(audit_url, scores),
         'email_form': email_form,
         'email_submitted': bool(request.session.get('audit_email_submitted')),
-        'meta_title': f'Audit Results for {audit_url} — Aspired Websites',
+        'meta_title': f'Audit Results for {audit_url} | Aspired Websites',
     })
 
 
@@ -1203,7 +1203,7 @@ def _run_pagespeed_audit(url):
         )
     except requests.Timeout:
         raise _PageSpeedError(
-            'The audit took too long. Try again in a moment — '
+            'The audit took too long. Try again in a moment, '
             'or send us the URL directly at 210-896-2536.'
         )
     except requests.RequestException:
@@ -1356,22 +1356,22 @@ def _generate_ai_audit_review(url, scores, issues):
             )
         issue_block = '\n'.join(issue_lines)
     else:
-        issue_block = '(No major opportunities detected — site is already solid.)'
+        issue_block = '(No major opportunities detected, site is already solid.)'
 
     prompt = f"""You are reviewing a website audit for a small business owner who probably doesn't know what most of these scores actually mean. Based on the audit results below, write a 2-3 paragraph plain-English review that:
 
-1. Translates what the scores actually mean for their business — visitors lost, slow page loads, missed leads, conversion impact. Be specific about real-world consequences.
+1. Translates what the scores actually mean for their business: visitors lost, slow page loads, missed leads, conversion impact. Be specific about real-world consequences.
 2. Identifies the single most important issue to fix first and why it matters.
 3. Says what they should do next.
 
 Voice:
 - Conversational and direct
-- Honest about bad scores — don't sugarcoat
-- No jargon, no acronyms (PageSpeed, Lighthouse, FCP, LCP) — translate them
+- Honest about bad scores, don't sugarcoat
+- No jargon, no acronyms (PageSpeed, Lighthouse, FCP, LCP), translate them
 - Write like you're explaining to a small business owner who just hired you
 - 200-350 words total
 - Paragraphs separated by a blank line
-- No markdown headings, no bullet points, no asterisks — just clean flowing paragraphs
+- No markdown headings, no bullet points, no asterisks, no em dashes, just clean flowing paragraphs
 
 WEBSITE: {url}
 
@@ -1453,7 +1453,7 @@ def login_page(request):
 
     return render(request, 'public/login.html', {
         'active_nav': 'login',
-        'meta_title': 'Sign In — Aspired Websites',
+        'meta_title': 'Sign In | Aspired Websites',
         'meta_description': 'Sign in to your Aspired Websites account.',
         'error': error,
         'next': next_url,
@@ -1512,7 +1512,7 @@ def _post_login_redirect(user, next_url):
 def portal_coming_soon(request):
     return render(request, 'public/portal_coming_soon.html', {
         'active_nav': 'login',
-        'meta_title': 'Portal Coming Soon — Aspired Websites',
+        'meta_title': 'Portal Coming Soon | Aspired Websites',
     })
 
 
@@ -1532,7 +1532,7 @@ def domain_parked(request):
     return render(request, 'public/domain_parked.html', {
         'active_nav': '',
         'for_domain': safe_for,
-        'meta_title': 'Site offline — Aspired Websites',
+        'meta_title': 'Site Offline | Aspired Websites',
     })
 
 
@@ -1577,7 +1577,7 @@ def audit_unsubscribe(request, token):
     # alternative is telling somebody their opt-out failed when there is
     # nothing they can do about it.
     return render(request, 'public/audit_unsubscribed.html', {
-        'meta_title': 'Unsubscribed — Aspired Websites',
+        'meta_title': 'Unsubscribed | Aspired Websites',
         'meta_description': 'You have been removed from our list.',
         'noindex': True,
     })

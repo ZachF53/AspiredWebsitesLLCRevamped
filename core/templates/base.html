@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}{{ meta_title|default:"Aspired Websites" }} — Aspired Websites{% endblock %}</title>
+    <title>{% block title %}{{ meta_title|default:"Aspired Websites" }} | Aspired Websites{% endblock %}</title>
     <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC contractors.' }}{% endblock %}">
     <meta name="theme-color" content="#0C1121">
 
@@ -91,7 +91,7 @@
     <header class="site-header">
         <div class="container">
             <nav class="nav" aria-label="Primary">
-                <a class="logo" href="{% url 'public:home' %}" aria-label="Aspired Websites — Home">
+                <a class="logo" href="{% url 'public:home' %}" aria-label="Aspired Websites Home">
                     {% comment %}
                     logo.png was a 600x277 / 54 KB source scaled down by
                     the browser to 87x40. Now served at 2x (173x80) as
@@ -258,7 +258,7 @@
                     <ul>
                         <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
                         <li><a href="tel:+12108962536">(210) 896-2536</a></li>
-                        <li class="footer-hours">Open any time — we answer within 24&nbsp;hours</li>
+                        <li class="footer-hours">Open any time, we answer within 24&nbsp;hours</li>
                     </ul>
                 </div>
             </div>

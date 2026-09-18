@@ -173,7 +173,7 @@ TIERS = [
     # the deliverable report for what checkout wiring these still need.
     {
         'slug': 'hvac-build-full', 'category': 'website_build',
-        'name': 'Website Build — Pay in Full', 'price': Decimal('2000.00'),
+        'name': 'Website Build: Pay in Full', 'price': Decimal('2000.00'),
         'is_recurring': False, 'billing_interval': '',
         'sort_order': 20, 'is_featured': False,
         'env': 'STRIPE_PRICE_HVAC_BUILD_FULL',
@@ -186,7 +186,7 @@ TIERS = [
     },
     {
         'slug': 'hvac-build-installment', 'category': 'website_build',
-        'name': 'Website Build — 24-Month Installment',
+        'name': 'Website Build: 24-Month Installment',
         'price': Decimal('105.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'price_display': '$105/mo',
@@ -221,7 +221,7 @@ TIERS = [
             'Security patching included',
             'Automated review generation included',
             'Drops to $145/mo automatically after month 24',
-            'Month-to-month after the build term — cancel anytime',
+            'Month-to-month after the build term: cancel anytime',
             'Monthly security report — an automated scan of your site, '
             'summarized in a one-page PDF emailed to you on the 1st. '
             'Included in every plan.',
@@ -229,7 +229,7 @@ TIERS = [
     },
     {
         'slug': 'hvac-plan-paid-in-full', 'category': 'maintenance',
-        'name': 'Full Plan — Build Paid in Full', 'price': Decimal('145.00'),
+        'name': 'Full Plan: Build Paid in Full', 'price': Decimal('145.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 1, 'is_featured': False,
         'env': 'STRIPE_PRICE_HVAC_PLAN_PAID_IN_FULL',
@@ -242,7 +242,7 @@ TIERS = [
             'Hosting, maintenance, and unlimited content updates',
             'Security patching included',
             'Automated review generation included',
-            'Month-to-month from day one — cancel anytime',
+            'Month-to-month from day one: cancel anytime',
             'Monthly security report — an automated scan of your site, '
             'summarized in a one-page PDF emailed to you on the 1st. '
             'Included in every plan.',

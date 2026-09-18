@@ -110,7 +110,7 @@ STUDIES = [
         'card_gradient': 'gradient-rust',
         'summary': (
             'A mobile-first directory for San Antonio’s food truck '
-            'community — event listings, truck profiles and a location '
+            'community: event listings, truck profiles and a location '
             'finder.'
         ),
         'challenge': (
@@ -118,8 +118,8 @@ STUDIES = [
             'outdoors, often on patchy mobile data, and deciding where '
             'to eat in the next few minutes. A site that takes several '
             'seconds to load has already lost them.\n\n'
-            'The content also changes constantly — trucks move, events '
-            'come and go — so the site had to stay easy to update '
+            'The content also changes constantly (trucks move, events '
+            'come and go), so the site had to stay easy to update '
             'without a developer involved every time.'
         ),
         'solution': (
@@ -148,7 +148,7 @@ STUDIES = [
         ),
         'challenge': (
             'A design studio’s website is itself a portfolio piece. '
-            'If the site looks templated, the work looks templated — '
+            'If the site looks templated, the work looks templated, '
             'no matter how good it is.\n\n'
             'The difficulty is restraint: the site has to be visually '
             'confident without competing with the projects it exists '
@@ -162,7 +162,7 @@ STUDIES = [
         ),
         'results': (
             'A portfolio that presents the studio’s work without '
-            'talking over it — and an ongoing working relationship '
+            'talking over it, and an ongoing working relationship '
             'between the two studios.'
         ),
     },
@@ -182,7 +182,7 @@ STUDIES = [
             'Selling technology to people who understand technology '
             'sets a higher bar. A slow site, a broken layout or a '
             'missing security header is not a cosmetic problem to that '
-            'audience — it is evidence.'
+            'audience. It is evidence.'
         ),
         'solution': (
             'A hand-coded, security-hardened build: HTTPS with strict '

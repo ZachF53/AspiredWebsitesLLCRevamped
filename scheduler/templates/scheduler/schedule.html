@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ service_config.meta_title|default:"Schedule a Call" }} — Aspired Websites{% endblock %}
+{% block title %}{{ service_config.meta_title|default:"Schedule a Call" }} | Aspired Websites{% endblock %}
 
 {% comment %}
 One calendar, four URLs: /schedule/, /design/schedule/, /social/schedule/
@@ -24,7 +24,7 @@ other three stay crawlable and reachable; they simply stop competing.
             <span class="eyebrow">{{ service_config.eyebrow|default:"Schedule a Call" }}</span>
             <h1>{{ service_config.h1_pre|default:"Let’s talk about your " }}<span class="accent">{{ service_config.h1_accent|default:"build" }}</span>{{ service_config.h1_post|default:"." }}</h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">{{ service_config.lead|default:"30-minute call — pick a time that works for you." }}</p>
+            <p class="hero__lead">{{ service_config.lead|default:"30-minute call. Pick a time that works for you." }}</p>
         </div>
     </div>
 </section>
@@ -118,9 +118,9 @@ other three stay crawlable and reachable; they simply stop competing.
                     <div class="form-group">
                         <label for="s-build">Build type</label>
                         <select id="s-build" name="build_type" class="form-control">
-                            <option value="">&mdash; pick &mdash;</option>
+                            <option value="">Select one</option>
                             {% for t in build_tiers %}
-                                <option value="{{ t.value }}">{{ t.name }} &mdash; {{ t.price }}</option>
+                                <option value="{{ t.value }}">{{ t.name }} ({{ t.price }})</option>
                             {% endfor %}
                             <option value="not_sure">Not sure yet</option>
                         </select>
@@ -147,7 +147,7 @@ other three stay crawlable and reachable; they simply stop competing.
                         {% endcomment %}
                         {% regroup addons by category as addon_groups %}
                         <fieldset class="addon-fieldset">
-                            <legend class="addon-fieldset__legend">Save 10% on your first month &mdash; opt in now</legend>
+                            <legend class="addon-fieldset__legend">Save 10% on your first month: opt in now</legend>
                             <p class="form-help addon-fieldset__hint">
                                 Lock in 10% off the first month on any
                                 maintenance or social plan when you sign up.
@@ -165,7 +165,7 @@ other three stay crawlable and reachable; they simply stop competing.
                                     </h3>
                                     <p class="addon-group__sub">
                                         {% if group.grouper == 'maintenance' %}
-                                            We keep your site sharp &mdash; updates, backups, monitoring.
+                                            We keep your site sharp: updates, backups, monitoring.
                                         {% elif group.grouper == 'social_media' %}
                                             We run your posts, content, and analytics across your channels.
                                         {% endif %}
@@ -197,7 +197,7 @@ other three stay crawlable and reachable; they simply stop competing.
 
                     <button type="submit" class="btn-primary btn-lg schedule-submit" disabled
                             id="schedule-submit">
-                        Submit &mdash; pick a time first
+                        Pick a time to submit
                     </button>
                 </form>
             </article>
