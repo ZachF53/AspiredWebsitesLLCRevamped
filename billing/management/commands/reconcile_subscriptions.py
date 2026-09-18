@@ -54,7 +54,14 @@ class Command(BaseCommand):
 
         cancelled = 0
         ok = 0
+        skipped = 0
         for client in qs:
+            if not client.needs_droplet:
+                # No droplet is ever provisioned for this build platform
+                # (e.g. wordpress) — "no droplet found" here isn't drift,
+                # it's expected, so there's nothing to reconcile.
+                skipped += 1
+                continue
             alive = _droplet_alive(client)
             if alive:
                 ok += 1
@@ -81,4 +88,5 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS(
             f'{prefix}Done. {ok} OK, {cancelled} cancelled, '
-            f'{qs.count() - ok - cancelled} errored.'))
+            f'{skipped} skipped (no droplet needed), '
+            f'{qs.count() - ok - cancelled - skipped} errored.'))
