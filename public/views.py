@@ -899,16 +899,13 @@ def contact(request):
             # renders the same thanks page for bots and queues nothing.
             # Category fields only: name, email and phone are PII and
             # core.analytics refuses them.
+            #
+            # Sept 2026 — service_interest/business_type/heard_about
+            # params dropped along with the form fields that fed them
+            # (see ContactForm); every contact-form lead is implicitly
+            # HVAC business_type now, so the param carried no signal.
             queue_event(
                 request, 'contact_form_submit',
-                # service_interest was specified in MEASUREMENT_SPEC §5
-                # from the start; the form had no field for it, so it
-                # shipped as a documented deviation. The field exists
-                # now, so the event carries what the spec asked for.
-                service_interest=form.cleaned_data.get(
-                    'service_interest', ''),
-                business_type=form.cleaned_data.get('business_type', ''),
-                heard_about=form.cleaned_data.get('source', ''),
                 page_path=request.path,
             )
             # Count a successful submit against the IP cap too — three
@@ -967,15 +964,15 @@ def _send_lead_auto_reply(lead):
 
 
 def _send_lead_internal_notification(lead):
+    # Sept 2026 — Business/Business type/Needs/Heard about lines dropped
+    # along with the form fields that fed them (see ContactForm); every
+    # contact-form lead is implicitly HVAC business_type now, so those
+    # lines only ever showed blanks or a hardcoded value.
     body = (
-        f'New lead from {lead.firm_name}.\n\n'
+        f'New lead from {lead.attorney_name}.\n\n'
         f'Name:          {lead.attorney_name}\n'
-        f'Business:      {lead.firm_name}\n'
-        f'Business type: {lead.business_type}\n'
-        f'Needs:         {lead.service_interest or "Not specified"}\n'
         f'Phone:         {lead.phone}\n'
         f'Email:         {lead.email}\n'
-        f'Heard about:   {lead.tags or "Not specified"}\n'
         f'IP address:    {lead.ip_address or "unknown"}\n'
         f'Submitted at:  {lead.created_at:%Y-%m-%d %H:%M:%S %Z}\n\n'
         f'Message:\n'
@@ -983,7 +980,7 @@ def _send_lead_internal_notification(lead):
         f'{lead.inquiry_text}\n'
     )
     send_mail(
-        subject=f'New Lead: {lead.firm_name} — {lead.business_type}',
+        subject=f'New Lead: {lead.attorney_name}',
         message=body,
         from_email=settings.EMAIL_FROM_MAIN,
         recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],

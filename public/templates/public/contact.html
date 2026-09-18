@@ -66,18 +66,6 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                     </div>
 
                     <div class="form-group">
-                        <label for="{{ form.business_name.id_for_label }}">Business Name <span class="required" aria-hidden="true">*</span></label>
-                        {{ form.business_name }}
-                        {% if form.business_name.errors %}<div class="form-field-error">{{ form.business_name.errors|join:" " }}</div>{% endif %}
-                    </div>
-
-                    <div class="form-group">
-                        <label for="{{ form.business_type.id_for_label }}">Business Type <span class="required" aria-hidden="true">*</span></label>
-                        {{ form.business_type }}
-                        {% if form.business_type.errors %}<div class="form-field-error">{{ form.business_type.errors|join:" " }}</div>{% endif %}
-                    </div>
-
-                    <div class="form-group">
                         <label for="{{ form.phone.id_for_label }}">Phone <span class="required" aria-hidden="true">*</span></label>
                         {{ form.phone }}
                         {% if form.phone.errors %}<div class="form-field-error">{{ form.phone.errors|join:" " }}</div>{% endif %}
@@ -87,24 +75,6 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         <label for="{{ form.email.id_for_label }}">Email <span class="required" aria-hidden="true">*</span></label>
                         {{ form.email }}
                         {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
-                    </div>
-
-                    {% comment %}
-                    Optional on purpose. It sharpens lead triage and
-                    fills the service_interest param the §10 event spec
-                    asks for, but a required field here would cost more
-                    submissions than the answer is worth.
-                    {% endcomment %}
-                    <div class="form-group">
-                        <label for="{{ form.service_interest.id_for_label }}">What do you need?</label>
-                        {{ form.service_interest }}
-                        {% if form.service_interest.errors %}<div class="form-field-error">{{ form.service_interest.errors|join:" " }}</div>{% endif %}
-                    </div>
-
-                    <div class="form-group">
-                        <label for="{{ form.source.id_for_label }}">How did you hear about us?</label>
-                        {{ form.source }}
-                        {% if form.source.errors %}<div class="form-field-error">{{ form.source.errors|join:" " }}</div>{% endif %}
                     </div>
 
                     <div class="form-group">

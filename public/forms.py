@@ -3,56 +3,24 @@ from django import forms
 from outreach.models import Lead
 
 
-# Form-local choices for the contact form. Values double as display labels
-# (no get_X_display needed) so what's stored on the Lead reads cleanly in
-# email notifications, admin, and the CRM.
-BUSINESS_TYPE_CHOICES = [
-    ('Law Firm', 'Law Firm'),
-    ('Restaurant', 'Restaurant'),
-    ('Contractor', 'Contractor'),
-    ('Retail', 'Retail'),
-    ('Healthcare', 'Healthcare'),
-    ('Technology', 'Technology'),
-    ('Other', 'Other'),
-]
-
-HEARD_ABOUT_CHOICES = [
-    ('Google Search', 'Google Search'),
-    ('Referral', 'Referral'),
-    ('Social Media', 'Social Media'),
-    ('Cold Email', 'Cold Email'),
-    ('Other', 'Other'),
-]
-
-# What the visitor is actually after. Ordered by what we most want to
-# win (D10 — law firms first, builds over retainers is NOT the order;
-# the retainer is worth more) and phrased the way a business owner would
-# describe their problem, not the way we name our service pages.
-SERVICE_INTEREST_CHOICES = [
-    ('New Website', 'A new website'),
-    ('Website Redesign', 'Rebuilding / replacing my current site'),
-    ('SEO', 'Getting found on Google (SEO)'),
-    ('Maintenance', 'Ongoing maintenance & support'),
-    ('Social Media', 'Social media management'),
-    ('Not Sure', "Not sure yet — I'd like advice"),
-]
-
-
 class ContactForm(forms.Form):
     """
     Public-facing contact form. Saves to a Lead row with source='contact_form'
     per CLAUDE.md → Data Model Decisions → Contact Form → Lead Mapping.
 
-    Field names match the original Phase 1 form (so the template doesn't
-    need to change), but the save method maps them to the new Lead schema:
-      name          → Lead.attorney_name
-      business_name → Lead.firm_name
-      business_type → Lead.business_type
-      phone         → Lead.phone
-      email         → Lead.email
-      source           → Lead.tags  (how they heard about us)
-      service_interest → Lead.service_interest  (what they need)
-      message          → Lead.inquiry_text
+    Sept 2026 — trimmed to name/phone/email/message. Business name,
+    business type, "what do you need" and "how did you hear about us"
+    were pre-pivot fields: business type offered Law Firm/Restaurant/
+    Retail/etc. choices that don't apply now that the site sells to
+    HVAC contractors only, and every visitor here is implicitly that
+    audience already. save_as_lead() sets Lead.business_type='HVAC'
+    directly rather than asking the visitor to pick it from a list of
+    verticals that no longer describes what's sold.
+
+      name    → Lead.attorney_name
+      phone   → Lead.phone
+      email   → Lead.email
+      message → Lead.inquiry_text
     """
 
     name = forms.CharField(
@@ -63,21 +31,6 @@ class ContactForm(forms.Form):
             'placeholder': 'Jane Smith',
             'autocomplete': 'name',
         }),
-    )
-
-    business_name = forms.CharField(
-        label='Business Name',
-        max_length=255,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Smith & Co.',
-            'autocomplete': 'organization',
-        }),
-    )
-
-    business_type = forms.ChoiceField(
-        label='Business Type',
-        widget=forms.Select(attrs={'class': 'form-control'}),
     )
 
     phone = forms.CharField(
@@ -113,18 +66,6 @@ class ContactForm(forms.Form):
     def clean_email(self):
         return (self.cleaned_data.get('email') or '').strip().lower()
 
-    service_interest = forms.ChoiceField(
-        label='What do you need?',
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-    )
-
-    source = forms.ChoiceField(
-        label='How did you hear about us?',
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-    )
-
     message = forms.CharField(
         label='Message',
         widget=forms.Textarea(attrs={
@@ -143,30 +84,16 @@ class ContactForm(forms.Form):
     # when it builds the form for GET.
     form_timestamp = forms.CharField(required=False)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['business_type'].choices = (
-            [('', '— Select business type —')] + BUSINESS_TYPE_CHOICES
-        )
-        self.fields['source'].choices = (
-            [('', '— Optional —')] + HEARD_ABOUT_CHOICES
-        )
-        self.fields['service_interest'].choices = (
-            [('', '— Optional —')] + SERVICE_INTEREST_CHOICES
-        )
-
     def save_as_lead(self, ip_address=None, referral_code=''):
         """Map cleaned form data to a Lead row and return it."""
         cleaned = self.cleaned_data
         return Lead.objects.create(
-            firm_name=cleaned['business_name'],
+            firm_name='',
             attorney_name=cleaned['name'],
-            business_type=cleaned['business_type'],
+            business_type='HVAC',
             phone=cleaned['phone'],
             email=cleaned['email'],
             inquiry_text=cleaned['message'],
-            service_interest=cleaned.get('service_interest', ''),
-            tags=cleaned.get('source', ''),
             source='contact_form',
             status='new',
             score=0,
