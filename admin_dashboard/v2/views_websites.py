@@ -44,18 +44,36 @@ def _block_if_live_subscription(request, website):
     return False
 
 
+#: (form field name, model field name) for the three lifecycle selects a
+#: no-build client needs set at creation. Kept as one list so the view,
+#: the choice-validation loop, and the template iterate the same set —
+#: adding a fourth select later means adding it here once, not in three
+#: places that can drift.
+_LIFECYCLE_SELECT_FIELDS = ('stage', 'payment_status', 'onboarding_status')
+
+
 @admin_required
 def website_create(request):
-    """Tag a new Website to an existing Account and pick its build
-    platform. No standalone "create website" form existed in v1 (sites
-    are otherwise created inline as part of the onboarding-invoice /
-    lead-conversion flows) — this is new, but it's a single
-    Website.objects.create() with the same fields those flows set, not
-    new business logic.
+    """Tag a new Website to an existing Account, in one of two shapes.
 
-    Redirects to v1's website_detail page for now, per instruction —
-    v2's own website page is still being built out; v1's is the fully-
-    featured one today.
+    "New build" (default) — unchanged from before: account, name, build
+    platform only. stage/payment_status/onboarding_status/url all fall to
+    the model's own defaults exactly as they did before this form grew
+    the extra fields, because a blank submission for any of them is never
+    passed to .create() at all — the model default fires instead of a
+    duplicated literal that could drift from it.
+
+    "Existing client — site already live, no build" — the no-build shape
+    (clients/account_models.py: stage='live', payment_status='fully_paid',
+    onboarding_status='intake_complete') is pre-filled into the SAME
+    select elements by the page's own JS preset button, not a server-side
+    branch — every field stays a normal, overridable form control either
+    way. The server only ever sees "stage/payment_status/onboarding_status
+    were submitted as X"; it has no notion of which preset produced them.
+
+    Still a single Website.objects.create() call — no new signal surface,
+    no provisioning, no email. (Denis Law Group's onboarding depends on
+    that staying true: see the Website-creation-fires-nothing audit.)
     """
     from clients.account_models import Account
 
@@ -63,10 +81,27 @@ def website_create(request):
         account_id = request.POST.get('account_id')
         name = (request.POST.get('name') or '').strip()
         build_platform = request.POST.get('build_platform') or 'custom'
+        url = (request.POST.get('url') or '').strip()
 
         account = (Account.objects.filter(id=account_id).first()
                    if account_id else None)
         valid_platforms = {v for v, _ in Website.BUILD_PLATFORM_CHOICES}
+
+        # Each lifecycle select is optional — blank means "use the model
+        # default", exactly like url and like build_platform did before
+        # this field existed. Only a non-blank value that isn't one of
+        # the field's own choices is an error.
+        lifecycle_values = {}
+        lifecycle_errors = []
+        for fname in _LIFECYCLE_SELECT_FIELDS:
+            raw = (request.POST.get(fname) or '').strip()
+            if not raw:
+                continue
+            choices = dict(Website._meta.get_field(fname).choices or [])
+            if raw not in choices:
+                lifecycle_errors.append(f'Invalid {fname.replace("_", " ")}: {raw!r}.')
+            else:
+                lifecycle_values[fname] = raw
 
         if not account:
             messages.error(request, 'Pick an account.')
@@ -74,9 +109,16 @@ def website_create(request):
             messages.error(request, 'Website name is required.')
         elif build_platform not in valid_platforms:
             messages.error(request, 'Pick a valid build platform.')
+        elif lifecycle_errors:
+            for e in lifecycle_errors:
+                messages.error(request, e)
         else:
-            website = Website.objects.create(
+            create_kwargs = dict(
                 account=account, name=name, build_platform=build_platform)
+            create_kwargs.update(lifecycle_values)
+            if url:
+                create_kwargs['url'] = url
+            website = Website.objects.create(**create_kwargs)
             messages.success(
                 request, f'{website.name} created under {account.name}.')
             return redirect('admin_dashboard:website_detail',
@@ -84,13 +126,26 @@ def website_create(request):
 
         return render(request, 'admin_dashboard/v2/website_create.html', {
             'accounts': Account.objects.order_by('name'),
-            'name': name, 'build_platform': build_platform,
+            'name': name, 'build_platform': build_platform, 'url': url,
             'selected_account_id': account_id,
+            'lifecycle_choices': _lifecycle_choices(),
+            'posted_lifecycle': {
+                f: (request.POST.get(f) or '')
+                for f in _LIFECYCLE_SELECT_FIELDS},
         })
 
     return render(request, 'admin_dashboard/v2/website_create.html', {
         'accounts': Account.objects.order_by('name'),
+        'lifecycle_choices': _lifecycle_choices(),
+        'posted_lifecycle': {},
     })
+
+
+def _lifecycle_choices():
+    return {
+        fname: list(Website._meta.get_field(fname).choices or [])
+        for fname in _LIFECYCLE_SELECT_FIELDS
+    }
 
 
 @admin_required

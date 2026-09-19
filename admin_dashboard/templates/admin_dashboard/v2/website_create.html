@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}Create Website — Admin v2{% endblock %}
 
@@ -14,7 +15,30 @@
 
     <div class="admin-card">
         <div class="admin-card__body">
-            <form method="post">
+            {% comment %}
+                "Existing client, no build" only changes what the selects
+                below are pre-filled with (website-create.js sets their
+                selected option) — it is not a separate server-side path.
+                Every field it touches stays a normal, overridable select;
+                the New build radio is checked by default so a plain
+                submit with nothing else touched behaves exactly as it
+                did before this preset existed.
+            {% endcomment %}
+            <div class="form-group" role="radiogroup" aria-label="Website type">
+                <label>Website type</label>
+                <label class="form-check">
+                    <input type="radio" name="website_type_preset" value="build"
+                           id="website-type-build" checked>
+                    New build
+                </label>
+                <label class="form-check">
+                    <input type="radio" name="website_type_preset" value="no_build"
+                           id="website-type-no-build">
+                    Existing client — site already live, no build
+                </label>
+            </div>
+
+            <form method="post" id="website-create-form">
                 {% csrf_token %}
                 <div class="form-group">
                     <label>Account <span class="required">*</span></label>
@@ -33,14 +57,57 @@
                 </div>
                 <div class="form-group">
                     <label>Build platform</label>
-                    <select name="build_platform" class="form-control">
+                    <select name="build_platform" class="form-control" id="id_build_platform">
                         <option value="custom"{% if build_platform == 'custom' or not build_platform %} selected{% endif %}>Custom build — Aspired-hosted (Droplet)</option>
                         <option value="wordpress"{% if build_platform == 'wordpress' %} selected{% endif %}>WordPress — client-hosted (no Droplet)</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>Live URL <span class="muted">(optional)</span></label>
+                    <input class="form-control" type="url" name="url" value="{{ url }}"
+                           placeholder="https://clientdomain.com">
+                </div>
+
+                {% comment %}
+                    Blank = model default (intake / awaiting_deposit /
+                    pending_intake) — same as before these three existed
+                    on this form. website-create.js only ever changes
+                    which <option> is marked selected; it never disables
+                    or hides the control.
+                {% endcomment %}
+                <div class="form-group">
+                    <label>Stage</label>
+                    <select name="stage" class="form-control" id="id_stage">
+                        <option value="">— Default (Intake) —</option>
+                        {% for value, label in lifecycle_choices.stage %}
+                            <option value="{{ value }}"{% if posted_lifecycle.stage == value %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Payment status</label>
+                    <select name="payment_status" class="form-control" id="id_payment_status">
+                        <option value="">— Default (Awaiting Deposit) —</option>
+                        {% for value, label in lifecycle_choices.payment_status %}
+                            <option value="{{ value }}"{% if posted_lifecycle.payment_status == value %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Onboarding status</label>
+                    <select name="onboarding_status" class="form-control" id="id_onboarding_status">
+                        <option value="">— Default (Pending Intake) —</option>
+                        {% for value, label in lifecycle_choices.onboarding_status %}
+                            <option value="{{ value }}"{% if posted_lifecycle.onboarding_status == value %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 <button type="submit" class="btn-primary btn-sm">Create website</button>
             </form>
         </div>
     </div>
 </div>
+
+<script src="{% static 'js/website_create.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}
