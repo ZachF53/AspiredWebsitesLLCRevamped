@@ -9,6 +9,7 @@ most likely in a large from-scratch template set.
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from clients.account_models import Account, Website
 
@@ -217,6 +218,25 @@ class V2SmokeTests(TestCase):
 
     def test_every_tab_renders_for_archived_website(self):
         self._tabs_for(self.website_archived, expect_infrastructure=True)
+
+    def test_onboarding_tab_renders_with_an_active_reminder_cooldown(self):
+        """Found via staging QA: setup_cooldown/intake_cooldown were
+        computed as bare timedeltas and handed to the |timeuntil
+        template filter, which expects a datetime to diff against "now"
+        — this crashed with AttributeError the first time this page was
+        ever viewed for an account with a recent reminder timestamp."""
+        from clients.models import OnboardingToken
+
+        OnboardingToken.objects.create(
+            account_new=self.account_live,
+            last_setup_reminder_at=timezone.now(),
+            last_intake_reminder_at=timezone.now(),
+        )
+        r = self.client.get(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/'
+            '?tab=onboarding')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'cooldown', r.content)
 
     def test_infrastructure_tab_hidden_in_nav_for_wordpress(self):
         r = self.client.get(

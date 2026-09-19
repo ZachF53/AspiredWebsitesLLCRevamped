@@ -343,11 +343,18 @@ def website_detail(request, website_id):
         if token.last_setup_reminder_at:
             elapsed = now - token.last_setup_reminder_at
             if elapsed < SETUP_EMAIL_COOLDOWN:
-                setup_cooldown = SETUP_EMAIL_COOLDOWN - elapsed
+                # An absolute datetime, not a bare timedelta — the
+                # |timeuntil template filter diffs its value against
+                # "now" itself and expects a datetime to do that
+                # subtraction against; handing it a duration crashed
+                # with AttributeError: 'datetime.timedelta' object has
+                # no attribute 'year' the first time this page was ever
+                # viewed with an active cooldown.
+                setup_cooldown = now + (SETUP_EMAIL_COOLDOWN - elapsed)
         if token.last_intake_reminder_at:
             elapsed = now - token.last_intake_reminder_at
             if elapsed < INTAKE_REMINDER_COOLDOWN:
-                intake_cooldown = INTAKE_REMINDER_COOLDOWN - elapsed
+                intake_cooldown = now + (INTAKE_REMINDER_COOLDOWN - elapsed)
 
     from clients.models import OnboardingInvoice
 
