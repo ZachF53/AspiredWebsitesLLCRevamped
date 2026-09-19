@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}{{ website.name }} — Admin v2{% endblock %}
 
@@ -293,10 +294,122 @@
             <div class="admin-card__body">
                 <p><strong>Hosting subscription:</strong> {% if website.stripe_hosting_subscription_id %}Active{% else %}None{% endif %}</p>
                 <p><strong>Maintenance subscription:</strong> {% if website.stripe_maintenance_subscription_id %}Active{% else %}None{% endif %}</p>
-                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Change plan</button>
                 <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Cancel subscription</button>
+                <p class="muted" style="margin-top:.5rem;">Cancelling and changing an existing plan are a different risk profile from adding one — not built in v2 yet. Use v1 for those.</p>
             </div>
         </div>
+
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Current plans</h2></div>
+            <div class="admin-card__body">
+                {% if website_plans %}
+                    <ul class="v2-plain-list">
+                        {% for p in website_plans %}
+                            <li>
+                                <strong>{{ p.get_tier_slug_display }}</strong>
+                                <span class="status-badge">{{ p.get_status_display }}</span>
+                                {% if p.discount_percent %}<span class="muted" style="font-size:.75rem;"> — {{ p.discount_percent }}% off {{ p.get_discount_duration_display|lower }}</span>{% endif %}
+                                {% if p.stripe_subscription_id %}<span class="muted" style="font-size:.75rem;"> — sub {{ p.stripe_subscription_id }}</span>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="admin-empty">No maintenance/social plans on this website yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% comment %}
+            Add Plan — thin caller over billing.plan_billing.start_website_plan.
+            This creates a real Stripe subscription and, if a card is on
+            file, charges it immediately. Everything billing-shaped (tier
+            lookup, customer/coupon creation, the card-on-file branch, the
+            local plan row write) lives in that one shared function — this
+            form only collects arguments, previews them client-side, and
+            requires an explicit Review step before the real submit button
+            appears.
+        {% endcomment %}
+        <div class="admin-card" style="border-color: var(--color-orange);">
+            <div class="admin-card__header"><h2 class="admin-card__title">Add plan</h2></div>
+            <div class="admin-card__body">
+                {% if has_live_subscription %}
+                    <p class="muted">This website has a live Stripe subscription — v2 write actions are disabled for it in this build. Use v1 to add a plan.</p>
+                {% else %}
+                    {% if has_card_on_file %}
+                        <div class="banner" style="background: rgba(74,222,128,0.10); border-color: rgba(74,222,128,0.4); color: var(--color-success);">
+                            <strong>Card on file: {{ card_brand }} &bull;&bull;{{ card_last4 }}</strong> — this will charge it immediately.
+                        </div>
+                    {% else %}
+                        <div class="banner" style="background: rgba(248,113,113,0.14); border-color: rgba(248,113,113,0.5); color: var(--color-danger); font-weight:600;">
+                            <strong>No card on file</strong> — this will send a Stripe-hosted invoice, not your own checkout. The plan stays "Awaiting payment" until the client pays it.
+                        </div>
+                    {% endif %}
+
+                    <div id="ap-blocked-maintenance" class="banner" style="background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.4); color: var(--color-danger);" {% if not active_maintenance_plan %}hidden{% endif %}>
+                        <strong>Blocked:</strong> already has an active maintenance plan{% if active_maintenance_plan %} ({{ active_maintenance_plan.get_tier_slug_display }}, subscription {{ active_maintenance_plan.stripe_subscription_id }}){% endif %}. A second maintenance plan can't be added here.
+                    </div>
+                    <div id="ap-blocked-social" class="banner" style="background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.4); color: var(--color-danger);" {% if not active_social_plan %}hidden{% endif %}>
+                        <strong>Blocked:</strong> already has an active social media plan{% if active_social_plan %} ({{ active_social_plan.get_tier_slug_display }}, subscription {{ active_social_plan.stripe_subscription_id }}){% endif %}. A second social plan can't be added here.
+                    </div>
+
+                    <form method="post" action="{% url 'admin_dashboard:v2_website_add_plan' website.id %}" id="ap-form"
+                          data-has-card="{% if has_card_on_file %}1{% else %}0{% endif %}"
+                          data-card-label="{% if has_card_on_file %}{{ card_brand }} ••{{ card_last4 }}{% endif %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label>Service type</label>
+                            <select name="service_type" id="ap-service-type" class="form-control">
+                                <option value="maintenance" {% if active_maintenance_plan %}data-blocked="1"{% endif %}>Maintenance</option>
+                                <option value="social" {% if active_social_plan %}data-blocked="1"{% endif %}>Social media</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tier</label>
+                            <select name="tier_slug" id="ap-tier" class="form-control">
+                                <option value="" data-price="">&mdash; choose a tier &mdash;</option>
+                                <optgroup label="Maintenance" id="ap-tier-group-maintenance">
+                                    {% for t in maintenance_tiers %}
+                                        <option value="{{ t.slug }}" data-category="maintenance" data-price="{{ t.price }}" data-name="{{ t.name }}">{{ t.name }} &mdash; {{ t.price_display|default:t.price }}{% if not t.is_public %} (hidden){% endif %}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Social media" id="ap-tier-group-social">
+                                    {% for t in social_tiers %}
+                                        <option value="{{ t.slug }}" data-category="social" data-price="{{ t.price }}" data-name="{{ t.name }}">{{ t.name }} &mdash; {{ t.price_display|default:t.price }}{% if not t.is_public %} (hidden){% endif %}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Discount percent (optional)</label>
+                            <input type="number" name="discount_percent" id="ap-discount-pct" class="form-control" min="1" max="100" step="1" placeholder="e.g. 15">
+                        </div>
+                        <div class="form-group">
+                            <label>Discount duration</label>
+                            <select name="discount_duration" id="ap-discount-duration" class="form-control">
+                                <option value="forever">Forever</option>
+                                <option value="once">First month only</option>
+                            </select>
+                        </div>
+
+                        <table class="v2-kv-table" id="ap-preview">
+                            <tr><th>List price</th><td id="ap-preview-list">&mdash;</td></tr>
+                            <tr><th>Discount</th><td id="ap-preview-discount">&mdash;</td></tr>
+                            <tr><th>First charge / invoice</th><td id="ap-preview-total">&mdash;</td></tr>
+                        </table>
+                        <p class="muted" id="ap-preview-note" hidden></p>
+
+                        <div id="ap-confirm" class="banner banner--info" hidden>
+                            <p id="ap-confirm-text" style="margin:0;"></p>
+                        </div>
+
+                        <input type="hidden" name="confirmed" id="ap-confirmed" value="">
+                        <button type="button" id="ap-review-btn" class="btn-secondary btn-sm">Review</button>
+                        <button type="submit" id="ap-submit-btn" class="btn-primary btn-sm" hidden>Confirm &mdash; add plan &amp; charge</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Invoices</h2></div>
             <div class="admin-card__body">
@@ -358,4 +471,10 @@
         </div>
     {% endif %}
 </div>
+
+{% comment %}
+    Add Plan preview/confirm JS lives in an external file — the site's
+    CSP is `script-src 'self'` and blocks inline <script> blocks.
+{% endcomment %}
+<script src="{% static 'js/v2_website_add_plan.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

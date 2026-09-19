@@ -1,5 +1,6 @@
 """v2 Websites — list + tabbed detail. The core page of the v2 build."""
 
+import logging
 from datetime import timedelta
 
 from django.contrib import messages
@@ -10,6 +11,8 @@ from django.utils import timezone
 from admin_dashboard.decorators import admin_required
 from clients.account_models import Website
 from clients.services import GuardError
+
+logger = logging.getLogger(__name__)
 
 INTAKE_REMINDER_COOLDOWN = timedelta(hours=48)
 SETUP_EMAIL_COOLDOWN = timedelta(hours=24)
@@ -42,6 +45,93 @@ def _block_if_live_subscription(request, website):
             'change is genuinely needed.')
         return True
     return False
+
+
+def _active_plan(website, service_type):
+    """The website's existing active maintenance/social plan, if any.
+
+    Mirrors the exact early-return condition inside
+    billing.plan_billing.start_website_plan (status == 'active' and a
+    non-blank stripe_subscription_id) so the Add Plan guard in the UI
+    never disagrees with what that function would actually do — it
+    would silently hand back the existing plan rather than start a
+    second subscription.
+    """
+    related = (website.maintenance_plans if service_type == 'maintenance'
+               else website.social_media_plans)
+    return related.filter(status='active').exclude(
+        stripe_subscription_id='').first()
+
+
+def _card_state(website):
+    """Read-only: whether the account has a card on file, and its
+    brand/last4 for display on the Add Plan form.
+
+    Deliberately reuses plan_billing's OWN customer-id resolution and
+    card check (not a re-derived one) so this display can never disagree
+    with which Stripe branch start_website_plan actually takes — that
+    branch (charge now vs. send a hosted invoice) is the whole point of
+    showing it before the operator clicks Add plan.
+
+    Never raises — this runs on every Billing tab view, including local/
+    test environments with no STRIPE_SECRET_KEY configured (start_website_
+    plan's own `_stripe()` call is NOT guarded the same way, but that only
+    fires on an actual submit, not a page view). Any failure here falls
+    back to "no card on file" — the more conservative of the two branches
+    to display before a real attempt is made.
+    """
+    try:
+        from billing.plan_billing import _customer_id_for, _has_card_on_file
+        from billing.plan_billing import _stripe as _plan_stripe
+
+        stripe = _plan_stripe()
+        customer_id = _customer_id_for(website)
+        has_card = _has_card_on_file(stripe, customer_id)
+    except Exception:
+        logger.exception(
+            'v2 add-plan: card state lookup failed for website %s',
+            website.pk)
+        return False, '', ''
+
+    brand, last4 = '', ''
+    if has_card:
+        from billing.stripe_helpers import (
+            get_customer_default_payment_method,
+            list_customer_payment_methods,
+        )
+        try:
+            pm_id = get_customer_default_payment_method(customer_id)
+            methods = list_customer_payment_methods(customer_id)
+            chosen = next(
+                (m for m in methods if getattr(m, 'id', '') == pm_id), None)
+            chosen = chosen or (methods[0] if methods else None)
+            if chosen is not None:
+                card = getattr(chosen, 'card', None)
+                brand = (getattr(card, 'brand', '') or '').upper()
+                last4 = getattr(card, 'last4', '') or ''
+        except Exception:
+            logger.exception(
+                'v2 add-plan: card display lookup failed for website %s',
+                website.pk)
+    return has_card, brand, last4
+
+
+def _first_charge_amount(tier, discount_percent):
+    """Display-only readout of what the first invoice/charge will be —
+    NOT a re-derivation of billing logic. start_website_plan already
+    creates the real Stripe coupon and Stripe computes the real charge;
+    this just mirrors that percent-off arithmetic so the post-submit
+    result message can show a number without a second Stripe round-trip.
+    """
+    if tier is None:
+        return None
+    price = tier.price
+    if discount_percent:
+        from decimal import ROUND_HALF_UP, Decimal
+        price = (price * (Decimal(100 - int(discount_percent))
+                           / Decimal(100))
+                  ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return price
 
 
 #: (form field name, model field name) for the three lifecycle selects a
@@ -261,6 +351,26 @@ def website_detail(request, website_id):
 
     from clients.models import OnboardingInvoice
 
+    # Billing tab only — _card_state() touches Stripe (via
+    # billing.plan_billing), so it's computed only when that tab is
+    # actually being viewed rather than on every tab load.
+    maintenance_tiers, social_tiers = [], []
+    has_card_on_file, card_brand, card_last4 = False, '', ''
+    active_maintenance_plan, active_social_plan = None, None
+    website_plans = []
+    if active_tab == 'billing':
+        from billing.pricing_models import ServiceTier
+
+        maintenance_tiers = list(ServiceTier.objects.filter(
+            category='maintenance', is_active=True).order_by('sort_order'))
+        social_tiers = list(ServiceTier.objects.filter(
+            category='social_media', is_active=True).order_by('sort_order'))
+        has_card_on_file, card_brand, card_last4 = _card_state(website)
+        active_maintenance_plan = _active_plan(website, 'maintenance')
+        active_social_plan = _active_plan(website, 'social')
+        website_plans = (list(website.maintenance_plans.all())
+                          + list(website.social_media_plans.all()))
+
     ctx = {
         'website': website,
         'account': website.account,
@@ -285,6 +395,15 @@ def website_detail(request, website_id):
         'onboarding_invoices': OnboardingInvoice.objects.filter(
             website_new=website).order_by('-created_at'),
         'mini_invoices': website.mini_invoices_new.order_by('-created_at'),
+        # Billing — Add Plan
+        'maintenance_tiers': maintenance_tiers,
+        'social_tiers': social_tiers,
+        'website_plans': website_plans,
+        'has_card_on_file': has_card_on_file,
+        'card_brand': card_brand,
+        'card_last4': card_last4,
+        'active_maintenance_plan': active_maintenance_plan,
+        'active_social_plan': active_social_plan,
         # Monitoring
         'changelog_entries': website.changelog_entries.order_by('-date_of_change')[:25],
         'uptime_records': website.uptime_records_new.order_by('-checked_at')[:20],
@@ -474,3 +593,115 @@ def website_toggle_auto_send_scan(request, website_id):
         request,
         f"Auto-send scan reports {'enabled' if website.auto_send_scan_reports else 'disabled'}.")
     return redirect(f"{reverse_v2_website_tab(website.id, 'security')}")
+
+
+@admin_required
+def website_add_plan(request, website_id):
+    """Operator: attach a maintenance/social plan to a Website.
+
+    THIN CALLER over billing.plan_billing.start_website_plan — this view
+    collects/validates form-shape arguments only. Tier lookup, customer
+    creation, coupon creation, the card-on-file branch, and the local
+    plan row write all live in that one shared function (also used by
+    v1's website_add_plan and the go-Live auto-start trigger). Do not
+    reimplement any of that here.
+    """
+    if request.method != 'POST':
+        return redirect(f"{reverse_v2_website_tab(website_id, 'billing')}")
+
+    website = get_object_or_404(Website, id=website_id)
+    redirect_to = f"{reverse_v2_website_tab(website.id, 'billing')}"
+
+    if _block_if_live_subscription(request, website):
+        return redirect(redirect_to)
+
+    service_type = (request.POST.get('service_type') or '').strip()
+    tier_slug = (request.POST.get('tier_slug') or '').strip()
+    duration = (request.POST.get('discount_duration') or 'once').strip()
+    if duration not in ('once', 'forever'):
+        duration = 'once'
+    pct_raw = (request.POST.get('discount_percent') or '').strip()
+    confirmed = (request.POST.get('confirmed') or '').strip() == 'yes'
+
+    if service_type not in ('maintenance', 'social') or not tier_slug:
+        messages.error(request, 'Choose a plan type and a tier.')
+        return redirect(redirect_to)
+
+    discount = None
+    if pct_raw:
+        try:
+            discount = int(pct_raw)
+        except ValueError:
+            discount = None
+        if discount is None or not (1 <= discount <= 100):
+            messages.error(
+                request,
+                'Discount percent must be a whole number from 1 to 100, '
+                'or left blank.')
+            return redirect(redirect_to)
+
+    if not confirmed:
+        messages.error(
+            request,
+            'Confirm the plan details (tier, amount, discount, and '
+            'charge branch) before submitting — this creates a real '
+            'Stripe subscription.')
+        return redirect(redirect_to)
+
+    existing = _active_plan(website, service_type)
+    if existing is not None:
+        messages.error(
+            request,
+            f'{website.name} already has an active {existing.get_tier_slug_display()} '
+            f'{service_type} plan (subscription {existing.stripe_subscription_id}). '
+            'Adding a second plan of the same type is blocked — cancelling '
+            'or changing a plan is out of scope for this v2 build; use v1 '
+            'if that is genuinely needed.')
+        return redirect(redirect_to)
+
+    from billing.plan_billing import start_website_plan
+    from billing.pricing_models import ServiceTier
+
+    plan = start_website_plan(
+        website, service_type, tier_slug,
+        discount_percent=discount, discount_duration=duration)
+
+    if plan is None:
+        messages.error(
+            request,
+            'Could not start the plan — confirm the tier has a Stripe '
+            'price (run sync_stripe_products).')
+        return redirect(redirect_to)
+
+    tier = ServiceTier.objects.filter(slug=tier_slug).first()
+    amount = _first_charge_amount(tier, plan.discount_percent)
+    amount_txt = f'${amount}/mo' if amount is not None else 'unknown amount'
+    discount_txt = (
+        f'{plan.discount_percent}% off ({plan.get_discount_duration_display()})'
+        if plan.discount_percent else 'no discount')
+
+    if plan.status == 'awaiting_payment':
+        local_txt = (
+            'Website.stripe_maintenance_subscription_id was NOT set'
+            if service_type == 'maintenance' else
+            'no Website field mirrors social plans')
+        messages.success(
+            request,
+            f'Plan created — subscription {plan.stripe_subscription_id} '
+            f'(awaiting payment), {amount_txt}, {discount_txt}. No card '
+            f'on file, so Stripe emailed a hosted invoice instead of '
+            f'charging directly. {local_txt} — it activates once the '
+            'client pays (invoice.paid webhook).')
+    else:
+        local_txt = (
+            f'Website.stripe_maintenance_subscription_id was set to '
+            f'{plan.stripe_subscription_id}' if service_type == 'maintenance'
+            else 'no Website field mirrors social plans — the '
+                 'subscription id lives on the plan row')
+        messages.success(
+            request,
+            f'Plan started — subscription {plan.stripe_subscription_id} '
+            f'(active), {amount_txt}, {discount_txt}. Charged the card '
+            f'on file. {local_txt}.')
+
+    return redirect(redirect_to)

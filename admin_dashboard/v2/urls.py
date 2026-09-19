@@ -55,6 +55,9 @@ urlpatterns = [
     path('websites/<uuid:website_id>/toggle-auto-send-scan/',
          views_websites.website_toggle_auto_send_scan,
          name='v2_website_toggle_auto_send_scan'),
+    path('websites/<uuid:website_id>/add-plan/',
+         views_websites.website_add_plan,
+         name='v2_website_add_plan'),
 
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
 
