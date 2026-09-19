@@ -75,6 +75,41 @@ def _block_if_live_subscription(request, account):
     return False
 
 
+def _account_is_set_up(account):
+    """Whether this account has actually completed setup — a property of
+    the User, not of Account.onboarding_status.
+
+    onboarding_status is a workflow label multiple paths can write
+    (refactor_to_accounts backfill, v1's intake-completion handler, manual
+    edits) without the client ever having set a password. "Set up" means
+    the client can actually log in: an active User with a usable password.
+
+    last_login is deliberately NOT part of this check — a client who has
+    set a password but hasn't logged in yet is still set up; login timing
+    says nothing about whether setup happened.
+    """
+    user = getattr(account, 'user', None)
+    return bool(user is not None and user.is_active
+                and user.has_usable_password())
+
+
+def _setup_recipient_email(account):
+    """The address the setup email would actually go to, or '' if none.
+
+    Same resolver the send itself relies on: clients.emails._recipient is
+    a private wrapper one layer in front of this exact function
+    (clients.display.owner_recipient), so calling it here means "no
+    address" is judged by the identical rule the send would silently no-op
+    against — not a second, possibly-drifting definition of "has an
+    email". owner_recipient also checks Account.email_alt as a fallback
+    when the User has none, so that counts as a usable recipient too.
+    """
+    from clients.display import owner_recipient
+
+    email, _name = owner_recipient(account)
+    return (email or '').strip()
+
+
 @admin_required
 def accounts_list(request):
     from clients.revenue import get_current_mrr
@@ -166,7 +201,13 @@ def account_detail(request, account_id):
     if token and token.last_setup_reminder_at:
         elapsed = timezone.now() - token.last_setup_reminder_at
         if elapsed < SETUP_EMAIL_COOLDOWN:
-            setup_cooldown_remaining = SETUP_EMAIL_COOLDOWN - elapsed
+            # The template's `|timeuntil` needs the future datetime the
+            # cooldown ends at, not the remaining timedelta — passing the
+            # timedelta crashed the page (`AttributeError: 'datetime.
+            # timedelta' object has no attribute 'year'`) the first time
+            # anyone actually clicked resend inside the 24h window.
+            setup_cooldown_remaining = (
+                token.last_setup_reminder_at + SETUP_EMAIL_COOLDOWN)
 
     blocking_websites = _live_subscription_websites(account)
 
@@ -182,8 +223,9 @@ def account_detail(request, account_id):
         'onboarding_invoice': onboarding_invoice,
         'mini_invoices': mini_invoices,
         'token': token,
-        'setup_complete': account.onboarding_status == 'complete',
+        'setup_complete': _account_is_set_up(account),
         'setup_cooldown_remaining': setup_cooldown_remaining,
+        'setup_no_recipient': not _setup_recipient_email(account),
     }
     return render(request, 'admin_dashboard/v2/account_detail.html', ctx)
 
@@ -218,6 +260,46 @@ def account_delete(request, account_id):
     return v1_account_delete(request, account_id)
 
 
+def _mint_onboarding_token(account):
+    """Mint the OnboardingInvoice + OnboardingToken pair for an account
+    that has neither — the existing admin flows only mint a token
+    alongside invoice generation (admin_dashboard/views.py:1951 and
+    :2337), which leaves an existing client with no invoice unable to
+    ever be sent a setup link. Mirrors the zero-dollar pattern at
+    admin_dashboard/views.py:2327-2338 (same OnboardingInvoice shape,
+    same "no invoice required" zero-amount/paid convention) minus the
+    User/Account/Website creation that flow does — this is for an
+    account that already has both.
+
+    get_or_create on OnboardingToken.account_new (a OneToOneField, so
+    unique at the DB level) means at most one token is ever minted per
+    account: a concurrent second caller gets created=False and reuses
+    the row Django's get_or_create already retried the get() for, so
+    the invoice-create below only runs on the one call that actually
+    won the insert.
+    """
+    from decimal import Decimal
+
+    from django.db import transaction
+
+    from clients.models import OnboardingInvoice, OnboardingToken
+
+    with transaction.atomic():
+        token, created = OnboardingToken.objects.get_or_create(
+            account_new=account)
+        if created:
+            OnboardingInvoice.objects.create(
+                account_new=account,
+                website_new=None,
+                line_items=[],
+                total_amount=Decimal('0'),
+                status='paid',
+                sent_at=timezone.now(),
+                paid_at=timezone.now(),
+            )
+    return token
+
+
 @admin_required
 def account_send_setup_email(request, account_id):
     if request.method != 'POST':
@@ -225,14 +307,25 @@ def account_send_setup_email(request, account_id):
                          account_id=account_id)
 
     account = get_object_or_404(Account, id=account_id)
-    token = getattr(account, 'onboarding_token_new', None)
-    if token is None:
+
+    # Server-side, ahead of any mint. A crafted POST bypassing the
+    # disabled template button must get the same refusal, and this must
+    # run before _mint_onboarding_token — an account with no deliverable
+    # address should come out of a refused send with the database
+    # untouched: no token, no invoice, no sent date.
+    if not _setup_recipient_email(account):
         messages.error(
             request,
-            'No account-setup token exists for this account yet — one is '
-            'created when the onboarding invoice is generated.')
+            'This account has no email address on file — the setup '
+            'email would be sent to nobody. Add one under Billing email '
+            '(Account State section) or fix the linked User\'s email, '
+            'then try again.')
         return redirect('admin_dashboard:v2_account_detail',
                          account_id=account.id)
+
+    token = getattr(account, 'onboarding_token_new', None)
+    if token is None:
+        token = _mint_onboarding_token(account)
 
     if token.last_setup_reminder_at:
         elapsed = timezone.now() - token.last_setup_reminder_at

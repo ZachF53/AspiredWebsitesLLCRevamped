@@ -291,12 +291,25 @@
         <div class="admin-card__body">
             {% if setup_complete %}
                 <p>Account setup is complete.</p>
-            {% elif not token %}
-                <p class="admin-empty">No account-setup token exists yet — one is created when the onboarding invoice is generated.</p>
             {% else %}
+                {% comment %}
+                    No token yet is no longer a dead end — the send view
+                    mints an OnboardingInvoice + OnboardingToken on demand
+                    (account_send_setup_email / _mint_onboarding_token) for
+                    an existing account that has neither, so the button
+                    always renders once setup reads as incomplete.
+                {% endcomment %}
+                {% if setup_no_recipient %}
+                    <div class="danger-modal__warning" style="margin-bottom:1rem;">
+                        <strong>⚠ No email address on file:</strong>
+                        <p class="muted" style="margin-bottom:0;">The setup email would be sent to nobody. Add one under Billing email (Account State section) or fix the linked User's email &mdash; this account cannot be sent a setup email until then.</p>
+                    </div>
+                {% endif %}
                 <form method="post" action="{% url 'admin_dashboard:v2_account_send_setup_email' account.id %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn-primary btn-sm" {% if setup_cooldown_remaining %}disabled{% endif %}>
+                    <button type="submit" class="btn-primary btn-sm"
+                            {% if setup_cooldown_remaining or setup_no_recipient %}disabled{% endif %}
+                            {% if setup_no_recipient %}title="Blocked — no email address on file, see above"{% endif %}>
                         {% if token.setup_reminders_sent %}Resend{% else %}Send{% endif %} account setup email
                     </button>
                 </form>
