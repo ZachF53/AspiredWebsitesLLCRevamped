@@ -107,12 +107,12 @@ def pricing_edit(request, tier_id):
 @admin_required
 @require_POST
 def pricing_toggle(request, tier_id):
-    """HTMX — flip is_active / is_featured on a tier."""
+    """HTMX — flip is_active / is_featured / is_public on a tier."""
     from billing.pricing_models import ServiceTier
 
     tier = get_object_or_404(ServiceTier, id=tier_id)
     field = request.POST.get('field')
-    if field not in ('is_active', 'is_featured'):
+    if field not in ('is_active', 'is_featured', 'is_public'):
         return HttpResponseBadRequest('Unknown field')
     setattr(tier, field, not getattr(tier, field))
     tier.save(update_fields=[field, 'updated_at'])

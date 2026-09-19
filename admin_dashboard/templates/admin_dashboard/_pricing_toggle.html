@@ -4,5 +4,5 @@
         hx-post="{% url 'admin_dashboard:pricing_toggle' tier.id %}"
         hx-vals='{"field": "{{ field }}"}'
         hx-swap="outerHTML">
-    {% if field == 'is_active' %}{% if value %}Active{% else %}Inactive{% endif %}{% else %}{% if value %}Featured{% else %}Standard{% endif %}{% endif %}
+    {% if field == 'is_active' %}{% if value %}Active{% else %}Inactive{% endif %}{% elif field == 'is_public' %}{% if value %}Public{% else %}Hidden{% endif %}{% else %}{% if value %}Featured{% else %}Standard{% endif %}{% endif %}
 </button>

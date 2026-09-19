@@ -47,6 +47,17 @@ class ServiceTier(TimestampedModel):
 
     # Display
     is_active = models.BooleanField(default=True)
+    # is_active means "billable" — start_website_plan, the admin Add Plan
+    # dropdown, and sync_stripe_products all key off it alone and must
+    # keep doing so. is_public is the separate, narrower question of
+    # whether a tier shows up on the public pricing page and the portal's
+    # self-serve plan chooser. A legacy/negotiated tier can be is_active
+    # (billable, operator-selectable) and NOT is_public (hidden from
+    # anyone browsing on their own) at the same time — that split didn't
+    # exist before, so every consumer of is_active alone was implicitly
+    # also a visibility gate. Default True so every tier that exists
+    # today keeps showing up exactly where it already does.
+    is_public = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)
 

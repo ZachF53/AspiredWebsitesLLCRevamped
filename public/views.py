@@ -144,7 +144,12 @@ def law_firms(request):
     from billing.pricing_models import ServiceTier
 
     def _price_range(category):
-        tiers = list(ServiceTier.get_active(category).order_by('price'))
+        # is_public filtered at this call site, not inside get_active() —
+        # sync/views.py's Moonieful bridge calls get_active('maintenance')
+        # too and must keep seeing every billable tier regardless of
+        # public visibility.
+        tiers = list(ServiceTier.get_active(category)
+                     .filter(is_public=True).order_by('price'))
         if not tiers:
             return ''
         low, high = tiers[0].price, tiers[-1].price
@@ -570,7 +575,7 @@ def pricing(request):
                 'hvac-full-plan', 'hvac-plan-paid-in-full',
                 'hvac-hosting-security',
             ],
-            is_active=True,
+            is_active=True, is_public=True,
         ).prefetch_related('features')
     }
     return render(request, 'public/pricing.html', {

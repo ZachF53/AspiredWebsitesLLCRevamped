@@ -30,7 +30,7 @@
                     <thead>
                         <tr>
                             <th>Name</th><th>Price</th><th>Stripe Price ID</th>
-                            <th>Active</th><th>Featured</th><th></th>
+                            <th>Active</th><th>Public</th><th>Featured</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -46,6 +46,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{% include "admin_dashboard/_pricing_toggle.html" with tier=tier field="is_active" value=tier.is_active %}</td>
+                                <td>{% include "admin_dashboard/_pricing_toggle.html" with tier=tier field="is_public" value=tier.is_public %}</td>
                                 <td>{% include "admin_dashboard/_pricing_toggle.html" with tier=tier field="is_featured" value=tier.is_featured %}</td>
                                 <td><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:pricing_edit' tier.id %}">Edit</a></td>
                             </tr>

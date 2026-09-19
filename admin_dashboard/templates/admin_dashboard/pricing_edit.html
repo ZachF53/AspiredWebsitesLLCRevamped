@@ -31,7 +31,8 @@
         </div>
         <div class="form-group">{{ form.stripe_product_id.label_tag }}{{ form.stripe_product_id }}</div>
 
-        <label class="checkbox-row">{{ form.is_active }}<span>Is Active</span></label>
+        <label class="checkbox-row">{{ form.is_active }}<span>Is Active (billable — required for the admin Add Plan dropdown and Stripe billing)</span></label>
+        <label class="checkbox-row">{{ form.is_public }}<span>Is Public (shows on the public pricing page and the portal's self-serve plan chooser)</span></label>
         <label class="checkbox-row">{{ form.is_featured }}<span>Is Featured (shows the &ldquo;Most Popular&rdquo; badge)</span></label>
 
         <div class="form-group">{{ form.sort_order.label_tag }}{{ form.sort_order }}</div>

@@ -183,9 +183,9 @@ class ServiceTierForm(forms.ModelForm):
         model = ServiceTier
         fields = [
             'name', 'tagline', 'description', 'price', 'price_display',
-            'stripe_price_id', 'stripe_product_id', 'is_active', 'is_featured',
-            'sort_order', 'pages_included', 'practice_areas_included',
-            'timeline_weeks',
+            'stripe_price_id', 'stripe_product_id', 'is_active', 'is_public',
+            'is_featured', 'sort_order', 'pages_included',
+            'practice_areas_included', 'timeline_weeks',
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),

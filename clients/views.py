@@ -2896,11 +2896,15 @@ _MAINTENANCE_TIER_SLUGS = (
 
 
 def _maintenance_tiers():
-    """Active maintenance tiers + features, sorted for display."""
+    """Active, publicly-visible maintenance tiers + features, sorted for
+    display. Both callers (the /portal/maintenance/ chooser and the
+    /portal/subscriptions/ upsell card) are self-serve surfaces — a
+    legacy/negotiated tier (is_public=False) must not appear on either,
+    even though it stays fully billable elsewhere."""
     from billing.pricing_models import ServiceTier
     return (
         ServiceTier.objects
-        .filter(category='maintenance', is_active=True)
+        .filter(category='maintenance', is_active=True, is_public=True)
         .order_by('sort_order', 'price')
         .prefetch_related('features')
     )
