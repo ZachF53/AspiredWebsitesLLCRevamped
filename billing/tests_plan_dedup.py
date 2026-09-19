@@ -154,6 +154,81 @@ class ProvisioningDoesNotDuplicate(TestCase):
             MaintenancePlan.objects.filter(account=self.account).count(), 1)
 
 
+class SendInvoiceSubscriptionsSkipTheSelfCheckoutBackstop(TestCase):
+    """billing.plan_billing.start_website_plan's no-card branch stamps the
+    exact same metadata (tier_slug/product_type/website_id) as a genuine
+    self-checkout purchase, but with collection_method='send_invoice'
+    instead of self-checkout's implicit 'charge_automatically'.
+
+    Found via staging QA on 2026-09-19: an operator "Add Plan" with no
+    card on file correctly created an awaiting_payment plan with
+    collection_method=send_invoice, but the customer.subscription.created
+    webhook raced in immediately afterward and unconditionally flipped it
+    to 'active' (and mirrored maintenance_active=True onto the website)
+    before the invoice had been paid. invoice.paid's
+    _activate_website_plan_sub is the only path allowed to do that for a
+    send_invoice subscription.
+    """
+
+    def setUp(self):
+        user = User.objects.create_user(
+            username='invoice_race', email='invoice_race@example.com',
+            password='test-pass-123')
+        self.account = Account.objects.filter(user=user).first() or (
+            Account.objects.create(user=user, name='Invoice Race Co'))
+        self.account.websites.all().delete()
+        self.website = Website.objects.create(
+            account=self.account, name='Invoice Race Site')
+
+    def _event(self, collection_method):
+        return {
+            'data': {'object': {
+                'customer': 'cus_invoice_race',
+                'collection_method': collection_method,
+                'metadata': {
+                    'tier_slug': 'maintenance-essentials',
+                    'product_type': 'maintenance',
+                    'website_id': str(self.website.id),
+                },
+            }},
+        }
+
+    def test_send_invoice_subscription_does_not_touch_the_plan(self):
+        from billing.webhooks import _handle_self_checkout_subscription_created
+
+        plan = MaintenancePlan.objects.create(
+            account=self.account, website=self.website,
+            tier_slug='maintenance-essentials', status='awaiting_payment',
+            stripe_subscription_id=SUB)
+
+        _handle_self_checkout_subscription_created(
+            self._event('send_invoice'))
+
+        plan.refresh_from_db()
+        self.website.refresh_from_db()
+        self.assertEqual(plan.status, 'awaiting_payment')
+        self.assertFalse(self.website.maintenance_active)
+        self.assertEqual(self.website.stripe_maintenance_subscription_id, '')
+
+    def test_charge_automatically_subscription_still_activates(self):
+        """The guard must not swallow genuine self-checkout purchases —
+        those never set collection_method, so it's None on the event."""
+        from unittest.mock import patch
+
+        from billing.webhooks import _handle_self_checkout_subscription_created
+
+        # A plain dict subclass gives 'email' in cust / cust['email'] for
+        # free — matching the StripeObject-style access the handler uses
+        # — without fighting MagicMock's dunder-method configuration.
+        fake_customer = dict(email='buyer@example.com', name='Buyer')
+
+        with patch('stripe.Customer.retrieve', return_value=fake_customer), \
+             patch('billing.webhooks.provision_self_checkout_account') as mock_provision:
+            _handle_self_checkout_subscription_created(self._event(None))
+
+        mock_provision.assert_called_once()
+
+
 class ActivationHandlesEveryRow(TestCase):
     def setUp(self):
         user = User.objects.create_user(

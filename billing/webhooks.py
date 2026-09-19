@@ -1576,6 +1576,22 @@ def _handle_self_checkout_subscription_created(event):
     if not (tier_slug and product_type and customer_id):
         return  # not a self-checkout subscription
 
+    # plan_billing.start_website_plan stamps this SAME metadata shape
+    # (tier_slug/product_type/website_id) on the operator "Add Plan"
+    # subscription it creates when there's no card on file — collection_
+    # method='send_invoice' there, vs. self-checkout's implicit
+    # 'charge_automatically' (billing/checkout_views.py never sets
+    # collection_method, and always attaches a card before creating the
+    # subscription). Without this check, this backstop raced the correct
+    # awaiting_payment state set by start_website_plan and unconditionally
+    # flipped MaintenancePlan/SocialMediaPlan to 'active' — and mirrored
+    # maintenance_active=True onto the website — the instant the invoiced
+    # subscription was created, before the client had paid anything.
+    # invoice.paid's _activate_website_plan_sub is the correct, and only,
+    # activator for a send_invoice subscription.
+    if sub.get('collection_method') == 'send_invoice':
+        return
+
     # Look up email from the Stripe customer
     import stripe as _stripe
     _stripe.api_key = settings.STRIPE_SECRET_KEY
