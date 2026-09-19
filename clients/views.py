@@ -2551,8 +2551,9 @@ def portal_subscriptions(request):
         # scheduled at period end). Surfaced on the card as a "scheduled"
         # note so the client sees the upcoming switch + no charge until then.
         pending_by_sub = {}
-        for plan in account.maintenance_plans.exclude(
-                stripe_subscription_id=''):
+        for plan in account.maintenance_plans.filter(
+                status__in=('active', 'cancelled'),
+                ).exclude(stripe_subscription_id=''):
             label_by_sub[plan.stripe_subscription_id] = (
                 f'Maintenance — {plan.get_tier_slug_display()}')
             if plan.pending_tier_slug:
