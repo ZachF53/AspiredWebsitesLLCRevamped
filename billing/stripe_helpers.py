@@ -86,7 +86,10 @@ def create_or_get_customer(client):
 
     customer = stripe.Customer.create(
         email=client.user.email,
-        name=client.firm_name,
+        # Account has `.name`; the legacy ClientProfile shape this
+        # function was originally written against has `.firm_name`.
+        # Fall back rather than pick one, since both still call this.
+        name=getattr(client, 'firm_name', '') or getattr(client, 'name', ''),
         metadata={'client_profile_id': str(client.id)},
     )
     client.stripe_customer_id = customer.id
