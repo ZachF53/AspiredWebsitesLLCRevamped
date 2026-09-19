@@ -149,11 +149,11 @@ class NavigationV2DefinitionTests(TestCase):
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(len(labels), len(set(labels)))
 
-    def test_exactly_six_items_in_this_order(self):
+    def test_exactly_seven_items_in_this_order(self):
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(labels, [
             'Dashboard', 'Accounts', 'Websites', 'Domains', 'Billing',
-            'Vault',
+            'Pricing', 'Vault',
         ])
 
 

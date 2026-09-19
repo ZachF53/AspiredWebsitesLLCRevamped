@@ -1,0 +1,146 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{{ tier.name }} — Pricing — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2 · Pricing</span>
+            <h1 class="admin-page-title">{{ tier.name }}</h1>
+            <p class="admin-page-sub">
+                <code>{{ tier.slug }}</code> &middot; {{ tier.get_category_display }}
+                {% if tier.stripe_price_id %}
+                    &middot; <span class="v2-sync-badge v2-sync-badge--ok">Synced</span> <code>{{ tier.stripe_price_id }}</code>
+                {% else %}
+                    &middot; <span class="v2-sync-badge v2-sync-badge--missing">NOT SYNCED</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_pricing_list' %}">&larr; All tiers</a>
+        </div>
+    </div>
+
+    {% if not tier.stripe_price_id and tier.is_active %}
+        <div class="pricing-warning-banner" role="alert">
+            &#9888; <strong>NOT SYNCED</strong> — this tier is active (billable in theory) but has no Stripe Price ID
+            and cannot actually be charged. Run: <code>python manage.py sync_stripe_products</code>
+        </div>
+    {% endif %}
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Status</h2></div>
+        <div class="admin-card__body">
+            <form method="post" action="{% url 'admin_dashboard:v2_pricing_toggle' tier.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="field" value="is_active">
+                <input type="hidden" name="next" value="{% url 'admin_dashboard:v2_pricing_detail' tier.id %}">
+                <button type="submit" class="pricing-toggle pricing-toggle--{% if tier.is_active %}on{% else %}off{% endif %}">
+                    {% if tier.is_active %}Active{% else %}Inactive{% endif %}
+                </button>
+            </form>
+            <form method="post" action="{% url 'admin_dashboard:v2_pricing_toggle' tier.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="field" value="is_public">
+                <input type="hidden" name="next" value="{% url 'admin_dashboard:v2_pricing_detail' tier.id %}">
+                <button type="submit" class="pricing-toggle pricing-toggle--{% if tier.is_public %}on{% else %}off{% endif %}">
+                    {% if tier.is_public %}Public{% else %}Hidden{% endif %}
+                </button>
+            </form>
+            <form method="post" action="{% url 'admin_dashboard:v2_pricing_toggle' tier.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="field" value="is_featured">
+                <input type="hidden" name="next" value="{% url 'admin_dashboard:v2_pricing_detail' tier.id %}">
+                <button type="submit" class="pricing-toggle pricing-toggle--{% if tier.is_featured %}on{% else %}off{% endif %}">
+                    {% if tier.is_featured %}Featured{% else %}Standard{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Edit</h2></div>
+        <div class="admin-card__body">
+            <form method="post" class="pricing-form">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label>Category <span class="required">*</span></label>
+                    <select name="category" class="form-control" required>
+                        {% for value, label in categories %}
+                            <option value="{{ value }}"{% if tier.category == value %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Name <span class="required">*</span></label>
+                    <input class="form-control" name="name" value="{{ tier.name }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Slug <span class="required">*</span></label>
+                    <input class="form-control" name="slug" value="{{ tier.slug }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Price {% if not price_locked %}<span class="required">*</span>{% endif %}</label>
+                    {% if price_locked %}
+                        <input class="form-control" value="${{ tier.price }}" readonly disabled>
+                        <p class="form-hint">Read-only — this tier already has a Stripe Price ID (<code>{{ tier.stripe_price_id }}</code>). Stripe prices are immutable; editing the local number here would desync it from what actually charges. To change the price, create a new tier and sync it, then move clients over.</p>
+                        {# Submitting the current value anyway keeps this a no-op if some future change starts reading it client-side — the server ignores it regardless, per _validate_tier_fields. #}
+                        <input type="hidden" name="price" value="{{ tier.price }}">
+                    {% else %}
+                        <input class="form-control" type="number" step="0.01" min="0.01" name="price" value="{{ tier.price }}" required>
+                    {% endif %}
+                </div>
+
+                <label class="checkbox-row">
+                    <input type="checkbox" name="is_recurring"{% if tier.is_recurring %} checked{% endif %}>
+                    <span>Is Recurring</span>
+                </label>
+
+                <div class="form-group">
+                    <label>Billing interval</label>
+                    <select name="billing_interval" class="form-control">
+                        <option value=""{% if not tier.billing_interval %} selected{% endif %}>One-time (blank)</option>
+                        <option value="month"{% if tier.billing_interval == 'month' %} selected{% endif %}>Month</option>
+                        <option value="year"{% if tier.billing_interval == 'year' %} selected{% endif %}>Year</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Tagline</label>
+                    <input class="form-control" name="tagline" value="{{ tier.tagline }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea class="form-control" name="description" rows="3">{{ tier.description }}</textarea>
+                </div>
+
+                <label class="checkbox-row">
+                    <input type="checkbox" name="is_active"{% if tier.is_active %} checked{% endif %}>
+                    <span>Is Active (billable)</span>
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" name="is_public"{% if tier.is_public %} checked{% endif %}>
+                    <span>Is Public (public pricing page + portal chooser)</span>
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" name="is_featured"{% if tier.is_featured %} checked{% endif %}>
+                    <span>Is Featured</span>
+                </label>
+
+                <div class="form-group">
+                    <label>Sort order</label>
+                    <input class="form-control" type="number" name="sort_order" value="{{ tier.sort_order }}">
+                </div>
+
+                <button type="submit" class="btn-primary btn-sm">Save</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

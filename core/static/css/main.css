@@ -17883,6 +17883,31 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     font-weight: 500;
 }
 
+/* Pricing — sync-state badge. NOT SYNCED means active/billable-in-theory
+   but no Stripe Price ID exists, so it silently cannot be charged — the
+   failure this badge exists to make impossible to miss. */
+.v2-sync-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+}
+
+.v2-sync-badge--ok {
+    background: rgba(74, 222, 128, 0.14);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: var(--color-success);
+}
+
+.v2-sync-badge--missing {
+    background: rgba(248, 113, 113, 0.16);
+    border-color: rgba(248, 113, 113, 0.5);
+    color: var(--color-danger);
+}
+
 .v2-plain-list {
     list-style: none;
     margin: 0;

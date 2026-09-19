@@ -1,0 +1,92 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Pricing — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Pricing</h1>
+            <p class="admin-page-sub">Every ServiceTier — what's billable, what's public, what's actually synced to Stripe.</p>
+        </div>
+        <div>
+            <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:v2_pricing_create' %}">Create tier</a>
+        </div>
+    </div>
+
+    {% if unsynced_count %}
+        <div class="pricing-warning-banner" role="alert">
+            &#9888; {{ unsynced_count }} active tier{{ unsynced_count|pluralize }} {{ unsynced_count|pluralize:"is,are" }}
+            <strong>NOT SYNCED</strong> — billable in theory, cannot actually be charged.
+            Run: <code>python manage.py sync_stripe_products</code>
+        </div>
+    {% endif %}
+
+    {% for group in groups %}
+        {% if group.tiers %}
+            <section class="pricing-group">
+                <h2 class="pricing-group__title">{{ group.label }}</h2>
+                <div class="lead-table-wrapper">
+                    <table class="pricing-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Slug</th>
+                                <th>Price</th>
+                                <th>Interval</th>
+                                <th>Active</th>
+                                <th>Public</th>
+                                <th>Sync</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tier in group.tiers %}
+                                <tr>
+                                    <td><a class="lead-table__firm" href="{% url 'admin_dashboard:v2_pricing_detail' tier.id %}">{{ tier.name }}</a></td>
+                                    <td><code>{{ tier.slug }}</code></td>
+                                    <td>${{ tier.price }}</td>
+                                    <td>{{ tier.billing_interval|default:"one-time" }}</td>
+                                    <td>
+                                        <form method="post" action="{% url 'admin_dashboard:v2_pricing_toggle' tier.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="field" value="is_active">
+                                            <input type="hidden" name="next" value="{% url 'admin_dashboard:v2_pricing_list' %}">
+                                            <button type="submit" class="pricing-toggle pricing-toggle--{% if tier.is_active %}on{% else %}off{% endif %}">
+                                                {% if tier.is_active %}Active{% else %}Inactive{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <form method="post" action="{% url 'admin_dashboard:v2_pricing_toggle' tier.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="field" value="is_public">
+                                            <input type="hidden" name="next" value="{% url 'admin_dashboard:v2_pricing_list' %}">
+                                            <button type="submit" class="pricing-toggle pricing-toggle--{% if tier.is_public %}on{% else %}off{% endif %}">
+                                                {% if tier.is_public %}Public{% else %}Hidden{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        {% if tier.stripe_price_id %}
+                                            <span class="v2-sync-badge v2-sync-badge--ok">Synced</span>
+                                        {% else %}
+                                            <span class="v2-sync-badge v2-sync-badge--missing">NOT SYNCED</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_pricing_detail' tier.id %}">Edit</a></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        {% endif %}
+    {% endfor %}
+
+    {% if not groups %}
+        <p class="admin-empty">No tiers yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

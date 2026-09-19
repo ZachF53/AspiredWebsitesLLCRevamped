@@ -139,7 +139,7 @@ NAVIGATION = (
 )
 
 
-# v2 dashboard (admin_dashboard/v2/) — six items, nothing else. Pipeline
+# v2 dashboard (admin_dashboard/v2/) — seven items, nothing else. Pipeline
 # and Growth stay reachable only by toggling back to v1 (see `navigation()`
 # below). Vault points at the same vault app v1 uses.
 NAVIGATION_V2 = (
@@ -149,6 +149,7 @@ NAVIGATION_V2 = (
         NavItem('Websites', 'admin_dashboard:v2_websites_list'),
         NavItem('Domains', 'admin_dashboard:v2_domains_list'),
         NavItem('Billing', 'admin_dashboard:v2_billing_list'),
+        NavItem('Pricing', 'admin_dashboard:v2_pricing_list'),
         NavItem('Vault', 'vault:home'),
     )),
 )

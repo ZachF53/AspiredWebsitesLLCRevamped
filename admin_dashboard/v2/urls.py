@@ -10,7 +10,7 @@ is a session flag rather than a URL prefix.
 from django.urls import path
 
 from . import views_accounts, views_billing, views_dashboard, views_domains
-from . import views_websites
+from . import views_pricing, views_websites
 
 # Deliberately NO app_name here. This module is include()'d from
 # admin_dashboard/urls.py, which already carries app_name='admin_dashboard'
@@ -59,4 +59,12 @@ urlpatterns = [
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
 
     path('billing/', views_billing.billing_list, name='v2_billing_list'),
+
+    path('pricing/', views_pricing.pricing_list, name='v2_pricing_list'),
+    path('pricing/new/', views_pricing.pricing_create,
+         name='v2_pricing_create'),
+    path('pricing/<uuid:tier_id>/', views_pricing.pricing_detail,
+         name='v2_pricing_detail'),
+    path('pricing/<uuid:tier_id>/toggle/', views_pricing.pricing_toggle,
+         name='v2_pricing_toggle'),
 ]
