@@ -3697,11 +3697,25 @@ def onboarding_setup(request, token):
         client.client_pin_set = True
         client.client_pin_failed_attempts = 0
         client.client_pin_lockout_until = None
-        client.onboarding_status = 'pending_intake'
+        # Account-level setup (WHOIS + vault PIN) IS the whole onboarding
+        # workflow for the new Account model — 'pending_intake' is not a
+        # valid Account.onboarding_status choice (pending_setup / complete
+        # only; per-website intake now lives on Website, not here). Writing
+        # it anyway left an out-of-choices string in the DB: the admin
+        # accounts list rendered the raw slug instead of a display label,
+        # and Account.onboarding_complete never got set. The legacy
+        # ClientProfile still has a real pending_intake state to advance
+        # into (its own intake form is the very next step for that flow).
+        from .account_models import Account
+        if isinstance(client, Account):
+            client.onboarding_status = 'complete'
+            client.onboarding_complete = True
+        else:
+            client.onboarding_status = 'pending_intake'
         client.save(update_fields=[
             'client_pin_salt', 'client_pin_hash', 'client_pin_set',
             'client_pin_failed_attempts', 'client_pin_lockout_until',
-            'onboarding_status', 'updated_at',
+            'onboarding_status', 'onboarding_complete', 'updated_at',
         ])
 
         # Burn the token so the link can't be re-used.
