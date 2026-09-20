@@ -365,20 +365,22 @@ def website_detail(request, website_id):
     # Billing tab only — _card_state() touches Stripe (via
     # billing.plan_billing), so it's computed only when that tab is
     # actually being viewed rather than on every tab load.
-    maintenance_tiers, social_tiers = [], []
+    #
+    # Social media is deliberately not queried here — the Add Plan form
+    # no longer offers it (see the template comment on ap-service-type),
+    # and the "Current plans" list below still reads existing
+    # social_media_plans directly off the website, unaffected.
+    maintenance_tiers = []
     has_card_on_file, card_brand, card_last4 = False, '', ''
-    active_maintenance_plan, active_social_plan = None, None
+    active_maintenance_plan = None
     website_plans = []
     if active_tab == 'billing':
         from billing.pricing_models import ServiceTier
 
         maintenance_tiers = list(ServiceTier.objects.filter(
             category='maintenance', is_active=True).order_by('sort_order'))
-        social_tiers = list(ServiceTier.objects.filter(
-            category='social_media', is_active=True).order_by('sort_order'))
         has_card_on_file, card_brand, card_last4 = _card_state(website)
         active_maintenance_plan = _active_plan(website, 'maintenance')
-        active_social_plan = _active_plan(website, 'social')
         website_plans = (list(website.maintenance_plans.all())
                           + list(website.social_media_plans.all()))
 
@@ -408,13 +410,11 @@ def website_detail(request, website_id):
         'mini_invoices': website.mini_invoices_new.order_by('-created_at'),
         # Billing — Add Plan
         'maintenance_tiers': maintenance_tiers,
-        'social_tiers': social_tiers,
         'website_plans': website_plans,
         'has_card_on_file': has_card_on_file,
         'card_brand': card_brand,
         'card_last4': card_last4,
         'active_maintenance_plan': active_maintenance_plan,
-        'active_social_plan': active_social_plan,
         # Monitoring
         'changelog_entries': website.changelog_entries.order_by('-date_of_change')[:25],
         'uptime_records': website.uptime_records_new.order_by('-checked_at')[:20],

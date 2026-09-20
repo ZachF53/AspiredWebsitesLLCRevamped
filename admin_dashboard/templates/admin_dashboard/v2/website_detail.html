@@ -362,10 +362,13 @@
                     <div id="ap-blocked-maintenance" class="banner" style="background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.4); color: var(--color-danger);" {% if not active_maintenance_plan %}hidden{% endif %}>
                         <strong>Blocked:</strong> already has an active maintenance plan{% if active_maintenance_plan %} ({{ active_maintenance_plan.get_tier_slug_display }}, subscription {{ active_maintenance_plan.stripe_subscription_id }}){% endif %}. A second maintenance plan can't be added here.
                     </div>
-                    <div id="ap-blocked-social" class="banner" style="background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.4); color: var(--color-danger);" {% if not active_social_plan %}hidden{% endif %}>
-                        <strong>Blocked:</strong> already has an active social media plan{% if active_social_plan %} ({{ active_social_plan.get_tier_slug_display }}, subscription {{ active_social_plan.stripe_subscription_id }}){% endif %}. A second social plan can't be added here.
-                    </div>
 
+                    {% comment %}
+                        Social media — removed from this form for now.
+                        Not deleted from the backend (billing.plan_billing
+                        still supports service_type='social' unchanged);
+                        only this operator-facing picker was pulled.
+                    {% endcomment %}
                     <form method="post" action="{% url 'admin_dashboard:v2_website_add_plan' website.id %}" id="ap-form"
                           data-has-card="{% if has_card_on_file %}1{% else %}0{% endif %}"
                           data-card-label="{% if has_card_on_file %}{{ card_brand }} ••{{ card_last4 }}{% endif %}">
@@ -374,7 +377,6 @@
                             <label>Service type</label>
                             <select name="service_type" id="ap-service-type" class="form-control">
                                 <option value="maintenance" {% if active_maintenance_plan %}data-blocked="1"{% endif %}>Maintenance</option>
-                                <option value="social" {% if active_social_plan %}data-blocked="1"{% endif %}>Social media</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -384,11 +386,6 @@
                                 <optgroup label="Maintenance" id="ap-tier-group-maintenance">
                                     {% for t in maintenance_tiers %}
                                         <option value="{{ t.slug }}" data-category="maintenance" data-price="{{ t.price }}" data-name="{{ t.name }}">{{ t.name }} &mdash; {{ t.price_display|default:t.price }}{% if not t.is_public %} (hidden){% endif %}</option>
-                                    {% endfor %}
-                                </optgroup>
-                                <optgroup label="Social media" id="ap-tier-group-social">
-                                    {% for t in social_tiers %}
-                                        <option value="{{ t.slug }}" data-category="social" data-price="{{ t.price }}" data-name="{{ t.name }}">{{ t.name }} &mdash; {{ t.price_display|default:t.price }}{% if not t.is_public %} (hidden){% endif %}</option>
                                     {% endfor %}
                                 </optgroup>
                             </select>

@@ -104,6 +104,17 @@ class V2AddPlanTests(TestCase):
         self.assertContains(r, '4242')
         self.assertContains(r, 'charge it immediately')
 
+    def test_social_media_option_removed_from_add_plan_form(self):
+        """Social media was pulled from the Add Plan picker — the
+        backend (billing.plan_billing) still supports service_type=
+        'social' unchanged, only this operator-facing form was cut
+        down to Maintenance only."""
+        with self._card_patches(False):
+            r = self.client.get(self.billing_url)
+        self.assertNotContains(r, '<option value="social"')
+        self.assertNotContains(r, 'id="ap-tier-group-social"')
+        self.assertNotContains(r, 'id="ap-blocked-social"')
+
     def test_no_card_shows_invoice_warning(self):
         with self._card_patches(False):
             r = self.client.get(self.billing_url)
