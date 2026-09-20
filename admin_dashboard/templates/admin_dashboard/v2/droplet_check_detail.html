@@ -1,0 +1,81 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Droplet Health — {{ check.website_new.name|default:"Unassigned" }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <p class="vault-breadcrumb">
+        {% if check.website_new %}
+            <a href="{% url 'admin_dashboard:v2_website_detail' check.website_new.id %}?tab=security">{{ check.website_new.name }}</a>
+        {% else %}
+            <span class="muted">Unassigned</span>
+        {% endif %} &rsaquo;
+        Droplet Health &rsaquo;
+        {{ check.created_at|date:"Y-m-d H:i" }}
+    </p>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Summary</h2></div>
+        <div class="admin-card__body">
+            <table class="v2-kv-table">
+                <tr><th>Status</th><td>{{ check.get_status_display }}</td></tr>
+                <tr><th>Started</th><td>{{ check.started_at|date:"Y-m-d H:i:s"|default:"—" }}</td></tr>
+                <tr><th>Duration</th><td>{% if duration_seconds %}{{ duration_seconds }}s{% else %}—{% endif %}</td></tr>
+                <tr><th>Disk usage</th><td>{% if check.disk_usage_percent != None %}{{ check.disk_usage_percent }}%{% else %}—{% endif %}</td></tr>
+                <tr><th>Pending OS updates</th><td>{% if check.pending_os_updates_count != None %}{{ check.pending_os_updates_count }}{% else %}—{% endif %}</td></tr>
+                <tr><th>pip-audit vulnerabilities</th><td>{% if check.pip_audit_vulnerability_count != None %}{{ check.pip_audit_vulnerability_count }}{% else %}—{% endif %}</td></tr>
+                <tr><th>Services down</th><td>{{ check.services_down|join:", "|default:"—" }}</td></tr>
+            </table>
+            {% if check.error_message %}
+                <div class="scan-banner scan-banner--error" style="margin-top:1rem;">
+                    {{ check.error_message }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Disk (df -h /)</h2></div>
+        <div class="admin-card__body"><pre>{{ check.raw_disk.stdout|default:"—" }}</pre></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Memory (free -m)</h2></div>
+        <div class="admin-card__body"><pre>{{ check.raw_memory.stdout|default:"—" }}</pre></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Services</h2></div>
+        <div class="admin-card__body">
+            <p><strong>systemd:</strong> {{ check.raw_services.systemd }}</p>
+            <p><strong>supervisor:</strong> {{ check.raw_services.supervisor }}</p>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">OS updates</h2></div>
+        <div class="admin-card__body"><pre>{{ check.raw_os_updates.stdout|default:"—" }}</pre></div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">pip-audit</h2></div>
+        <div class="admin-card__body">
+            {% if check.raw_pip_audit.skipped %}
+                <p class="admin-empty">Skipped — {{ check.raw_pip_audit.reason }}</p>
+            {% else %}
+                <pre>{{ check.raw_pip_audit }}</pre>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">Security posture</h2></div>
+        <div class="admin-card__body">
+            <p><strong>ufw:</strong> {% if check.raw_security.ufw_active %}active{% else %}inactive{% endif %}</p>
+            <p><strong>fail2ban:</strong> {% if check.raw_security.fail2ban_active %}active{% else %}inactive{% endif %}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

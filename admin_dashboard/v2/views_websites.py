@@ -473,6 +473,8 @@ def website_detail(request, website_id):
         'is_wordpress': website.build_platform == 'wordpress',
         # Security
         'scans': website.vulnerability_scans_new.order_by('-created_at')[:20],
+        'droplet_checks': website.droplet_health_checks.order_by(
+            '-created_at')[:20],
         # Domains
         'domains': website.domains.all(),
         # Billing
@@ -765,6 +767,44 @@ def website_run_scan(request, website_id):
         logging.getLogger(__name__).exception(
             'v2 run_scan enqueue failed for %s', website.id)
         messages.error(request, 'Scan created but could not be queued.')
+
+    return redirect(
+        f"{reverse_v2_website_tab(website.id, 'security')}")
+
+
+@admin_required
+def website_run_droplet_audit(request, website_id):
+    """SSH-based in-depth droplet health check — disk/services/OS
+    updates/pip-audit. Custom-build sites with a droplet only;
+    WordPress sites have nothing to SSH into."""
+    if request.method != 'POST':
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website_id)
+
+    website = get_object_or_404(Website, id=website_id)
+    if website.build_platform == 'wordpress' or not website.do_droplet_id:
+        messages.error(
+            request,
+            'This site has no Aspired-managed Droplet to audit.')
+        return redirect(
+            f"{reverse_v2_website_tab(website.id, 'security')}")
+
+    from reporting.models import DropletHealthCheck
+    from reporting.tasks import run_droplet_health_check_task
+
+    check = DropletHealthCheck.objects.create(
+        website_new=website, status='pending')
+    try:
+        async_result = run_droplet_health_check_task.delay(str(check.id))
+        check.celery_task_id = async_result.id or ''
+        check.save(update_fields=['celery_task_id', 'updated_at'])
+        messages.success(request, 'Droplet health check queued.')
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            'v2 run_droplet_audit enqueue failed for %s', website.id)
+        messages.error(
+            request, 'Health check created but could not be queued.')
 
     return redirect(
         f"{reverse_v2_website_tab(website.id, 'security')}")

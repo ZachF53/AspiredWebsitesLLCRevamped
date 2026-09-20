@@ -373,3 +373,24 @@ def finding_status_update(request, finding_id):
         'acceptance_note', 'updated_at',
     ])
     return redirect('admin_dashboard:v2_scan_detail', scan_id=finding.scan_id)
+
+
+@admin_required
+def droplet_check_detail(request, check_id):
+    """Full raw output for one SSH-based droplet health check."""
+    from reporting.models import DropletHealthCheck
+
+    check = get_object_or_404(
+        DropletHealthCheck.objects.select_related(
+            'website_new', 'website_new__account'),
+        id=check_id,
+    )
+    duration = None
+    if check.started_at and check.completed_at:
+        duration = int(
+            (check.completed_at - check.started_at).total_seconds())
+
+    return render(request, 'admin_dashboard/v2/droplet_check_detail.html', {
+        'check': check,
+        'duration_seconds': duration,
+    })

@@ -823,6 +823,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_scan_schedule',
         'schedule': crontab(hour=3, minute=0),                    # daily 3am
     },
+    'check-droplet-health-schedule': {
+        'task': 'reporting.tasks.check_droplet_health_schedule',
+        'schedule': crontab(hour=4, minute=0),                    # daily 4am
+    },
     # Payment-failure dunning. This one task replaced nine
     # `apply_async(countdown=...)` messages that used to be queued weeks
     # ahead — see billing/dunning.py. It must stay a sweep: anything that

@@ -61,6 +61,9 @@ urlpatterns = [
          name='v2_maintenance_onboarding_mark_complete'),
     path('websites/<uuid:website_id>/run-scan/',
          views_websites.website_run_scan, name='v2_website_run_scan'),
+    path('websites/<uuid:website_id>/run-droplet-audit/',
+         views_websites.website_run_droplet_audit,
+         name='v2_website_run_droplet_audit'),
     path('websites/<uuid:website_id>/toggle-auto-send-scan/',
          views_websites.website_toggle_auto_send_scan,
          name='v2_website_toggle_auto_send_scan'),
@@ -83,6 +86,9 @@ urlpatterns = [
     path('scans/findings/<uuid:finding_id>/status/',
          views_scans.finding_status_update,
          name='v2_finding_status_update'),
+    path('droplet-checks/<uuid:check_id>/',
+         views_scans.droplet_check_detail,
+         name='v2_droplet_check_detail'),
 
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
 

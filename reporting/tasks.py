@@ -1127,6 +1127,73 @@ def check_scan_schedule():
     return f'Queued {queued} scheduled scan(s).'
 
 
+# ── Droplet health audit — SSH-based in-depth review ───────────────────────
+
+@shared_task
+def run_droplet_health_check_task(check_id):
+    """Celery wrapper around `run_droplet_health_check`. Used by both
+    the scheduled cadence and the on-demand admin button."""
+    from reporting.droplet_audit import run_droplet_health_check
+    run_droplet_health_check(check_id)
+
+
+@shared_task
+def check_droplet_health_schedule():
+    """
+    Daily at 4am (an hour after check_scan_schedule, to avoid both
+    sweeps hitting the same worker host at once). For each active,
+    non-WordPress site with a Droplet, decide whether a health check
+    is due:
+
+      - first check: 30 days after `do_droplet_created_at`
+        (or immediately if the creation date isn't known — legacy)
+      - subsequent: 30 days after the last *completed* check
+
+    Due checks are queued via `run_droplet_health_check_task.delay`.
+    """
+    from clients.account_models import Website
+    from reporting.models import DropletHealthCheck
+
+    now = timezone.now()
+    interval = timedelta(days=30)
+
+    eligible = (Website.objects
+                .filter(status='active', account__status='active',
+                        do_droplet_ip__isnull=False)
+                .exclude(build_platform='wordpress')
+                .select_related('account'))
+
+    queued = 0
+    for site in eligible:
+        if not site.do_droplet_ip:
+            continue
+
+        last = (DropletHealthCheck.objects
+                .filter(website_new=site, status='complete')
+                .order_by('-completed_at').first())
+
+        if last is None:
+            if site.do_droplet_created_at is None:
+                should_check = True  # legacy — kick the first check now
+            else:
+                should_check = now >= (
+                    site.do_droplet_created_at + interval)
+        else:
+            should_check = now >= (last.completed_at + interval)
+
+        if not should_check:
+            continue
+
+        check = DropletHealthCheck.objects.create(
+            website_new=site, is_scheduled=True)
+        async_result = run_droplet_health_check_task.delay(str(check.id))
+        check.celery_task_id = async_result.id or ''
+        check.save(update_fields=['celery_task_id', 'updated_at'])
+        queued += 1
+
+    return f'Queued {queued} scheduled droplet health check(s).'
+
+
 # ── Tier 2 session recording — retention + storage report ─────────────────
 
 @shared_task

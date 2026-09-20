@@ -338,6 +338,44 @@
             </div>
         </div>
 
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Droplet Health</h2></div>
+            <div class="admin-card__body">
+                {% if is_wordpress or not has_droplet %}
+                    <p class="admin-empty">
+                        {% if is_wordpress %}
+                            WordPress sites have no Aspired-managed Droplet to audit.
+                        {% else %}
+                            No Droplet provisioned yet.
+                        {% endif %}
+                    </p>
+                {% else %}
+                    <form method="post" action="{% url 'admin_dashboard:v2_website_run_droplet_audit' website.id %}" style="margin-bottom: 1rem;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary btn-sm">Run droplet audit</button>
+                    </form>
+                    {% if droplet_checks %}
+                        <table class="v2-kv-table">
+                            <tr><th>Date</th><th>Status</th><th>Disk</th><th>Updates</th><th>pip-audit</th><th>Services down</th><th></th></tr>
+                            {% for check in droplet_checks %}
+                                <tr>
+                                    <td>{{ check.created_at|date:"M j, Y" }}</td>
+                                    <td>{{ check.get_status_display }}</td>
+                                    <td>{% if check.disk_usage_percent != None %}{{ check.disk_usage_percent }}%{% else %}—{% endif %}</td>
+                                    <td>{% if check.pending_os_updates_count != None %}{{ check.pending_os_updates_count }}{% else %}—{% endif %}</td>
+                                    <td>{% if check.pip_audit_vulnerability_count != None %}{{ check.pip_audit_vulnerability_count }}{% else %}—{% endif %}</td>
+                                    <td>{{ check.services_down|join:", "|default:"—" }}</td>
+                                    <td><a href="{% url 'admin_dashboard:v2_droplet_check_detail' check.id %}">View &rarr;</a></td>
+                                </tr>
+                            {% endfor %}
+                        </table>
+                    {% else %}
+                        <p class="admin-empty">No droplet health checks yet.</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
     {% elif active_tab == 'domains' %}
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Domains</h2></div>

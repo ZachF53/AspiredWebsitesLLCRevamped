@@ -561,6 +561,75 @@ class VulnerabilityFinding(TimestampedModel):
                 if c.strip()]
 
 
+class DropletHealthCheck(TimestampedModel):
+    """
+    One SSH-based in-depth audit of a client's Droplet — disk/memory
+    usage, service status, pending OS updates, pip-audit dependency
+    CVEs, and basic security posture (ufw/fail2ban). Deliberately
+    separate from VulnerabilityScan: that model is external black-box
+    scanning against the public IP/URL (nmap/Nikto/SSL Labs/WPScan,
+    run from the Celery worker host); this one authenticates INTO the
+    droplet via vault.ssh_ops and reads real system state that no
+    external scan can see.
+
+    WordPress sites (build_platform='wordpress') never get one of
+    these — there's no Aspired-managed Droplet to SSH into.
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('complete', 'Complete'),
+        ('failed', 'Failed'),
+        ('ssh_unavailable', 'SSH Unavailable'),
+    ]
+
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='droplet_health_checks', null=True, blank=True,
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    # Celery task ID — same "admin can see/cancel a stuck job" purpose
+    # as VulnerabilityScan.celery_task_id.
+    celery_task_id = models.CharField(max_length=80, blank=True)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Raw command output per category — kept verbatim so a finding can
+    # always be traced back to what actually ran.
+    raw_disk = models.JSONField(default=dict, blank=True)
+    raw_memory = models.JSONField(default=dict, blank=True)
+    raw_services = models.JSONField(default=dict, blank=True)
+    raw_os_updates = models.JSONField(default=dict, blank=True)
+    raw_pip_audit = models.JSONField(default=dict, blank=True)
+    raw_security = models.JSONField(default=dict, blank=True)
+
+    # Parsed summary — denormalised so list views render without an
+    # N+1 over raw JSON, same pattern as VulnerabilityScan's counts.
+    disk_usage_percent = models.IntegerField(null=True, blank=True)
+    pending_os_updates_count = models.IntegerField(null=True, blank=True)
+    pip_audit_vulnerability_count = models.IntegerField(
+        null=True, blank=True)
+    services_down = models.JSONField(default=list, blank=True)
+
+    # True if triggered by the daily Celery beat sweep, False if
+    # triggered manually from the admin dashboard.
+    is_scheduled = models.BooleanField(default=False)
+
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Droplet Health Check'
+        verbose_name_plural = 'Droplet Health Checks'
+
+    def __str__(self):
+        return f'{owner_label(self)} — droplet health — {self.created_at.date()}'
+
+
 # ── Tier 1 analytics — one row per page view ──────────────────────────────
 
 class PageSession(TimestampedModel):
