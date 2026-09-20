@@ -117,7 +117,19 @@
                             <span class="status-badge" style="background:#10b98122;color:#10b981;">Done</span>
                         {% else %}
                             {% if step.key == 'contract' %}
-                                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Resend contract</button>
+                                <div style="display:flex; gap:.5rem; align-items:center;">
+                                    <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Resend contract</button>
+                                    {% if step.unsigned_contract_id %}
+                                        <form method="post" action="{% url 'admin_dashboard:v2_contract_mark_signed' website.id %}" style="display:flex; gap:.5rem; align-items:center;">
+                                            {% csrf_token %}
+                                            <input type="text" name="reason" class="form-control" placeholder="Reason (e.g. signed physical copy)" required style="max-width:220px;">
+                                            <button type="submit" class="btn-secondary btn-sm"
+                                                    data-confirm="Mark this contract as signed via admin override? This does NOT capture a real e-signature — IP/browser/content-hash evidence stays blank.">
+                                                Mark signed (override)
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
                             {% elif step.key == 'payment' %}
                                 <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Send payment reminder</button>
                             {% elif step.key == 'account_setup' %}

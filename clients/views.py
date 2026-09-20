@@ -2995,6 +2995,19 @@ def _maintenance_upsell_state(account):
     is_subscribed = bool(current_tier_slug)
     is_comped = bool(not paid_slug and comp_slug)
 
+    # Real display name for the current tier (works for HVAC-era and
+    # operator-custom tiers, not just the 3 legacy slugs) — also drives
+    # is_custom: a client on a one-off negotiated tier (name contains
+    # "Custom") shouldn't be shown self-serve Switch/Upgrade buttons for
+    # the public tiers below; those buttons would let them switch OFF
+    # their custom arrangement without anyone weighing in.
+    current_tier_name = ''
+    if current_tier_slug:
+        from billing.pricing_models import ServiceTier
+        tier_row = ServiceTier.objects.filter(slug=current_tier_slug).first()
+        current_tier_name = tier_row.name if tier_row else current_tier_slug
+    is_custom = 'custom' in current_tier_name.lower()
+
     return {
         'show_upsell': not is_subscribed,
         'is_subscribed': is_subscribed,
@@ -3002,6 +3015,8 @@ def _maintenance_upsell_state(account):
         'project_live': project_live,
         'days_since_live': days_since_live,
         'current_tier_slug': current_tier_slug,
+        'current_tier_name': current_tier_name,
+        'is_custom': is_custom,
         'pending_tier_display': (
             active_plan.pending_tier_display if active_plan else ''),
         'pending_tier_effective': (

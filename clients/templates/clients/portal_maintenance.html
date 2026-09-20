@@ -19,12 +19,7 @@
         <div class="maint-current__inner">
             <div>
                 <div class="maint-current__label">Currently subscribed</div>
-                <div class="maint-current__plan">
-                    {% if upsell_state.current_tier_slug == 'maintenance-essentials' %}Essentials
-                    {% elif upsell_state.current_tier_slug == 'maintenance-growth' %}Growth
-                    {% elif upsell_state.current_tier_slug == 'maintenance-dominant' %}Dominant
-                    {% else %}Active{% endif %}
-                </div>
+                <div class="maint-current__plan">{{ upsell_state.current_tier_name|default:"Active" }}</div>
             </div>
             <a href="{% url 'clients:portal_subscriptions' %}" class="btn-secondary btn-sm">Manage subscription</a>
         </div>
@@ -65,7 +60,17 @@
     </section>
 {% endif %}
 
-{# ── Tier comparison ── #}
+{# ── Tier comparison ──
+   Skipped for a custom/negotiated plan (name contains "Custom") — those
+   clients shouldn't see self-serve Switch/Upgrade buttons that would
+   move them off a one-off arrangement without anyone weighing in. #}
+{% if upsell_state.is_custom %}
+    <section class="maint-current" style="margin-top: var(--space-3);">
+        <div class="maint-current__inner">
+            <p style="margin:0;">You're on a custom plan. To make any changes, reach out via <a href="{% url 'clients:support' %}">Support</a>.</p>
+        </div>
+    </section>
+{% else %}
 <section class="maint-tiers">
     {% for tier in tiers %}
         {% with is_current=upsell_state.current_tier_slug|stringformat:'s' %}
@@ -123,6 +128,7 @@
         {% endwith %}
     {% endfor %}
 </section>
+{% endif %}
 
 {# ── Bottom-of-page reassurance ── #}
 <section class="maint-reassure">

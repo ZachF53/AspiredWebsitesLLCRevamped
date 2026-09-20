@@ -172,6 +172,62 @@ def mark_intake_complete(profile, *, set_by='admin'):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Contract signing — admin override
+# ─────────────────────────────────────────────────────────────────────────────
+
+def admin_mark_contract_signed(contract, *, reason, set_by='admin'):
+    """Admin override — record a Contract as signed WITHOUT a real
+    e-signature. For a client who signed a physical copy, signed over
+    email, or agreed by phone — outside the portal's own
+    clients:contract_sign flow.
+
+    A real signature (clients:contract_sign) stamps signed_ip,
+    signed_user_agent, and signed_content_hash — captured specifically
+    for ESIGN/UETA enforceability (see the Contract model's Phase 2.3
+    comment). This override deliberately leaves all three blank: there
+    is no browser session to capture them from, and writing fake values
+    would make an unevidenced signature indistinguishable from a real
+    one if this contract were ever disputed. `reason` is required and
+    becomes part of signed_name (prefixed "Admin override:"), so the
+    record itself — everywhere signed_name is shown, including the
+    generated PDF — visibly says this isn't a real e-signature rather
+    than silently looking like one.
+
+    Idempotent — an already-signed contract is returned unchanged.
+    """
+    from django.utils import timezone
+
+    from clients.account_models import WebsiteStageLog
+
+    if contract.signed:
+        return contract
+
+    reason = (reason or '').strip()
+    if not reason:
+        raise GuardError(
+            'A reason is required to mark a contract signed without a '
+            'real signature.')
+
+    contract.signed = True
+    contract.signed_at = timezone.now()
+    contract.signed_name = f'Admin override: {reason}'
+    contract.save(update_fields=['signed', 'signed_at', 'signed_name', 'updated_at'])
+
+    website = contract.website_new
+    if website is not None:
+        WebsiteStageLog.objects.create(
+            website=website,
+            from_stage=website.stage,
+            to_stage=website.stage,  # no stage change, just an annotation
+            note=(f'Contract marked signed by admin override — no '
+                  f'e-signature captured. Reason: {reason}'),
+            set_by=set_by,
+        )
+
+    return contract
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Revisions
 # ─────────────────────────────────────────────────────────────────────────────
 

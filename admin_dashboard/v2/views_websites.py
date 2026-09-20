@@ -280,6 +280,7 @@ def _onboarding_steps(website):
     contract_signed = any(c.signed for c in contracts)
     contract_sent = bool(contracts)
     signed_contract = next((c for c in contracts if c.signed), None)
+    unsigned_contract = next((c for c in contracts if not c.signed), None)
 
     token = getattr(account, 'onboarding_token_new', None) if account else None
     intake = website.intake
@@ -294,6 +295,7 @@ def _onboarding_steps(website):
                 'Signed' if contract_signed else
                 'Sent, awaiting signature' if contract_sent else
                 'Not sent yet'),
+            'unsigned_contract_id': unsigned_contract.id if unsigned_contract else None,
         },
         {
             'key': 'payment',
@@ -576,6 +578,49 @@ def website_intake_mark_complete(request, website_id):
         request,
         'Intake marked complete. No droplet was provisioned and no '
         'confirmation email was sent — flags only.')
+    return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
+
+
+@admin_required
+def contract_mark_signed(request, website_id):
+    """Admin override — thin caller over
+    clients.services.admin_mark_contract_signed. For a client who
+    signed a physical/emailed copy outside the portal's own e-sign
+    flow. Requires a reason; leaves signed_ip/user_agent/content_hash
+    blank so the record never looks like a real e-signature."""
+    if request.method != 'POST':
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website_id)
+
+    website = get_object_or_404(Website, id=website_id)
+    if _block_if_live_subscription(request, website):
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
+    contract = website.contracts.filter(signed=False).order_by(
+        '-created_at').first()
+    if contract is None:
+        messages.error(
+            request, 'No unsigned contract exists for this website.')
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
+    from clients.services import GuardError, admin_mark_contract_signed
+
+    try:
+        admin_mark_contract_signed(
+            contract,
+            reason=request.POST.get('reason'),
+            set_by=request.user.get_full_name() or request.user.username)
+    except GuardError as e:
+        messages.error(request, str(e))
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
+    messages.success(
+        request,
+        'Contract marked signed via admin override — no real '
+        'e-signature was captured (IP/browser/content-hash stay blank).')
     return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
 
 
