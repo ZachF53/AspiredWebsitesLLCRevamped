@@ -68,9 +68,14 @@
 
     function updateBlockedState() {
         var type = serviceTypeSelect.value;
-        if (blockedMaintenance) { blockedMaintenance.hidden = (type !== 'maintenance'); }
-        if (blockedSocial) { blockedSocial.hidden = (type !== 'social'); }
         var blocked = isBlocked();
+        // Show a banner only when its own type is BOTH selected AND
+        // actually blocked — not just selected. This used to hide/show
+        // purely on which tab was picked, so switching to "Maintenance"
+        // showed the maintenance-blocked banner even when nothing was
+        // blocked, and vice versa for social.
+        if (blockedMaintenance) { blockedMaintenance.hidden = !(type === 'maintenance' && blocked); }
+        if (blockedSocial) { blockedSocial.hidden = !(type === 'social' && blocked); }
         if (reviewBtn) { reviewBtn.disabled = blocked; }
         if (blocked) { resetConfirm(); }
     }
