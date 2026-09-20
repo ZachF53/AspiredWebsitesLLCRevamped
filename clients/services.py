@@ -228,6 +228,71 @@ def admin_mark_contract_signed(contract, *, reason, set_by='admin'):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Maintenance onboarding — admin override
+# ─────────────────────────────────────────────────────────────────────────────
+
+def resolve_maintenance_onboarding(website):
+    """(MaintenancePlan, Onboarding) for a website's active maintenance
+    plan, or (None, None) / (plan, None) when either doesn't exist yet.
+
+    The Onboarding row (`onboarding` app — the post-purchase wizard:
+    current site details, access handoff, approval workflow) is keyed
+    on (user, product_type, tier_slug), the same key the wizard itself
+    uses — NOT on the website directly, since Onboarding predates the
+    per-website MaintenancePlan split and is account/user-level.
+    """
+    plan = website.maintenance_plans.filter(status='active').first()
+    if plan is None:
+        return None, None
+
+    from onboarding.models import Onboarding
+
+    ob = (Onboarding.objects
+          .filter(user=website.account.user, product_type='maintenance',
+                  tier_slug=plan.tier_slug)
+          .order_by('-started_at').first())
+    return plan, ob
+
+
+def admin_mark_maintenance_onboarding_complete(website, *, set_by='admin'):
+    """Admin override — mark a client's maintenance Onboarding complete
+    without requiring every question answered. For a client who
+    explained everything by phone/email, or is otherwise a known
+    quantity.
+
+    Returns None (no-op) if there's no active maintenance plan on this
+    website, or no Onboarding row has been created for it yet —
+    nothing exists to mark complete.
+
+    Unlike a real completion (onboarding.views.complete), this does NOT
+    call build_todos_from_onboarding — there are no real answers to
+    build SetupTodo rows from.
+
+    Idempotent — an already-complete row is returned unchanged.
+    """
+    from django.utils import timezone
+
+    from clients.account_models import WebsiteStageLog
+
+    _plan, ob = resolve_maintenance_onboarding(website)
+    if ob is None:
+        return None
+
+    if ob.completed_at is None:
+        ob.completed_at = timezone.now()
+        ob.save(update_fields=['completed_at'])
+        WebsiteStageLog.objects.create(
+            website=website,
+            from_stage=website.stage,
+            to_stage=website.stage,  # no stage change, just an annotation
+            note='Maintenance intake marked complete by admin override.',
+            set_by=set_by,
+        )
+
+    return ob
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Revisions
 # ─────────────────────────────────────────────────────────────────────────────
 

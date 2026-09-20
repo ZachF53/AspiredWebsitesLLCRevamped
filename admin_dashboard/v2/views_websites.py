@@ -285,7 +285,10 @@ def _onboarding_steps(website):
     token = getattr(account, 'onboarding_token_new', None) if account else None
     intake = website.intake
 
-    return [
+    from clients.services import resolve_maintenance_onboarding
+    maint_plan, maint_ob = resolve_maintenance_onboarding(website)
+
+    steps = [
         {
             'key': 'contract',
             'label': 'Contract sent / signed',
@@ -329,6 +332,55 @@ def _onboarding_steps(website):
         },
     ]
 
+    # Only shown once there's an active maintenance plan — before that,
+    # there's nothing to onboard for maintenance, so the step would just
+    # be permanent noise on every website's Onboarding tab.
+    if maint_plan is not None:
+        steps.append({
+            'key': 'maintenance_intake',
+            'label': 'Maintenance Intake',
+            'done': bool(maint_ob and maint_ob.completed_at),
+            'date': maint_ob.completed_at if maint_ob else None,
+            'status_text': (
+                'Submitted' if maint_ob and maint_ob.completed_at else
+                'In progress' if maint_ob else
+                'Not started yet'),
+        })
+
+    return steps
+
+
+def _maintenance_intake_sections(onboarding):
+    """[{title, intro, questions: [{label, value, skipped, answered}]}]
+    for read-only display — the same section/question registry the
+    client's own wizard renders (onboarding.registry), so labels always
+    match what the client actually saw, not raw question_key strings."""
+    if onboarding is None:
+        return []
+    from onboarding.registry import visible_sections
+
+    answers = {
+        r.question_key: r
+        for r in onboarding.responses.all()
+    }
+    out = []
+    for sec in visible_sections(onboarding):
+        questions = []
+        for q in sec['questions']:
+            resp = answers.get(q['key'])
+            questions.append({
+                'label': q['label'],
+                'value': resp.value if resp else '',
+                'skipped': bool(resp and resp.skipped),
+                'answered': bool(resp and not resp.skipped and resp.value),
+            })
+        out.append({
+            'title': sec['title'],
+            'intro': sec.get('intro', ''),
+            'questions': questions,
+        })
+    return out
+
 
 @admin_required
 def website_detail(request, website_id):
@@ -339,6 +391,19 @@ def website_detail(request, website_id):
 
     intake = website.intake
     intake_photos = list(intake.photos.all()) if intake else []
+    intake_subtab = request.GET.get('subtab', 'website')
+
+    maintenance_onboarding = None
+    maintenance_intake_sections = []
+    has_active_maintenance_plan = False
+    if active_tab == 'intake' and intake_subtab == 'maintenance':
+        from clients.services import resolve_maintenance_onboarding
+
+        maint_plan, maintenance_onboarding = resolve_maintenance_onboarding(
+            website)
+        has_active_maintenance_plan = maint_plan is not None
+        maintenance_intake_sections = _maintenance_intake_sections(
+            maintenance_onboarding)
 
     setup_cooldown = None
     intake_cooldown = None
@@ -399,6 +464,10 @@ def website_detail(request, website_id):
         # Intake
         'intake': intake,
         'intake_photos': intake_photos,
+        'intake_subtab': intake_subtab,
+        'maintenance_onboarding': maintenance_onboarding,
+        'maintenance_intake_sections': maintenance_intake_sections,
+        'has_active_maintenance_plan': has_active_maintenance_plan,
         # Infrastructure
         'has_droplet': website.needs_droplet and bool(website.do_droplet_id),
         'is_wordpress': website.build_platform == 'wordpress',
@@ -621,6 +690,41 @@ def contract_mark_signed(request, website_id):
         request,
         'Contract marked signed via admin override — no real '
         'e-signature was captured (IP/browser/content-hash stay blank).')
+    return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
+
+
+@admin_required
+def maintenance_onboarding_mark_complete(request, website_id):
+    """Admin override — thin caller over
+    clients.services.admin_mark_maintenance_onboarding_complete. Only
+    does anything when the website has an active maintenance plan AND
+    an Onboarding row already exists for it (the client has at least
+    started the wizard)."""
+    if request.method != 'POST':
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website_id)
+
+    website = get_object_or_404(Website, id=website_id)
+    if _block_if_live_subscription(request, website):
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
+    from clients.services import admin_mark_maintenance_onboarding_complete
+
+    ob = admin_mark_maintenance_onboarding_complete(
+        website,
+        set_by=request.user.get_full_name() or request.user.username)
+
+    if ob is None:
+        messages.error(
+            request,
+            'No maintenance onboarding exists yet for this website — '
+            'either there is no active maintenance plan, or the client '
+            'has not started the wizard.')
+    else:
+        messages.success(
+            request,
+            'Maintenance intake marked complete via admin override.')
     return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
 
 

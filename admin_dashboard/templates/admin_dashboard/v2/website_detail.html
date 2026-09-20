@@ -163,6 +163,14 @@
                                         </button>
                                     </form>
                                 </div>
+                            {% elif step.key == 'maintenance_intake' %}
+                                <form method="post" action="{% url 'admin_dashboard:v2_maintenance_onboarding_mark_complete' website.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-secondary btn-sm"
+                                            data-confirm="Mark maintenance intake as complete via admin override? No setup checklist items will be generated from real answers.">
+                                        Mark complete (override)
+                                    </button>
+                                </form>
                             {% endif %}
                         {% endif %}
                     </div>
@@ -173,49 +181,95 @@
         </div>
 
     {% elif active_tab == 'intake' %}
-        <div class="admin-card">
-            <div class="admin-card__header"><h2 class="admin-card__title">Submitted intake</h2></div>
-            <div class="admin-card__body">
-                {% if not intake %}
-                    <p class="admin-empty">No intake response exists yet for this website.</p>
-                {% elif not intake.completed %}
-                    <p class="admin-empty">Intake has not been submitted yet.</p>
-                {% else %}
-                    <p class="muted">Submitted {{ intake.completed_at|date:"M j, Y g:i A" }}</p>
-                    <table class="v2-kv-table">
-                        <tr><th>Brand colors</th><td>{{ intake.brand_colors|default:"—" }}</td></tr>
-                        <tr><th>Brand fonts</th><td>{{ intake.brand_fonts|default:"—" }}</td></tr>
-                        <tr><th>Logo</th><td>{% if intake.logo %}<a href="{{ intake.logo.url }}" target="_blank" rel="noopener">Download</a>{% else %}Not uploaded{% endif %}</td></tr>
-                        <tr><th>About copy</th><td>{{ intake.about_copy|linebreaksbr|default:"—" }}</td></tr>
-                        <tr><th>Practice areas / services</th><td>{{ intake.practice_areas|linebreaksbr|default:"—" }}</td></tr>
-                        <tr><th>Attorney/staff bios</th><td>{{ intake.attorney_bios|linebreaksbr|default:"—" }}</td></tr>
-                        <tr><th>Reference sites</th><td>{{ intake.reference_sites|linebreaksbr|default:"—" }}</td></tr>
-                        <tr><th>Competitors</th><td>{{ intake.competitors|linebreaksbr|default:"—" }}</td></tr>
-                        <tr><th>Domain name</th><td>{{ intake.domain_name|default:"—" }}</td></tr>
-                        <tr><th>Domain registrar</th><td>{{ intake.get_domain_registrar_display|default:"—" }}</td></tr>
-                        <tr><th>Google Business</th><td>{{ intake.get_gmb_status_display|default:"—" }}</td></tr>
-                        <tr><th>Facebook</th><td>{{ intake.facebook_url|default:"—" }}</td></tr>
-                        <tr><th>Instagram</th><td>{{ intake.instagram_url|default:"—" }}</td></tr>
-                        <tr><th>LinkedIn</th><td>{{ intake.linkedin_url|default:"—" }}</td></tr>
-                        <tr><th>Other social links</th><td>{{ intake.social_links|linebreaksbr|default:"—" }}</td></tr>
-                    </table>
-
-                    <h3 style="margin-top: 1.5rem;">Photos</h3>
-                    {% if intake_photos %}
-                        <div class="v2-photo-grid">
-                            {% for photo in intake_photos %}
-                                <a href="{{ photo.file.url }}" target="_blank" rel="noopener" class="v2-photo-grid__item">
-                                    <img src="{{ photo.file.url }}" alt="{{ photo.label|default:'Intake photo' }}" loading="lazy">
-                                    <span>{{ photo.label|default:"Photo" }}</span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="admin-empty">No photos were uploaded.</p>
-                    {% endif %}
-                {% endif %}
-            </div>
+        <div class="v2-tab-bar" style="margin-bottom: 1rem;">
+            <a class="v2-tab {% if intake_subtab == 'website' %}active{% endif %}" href="?tab=intake&subtab=website">Website</a>
+            <a class="v2-tab {% if intake_subtab == 'maintenance' %}active{% endif %}" href="?tab=intake&subtab=maintenance">Maintenance</a>
         </div>
+
+        {% if intake_subtab == 'maintenance' %}
+            <div class="admin-card">
+                <div class="admin-card__header"><h2 class="admin-card__title">Maintenance intake</h2></div>
+                <div class="admin-card__body">
+                    {% if not maintenance_onboarding %}
+                        <p class="admin-empty">
+                            {% if has_active_maintenance_plan %}
+                                No maintenance intake has been started yet.
+                            {% else %}
+                                No active maintenance plan on this website — nothing to onboard yet.
+                            {% endif %}
+                        </p>
+                    {% else %}
+                        <p class="muted">
+                            {% if maintenance_onboarding.completed_at %}
+                                Completed {{ maintenance_onboarding.completed_at|date:"M j, Y g:i A" }}
+                            {% else %}
+                                In progress — started {{ maintenance_onboarding.started_at|date:"M j, Y" }}
+                            {% endif %}
+                        </p>
+                        {% for section in maintenance_intake_sections %}
+                            <h3 style="margin-top: 1.5rem;">{{ section.title }}</h3>
+                            {% if section.intro %}<p class="muted">{{ section.intro }}</p>{% endif %}
+                            <table class="v2-kv-table">
+                                {% for q in section.questions %}
+                                    <tr>
+                                        <th>{{ q.label }}</th>
+                                        <td>
+                                            {% if q.answered %}{{ q.value|linebreaksbr }}
+                                            {% elif q.skipped %}<span class="muted">Skipped</span>
+                                            {% else %}<span class="muted">Not answered yet</span>{% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="admin-card">
+                <div class="admin-card__header"><h2 class="admin-card__title">Submitted intake</h2></div>
+                <div class="admin-card__body">
+                    {% if not intake %}
+                        <p class="admin-empty">No intake response exists yet for this website.</p>
+                    {% elif not intake.completed %}
+                        <p class="admin-empty">Intake has not been submitted yet.</p>
+                    {% else %}
+                        <p class="muted">Submitted {{ intake.completed_at|date:"M j, Y g:i A" }}</p>
+                        <table class="v2-kv-table">
+                            <tr><th>Brand colors</th><td>{{ intake.brand_colors|default:"—" }}</td></tr>
+                            <tr><th>Brand fonts</th><td>{{ intake.brand_fonts|default:"—" }}</td></tr>
+                            <tr><th>Logo</th><td>{% if intake.logo %}<a href="{{ intake.logo.url }}" target="_blank" rel="noopener">Download</a>{% else %}Not uploaded{% endif %}</td></tr>
+                            <tr><th>About copy</th><td>{{ intake.about_copy|linebreaksbr|default:"—" }}</td></tr>
+                            <tr><th>Practice areas / services</th><td>{{ intake.practice_areas|linebreaksbr|default:"—" }}</td></tr>
+                            <tr><th>Attorney/staff bios</th><td>{{ intake.attorney_bios|linebreaksbr|default:"—" }}</td></tr>
+                            <tr><th>Reference sites</th><td>{{ intake.reference_sites|linebreaksbr|default:"—" }}</td></tr>
+                            <tr><th>Competitors</th><td>{{ intake.competitors|linebreaksbr|default:"—" }}</td></tr>
+                            <tr><th>Domain name</th><td>{{ intake.domain_name|default:"—" }}</td></tr>
+                            <tr><th>Domain registrar</th><td>{{ intake.get_domain_registrar_display|default:"—" }}</td></tr>
+                            <tr><th>Google Business</th><td>{{ intake.get_gmb_status_display|default:"—" }}</td></tr>
+                            <tr><th>Facebook</th><td>{{ intake.facebook_url|default:"—" }}</td></tr>
+                            <tr><th>Instagram</th><td>{{ intake.instagram_url|default:"—" }}</td></tr>
+                            <tr><th>LinkedIn</th><td>{{ intake.linkedin_url|default:"—" }}</td></tr>
+                            <tr><th>Other social links</th><td>{{ intake.social_links|linebreaksbr|default:"—" }}</td></tr>
+                        </table>
+
+                        <h3 style="margin-top: 1.5rem;">Photos</h3>
+                        {% if intake_photos %}
+                            <div class="v2-photo-grid">
+                                {% for photo in intake_photos %}
+                                    <a href="{{ photo.file.url }}" target="_blank" rel="noopener" class="v2-photo-grid__item">
+                                        <img src="{{ photo.file.url }}" alt="{{ photo.label|default:'Intake photo' }}" loading="lazy">
+                                        <span>{{ photo.label|default:"Photo" }}</span>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="admin-empty">No photos were uploaded.</p>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
 
     {% elif active_tab == 'infrastructure' and not is_wordpress %}
         <div class="admin-card">
