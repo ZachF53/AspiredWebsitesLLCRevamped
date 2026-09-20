@@ -119,6 +119,14 @@ class CredentialForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}),
     )
+    # Per-credential kill switch for the automated droplet health audit
+    # (reporting.droplet_audit) — defaults on so existing credentials
+    # keep working; an admin can flip it off without touching anything
+    # else about the credential.
+    automation_access_enabled = forms.BooleanField(
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={'id': 'id_automation_access_enabled'}),
+    )
 
     def clean_sort_order(self):
         return self.cleaned_data.get('sort_order') or 0

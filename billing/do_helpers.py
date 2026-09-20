@@ -337,15 +337,12 @@ def setup_vault_key_for_droplet(client, droplet_ip, root_password,
 
 
 def _run(ssh, command, *, check=True, timeout=30):
-    """Run a remote command and return (exit_code, stdout, stderr)."""
-    _, stdout, stderr = ssh.exec_command(command, timeout=timeout)
-    out = stdout.read().decode('utf-8', errors='replace')
-    err = stderr.read().decode('utf-8', errors='replace')
-    code = stdout.channel.recv_exit_status()
-    if check and code != 0:
-        raise RuntimeError(
-            f'remote command failed (exit {code}): {command}\n{err or out}')
-    return code, out, err
+    """Run a remote command and return (exit_code, stdout, stderr).
+    Thin delegate to vault.ssh_ops.run_remote — same shape, kept as a
+    local alias since this is called ~15 times in the bootstrap flow
+    right below."""
+    from vault.ssh_ops import run_remote
+    return run_remote(ssh, command, check=check, timeout=timeout)
 
 
 def _bootstrap_vault_key_over_ssh(ssh) -> str:
@@ -445,6 +442,12 @@ def _create_ssh_vault_credential(client, droplet_ip, private_key):
         ssh_private_key_encrypted=encrypt_value(private_key, server_key),
         username_hint=make_hint('root'),
         encrypted_with_server_key=True,
+        # Permanent second copy for automated background jobs (the
+        # monthly droplet health audit) — survives the admin-facing
+        # copy above flipping to PIN-only the first time this
+        # credential is opened in the vault UI. See vault/ssh_ops.py.
+        automation_ssh_private_key_encrypted=encrypt_value(
+            private_key, server_key),
         notes_encrypted=encrypt_value(
             'Auto-provisioned during Droplet creation. Re-encrypted under '
             'your PIN the first time it was opened.',
@@ -652,71 +655,28 @@ def destroy_client_droplet(site):
 
 
 def _open_ssh_to_site(site):
-    """Helper for background tasks (maintenance / restore). Tries to
-    open a paramiko SSH session as root@<droplet_ip> using the
-    server-key-encrypted vault credential. Returns the open client,
-    or None on any failure. Caller must ssh.close() when done.
+    """Helper for background tasks (maintenance / restore). Thin
+    delegate to vault.ssh_ops.open_automation_ssh — the one shared
+    implementation of "open an SSH session to a client's Droplet from
+    a background job", also used by reporting.droplet_audit's monthly
+    health check. See that module's docstring for why a background
+    job needs the automation-safe credential copy rather than the
+    admin-facing one.
 
-    Credentials are account-scoped (one key per customer), the droplet
-    is site-scoped. So the IP comes from the site and the key from its
-    account.
-
-    Background tasks can ONLY use server-key-encrypted credentials —
-    PIN-encrypted ones need an admin session to decrypt and aren't
-    reachable from Celery."""
-    if not site.do_droplet_ip:
-        return None
-    try:
-        from vault.models import VaultCredential
-        from vault.crypto import decrypt_value, derive_server_key
-    except Exception:
-        return None
-    if site.account_id is None:
-        return None
-    cred = VaultCredential.objects.filter(
-        account_new_id=site.account_id,
-        encrypted_with_server_key=True,
-    ).exclude(ssh_private_key_encrypted='').first()
-    if cred is None:
-        return None
-    try:
-        pkey_str = decrypt_value(
-            cred.ssh_private_key_encrypted, derive_server_key())
-        if not pkey_str or pkey_str.startswith('['):
-            return None
-        from io import StringIO
-        # Try Ed25519 first, then RSA / ECDSA fallback per the
-        # vault SSH terminal pattern in vault/consumers.py.
-        pkey = None
-        for keycls in (paramiko.Ed25519Key, paramiko.RSAKey,
-                       paramiko.ECDSAKey):
-            try:
-                pkey = keycls.from_private_key(StringIO(pkey_str))
-                break
-            except Exception:
-                continue
-        if pkey is None:
-            return None
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(site.do_droplet_ip, username='root',
-                    pkey=pkey, timeout=10, banner_timeout=10,
-                    auth_timeout=10)
-        return ssh
-    except Exception:
-        logger.exception(
-            '_open_ssh_to_site: SSH open failed for site %s', site.pk)
-        return None
+    This used to filter VaultCredential by a bare `account_new_id`
+    kwarg, which isn't a field on VaultCredential (the account lives
+    on the related ClientVault row) — every call raised FieldError
+    uncaught, so set_site_maintenance_mode and restore_client_site's
+    SSH path never actually ran; only the power-on/off fallback did."""
+    from vault.ssh_ops import open_automation_ssh
+    return open_automation_ssh(site)
 
 
 def _run_remote(ssh, cmd, timeout=20):
-    """Best-effort remote command. Returns exit code, swallows
-    paramiko exceptions (caller treats failure as 'didn't take')."""
-    try:
-        _, stdout, _ = ssh.exec_command(cmd, timeout=timeout)
-        return stdout.channel.recv_exit_status()
-    except Exception:
-        return -1
+    """Best-effort remote command. Thin delegate to
+    vault.ssh_ops.run_remote_best_effort."""
+    from vault.ssh_ops import run_remote_best_effort
+    return run_remote_best_effort(ssh, cmd, timeout=timeout)
 
 
 def set_site_maintenance_mode(site):

@@ -252,6 +252,24 @@ class VaultCredential(TimestampedModel):
     # PIN-derived key the first time an admin opens the credential.
     encrypted_with_server_key = models.BooleanField(default=False)
 
+    # A second, PERMANENT copy of the SSH private key, always encrypted
+    # with the VAULT_SERVER_SECRET-derived server key — independent of
+    # ssh_private_key_encrypted's PIN lifecycle above. Background jobs
+    # (the monthly droplet health audit) have no admin PIN session to
+    # decrypt with, and ssh_private_key_encrypted stops being
+    # server-key-decryptable forever the moment any admin opens this
+    # credential in the vault UI (encrypted_with_server_key flips to
+    # False). This field exists so automation keeps working after that
+    # point. Populated at credential creation (billing.do_helpers) and
+    # refreshed on every manual edit (vault.views._apply_ssh_fields) —
+    # never touched by reencrypt_credential_with_pin_key, that's the
+    # whole point of it being separate. See vault/ssh_ops.py.
+    automation_ssh_private_key_encrypted = models.TextField(blank=True)
+    # Per-credential kill switch — an admin can revoke automated
+    # background SSH access without touching the main credential at all.
+    automation_access_enabled = models.BooleanField(default=True)
+    automation_key_last_used_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['category', 'sort_order', 'label']
         verbose_name = 'Vault Credential'

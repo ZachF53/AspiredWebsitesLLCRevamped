@@ -145,8 +145,20 @@ def _sync_client_plain(cred, key):
 
 
 def _apply_ssh_fields(cred, cd, key):
-    """Encrypt the SSH fields from a CredentialForm onto the credential."""
+    """Encrypt the SSH fields from a CredentialForm onto the credential.
+
+    Also refreshes automation_ssh_private_key_encrypted — the
+    permanent, always-server-key-encrypted copy background jobs use
+    (vault/ssh_ops.py) — whenever a private key is present, regardless
+    of which key `key` itself is (PIN or server). This is the
+    "recovery path" for a credential created before that field
+    existed, or whose automation copy has gone stale after a manual
+    key rotation: editing and saving the SSH fields here (the edit
+    form always round-trips the current decrypted key through the
+    textarea, even if the admin didn't touch it) re-populates it.
+    """
     cred.is_ssh_credential = cd.get('is_ssh_credential', False)
+    cred.automation_access_enabled = cd.get('automation_access_enabled', True)
     if not cred.is_ssh_credential:
         return
     cred.ssh_host_encrypted = encrypt_value(cd.get('ssh_host', ''), key)
@@ -154,10 +166,14 @@ def _apply_ssh_fields(cred, cd, key):
     cred.ssh_username_encrypted = encrypt_value(cd.get('ssh_username', ''), key)
     cred.ssh_auth_type = cd.get('ssh_auth_type') or 'password'
     cred.ssh_password_encrypted = encrypt_value(cd.get('ssh_password', ''), key)
-    cred.ssh_private_key_encrypted = encrypt_value(
-        cd.get('ssh_private_key', ''), key)
+    private_key = cd.get('ssh_private_key', '')
+    cred.ssh_private_key_encrypted = encrypt_value(private_key, key)
     cred.ssh_key_passphrase_encrypted = encrypt_value(
         cd.get('ssh_key_passphrase', ''), key)
+    if private_key:
+        from vault.crypto import derive_server_key
+        cred.automation_ssh_private_key_encrypted = encrypt_value(
+            private_key, derive_server_key())
 
 
 def _host_hint(cred, vault_key):
@@ -552,7 +568,7 @@ def add_credential(request, client_id):
             _apply_ssh_fields(cred, cd, key)
             cred.save()
             _log('credential_created', request,
-                 client_name=client.firm_name, credential_label=cred.label)
+                 client_name=client.name, credential_label=cred.label)
             return redirect('vault:client_vault', client_id=client.id)
     else:
         # Pre-select category + type from URL params — used by SetupTodo
@@ -568,7 +584,7 @@ def add_credential(request, client_id):
         form = CredentialForm(initial=initial or None)
 
     templates = [
-        {**t, 'label': t['label'].replace('{firm}', client.firm_name)}
+        {**t, 'label': t['label'].replace('{firm}', client.name)}
         for t in CREDENTIAL_TEMPLATES
     ]
     return render(request, 'vault/credential_form.html', {
@@ -617,7 +633,7 @@ def edit_credential(request, client_id, cred_id):
             _apply_ssh_fields(cred, cd, key)
             cred.save()
             _log('credential_updated', request,
-                 client_name=client.firm_name, credential_label=cred.label)
+                 client_name=client.name, credential_label=cred.label)
             return redirect('vault:client_vault', client_id=client.id)
     else:
         initial = {
@@ -628,6 +644,7 @@ def edit_credential(request, client_id, cred_id):
             'sort_order': cred.sort_order,
             'visible_to_client': cred.visible_to_client,
             'is_ssh_credential': cred.is_ssh_credential,
+            'automation_access_enabled': cred.automation_access_enabled,
         }
         if cred.is_ssh_credential:
             initial.update({
@@ -652,6 +669,9 @@ def edit_credential(request, client_id, cred_id):
         'templates': [],
         'types_json': _types_json(),
         'seconds_remaining': _seconds_remaining(request),
+        'automation_configured': bool(
+            cred.is_ssh_credential
+            and cred.automation_ssh_private_key_encrypted),
     })
 
 
