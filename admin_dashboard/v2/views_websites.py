@@ -215,7 +215,7 @@ def website_create(request):
             website = Website.objects.create(**create_kwargs)
             messages.success(
                 request, f'{website.name} created under {account.name}.')
-            return redirect('admin_dashboard:website_detail',
+            return redirect('admin_dashboard:v2_website_detail',
                              website_id=website.id)
 
         return render(request, 'admin_dashboard/v2/website_create.html', {

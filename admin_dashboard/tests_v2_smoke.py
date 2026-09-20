@@ -157,7 +157,7 @@ class V2SmokeTests(TestCase):
         r = self.client.get('/admin-dashboard/v2/websites/new/')
         self.assertEqual(r.status_code, 200)
 
-    def test_website_create_post_creates_and_redirects_to_v1(self):
+    def test_website_create_post_creates_and_redirects_to_v2(self):
         r = self.client.post('/admin-dashboard/v2/websites/new/', {
             'account_id': str(self.account_new_site.id),
             'name': 'Freshly Created Site',
@@ -167,7 +167,7 @@ class V2SmokeTests(TestCase):
         site = Website.objects.get(name='Freshly Created Site')
         self.assertEqual(site.account_id, self.account_new_site.id)
         self.assertEqual(site.build_platform, 'wordpress')
-        self.assertIn(f'/admin-dashboard/websites/{site.id}/', r.url)
+        self.assertIn(f'/admin-dashboard/v2/websites/{site.id}/', r.url)
 
     def test_website_create_requires_account_and_name(self):
         r = self.client.post('/admin-dashboard/v2/websites/new/', {

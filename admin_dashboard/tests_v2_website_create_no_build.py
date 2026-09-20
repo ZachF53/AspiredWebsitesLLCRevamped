@@ -65,6 +65,13 @@ class NoBuildWebsiteCreateTests(TestCase):
         self.assertEqual(r.status_code, 302)
 
         site = Website.objects.get(account=self.account)
+        # Regression: this used to redirect('admin_dashboard:website_detail')
+        # — the v1 URL name — bouncing the admin out of v2 straight after
+        # creating the website. Must land back on the v2 detail page.
+        self.assertEqual(
+            r.url,
+            reverse('admin_dashboard:v2_website_detail',
+                    kwargs={'website_id': site.id}))
         self.assertEqual(site.stage, 'live')
         self.assertEqual(site.payment_status, 'fully_paid')
         self.assertEqual(site.onboarding_status, 'intake_complete')
@@ -206,5 +213,5 @@ class NoBuildWebsiteCreateTests(TestCase):
         self.assertEqual(site.onboarding_status, 'pending_intake')
         self.assertEqual(site.build_platform, 'custom')
         self.assertEqual(site.url, '')
-        # Unchanged redirect target too.
-        self.assertIn(f'/admin-dashboard/websites/{site.id}/', r.url)
+        # Redirect lands back on the v2 detail page, not v1.
+        self.assertIn(f'/admin-dashboard/v2/websites/{site.id}/', r.url)
