@@ -92,7 +92,14 @@ class PostPaymentHandoff(TestCase):
 
         self.account.refresh_from_db()
         self.assertTrue(self.account.client_pin_set)
-        self.assertEqual(self.account.onboarding_status, 'pending_intake')
+        # Account-level setup (WHOIS + vault PIN) IS the whole onboarding
+        # workflow for the Account model — 'pending_intake' isn't a valid
+        # Account.onboarding_status choice (pending_setup / complete
+        # only; per-website intake lives on Website). See
+        # clients/tests_account_onboarding_setup.py for the full
+        # regression coverage of this fix.
+        self.assertEqual(self.account.onboarding_status, 'complete')
+        self.assertTrue(self.account.onboarding_complete)
 
         self.token.refresh_from_db()
         self.assertTrue(self.token.used)

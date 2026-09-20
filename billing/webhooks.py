@@ -137,15 +137,44 @@ def _record_payment(*, client, stripe_id, kind, amount, description='',
 
 
 def _infer_subscription_kind(sub_id, client, invoice):
-    """Best-effort: which product a recurring invoice is for, + the website."""
+    """Best-effort: which product a recurring invoice is for, + the website.
+
+    `client` is an Account for every post-cutover client (the canonical
+    shape — every client created since the Account/Website refactor) or
+    a legacy ClientProfile. Only ClientProfile carries a flat
+    stripe_hosting_subscription_id / stripe_subscription_id field —
+    those moved to Website (hosting/maintenance) when Account became
+    canonical. Reading them unconditionally on an Account raised
+    AttributeError on the very first line whenever sub_id was truthy,
+    which aborted this function before it returned anything — and since
+    the caller (_handle_invoice_paid) calls this BEFORE _record_payment,
+    that meant no PaymentRecord was EVER written for a subscription
+    invoice belonging to an Account-based client, for as long as Account
+    has been the canonical client model. Silent: the exception was
+    caught by stripe_webhook's top-level try/except, logged, and the
+    webhook still returned 200 to Stripe.
+    """
+    from clients.account_models import Account, Website
     from clients.service_models import MaintenancePlan, SocialMediaPlan
-    if sub_id and sub_id == client.stripe_hosting_subscription_id:
+
+    if not sub_id:
+        if _invoice_lines_mention_maintenance(invoice):
+            return 'maintenance', None
+        return 'other', None
+
+    if isinstance(client, Account):
+        hosting_site = Website.objects.filter(
+            account=client, stripe_hosting_subscription_id=sub_id).first()
+        if hosting_site is not None:
+            return 'hosting', None
+    elif sub_id == getattr(client, 'stripe_hosting_subscription_id', ''):
         return 'hosting', None
+
     mp = MaintenancePlan.objects.filter(stripe_subscription_id=sub_id).first()
-    if mp is not None or sub_id == client.stripe_subscription_id:
+    if mp is not None or sub_id == getattr(client, 'stripe_subscription_id', ''):
         return 'maintenance', (mp.website if mp else None)
     sp = SocialMediaPlan.objects.filter(stripe_subscription_id=sub_id).first()
-    if sp is not None or sub_id == client.stripe_social_subscription_id:
+    if sp is not None or sub_id == getattr(client, 'stripe_social_subscription_id', ''):
         return 'social', (sp.website if sp else None)
     if _invoice_lines_mention_maintenance(invoice):
         return 'maintenance', None
@@ -488,6 +517,31 @@ def _client_for_invoice(invoice_id):
     return website.account if website is not None else None
 
 
+def _invoice_subscription_id(invoice):
+    """The subscription id an invoice belongs to, or '' if none.
+
+    Newer Stripe API versions moved this from a flat `invoice.subscription`
+    field to `invoice.parent.subscription_details.subscription` — this
+    account is evidently on one of those now, so the old flat read
+    silently returned '' for every subscription invoice. That fed two
+    real bugs, both silent (no exception, no alert):
+      - No PaymentRecord was ever written for a subscription renewal in
+        _handle_invoice_paid (Stripe's own event log shows the
+        invoice.paid webhook WAS delivered and returned 200 — the
+        handler just found no sub_id to act on).
+      - _handle_invoice_upcoming's droplet/domain-alive gate no-op'd on
+        its very first line (`if not sub_id: return`), so a hosting or
+        domain subscription could renew after the resource behind it
+        was already gone.
+    Tries the new nested location first, falls back to the old flat
+    field so this keeps working regardless of which API version the
+    Stripe account is pinned to.
+    """
+    parent = invoice.get('parent') or {}
+    sub_details = parent.get('subscription_details') or {}
+    return sub_details.get('subscription') or invoice.get('subscription') or ''
+
+
 # ── invoice.paid ────────────────────────────────────────────────────────────
 
 def _handle_invoice_paid(event):
@@ -526,7 +580,7 @@ def _handle_invoice_paid(event):
     # maintenance) — disambiguate via the subscription ID before
     # flipping any local flags. Hosting invoices must NOT touch the
     # maintenance fields, and vice versa.
-    sub_id = invoice.get('subscription') or ''
+    sub_id = _invoice_subscription_id(invoice)
     # Ledger entry for every recurring (subscription) charge — recorded up
     # front so it's captured no matter which branch below returns.
     if sub_id and (invoice.get('amount_paid') or 0) > 0:
@@ -1071,7 +1125,7 @@ def _handle_invoice_upcoming(event):
     resource they no longer have.
     """
     invoice = event['data']['object']
-    sub_id = invoice.get('subscription') or ''
+    sub_id = _invoice_subscription_id(invoice)
     if not sub_id:
         return
 

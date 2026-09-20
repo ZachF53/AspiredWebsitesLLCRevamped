@@ -35,15 +35,26 @@ def _price_for_package(package_code):
     Look up the monthly price for a maintenance package.
     Tries `billing.ServiceTier` first; falls back to `_FALLBACK_PRICES`.
     Returns a float (0 for unknown packages).
+
+    `package_code` is `Website.package` — a slug-shaped string (e.g.
+    'maintenance_denis_custom', 'essential_build'), NOT a ServiceTier
+    name. Looking it up by `name__iexact` only ever matched a tier
+    whose human name happened to equal the raw slug verbatim, which is
+    never true for HVAC-era or operator-custom tiers — every one of
+    those silently priced at $0 and MRR under-reported by exactly that
+    much. `billing.account_provisioning` writes this field as the
+    tier_slug with dashes converted to underscores, so the slug lookup
+    tries both forms — same fallback Website.get_package_display()
+    already uses.
     """
     if not package_code:
         return 0
     try:
         from billing.pricing_models import ServiceTier
-        tier = ServiceTier.objects.filter(
-            name__iexact=package_code).first()
-        if tier and tier.price:
-            return float(tier.price)
+        for candidate in (package_code, package_code.replace('_', '-')):
+            tier = ServiceTier.objects.filter(slug=candidate).first()
+            if tier and tier.price:
+                return float(tier.price)
     except Exception:
         # Pricing app may not be migrated on the test DB; fall through.
         pass
