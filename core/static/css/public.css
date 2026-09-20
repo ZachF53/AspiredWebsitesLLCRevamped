@@ -4999,6 +4999,54 @@ button.htmx-request {
    state is obvious — browsers' default disabled styling is invisible
    on the solid-red background. */
 
+/* ── Generic confirm modal ───────────────────────────────────────
+   Replaces window.confirm() for every [data-confirm] element
+   (main.js initConfirmActions) with an in-app, centered modal —
+   same structure as .danger-modal but neutral-toned (not red), for
+   ordinary "are you sure?" confirmations rather than destructive
+   deletes. Built dynamically by JS, so this styling applies with
+   zero template changes at any existing [data-confirm] call site. */
+.confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.confirm-modal[hidden] { display: none; }
+.confirm-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+.confirm-modal__card {
+    position: relative;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+.confirm-modal__body {
+    padding: 1.5rem;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.confirm-modal__body p { margin: 0; }
+.confirm-modal__foot {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
 /* ── Account detail (single-page editor) ─────────────────────── */
 
 /* Mirrors the website-detail form-row layout but scoped to the
@@ -5908,3 +5956,7 @@ button.is-loading { cursor: progress; opacity: 0.85; }
    only the handful of components v1 never needed: the merged action
    list, stat tiles, the website-detail tab bar, and a couple of small
    read-only layouts (key/value table, photo grid). */
+
+/* Pricing — sync-state badge. NOT SYNCED means active/billable-in-theory
+   but no Stripe Price ID exists, so it silently cannot be charged — the
+   failure this badge exists to make impossible to miss. */

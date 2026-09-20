@@ -117,12 +117,84 @@
 
     function initConfirmActions() {
         // Any element with data-confirm prompts before its action runs —
-        // used for destructive buttons (delete, etc.). CSP-safe: no inline JS.
+        // used for destructive buttons (delete, etc.) and plain "are you
+        // sure?" confirmations. CSP-safe: no inline JS.
+        //
+        // Shows an in-app centered modal instead of window.confirm() —
+        // the native dialog is browser-chrome-styled (shows the raw
+        // hostname, can't be restyled) and reads as a broken/untrusted
+        // popup rather than part of the app.
+        //
+        // data-confirm lives on either a <button> (bubbles to itself) or
+        // a <form> (the button's click bubbles up to it) — both already
+        // relied on click-bubbling before this change, so this keeps the
+        // same trigger surface with zero template edits required.
+        var modal = null;
+
+        function buildModal() {
+            var el = document.createElement('div');
+            el.className = 'confirm-modal';
+            el.hidden = true;
+            el.innerHTML =
+                '<div class="confirm-modal__backdrop"></div>' +
+                '<div class="confirm-modal__card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-text">' +
+                    '<div class="confirm-modal__body"><p id="confirm-modal-text"></p></div>' +
+                    '<div class="confirm-modal__foot">' +
+                        '<button type="button" class="btn-secondary btn-sm" data-confirm-cancel>Cancel</button>' +
+                        '<button type="button" class="btn-primary btn-sm" data-confirm-ok>OK</button>' +
+                    '</div>' +
+                '</div>';
+            document.body.appendChild(el);
+            return el;
+        }
+
+        function showConfirmModal(message, onConfirm) {
+            if (!modal) { modal = buildModal(); }
+            modal.querySelector('#confirm-modal-text').textContent = message;
+            modal.hidden = false;
+
+            var okBtn = modal.querySelector('[data-confirm-ok]');
+            var cancelBtn = modal.querySelector('[data-confirm-cancel]');
+            var backdrop = modal.querySelector('.confirm-modal__backdrop');
+
+            function cleanup() {
+                modal.hidden = true;
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                backdrop.removeEventListener('click', onCancel);
+                document.removeEventListener('keydown', onKeydown);
+            }
+            function onOk() { cleanup(); onConfirm(); }
+            function onCancel() { cleanup(); }
+            function onKeydown(e) {
+                if (e.key === 'Escape') { onCancel(); }
+            }
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            backdrop.addEventListener('click', onCancel);
+            document.addEventListener('keydown', onKeydown);
+            okBtn.focus();
+        }
+
         document.querySelectorAll('[data-confirm]').forEach(function (el) {
             el.addEventListener('click', function (e) {
-                if (!window.confirm(el.getAttribute('data-confirm'))) {
-                    e.preventDefault();
+                if (el.dataset.confirmBypass === '1') {
+                    // Re-triggered below after the modal was confirmed —
+                    // let it through this time, no loop.
+                    delete el.dataset.confirmBypass;
+                    return;
                 }
+                e.preventDefault();
+                e.stopPropagation();
+                showConfirmModal(el.getAttribute('data-confirm'), function () {
+                    el.dataset.confirmBypass = '1';
+                    if (el.tagName === 'FORM') {
+                        el.submit();
+                    } else if (typeof el.click === 'function') {
+                        el.click();
+                    }
+                });
             });
         });
     }
