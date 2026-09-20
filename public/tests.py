@@ -250,6 +250,34 @@ class LoginPageTests(TestCase):
         self.assertNotIn('evil.example', r['Location'])
 
 
+class LogoutViewTests(TestCase):
+    """POST logs out; GET bounces home instead of a bare 405.
+
+    A typed URL / stale bookmark hitting /logout/ via GET used to return
+    Django's empty-body HttpResponseNotAllowed, which Chrome renders as
+    its own "This page isn't working" interstitial — looked like a
+    broken site even though nothing was actually wrong. POST-only stays
+    enforced for CSRF-safety; GET just redirects without logging out.
+    """
+
+    def test_post_logs_out(self):
+        u = _user(password='logout-pass-123')
+        self.client.login(username=u.username, password='logout-pass-123')
+        r = self.client.post(reverse('public:logout'))
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(
+            self.client.session.get('_auth_user_id') is not None)
+
+    def test_get_does_not_405_and_does_not_log_out(self):
+        u = _user(password='logout-pass-123')
+        self.client.login(username=u.username, password='logout-pass-123')
+        r = self.client.get(reverse('public:logout'))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], reverse('public:home'))
+        # Still logged in — a GET must not be able to log anyone out.
+        self.assertIsNotNone(self.client.session.get('_auth_user_id'))
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Conversion events — Master Plan §10 / MEASUREMENT_SPEC §5
 # ──────────────────────────────────────────────────────────────────────

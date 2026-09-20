@@ -8,7 +8,6 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
 from core.analytics import queue_event
@@ -1466,14 +1465,22 @@ def login_page(request):
     })
 
 
-@require_POST
 def logout_view(request):
     """POST-only logout (modern Django requires POST for CSRF-safe logout).
 
     Clears the Phase C ``active_website_slug`` session pick before
     flushing the rest of the session so a re-login lands on a fresh
     chooser, not whatever site was picked last.
+
+    A GET here (typed URL, stale bookmark, browser history) used to hit
+    Django's bare `HttpResponseNotAllowed` — an empty-body 405 that
+    Chrome renders as its own "This page isn't working" interstitial,
+    which reads as a broken site even though nothing is actually wrong.
+    POST-only stays enforced (CSRF-safe logout is still the point); a
+    GET just bounces home without logging anyone out, instead of erroring.
     """
+    if request.method != 'POST':
+        return redirect('public:home')
     try:
         from clients.portal_resolvers import clear_active_website
         clear_active_website(request)
