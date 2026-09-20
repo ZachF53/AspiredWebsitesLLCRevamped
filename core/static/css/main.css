@@ -9770,6 +9770,21 @@ button.htmx-request {
     margin: 0;
 }
 
+.scan-raw-output { margin-top: 1.5rem; }
+.scan-raw-output__pre {
+    margin: 0 1.1rem 1.1rem;
+    padding: 0.9rem;
+    background: var(--color-bg-inset, #111827);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
 /* Individual finding card */
 .finding-card {
     background: var(--color-bg-deep);

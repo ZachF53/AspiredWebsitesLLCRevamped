@@ -56,12 +56,23 @@ def run_nmap_scan(target_ip, timeout=120):
     Service-version + default-script TCP scan against `target_ip`.
     Parses the XML output and flags any port in DANGEROUS_PORTS as a
     finding with a baked-in remediation.
+
+    XML goes to a tempfile (not stdout) so nmap's normal human-readable
+    verbose report — the banner + PORT/STATE/SERVICE/VERSION table
+    everyone's used to seeing when running nmap interactively — prints
+    to stdout instead and gets kept as `raw_output` for the admin-only
+    "Raw scan output" view. Piping `-oX -` straight to stdout (the old
+    approach) replaces that verbose text with raw XML, which is fine
+    for parsing but useless to read.
     """
+    fd, xml_path = tempfile.mkstemp(suffix='.xml', prefix='nmap-')
+    os.close(fd)
+
     try:
         result = subprocess.run(
-            ['nmap', '-sV', '-sC', '--open',
+            ['nmap', '-sV', '-sC', '--open', '-v',
              '-T4', '--max-retries', '2',
-             '-oX', '-', target_ip],
+             '-oX', xml_path, target_ip],
             capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return {'error': 'nmap scan timed out',
@@ -72,18 +83,29 @@ def run_nmap_scan(target_ip, timeout=120):
     except Exception as exc:  # noqa: BLE001 — defensive
         return {'error': str(exc), 'ports': [], 'findings': []}
 
+    raw_output = (result.stdout or '')[:8000]
+
     if result.returncode != 0:
+        try:
+            os.unlink(xml_path)
+        except OSError:
+            pass
         return {'error': (result.stderr or '')[:500],
-                'ports': [], 'findings': []}
+                'ports': [], 'findings': [], 'raw_output': raw_output}
 
     ports = []
     findings = []
     try:
-        root = ET.fromstring(result.stdout)
-    except ET.ParseError:
+        root = ET.parse(xml_path).getroot()
+    except (ET.ParseError, FileNotFoundError):
         return {'ports': [], 'findings': [],
-                'raw_output': result.stdout[:5000],
+                'raw_output': raw_output,
                 'error': 'nmap XML output unparseable'}
+    finally:
+        try:
+            os.unlink(xml_path)
+        except OSError:
+            pass
 
     for host in root.findall('host'):
         for port in host.findall('.//port'):
@@ -117,7 +139,7 @@ def run_nmap_scan(target_ip, timeout=120):
     return {
         'ports': ports,
         'findings': findings,
-        'raw_output': result.stdout[:5000],
+        'raw_output': raw_output,
     }
 
 
@@ -135,9 +157,28 @@ _NIKTO_SEVERITY = [
     ('low', ('found', 'retrieved', 'exposed')),
 ]
 
+# Nikto's "uncommon header" notice fires for ANY header it doesn't have
+# hardcoded as default — including headers that are best-practice
+# security controls. Their presence is good news, not a weakness, so
+# these must never fall through to the generic keyword scan below.
+# Without this, 'X-XSS-Protection' gets flagged CRITICAL because its
+# own name contains the substring 'xss', and the rest get flagged
+# MEDIUM off the bare word 'header' — both false positives on every
+# site that has these headers configured correctly.
+_KNOWN_SECURITY_HEADERS = (
+    'x-xss-protection', 'x-content-type-options', 'x-frame-options',
+    'referrer-policy', 'strict-transport-security',
+    'content-security-policy', 'permissions-policy',
+    'cross-origin-opener-policy', 'cross-origin-resource-policy',
+    'cross-origin-embedder-policy',
+)
+
 
 def _classify_nikto_msg(msg):
     msg_lower = msg.lower()
+    if 'uncommon header' in msg_lower and any(
+            h in msg_lower for h in _KNOWN_SECURITY_HEADERS):
+        return 'info'
     for sev, keywords in _NIKTO_SEVERITY:
         if any(k in msg_lower for k in keywords):
             return sev

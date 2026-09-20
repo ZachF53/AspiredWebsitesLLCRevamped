@@ -165,5 +165,58 @@
             {% endif %}
         </details>
     {% endfor %}
+
+    <section class="scan-raw-output">
+        <h2 class="scan-tools-card__title">Raw scan output <span class="muted">(admin only — never shown to clients)</span></h2>
+
+        <details class="scan-findings-group">
+            <summary><span class="scan-findings-group__label">nmap</span></summary>
+            <div class="scan-findings-group__body">
+                {% if scan.raw_nmap %}
+                    {% if scan.raw_nmap.raw_output %}
+                        <p class="scan-findings-group__empty">Verbose console output (-v):</p>
+                        <pre class="scan-raw-output__pre">{{ scan.raw_nmap.raw_output }}</pre>
+                    {% endif %}
+                    <p class="scan-findings-group__empty">Full parsed result:</p>
+                    <pre class="scan-raw-output__pre">{{ scan.raw_nmap|pprint }}</pre>
+                {% else %}
+                    <p class="scan-findings-group__empty">No nmap data — not run for this scan.</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <details class="scan-findings-group">
+            <summary><span class="scan-findings-group__label">Nikto</span></summary>
+            <div class="scan-findings-group__body">
+                {% if scan.raw_nikto %}
+                    <pre class="scan-raw-output__pre">{{ scan.raw_nikto|pprint }}</pre>
+                {% else %}
+                    <p class="scan-findings-group__empty">No Nikto data — not run for this scan.</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <details class="scan-findings-group">
+            <summary><span class="scan-findings-group__label">SSL Labs</span></summary>
+            <div class="scan-findings-group__body">
+                {% if scan.raw_ssl %}
+                    <pre class="scan-raw-output__pre">{{ scan.raw_ssl|pprint }}</pre>
+                {% else %}
+                    <p class="scan-findings-group__empty">No SSL Labs data — not run for this scan.</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <details class="scan-findings-group">
+            <summary><span class="scan-findings-group__label">WPScan</span></summary>
+            <div class="scan-findings-group__body">
+                {% if scan.raw_wpscan %}
+                    <pre class="scan-raw-output__pre">{{ scan.raw_wpscan|pprint }}</pre>
+                {% else %}
+                    <p class="scan-findings-group__empty">No WPScan data — not run for this scan.</p>
+                {% endif %}
+            </div>
+        </details>
+    </section>
 </div>
 {% endblock %}
