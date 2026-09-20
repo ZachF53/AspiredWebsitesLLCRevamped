@@ -4436,64 +4436,21 @@ def website_intake_mark_complete(request, website_id):
     Admin override — mark a Website's intake as complete WITHOUT
     triggering droplet provisioning or the client confirmation email.
 
-    Used to clean up legacy websites that were imported with the
-    `pending_intake` gate set even though intake was already done
-    long before the new model existed.
-
-    What this writes:
-      - Website.onboarding_status      → 'intake_complete'
-      - IntakeResponse.completed       → True
-      - IntakeResponse.completed_at    → now (if not already set)
-      - Legacy ClientProfile.onboarding_status → 'onboarding_complete'
-        (so the portal stops redirecting the client to /intake/)
-      - WebsiteStageLog entry          → audit trail
-
-    What this DOES NOT do:
-      - provision_droplet_task  (the whole point — admin is opting out)
-      - send_intake_received_email (this is an admin override, not a
-        client action)
+    Thin caller over clients.services.mark_intake_complete — the same
+    function the v2 admin override button and the AI assistant's "mark
+    X intake complete" command call, so all three entry points write
+    identical state (Website.onboarding_status, IntakeResponse, the
+    audit log) instead of three copies that can drift.
     """
     from django.contrib import messages
 
-    from clients.account_models import Website, WebsiteStageLog
+    from clients.account_models import Website
+    from clients.services import mark_intake_complete
 
     website = get_object_or_404(Website, id=website_id)
-    account = website.account
-
-    # 1. Website flag. Only upgrade if currently 'pending_intake' —
-    #    don't downgrade a site that's already 'complete' (a more
-    #    advanced state on the same scale).
-    if website.onboarding_status == 'pending_intake':
-        website.onboarding_status = 'intake_complete'
-        website.save(update_fields=['onboarding_status', 'updated_at'])
-
-    # 2. The site's IntakeResponse. This reached the intake through the
-    #    account's legacy profile, so for a client with no legacy row the
-    #    form was never marked complete — and on a two-build account it
-    #    marked whichever intake hung off the profile, not this site's.
-    intake = getattr(website, 'intake_new', None)
-    if intake is not None and not intake.completed:
-        intake.completed = True
-        if intake.completed_at is None:
-            intake.completed_at = timezone.now()
-        intake.save(update_fields=[
-            'completed', 'completed_at', 'updated_at'])
-
-    # Step 3 used to flip the legacy profile's onboarding gate, because
-    # `@client_required` read it to decide whether to bounce a logged-in
-    # client to /portal/intake/. That decorator reads
-    # `Account.onboarding_status` and `Website.onboarding_status` now, and
-    # step 1 above already sets the site's — so writing the legacy column
-    # only kept a soon-to-be-dropped mirror warm.
-
-    # 3. Audit trail — same pattern as a stage change.
-    WebsiteStageLog.objects.create(
-        website=website,
-        from_stage=website.stage,
-        to_stage=website.stage,  # no stage change, just an annotation
-        note='Intake marked complete by admin override (no droplet).',
-        set_by=request.user.get_full_name() or request.user.username,
-    )
+    mark_intake_complete(
+        website,
+        set_by=request.user.get_full_name() or request.user.username)
 
     messages.success(
         request,

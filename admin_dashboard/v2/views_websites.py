@@ -548,6 +548,34 @@ def website_send_intake_reminder(request, website_id):
 
 
 @admin_required
+def website_intake_mark_complete(request, website_id):
+    """Admin override — thin caller over
+    clients.services.mark_intake_complete, same function v1's override
+    button and the AI assistant's "mark X intake complete" command call.
+    Guarded like every other write to a Website row in this build."""
+    if request.method != 'POST':
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website_id)
+
+    website = get_object_or_404(Website, id=website_id)
+    if _block_if_live_subscription(request, website):
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website.id)
+
+    from clients.services import mark_intake_complete
+
+    mark_intake_complete(
+        website,
+        set_by=request.user.get_full_name() or request.user.username)
+
+    messages.success(
+        request,
+        'Intake marked complete. No droplet was provisioned and no '
+        'confirmation email was sent — flags only.')
+    return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
+
+
+@admin_required
 def website_run_scan(request, website_id):
     """Mirrors admin_dashboard.views_scans.run_scan's exact creation
     pattern (create a VulnerabilityScan row, enqueue the Celery task) —

@@ -182,6 +182,16 @@ class ExecuteTests(TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(result['extra']['firm_name'], 'Status LLC')
 
+    def test_mark_intake_complete_calls_service_with_set_by(self):
+        c = _new_site('Intake Test LLC')
+        from admin_dashboard.ai_assistant import execute
+        with patch('admin_dashboard.ai_assistant.mark_intake_complete') as m:
+            m.return_value = MagicMock(id='intake-1')
+            result = execute('mark_intake_complete', {'client': c.name}, c,
+                             set_by='Tester')
+        self.assertTrue(result['ok'])
+        m.assert_called_once_with(c, set_by='Tester')
+
 
 class AssistantViewTests(TestCase):
     """End-to-end of the HTMX endpoints — auth + flow."""

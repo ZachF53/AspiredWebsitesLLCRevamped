@@ -120,23 +120,54 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
 # Intake completion
 # ─────────────────────────────────────────────────────────────────────────────
 
-def mark_intake_complete(profile):
-    """Flip the client's IntakeResponse to complete + advance stage.
+def mark_intake_complete(profile, *, set_by='admin'):
+    """Admin override — flip a Website's intake to complete and unlock
+    the onboarding gate, WITHOUT triggering droplet provisioning or the
+    client confirmation email (those belong to the client's own
+    submission — see `_on_intake_submitted` in clients/views.py).
 
-    Idempotent — if intake is already complete, no-op.
+    The one function every "mark intake complete" entry point calls:
+    the v1 admin override button, the v2 admin override button, and the
+    AI assistant's "mark X intake complete" command. Used to unblock a
+    client who doesn't need the form (legacy import, phone/email
+    intake, test account) or is stuck on a stale gate — CLAUDE.md's own
+    command-pattern spec for this ("Intake.completed = True, stage
+    unlocked") requires flipping BOTH the IntakeResponse and the
+    Website's onboarding gate; a version that only touched the
+    IntakeResponse left the portal decorator's `pending_intake` check
+    (clients/decorators.py) still locking the client out after this
+    supposedly unblocked them.
+
+    Idempotent — an already-complete intake / already-advanced website
+    is a no-op on those fields; the audit log entry is written every
+    call regardless, same as a stage change's own audit trail.
 
     Returns the IntakeResponse.
     """
     from django.utils import timezone
+
+    from clients.account_models import Website, WebsiteStageLog
     from clients.models import IntakeResponse
 
     intake, _ = IntakeResponse.objects.get_or_create(website_new=profile)
-    if intake.completed:
-        return intake
-    intake.completed = True
-    intake.completed_at = timezone.now()
-    intake.save(update_fields=[
-        'completed', 'completed_at', 'updated_at'])
+    if not intake.completed:
+        intake.completed = True
+        intake.completed_at = timezone.now()
+        intake.save(update_fields=[
+            'completed', 'completed_at', 'updated_at'])
+
+    if isinstance(profile, Website):
+        if profile.onboarding_status == 'pending_intake':
+            profile.onboarding_status = 'intake_complete'
+            profile.save(update_fields=['onboarding_status', 'updated_at'])
+        WebsiteStageLog.objects.create(
+            website=profile,
+            from_stage=profile.stage,
+            to_stage=profile.stage,  # no stage change, just an annotation
+            note='Intake marked complete by admin override (no droplet).',
+            set_by=set_by,
+        )
+
     return intake
 
 

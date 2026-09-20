@@ -399,7 +399,7 @@ def execute(intent, args, profile, *, set_by='AI assistant'):
             }
 
         if intent == 'mark_intake_complete':
-            intake = mark_intake_complete(profile)
+            intake = mark_intake_complete(profile, set_by=set_by)
             return {
                 'ok': True,
                 'message': f'Intake marked complete for {profile.name}.',

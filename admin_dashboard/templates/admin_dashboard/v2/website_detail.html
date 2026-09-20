@@ -132,16 +132,25 @@
                                     <span class="muted">No token yet</span>
                                 {% endif %}
                             {% elif step.key == 'intake' %}
-                                {% if step.token %}
-                                    <form method="post" action="{% url 'admin_dashboard:v2_website_send_intake_reminder' website.id %}">
+                                <div style="display:flex; gap:.5rem; align-items:center;">
+                                    {% if step.token %}
+                                        <form method="post" action="{% url 'admin_dashboard:v2_website_send_intake_reminder' website.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn-primary btn-sm" {% if intake_cooldown %}disabled{% endif %}>
+                                                Send intake reminder
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="muted">No token yet</span>
+                                    {% endif %}
+                                    <form method="post" action="{% url 'admin_dashboard:v2_website_intake_mark_complete' website.id %}">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn-primary btn-sm" {% if intake_cooldown %}disabled{% endif %}>
-                                            Send intake reminder
+                                        <button type="submit" class="btn-secondary btn-sm"
+                                                data-confirm="Mark intake as complete? This will NOT provision a droplet or email the client — flags only.">
+                                            Mark complete (no droplet)
                                         </button>
                                     </form>
-                                {% else %}
-                                    <span class="muted">No token yet</span>
-                                {% endif %}
+                                </div>
                             {% endif %}
                         {% endif %}
                     </div>
