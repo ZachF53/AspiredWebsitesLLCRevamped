@@ -1,0 +1,69 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Scans — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Security</span>
+            <h1 class="admin-page-title">Vulnerability Scans</h1>
+            <p class="admin-page-sub">
+                Scheduled daily at 03:00 (30-day cadence per site). To run a
+                scan on demand, open the site's Security tab.
+            </p>
+        </div>
+    </div>
+
+    <div class="droplet-stats">
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ total_scans }}</span>
+            <span class="droplet-stat__label">Total Scans</span>
+        </div>
+        <div class="droplet-stat {% if pending_count %}droplet-stat--orange{% endif %}">
+            <span class="droplet-stat__num">{{ pending_count }}</span>
+            <span class="droplet-stat__label">Pending</span>
+        </div>
+        <div class="droplet-stat {% if running_count %}droplet-stat--green{% endif %}">
+            <span class="droplet-stat__num">{{ running_count }}</span>
+            <span class="droplet-stat__label">Running</span>
+        </div>
+    </div>
+
+    <form method="get" class="scans-filter-bar">
+        <label class="scans-filter-bar__field">
+            <span>Website</span>
+            <select name="website" class="form-control">
+                <option value="">All websites</option>
+                {% for w in websites %}
+                    <option value="{{ w.id }}" {% if selected_website == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="scans-filter-bar__field">
+            <span>Status</span>
+            <select name="status" class="form-control">
+                <option value="">All</option>
+                {% for slug, label in status_choices %}
+                    <option value="{{ slug }}" {% if selected_status == slug %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-secondary btn-sm">Filter</button>
+        {% if selected_website or selected_status %}
+            <a class="scans-filter-bar__clear" href="{% url 'admin_dashboard:v2_scans_list' %}">Clear</a>
+        {% endif %}
+    </form>
+
+    {% if rows %}
+        <div class="droplet-table-wrap" id="scans-table">
+            {% include "admin_dashboard/v2/_scan_rows.html" with rows=rows page=page filter_qs=filter_qs %}
+        </div>
+    {% else %}
+        <div class="admin-empty">
+            <p>No scans found{% if selected_website or selected_status %} for the current filters{% endif %}.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

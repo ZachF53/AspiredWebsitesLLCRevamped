@@ -1,0 +1,169 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Scan — {{ scan.website_new.name|default:"Unassigned" }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <p class="vault-breadcrumb">
+        <a href="{% url 'admin_dashboard:v2_scans_list' %}">Scans</a> &rsaquo;
+        {% if scan.website_new %}
+            <a href="{% url 'admin_dashboard:v2_website_detail' scan.website_new.id %}?tab=security">{{ scan.website_new.name }}</a>
+        {% else %}
+            <span class="muted">Unassigned</span>
+        {% endif %} &rsaquo;
+        {{ scan.created_at|date:"Y-m-d H:i" }}
+    </p>
+
+    <section class="scan-header-card">
+        <div class="scan-header-card__left">
+            <h1 class="scan-header-card__client">
+                {% if scan.website_new %}
+                    <a href="{% url 'admin_dashboard:v2_website_detail' scan.website_new.id %}?tab=security">{{ scan.website_new.name }}</a>
+                {% else %}
+                    Unassigned
+                {% endif %}
+            </h1>
+            <p class="scan-header-card__badges">
+                <span class="scan-type scan-type--{{ scan.scan_type }}">{{ scan.get_scan_type_display }}</span>
+                {% if scan.is_scheduled %}
+                    <span class="scan-badge scan-badge--scheduled">scheduled</span>
+                {% else %}
+                    <span class="scan-badge scan-badge--manual">manual</span>
+                {% endif %}
+                <span class="scan-status scan-status--{{ scan.status }}">
+                    {% if scan.status == 'pending' %}⏱{% elif scan.status == 'running' %}⟳{% elif scan.status == 'complete' %}✓{% elif scan.status == 'failed' %}✗{% endif %}
+                    {{ scan.get_status_display }}
+                </span>
+            </p>
+            <dl class="scan-header-card__meta">
+                <dt>Started</dt>
+                <dd>{% if scan.started_at %}{{ scan.started_at|date:"Y-m-d H:i:s" }}{% else %}—{% endif %}</dd>
+                <dt>Duration</dt>
+                <dd>{% if duration_seconds %}{{ duration_seconds }}s{% else %}—{% endif %}</dd>
+                {% if scan.target_url %}<dt>Target URL</dt><dd><a href="{{ scan.target_url }}" target="_blank" rel="noopener">{{ scan.target_url }}</a></dd>{% endif %}
+                {% if scan.target_ip %}<dt>Target IP</dt><dd><code>{{ scan.target_ip }}</code></dd>{% endif %}
+                <dt>Open</dt>
+                <dd>{{ open_count }} of {{ findings_total }}</dd>
+            </dl>
+            <div class="scan-header-card__actions">
+                {% if scan.status == 'complete' %}
+                    {% if scan.pdf_path %}
+                        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:v2_scan_download_pdf' scan.id %}">Download Report</a>
+                        <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_scan_generate_pdf' scan.id %}">Regenerate</a>
+                    {% else %}
+                        <a class="btn-primary btn-sm" href="{% url 'admin_dashboard:v2_scan_generate_pdf' scan.id %}">Generate PDF Report</a>
+                    {% endif %}
+
+                    {% if scan.website_new.account.user.email %}
+                        <form method="post" action="{% url 'admin_dashboard:v2_scan_send_report' scan.id %}" class="droplet-inline-form">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-secondary btn-sm">
+                                {% if scan.sent_to_client %}Resend Report{% else %}Send to Client{% endif %}
+                            </button>
+                        </form>
+                        {% if scan.sent_to_client %}
+                            <span class="scan-sent-stamp">Last sent: {{ scan.sent_at|date:"Y-m-d H:i" }}</span>
+                        {% endif %}
+                    {% else %}
+                        <button type="button" class="btn-secondary btn-sm" disabled
+                                title="Add an email address for this account first">Send to Client</button>
+                    {% endif %}
+                {% endif %}
+
+                {% if scan.website_new %}
+                    <form method="post" action="{% url 'admin_dashboard:v2_website_run_scan' scan.website_new.id %}" class="droplet-inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="scan_type" value="{{ scan.scan_type }}">
+                        <button type="submit" class="btn-secondary btn-sm">Re-scan</button>
+                    </form>
+                {% endif %}
+
+                {% if scan.status == 'pending' or scan.status == 'running' %}
+                    <form method="post" action="{% url 'admin_dashboard:v2_scan_cancel' scan.id %}" class="droplet-inline-form"
+                          onsubmit="return confirm('Stop this scan now? The worker process is killed and the scan is marked Cancelled. Cannot be resumed — use Re-scan to start fresh.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm admin-btn-danger">Stop scan</button>
+                    </form>
+                {% endif %}
+
+                <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_scans_list' %}">All scans</a>
+            </div>
+        </div>
+
+        <div class="scan-header-card__right">
+            <div class="scan-severity-grid">
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--critical">
+                    <span class="scan-severity-grid__num">{{ scan.critical_count }}</span>
+                    <span class="scan-severity-grid__label">Critical</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--high">
+                    <span class="scan-severity-grid__num">{{ scan.high_count }}</span>
+                    <span class="scan-severity-grid__label">High</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--medium">
+                    <span class="scan-severity-grid__num">{{ scan.medium_count }}</span>
+                    <span class="scan-severity-grid__label">Medium</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--low">
+                    <span class="scan-severity-grid__num">{{ scan.low_count }}</span>
+                    <span class="scan-severity-grid__label">Low</span>
+                </div>
+                <div class="scan-severity-grid__cell scan-severity-grid__cell--info">
+                    <span class="scan-severity-grid__num">{{ scan.info_count }}</span>
+                    <span class="scan-severity-grid__label">Info</span>
+                </div>
+            </div>
+
+            {% if ssl_grade %}
+                <div class="scan-ssl-grade scan-ssl-grade--{{ ssl_grade_class|default:'unknown' }}">
+                    <span class="scan-ssl-grade__letter">{{ ssl_grade }}</span>
+                    <span class="scan-ssl-grade__label">SSL Labs grade</span>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if scan.error_message %}
+        <div class="scan-banner scan-banner--error">
+            <strong>Scan failed.</strong> {{ scan.error_message }}
+        </div>
+    {% endif %}
+
+    <section class="scan-tools-card">
+        <h2 class="scan-tools-card__title">Tools</h2>
+        <ul class="scan-tools-card__list">
+            {% for t in tool_blocks %}
+                <li class="scan-tool scan-tool--{{ t.status }}">
+                    <span class="scan-tool__glyph">
+                        {% if t.status == 'ok' %}✓{% elif t.status == 'skipped' %}↷{% elif t.status == 'error' %}✗{% else %}·{% endif %}
+                    </span>
+                    <span class="scan-tool__label">{{ t.label }}</span>
+                    <span class="scan-tool__summary">{{ t.summary }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    {% for g in severity_groups %}
+        <details class="scan-findings-group scan-findings-group--{{ g.severity }}"
+                 {% if g.open_by_default %}open{% endif %}>
+            <summary>
+                <span class="scan-findings-group__sev">{{ g.glyph }}</span>
+                <span class="scan-findings-group__label">{{ g.label }}</span>
+                <span class="scan-findings-group__count">({{ g.items|length }})</span>
+            </summary>
+            {% if g.items %}
+                <div class="scan-findings-group__body">
+                    {% for f in g.items %}
+                        {% include "admin_dashboard/v2/_finding_card.html" with f=f expanded=False %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="scan-findings-group__empty">No {{ g.label|lower }} findings.</p>
+            {% endif %}
+        </details>
+    {% endfor %}
+</div>
+{% endblock %}

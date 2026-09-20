@@ -731,8 +731,13 @@ def maintenance_onboarding_mark_complete(request, website_id):
 @admin_required
 def website_run_scan(request, website_id):
     """Mirrors admin_dashboard.views_scans.run_scan's exact creation
-    pattern (create a VulnerabilityScan row, enqueue the Celery task) —
-    no new scanning logic."""
+    pattern (create a VulnerabilityScan row, enqueue the Celery task,
+    capture target_ip + celery_task_id) — no new scanning logic.
+
+    Previously this only set target_url and never captured
+    celery_task_id, so a scan created here could never be cancelled
+    from scan_cancel (it revokes by celery_task_id) and a droplet-only
+    site with no live URL yet had nothing for nmap/port scans to hit."""
     if request.method != 'POST':
         return redirect('admin_dashboard:v2_website_detail',
                          website_id=website_id)
@@ -746,11 +751,14 @@ def website_run_scan(request, website_id):
     scan = VulnerabilityScan.objects.create(
         website_new=website,
         target_url=website.live_url or website.staging_url or '',
+        target_ip=website.do_droplet_ip or '',
         scan_type=scan_type,
         status='pending',
     )
     try:
-        run_vulnerability_scan_task.delay(str(scan.id))
+        async_result = run_vulnerability_scan_task.delay(str(scan.id))
+        scan.celery_task_id = async_result.id or ''
+        scan.save(update_fields=['celery_task_id', 'updated_at'])
         messages.success(request, 'Scan queued.')
     except Exception:
         import logging

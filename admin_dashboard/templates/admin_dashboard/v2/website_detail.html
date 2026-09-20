@@ -328,7 +328,7 @@
                                 <td>{{ scan.get_scan_type_display }}</td>
                                 <td>{{ scan.get_status_display }}</td>
                                 <td>{{ scan.critical_count }} critical, {{ scan.high_count }} high</td>
-                                <td><a href="{% url 'admin_dashboard:scan_detail' scan.id %}">View &rarr;</a></td>
+                                <td><a href="{% url 'admin_dashboard:v2_scan_detail' scan.id %}">View &rarr;</a></td>
                             </tr>
                         {% endfor %}
                     </table>

@@ -308,6 +308,7 @@ def generate_scan_pdf(scan_id) -> str | None:
     context = {
         'scan': scan,
         'client': scan.client,
+        'owner_name': owner_label(scan),
         'grouped_findings': by_sev,
         'severity_sections': severity_sections,
         'open_count': sum(1 for f in findings if f.status == 'open'),
@@ -323,7 +324,12 @@ def generate_scan_pdf(scan_id) -> str | None:
 
     # Filesystem layout under MEDIA_ROOT — relative path is what we store
     # on the model so a future media-root move doesn't break old rows.
-    rel_dir = os.path.join('scans', str(scan.client.id))
+    # website_new is the current owner FK; client is legacy-only and
+    # None for every scan created off the Account/Website model (which
+    # includes every v2-created scan) — this used to hard-crash on
+    # scan.client.id for those.
+    owner_id = scan.website_new_id or scan.client_id
+    rel_dir = os.path.join('scans', str(owner_id))
     abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
     os.makedirs(abs_dir, exist_ok=True)
 

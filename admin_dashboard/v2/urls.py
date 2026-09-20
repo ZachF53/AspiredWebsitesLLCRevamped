@@ -10,7 +10,7 @@ is a session flag rather than a URL prefix.
 from django.urls import path
 
 from . import views_accounts, views_billing, views_dashboard, views_domains
-from . import views_pricing, views_websites
+from . import views_pricing, views_scans, views_websites
 
 # Deliberately NO app_name here. This module is include()'d from
 # admin_dashboard/urls.py, which already carries app_name='admin_dashboard'
@@ -67,6 +67,22 @@ urlpatterns = [
     path('websites/<uuid:website_id>/add-plan/',
          views_websites.website_add_plan,
          name='v2_website_add_plan'),
+
+    path('scans/', views_scans.scans_list, name='v2_scans_list'),
+    path('scans/table/', views_scans.scans_table, name='v2_scans_table'),
+    path('scans/<uuid:scan_id>/', views_scans.scan_detail,
+         name='v2_scan_detail'),
+    path('scans/<uuid:scan_id>/cancel/', views_scans.scan_cancel,
+         name='v2_scan_cancel'),
+    path('scans/<uuid:scan_id>/generate-pdf/',
+         views_scans.scan_generate_pdf, name='v2_scan_generate_pdf'),
+    path('scans/<uuid:scan_id>/download-pdf/',
+         views_scans.scan_download_pdf, name='v2_scan_download_pdf'),
+    path('scans/<uuid:scan_id>/send-to-client/',
+         views_scans.scan_send_report, name='v2_scan_send_report'),
+    path('scans/findings/<uuid:finding_id>/status/',
+         views_scans.finding_status_update,
+         name='v2_finding_status_update'),
 
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
 
