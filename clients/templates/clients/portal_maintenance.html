@@ -60,10 +60,12 @@
     </section>
 {% endif %}
 
-{# ── Tier comparison ──
-   Skipped for a custom/negotiated plan (name contains "Custom") — those
-   clients shouldn't see self-serve Switch/Upgrade buttons that would
-   move them off a one-off arrangement without anyone weighing in. #}
+{% comment %}
+    ── Tier comparison ──
+    Skipped for a custom/negotiated plan (name contains "Custom") — those
+    clients shouldn't see self-serve Switch/Upgrade buttons that would
+    move them off a one-off arrangement without anyone weighing in.
+{% endcomment %}
 {% if upsell_state.is_custom %}
     <section class="maint-current" style="margin-top: var(--space-3);">
         <div class="maint-current__inner">

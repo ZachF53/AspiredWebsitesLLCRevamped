@@ -50,6 +50,11 @@ class CustomPlanHidesSwitchButtonsTests(TestCase):
         self.assertContains(resp, "You're on a custom plan")
         self.assertNotContains(resp, 'Switch to')
         self.assertNotContains(resp, 'maint-tier__foot')
+        # CLAUDE.md hard rule regression: a multi-line {# #} leaks its
+        # literal text into the page instead of being stripped — this
+        # exact comment shipped that way once already.
+        self.assertNotContains(resp, 'Tier comparison')
+        self.assertNotContains(resp, 'anyone weighing in')
 
     def test_normal_plan_still_shows_tier_grid(self):
         ServiceTier.objects.create(
