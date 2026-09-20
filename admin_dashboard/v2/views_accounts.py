@@ -38,6 +38,7 @@ def _live_subscription_websites(account):
         w for w in account.websites.all()
         if w.stripe_hosting_subscription_id
         or w.stripe_maintenance_subscription_id
+        or w.stripe_build_installment_subscription_id
     ]
 
 
@@ -50,6 +51,10 @@ def _live_subscription_block_message(blocking_websites, action='delete'):
         if w.stripe_maintenance_subscription_id:
             subs.append(
                 f'maintenance subscription {w.stripe_maintenance_subscription_id}')
+        if w.stripe_build_installment_subscription_id:
+            subs.append(
+                'build installment subscription '
+                f'{w.stripe_build_installment_subscription_id}')
         parts.append(f'{w.name} ({" and ".join(subs)})')
     return (
         f'Cannot {action} this account — cancel the following in Stripe '

@@ -31,9 +31,13 @@ def _has_live_subscription(website):
     stripe_hosting_subscription_id is non-null (Burgland Tech, Denis Law
     Group — the two real paying clients). Every view in this module that
     writes a field on the Website row itself checks this first.
+    stripe_build_installment_subscription_id is the same kind of live
+    money-moving Stripe subscription (just for a build-category tier
+    instead of hosting/maintenance) — same guard applies.
     """
     return bool(website.stripe_hosting_subscription_id
-                or website.stripe_maintenance_subscription_id)
+                or website.stripe_maintenance_subscription_id
+                or website.stripe_build_installment_subscription_id)
 
 
 def _block_if_live_subscription(request, website):

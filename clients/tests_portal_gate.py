@@ -120,3 +120,35 @@ class PortalPagesRenderTests(TestCase):
             with self.subTest(page=name):
                 resp = self.client.get(reverse(name), follow=True)
                 self.assertEqual(resp.status_code, 200)
+
+
+class IntakeNavVisibilityTests(TestCase):
+    """The "Website Intake" sidebar link is only useful before intake is
+    done — once it's complete there's nothing left to do there, so it
+    should disappear rather than linger with no badge."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='navintake', email='navintake@example.com',
+            password='pw-123456')
+        self.account = Account.objects.create(
+            user=self.user, name='Nav Intake Co', onboarding_status='complete')
+        self.site = Website.objects.create(
+            account=self.account, name='Nav Intake Site',
+            onboarding_status='intake_complete')
+        self.client.force_login(self.user)
+
+    def test_link_shown_while_intake_incomplete(self):
+        resp = self.client.get(reverse('clients:dashboard'))
+        self.assertContains(resp, 'Website Intake')
+
+    def test_link_hidden_once_intake_is_complete(self):
+        from clients.models import IntakeResponse
+        from django.utils import timezone
+
+        IntakeResponse.objects.create(
+            website_new=self.site, completed=True,
+            completed_at=timezone.now())
+
+        resp = self.client.get(reverse('clients:dashboard'))
+        self.assertNotContains(resp, 'Website Intake')

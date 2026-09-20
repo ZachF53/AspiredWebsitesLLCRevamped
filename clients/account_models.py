@@ -491,6 +491,14 @@ class Website(TimestampedModel):
         max_length=255, blank=True)
     stripe_maintenance_subscription_id = models.CharField(
         max_length=255, blank=True)
+    # Website-build category tiers (e.g. hvac-build-installment — 24
+    # monthly payments instead of the usual 50% deposit + 50% final) run
+    # through Stripe the same way hosting/maintenance do: a Subscription,
+    # not a one-time invoice. Kept as its own id, not folded into
+    # stripe_hosting_subscription_id, so an installment build and hosting
+    # can be told apart in Stripe dashboards and webhook routing.
+    stripe_build_installment_subscription_id = models.CharField(
+        max_length=255, blank=True)
     stripe_invoice_id = models.CharField(
         max_length=255, blank=True,
         help_text='One-time onboarding invoice ID for this build.',

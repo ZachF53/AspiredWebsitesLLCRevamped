@@ -58,11 +58,18 @@ TIERS = [
         ],
     },
     # ─── Maintenance plans ───
+    # Retired (Sept 2026) — superseded by the HVAC-era hvac-full-plan /
+    # hvac-plan-paid-in-full below. is_active=False so Add Plan and any
+    # other operator-selection surface stop offering them; left in the
+    # DB (not deleted) since any already-signed client still referencing
+    # one of these slugs on their MaintenancePlan.tier_slug must keep
+    # displaying correctly (tier_slug is a static choices field, not FK'd
+    # to ServiceTier, so this doesn't touch existing display at all).
     {
         'slug': 'maintenance-essentials', 'category': 'maintenance',
         'name': 'Essentials', 'price': Decimal('299.00'),
         'is_recurring': True, 'billing_interval': 'month',
-        'sort_order': 1, 'is_featured': False,
+        'sort_order': 1, 'is_featured': False, 'is_active': False,
         'env': 'STRIPE_PRICE_ESSENTIALS',
         'features': [
             'Uptime monitoring 24/7',
@@ -78,7 +85,7 @@ TIERS = [
         'slug': 'maintenance-growth', 'category': 'maintenance',
         'name': 'Growth', 'price': Decimal('599.00'),
         'is_recurring': True, 'billing_interval': 'month',
-        'sort_order': 2, 'is_featured': True,
+        'sort_order': 2, 'is_featured': True, 'is_active': False,
         'env': 'STRIPE_PRICE_GROWTH',
         'features': [
             'Everything in Essentials',
@@ -96,7 +103,7 @@ TIERS = [
         'slug': 'maintenance-dominant', 'category': 'maintenance',
         'name': 'Dominant', 'price': Decimal('1199.00'),
         'is_recurring': True, 'billing_interval': 'month',
-        'sort_order': 3, 'is_featured': False,
+        'sort_order': 3, 'is_featured': False, 'is_active': False,
         'env': 'STRIPE_PRICE_DOMINANT',
         'features': [
             'Everything in Growth',
@@ -372,7 +379,7 @@ class Command(BaseCommand):
                     'billing_interval': data['billing_interval'],
                     'stripe_price_id': preserve_id,
                     'stripe_product_id': preserve_product,
-                    'is_active': True,
+                    'is_active': data.get('is_active', True),
                     'is_featured': data['is_featured'],
                     'sort_order': data['sort_order'],
                     'pages_included': data.get('pages_included'),

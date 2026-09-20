@@ -303,8 +303,13 @@
             <div class="admin-card__body">
                 <p><strong>Hosting subscription:</strong> {% if website.stripe_hosting_subscription_id %}Active{% else %}None{% endif %}</p>
                 <p><strong>Maintenance subscription:</strong> {% if website.stripe_maintenance_subscription_id %}Active{% else %}None{% endif %}</p>
-                <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Cancel subscription</button>
-                <p class="muted" style="margin-top:.5rem;">Cancelling and changing an existing plan are a different risk profile from adding one — not built in v2 yet. Use v1 for those.</p>
+                <p><strong>Website build installment:</strong> {% if website.stripe_build_installment_subscription_id %}Active{% else %}None{% endif %}</p>
+                {% if website.stripe_hosting_subscription_id or website.stripe_maintenance_subscription_id or website.stripe_build_installment_subscription_id %}
+                    <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Cancel subscription</button>
+                    <p class="muted" style="margin-top:.5rem;">Cancelling and changing an existing plan are a different risk profile from adding one — not built in v2 yet. Use v1 for those.</p>
+                {% else %}
+                    <p class="muted" style="margin:0;">No subscription to cancel.</p>
+                {% endif %}
             </div>
         </div>
 

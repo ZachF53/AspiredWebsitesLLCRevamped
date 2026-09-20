@@ -108,6 +108,28 @@ class MaintenancePlan(TimestampedModel):
                  else self.external_site_url or 'no site')
         return f'{self.account.name} — {self.get_tier_slug_display()} ({which})'
 
+    def get_tier_slug_display(self):
+        """Human label for tier_slug.
+
+        Overrides Django's auto-generated version, which only knows the
+        three tiers hardcoded in TIER_CHOICES above (a list that predates
+        the HVAC-era tiers and operator-created custom ones like
+        maintenance-denis-custom). For anything outside that static list,
+        the auto version falls back to the raw slug — which is exactly
+        what leaked onto the plan-activated page as literal
+        "maintenance-denis-custom" instead of "Denis Custom".
+
+        ServiceTier.name is the real source of truth (CLAUDE.md: never
+        hardcode prices/tiers, always query ServiceTier); TIER_CHOICES is
+        only a fallback for the handful of legacy tiers.
+        """
+        from billing.pricing_models import ServiceTier
+        tier = ServiceTier.objects.filter(
+            slug=self.tier_slug, category='maintenance').first()
+        if tier:
+            return tier.name
+        return dict(self.TIER_CHOICES).get(self.tier_slug, self.tier_slug)
+
     @property
     def pending_tier_display(self):
         """Human label for a queued downgrade, or '' if none."""
@@ -197,6 +219,16 @@ class SocialMediaPlan(TimestampedModel):
 
     def __str__(self):
         return f'{self.account.name} — {self.get_tier_slug_display()}'
+
+    def get_tier_slug_display(self):
+        """Human label for tier_slug — see MaintenancePlan's identical
+        override for why the auto-generated version isn't enough."""
+        from billing.pricing_models import ServiceTier
+        tier = ServiceTier.objects.filter(
+            slug=self.tier_slug, category='social_media').first()
+        if tier:
+            return tier.name
+        return dict(self.TIER_CHOICES).get(self.tier_slug, self.tier_slug)
 
     @property
     def pending_tier_display(self):
