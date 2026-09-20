@@ -688,17 +688,20 @@ def website_add_plan(request, website_id):
         if plan.discount_percent else 'no discount')
 
     if plan.status == 'awaiting_payment':
-        local_txt = (
-            'Website.stripe_maintenance_subscription_id was NOT set'
-            if service_type == 'maintenance' else
-            'no Website field mirrors social plans')
+        from clients.emails import send_plan_pay_email
+        try:
+            send_plan_pay_email(plan)
+            email_txt = 'We emailed them a secure link to our own payment page.'
+        except Exception:
+            logger.exception(
+                'v2 add-plan: pay-page email failed for plan %s', plan.pk)
+            email_txt = 'The pay-page email failed to send — check logs.'
         messages.success(
             request,
-            f'Plan created — subscription {plan.stripe_subscription_id} '
-            f'(awaiting payment), {amount_txt}, {discount_txt}. No card '
-            f'on file, so Stripe emailed a hosted invoice instead of '
-            f'charging directly. {local_txt} — it activates once the '
-            'client pays (invoice.paid webhook).')
+            f'Plan created — {amount_txt}, {discount_txt}. No card on '
+            f'file, so no Stripe subscription exists yet. {email_txt} '
+            'Website.stripe_maintenance_subscription_id will only be set '
+            'once they add a card and it activates.')
     else:
         local_txt = (
             f'Website.stripe_maintenance_subscription_id was set to '

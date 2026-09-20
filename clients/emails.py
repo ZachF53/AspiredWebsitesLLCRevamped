@@ -519,6 +519,54 @@ def send_invoice_receipt_email(invoice):
     )
 
 
+def send_plan_pay_email(plan):
+    """
+    Branded email for a maintenance/social plan added with no card on
+    file — points at our own /plan-pay/<plan_id>/ page (Stripe Elements,
+    our branding) instead of Stripe's hosted invoice email. Replaces
+    Stripe's own `Invoice.send_invoice`, which (a) is off-domain and
+    (b) silently doesn't deliver in test mode unless the recipient is a
+    verified sender or Stripe team member.
+
+    SECURITY-SENSITIVE — contains the pay-page URL, keyed on the plan's
+    own UUID pk. `secure=True` so SendGrid doesn't rewrite it.
+    """
+    from clients.service_models import MaintenancePlan
+
+    owner = plan.account
+    name = _first_name(owner)
+    kind = 'Maintenance' if isinstance(plan, MaintenancePlan) else 'Social Media'
+    tier_name = plan.get_tier_slug_display()
+    pay_url = plan.get_pay_url()
+
+    text_lines = [
+        f'Hi {name},',
+        '',
+        f'Your {kind} plan ({tier_name}) is ready to start. Add a card '
+        'securely on our site to activate it:',
+        pay_url,
+        '',
+        '— Zachery Long',
+        'Aspired Websites LLC',
+    ]
+    text_body = '\n'.join(text_lines)
+
+    send_branded(
+        subject=f'Activate your {tier_name} plan',
+        template='plan_pay',
+        context={
+            'name': name,
+            'kind': kind,
+            'tier_name': tier_name,
+            'pay_url': pay_url,
+            'preheader': f'Add a card to activate your {tier_name} plan.',
+        },
+        recipient_list=_recipient(owner),
+        text_body=text_body,
+        secure=True,
+    )
+
+
 def send_onboarding_setup_email(client, token):
     """
     First touchpoint after invoice payment — emails the setup-link so the

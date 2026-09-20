@@ -108,7 +108,7 @@ class V2AddPlanTests(TestCase):
         with self._card_patches(False):
             r = self.client.get(self.billing_url)
         self.assertContains(r, 'No card on file')
-        self.assertContains(r, 'Stripe-hosted invoice')
+        self.assertContains(r, 'our own payment page')
 
     # ── Submit → thin-caller contract ──
 
@@ -252,11 +252,15 @@ class V2AddPlanTests(TestCase):
     # ── Result display ──
 
     def test_add_plan_awaiting_payment_message_says_local_id_not_set(self):
+        """No card → no Stripe subscription exists yet at all (see
+        billing/plan_billing.py's module docstring) — the local id
+        can't be set on something that doesn't exist yet."""
         with patch('billing.plan_billing.start_website_plan') as mock_start, \
+             patch('clients.emails.send_plan_pay_email') as mock_email, \
              self._card_patches(False):
             mp = MagicMock()
             mp.status = 'awaiting_payment'
-            mp.stripe_subscription_id = 'sub_await_ap'
+            mp.stripe_subscription_id = ''
             mp.discount_percent = None
             mp.discount_duration = ''
             mock_start.return_value = mp
@@ -265,9 +269,10 @@ class V2AddPlanTests(TestCase):
                 'tier_slug': self.maint_tier.slug,
                 'confirmed': 'yes',
             }, follow=True)
-        self.assertContains(r, 'sub_await_ap')
-        self.assertContains(r, 'awaiting payment')
-        self.assertContains(r, 'was NOT set')
+        mock_email.assert_called_once_with(mp)
+        self.assertContains(r, 'no Stripe subscription exists yet')
+        self.assertContains(r, 'We emailed them a secure link')
+        self.assertContains(r, 'will only be set')
 
     def test_add_plan_missing_tier_shows_error(self):
         with patch('billing.plan_billing.start_website_plan') as mock_start, \

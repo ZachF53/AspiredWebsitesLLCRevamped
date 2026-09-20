@@ -116,6 +116,16 @@ class MaintenancePlan(TimestampedModel):
         return dict(self.TIER_CHOICES).get(
             self.pending_tier_slug, self.pending_tier_slug)
 
+    def get_pay_url(self):
+        """Absolute URL of the on-site pay page for an awaiting_payment
+        plan — same pattern as OnboardingInvoice.get_pay_url(). Keyed on
+        this row's own UUID pk; no separate token field needed."""
+        from django.conf import settings
+        base = getattr(
+            settings, 'SITE_BASE_URL',
+            'https://aspiredwebsites.com').rstrip('/')
+        return f'{base}/plan-pay/{self.id}/'
+
 
 # ── D2 — Social media ────────────────────────────────────────────────
 
@@ -195,6 +205,15 @@ class SocialMediaPlan(TimestampedModel):
             return ''
         return dict(self.TIER_CHOICES).get(
             self.pending_tier_slug, self.pending_tier_slug)
+
+    def get_pay_url(self):
+        """Absolute URL of the on-site pay page for an awaiting_payment
+        plan — see MaintenancePlan.get_pay_url()."""
+        from django.conf import settings
+        base = getattr(
+            settings, 'SITE_BASE_URL',
+            'https://aspiredwebsites.com').rstrip('/')
+        return f'{base}/plan-pay/{self.id}/'
 
 
 class SocialChannel(TimestampedModel):

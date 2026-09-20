@@ -7,11 +7,22 @@ The flow:
         → Stripe processes the card
         → /pay/<token>/success/         — thank-you page + receipt info
     Stripe webhook → payment_intent.succeeded → onboarding kicks off
+
+Also: /plan-pay/<plan_id>/ — same idea, for a maintenance/social plan
+billing.plan_billing.start_website_plan created with no card on file.
+Keyed on the plan's own UUID pk rather than a separate token field.
 """
 
+import json
+import logging
+
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+
+logger = logging.getLogger(__name__)
 
 
 def _get_invoice_or_404(token):
@@ -157,3 +168,101 @@ def pay_success(request, token):
             'portal_url': portal_url,
         },
     )
+
+
+# ── Plan pay page — maintenance/social plan added with no card on file ──
+
+def _get_plan_or_404(plan_id):
+    """A plan's UUID pk is unique across both tables in practice, but the
+    URL alone doesn't say which model — check both."""
+    from clients.service_models import MaintenancePlan, SocialMediaPlan
+
+    plan = (MaintenancePlan.objects.filter(id=plan_id)
+            .select_related('account', 'account__user', 'website').first())
+    if plan is not None:
+        return plan
+    plan = (SocialMediaPlan.objects.filter(id=plan_id)
+            .select_related('account', 'account__user', 'website').first())
+    if plan is not None:
+        return plan
+    from django.http import Http404
+    raise Http404('No plan matches this id')
+
+
+def pay_plan(request, plan_id):
+    """Public payment page for a plan awaiting its first card. Renders
+    the tier/price/discount + a Stripe card Element; the browser posts
+    the resulting payment_method_id to pay_plan_confirm."""
+    from billing.pricing_models import ServiceTier
+    from clients.service_models import MaintenancePlan
+
+    plan = _get_plan_or_404(plan_id)
+
+    if plan.status == 'active':
+        return redirect('pay_plan_success', plan_id=plan_id)
+
+    category = 'maintenance' if isinstance(plan, MaintenancePlan) else 'social_media'
+    tier = ServiceTier.objects.filter(slug=plan.tier_slug, category=category).first()
+    price = tier.price if tier else None
+    discounted = price
+    if price is not None and plan.discount_percent:
+        from decimal import ROUND_HALF_UP, Decimal
+        discounted = (price * (Decimal(100 - plan.discount_percent) / Decimal(100))
+                      ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    owner = plan.account
+    stripe_config = {
+        'publishable_key': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', ''),
+        'confirm_url': request.build_absolute_uri(
+            f'/plan-pay/{plan_id}/confirm/'),
+        'success_url': request.build_absolute_uri(
+            f'/plan-pay/{plan_id}/success/'),
+    }
+    return render(request, 'billing/pay_plan.html', {
+        'plan': plan,
+        'tier': tier,
+        'tier_name': plan.get_tier_slug_display(),
+        'price': price,
+        'discounted': discounted,
+        'client_name': getattr(owner, 'name', '') or '',
+        'stripe_config': stripe_config,
+    })
+
+
+@csrf_exempt
+@require_POST
+def pay_plan_confirm(request, plan_id):
+    """AJAX confirm endpoint — attaches the given payment_method_id and
+    creates the real Stripe subscription via
+    billing.plan_billing.complete_awaiting_plan_payment. JSON in/out,
+    mirrors billing.checkout_views.checkout_confirm's response shape
+    (requires_action / client_secret for SCA, or ok)."""
+    from billing.plan_billing import complete_awaiting_plan_payment
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    payment_method_id = (payload.get('payment_method_id') or '').strip()
+    if not payment_method_id:
+        return JsonResponse({'error': 'payment_method_id required'}, status=400)
+
+    plan = _get_plan_or_404(plan_id)
+    if plan.status == 'active':
+        return JsonResponse({'ok': True})
+
+    result = complete_awaiting_plan_payment(plan, payment_method_id)
+    status = 400 if 'error' in result else 200
+    return JsonResponse(result, status=status)
+
+
+def pay_plan_success(request, plan_id):
+    """Post-payment landing for a plan pay page."""
+    plan = _get_plan_or_404(plan_id)
+    owner = plan.account
+    return render(request, 'billing/pay_plan_success.html', {
+        'plan': plan,
+        'tier_name': plan.get_tier_slug_display(),
+        'client_name': getattr(owner, 'name', '') or '',
+    })

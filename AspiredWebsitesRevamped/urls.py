@@ -6,7 +6,9 @@ from django.contrib.sitemaps.views import sitemap as sitemap_view
 from django.http import HttpResponse
 from django.urls import include, path
 
-from billing.views import pay_invoice, pay_success
+from billing.views import (
+    pay_invoice, pay_plan, pay_plan_confirm, pay_plan_success, pay_success,
+)
 from clients.views import (
     intelligence_approve, intelligence_decline, onboarding_setup,
     proposal_view_tracking, referral_click,
@@ -111,6 +113,13 @@ urlpatterns = [
     path('pay/<uuid:token>/', pay_invoice, name='pay_invoice'),
     path('pay/<uuid:token>/success/',
          pay_success, name='pay_success'),
+    # Maintenance/social plan pay page — see billing/plan_billing.py's
+    # module docstring (start_website_plan's no-card branch).
+    path('plan-pay/<uuid:plan_id>/', pay_plan, name='pay_plan'),
+    path('plan-pay/<uuid:plan_id>/confirm/',
+         pay_plan_confirm, name='pay_plan_confirm'),
+    path('plan-pay/<uuid:plan_id>/success/',
+         pay_plan_success, name='pay_plan_success'),
     path('maintenance/', include('sync.maintenance_urls')),
     path('api/sync/', include('sync.urls')),
     path('api/', include('reporting.urls')),

@@ -1,0 +1,36 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Activate your {{ tier_name }} plan{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Your {{ kind }} plan is ready, {{ name }}.</h1>
+
+<p style="margin:0 0 24px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Add a card securely on our site to activate your <strong>{{ tier_name }}</strong> plan.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ pay_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Activate my plan →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 6px;color:#64748B;font-size:13px;line-height:1.55;">
+    Or paste this link into your browser:
+</p>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:13px;line-height:1.55;word-break:break-all;">
+    <a href="{{ pay_url }}" style="color:#E8650A;text-decoration:none;">{{ pay_url }}</a>
+</p>
+
+<div style="margin-top:8px;padding:14px 16px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#5EEAD4;font-size:13px;line-height:1.5;">
+    <strong style="color:#5EEAD4;">Pay securely on our site.</strong> Card processing is handled by Stripe — your card details are never seen by us.
+</div>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions? Just reply to this email.
+</p>
+{% endblock %}

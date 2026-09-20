@@ -1,0 +1,46 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Plan activated — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card pay-card--success">
+
+        <div class="pay-success-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="48" height="48">
+                <circle cx="12" cy="12" r="11" fill="none" stroke="#0D9488" stroke-width="2"></circle>
+                <path d="M7 12.5l3.5 3.5L17 9.5" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+        </div>
+
+        <h1 class="pay-card__title pay-card__title--success">{{ tier_name }} activated</h1>
+        <p class="pay-card__sub">
+            Thank you{% if client_name %}, {{ client_name }}{% endif %}.<br>
+            Your card is on file and your plan is now active.
+        </p>
+
+        <p class="pay-success-cta-help">
+            You can manage this plan any time from your client portal.
+        </p>
+        <a href="/portal/subscriptions/" class="pay-submit pay-submit--success" style="display:inline-block;text-decoration:none;text-align:center;">
+            Go to my portal →
+        </a>
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+</body>
+</html>

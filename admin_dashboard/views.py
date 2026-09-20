@@ -3845,10 +3845,11 @@ def website_add_plan(request, website_id):
             'Could not start the plan — confirm the tier has a Stripe price '
             '(run sync_stripe_products).')
     elif plan.status == 'awaiting_payment':
+        _send_plan_pay_email_if_awaiting(plan)
         _messages.success(
             request,
-            'Plan created — no card on file, so a payment link was emailed. '
-            'It activates once they pay.')
+            'Plan created — no card on file, so we emailed a secure link to '
+            'our own payment page. It activates once they add a card.')
     else:
         _messages.success(request, 'Plan started and charged to the card on file.')
     return redirect('admin_dashboard:website_detail', website_id=website.id)
@@ -3892,6 +3893,21 @@ def _issue_website_final_invoice(website):
             'final invoice email failed for website %s', website.pk)
 
 
+def _send_plan_pay_email_if_awaiting(plan):
+    """start_website_plan queues a plan at awaiting_payment with no
+    Stripe subscription yet when there's no card on file — email the
+    client our own /plan-pay/ link so they can actually pay it.
+    Best-effort; a plan created but never actually reaching the client
+    is worse than a logged failure here."""
+    if plan is not None and plan.status == 'awaiting_payment':
+        from clients.emails import send_plan_pay_email
+        try:
+            send_plan_pay_email(plan)
+        except Exception:
+            logger.exception(
+                'pay-page email failed for plan %s', plan.pk)
+
+
 def _start_website_live_plans(website):
     """On → Live: start the maintenance/social plans the client opted into
     (10% off first month honoured). No opt-in → nothing created."""
@@ -3900,13 +3916,13 @@ def _start_website_live_plans(website):
     website.lifecycle_status = 'live'
     website.save(update_fields=['lifecycle_status', 'updated_at'])
     if website.opted_in_maintenance_tier:
-        start_website_plan(
+        _send_plan_pay_email_if_awaiting(start_website_plan(
             website, 'maintenance', website.opted_in_maintenance_tier,
-            honor_optin_10=True)
+            honor_optin_10=True))
     if website.opted_in_social_tier:
-        start_website_plan(
+        _send_plan_pay_email_if_awaiting(start_website_plan(
             website, 'social', website.opted_in_social_tier,
-            honor_optin_10=True)
+            honor_optin_10=True))
 
 
 @admin_required

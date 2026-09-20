@@ -1,0 +1,78 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Activate your plan — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card">
+
+        <div class="pay-card__head">
+            <span class="pay-card__eyebrow">{{ tier_name }}</span>
+            <h1 class="pay-card__title">${{ discounted|default:price|floatformat:2 }}<span style="font-size:15px;font-weight:400;">/mo</span></h1>
+            <p class="pay-card__sub">Due today{% if client_name %} · for {{ client_name }}{% endif %}</p>
+        </div>
+
+        <table class="pay-lines">
+            <tbody>
+                {% if plan.discount_percent %}
+                    <tr>
+                        <td class="pay-lines__desc">List price</td>
+                        <td class="pay-lines__amt" style="text-decoration:line-through;color:var(--color-text-muted,#94A3B8);">${{ price|floatformat:2 }}/mo</td>
+                    </tr>
+                    <tr>
+                        <td class="pay-lines__desc">Discount</td>
+                        <td class="pay-lines__amt">{{ plan.discount_percent }}% off ({{ plan.get_discount_duration_display }})</td>
+                    </tr>
+                {% endif %}
+                <tr class="pay-lines__total">
+                    <td class="pay-lines__desc">Total today</td>
+                    <td class="pay-lines__amt">${{ discounted|default:price|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="pay-form-wrap">
+
+            <form id="plan-pay-form" novalidate>
+                <div id="plan-pay-element">
+                    {# Stripe.js injects the card form here. #}
+                </div>
+
+                <div id="plan-pay-message" class="pay-message" hidden></div>
+
+                <button id="plan-pay-submit" type="submit" class="pay-submit">
+                    <span id="plan-pay-button-text">Add card &amp; activate</span>
+                    <span id="plan-pay-spinner" class="pay-spinner" hidden></span>
+                </button>
+            </form>
+
+            <p class="pay-secure">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;">
+                    <path fill="currentColor" d="M12 2l8 4v6c0 5-3.5 9.7-8 10-4.5-.3-8-5-8-10V6l8-4z M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" fill="none"/>
+                </svg>
+                Secured by Stripe · your card details never touch our servers
+            </p>
+        </div>
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+    <script src="https://js.stripe.com/v3/" defer></script>
+    {{ stripe_config|json_script:"plan-pay-config" }}
+    <script src="{% static 'js/plan_pay.js' %}?v={{ STATIC_VERSION }}" defer></script>
+</body>
+</html>

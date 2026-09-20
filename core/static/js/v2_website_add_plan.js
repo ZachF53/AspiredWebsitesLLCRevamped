@@ -96,7 +96,7 @@
 
         previewList.textContent = money(price) + '/mo';
         previewDiscount.textContent = pct ? (pct + '% off') : 'None';
-        previewTotal.textContent = money(discounted) + (hasCard ? ' (charged now)' : ' (invoiced)');
+        previewTotal.textContent = money(discounted) + (hasCard ? ' (charged now)' : ' (once they add a card)');
 
         if (pct && durationSelect.value === 'once') {
             previewNote.textContent = 'First month only — reverts to ' + money(price) + '/mo starting month 2.';
@@ -123,7 +123,7 @@
 
         var branchTxt = hasCard
             ? 'charge the card on file (' + cardLabel + ') immediately'
-            : 'send a Stripe-hosted invoice (no card on file) — nothing charges today';
+            : 'email them a secure link to our own payment page — nothing charges today, no Stripe subscription exists until they add a card';
 
         var discountTxt = pct ? (pct + '% off, ' + durationLabel.toLowerCase()) : 'no discount';
 

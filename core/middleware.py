@@ -197,6 +197,7 @@ class SecurityHeadersMiddleware:
             response['Content-Security-Policy'] = CSP_TERMINAL
         elif path.startswith((
             '/pay/',                        # public invoice payment page + success
+            '/plan-pay/',                   # public plan payment page + success
             '/portal/subscriptions/',       # portal: add card via SetupIntent
             '/billing/checkout/',           # custom Stripe Elements checkout
             '/billing/portal/cards/add/',   # portal: add a new card

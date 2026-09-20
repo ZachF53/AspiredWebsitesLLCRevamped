@@ -1257,24 +1257,29 @@ class WebsiteContractAndPlanTests(TestCase):
         self.assertEqual(plan.stripe_subscription_id, 'sub_card')
 
     def test_start_plan_without_card_is_awaiting_payment(self):
+        """No card on file → no Stripe subscription is created at all.
+        The plan just queues at awaiting_payment (with the discount
+        choice saved) for complete_awaiting_plan_payment to pick up once
+        the client pays on our own /plan-pay/ page — see
+        billing/plan_billing.py's module docstring for why this no
+        longer creates a send_invoice subscription up front."""
         from unittest.mock import MagicMock, patch
 
         from billing.plan_billing import start_website_plan
         with patch('billing.plan_billing._has_card_on_file', return_value=False), \
              patch('billing.plan_billing._stripe') as ms:
             s = ms.return_value
-            inv = MagicMock(); inv.id = 'in_1'
-            sub = MagicMock(); sub.id = 'sub_noc'; sub.latest_invoice = inv
-            s.Subscription.create.return_value = sub
             cust = MagicMock(); cust.id = 'cus_1'
             s.Customer.create.return_value = cust
             plan = start_website_plan(
                 self.website, 'social', 'social-standard',
                 discount_percent=15, discount_duration='forever')
         self.assertEqual(plan.status, 'awaiting_payment')
-        self.assertEqual(plan.awaiting_invoice_id, 'in_1')
+        self.assertEqual(plan.stripe_subscription_id, '')
+        self.assertEqual(plan.awaiting_invoice_id, '')
         self.assertEqual(plan.discount_percent, 15)
         self.assertEqual(plan.discount_duration, 'forever')
+        s.Subscription.create.assert_not_called()
 
     def test_change_stage_live_starts_optin_plans(self):
         from unittest.mock import patch
