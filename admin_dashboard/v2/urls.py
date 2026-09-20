@@ -47,6 +47,8 @@ urlpatterns = [
          name='v2_website_detail'),
     path('websites/<uuid:website_id>/stage/', views_websites.website_stage,
          name='v2_website_stage'),
+    path('websites/<uuid:website_id>/rename/', views_websites.website_rename,
+         name='v2_website_rename'),
     path('websites/<uuid:website_id>/send-intake-reminder/',
          views_websites.website_send_intake_reminder,
          name='v2_website_send_intake_reminder'),

@@ -315,6 +315,36 @@ class V2SmokeTests(TestCase):
         self.website_live.refresh_from_db()
         self.assertEqual(self.website_live.payment_status, 'deposit_paid')
 
+    def test_rename_website(self):
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/rename/',
+            {'name': 'Correct Site Name'})
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(self.website_live.name, 'Correct Site Name')
+
+    def test_rename_rejects_blank_name(self):
+        original = self.website_live.name
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/rename/',
+            {'name': '   '})
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(self.website_live.name, original)
+
+    def test_rename_allowed_even_with_live_subscription(self):
+        """Unlike stage/payment/auto-send, renaming touches no money-
+        moving state, so it isn't gated by _block_if_live_subscription."""
+        self.website_live.stripe_hosting_subscription_id = 'sub_live789'
+        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
+
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_live.id}/rename/',
+            {'name': 'Renamed Despite Live Sub'})
+        self.assertEqual(r.status_code, 302)
+        self.website_live.refresh_from_db()
+        self.assertEqual(self.website_live.name, 'Renamed Despite Live Sub')
+
     def test_live_subscription_website_auto_send_toggle_is_blocked(self):
         self.website_live.stripe_hosting_subscription_id = 'sub_live456'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])

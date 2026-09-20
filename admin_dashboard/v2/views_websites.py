@@ -499,6 +499,27 @@ def website_detail(request, website_id):
 
 
 @admin_required
+def website_rename(request, website_id):
+    """Rename a website's admin-facing label. Purely cosmetic — not
+    gated by _block_if_live_subscription, unlike stage/payment changes,
+    since renaming touches no money-moving state."""
+    if request.method != 'POST':
+        return redirect('admin_dashboard:v2_website_detail',
+                         website_id=website_id)
+
+    website = get_object_or_404(Website, id=website_id)
+    new_name = (request.POST.get('name') or '').strip()
+    if not new_name:
+        messages.error(request, 'Name cannot be blank.')
+    else:
+        website.name = new_name
+        website.save(update_fields=['name', 'updated_at'])
+        messages.success(request, 'Website renamed.')
+
+    return redirect('admin_dashboard:v2_website_detail', website_id=website.id)
+
+
+@admin_required
 def website_stage(request, website_id):
     if request.method != 'POST':
         return redirect('admin_dashboard:v2_website_detail',

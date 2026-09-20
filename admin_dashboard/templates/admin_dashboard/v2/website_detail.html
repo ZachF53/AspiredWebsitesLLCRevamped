@@ -40,6 +40,20 @@
 
     {% if active_tab == 'overview' %}
         <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Site name</h2></div>
+            <div class="admin-card__body">
+                <form method="post" action="{% url 'admin_dashboard:v2_website_rename' website.id %}" style="display:flex; gap:0.5rem; align-items:center;">
+                    {% csrf_token %}
+                    <input class="form-control" type="text" name="name" value="{{ website.name }}" style="max-width: 360px;" required>
+                    <button type="submit" class="btn-primary btn-sm">Rename</button>
+                </form>
+                <p class="muted" style="margin-top: 0.5rem;">
+                    This is just the internal admin label — it doesn't change the live URL, domain, or anything client-facing.
+                </p>
+            </div>
+        </div>
+
+        <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Status</h2></div>
             <div class="admin-card__body">
                 <p><strong>Stage:</strong> {{ website.get_stage_display }}</p>
