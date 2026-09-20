@@ -555,6 +555,30 @@ class Website(TimestampedModel):
     def __str__(self):
         return f'{self.name} ({self.get_stage_display()})'
 
+    def get_package_display(self):
+        """Human label for `package`.
+
+        PACKAGE_CHOICES only knows 6 hardcoded values from before the
+        ServiceTier system existed. billing/account_provisioning.py's
+        self-checkout maintenance-activation path stamps this field with
+        the buyer's MaintenancePlan tier_slug (dashes converted to
+        underscores, since PACKAGE_CHOICES' own maintenance entries use
+        underscores) for any HVAC-era or operator-custom tier — outside
+        the hardcoded set, so the auto-generated display fell through to
+        the raw value (e.g. "maintenance_denis_custom" on the admin
+        Overview tab). ServiceTier.name is the real source of truth; try
+        the slug both as-stored and dash-converted, since ServiceTier
+        slugs are always dash-separated.
+        """
+        if not self.package:
+            return ''
+        from billing.pricing_models import ServiceTier
+        for candidate in (self.package, self.package.replace('_', '-')):
+            tier = ServiceTier.objects.filter(slug=candidate).first()
+            if tier:
+                return tier.name
+        return dict(self.PACKAGE_CHOICES).get(self.package, self.package)
+
     # ── Helpers (parity with the old Project / ClientProfile API) ──
 
     # Tier gating for Google Business Profile management. Growth and above

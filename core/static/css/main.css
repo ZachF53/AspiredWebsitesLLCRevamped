@@ -5715,6 +5715,14 @@ button.htmx-request {
     .portal-section--grow {
         grid-row: span 1;
     }
+    /* Per-product service cards (Maintenance/Social Media/Hosting) come
+       after the Recent Activity + Quick Actions pair as trailing,
+       independent sections — not a matched pair themselves. Letting
+       them fall into normal 2-col grid flow left an empty cell beside
+       whichever one landed alone in the last row. Full width instead. */
+    .portal-section--full {
+        grid-column: 1 / -1;
+    }
 }
 
 .portal-empty {
@@ -10012,16 +10020,15 @@ button.htmx-request {
 .portal-empty--centered h2 { margin: 0 0 0.4rem; font-size: 1.25rem; }
 
 .portal-security-card {
-    background: #ffffff;
-    border: 1px solid #E5E7EB;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1.4rem 1.6rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .portal-security-card__date {
     margin: 0 0 0.6rem;
     font-size: 0.85rem;
-    color: #6B7280;
+    color: var(--color-text-muted);
 }
 .portal-security-pills {
     display: flex;
@@ -10036,14 +10043,14 @@ button.htmx-request {
     font-size: 0.78rem;
     font-weight: 600;
 }
-.portal-sev--critical { background: #FEE2E2; color: #991B1B; }
-.portal-sev--high     { background: #FFEDD5; color: #9A3412; }
-.portal-sev--medium   { background: #FEF3C7; color: #854D0E; }
-.portal-sev--low      { background: #DBEAFE; color: #1E40AF; }
-.portal-sev--clean    { background: #D1FAE5; color: #065F46; }
+.portal-sev--critical { background: rgba(248, 113, 113, 0.16); color: #FCA5A5; }
+.portal-sev--high     { background: rgba(251, 146, 60, 0.16); color: #FDBA74; }
+.portal-sev--medium   { background: rgba(250, 204, 21, 0.16); color: #FDE047; }
+.portal-sev--low      { background: rgba(96, 165, 250, 0.16); color: #93C5FD; }
+.portal-sev--clean    { background: rgba(74, 222, 128, 0.16); color: var(--color-success); }
 
 .portal-security-card__clean {
-    color: #065F46;
+    color: var(--color-success);
     font-weight: 600;
     margin: 0 0 1rem;
     display: flex;
@@ -10057,28 +10064,28 @@ button.htmx-request {
     width: 2rem;
     height: 2rem;
     border-radius: 50%;
-    background: #10B981;
-    color: #fff;
+    background: var(--color-success);
+    color: #0F172A;
     font-weight: 700;
     font-size: 1.1rem;
 }
 .portal-security-card__warn {
-    color: #991B1B;
-    background: #FEF2F2;
-    border: 1px solid #FECACA;
+    color: #FCA5A5;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
     border-radius: 6px;
     padding: 0.6rem 0.8rem;
     margin: 0 0 1rem;
     font-size: 0.9rem;
 }
 .portal-security-card__ok {
-    color: #1F2937;
+    color: var(--color-text);
     margin: 0 0 1rem;
     font-size: 0.92rem;
 }
 .portal-security-card__pending {
     display: inline-block;
-    color: #6B7280;
+    color: var(--color-text-muted);
     font-style: italic;
 }
 

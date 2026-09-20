@@ -3473,6 +3473,17 @@ button.htmx-request {
    only when the account has more than one Website. Uses portal
    dark-theme tokens (admin theme tokens would be wrong here). */
 
+@media (min-width: 900px) {
+    
+    
+    /* Per-product service cards (Maintenance/Social Media/Hosting) come
+       after the Recent Activity + Quick Actions pair as trailing,
+       independent sections — not a matched pair themselves. Letting
+       them fall into normal 2-col grid flow left an empty cell beside
+       whichever one landed alone in the last row. Full width instead. */
+    
+}
+
 /* Stat cards */
 
 /* Horizontal stepper */

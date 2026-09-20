@@ -103,6 +103,7 @@
     {% endif %}
 </section>
 
+{% if project.build_platform != 'wordpress' %}
 <section class="portal-section">
     <h2 class="portal-section__title">Site Uptime</h2>
     <div class="uptime-row">
@@ -127,6 +128,7 @@
         <p class="portal-empty">Uptime monitoring will begin once your site is live.</p>
     {% endif %}
 </section>
+{% endif %}
 {% endif %}
 {% endblock %}
 

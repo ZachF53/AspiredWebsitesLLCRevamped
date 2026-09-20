@@ -118,10 +118,6 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5 5l4 4m6 6l4 4M19 5l-4 4M5 19l4-4"/></svg>
                         <span>Support</span>
                     </a>
-                    <a class="portal-nav__link {% if active_portal_nav == 'invoices' %}is-active{% endif %}" href="{% url 'clients:invoices' %}">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg>
-                        <span>Invoices</span>
-                    </a>
                     <a class="portal-nav__link {% if active_portal_nav == 'credentials' %}is-active{% endif %}" href="{% url 'clients:credentials' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                         <span>Credentials</span>
@@ -134,10 +130,11 @@
 
                     {# ── INSIGHTS ── #}
                     <div class="portal-nav-group-label">Insights</div>
-                    <a class="portal-nav__link {% if active_portal_nav == 'seo' %}is-active{% endif %}" href="{% url 'clients:portal_seo' %}">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-                        <span>SEO &amp; Conversions</span>
-                    </a>
+                    {% comment %}
+                        SEO & Conversions — hidden for now, will be
+                        reimplemented. Not deleted so restoring it later
+                        is a one-line uncomment, not a rebuild.
+                    {% endcomment %}
                     <a class="portal-nav__link {% if active_portal_nav == 'reports' %}is-active{% endif %}" href="{% url 'clients:portal_reports' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 7h4m-4 4h4"/></svg>
                         <span>Reports</span>
@@ -172,18 +169,18 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 11h18M7 15h3"/></svg>
                         <span>Subscription / Billing</span>
                     </a>
-                    {% comment %}
-                        Phase D4 — Domains nav only shows for customers
-                        who have a Website. Domain registration is only
-                        offered as part of a build, so maintenance-only
-                        and social-only customers shouldn't see it.
-                    {% endcomment %}
-                    {% if has_website %}
-                    <a class="portal-nav__link {% if active_portal_nav == 'domains' %}is-active{% endif %}" href="{% url 'domains:portal_domains' %}">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
-                        <span>Domains</span>
+                    <a class="portal-nav__link {% if active_portal_nav == 'invoices' %}is-active{% endif %}" href="{% url 'clients:invoices' %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg>
+                        <span>Invoices</span>
                     </a>
-                    {% endif %}
+                    {% comment %}
+                        Domains — hidden for now, will be reimplemented.
+                        Not deleted (including the has_website gate) so
+                        restoring it later is a one-line uncomment, not
+                        a rebuild. See the original Phase D4 note: it
+                        only ever showed for customers who have a
+                        Website, since domain registration is build-only.
+                    {% endcomment %}
                     <a class="portal-nav__link {% if active_portal_nav == 'settings' %}is-active{% endif %}" href="{% url 'clients:settings' %}">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         <span>Settings</span>

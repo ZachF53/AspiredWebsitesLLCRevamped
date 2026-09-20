@@ -34,3 +34,28 @@ class DashboardLiveHidesProgressTests(TestCase):
         resp = self.client.get(reverse('clients:dashboard'))
         self.assertNotContains(resp, 'Revisions Used')
         self.assertNotContains(resp, 'Project Progress')
+
+
+class DashboardUptimeHiddenForWordpressTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='uptimewp', email='uptimewp@example.com',
+            password='pw-123456')
+        self.account = Account.objects.create(
+            user=self.user, name='Uptime WP Co', onboarding_status='complete')
+        self.client.force_login(self.user)
+
+    def test_custom_build_shows_uptime_card(self):
+        Website.objects.create(
+            account=self.account, name='Custom Site',
+            onboarding_status='complete', build_platform='custom')
+        resp = self.client.get(reverse('clients:dashboard'))
+        self.assertContains(resp, '30-Day Uptime')
+
+    def test_wordpress_build_hides_uptime_card(self):
+        Website.objects.create(
+            account=self.account, name='WP Site',
+            onboarding_status='complete', build_platform='wordpress')
+        resp = self.client.get(reverse('clients:dashboard'))
+        self.assertNotContains(resp, '30-Day Uptime')

@@ -69,8 +69,9 @@
         {% if next_invoice %}<span class="stat-card__meta">{{ next_invoice.label }}</span>{% endif %}
     </article>
 
-    {% comment %} Uptime is relevant to anyone with a site we host or maintain. {% endcomment %}
+    {% comment %} Uptime is relevant to anyone with a site we host or maintain — but not WordPress builds, which are client-hosted with no droplet for us to monitor. {% endcomment %}
     {% if has_website or has_maintenance %}
+    {% if not website or website.build_platform != 'wordpress' %}
     <article class="stat-card">
         <span class="stat-card__label">30-Day Uptime</span>
         {% if uptime_30 is None %}
@@ -80,6 +81,7 @@
             {% if uptime_avg_response %}<span class="stat-card__meta">Avg response: {{ uptime_avg_response }}ms</span>{% endif %}
         {% endif %}
     </article>
+    {% endif %}
     {% endif %}
 </div>
 
@@ -141,7 +143,7 @@
     {% endcomment %}
 
     {% if has_maintenance %}
-        <section class="portal-section">
+        <section class="portal-section portal-section--full">
             <h2 class="portal-section__title">Maintenance</h2>
             {% for plan in maintenance_plans %}
                 <div class="service-card">
@@ -164,7 +166,7 @@
     {% endif %}
 
     {% if has_social_media %}
-        <section class="portal-section">
+        <section class="portal-section portal-section--full">
             <h2 class="portal-section__title">Social Media</h2>
             {% for plan in social_media_plans %}
                 <div class="service-card">
@@ -188,7 +190,7 @@
     {% endif %}
 
     {% if has_droplet %}
-        <section class="portal-section">
+        <section class="portal-section portal-section--full">
             <h2 class="portal-section__title">Hosting</h2>
             {% for d in droplets %}
                 <div class="service-card">
