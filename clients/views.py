@@ -1062,12 +1062,15 @@ def _on_intake_submitted(profile, project):
                     send_gmb_create_email(profile)
             except Exception:
                 logger.exception('GMB email failed for %s', profile.pk)
-            # `profile` is the Website — the user hangs off its Account.
-            # `profile.user_id` raised AttributeError here, taking the
-            # whole GMB follow-up down with it inside a best-effort
-            # except, so the setup task was never created.
-            todo_user = getattr(
-                getattr(profile, 'account', None), 'user', None)
+            # `profile` here is whatever the caller resolved — a legacy
+            # ClientProfile in some call sites, a Website in others.
+            # `profile.account.user` only works for the Website case;
+            # a ClientProfile has no `.account` and this returned None,
+            # skipping the setup task silently. owner_account() resolves
+            # either shape (Website, Account, or legacy ClientProfile
+            # via its migrated_account) to the right Account.
+            from clients.display import owner_account
+            todo_user = getattr(owner_account(profile), 'user', None)
             if todo_user is not None:
                 from onboarding.todo_models import SetupTodo
                 title = (

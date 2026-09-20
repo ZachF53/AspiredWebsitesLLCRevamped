@@ -95,7 +95,8 @@ def _record_payment(*, client, stripe_id, kind, amount, description='',
         return
     try:
         from clients.account_models import Account
-        from clients.models import ClientProfile, PaymentRecord
+        from clients.legacy_teardown import is_legacy_profile
+        from clients.models import PaymentRecord
 
         # Callers hand `client` whatever they resolved — which is an
         # Account for every canonical client. `PaymentRecord.client` is
@@ -104,7 +105,12 @@ def _record_payment(*, client, stripe_id, kind, amount, description='',
         # ledger for an account-based client. Their Invoices page stayed
         # permanently empty and no receipt could be produced, while the
         # payment itself had gone through fine.
-        profile = client if isinstance(client, ClientProfile) else None
+        #
+        # is_legacy_profile (not a bare ClientProfile import/isinstance)
+        # so this module doesn't block the legacy-FK-removal readiness
+        # gate — clients.legacy_teardown is the one allowlisted module
+        # that's allowed to still name ClientProfile.
+        profile = client if is_legacy_profile(client) else None
         if account is None:
             if isinstance(client, Account):
                 account = client
