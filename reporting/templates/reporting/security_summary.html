@@ -1,0 +1,169 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Security Summary — {{ owner_name }} — {{ month_str }}</title>
+<style>
+/* WeasyPrint-friendly, single letter page. System fonts only. */
+@page {
+    size: letter;
+    margin: 16mm 18mm;
+    @bottom-center {
+        content: "Aspired Websites LLC · Confidential · Monthly Security Summary";
+        font-family: Arial, sans-serif;
+        font-size: 7pt;
+        color: #94A3B8;
+    }
+}
+* { box-sizing: border-box; }
+body {
+    font-family: Arial, sans-serif;
+    color: #1A1A1A;
+    margin: 0;
+    padding: 0;
+    font-size: 9.5pt;
+    line-height: 1.4;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2pt solid #E8650A;
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+}
+.header__wordmark { color: #E8650A; font-weight: bold; font-size: 13pt; }
+.header__title { font-size: 16pt; font-weight: bold; margin: 2mm 0 0; }
+.header__sub { color: #666666; font-size: 9pt; }
+.header__month { text-align: right; color: #666666; font-size: 9pt; }
+
+.status-banner {
+    padding: 4mm 5mm;
+    border-radius: 3pt;
+    font-weight: bold;
+    font-size: 11pt;
+    margin-bottom: 6mm;
+    color: #FFFFFF;
+}
+.status-banner--green  { background: #1F8A4C; }
+.status-banner--yellow { background: #B8860B; }
+.status-banner--red    { background: #C0392B; }
+
+.grid { display: flex; gap: 5mm; margin-bottom: 6mm; }
+.card {
+    flex: 1;
+    border: 1pt solid #E5E5E5;
+    border-radius: 3pt;
+    padding: 4mm;
+}
+.card__title {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #666666;
+    margin: 0 0 2mm;
+}
+.card__body dl { margin: 0; }
+.card__body dt { color: #666666; font-size: 8.5pt; }
+.card__body dd { margin: 0 0 2mm; font-weight: bold; font-size: 11pt; }
+.card__empty { color: #666666; font-size: 9pt; font-style: italic; }
+
+.section-title {
+    font-size: 10pt;
+    font-weight: bold;
+    margin: 0 0 2mm;
+    border-bottom: 1pt solid #E5E5E5;
+    padding-bottom: 1mm;
+}
+.footer-note {
+    margin-top: 8mm;
+    padding-top: 4mm;
+    border-top: 1pt solid #E5E5E5;
+    color: #666666;
+    font-size: 8pt;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <div class="header__wordmark">Aspired Websites LLC</div>
+        <div class="header__title">{{ owner_name }}</div>
+        <div class="header__sub">Monthly Security Summary</div>
+    </div>
+    <div class="header__month">{{ month_str }}</div>
+</div>
+
+<div class="status-banner status-banner--{{ overall_status }}">
+    {% if overall_status == 'green' %}
+        ✓ No urgent issues — site and server are in good standing.
+    {% elif overall_status == 'yellow' %}
+        ⚠ Some items need attention this month.
+    {% else %}
+        ✗ Action needed — critical or high-severity issues were found.
+    {% endif %}
+</div>
+
+<div class="grid">
+    <div class="card">
+        <p class="card__title">External Scan</p>
+        <div class="card__body">
+            {% if scan %}
+                <dl>
+                    <dt>Critical</dt><dd>{{ open_critical_count }}</dd>
+                    <dt>High</dt><dd>{{ open_high_count }}</dd>
+                </dl>
+                <p class="card__empty">Last scanned {{ scan.completed_at|date:"M j, Y" }}</p>
+            {% else %}
+                <p class="card__empty">No scan on record yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <p class="card__title">Server Health</p>
+        <div class="card__body">
+            {% if droplet_check %}
+                <dl>
+                    <dt>Disk used</dt>
+                    <dd>{% if disk_usage_percent != None %}{{ disk_usage_percent }}%{% else %}—{% endif %}</dd>
+                    <dt>Pending OS updates</dt>
+                    <dd>{% if pending_os_updates_count != None %}{{ pending_os_updates_count }}{% else %}—{% endif %}</dd>
+                    <dt>Dependency vulnerabilities</dt>
+                    <dd>{% if pip_audit_vulnerability_count != None %}{{ pip_audit_vulnerability_count }}{% else %}—{% endif %}</dd>
+                    <dt>Services down</dt>
+                    <dd>{{ services_down_count }}</dd>
+                </dl>
+                <p class="card__empty">Last checked {{ droplet_check.completed_at|date:"M j, Y" }}</p>
+            {% else %}
+                <p class="card__empty">
+                    {% if is_wordpress %}
+                        Not applicable — WordPress-hosted site.
+                    {% else %}
+                        No server health check on record yet.
+                    {% endif %}
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<p class="section-title">What this covers</p>
+<p>
+    <strong>External Scan</strong> checks your live site from the outside —
+    open ports, SSL/TLS configuration, and common web vulnerabilities.
+    <strong>Server Health</strong> (custom-built sites only) is a direct,
+    authenticated check of the server itself — disk space, running
+    services, pending operating-system security updates, and known
+    vulnerabilities in installed software.
+</p>
+
+<div class="footer-note">
+    Questions about this summary? Reply to this email or reach us at
+    zacherylong@aspiredwebsites.com. Full scan and server-health detail
+    is available in your client portal under Security.
+</div>
+
+</body>
+</html>

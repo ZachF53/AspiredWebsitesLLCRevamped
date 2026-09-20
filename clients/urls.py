@@ -96,6 +96,8 @@ urlpatterns = [
     path('security/', views.portal_security, name='portal_security'),
     path('security/<uuid:scan_id>/download/',
          views.portal_scan_download, name='portal_scan_download'),
+    path('security/summary/<uuid:report_id>/download/',
+         views.portal_summary_download, name='portal_summary_download'),
     path('settings/', views.settings_page, name='settings'),
 
     # Phase 7 Part 2 — refer-a-friend

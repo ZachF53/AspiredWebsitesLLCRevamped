@@ -376,6 +376,35 @@
             </div>
         </div>
 
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Monthly Summaries</h2></div>
+            <div class="admin-card__body">
+                {% if security_summaries %}
+                    <table class="v2-kv-table">
+                        <tr><th>Month</th><th>Status</th><th></th></tr>
+                        {% for report in security_summaries %}
+                            <tr>
+                                <td>{{ report.report_month|date:"F Y" }}</td>
+                                <td>
+                                    <span class="scan-status scan-status--{{ report.overall_status }}">{{ report.get_overall_status_display }}</span>
+                                    &middot; {{ report.get_status_display }}
+                                </td>
+                                <td>
+                                    {% if report.pdf_path %}
+                                        <a href="{% url 'admin_dashboard:v2_security_summary_download' report.id %}">Download &rarr;</a>
+                                    {% else %}
+                                        <span class="admin-empty">Generating…</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No monthly summaries yet — generated automatically on the 1st of each month.</p>
+                {% endif %}
+            </div>
+        </div>
+
     {% elif active_tab == 'domains' %}
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Domains</h2></div>

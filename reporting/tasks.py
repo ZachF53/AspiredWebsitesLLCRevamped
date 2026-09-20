@@ -1194,6 +1194,118 @@ def check_droplet_health_schedule():
     return f'Queued {queued} scheduled droplet health check(s).'
 
 
+# ── Monthly 1-page security summary — standalone per-client PDF ───────────
+
+@shared_task
+def send_security_summaries():
+    """
+    1st of month, 7:30am — 30 minutes after send_monthly_reports, same
+    day, so the two artifacts land close together but stay clearly
+    separate emails (the summary is standalone, not folded into the
+    performance MonthlyReport — see reporting/security_summary.py).
+
+    Targets active sites that have at least one completed scan OR
+    droplet check on record, so a WordPress site with only external
+    scans still gets a summary (it just has no Server Health section).
+    A brand-new site with neither yet is skipped — nothing to
+    summarize.
+    """
+    from datetime import date
+
+    from clients.account_models import Website
+    from clients.emails import send_branded
+    from reporting.models import DropletHealthCheck, VulnerabilityScan
+    from reporting.security_summary import generate_security_summary
+
+    today = timezone.localdate()
+    if today.month == 1:
+        report_month = date(today.year - 1, 12, 1)
+    else:
+        report_month = date(today.year, today.month - 1, 1)
+
+    scanned_ids = VulnerabilityScan.objects.filter(
+        status='complete').values_list('website_new_id', flat=True)
+    checked_ids = DropletHealthCheck.objects.filter(
+        status='complete').values_list('website_new_id', flat=True)
+    eligible_ids = set(scanned_ids) | set(checked_ids)
+
+    sites = (Website.objects
+             .filter(id__in=eligible_ids, status='active',
+                     account__status='active')
+             .select_related('account'))
+
+    sent = failed = 0
+    for site in sites:
+        try:
+            report = generate_security_summary(site, report_month)
+        except Exception:
+            logger.exception(
+                'send_security_summaries: generation failed for site %s',
+                site.id)
+            failed += 1
+            continue
+
+        account = site.account
+        recipient = account.user.email if account and account.user else ''
+        if not recipient:
+            continue
+
+        import os
+        abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path)
+        if not os.path.exists(abs_path):
+            failed += 1
+            continue
+
+        month_str = report_month.strftime('%B %Y')
+        contact_name = account.contact_name or account.name
+        first_name = (contact_name or '').split(' ')[0] or 'there'
+        ext = os.path.splitext(abs_path)[1] or '.pdf'
+        mime = 'application/pdf' if ext.lower() == '.pdf' else 'text/html'
+        with open(abs_path, 'rb') as fh:
+            pdf_bytes = fh.read()
+
+        text_body = (
+            f'Hi {first_name},\n\n'
+            f'Your monthly 1-page security summary for {month_str} is '
+            f'attached.\n\n'
+            f'{settings.SITE_BASE_URL}/portal/security/\n\n'
+            f'— Zachery Long\nAspired Websites LLC\n'
+        )
+
+        try:
+            send_branded(
+                subject=f'Your Security Summary — {month_str} — {account.name}',
+                template='security_summary',
+                context={
+                    'name': first_name,
+                    'client_firm': account.name,
+                    'month_str': month_str,
+                    'overall_status': report.overall_status,
+                    'security_url': f'{settings.SITE_BASE_URL}/portal/security/',
+                },
+                recipient_list=[recipient],
+                text_body=text_body,
+                from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
+                                   settings.DEFAULT_FROM_EMAIL),
+                attachments=[
+                    (f'security-summary-{month_str}{ext}', pdf_bytes, mime)],
+                fail_silently=False,
+            )
+        except Exception:
+            logger.exception(
+                'send_security_summaries: send failed for site %s',
+                site.id)
+            failed += 1
+            continue
+
+        report.status = 'sent'
+        report.sent_at = timezone.now()
+        report.save(update_fields=['status', 'sent_at', 'updated_at'])
+        sent += 1
+
+    return f'Sent {sent} security summary(ies), {failed} failed.'
+
+
 # ── Tier 2 session recording — retention + storage report ─────────────────
 
 @shared_task

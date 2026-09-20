@@ -1923,12 +1923,18 @@ def portal_security(request):
             status='open', severity__in=('critical', 'high')
         ).exists()
 
+    from reporting.models import SecuritySummaryReport
+    summaries = (SecuritySummaryReport.objects
+                 .filter(**flt, status='sent')
+                 .order_by('-report_month'))
+
     ctx = _portal_context(
         request, 'security',
         scans=scans,
         latest=latest,
         older_scans=older,
         open_critical_or_high=open_critical_or_high,
+        summaries=summaries,
     )
     return render(request, 'clients/portal_security.html', ctx)
 
@@ -1955,6 +1961,36 @@ def portal_scan_download(request, scan_id):
     abs_path = os.path.join(settings.MEDIA_ROOT, scan.pdf_path)
     if not os.path.exists(abs_path):
         raise Http404('Report file not found on disk.')
+    return FileResponse(
+        open(abs_path, 'rb'),
+        as_attachment=True,
+        filename=os.path.basename(abs_path),
+    )
+
+
+@client_required
+def portal_summary_download(request, report_id):
+    """
+    Serve a sent monthly security summary PDF to the client who owns
+    it. 404 on any cross-client access attempt, and on a summary that
+    hasn't been sent yet — same visibility rule as the portal list.
+    """
+    import os
+
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+
+    from reporting.models import SecuritySummaryReport
+
+    report = get_object_or_404(
+        SecuritySummaryReport,
+        id=report_id, website_new__account=request.account, status='sent',
+    )
+    if not report.pdf_path:
+        raise Http404('Summary not generated yet.')
+    abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path)
+    if not os.path.exists(abs_path):
+        raise Http404('Summary file not found on disk.')
     return FileResponse(
         open(abs_path, 'rb'),
         as_attachment=True,

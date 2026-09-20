@@ -475,6 +475,8 @@ def website_detail(request, website_id):
         'scans': website.vulnerability_scans_new.order_by('-created_at')[:20],
         'droplet_checks': website.droplet_health_checks.order_by(
             '-created_at')[:20],
+        'security_summaries': website.security_summaries.order_by(
+            '-report_month')[:6],
         # Domains
         'domains': website.domains.all(),
         # Billing

@@ -89,6 +89,9 @@ urlpatterns = [
     path('droplet-checks/<uuid:check_id>/',
          views_scans.droplet_check_detail,
          name='v2_droplet_check_detail'),
+    path('security-summaries/<uuid:report_id>/download/',
+         views_scans.security_summary_download,
+         name='v2_security_summary_download'),
 
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
 

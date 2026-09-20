@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('reporting', '0019_aispendday'),
+        ('reporting', '0021_securitysummaryreport'),
     ]
 
     operations = [

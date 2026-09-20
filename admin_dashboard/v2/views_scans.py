@@ -394,3 +394,28 @@ def droplet_check_detail(request, check_id):
         'check': check,
         'duration_seconds': duration,
     })
+
+
+@admin_required
+def security_summary_download(request, report_id):
+    """Serve a generated monthly security summary PDF (or HTML
+    fallback). pdf_path is RELATIVE to MEDIA_ROOT."""
+    from reporting.models import SecuritySummaryReport
+
+    report = get_object_or_404(SecuritySummaryReport, id=report_id)
+    if not report.pdf_path:
+        raise Http404('Summary not generated yet.')
+    abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path)
+    if not os.path.exists(abs_path):
+        raise Http404('Summary file missing on disk.')
+
+    slug = owner_label(report).replace(' ', '-')
+    month = report.report_month.strftime('%Y-%m')
+    ext = os.path.splitext(abs_path)[1] or '.pdf'
+    filename = f'security-summary-{slug}-{month}{ext}'
+    return FileResponse(
+        open(abs_path, 'rb'),
+        as_attachment=True,
+        filename=filename,
+        content_type='application/pdf' if ext == '.pdf' else 'text/html',
+    )

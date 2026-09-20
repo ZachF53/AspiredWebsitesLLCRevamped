@@ -1,0 +1,44 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your Monthly Security Summary — {{ month_str }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Security summary for {{ month_str }}.</h1>
+
+<p style="margin:0 0 20px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Hi {{ name }} — your monthly 1-page security summary for <strong style="color:#F8FAFC;">{{ client_firm }}</strong> is attached.
+</p>
+
+{% if overall_status == 'red' %}
+    <div style="margin:0 0 20px;padding:18px 20px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;color:#FCA5A5;font-size:14px;line-height:1.6;">
+        <strong style="color:#FCA5A5;">Action needed.</strong> Critical or high-severity issues were found this month.
+    </div>
+{% elif overall_status == 'yellow' %}
+    <div style="margin:0 0 20px;padding:18px 20px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:8px;color:#FCD34D;font-size:14px;line-height:1.6;">
+        <strong style="color:#FCD34D;">Some items need attention.</strong> See the attached PDF for details.
+    </div>
+{% else %}
+    <div style="margin:0 0 20px;padding:18px 20px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.25);border-radius:8px;color:#5EEAD4;font-size:14px;line-height:1.6;">
+        <strong style="color:#5EEAD4;">All clear.</strong> No urgent issues this month.
+    </div>
+{% endif %}
+
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Open the attached PDF for the 1-page breakdown covering your external
+    security scan and (for custom-built sites) server health.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+    <tr>
+        <td align="center" style="background:#0F172A;border:1px solid #1E293B;border-radius:8px;">
+            <a href="{{ security_url }}" style="display:inline-block;padding:12px 24px;color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+                View security history →
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:20px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions about anything in the summary? Just reply to this email.
+</p>
+{% endblock %}

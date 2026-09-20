@@ -630,6 +630,75 @@ class DropletHealthCheck(TimestampedModel):
         return f'{owner_label(self)} — droplet health — {self.created_at.date()}'
 
 
+class SecuritySummaryReport(TimestampedModel):
+    """
+    A 1-page monthly summary PDF for one website, combining the latest
+    completed VulnerabilityScan (external scan findings) and the latest
+    completed DropletHealthCheck (SSH-based audit — absent entirely for
+    WordPress sites, which have no Droplet to check). Standalone
+    per-client artifact — NOT folded into the multi-page performance
+    MonthlyReport clients already get; deliberately kept separate so
+    it stays a true 1-pager rather than growing alongside that report.
+    """
+
+    STATUS_CHOICES = [
+        ('generating', 'Generating'),
+        ('ready', 'Ready'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+    ]
+    OVERALL_STATUS_CHOICES = [
+        ('green', 'Green'),
+        ('yellow', 'Yellow'),
+        ('red', 'Red'),
+    ]
+
+    website_new = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='security_summaries', null=True, blank=True,
+    )
+    report_month = models.DateField(
+        help_text='First day of the reported month.')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='generating')
+    pdf_path = models.CharField(max_length=500, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    opened = models.BooleanField(default=False)
+    opened_at = models.DateTimeField(null=True, blank=True)
+
+    # Snapshot of the data at generation time — the source rows may
+    # keep changing (findings get accepted/resolved) after this PDF is
+    # generated, so the summary reflects what was true then.
+    latest_scan = models.ForeignKey(
+        VulnerabilityScan, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='security_summaries')
+    latest_droplet_check = models.ForeignKey(
+        DropletHealthCheck, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='security_summaries')
+    open_critical_count = models.IntegerField(default=0)
+    open_high_count = models.IntegerField(default=0)
+    disk_usage_percent = models.IntegerField(null=True, blank=True)
+    pending_os_updates_count = models.IntegerField(null=True, blank=True)
+    pip_audit_vulnerability_count = models.IntegerField(
+        null=True, blank=True)
+    services_down_count = models.IntegerField(default=0)
+    overall_status = models.CharField(
+        max_length=10, choices=OVERALL_STATUS_CHOICES, default='green')
+
+    class Meta:
+        ordering = ['-report_month']
+        # Same reasoning as MonthlyReport.Meta — keyed on website alone,
+        # NOT (client, report_month) or any variant including client:
+        # a multi-site account would only ever get one summary a month
+        # if a legacy client FK were part of the key.
+        unique_together = ['website_new', 'report_month']
+        verbose_name = 'Security Summary Report'
+        verbose_name_plural = 'Security Summary Reports'
+
+    def __str__(self):
+        return f"{owner_label(self)} — {self.report_month.strftime('%B %Y')}"
+
+
 # ── Tier 1 analytics — one row per page view ──────────────────────────────
 
 class PageSession(TimestampedModel):

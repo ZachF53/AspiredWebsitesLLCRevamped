@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('vault', '0011_alter_clientvault_client'),
+        ('vault', '0012_vaultcredential_automation_access_enabled_and_more'),
     ]
 
     operations = [

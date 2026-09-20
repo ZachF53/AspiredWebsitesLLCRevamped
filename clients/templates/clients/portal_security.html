@@ -91,4 +91,35 @@
         </ul>
     </section>
 {% endif %}
+
+{% if summaries %}
+    <section class="portal-section">
+        <h2 class="portal-section__title">Monthly Summaries</h2>
+        <ul class="record-list">
+            {% for report in summaries %}
+                <li class="record-list__item">
+                    <span class="record-list__main">
+                        <strong>{{ report.report_month|date:"F Y" }}</strong>
+                        <span class="record-list__sub">
+                            {% if report.overall_status == 'green' %}
+                                All clear
+                            {% elif report.overall_status == 'yellow' %}
+                                Some items need attention
+                            {% else %}
+                                Action needed
+                            {% endif %}
+                        </span>
+                    </span>
+                    <span class="record-list__meta">
+                        {% if report.pdf_path %}
+                            <a class="btn-secondary btn-sm" href="{% url 'clients:portal_summary_download' report.id %}">Download</a>
+                        {% else %}
+                            <span class="portal-muted">No file</span>
+                        {% endif %}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    </section>
+{% endif %}
 {% endblock %}

@@ -806,6 +806,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.send_monthly_reports',
         'schedule': crontab(hour=7, minute=0, day_of_month=1),  # 1st, 7am
     },
+    'send-security-summaries': {
+        'task': 'reporting.tasks.send_security_summaries',
+        'schedule': crontab(hour=7, minute=30, day_of_month=1),  # 1st, 7:30am
+    },
     'generate-freshness-reports': {
         'task': 'reporting.tasks.generate_freshness_reports',
         'schedule': crontab(hour=6, minute=0, day_of_month=1,
