@@ -18,6 +18,7 @@ from django.test import TestCase
 from billing.pricing_models import ServiceTier
 from clients.account_models import Account, Website
 from clients.revenue import _price_for_package, get_current_mrr
+from clients.service_models import MaintenancePlan
 
 User = get_user_model()
 
@@ -67,6 +68,8 @@ class PriceForPackageTests(TestCase):
 
 
 class GetCurrentMrrIncludesCustomTiersTests(TestCase):
+    """No MaintenancePlan row exists for these sites — exercises the
+    Website.package fallback path only."""
 
     def test_custom_tier_website_counts_toward_mrr(self):
         ServiceTier.objects.create(
@@ -78,3 +81,24 @@ class GetCurrentMrrIncludesCustomTiersTests(TestCase):
         result = get_current_mrr()
         self.assertEqual(result['mrr_total'], 350.0)
         self.assertEqual(result['active_maintenance_clients'], 1)
+
+
+class GetCurrentMrrUsesPlanDiscountTests(TestCase):
+    """A real MaintenancePlan row exists — MRR must reflect the
+    discounted amount actually being charged, not the tier's list
+    price. This is the normal, common case going forward."""
+
+    def test_forever_discount_reflected_in_mrr(self):
+        ServiceTier.objects.create(
+            category='maintenance', name='Denis Custom',
+            slug='maintenance-denis-custom', price=Decimal('350.00'),
+            is_active=True, is_public=False)
+        account, website = _account_and_website('maintenance_denis_custom')
+        MaintenancePlan.objects.create(
+            account=account, website=website,
+            tier_slug='maintenance-denis-custom', status='active',
+            discount_percent=15, discount_duration='forever')
+
+        result = get_current_mrr()
+        self.assertAlmostEqual(result['mrr_total'], 297.5, places=2)
+        self.assertEqual(result['breakdown'][0]['plan'], 'Denis Custom')

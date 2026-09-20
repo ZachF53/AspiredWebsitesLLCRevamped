@@ -25,6 +25,7 @@ roll out gradually; existing reads stay working the whole time.
 import uuid
 
 from django.db import models
+from django.utils import timezone
 
 from core.models import TimestampedModel
 
@@ -137,6 +138,35 @@ class MaintenancePlan(TimestampedModel):
             return ''
         return dict(self.TIER_CHOICES).get(
             self.pending_tier_slug, self.pending_tier_slug)
+
+    @property
+    def current_monthly_price(self):
+        """What this plan is actually charging per month right now —
+        the ServiceTier list price with any still-active discount
+        applied. Used for MRR (clients.revenue.get_current_mrr), which
+        must reflect real recurring revenue, not rate-card price.
+
+        A 'forever' discount applies every month. A 'once' discount
+        only covers the first billing cycle — approximated as the 30
+        days after started_at, since this is a local-ledger-only
+        calculation (clients.revenue is deliberately never a live
+        Stripe read) and Stripe's own billing-cycle boundary isn't
+        available without one.
+        """
+        from billing.pricing_models import ServiceTier
+        tier = ServiceTier.objects.filter(
+            slug=self.tier_slug, category='maintenance').first()
+        price = float(tier.price) if tier and tier.price else 0.0
+        if not self.discount_percent:
+            return price
+        discounted = price * (1 - self.discount_percent / 100)
+        if self.discount_duration == 'forever':
+            return discounted
+        if self.discount_duration == 'once':
+            if (self.started_at
+                    and (timezone.now() - self.started_at).days < 30):
+                return discounted
+        return price
 
     def get_pay_url(self):
         """Absolute URL of the on-site pay page for an awaiting_payment

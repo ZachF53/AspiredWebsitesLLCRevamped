@@ -78,6 +78,14 @@ def get_current_mrr():
     A paused or archived account contributes nothing even if a site under
     it still carries the flag, because billing is suspended at the
     account level.
+
+    Prefers the site's actual MaintenancePlan row (tier + any active
+    discount — plan.current_monthly_price) over the legacy Website.package
+    mirror, since package carries no discount information at all and
+    would report list price on every discounted plan. Falls back to
+    package only for a site with maintenance_active=True but no
+    matching plan row (legacy data / edge cases predating the
+    MaintenancePlan model).
     """
     from clients.account_models import Website
 
@@ -92,12 +100,18 @@ def get_current_mrr():
     breakdown = []
     total = 0.0
     for site in active:
-        price = _price_for_package(site.package)
+        plan = site.maintenance_plans.filter(status='active').first()
+        if plan is not None:
+            price = plan.current_monthly_price
+            plan_label = plan.get_tier_slug_display()
+        else:
+            price = _price_for_package(site.package)
+            plan_label = site.get_package_display() or site.package or '—'
         total += price
         breakdown.append({
             'client': site.name,
             'account': site.account.name if site.account else '',
-            'plan': site.get_package_display() or site.package or '—',
+            'plan': plan_label,
             'mrr': price,
         })
 
