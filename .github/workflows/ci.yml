@@ -62,12 +62,12 @@ jobs:
           pip install -r requirements.txt
 
       - name: Django system check
-        run: python AspiredWebsitesRevamped/manage.py check
+        run: python manage.py check
 
       - name: Run per-app tests (the touched-app coverage)
         # Phase 3 — these apps host the revenue + integration paths.
         # Reporting + vault have their own pre-existing coverage and
         # are included so regressions don't slip through.
         run: |
-          python AspiredWebsitesRevamped/manage.py test \
+          python manage.py test \
               billing clients public sync scheduler reporting vault
