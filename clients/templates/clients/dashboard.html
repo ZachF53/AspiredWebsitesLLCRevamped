@@ -33,12 +33,14 @@
             {% if project %}{{ project.get_stage_display }}{% else %}No project yet{% endif %}
         </span>
     </article>
+    {% if not project or project.stage != 'live' %}
     <article class="stat-card">
         <span class="stat-card__label">Revisions Used</span>
         <span class="stat-card__value">
             {% if project %}{{ project.revision_count }} of {{ project.revision_limit }}{% else %}&mdash;{% endif %}
         </span>
     </article>
+    {% endif %}
     {% endif %}
 
     {% if has_maintenance %}
@@ -81,8 +83,8 @@
     {% endif %}
 </div>
 
-{% comment %} Project progress stepper — website builds only. {% endcomment %}
-{% if has_website and project %}
+{% comment %} Project progress stepper — website builds only, and only until launch (once live, the stepper is just a wall of checkmarks with nothing left to track). {% endcomment %}
+{% if has_website and project and project.stage != 'live' %}
 <section class="portal-section">
     <h2 class="portal-section__title">Project Progress</h2>
     <ol class="stepper">

@@ -132,6 +132,16 @@ class RevisionForm(forms.ModelForm):
         }
         labels = {'is_major': 'Is this a major change?'}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The model's own default (RevisionRequest.is_major=True) is
+        # right for the admin/AI-assistant path (add_revision defaults
+        # to major there too — conservative, doesn't undercount against
+        # the included-revisions limit). The client-facing checkbox
+        # should start unchecked instead: pre-checking it nudges every
+        # submission toward "major" before the client has said anything.
+        self.fields['is_major'].initial = False
+
     def clean_description(self):
         description = (self.cleaned_data.get('description') or '').strip()
         if len(description) < 20:
