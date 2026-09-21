@@ -61,9 +61,11 @@
 
     {% comment %}
         Money is loaded async, below the fold, so a slow or down Stripe-
-        adjacent data source never blocks the rest of the page. It reads
-        local ledger data only — see admin_dashboard/v2/services.py
-        get_money_summary for why.
+        adjacent data source never blocks the rest of the page. MRR is
+        local-ledger; "Collected this year" reads the StripeRevenueSync
+        singleton a Celery beat sweep refreshes from Stripe every 5
+        minutes — this view itself never calls Stripe synchronously.
+        See admin_dashboard/v2/services.py get_money_summary.
     {% endcomment %}
     <div id="v2-money" hx-get="{% url 'admin_dashboard:v2_money_partial' %}" hx-trigger="load" hx-swap="innerHTML">
         <div class="admin-card">

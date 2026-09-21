@@ -765,6 +765,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_client_uptime',
         'schedule': crontab(minute='*/5'),          # every 5 minutes
     },
+    # v2 dashboard money card's "Collected this year" figure — pulled
+    # straight from Stripe (unscoped by customer) so manually-charged
+    # clients with no Account link are counted, not just ledger rows
+    # our own billing flows wrote. See billing/revenue_models.py.
+    'sync-stripe-ytd-collected': {
+        'task': 'billing.tasks.sync_stripe_ytd_collected_task',
+        'schedule': crontab(minute='*/5'),          # every 5 minutes
+    },
     # Reap AI Ops sessions abandoned without an explicit End (closed
     # tab, browser crash, gunicorn restart). Every 15 minutes against a
     # 60-minute idle threshold, so a session is closed within about an

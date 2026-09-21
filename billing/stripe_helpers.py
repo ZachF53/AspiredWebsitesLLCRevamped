@@ -1732,3 +1732,45 @@ def charge_reinstatement_fee(client, amount=REINSTATEMENT_FEE):
         'charge_reinstatement_fee: charged %s%s to client %s',
         '$', amount, client.pk)
     return pi
+
+
+def get_ytd_stripe_collected(as_of=None):
+    """
+    Sum every succeeded Charge on the account, Jan 1 through `as_of`
+    (default: now), net of refunds. Deliberately unscoped by customer
+    — a payment collected by hand directly in the Stripe dashboard for
+    a client with no Account.stripe_customer_id link (e.g. one billed
+    manually every month outside the normal flow) still lands in this
+    total, which PaymentRecord-based figures miss entirely.
+
+    Returns {'year': int, 'total': Decimal, 'charge_count': int}.
+    Raises StripeNotConfigured if no API key; callers decide how to
+    degrade.
+    """
+    _init()
+    as_of = as_of or timezone.now()
+    year_start = as_of.replace(
+        month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    total_cents = 0
+    charge_count = 0
+    for charge in stripe.Charge.list(
+            created={
+                'gte': int(year_start.timestamp()),
+                'lte': int(as_of.timestamp()),
+            },
+            limit=100).auto_paging_iter():
+        if getattr(charge, 'status', '') != 'succeeded':
+            continue
+        net = (getattr(charge, 'amount', 0) or 0) - (
+            getattr(charge, 'amount_refunded', 0) or 0)
+        if net <= 0:
+            continue
+        total_cents += net
+        charge_count += 1
+
+    return {
+        'year': as_of.year,
+        'total': Decimal(total_cents) / 100,
+        'charge_count': charge_count,
+    }

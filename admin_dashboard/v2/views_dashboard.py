@@ -19,9 +19,9 @@ def home(request):
 @admin_required
 def money_partial(request):
     """HTMX-loaded after the page renders, so a slow/down data source
-    never blocks the dashboard itself. Read-only; see
-    services.get_money_summary for why this reads local data rather
-    than calling Stripe."""
+    never blocks the dashboard itself. Read-only — the Stripe-sourced
+    figure is precomputed by a Celery beat sweep, not fetched live
+    here; see services.get_money_summary."""
     try:
         money = services.get_money_summary()
         error = None

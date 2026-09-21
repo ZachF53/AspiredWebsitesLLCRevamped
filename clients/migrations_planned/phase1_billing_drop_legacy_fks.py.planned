@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('billing', '0009_servicetier_is_public'),
+        ('billing', '0010_striperevenuesync'),
     ]
 
     operations = [

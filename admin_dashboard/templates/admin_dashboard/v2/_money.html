@@ -10,13 +10,23 @@
                     <span class="v2-stat-tile__label">MRR ({{ money.active_maintenance_clients }} sites)</span>
                 </div>
                 <div class="v2-stat-tile">
-                    <span class="v2-stat-tile__value">${{ money.cash_collected_this_month|floatformat:0 }}</span>
-                    <span class="v2-stat-tile__label">Collected this month</span>
+                    <span class="v2-stat-tile__value">${{ money.cash_collected_this_year|floatformat:0 }}</span>
+                    <span class="v2-stat-tile__label">Collected in {{ money.collected_year }}</span>
                 </div>
             </div>
-            <p class="muted" style="margin-top: 0.75rem;">
-                As of {{ money.computed_at|date:"M j, g:i A" }}. Local ledger data, cached 5 minutes — not a live Stripe read.
-            </p>
+            {% if money.stripe_sync_error %}
+                <p class="admin-empty" style="margin-top: 0.75rem;">
+                    Stripe sync error — showing last-known figure: {{ money.stripe_sync_error }}
+                </p>
+            {% elif not money.stripe_synced_at %}
+                <p class="muted" style="margin-top: 0.75rem;">
+                    Not yet synced from Stripe — figure will appear within 5 minutes.
+                </p>
+            {% else %}
+                <p class="muted" style="margin-top: 0.75rem;">
+                    Collected-this-year is a live Stripe total (every succeeded charge on the account, Jan 1 – now, resets each January 1), synced {{ money.stripe_synced_at|timesince }} ago. MRR is local-ledger, cached 5 minutes.
+                </p>
+            {% endif %}
         {% endif %}
     </div>
 </div>

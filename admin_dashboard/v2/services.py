@@ -242,7 +242,12 @@ def get_counts():
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Money — local ledger only, never Stripe. See v2 build report for why.
+# Money — MRR is local-ledger (a projection, not cash); "collected this
+# year" is read from StripeRevenueSync, a singleton a Celery beat sweep
+# refreshes every 5 minutes straight from the Stripe account (see
+# billing/tasks.py::sync_stripe_ytd_collected_task). That sweep is
+# unscoped by customer, so it also counts payments collected by hand
+# outside our own billing flows (no PaymentRecord row at all).
 # ─────────────────────────────────────────────────────────────────────────
 
 MONEY_CACHE_KEY = 'admin_dashboard_v2_money'
@@ -250,33 +255,34 @@ MONEY_CACHE_SECONDS = 300
 
 
 def get_money_summary():
-    """MRR + cash collected this month, read entirely from local data
-    (clients.revenue.get_current_mrr + the PaymentRecord ledger) —
-    deliberately NOT a live Stripe API read. Cached 5 minutes.
-    """
+    """MRR (local projection, cached 5 min) + cash collected this
+    calendar year (Jan 1 - Dec 31, resets automatically each January —
+    read live off the StripeRevenueSync singleton, not cached here
+    since that row itself only changes every 5 minutes)."""
+    from billing.revenue_models import StripeRevenueSync
+
     cached = cache.get(MONEY_CACHE_KEY)
-    if cached is not None:
-        return cached
+    if cached is None:
+        from clients.revenue import get_current_mrr
 
-    from django.db.models import Sum
+        mrr = get_current_mrr()
+        cached = {
+            'mrr_total': mrr['mrr_total'],
+            'active_maintenance_clients': mrr['active_maintenance_clients'],
+        }
+        cache.set(MONEY_CACHE_KEY, cached, MONEY_CACHE_SECONDS)
 
-    from clients.models import PaymentRecord
-    from clients.revenue import get_current_mrr
-
+    sync = StripeRevenueSync.get()
     now = timezone.now()
-    mrr = get_current_mrr()
-    collected = (PaymentRecord.objects
-                 .filter(status='paid', paid_at__year=now.year,
-                         paid_at__month=now.month)
-                 .aggregate(total=Sum('amount'))['total']) or 0
-
     summary = {
-        'mrr_total': mrr['mrr_total'],
-        'active_maintenance_clients': mrr['active_maintenance_clients'],
-        'cash_collected_this_month': collected,
+        'mrr_total': cached['mrr_total'],
+        'active_maintenance_clients': cached['active_maintenance_clients'],
+        'cash_collected_this_year': sync.total_collected,
+        'collected_year': sync.year or now.year,
+        'stripe_synced_at': sync.last_synced_at,
+        'stripe_sync_error': sync.last_error,
         'computed_at': now,
     }
-    cache.set(MONEY_CACHE_KEY, summary, MONEY_CACHE_SECONDS)
     return summary
 
 

@@ -3,6 +3,7 @@
 import logging
 
 from celery import shared_task
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,48 @@ def reconcile_domains_task():
     last_line = summary[-1] if summary else ''
     logger.info('reconcile_domains: %s', last_line)
     return last_line
+
+
+@shared_task
+def sync_stripe_ytd_collected_task():
+    """
+    Every 5 minutes — pull the account-wide, Jan 1-to-now total of
+    every succeeded Stripe charge and write it to the StripeRevenueSync
+    singleton the v2 dashboard money card reads. Unscoped by customer
+    so manually-charged clients with no Account link are still counted.
+
+    A Stripe-side failure (missing key, API error, rate limit) is
+    recorded on the singleton's last_error rather than raised, so a
+    single bad sweep leaves the card showing its last-good figure
+    instead of going blank.
+    """
+    from billing.revenue_models import StripeRevenueSync
+    from billing.stripe_helpers import StripeNotConfigured, get_ytd_stripe_collected
+
+    row = StripeRevenueSync.get()
+    try:
+        result = get_ytd_stripe_collected()
+    except StripeNotConfigured as exc:
+        row.last_error = str(exc)
+        row.save(update_fields=['last_error', 'updated_at'])
+        return
+    except Exception as exc:  # noqa: BLE001 — beat task, must not crash
+        logger.exception('sync_stripe_ytd_collected_task failed')
+        row.last_error = str(exc)[:500]
+        row.save(update_fields=['last_error', 'updated_at'])
+        return
+
+    row.year = result['year']
+    row.total_collected = result['total']
+    row.charge_count = result['charge_count']
+    row.last_synced_at = timezone.now()
+    row.last_error = ''
+    row.save(update_fields=[
+        'year', 'total_collected', 'charge_count', 'last_synced_at',
+        'last_error', 'updated_at'])
+    logger.info(
+        'sync_stripe_ytd_collected_task: %s charges, $%s for %s',
+        result['charge_count'], result['total'], result['year'])
 
 
 @shared_task
