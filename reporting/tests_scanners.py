@@ -3,7 +3,11 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from reporting.scanners import _classify_nikto_msg, run_nmap_scan
+from reporting.scanners import (
+    _classify_nikto_msg,
+    _hsts_missing,
+    run_nmap_scan,
+)
 
 
 class NiktoClassifierTests(SimpleTestCase):
@@ -97,3 +101,25 @@ class NmapRawOutputTests(SimpleTestCase):
         # Redis on 6379 with no auth is a baked-in critical finding.
         self.assertEqual(len(result['findings']), 1)
         self.assertEqual(result['findings'][0]['severity'], 'critical')
+
+
+class HstsFindingTests(SimpleTestCase):
+    """
+    A grade-A SSL Labs result doesn't fail on missing HSTS, so it would
+    otherwise never surface anywhere as something to fix.
+    """
+
+    def test_absent_status_is_missing(self):
+        details = {'hstsPolicy': {'status': 'absent'}}
+        self.assertTrue(_hsts_missing(details))
+
+    def test_present_status_is_not_missing(self):
+        details = {'hstsPolicy': {'status': 'present',
+                                   'LONG_MAX_AGE': 15552000}}
+        self.assertFalse(_hsts_missing(details))
+
+    def test_no_hsts_key_at_all_is_not_flagged(self):
+        # Conservative by design: only flag on SSL Labs' explicit
+        # 'absent' status, not on missing/malformed data we can't
+        # confirm one way or the other.
+        self.assertFalse(_hsts_missing({}))

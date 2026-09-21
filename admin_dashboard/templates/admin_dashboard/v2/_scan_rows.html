@@ -41,7 +41,7 @@ names; the "View" link and website link both go through v2 detail pages.
                         </span>
                     </td>
                     <td class="scan-findings">
-                        {% if s.status == 'complete' and not s.findings_count %}
+                        {% if s.status == 'complete' and not s.critical_count and not s.high_count and not s.medium_count and not s.low_count %}
                             <span class="scan-clean">✓ Clean</span>
                         {% else %}
                             {% if s.critical_count %}<span class="scan-pill scan-pill--critical">🔴 {{ s.critical_count }}</span>{% endif %}

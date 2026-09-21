@@ -418,7 +418,36 @@ def run_ssl_scan(domain, timeout=30, max_poll_attempts=18):
                 'evidence': f'SSL Labs issues flag: {issues}',
             })
 
+    if _hsts_missing(details):
+        findings.append(_hsts_finding(domain))
+
     return {'grade': grade, 'findings': findings, 'raw_data': data}
+
+
+def _hsts_missing(details):
+    return ((details.get('hstsPolicy') or {}).get('status')) == 'absent'
+
+
+def _hsts_finding(domain):
+    """
+    A grade-A site can still be missing HSTS — SSL Labs doesn't fail
+    the grade for it, so it silently doesn't show up anywhere unless
+    called out as its own finding.
+    """
+    return {
+        'title': 'HSTS not enabled',
+        'severity': 'low',
+        'description': (
+            'No Strict-Transport-Security header. Without it, browsers '
+            'still allow an initial plain-HTTP request before any '
+            'redirect to HTTPS, leaving a window for a downgrade / '
+            'SSL-stripping attack.'),
+        'recommendation': (
+            'Add `add_header Strict-Transport-Security "max-age='
+            '31536000; includeSubDomains" always;` to the nginx SSL '
+            'server block.'),
+        'evidence': f'SSL Labs hstsPolicy.status: absent ({domain})',
+    }
 
 
 # ── WPScan ─────────────────────────────────────────────────────────────────
