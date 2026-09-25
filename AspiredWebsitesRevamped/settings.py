@@ -669,6 +669,11 @@ MOONIEFUL_SYNC_SECRET = env('MOONIEFUL_SYNC_SECRET', '')
 VAULT_SERVER_SECRET = env('VAULT_SERVER_SECRET', '')
 
 MOONIEFUL_SYNC_URL = env('MOONIEFUL_SYNC_URL', '')
+# Base URL for the file-transfer leg of outbound document sync (see
+# sync/transport.py + docs/sync_contract.md "document_added"). The real
+# value is https://moonieful.com/portal/api/sync/file/ — the sender appends
+# <document_id>/.
+MOONIEFUL_SYNC_FILE_URL = env('MOONIEFUL_SYNC_FILE_URL', '')
 SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
 

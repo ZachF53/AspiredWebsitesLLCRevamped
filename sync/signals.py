@@ -24,12 +24,13 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from clients.account_models import Website
+from clients.models import ClientDocument
 from sync.models import SyncJob
 
 logger = logging.getLogger(__name__)
 
 
-def _enqueue(account, event_type, data):
+def _enqueue(account, event_type, data, website=None):
     """Queue an outbound SyncJob, but only for accounts Moonieful actually
     knows about — otherwise every stage/maintenance change on every
     Aspired-direct client (the majority) would queue a job that can only
@@ -43,6 +44,7 @@ def _enqueue(account, event_type, data):
     job = SyncJob.objects.create(
         target='moonieful',
         account_new=account,
+        website_new=website,
         event_type=event_type,
         payload=snapshot,
         payload_snapshot=snapshot,
@@ -90,3 +92,36 @@ def _queue_website_changes(sender, instance, created, **kwargs):
     if old_maint is not None and old_maint != instance.maintenance_active:
         _enqueue(account, 'maintenance_activated',
                  {'maintenance_active': instance.maintenance_active})
+
+
+@receiver(post_save, sender=ClientDocument)
+def _queue_document_added(sender, instance, created, **kwargs):
+    """Queue an outbound SyncJob when a document is added locally on a
+    Moonieful-referred website — an admin upload from the v2 Files tab, or
+    the client's own portal upload.
+
+    Loop prevention: any row with moonieful_document_id already set
+    originated FROM Moonieful via sync/handlers.py (_upsert_documents /
+    _upsert_intake_file_documents), which creates rows through
+    get_or_create() — that doesn't give a clean place to set a _from_sync
+    flag before the save Django performs internally, so
+    moonieful_document_id is used instead: it is never null for a
+    Moonieful-originated row and never set for a locally-originated one.
+    """
+    if kwargs.get('raw'):
+        return
+    if not created:
+        return
+    if instance.moonieful_document_id is not None:
+        return
+    website = instance.website_new
+    if website is None or not website.moonieful_referred:
+        return
+
+    _enqueue(website.account, 'document_added', {
+        'document_id': str(instance.id),
+        'filename': instance.file.name.rsplit('/', 1)[-1] if instance.file else '',
+        'label': instance.label,
+        'description': instance.description,
+        'direction': instance.direction,
+    }, website=website)

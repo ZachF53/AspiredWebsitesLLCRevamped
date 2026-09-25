@@ -8,7 +8,7 @@ contract, update the copy in both repos and the code on both sides in the same c
 Moonieful repo: `sync/bundle.py`, `sync/security.py`, `sync/transport.py`,
 `sync/handlers.py`, `sync/views.py`.
 Aspired repo: `sync/security.py`, `sync/handlers.py`, `sync/views.py`,
-`sync/signals.py`, `sync/management/commands/run_sync.py`.
+`sync/signals.py`, `sync/transport.py`, `sync/management/commands/run_sync.py`.
 
 ## HMAC envelope (both directions)
 
@@ -96,7 +96,7 @@ filtering for the one already flagged as the Moonieful referral — never assume
 account's oldest/only website," since the same person may separately be a direct
 Aspired client with an unrelated build.
 
-## Direction 2 — Aspired → Moonieful (status only)
+## Direction 2 — Aspired → Moonieful
 
 `POST https://moonieful.com/portal/api/sync/inbound/`:
 
@@ -104,7 +104,7 @@ Aspired client with an unrelated build.
 {
   "schema_version": 1,
   "source_site": "aspired",
-  "event_type": "stage_changed | maintenance_activated",
+  "event_type": "stage_changed | maintenance_activated | document_added",
   "event_id": "uuid",
   "moonieful_client_id": "uuid",
   "data": {
@@ -122,6 +122,54 @@ or, for `maintenance_activated`:
 Aspired never sends account/intake data back — per the field-ownership rule, Moonieful
 owns identity/intake, Aspired owns build stage/maintenance/support. `moonieful_client_id`
 is required at the top level; a payload without it is rejected.
+
+### `document_added` (Aspired → Moonieful)
+
+Sent when a `ClientDocument` is created locally on a Website already flagged
+`moonieful_referred=True` — an admin upload from Aspired's v2 Files tab, or the client's
+own portal upload. Never sent for a document that itself originated from Moonieful via
+Direction 1 (loop prevention: skipped whenever `moonieful_document_id` is already set on
+that row).
+
+```json
+{
+  "schema_version": 1,
+  "source_site": "aspired",
+  "event_type": "document_added",
+  "event_id": "uuid",
+  "moonieful_client_id": "uuid",
+  "data": {
+    "document_id": "uuid",
+    "filename": "brand-assets-final.psd",
+    "label": "Final brand assets",
+    "description": "",
+    "direction": "to_client | from_client"
+  }
+}
+```
+
+`data.document_id` is the Aspired `ClientDocument.id` (UUID primary key). It doubles as
+the identifier for the follow-up file transfer: after this JSON event succeeds, Aspired
+streams the file body to `POST https://moonieful.com/portal/api/sync/file/<document_id>/`
+using the same file-transfer HMAC scheme as Direction 1's file endpoint (`sign(timestamp,
+f'{url}\n{size}')`, `Content-Type: application/octet-stream`, filename in
+`X-Sync-Filename`).
+
+`data.direction` is Aspired's own `ClientDocument.direction` value, unchanged —
+`to_client` means Aspired (or the admin on Aspired's behalf) sent it toward the client;
+`from_client` means the client uploaded it through the Aspired portal.
+
+**Receiver-side implication (Moonieful repo, not yet implemented as of this writing):**
+`sync/handlers.py::HANDLERS` on Moonieful's side needs a `document_added` entry whose
+handler creates a `Document` row **using `document_id` as that row's own primary key**,
+not a freshly generated one — her `inbound_file` view resolves the target purely via
+`Document.objects.get(id=document_id)` and 404s if no row exists yet at that id. Until
+that handler exists, `dispatch()` treats `document_added` as an unrecognized event type
+(logged, ignored, still returns HTTP 200) and the follow-up file POST will 404 against
+`inbound_file` every time — Aspired's sender treats that as a failed job (both the
+metadata POST and the file POST must return 200 for the job to be marked sent) and
+retries on the standard backoff before eventually alerting an admin, rather than silently
+dropping the file.
 
 ## Field ownership
 

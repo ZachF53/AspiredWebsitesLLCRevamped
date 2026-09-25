@@ -183,6 +183,26 @@ class ClientCreatedTests(TestCase):
         self.assertEqual(doc.label, 'Brand guide')
         self.assertEqual(doc.direction, 'to_client')
 
+    def test_synced_document_file_path_is_keyed_on_website_not_none(self):
+        """client_document_path used to build the upload path from
+        instance.client_id, which is never set on a synced document (only
+        website_new is, via _upsert_documents' get_or_create defaults) —
+        every synced file's file landed at the literal path
+        portal/clients/None/docs/<filename>."""
+        from clients.models import client_document_path
+        from sync.handlers import handle_client_created
+
+        bundle = _bundle(documents=[
+            {'id': '33333333-3333-3333-3333-333333333333',
+             'label': 'Brand guide'}])
+        site = handle_client_created(bundle).websites.first()
+
+        doc = ClientDocument.objects.get(website_new=site)
+        path = client_document_path(doc, 'brand-guide.pdf')
+        self.assertEqual(
+            path, f'portal/clients/website/{site.id}/docs/brand-guide.pdf')
+        self.assertNotIn('None', path)
+
     def test_a_bundle_with_no_email_is_rejected(self):
         from sync.handlers import handle_client_created
 

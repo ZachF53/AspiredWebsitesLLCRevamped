@@ -200,6 +200,42 @@ class SyncFileTests(TestCase):
         )
         self.assertEqual(r.status_code, 400)
 
+    def test_widened_extension_font_file_is_accepted(self):
+        """Fonts were previously rejected outright — Moonieful's own
+        upload form allows them ("a brand handover routinely includes the
+        licensed typeface") and the allow-list here is meant to match what
+        she can actually send."""
+        body = b'\x00\x01\x00\x00fake font bytes'
+        url = reverse('sync:file', args=[self.document.moonieful_document_id])
+        ts = int(time.time())
+        signed_over = f'http://testserver{url}\n{len(body)}'.encode()
+        sig = sign(ts, signed_over)
+
+        r = self.client.post(
+            url, data=body, content_type='application/octet-stream',
+            HTTP_X_SYNC_SIGNATURE=sig, HTTP_X_SYNC_TIMESTAMP=str(ts),
+            HTTP_X_SYNC_FILENAME='brand-typeface.ttf',
+        )
+        self.assertEqual(r.status_code, 200)
+
+    def test_archive_extension_still_rejected(self):
+        """Archives are deliberately excluded from the widened list even
+        though Moonieful's own form allows them — an archive's contents
+        are invisible to an extension check, so accepting it just moves
+        the risk one layer down to whenever it's later extracted."""
+        body = b'PK\x03\x04fake zip bytes'
+        url = reverse('sync:file', args=[self.document.moonieful_document_id])
+        ts = int(time.time())
+        signed_over = f'http://testserver{url}\n{len(body)}'.encode()
+        sig = sign(ts, signed_over)
+
+        r = self.client.post(
+            url, data=body, content_type='application/octet-stream',
+            HTTP_X_SYNC_SIGNATURE=sig, HTTP_X_SYNC_TIMESTAMP=str(ts),
+            HTTP_X_SYNC_FILENAME='assets.zip',
+        )
+        self.assertEqual(r.status_code, 400)
+
 
 class OutboundSyncSignalTests(TestCase):
     """sync/signals.py — Aspired → Moonieful envelope shape."""
@@ -279,6 +315,167 @@ class OutboundSyncSignalTests(TestCase):
         site.save()
 
         self.assertEqual(SyncJob.objects.count(), 0)
+
+    def _document(self, site, **over):
+        """Build (not .create()) so the file is attached before the single
+        .save() that fires post_save — matching how both real upload paths
+        (clients.views.file_upload, the admin website_document_upload) do
+        it, unlike ClientDocument.objects.create() followed by a second
+        FieldFile.save() call."""
+        from django.core.files.base import ContentFile
+
+        from clients.models import ClientDocument
+
+        kwargs = {
+            'website_new': site, 'direction': 'from_client', 'label': 'Asset',
+        }
+        kwargs.update(over)
+        doc = ClientDocument(**kwargs)
+        doc.file.save('asset.png', ContentFile(b'fake bytes'), save=False)
+        doc.save()
+        return doc
+
+    def test_document_added_on_moonieful_referred_website_queues_job(self):
+        from clients.account_models import Website
+        from sync.models import SyncJob
+
+        account = self._account()
+        site = Website.objects.create(
+            account=account, name='Site', moonieful_referred=True)
+        doc = self._document(site, label='Logo files',
+                              description='Final PNGs', direction='from_client')
+
+        job = SyncJob.objects.get(event_type='document_added')
+        self.assertEqual(job.payload_snapshot['moonieful_client_id'],
+                          str(account.moonieful_client_id))
+        data = job.payload_snapshot['data']
+        self.assertEqual(data['document_id'], str(doc.id))
+        self.assertEqual(data['label'], 'Logo files')
+        self.assertEqual(data['direction'], 'from_client')
+        self.assertEqual(job.website_new_id, site.id)
+
+    def test_moonieful_originated_document_is_not_echoed_back(self):
+        """A document row created via the inbound sync handlers always
+        carries moonieful_document_id — echoing it straight back out would
+        round-trip every inbound document forever."""
+        from clients.account_models import Website
+        from sync.models import SyncJob
+
+        account = self._account()
+        site = Website.objects.create(
+            account=account, name='Site', moonieful_referred=True)
+        self._document(
+            site, direction='to_client',
+            moonieful_document_id='aa000000-0000-0000-0000-0000000000aa')
+
+        self.assertEqual(
+            SyncJob.objects.filter(event_type='document_added').count(), 0)
+
+    def test_document_on_non_moonieful_website_does_not_queue(self):
+        from clients.account_models import Website
+        from sync.models import SyncJob
+
+        account = self._account()
+        site = Website.objects.create(account=account, name='Site')  # moonieful_referred=False
+
+        self._document(site)
+
+        self.assertEqual(
+            SyncJob.objects.filter(event_type='document_added').count(), 0)
+
+
+class TransportTests(TestCase):
+    """sync/transport.py — the two-leg document_added delivery path.
+    requests.post is mocked; this tests the delivery logic, not the
+    network."""
+
+    def _account(self):
+        from django.contrib.auth import get_user_model
+
+        from clients.account_models import Account
+
+        User = get_user_model()
+        user = User.objects.create_user(
+            username='transport', email='transport@example.com', password='x')
+        return Account.objects.create(
+            user=user, name='Transport Co',
+            moonieful_client_id='99999999-9999-9999-9999-999999999999',
+            synced_from_moonieful=True)
+
+    def _document_job(self):
+        from django.core.files.base import ContentFile
+
+        from clients.account_models import Website
+        from clients.models import ClientDocument
+        from sync.models import SyncJob
+
+        account = self._account()
+        site = Website.objects.create(
+            account=account, name='Site', moonieful_referred=True)
+        doc = ClientDocument(
+            website_new=site, direction='from_client', label='Asset')
+        doc.file.save('asset.png', ContentFile(b'fake bytes'), save=False)
+        doc.save()
+        return SyncJob.objects.get(event_type='document_added'), doc
+
+    @override_settings(MOONIEFUL_SYNC_SECRET=TEST_SECRET)
+    def test_file_leg_failure_fails_the_whole_job(self):
+        """If the metadata POST succeeds but the file POST 404s — exactly
+        what happens today, since Moonieful has no document_added handler
+        yet, and her dispatch() treats an unrecognized event_type as an
+        ignored no-op that still returns 200 — the job must be reported
+        as failed, not sent. Otherwise it would be marked 'sent' forever
+        while the file never actually arrived."""
+        from unittest.mock import Mock, patch
+
+        from sync import transport
+
+        job, doc = self._document_job()
+
+        json_resp = Mock(status_code=200, text='{"status": "ok"}')
+        file_resp = Mock(status_code=404, text='{"error": "unknown document"}')
+        with patch('sync.transport.requests.post',
+                   side_effect=[json_resp, file_resp]):
+            ok, error = transport.deliver_document(
+                job, 'https://moonieful.example/inbound/',
+                'https://moonieful.example/file/')
+
+        self.assertFalse(ok)
+        self.assertIn('404', error)
+
+    @override_settings(MOONIEFUL_SYNC_SECRET=TEST_SECRET)
+    def test_both_legs_succeeding_reports_ok(self):
+        from unittest.mock import Mock, patch
+
+        from sync import transport
+
+        job, doc = self._document_job()
+
+        ok_resp = Mock(status_code=200, text='{"status": "ok"}')
+        with patch('sync.transport.requests.post', return_value=ok_resp):
+            ok, error = transport.deliver_document(
+                job, 'https://moonieful.example/inbound/',
+                'https://moonieful.example/file/')
+
+        self.assertTrue(ok)
+        self.assertEqual(error, '')
+
+    @override_settings(MOONIEFUL_SYNC_SECRET=TEST_SECRET)
+    def test_missing_file_url_fails_without_attempting_the_file_leg(self):
+        from unittest.mock import Mock, patch
+
+        from sync import transport
+
+        job, doc = self._document_job()
+
+        with patch('sync.transport.requests.post') as mock_post:
+            mock_post.return_value = Mock(status_code=200, text='{}')
+            ok, error = transport.deliver_document(
+                job, 'https://moonieful.example/inbound/', '')
+
+        self.assertFalse(ok)
+        self.assertIn('MOONIEFUL_SYNC_FILE_URL', error)
+        mock_post.assert_called_once()  # only the metadata leg ran
 
 
 @override_settings(MOONIEFUL_SYNC_SECRET=TEST_SECRET)

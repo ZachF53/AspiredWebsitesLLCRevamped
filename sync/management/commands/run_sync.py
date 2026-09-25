@@ -7,18 +7,15 @@ Failed jobs back off 1 / 5 / 15 / 60 minutes and are marked failed after
 five attempts.
 """
 
-import json
-import time
 from datetime import timedelta
 
-import requests
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from sync import transport
 from sync.models import SyncJob
-from sync.security import SIGNATURE_VERSION, sign
 
 # Minutes to wait before the next attempt, keyed by attempts-so-far.
 BACKOFF_MINUTES = {1: 1, 2: 5, 3: 15, 4: 60}
@@ -40,14 +37,27 @@ class Command(BaseCommand):
                 'run_sync: MOONIEFUL_SYNC_SECRET not configured — aborting.')
             return
 
+        # Only required for document_added jobs (see sync/transport.py) —
+        # left unset, everything else still sends normally; document_added
+        # jobs are simply held pending rather than burning an attempt
+        # against a var that just isn't configured yet.
+        file_url = settings.MOONIEFUL_SYNC_FILE_URL
+
         now = timezone.now()
-        sent = failed = not_due = 0
+        sent = failed = not_due = skipped = 0
         for job in SyncJob.objects.filter(status='pending', target='moonieful'):
             if not self._is_due(job, now):
                 not_due += 1
                 continue
+            if job.event_type == 'document_added' and not file_url:
+                skipped += 1
+                continue
 
-            ok, error = self._deliver(job, target_url)
+            if job.event_type == 'document_added':
+                ok, error = transport.deliver_document(job, target_url, file_url)
+            else:
+                ok, error = transport.deliver_json(job, target_url)
+
             job.attempts += 1
             job.last_attempt_at = timezone.now()
             if ok:
@@ -63,7 +73,8 @@ class Command(BaseCommand):
             job.save()
 
         self.stdout.write(
-            f'run_sync: sent={sent} failed={failed} not-due={not_due}'
+            f'run_sync: sent={sent} failed={failed} not-due={not_due} '
+            f'skipped={skipped}'
         )
 
     def _is_due(self, job, now):
@@ -72,37 +83,6 @@ class Command(BaseCommand):
             return True
         wait = BACKOFF_MINUTES.get(job.attempts, 60)
         return now >= job.last_attempt_at + timedelta(minutes=wait)
-
-    def _deliver(self, job, url):
-        """POST one job with a freshly computed signature + timestamp.
-
-        payload_snapshot is already shaped as {'moonieful_client_id': ...,
-        'data': {...}} (see sync/signals.py) — the spread below supplies
-        those two top-level keys, matching what Moonieful's handlers read
-        (docs/sync_contract.md).
-        """
-        envelope = {
-            'schema_version': 1,
-            'source_site': 'aspired',
-            'event_type': job.event_type,
-            'event_id': str(job.event_id),
-            **(job.payload_snapshot or {}),
-        }
-        body = json.dumps(envelope, sort_keys=True).encode()
-        timestamp = str(int(time.time()))
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Sync-Version': SIGNATURE_VERSION,
-            'X-Sync-Timestamp': timestamp,
-            'X-Sync-Signature': sign(timestamp, body),
-        }
-        try:
-            resp = requests.post(url, data=body, headers=headers, timeout=20)
-        except requests.RequestException as exc:
-            return False, str(exc)
-        if resp.status_code == 200:
-            return True, ''
-        return False, f'HTTP {resp.status_code}: {resp.text[:200]}'
 
     def _alert_admin(self, job):
         send_mail(

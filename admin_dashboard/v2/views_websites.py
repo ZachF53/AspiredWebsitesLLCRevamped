@@ -451,6 +451,15 @@ def website_detail(request, website_id):
         website_plans = (list(website.maintenance_plans.all())
                           + list(website.social_media_plans.all()))
 
+    documents = []
+    upload_form = None
+    if active_tab == 'documents':
+        from admin_dashboard.forms import AdminDocumentUploadForm
+
+        documents = list(website.documents.select_related('uploaded_by')
+                          .order_by('-created_at'))
+        upload_form = AdminDocumentUploadForm()
+
     ctx = {
         'website': website,
         'account': website.account,
@@ -494,8 +503,42 @@ def website_detail(request, website_id):
         'changelog_entries': website.changelog_entries.order_by('-date_of_change')[:25],
         'uptime_records': website.uptime_records_new.order_by('-checked_at')[:20],
         'stage_logs': website.stage_logs.order_by('-created_at')[:25],
+        # Documents
+        'documents': documents,
+        'upload_form': upload_form,
     }
     return render(request, 'admin_dashboard/v2/website_detail.html', ctx)
+
+
+@admin_required
+def website_document_upload(request, website_id):
+    """Admin: attach a file to this website's client. Mirrors
+    clients.views.file_upload's shape (form, commit=False, single .save()),
+    but sets direction='to_client' and uploaded_by=request.user since this
+    is Zach uploading FOR the client, not the client uploading. Not gated
+    by _block_if_live_subscription — uploading a file touches no
+    money-moving state, same reasoning as website_rename."""
+    from admin_dashboard.forms import AdminDocumentUploadForm
+
+    redirect_to = reverse_v2_website_tab(website_id, 'documents')
+    if request.method != 'POST':
+        return redirect(redirect_to)
+
+    website = get_object_or_404(Website, id=website_id)
+    form = AdminDocumentUploadForm(request.POST, request.FILES)
+    if form.is_valid():
+        doc = form.save(commit=False)
+        doc.website_new = website
+        doc.direction = 'to_client'
+        doc.uploaded_by = request.user
+        doc.save()
+        messages.success(request, 'File uploaded.')
+    else:
+        errors = ' '.join(
+            e for field_errors in form.errors.values() for e in field_errors)
+        messages.error(
+            request, errors or 'Upload failed — check the file and try again.')
+    return redirect(redirect_to)
 
 
 @admin_required

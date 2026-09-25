@@ -198,7 +198,7 @@ class V2SmokeTests(TestCase):
 
     def _tabs_for(self, website, expect_infrastructure):
         tabs = ['overview', 'onboarding', 'intake', 'security', 'domains',
-                'billing', 'monitoring']
+                'documents', 'billing', 'monitoring']
         if expect_infrastructure:
             tabs.append('infrastructure')
         for tab in tabs:
@@ -237,6 +237,33 @@ class V2SmokeTests(TestCase):
             '?tab=onboarding')
         self.assertEqual(r.status_code, 200)
         self.assertIn(b'cooldown', r.content)
+
+    def test_document_upload_round_trip(self):
+        """Upload via the new Files tab attaches the file to the right
+        website and shows up as a download link on reload."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile(
+            'notes.txt', b'hello from the admin', content_type='text/plain')
+        r = self.client.post(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}'
+            '/documents/upload/',
+            {'file': upload, 'label': 'Kickoff notes', 'description': ''},
+            follow=True,
+        )
+        self.assertEqual(r.status_code, 200)
+
+        from clients.models import ClientDocument
+        doc = ClientDocument.objects.get(website_new=self.website_new_site)
+        self.assertEqual(doc.direction, 'to_client')
+        self.assertEqual(doc.uploaded_by_id, self.staff.id)
+
+        r = self.client.get(
+            f'/admin-dashboard/v2/websites/{self.website_new_site.id}/'
+            '?tab=documents')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'Kickoff notes', r.content)
+        self.assertIn(b'Download', r.content)
 
     def test_infrastructure_tab_hidden_in_nav_for_wordpress(self):
         r = self.client.get(

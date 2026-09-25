@@ -25,6 +25,7 @@
         {% endif %}
         <a class="v2-tab {% if active_tab == 'security' %}active{% endif %}" href="?tab=security">Security</a>
         <a class="v2-tab {% if active_tab == 'domains' %}active{% endif %}" href="?tab=domains">Domains</a>
+        <a class="v2-tab {% if active_tab == 'documents' %}active{% endif %}" href="?tab=documents">Files</a>
         <a class="v2-tab {% if active_tab == 'billing' %}active{% endif %}" href="?tab=billing">Billing</a>
         <a class="v2-tab {% if active_tab == 'monitoring' %}active{% endif %}" href="?tab=monitoring">Monitoring</a>
     </div>
@@ -441,6 +442,53 @@
                 <p class="muted" style="margin-top: 0.5rem;">
                     DNS editing and repoint stay in the existing Domains tool for now — this tab is read-only in v2.
                 </p>
+            </div>
+        </div>
+
+    {% elif active_tab == 'documents' %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Upload a file</h2></div>
+            <div class="admin-card__body">
+                <form method="post" action="{% url 'admin_dashboard:v2_website_document_upload' website.id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ upload_form.file }}
+                    {{ upload_form.label }}
+                    {{ upload_form.description }}
+                    <button type="submit" class="btn-primary btn-sm" style="margin-top: 0.5rem;">Upload</button>
+                </form>
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Documents</h2></div>
+            <div class="admin-card__body">
+                {% comment %}
+                    doc.file.url raises ValueError (not the AttributeError templates
+                    swallow) when the FileField is empty — a real state, not a broken
+                    row: a document synced in from Moonieful registers its metadata
+                    first and the file body arrives afterward via /api/sync/file/.
+                    Guard explicitly rather than let that window 500 this tab.
+                {% endcomment %}
+                {% if documents %}
+                    <table class="v2-kv-table">
+                        <tr><th>File</th><th>Direction</th><th>Uploaded</th><th></th></tr>
+                        {% for doc in documents %}
+                            <tr>
+                                <td>{{ doc.label|default:doc.file.name }}</td>
+                                <td>{{ doc.get_direction_display }}{% if doc.moonieful_document_id %} <span class="muted">(via Moonieful)</span>{% endif %}</td>
+                                <td>{{ doc.created_at|date:"M j, Y" }}</td>
+                                <td>
+                                    {% if doc.file %}
+                                        <a href="{{ doc.file.url }}" download>Download</a>
+                                    {% else %}
+                                        <span class="muted">Upload in progress</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No documents on this website yet.</p>
+                {% endif %}
             </div>
         </div>
 

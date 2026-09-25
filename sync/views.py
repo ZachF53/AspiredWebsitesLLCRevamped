@@ -165,12 +165,32 @@ def sync_file(request, document_id):
     filename = os.path.basename(raw_name.replace('\\', '/')).strip() or f'{document_id}.bin'
 
     SYNC_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
+    # Widened to match what Moonieful's own upload form actually lets her
+    # send (portal/forms.py PORTAL_UPLOAD_ALLOWED_EXT on her side) — the
+    # narrower list below used to accept the metadata for a document Miki
+    # sent and then 400 the file body itself for anything not on it,
+    # silently leaving a fileless row behind. Archives (.zip etc.) and
+    # .html/.htm are deliberately NOT included even though her form allows
+    # them: an archive's contents are invisible to an extension check, and
+    # .html is only safe on her side because her serving view forces a
+    # Content-Disposition: attachment header — Aspired serves MEDIA_URL
+    # directly with no such view in front of it.
     SYNC_ALLOWED_EXTS = {
-        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
-        'xls', 'xlsx', 'csv', 'ppt', 'pptx',
+        # docs
+        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages', 'epub',
+        'xls', 'xlsx', 'csv', 'ods', 'numbers',
+        'ppt', 'pptx', 'odp', 'key',
+        # images
         'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-        'mp4', 'mov', 'webm', 'mp3', 'wav', 'm4a',
-        'psd', 'ai', 'sketch', 'fig',
+        'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif',
+        # audio / video
+        'mp4', 'mov', 'webm', 'avi', 'mkv', 'wmv', 'm4v', 'mpg', 'mpeg',
+        'mp3', 'wav', 'm4a', 'm4b', 'aac', 'flac', 'ogg', 'oga', 'aif', 'aiff',
+        # design / source files
+        'psd', 'ai', 'sketch', 'fig', 'xd', 'indd', 'eps',
+        'afdesign', 'afphoto', 'procreate', 'dwg', 'dxf',
+        # fonts — brand handovers routinely include the licensed typeface
+        'ttf', 'otf', 'woff', 'woff2',
     }
     if len(raw) > SYNC_MAX_SIZE:
         return JsonResponse(

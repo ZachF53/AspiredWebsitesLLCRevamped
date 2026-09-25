@@ -56,7 +56,19 @@ BUILD_PACKAGE_CHOICES = [
 
 
 def client_document_path(instance, filename):
-    """Upload path: portal/clients/<client_id>/docs/<filename>."""
+    """Upload path.
+
+    Prefers website_new (portal/clients/website/<id>/docs/<filename>) since
+    every sync-created row only ever sets website_new, never the legacy
+    client FK — get_or_create() calls in sync/handlers.py never touch it, so
+    instance.client_id was always None for a synced document and every one
+    of those files was landing at the literal path portal/clients/None/docs/.
+    Falls back to the legacy client_id path so files already saved under
+    portal/clients/<client_id>/docs/ keep resolving — this only decides
+    where a FUTURE .save() writes.
+    """
+    if instance.website_new_id is not None:
+        return f'portal/clients/website/{instance.website_new_id}/docs/{filename}'
     return f'portal/clients/{instance.client_id}/docs/{filename}'
 
 

@@ -3,6 +3,7 @@
 from django import forms
 
 from billing.pricing_models import ServiceTier
+from clients.forms import FileUploadForm
 from clients.models import SiteChangelogEntry
 from outreach.models import Lead, LeadNote, ScrapeJob
 from reporting.models import ClientChatbot, TrackedKeyword
@@ -278,6 +279,26 @@ class SiteChangelogForm(forms.ModelForm):
             field.queryset
             .select_related('account')
             .order_by('account__name', 'name'))
+
+
+class AdminDocumentUploadForm(FileUploadForm):
+    """Admin-side file upload attached to a website's Files tab.
+
+    Subclasses the client portal's FileUploadForm rather than duplicating
+    it — same trust boundary (an authenticated portal user attaching a
+    file for a client), so the same size cap and extension/MIME allow-list
+    apply. Adds a description field, which staff filling this in from the
+    dashboard are more likely to bother with than a client uploading in a
+    hurry.
+    """
+
+    class Meta(FileUploadForm.Meta):
+        fields = ['file', 'label', 'description']
+        widgets = {
+            **FileUploadForm.Meta.widgets,
+            'description': forms.Textarea(
+                attrs={'class': 'form-control', 'rows': 3}),
+        }
 
 
 class BlogGenerateForm(forms.Form):

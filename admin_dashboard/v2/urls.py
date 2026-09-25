@@ -72,6 +72,9 @@ urlpatterns = [
     path('websites/<uuid:website_id>/add-plan/',
          views_websites.website_add_plan,
          name='v2_website_add_plan'),
+    path('websites/<uuid:website_id>/documents/upload/',
+         views_websites.website_document_upload,
+         name='v2_website_document_upload'),
 
     path('scans/', views_scans.scans_list, name='v2_scans_list'),
     path('scans/table/', views_scans.scans_table, name='v2_scans_table'),
