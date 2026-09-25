@@ -113,8 +113,20 @@ EOF
 
   systemctl enable fail2ban
   systemctl restart fail2ban
+
   log "fail2ban sshd jail status"
-  fail2ban-client status sshd
+  # systemctl restart returns as soon as the process starts, but the
+  # control socket takes a moment to come up — retry briefly instead
+  # of racing it.
+  jail_status_ok=0
+  for _ in 1 2 3 4 5; do
+    if fail2ban-client status sshd 2>/dev/null; then
+      jail_status_ok=1
+      break
+    fi
+    sleep 1
+  done
+  [ "$jail_status_ok" -eq 1 ] || warn "fail2ban-client status sshd never came up after restart — check manually"
 else
   warn "Skipping fail2ban step"
 fi
