@@ -552,7 +552,8 @@
             <div class="admin-card__body">
                 <p><strong>Hosting subscription:</strong> {% if website.stripe_hosting_subscription_id %}Active{% else %}None{% endif %}</p>
                 <p><strong>Maintenance subscription:</strong> {% if website.stripe_maintenance_subscription_id %}Active{% else %}None{% endif %}</p>
-                <p><strong>Website build installment:</strong> {% if website.stripe_build_installment_subscription_id %}Active{% else %}None{% endif %}</p>
+                <p><strong>Website build installment:</strong> {% if website.stripe_build_installment_subscription_id %}Active &mdash; {{ website.build_installments_paid }} of 24 paid{% else %}None{% endif %}</p>
+                <p><strong>Build paid off:</strong> {% if website.build_paid_off_at %}{{ website.build_paid_off_at|date:"M j, Y" }} (client owns the site){% else %}Not yet &mdash; Aspired retains ownership{% endif %}</p>
                 {% if website.stripe_hosting_subscription_id or website.stripe_maintenance_subscription_id or website.stripe_build_installment_subscription_id %}
                     <button type="button" class="btn-secondary btn-sm" disabled title="Coming soon">Cancel subscription</button>
                     <p class="muted" style="margin-top:.5rem;">Cancelling and changing an existing plan are a different risk profile from adding one — not built in v2 yet. Use v1 for those.</p>
@@ -561,6 +562,49 @@
                 {% endif %}
             </div>
         </div>
+
+        {% comment %}
+            30-day guarantee — billing.guarantee. Refunds 75% of what was
+            paid under the agreement, keeps 25%, and cancels every
+            remaining installment / plan payment immediately. Deliberately
+            NOT gated on has_live_subscription: cancelling those
+            subscriptions is the point of the action.
+        {% endcomment %}
+        {% if guarantee %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">30-day guarantee</h2></div>
+            <div class="admin-card__body">
+                {% if guarantee.contract %}
+                    <table class="v2-kv-table">
+                        <tr><th>Agreement signed</th><td>{{ guarantee.contract.signed_at|date:"M j, Y" }} ({{ guarantee.contract.get_payment_option_display }})</td></tr>
+                        <tr><th>Window closes</th><td>{{ guarantee.deadline|date:"M j, Y" }}{% if guarantee.days_remaining %} &mdash; {{ guarantee.days_remaining }} day{{ guarantee.days_remaining|pluralize }} left{% endif %}</td></tr>
+                        <tr><th>Paid under this agreement</th><td>${{ guarantee.total_paid }} ({{ guarantee.payments|length }} payment{{ guarantee.payments|length|pluralize }})</td></tr>
+                        <tr><th>Refund to client (75%)</th><td>${{ guarantee.refund_amount }}</td></tr>
+                        <tr><th>Retained (25%)</th><td>${{ guarantee.retained_amount }}</td></tr>
+                        {% if guarantee.existing %}
+                            <tr><th>Refund record</th><td>{{ guarantee.existing.get_status_display }} &mdash; ${{ guarantee.existing.refund_amount }} by {{ guarantee.existing.requested_by|default:"admin" }}{% if guarantee.existing.error %}<br><span class="muted">{{ guarantee.existing.error|linebreaksbr }}</span>{% endif %}</td></tr>
+                        {% endif %}
+                    </table>
+                {% endif %}
+                {% if guarantee.eligible %}
+                    <form method="post" action="{% url 'admin_dashboard:v2_website_guarantee_refund' website.id %}" style="margin-top:.75rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="confirmed" value="yes">
+                        <div class="form-group">
+                            <label>Reason (kept on the audit record)</label>
+                            <input type="text" name="reason" class="form-control" placeholder="e.g. client emailed to cancel on Sep 3">
+                        </div>
+                        <button type="submit" class="btn-primary btn-sm"
+                                data-confirm="Refund ${{ guarantee.refund_amount }} (75%) to the client, keep ${{ guarantee.retained_amount }} (25%), and cancel ALL remaining installments and plan subscriptions for this agreement immediately? This cannot be undone.">
+                            Cancel agreement &amp; refund 75%
+                        </button>
+                    </form>
+                {% else %}
+                    <p class="muted" style="margin:.5rem 0 0;">{{ guarantee.reason }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Current plans</h2></div>
