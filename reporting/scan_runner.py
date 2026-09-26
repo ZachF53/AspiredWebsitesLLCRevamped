@@ -28,8 +28,8 @@ from django.utils import timezone
 from reporting.models import VulnerabilityFinding, VulnerabilityScan
 from clients.display import owner_label
 from reporting.scanners import (
-    normalize_findings, run_nikto_scan, run_nmap_scan,
-    run_ssl_scan, run_wpscan,
+    _strip_to_domain, normalize_findings, run_http_security_check,
+    run_nikto_scan, run_nmap_scan, run_ssl_scan, run_wpscan,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,11 +38,13 @@ logger = logging.getLogger(__name__)
 # Which tools run for each scan_type — keyed so the orchestrator stays
 # declarative and easy to extend.
 _TOOLS_BY_TYPE = {
-    'full':  {'nmap', 'nikto', 'ssl', 'wpscan'},
+    # 'http' = direct security-header + certificate-expiry check
+    # (reporting.scanners.run_http_security_check) — cheap, one request.
+    'full':  {'nmap', 'nikto', 'ssl', 'wpscan', 'http'},
     'ports': {'nmap'},
-    'web':   {'nikto', 'wpscan'},
-    'ssl':   {'ssl'},
-    'quick': {'nmap', 'ssl'},
+    'web':   {'nikto', 'wpscan', 'http'},
+    'ssl':   {'ssl', 'http'},
+    'quick': {'nmap', 'ssl', 'http'},
 }
 
 
@@ -71,9 +73,17 @@ def run_full_scan(scan_id):
     all_findings = []
 
     try:
-        if 'nmap' in tools and scan.target_ip:
+        # Sites not on an Aspired Droplet have no target_ip — nmap then
+        # scans the public hostname instead, so client-hosted sites
+        # still get the external port check.
+        nmap_target = scan.target_ip or _strip_to_domain(scan.target_url)
+        if 'nmap' in tools and nmap_target:
             nmap_timeout = 60 if scan.scan_type == 'quick' else 120
-            res = run_nmap_scan(scan.target_ip, timeout=nmap_timeout)
+            res = run_nmap_scan(nmap_target, timeout=nmap_timeout)
+            if isinstance(res, dict):
+                res.setdefault('target', nmap_target)
+                res.setdefault(
+                    'target_kind', 'ip' if scan.target_ip else 'hostname')
             scan.raw_nmap = res
             scan.save(update_fields=['raw_nmap', 'updated_at'])
             all_findings.extend(normalize_findings(
@@ -86,8 +96,11 @@ def run_full_scan(scan_id):
             all_findings.extend(normalize_findings(
                 res.get('findings') or [], 'nikto'))
 
+        if 'http' in tools and scan.target_url:
+            scan.raw_http = run_http_security_check(scan.target_url)
+            scan.save(update_fields=['raw_http', 'updated_at'])
+
         if 'ssl' in tools and scan.target_url:
-            from reporting.scanners import _strip_to_domain
             domain = _strip_to_domain(scan.target_url)
             res = run_ssl_scan(domain, timeout=30)
             scan.raw_ssl = res
@@ -155,17 +168,47 @@ def run_full_scan(scan_id):
                                  'completed_at', 'updated_at'])
 
 
+def _scan_owner(scan):
+    """The row that owns `scan`'s delivery settings: the Website for
+    every scan created off the Account/Website model, the legacy
+    ClientProfile only for pre-Account rows (website_new NULL)."""
+    return scan.website_new or scan.client
+
+
+def _scan_recipient(scan):
+    """``(email, contact_name, business_name)`` for the client who
+    should receive `scan`'s report. Website scans resolve through the
+    site's Account; legacy rows fall back to the ClientProfile."""
+    website = scan.website_new
+    if website is not None:
+        account = website.account
+        user = getattr(account, 'user', None) if account else None
+        email = (getattr(user, 'email', '') or '') if user else ''
+        contact = ((account.contact_name or account.name)
+                   if account else '') or website.name
+        business = (account.name if account else '') or website.name
+        return email, contact, business
+    client = scan.client
+    if client is None:
+        return '', '', ''
+    email = client.user.email if client.user else ''
+    return (email, client.contact_name or client.firm_name,
+            client.firm_name)
+
+
 def _notify_admin_scan_complete(scan):
     """
     Notify the right party when a scan turns up critical / high findings.
 
-    If `client.auto_send_scan_reports` is True, the client gets the PDF
-    by email (silently — no admin alert). Otherwise the admin gets a
-    Needs You alert and decides per-scan whether to send.
+    If the owner's `auto_send_scan_reports` is True (the Website for
+    every current scan; the legacy ClientProfile for pre-Account rows),
+    the client gets the PDF by email (silently — no admin alert).
+    Otherwise the admin gets a Needs You alert and decides per-scan
+    whether to send.
     """
     # Auto-send path — fire and forget; failure falls back to the admin
     # alert below so a missed email doesn't get silently swallowed.
-    if getattr(scan.client, 'auto_send_scan_reports', False):
+    if getattr(_scan_owner(scan), 'auto_send_scan_reports', False):
         try:
             _auto_send_to_client(scan)
             return
@@ -373,8 +416,7 @@ def _auto_send_to_client(scan):
 
     from clients.emails import send_branded
 
-    client = scan.client
-    client_email = client.user.email if client.user else ''
+    client_email, contact_name, firm_name = _scan_recipient(scan)
     if not client_email:
         raise RuntimeError('client has no email on file')
 
@@ -390,7 +432,6 @@ def _auto_send_to_client(scan):
         raise RuntimeError('PDF not on disk after render')
 
     month_str = (scan.completed_at or scan.created_at).strftime('%B %Y')
-    contact_name = client.contact_name or client.firm_name
     first_name = (contact_name or '').split(' ')[0] or 'there'
 
     if scan.critical_count or scan.high_count:
@@ -418,11 +459,11 @@ def _auto_send_to_client(scan):
 
     send_branded(
         subject=(f'Your Security Report — {month_str} — '
-                 f'{client.firm_name}'),
+                 f'{firm_name}'),
         template='security_report',
         context={
             'name': first_name,
-            'client_firm': client.firm_name,
+            'client_firm': firm_name,
             'month_str': month_str,
             'critical_count': scan.critical_count,
             'high_count': scan.high_count,
