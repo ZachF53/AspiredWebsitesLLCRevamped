@@ -835,8 +835,11 @@ class CombinedContractGeneratorTests(TestCase):
         self.assertIn('Website Development', text)
         self.assertIn('Combo LLC', text)
         self.assertIn('$2,500', text)
-        self.assertIn('$1,250', text)  # 50% deposit
-        # No recurring section for a build-only contract.
+        # Sept 2026 terms: no deposit — paid in full at signing.
+        self.assertIn('paid in full at', text)
+        self.assertNotIn('50%', text)
+        self.assertNotIn('$1,250', text)
+        # No recurring section for a pay-in-full, build-only contract.
         self.assertNotIn('Recurring Services', text)
 
     def test_all_three_services_text(self):
@@ -860,7 +863,10 @@ class AccountSendContractTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        _seed_contract_tiers()
+        from unittest.mock import MagicMock
+
+        from django.core.management import call_command
+        call_command('seed_pricing', stdout=MagicMock())
         from clients.account_models import Account
         # Staff operator who drives the dashboard.
         cls.staff = User.objects.create_user(
@@ -892,8 +898,8 @@ class AccountSendContractTests(TestCase):
 
     def test_requires_staff(self):
         self.client.logout()
-        r = self.client.post(self.url, data={'svc_build': 'on',
-                                             'tier_build': 'website-essential'})
+        r = self.client.post(self.url, data={'build_option': 'pay_in_full',
+                                             'plan_option': 'none'})
         self.assertIn(r.status_code, (302, 403))  # redirected to login
 
     def test_no_services_selected_errors(self):
@@ -902,48 +908,46 @@ class AccountSendContractTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Contract.objects.filter(account=self.account).count(), 0)
 
-    def test_service_without_tier_errors(self):
+    def test_unknown_option_errors(self):
         from clients.models import Contract
-        # Checked build but left tier blank.
-        self.client.post(self.url, data={'svc_build': 'on', 'tier_build': ''})
+        # The old deposit terms are not an option any more.
+        self.client.post(self.url, data={'build_option': 'deposit',
+                                         'plan_option': 'none'})
         self.assertEqual(Contract.objects.filter(account=self.account).count(), 0)
 
     def test_single_build_creates_contract(self):
         from clients.models import Contract
         from decimal import Decimal
         self.client.post(self.url, data={
-            'svc_build': 'on', 'tier_build': 'website-essential'})
+            'build_option': 'pay_in_full', 'plan_option': 'none'})
         c = Contract.objects.get(account=self.account)
-        self.assertEqual(c.package, 'essential_build')
-        self.assertEqual(c.build_price, Decimal('2500'))
-        self.assertEqual(c.deposit_amount, Decimal('1250.00'))
+        self.assertEqual(c.package, 'hvac_build')
+        self.assertEqual(c.payment_option, 'pay_in_full')
+        self.assertEqual(c.build_price, Decimal('2000'))
+        self.assertIsNone(c.deposit_amount)
         self.assertEqual(c.services.count(), 1)
         self.assertTrue(c.includes_build)
-        # Auto-linked a ClientProfile to the account.
-        self.account.refresh_from_db()
-        self.assertIsNotNone(self.account.legacy_client_profile_id)
 
-    def test_all_three_creates_three_service_rows(self):
+    def test_build_and_plan_creates_two_service_rows(self):
         from clients.models import Contract
         self.client.post(self.url, data={
-            'svc_build': 'on', 'tier_build': 'website-essential',
-            'svc_maintenance': 'on', 'tier_maintenance': 'maintenance-growth',
-            'svc_social': 'on', 'tier_social': 'social-standard',
-        })
+            'build_option': 'installment', 'plan_option': 'full_plan'})
         c = Contract.objects.get(account=self.account)
-        self.assertEqual(c.services.count(), 3)
+        self.assertEqual(c.services.count(), 2)
         types = set(c.services.values_list('service_type', flat=True))
-        self.assertEqual(types, {'build', 'maintenance', 'social'})
+        self.assertEqual(types, {'build', 'maintenance'})
         self.assertTrue(c.includes_build)
+        self.assertNotIn('50%', c.contract_text)
 
-    def test_maintenance_only_contract(self):
+    def test_plan_only_contract(self):
         from clients.models import Contract
         self.client.post(self.url, data={
-            'svc_maintenance': 'on', 'tier_maintenance': 'maintenance-growth'})
+            'build_option': 'none', 'plan_option': 'full_plan'})
         c = Contract.objects.get(account=self.account)
         self.assertEqual(c.package, '')
         self.assertIsNone(c.build_price)
         self.assertFalse(c.includes_build)
+        self.assertEqual(c.payment_option, 'none')
         self.assertEqual(c.services.count(), 1)
 
 
@@ -1191,6 +1195,10 @@ class WebsiteContractAndPlanTests(TestCase):
                 category='website_build', name='Essential Build',
                 price=Decimal('2500'), timeline_weeks=3, pages_included=8))
         ServiceTier.objects.get_or_create(
+            slug='hvac-build-full', defaults=dict(
+                category='website_build', name='Website Build: Pay in Full',
+                price=Decimal('2000')))
+        ServiceTier.objects.get_or_create(
             slug='maintenance-growth', defaults=dict(
                 category='maintenance', name='Growth', price=Decimal('599'),
                 is_recurring=True, billing_interval='month',
@@ -1226,7 +1234,11 @@ class WebsiteContractAndPlanTests(TestCase):
             r = self.client.post(url)
         self.assertEqual(r.status_code, 302)
         c = Contract.objects.get(website_new=self.website)
-        self.assertEqual(c.package, 'essential_build')
+        # Current terms: the build is sold as the HVAC build, paid in
+        # full at signing (no 50% deposit), even for a legacy package.
+        self.assertEqual(c.package, 'hvac_build')
+        self.assertEqual(c.payment_option, 'pay_in_full')
+        self.assertIsNone(c.deposit_amount)
         self.assertEqual(c.services.filter(service_type='build').count(), 1)
         self.website.refresh_from_db()
         self.assertEqual(self.website.lifecycle_status, 'contract_sent')

@@ -30,6 +30,14 @@
             <div><dt>Launch Date</dt><dd>{{ project.launch_date|date:"F j, Y"|default:"—" }}</dd></div>
         </dl>
 
+        {% if project.payment_status == 'installments_active' %}
+            <div class="support-window support-window--open" style="margin-top:1rem;">
+                <p style="margin:0;">
+                    Your build is on the 24-month installment plan &mdash; {{ project.build_installments_paid }} of 24 payments made. Each one is charged automatically to your card on file, and your site stays live throughout. Ownership transfers to you after the final payment.
+                </p>
+            </div>
+        {% endif %}
+
         {% if final_pay_url %}
             <div class="support-window support-window--open" style="margin-top:1rem;">
                 <p style="margin:0 0 .6rem;">

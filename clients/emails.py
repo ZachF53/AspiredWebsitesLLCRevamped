@@ -693,9 +693,11 @@ def send_contract_ready_email(contract, sign_url):
     name = _display_name(client)
     text_body = (
         f'Hi {name},\n\n'
-        f'Your website build contract with Aspired Websites is ready to sign.\n\n'
+        f'Your agreement with Aspired Websites is ready to sign.\n\n'
         f'Review and sign it here:\n{sign_url}\n\n'
-        f'Once signed, we\'ll send your deposit invoice and get started.\n\n'
+        f'Once you sign, you\'ll pay securely on our own payment page - the '
+        f'build in full or your first monthly installment, plus the first '
+        f'month of any plan - and we get started as soon as it clears.\n\n'
         f'— Zachery Long\nAspired Websites LLC\n'
     )
     send_branded(
@@ -713,16 +715,38 @@ def send_contract_ready_email(contract, sign_url):
 
 
 def send_contract_signed_email(contract):
-    """Confirm to the client that their contract was signed."""
+    """Confirm to the client that their contract was signed.
+
+    Three shapes: a LEGACY build contract (deposit terms — its deposit
+    invoice follows), a current-terms agreement already charged at
+    signing, or an agreement with nothing billed at signing.
+    """
     client = _contract_owner(contract)
     name = _display_name(client)
+    legacy_deposit = bool(contract.is_legacy_billing
+                          and contract.deposit_amount)
+    paid_at_signing = bool(getattr(contract, 'paid_at_signing_at', None))
+    if legacy_deposit:
+        next_step = (
+            'Your deposit invoice is on its way and will arrive shortly in a '
+            'separate email. Your project officially starts the moment your '
+            'deposit is received.')
+        preheader = 'Your deposit invoice is on its way.'
+    elif paid_at_signing:
+        next_step = (
+            'Your payment went through, so your project is under way. Any '
+            'monthly payments in your agreement are charged automatically to '
+            'the same card. You can cancel within 30 days of signing under '
+            'the 30-day guarantee: we refund 75% of what you have paid and '
+            'cancel every remaining payment.')
+        preheader = 'Payment received - your project is under way.'
+    else:
+        next_step = 'A copy of your agreement is on file in your client portal.'
+        preheader = 'Your agreement is in place.'
     text_body = (
         f'Hi {name},\n\n'
-        f'Thanks — your website build contract with Aspired Websites is '
-        f'signed.\n\n'
-        f'Your deposit invoice is on its way and will arrive shortly in a '
-        f'separate email. Your project officially starts the moment your '
-        f'deposit is received.\n\n'
+        f'Thanks — your agreement with Aspired Websites is signed.\n\n'
+        f'{next_step}\n\n'
         f'If you have any questions in the meantime, just reply to this email.\n\n'
         f'— Aspired Websites LLC\n'
     )
@@ -731,7 +755,9 @@ def send_contract_signed_email(contract):
         template='contract_signed',
         context={
             'name': name,
-            'preheader': 'Your deposit invoice is on its way.',
+            'legacy_deposit': legacy_deposit,
+            'paid_at_signing': paid_at_signing,
+            'preheader': preheader,
         },
         recipient_list=_recipient(client),
         text_body=text_body,
@@ -740,8 +766,9 @@ def send_contract_signed_email(contract):
 
 
 def send_final_invoice_email(client, contract, pay_url):
-    """Email the client the remaining-balance (final 50%) invoice link,
-    sent when the build reaches Pre-Launch. Best-effort."""
+    """Email the client the remaining-balance invoice link for a LEGACY
+    deposit-terms build, sent when it reaches Pre-Launch. Current-terms
+    builds never get one (paid in full, or installments). Best-effort."""
     name = _display_name(client)
     amount = ''
     try:
@@ -850,14 +877,15 @@ def send_gmb_create_email(client):
 
 
 def send_welcome_email(client):
-    """Sent once the deposit clears — client is active, intake unlocked."""
+    """Sent once the first payment clears — client is active, intake
+    unlocked."""
     name = _display_name(client)
     intake_url = 'https://aspiredwebsites.com/portal/intake/'
     login_url = 'https://aspiredwebsites.com/login/'
     text_body = (
         f'Hi {name},\n\n'
-        f'Your deposit is in — welcome aboard! Your website project is now '
-        f'active and we\'re getting started.\n\n'
+        f'Your first payment is in — welcome aboard! Your website project '
+        f'is now active and we\'re getting started.\n\n'
         f'Your next step is to complete your intake form in the client '
         f'portal so we have everything we need to build your site:\n'
         f'{intake_url}\n\n'
