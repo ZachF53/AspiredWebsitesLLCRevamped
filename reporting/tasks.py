@@ -13,6 +13,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -1073,27 +1074,32 @@ def check_scan_schedule():
       - subsequent: 30 days after the last *completed* scan
 
     Due scans are queued via `run_vulnerability_scan_task.delay`.
+
+    Also covers sites on a paid plan that are NOT on an Aspired Droplet
+    (reporting.security_eligibility): those are scanned by their public
+    domain — the external checks only need the hostname.
     """
     from clients.account_models import Website
     from reporting.models import VulnerabilityScan
+    from reporting.security_eligibility import security_report_eligibility_q
 
     now = timezone.now()
     interval = timedelta(days=30)
 
     # Per site: the droplet being scanned belongs to one. Scanning per
     # account meant only one of a client's servers was ever checked.
-    eligible = Website.objects.filter(
-        status='active',
-        account__status='active',
-        do_droplet_ip__isnull=False,
-    ).select_related('account')
+    droplet_q = Q(status='active', account__status='active',
+                  do_droplet_ip__isnull=False)
+    eligible = (Website.objects
+                .filter(droplet_q | security_report_eligibility_q())
+                .select_related('account').distinct())
 
     queued = 0
     for client in eligible:
-        if not client.do_droplet_ip:
-            continue
         target_url = client.url or ''
         if not target_url:
+            continue
+        if _scan_in_flight(client):
             continue
 
         last = (VulnerabilityScan.objects
@@ -1112,19 +1118,86 @@ def check_scan_schedule():
         if not should_scan:
             continue
 
-        scan = VulnerabilityScan.objects.create(
-            website_new=client,
-            target_url=target_url,
-            target_ip=client.do_droplet_ip,
-            scan_type='full',
-            is_scheduled=True,
-        )
-        async_result = run_vulnerability_scan_task.delay(str(scan.id))
-        scan.celery_task_id = async_result.id or ''
-        scan.save(update_fields=['celery_task_id', 'updated_at'])
+        _queue_scheduled_scan(client)
         queued += 1
 
     return f'Queued {queued} scheduled scan(s).'
+
+
+def _scan_in_flight(site):
+    """True when a scan for `site` is already pending/running and was
+    created in the last 6 hours (older ones are treated as stuck)."""
+    from reporting.models import VulnerabilityScan
+    return VulnerabilityScan.objects.filter(
+        website_new=site, status__in=('pending', 'running'),
+        created_at__gte=timezone.now() - timedelta(hours=6)).exists()
+
+
+def _queue_scheduled_scan(site):
+    """Create + dispatch a scheduled full scan. Sites without a Droplet
+    get an empty target_ip — the runner then scans the hostname."""
+    from reporting.models import VulnerabilityScan
+    scan = VulnerabilityScan.objects.create(
+        website_new=site,
+        target_url=site.url,
+        target_ip=site.do_droplet_ip or '',
+        scan_type='full',
+        is_scheduled=True,
+    )
+    async_result = run_vulnerability_scan_task.delay(str(scan.id))
+    scan.celery_task_id = getattr(async_result, 'id', '') or ''
+    scan.save(update_fields=['celery_task_id', 'updated_at'])
+    return scan
+
+
+@shared_task
+def queue_pre_summary_checks(max_age_days=20):
+    """
+    Runs on the 26th, 27th and 28th (see CELERY_BEAT_SCHEDULE) so every
+    site on a paid plan has fresh data for the security summary sent on
+    the 1st. For each eligible site (reporting.security_eligibility):
+
+    - queues a full external scan if the last completed scan is older
+      than `max_age_days` (or there is none), unless one is in flight;
+    - for Aspired-hosted custom builds, queues a droplet health check
+      (disk / services / pip-audit / file integrity) on the same rule.
+
+    Three consecutive days = two automatic retries for anything that
+    failed; after a success the 20-day rule makes the later days no-ops.
+    """
+    from reporting.models import DropletHealthCheck, VulnerabilityScan
+    from reporting.security_eligibility import security_report_websites
+    from reporting.security_summary import site_has_droplet
+
+    cutoff = timezone.now() - timedelta(days=max_age_days)
+    scans = checks = 0
+    for site in security_report_websites():
+        if site.url and not _scan_in_flight(site):
+            fresh = VulnerabilityScan.objects.filter(
+                website_new=site, status='complete',
+                completed_at__gte=cutoff).exists()
+            if not fresh:
+                _queue_scheduled_scan(site)
+                scans += 1
+
+        if site_has_droplet(site):
+            fresh = DropletHealthCheck.objects.filter(
+                website_new=site, status='complete',
+                completed_at__gte=cutoff).exists()
+            in_flight = DropletHealthCheck.objects.filter(
+                website_new=site, status__in=('pending', 'running'),
+                created_at__gte=timezone.now() - timedelta(hours=6),
+            ).exists()
+            if not fresh and not in_flight:
+                check = DropletHealthCheck.objects.create(
+                    website_new=site, is_scheduled=True)
+                res = run_droplet_health_check_task.delay(str(check.id))
+                check.celery_task_id = getattr(res, 'id', '') or ''
+                check.save(update_fields=['celery_task_id', 'updated_at'])
+                checks += 1
+
+    return (f'Queued {scans} pre-summary scan(s) and {checks} droplet '
+            f'health check(s).')
 
 
 # ── Droplet health audit — SSH-based in-depth review ───────────────────────
@@ -1199,111 +1272,22 @@ def check_droplet_health_schedule():
 @shared_task
 def send_security_summaries():
     """
-    1st of month, 7:30am — 30 minutes after send_monthly_reports, same
-    day, so the two artifacts land close together but stay clearly
-    separate emails (the summary is standalone, not folded into the
-    performance MonthlyReport — see reporting/security_summary.py).
+    1st of month, 7:30am — 30 minutes after send_monthly_reports, so
+    the two land close together but stay separate emails.
 
-    Targets active sites that have at least one completed scan OR
-    droplet check on record, so a WordPress site with only external
-    scans still gets a summary (it just has no Server Health section).
-    A brand-new site with neither yet is skipped — nothing to
-    summarize.
+    Sends the previous month's one-page security summary to every site
+    on a paid plan (reporting.security_eligibility). All logic lives in
+    reporting.security_summary.run_security_summaries, which the
+    `send_security_summaries` management command also calls.
     """
-    from datetime import date
+    from reporting.security_summary import (
+        previous_month, run_security_summaries,
+    )
 
-    from clients.account_models import Website
-    from clients.emails import send_branded
-    from reporting.models import DropletHealthCheck, VulnerabilityScan
-    from reporting.security_summary import generate_security_summary
-
-    today = timezone.localdate()
-    if today.month == 1:
-        report_month = date(today.year - 1, 12, 1)
-    else:
-        report_month = date(today.year, today.month - 1, 1)
-
-    scanned_ids = VulnerabilityScan.objects.filter(
-        status='complete').values_list('website_new_id', flat=True)
-    checked_ids = DropletHealthCheck.objects.filter(
-        status='complete').values_list('website_new_id', flat=True)
-    eligible_ids = set(scanned_ids) | set(checked_ids)
-
-    sites = (Website.objects
-             .filter(id__in=eligible_ids, status='active',
-                     account__status='active')
-             .select_related('account'))
-
-    sent = failed = 0
-    for site in sites:
-        try:
-            report = generate_security_summary(site, report_month)
-        except Exception:
-            logger.exception(
-                'send_security_summaries: generation failed for site %s',
-                site.id)
-            failed += 1
-            continue
-
-        account = site.account
-        recipient = account.user.email if account and account.user else ''
-        if not recipient:
-            continue
-
-        import os
-        abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path)
-        if not os.path.exists(abs_path):
-            failed += 1
-            continue
-
-        month_str = report_month.strftime('%B %Y')
-        contact_name = account.contact_name or account.name
-        first_name = (contact_name or '').split(' ')[0] or 'there'
-        ext = os.path.splitext(abs_path)[1] or '.pdf'
-        mime = 'application/pdf' if ext.lower() == '.pdf' else 'text/html'
-        with open(abs_path, 'rb') as fh:
-            pdf_bytes = fh.read()
-
-        text_body = (
-            f'Hi {first_name},\n\n'
-            f'Your monthly 1-page security summary for {month_str} is '
-            f'attached.\n\n'
-            f'{settings.SITE_BASE_URL}/portal/security/\n\n'
-            f'— Zachery Long\nAspired Websites LLC\n'
-        )
-
-        try:
-            send_branded(
-                subject=f'Your Security Summary — {month_str} — {account.name}',
-                template='security_summary',
-                context={
-                    'name': first_name,
-                    'client_firm': account.name,
-                    'month_str': month_str,
-                    'overall_status': report.overall_status,
-                    'security_url': f'{settings.SITE_BASE_URL}/portal/security/',
-                },
-                recipient_list=[recipient],
-                text_body=text_body,
-                from_email=getattr(settings, 'EMAIL_FROM_NO_REPLY',
-                                   settings.DEFAULT_FROM_EMAIL),
-                attachments=[
-                    (f'security-summary-{month_str}{ext}', pdf_bytes, mime)],
-                fail_silently=False,
-            )
-        except Exception:
-            logger.exception(
-                'send_security_summaries: send failed for site %s',
-                site.id)
-            failed += 1
-            continue
-
-        report.status = 'sent'
-        report.sent_at = timezone.now()
-        report.save(update_fields=['status', 'sent_at', 'updated_at'])
-        sent += 1
-
-    return f'Sent {sent} security summary(ies), {failed} failed.'
+    result = run_security_summaries(
+        report_month=previous_month(timezone.localdate()))
+    return (f"Sent {result['sent']} security summary(ies), "
+            f"{result['failed']} failed, {result['skipped']} skipped.")
 
 
 # ── Tier 2 session recording — retention + storage report ─────────────────

@@ -1,4 +1,4 @@
-{% load static %}<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -7,7 +7,7 @@
 /* WeasyPrint-friendly, single letter page. System fonts only. */
 @page {
     size: letter;
-    margin: 16mm 18mm;
+    margin: 13mm 16mm 14mm;
     @bottom-center {
         content: "Aspired Websites LLC · Confidential · Monthly Security Summary";
         font-family: Arial, sans-serif;
@@ -21,148 +21,150 @@ body {
     color: #1A1A1A;
     margin: 0;
     padding: 0;
-    font-size: 9.5pt;
-    line-height: 1.4;
+    font-size: 9pt;
+    line-height: 1.35;
 }
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    width: 100%;
     border-bottom: 2pt solid #E8650A;
-    padding-bottom: 4mm;
-    margin-bottom: 6mm;
+    padding-bottom: 3mm;
+    margin-bottom: 4mm;
+    border-collapse: collapse;
 }
-.header__wordmark { color: #E8650A; font-weight: bold; font-size: 13pt; }
-.header__title { font-size: 16pt; font-weight: bold; margin: 2mm 0 0; }
-.header__sub { color: #666666; font-size: 9pt; }
+.header td { vertical-align: top; padding: 0; }
+.header__wordmark { color: #E8650A; font-weight: bold; font-size: 12pt; }
+.header__title { font-size: 15pt; font-weight: bold; margin: 1mm 0 0; }
+.header__sub { color: #666666; font-size: 8.5pt; }
 .header__month { text-align: right; color: #666666; font-size: 9pt; }
 
 .status-banner {
-    padding: 4mm 5mm;
+    padding: 3mm 4mm;
     border-radius: 3pt;
     font-weight: bold;
-    font-size: 11pt;
-    margin-bottom: 6mm;
+    font-size: 10.5pt;
+    margin-bottom: 3mm;
     color: #FFFFFF;
 }
 .status-banner--green  { background: #1F8A4C; }
 .status-banner--yellow { background: #B8860B; }
 .status-banner--red    { background: #C0392B; }
 
-.grid { display: flex; gap: 5mm; margin-bottom: 6mm; }
-.card {
-    flex: 1;
-    border: 1pt solid #E5E5E5;
-    border-radius: 3pt;
-    padding: 4mm;
-}
-.card__title {
+.scanline {
     font-size: 8.5pt;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: #666666;
-    margin: 0 0 2mm;
+    color: #444444;
+    margin: 0 0 4mm;
 }
-.card__body dl { margin: 0; }
-.card__body dt { color: #666666; font-size: 8.5pt; }
-.card__body dd { margin: 0 0 2mm; font-weight: bold; font-size: 11pt; }
-.card__empty { color: #666666; font-size: 9pt; font-style: italic; }
+.scanline strong { color: #1A1A1A; }
 
-.section-title {
-    font-size: 10pt;
+.sections { width: 100%; border-collapse: collapse; }
+.sections td {
+    border-top: 1pt solid #E5E5E5;
+    padding: 2.6mm 2mm 2.6mm 0;
+    vertical-align: top;
+}
+.sec__name { width: 34%; }
+.sec__title { font-weight: bold; font-size: 9.5pt; margin: 0 0 1mm; }
+.sec__explain { color: #666666; font-size: 7.8pt; margin: 0; }
+.sec__headline { margin: 0; font-size: 9pt; }
+.sec__items { margin: 1mm 0 0; padding-left: 4mm; color: #444444; font-size: 7.8pt; }
+.pill {
+    display: inline-block;
+    font-size: 7pt;
     font-weight: bold;
-    margin: 0 0 2mm;
-    border-bottom: 1pt solid #E5E5E5;
-    padding-bottom: 1mm;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.6mm 2mm;
+    border-radius: 6pt;
+    margin-bottom: 1mm;
+    color: #FFFFFF;
+}
+.pill--good        { background: #1F8A4C; }
+.pill--attention   { background: #B8860B; }
+.pill--unavailable { background: #94A3B8; }
+
+.covered {
+    margin-top: 4mm;
+    padding: 3mm 4mm;
+    background: #F5F5F5;
+    border-left: 3pt solid #E8650A;
+    font-size: 8.5pt;
 }
 .footer-note {
-    margin-top: 8mm;
-    padding-top: 4mm;
-    border-top: 1pt solid #E5E5E5;
+    margin-top: 3mm;
     color: #666666;
-    font-size: 8pt;
+    font-size: 7.5pt;
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-    <div>
-        <div class="header__wordmark">Aspired Websites LLC</div>
-        <div class="header__title">{{ owner_name }}</div>
-        <div class="header__sub">Monthly Security Summary</div>
-    </div>
-    <div class="header__month">{{ month_str }}</div>
-</div>
+<table class="header">
+    <tr>
+        <td>
+            <div class="header__wordmark">Aspired Websites LLC</div>
+            <div class="header__title">{{ owner_name }}</div>
+            <div class="header__sub">Monthly Security Summary{% if site_url %} · {{ site_url }}{% endif %}</div>
+        </td>
+        <td class="header__month">{{ month_str }}</td>
+    </tr>
+</table>
 
 <div class="status-banner status-banner--{{ overall_status }}">
     {% if overall_status == 'green' %}
-        ✓ No urgent issues — site and server are in good standing.
+        No urgent issues. Your site is in good standing.
     {% elif overall_status == 'yellow' %}
-        ⚠ Some items need attention this month.
+        Some items need attention this month. We are on it.
     {% else %}
-        ✗ Action needed — critical or high-severity issues were found.
+        Action needed: we found issues that need prompt attention and are working on them now.
     {% endif %}
 </div>
 
-<div class="grid">
-    <div class="card">
-        <p class="card__title">External Scan</p>
-        <div class="card__body">
-            {% if scan %}
-                <dl>
-                    <dt>Critical</dt><dd>{{ open_critical_count }}</dd>
-                    <dt>High</dt><dd>{{ open_high_count }}</dd>
-                </dl>
-                <p class="card__empty">Last scanned {{ scan.completed_at|date:"M j, Y" }}</p>
-            {% else %}
-                <p class="card__empty">No scan on record yet.</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <p class="card__title">Server Health</p>
-        <div class="card__body">
-            {% if droplet_check %}
-                <dl>
-                    <dt>Disk used</dt>
-                    <dd>{% if disk_usage_percent != None %}{{ disk_usage_percent }}%{% else %}—{% endif %}</dd>
-                    <dt>Pending OS updates</dt>
-                    <dd>{% if pending_os_updates_count != None %}{{ pending_os_updates_count }}{% else %}—{% endif %}</dd>
-                    <dt>Dependency vulnerabilities</dt>
-                    <dd>{% if pip_audit_vulnerability_count != None %}{{ pip_audit_vulnerability_count }}{% else %}—{% endif %}</dd>
-                    <dt>Services down</dt>
-                    <dd>{{ services_down_count }}</dd>
-                </dl>
-                <p class="card__empty">Last checked {{ droplet_check.completed_at|date:"M j, Y" }}</p>
-            {% else %}
-                <p class="card__empty">
-                    {% if is_wordpress %}
-                        Not applicable — WordPress-hosted site.
-                    {% else %}
-                        No server health check on record yet.
-                    {% endif %}
-                </p>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<p class="section-title">What this covers</p>
-<p>
-    <strong>External Scan</strong> checks your live site from the outside —
-    open ports, SSL/TLS configuration, and common web vulnerabilities.
-    <strong>Server Health</strong> (custom-built sites only) is a direct,
-    authenticated check of the server itself — disk space, running
-    services, pending operating-system security updates, and known
-    vulnerabilities in installed software.
+<p class="scanline">
+    {% if scan %}
+        <strong>External scan</strong> completed {{ scan.completed_at|date:"M j, Y" }}:
+        {{ open_critical_count }} critical and {{ open_high_count }} high-severity issue{{ open_high_count|add:open_critical_count|pluralize }} open.
+    {% else %}
+        <strong>External scan:</strong> this month's scan could not be completed. We have been alerted and are re-running it.
+    {% endif %}
+    {% if is_hosted %}
+        {% if droplet_check %}
+            <strong>Server check</strong> completed {{ droplet_check.completed_at|date:"M j, Y" }}{% if disk_usage_percent != None %}: disk {{ disk_usage_percent }}% used{% endif %}{% if pending_os_updates_count != None %}, {{ pending_os_updates_count }} OS update{{ pending_os_updates_count|pluralize }} pending{% endif %}{% if services_down_count %}, {{ services_down_count }} service{{ services_down_count|pluralize }} down{% endif %}.
+        {% else %}
+            <strong>Server check:</strong> could not be completed this month.
+        {% endif %}
+    {% endif %}
 </p>
 
+<table class="sections">
+    {% for s in sections %}
+    <tr>
+        <td class="sec__name">
+            <p class="sec__title">{{ s.title }}</p>
+            <p class="sec__explain">{{ s.explanation }}</p>
+        </td>
+        <td>
+            <span class="pill pill--{{ s.status }}">{% if s.status == 'good' %}Good{% elif s.status == 'attention' %}Needs attention{% else %}Not available{% endif %}</span>
+            <p class="sec__headline">{{ s.headline }}</p>
+            {% if s.items %}
+                <ul class="sec__items">
+                    {% for item in s.items %}<li>{{ item }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<div class="covered">
+    <strong>Fixes are covered by your plan.</strong> When we find an issue,
+    we fix it as part of your plan at no extra cost. There is nothing you
+    need to do.
+</div>
+
 <div class="footer-note">
-    Questions about this summary? Reply to this email or reach us at
-    zacherylong@aspiredwebsites.com. Full scan and server-health detail
-    is available in your client portal under Security.
+    Questions about this summary? Reply to the email it came with or reach
+    us at zacherylong@aspiredwebsites.com. Past summaries are in your
+    client portal under Security.
 </div>
 
 </body>

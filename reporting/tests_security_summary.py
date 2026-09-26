@@ -34,7 +34,8 @@ def _account_website(build_platform='custom'):
         user=u, name=f'Sec Co {_seq}', contact_name='Pat Client')
     website = Website.objects.create(
         account=account, name=f'Sec Site {_seq}', build_platform=build_platform,
-        status='active', onboarding_status='intake_complete')
+        status='active', onboarding_status='intake_complete',
+        maintenance_active=True)  # on a paid plan -> summary-eligible
     return account, website
 
 
@@ -169,10 +170,15 @@ class SendSecuritySummariesTaskTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(account.user.email, mail.outbox[0].to)
 
-    def test_site_with_no_scan_or_check_is_skipped(self):
+    def test_site_not_on_paid_plan_is_skipped(self):
         from reporting.tasks import send_security_summaries
 
         account, website = _account_website()
+        website.maintenance_active = False
+        website.save(update_fields=['maintenance_active'])
+        VulnerabilityScan.objects.create(
+            website_new=website, status='complete',
+            completed_at=_dt(REPORT_MONTH))
         with patch('reporting.tasks.timezone.localdate',
                    return_value=date(2026, 10, 5)):
             send_security_summaries()

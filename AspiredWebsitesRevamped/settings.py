@@ -853,6 +853,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reporting.tasks.check_droplet_health_schedule',
         'schedule': crontab(hour=4, minute=0),                    # daily 4am
     },
+    # Fresh scan + droplet check for every paid-plan site ahead of the
+    # 1st-of-month security summary. 26th-28th: day 1 queues anything
+    # older than 20 days, days 2-3 retry whatever failed (no-ops once
+    # fresh). 2am so the queued scans finish before the 3am/4am sweeps.
+    'queue-pre-summary-checks': {
+        'task': 'reporting.tasks.queue_pre_summary_checks',
+        'schedule': crontab(hour=2, minute=0, day_of_month='26-28'),
+    },
     # Payment-failure dunning. This one task replaced nine
     # `apply_async(countdown=...)` messages that used to be queued weeks
     # ahead — see billing/dunning.py. It must stay a sweep: anything that
