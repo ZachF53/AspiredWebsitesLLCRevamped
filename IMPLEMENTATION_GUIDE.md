@@ -155,9 +155,9 @@
 - [x] M-6.04 "See More Work" links
 - [x] M-6.05 Privacy accuracy (session replay, audit data, review requests, effective date)
 - [x] M-6.06 Sitemap
-- [ ] M-6.07 www → apex verified
-- [~] M-6.08 `server_tokens off`, Permissions-Policy cleanup, root icons, manifest MIME — Permissions-Policy cleaned, root icon 301s in code; nginx server_tokens + manifest MIME at deploy
-- [~] M-6.09 Performance: defer gtag/tracker/rrweb; speed claim matches the measurement — gtag + recorder deferred to after load; re-measure at deploy; numeric speed claims removed until re-measured
+- [x] M-6.07 www → apex verified (301, one hop)
+- [x] M-6.08 `server_tokens off`, Permissions-Policy cleanup, root icons, manifest MIME — Permissions-Policy cleaned, root icon 301s in code; nginx server_tokens off + manifest MIME done on both servers
+- [~] M-6.09 Performance: gtag + recorder deferred (pricing/schedule/location improved); homepage LCP still ~4.7 s throttled; numeric speed claims removed. Next: per-page CSS split
 - [x] M-6.10 Insights order
 
 ### Security-report automation (owner answer 14)
@@ -167,12 +167,12 @@
 ### Phase 7 — Verification + deploy
 - [x] Merge the tracks; `manage.py check`; targeted tests: public, core, billing, clients, scheduler, admin_dashboard, domains, reporting: all pass except the 4 pre-existing `tests_audit_sequence` failures (local `.env`)
 - [x] CLAUDE.md updated (offer, pricing table, payment terms, guarantee, business rules 1–2, onboarding steps, new "Sept 2026 standing facts" section). Gitignored, so local copy only
-- [ ] Staging deploy + smoke test + content gate
-- [ ] Prod deploy + smoke test + content gate + Lighthouse after
-- [ ] `docs/verification/2026-09-26.md`
+- [x] Staging deploy + smoke test + content gate: passed; Stripe test-mode e2e of all payment flows + guarantee refunds (3 bugs found, fixed, re-verified)
+- [x] Prod deploy (DB backed up first) + smoke test + content gate passed + Lighthouse after (pricing 63→85, schedule 65→82; home unchanged — see verification)
+- [x] `docs/verification/2026-09-26.md`
 
 ### Phase 8 — Off-site (owner)
-- [ ] `docs/owner-actions.md` written (WP site, GSC, GBP hours, CISSP number, client-site tickets)
+- [x] `docs/owner-actions.md` written (WP site, GSC, GBP hours, CISSP number, client-site tickets)
 
 ---
 
@@ -189,4 +189,6 @@
 10. **Chilton testimonial kept, unlinked** (business closed); no portfolio entry (M-5.12 skipped).
 
 ## F. Errors / reverts log
+- Staging e2e (Stripe test mode) found and fixed: installment first invoices left DRAFT/uncharged at signing; guarantee could "complete" a $0 refund; receipt PDF crash for account-billed invoices (commit a8332cd).
+- Prod rollout: unattended-upgrades restarted supervisord right after deploy (~3 s of 502s), self-recovered. No reverts were needed.
 - Pre-existing, not caused by this work: `public.tests_audit_sequence` (4 tests) fails locally because `COMPANY_POSTAL_ADDRESS` is not set in the local `.env` (confirmed failing on the untouched base commit).
