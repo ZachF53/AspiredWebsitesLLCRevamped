@@ -96,6 +96,121 @@ filtering for the one already flagged as the Moonieful referral — never assume
 account's oldest/only website," since the same person may separately be a direct
 Aspired client with an unrelated build.
 
+### What Aspired does with it
+
+- **Documents.** Every field is kept: `label`, `description`, `direction` (a client's own
+  upload stays `from_client`), `filename`, and the optional per-document keys below.
+  Documents are keyed by `file_ref` (falling back to `id`), which is the id the file
+  endpoint is called with. Metadata is last-writer-wins on the document's `updated_at`:
+  an older bundle never rolls a newer label or description back. `client_updated`
+  upserts `documents` too, not only `client_created` / `document_added`.
+- **Intake.** Stored verbatim and shown on Aspired's v2 Intake tab as question/answer
+  pairs, with file answers linked to their downloads. Intake file answers are stored as
+  `from_client` documents with category `intake`. A synced website is marked intake-complete
+  on arrival. Moonieful owns intake for these clients, so they are never sent to Aspired's
+  own intake form.
+- **Stage history and package.** Refreshed on every `client_updated` and
+  `stage_changed` event, and shown read-only.
+- **Audit log.** `client.account.password_hash` is replaced with `"[redacted]"` before the
+  bundle is written to `SyncLog`. The handler runs in a transaction, and the log row records
+  the real outcome (`processed` / `failed` / `skipped`).
+
+### File endpoint limits
+
+`POST /api/sync/file/<file_ref>/` accepts up to **500 MB** (`SYNC_MAX_FILE_SIZE`). This
+matches Moonieful's own upload limit. The body is streamed to disk, never held in memory.
+Requirements:
+
+- `Content-Length` is required (411 without it). The signature is checked against it
+  before any byte is read. A body that doesn't match it is rejected (400).
+- A file over the limit returns 413.
+- An extension outside the allow-list returns 400. The list is every type Moonieful's
+  form allows except archives (`.zip` etc.) and `.html`/`.htm`.
+- A re-send replaces the stored file.
+- Every attempt, success or failure, is logged as a `file_received` `SyncLog` row, visible
+  on the client's v2 Moonieful tab.
+
+Received files are stored privately, outside the public media directory. They are only
+served through auth-checked, forced-download views, with a `sandbox` CSP and `nosniff`.
+
+Nginx in front of Aspired needs a matching `location /api/sync/file/` block with
+`client_max_body_size 500M; proxy_request_buffering off; proxy_read_timeout 300s;` (see
+`admin_dashboard/templates/admin_dashboard/_deploy_steps.html`, step 8). Gunicorn's
+worker `--timeout` must also cover the slowest expected upload.
+
+### Optional extension keys (additive — `schema_version` stays 1)
+
+Aspired's v2 dashboard mirrors everything Miki sees for a client. Aspired already accepts,
+stores and displays the keys below. Moonieful can start sending any of them at any time,
+in any event's bundle.
+
+**Key semantics:**
+- A key that is present **replaces** what Aspired holds for it.
+- A key that is absent is left alone.
+- An empty list means "none".
+- Values are rendered as text only, never as HTML.
+- Records are shown in the order sent.
+- `id` is hidden, and every other field becomes a column.
+
+The fields in brackets are what Aspired would like, taken from her models.
+
+**Per-document keys** (inside `documents[]`):
+- `category`: blueprint / contract / invoice / asset / deliverable / meeting / other
+- `visible_to_client`: bool. Hidden files stay visible in Aspired admin but are removed
+  from the client's Aspired portal.
+- `is_deleted` (bool) or `deleted_at` (iso8601 | null): shown flagged in admin, removed
+  from the portal. **Please include soft-deleted documents with this flag** rather than
+  dropping them, so Aspired can tell a deletion from "never sent".
+
+**Top-level keys:**
+
+| Key | Shape | Fields (from Moonieful's models) |
+|---|---|---|
+| `stage_details` | list | `id, name, status, is_current, order, started_at, completed_at, meeting_notes, client_action_items, moonieful_action_items, recommendations` (ProjectStage + ProjectNotes) |
+| `tasks` | list | `id, title, description, owner, status, due_date, notes, link, completed_at, visible_to_client` (ClientTask). The file goes in `extra_files`. |
+| `meetings` | list | `id, kind, title, status, scheduled_at, notes, meeting_notes, client_action_items, moonieful_action_items, recommendations` (Meeting) |
+| `contracts` | list | `id, label, status, sent_at, signed_at, notes` (Contract). The document goes in `extra_files`. |
+| `invoices` | list | `id, label, amount_cents, status, due_date, paid_at, payment_url, receipt_url, notes` (Invoice) |
+| `approvals` | list | `id, title, description, status, due_date, decided_at, decision_comment` (ApprovalRequest) |
+| `change_requests` | list | `id, title, description, status, response, created_at` (ChangeRequest). **Display only** on Aspired: these never become Aspired revision requests, because revisions come through the Aspired portal only. |
+| `recommendations` | list | `id, page, notes, status, sent_at, viewed_at` (WebPage + PageRecommendation). The screenshot goes in `extra_files`. |
+| `completion` | object | `training_delivered, client_signoff_at, support_summary, support_contact, notes, completed_at` (ProjectCompletion) |
+| `testimonial` | object | `body, rating, consent, display_name, business_name, website, video_url` (Testimonial). The photo goes in `extra_files`. |
+| `activity` | list | `created_at, kind, summary` (ActivityEvent, newest first, capped at ~100) |
+
+**`extra_files`** (top level) covers files attached to the records above. Each item has
+the same shape as a `documents[]` item, plus a required `ref`:
+
+```json
+{"ref": "uuid", "label": "...", "category": "task|screenshot|testimonial|contract",
+ "direction": "to_client|from_client", "filename": "...", "updated_at": "iso8601"}
+```
+
+Stream each one to `POST /api/sync/file/<ref>/` exactly like a document, after the bundle
+succeeds. `ref` must be unique across documents, intake answers and extra files; the
+record's own UUID is fine.
+
+## Moonieful-side TODO (as of 2026-09-25)
+
+Aspired's receiver is ready for all of the following. The work is in the Moonieful repo:
+
+1. **Turn sync on.** Set `SYNC_ENABLED = True` and a `MOONIEFUL_SYNC_SECRET` of at least
+   32 characters matching Aspired's. Install the `run_sync` every-minute cron.
+2. **Lost handoffs.** The "Hand off to Aspired" button currently sets `handed_off_at` and
+   says "It will sync once sync is turned on", but nothing re-queues it later. Any
+   handoff clicked while sync was off must be re-sent (`project_complete`) once it is on.
+3. **Build the Direction 2 `document_added` receiver** (see below). Until then, every
+   Aspired→Moonieful document job fails on the file step and alerts an admin.
+4. **Send the optional extension keys** above, plus `extra_files`, so Aspired sees tasks,
+   meetings, contracts, invoices, approvals, change requests, recommendations, wrap-up,
+   testimonial, activity and stage notes.
+5. **Deletes.** Include soft-deleted documents with `is_deleted` / `deleted_at` instead of
+   omitting them. No delete event is needed.
+6. **Password hash.** Aspired only uses `password_hash` on `client_created`, and only
+   when creating a new login. Consider sending it only on that event.
+7. **Don't re-send superseded versions** as separate documents, or mark them
+   `visible_to_client: false`, so Aspired's client portal doesn't list stale versions.
+
 ## Direction 2 — Aspired → Moonieful
 
 `POST https://moonieful.com/portal/api/sync/inbound/`:

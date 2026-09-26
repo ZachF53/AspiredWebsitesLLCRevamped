@@ -322,6 +322,42 @@
         </div>
     </div>
 
+    {% if account.synced_from_moonieful %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Moonieful sync</h2></div>
+            <div class="admin-card__body">
+                {% if account.sync_conflict_flagged %}
+                    <div class="banner" style="background: rgba(248,113,113,0.14); border-color: rgba(248,113,113,0.5); color: var(--color-danger);">
+                        <strong>Sync conflict:</strong> this email already had an Aspired login when Moonieful synced it. The existing login was linked and its password left alone — confirm it's the same person.
+                    </div>
+                {% endif %}
+                <table class="v2-kv-table">
+                    <tr><th>Moonieful client ID</th><td>{{ account.moonieful_client_id|default:"—" }}</td></tr>
+                    <tr><th>Last synced</th><td>{{ account.last_synced_at|date:"M j, Y g:i A"|default:"Never" }}</td></tr>
+                    <tr><th>Referred website{{ moonieful_websites|pluralize }}</th><td>
+                        {% for w in moonieful_websites %}<a href="{% url 'admin_dashboard:v2_website_detail' w.id %}?tab=moonieful">{{ w.name }}</a>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    </td></tr>
+                </table>
+                <h3 style="margin-top: 1rem;">Recent sync events</h3>
+                {% if sync_events %}
+                    <table class="v2-kv-table">
+                        <tr><th>When</th><th>Event</th><th>Status</th><th>Error</th></tr>
+                        {% for log in sync_events %}
+                            <tr>
+                                <td>{{ log.created_at|date:"M j, Y g:i A" }}</td>
+                                <td>{{ log.event_type }}</td>
+                                <td>{{ log.get_status_display }}</td>
+                                <td>{{ log.error_message|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No sync events recorded for this account yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
     {% comment %}
         Hard-delete the entire account + everything that cascades.
         Posts to admin_dashboard:v2_account_delete — a v2-only guard

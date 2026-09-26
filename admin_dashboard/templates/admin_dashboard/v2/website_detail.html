@@ -28,6 +28,9 @@
         <a class="v2-tab {% if active_tab == 'documents' %}active{% endif %}" href="?tab=documents">Files</a>
         <a class="v2-tab {% if active_tab == 'billing' %}active{% endif %}" href="?tab=billing">Billing</a>
         <a class="v2-tab {% if active_tab == 'monitoring' %}active{% endif %}" href="?tab=monitoring">Monitoring</a>
+        {% if website.moonieful_referred %}
+            <a class="v2-tab {% if active_tab == 'moonieful' %}active{% endif %}" href="?tab=moonieful">Moonieful</a>
+        {% endif %}
     </div>
 
     {% if has_live_subscription %}
@@ -67,6 +70,10 @@
                 <p><strong>Droplet IP:</strong> {{ website.do_droplet_ip|default:"—" }}</p>
                 <p><strong>Maintenance:</strong> {% if website.maintenance_active %}Active{% else %}Not active{% endif %}</p>
                 <p><strong>Payment status:</strong> {{ website.get_payment_status_display }}</p>
+                <p><strong>Revisions used:</strong> {{ website.revision_count }} of {{ website.revision_limit }}{% if website.over_revision_limit %} <span class="status-badge" style="background: rgba(248,113,113,0.14); color: var(--color-danger);">Over limit</span>{% endif %}</p>
+                {% if website.moonieful_referred %}
+                    <p><strong>Referred by:</strong> Moonieful{% if website.moonieful_package %} ({{ website.moonieful_package }}){% endif %} · <a href="?tab=moonieful">View Moonieful record &rarr;</a></p>
+                {% endif %}
             </div>
         </div>
 
@@ -241,6 +248,46 @@
                 </div>
             </div>
         {% else %}
+            {% if moonieful_intake %}
+                {% comment %}
+                    Moonieful-referred client: their intake answers live in
+                    moonieful_intake_raw (Moonieful's forms, not ours), so
+                    they're rendered here as question/answer pairs. The typed
+                    intake card below stays empty for these clients.
+                {% endcomment %}
+                {% for form in moonieful_intake %}
+                    <div class="admin-card">
+                        <div class="admin-card__header"><h2 class="admin-card__title">Moonieful intake — {{ form.title }}</h2></div>
+                        <div class="admin-card__body">
+                            <p class="muted">{% if form.submitted_at %}Submitted on Moonieful {{ form.submitted_at|date:"M j, Y g:i A" }}{% else %}Not submitted yet on Moonieful{% endif %}</p>
+                            {% if form.answers %}
+                                <table class="v2-kv-table">
+                                    {% for a in form.answers %}
+                                        <tr>
+                                            <th>{{ a.question|default:"(untitled question)" }}</th>
+                                            <td>
+                                                {% if a.value %}{{ a.value|linebreaksbr }}{% endif %}
+                                                {% if a.has_file %}
+                                                    {% if a.doc and a.doc.file %}
+                                                        {% if a.value %}<br>{% endif %}<a href="{% url 'admin_dashboard:v2_website_document_download' website.id a.doc.id %}">Download {{ a.doc.filename|default:"file" }}</a>
+                                                    {% else %}
+                                                        <span class="muted">File not received yet</span>
+                                                    {% endif %}
+                                                {% elif not a.value %}
+                                                    <span class="muted">No answer</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </table>
+                            {% else %}
+                                <p class="admin-empty">No answers on this form.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% if not moonieful_intake %}
             <div class="admin-card">
                 <div class="admin-card__header"><h2 class="admin-card__title">Submitted intake</h2></div>
                 <div class="admin-card__body">
@@ -284,6 +331,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         {% endif %}
 
     {% elif active_tab == 'infrastructure' and not is_wordpress %}
@@ -462,23 +510,29 @@
             <div class="admin-card__header"><h2 class="admin-card__title">Documents</h2></div>
             <div class="admin-card__body">
                 {% comment %}
-                    doc.file.url raises ValueError (not the AttributeError templates
-                    swallow) when the FileField is empty — a real state, not a broken
-                    row: a document synced in from Moonieful registers its metadata
-                    first and the file body arrives afterward via /api/sync/file/.
-                    Guard explicitly rather than let that window 500 this tab.
+                    Files live in private storage with no public URL — every
+                    link goes through the auth-checked download view, never
+                    doc.file.url. A Moonieful document registers its metadata
+                    first and the file body arrives afterward via
+                    /api/sync/file/, so an empty file is a real state.
                 {% endcomment %}
                 {% if documents %}
                     <table class="v2-kv-table">
-                        <tr><th>File</th><th>Direction</th><th>Uploaded</th><th></th></tr>
+                        <tr><th>File</th><th>Direction</th><th>Category</th><th>Description</th><th>Uploaded</th><th></th></tr>
                         {% for doc in documents %}
                             <tr>
-                                <td>{{ doc.label|default:doc.file.name }}</td>
+                                <td>
+                                    {{ doc.label|default:doc.filename|default:"Untitled" }}
+                                    {% if doc.filename and doc.filename != doc.label %}<br><span class="muted" style="font-size:.75rem;">{{ doc.filename }}</span>{% endif %}
+                                    {% if doc.moonieful_deleted %}<br><span class="status-badge" style="background: rgba(248,113,113,0.14); color: var(--color-danger);">Deleted on Moonieful</span>{% elif not doc.moonieful_visible_to_client %}<br><span class="status-badge">Hidden from client</span>{% endif %}
+                                </td>
                                 <td>{{ doc.get_direction_display }}{% if doc.moonieful_document_id %} <span class="muted">(via Moonieful)</span>{% endif %}</td>
+                                <td>{{ doc.category|default:"—"|capfirst }}</td>
+                                <td>{{ doc.description|linebreaksbr|default:"—" }}</td>
                                 <td>{{ doc.created_at|date:"M j, Y" }}</td>
                                 <td>
                                     {% if doc.file %}
-                                        <a href="{{ doc.file.url }}" download>Download</a>
+                                        <a href="{% url 'admin_dashboard:v2_website_document_download' website.id doc.id %}">Download</a>
                                     {% else %}
                                         <span class="muted">Upload in progress</span>
                                     {% endif %}
@@ -673,6 +727,145 @@
             <div class="admin-card__header"><h2 class="admin-card__title">Session recording</h2></div>
             <div class="admin-card__body">
                 <p>{% if website.session_recording_enabled %}Enabled{% else %}Disabled{% endif %} — no in-dashboard viewer exists yet; noted in the build report.</p>
+            </div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Stage log</h2></div>
+            <div class="admin-card__body">
+                {% if stage_logs %}
+                    <table class="v2-kv-table">
+                        <tr><th>When</th><th>Change</th><th>Note</th><th>By</th></tr>
+                        {% for log in stage_logs %}
+                            <tr>
+                                <td>{{ log.created_at|date:"M j, Y g:i A" }}</td>
+                                <td>{% if log.from_stage != log.to_stage %}{{ log.from_stage|default:"—" }} &rarr; {% endif %}{{ log.to_stage|default:"—" }}</td>
+                                <td>{{ log.note|linebreaksbr|default:"—" }}</td>
+                                <td>{{ log.set_by|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">No stage changes logged yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    {% elif active_tab == 'moonieful' and website.moonieful_referred %}
+        {% comment %}
+            Read-only mirror of what Miki sees on Moonieful for this client.
+            Everything here arrives through the sync bridge; nothing on this
+            tab writes back. Sections Moonieful hasn't started sending yet
+            say so explicitly (see docs/sync_contract.md, optional keys).
+        {% endcomment %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Sync summary</h2></div>
+            <div class="admin-card__body">
+                {% if account.sync_conflict_flagged %}
+                    <div class="banner" style="background: rgba(248,113,113,0.14); border-color: rgba(248,113,113,0.5); color: var(--color-danger);">
+                        <strong>Sync conflict:</strong> this client's email already had an Aspired login when Moonieful synced them. The existing account was linked and its password left alone — confirm it's the same person.
+                    </div>
+                {% endif %}
+                <table class="v2-kv-table">
+                    <tr><th>Moonieful client ID</th><td>{{ account.moonieful_client_id|default:"—" }}</td></tr>
+                    <tr><th>Package sold on Moonieful</th><td>{{ website.moonieful_package|default:"—" }}</td></tr>
+                    <tr><th>Last synced</th><td>{{ account.last_synced_at|date:"M j, Y g:i A"|default:"Never" }}</td></tr>
+                    <tr><th>Handed off to Aspired</th><td>{{ website.moonieful_handoff_at|date:"M j, Y g:i A"|default:"Not yet" }}</td></tr>
+                    <tr><th>Maintenance</th><td>{% if website.maintenance_active %}Active{% else %}Not active{% endif %}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Moonieful stages</h2></div>
+            <div class="admin-card__body">
+                {% if moonieful_stages %}
+                    <table class="v2-kv-table">
+                        <tr><th>Stage</th><th>Description</th><th>Created</th><th>Updated</th></tr>
+                        {% for st in moonieful_stages %}
+                            <tr>
+                                <td>{{ st.name|default:"—" }}</td>
+                                <td>{{ st.note|linebreaksbr|default:"—" }}</td>
+                                <td>{{ st.created_at|date:"M j, Y"|default:"—" }}</td>
+                                <td>{{ st.updated_at|date:"M j, Y"|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">Moonieful hasn't sent any stages for this client.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% for section in moonieful_sections %}
+            <div class="admin-card">
+                <div class="admin-card__header"><h2 class="admin-card__title">{{ section.title }}</h2></div>
+                <div class="admin-card__body">
+                    {% if section.kind == 'missing' %}
+                        <p class="admin-empty">Not shared by Moonieful yet.</p>
+                    {% elif section.kind == 'empty' %}
+                        <p class="admin-empty">None on Moonieful.</p>
+                    {% elif section.kind == 'table' %}
+                        <div style="overflow-x:auto;">
+                            <table class="v2-kv-table">
+                                <tr>{% for col in section.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+                                {% for row in section.rows %}
+                                    <tr>{% for cell in row %}<td>{{ cell|linebreaksbr|default:"—" }}</td>{% endfor %}</tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    {% elif section.kind == 'kv' %}
+                        <table class="v2-kv-table">
+                            {% for label, value in section.items %}
+                                <tr><th>{{ label }}</th><td>{{ value|linebreaksbr|default:"—" }}</td></tr>
+                            {% endfor %}
+                        </table>
+                    {% else %}
+                        <p>{{ section.text|linebreaksbr }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Sync activity — received from Moonieful</h2></div>
+            <div class="admin-card__body">
+                {% if sync_inbound %}
+                    <table class="v2-kv-table">
+                        <tr><th>When</th><th>Event</th><th>Status</th><th>Error</th></tr>
+                        {% for log in sync_inbound %}
+                            <tr>
+                                <td>{{ log.created_at|date:"M j, Y g:i A" }}</td>
+                                <td>{{ log.event_type }}{% if log.event_type == 'file_received' and log.payload_received.filename %} <span class="muted">({{ log.payload_received.filename }})</span>{% endif %}</td>
+                                <td>{{ log.get_status_display }}</td>
+                                <td>{{ log.error_message|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">Nothing received from Moonieful for this client yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Sync activity — sent to Moonieful</h2></div>
+            <div class="admin-card__body">
+                {% if sync_outbound %}
+                    <table class="v2-kv-table">
+                        <tr><th>Queued</th><th>Event</th><th>Status</th><th>Attempts</th><th>Last error</th></tr>
+                        {% for job in sync_outbound %}
+                            <tr>
+                                <td>{{ job.created_at|date:"M j, Y g:i A" }}</td>
+                                <td>{{ job.get_event_type_display }}</td>
+                                <td>{{ job.get_status_display }}{% if job.sent_at %} <span class="muted">({{ job.sent_at|date:"M j" }})</span>{% endif %}</td>
+                                <td>{{ job.attempts }}</td>
+                                <td>{{ job.last_error|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p class="admin-empty">Nothing sent to Moonieful for this website yet.</p>
+                {% endif %}
             </div>
         </div>
     {% endif %}

@@ -216,8 +216,18 @@ def account_detail(request, account_id):
 
     blocking_websites = _live_subscription_websites(account)
 
+    sync_events = []
+    moonieful_websites = []
+    if account.synced_from_moonieful:
+        from sync.models import SyncLog
+        sync_events = list(SyncLog.objects.filter(
+            account_new=account).order_by('-created_at')[:5])
+        moonieful_websites = [w for w in websites if w.moonieful_referred]
+
     ctx = {
         'account': account,
+        'sync_events': sync_events,
+        'moonieful_websites': moonieful_websites,
         'user': user,
         'sections': sections,
         'websites': websites,

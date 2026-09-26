@@ -190,7 +190,11 @@ class SecurityHeadersMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         path = request.path
-        if path.startswith('/admin/'):
+        if getattr(response, 'keep_csp', False):
+            # The view set its own, stricter policy (e.g. `sandbox` on a
+            # private-document download) — don't replace it.
+            pass
+        elif path.startswith('/admin/'):
             response['Content-Security-Policy'] = CSP_ADMIN
         elif (path.startswith('/admin-dashboard/vault/')
               and path.endswith('/terminal/')):
@@ -228,7 +232,8 @@ class SecurityHeadersMiddleware:
         # framable by the SAME origin only — relax frame-ancestors to
         # 'self' and downgrade X-Frame-Options from DENY to SAMEORIGIN.
         # No external site can frame them (no clickjacking surface).
-        if request.GET.get('embed') and path.startswith('/admin-dashboard/'):
+        if (request.GET.get('embed') and path.startswith('/admin-dashboard/')
+                and not getattr(response, 'keep_csp', False)):
             response['Content-Security-Policy'] = (
                 response['Content-Security-Policy'].replace(
                     "frame-ancestors 'none'", "frame-ancestors 'self'"))

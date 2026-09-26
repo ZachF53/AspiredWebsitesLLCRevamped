@@ -80,20 +80,95 @@ def _moonieful_website(profile):
     )
 
 
+_DIRECTIONS = {'to_client', 'from_client'}
+
+# Optional top-level bundle keys carrying the rest of what Miki can see on
+# her side. Stored verbatim in Website.moonieful_extra, one entry per key,
+# and rendered read-only on the v2 Moonieful tab. See docs/sync_contract.md
+# "Optional extension keys". Unknown keys are ignored, never stored.
+EXTRA_KEYS = (
+    'tasks', 'meetings', 'contracts', 'invoices', 'approvals',
+    'change_requests', 'recommendations', 'completion', 'testimonial',
+    'activity', 'stage_details',
+)
+
+
+def _upsert_document(site, ref, *, label, description='', direction='to_client',
+                     filename='', category='', updated_at=None,
+                     deleted=None, visible_to_client=None):
+    """Create or update one Moonieful-owned ClientDocument row.
+
+    Keyed on moonieful_document_id (== the file_ref the file endpoint is
+    called with). Metadata is last-writer-wins on Moonieful's updated_at:
+    a stale bundle never rolls a newer label/description back. The file
+    itself is never touched here — it arrives via /api/sync/file/<ref>/.
+    """
+    if direction not in _DIRECTIONS:
+        direction = 'to_client'
+    incoming = _parse_dt(updated_at) if isinstance(updated_at, str) else updated_at
+
+    fields = {
+        'label': (label or '')[:255],
+        'description': description or '',
+        'direction': direction,
+        'original_filename': (filename or '')[:255],
+        'category': (category or '')[:30],
+    }
+    if incoming is not None:
+        fields['moonieful_updated_at'] = incoming
+    if deleted is not None:
+        fields['moonieful_deleted'] = bool(deleted)
+    if visible_to_client is not None:
+        fields['moonieful_visible_to_client'] = bool(visible_to_client)
+
+    doc = ClientDocument.objects.filter(moonieful_document_id=ref).first()
+    if doc is None:
+        ClientDocument.objects.create(
+            moonieful_document_id=ref, website_new=site, **fields)
+        return
+    if (incoming is not None and doc.moonieful_updated_at is not None
+            and doc.moonieful_updated_at >= incoming):
+        return
+    changed = []
+    for name, value in fields.items():
+        if getattr(doc, name) != value:
+            setattr(doc, name, value)
+            changed.append(name)
+    if doc.website_new_id is None:
+        doc.website_new = site
+        changed.append('website_new')
+    if changed:
+        doc.save(update_fields=changed + ['updated_at'])
+
+
 def _upsert_documents(site, docs):
-    """get_or_create every document in a bundle's `documents` list against
-    the given Website. Safe to call with the full list every time — already
-    idempotent via moonieful_document_id."""
+    """Upsert every document in a bundle's `documents` list (or the
+    optional `extra_files` list, which has the same shape plus `ref`).
+
+    Safe to call with the full list every time. Moonieful's `direction`
+    is honoured (a file the client uploaded on her side is `from_client`
+    here too), and description / filename / category / deleted /
+    visible_to_client are kept rather than dropped.
+    """
     for doc in docs or []:
-        if not doc.get('id'):
+        if not isinstance(doc, dict):
             continue
-        ClientDocument.objects.get_or_create(
-            moonieful_document_id=doc.get('id'),
-            defaults={
-                'website_new': site,
-                'direction': 'to_client',
-                'label': doc.get('label') or 'Moonieful document',
-            },
+        ref = doc.get('file_ref') or doc.get('ref') or doc.get('id')
+        if not ref:
+            continue
+        deleted = doc.get('is_deleted')
+        if deleted is None and 'deleted_at' in doc:
+            deleted = bool(doc.get('deleted_at'))
+        _upsert_document(
+            site, ref,
+            label=doc.get('label') or doc.get('filename') or 'Moonieful document',
+            description=doc.get('description') or '',
+            direction=doc.get('direction') or 'to_client',
+            filename=doc.get('filename') or '',
+            category=doc.get('category') or '',
+            updated_at=doc.get('updated_at'),
+            deleted=deleted,
+            visible_to_client=doc.get('visible_to_client'),
         )
 
 
@@ -105,23 +180,65 @@ def _upsert_intake_file_documents(site, intake):
     transport (iter_bundle_files) streams it to the same
     /api/sync/file/<file_ref>/ endpoint either way. Without a matching
     ClientDocument row created here first, that endpoint 404s on every
-    intake attachment — found by actually running the bridge end-to-end
-    rather than trusting the handler tests alone, since the test fixture
-    never set a real file_ref.
+    intake attachment.
+
+    The client answered the intake, so these are `from_client`.
     """
     for entry in intake or []:
+        if not isinstance(entry, dict):
+            continue
         for answer in entry.get('answers') or []:
+            if not isinstance(answer, dict):
+                continue
             file_ref = answer.get('file_ref')
             if not file_ref:
                 continue
-            ClientDocument.objects.get_or_create(
-                moonieful_document_id=file_ref,
-                defaults={
-                    'website_new': site,
-                    'direction': 'to_client',
-                    'label': answer.get('question_text') or 'Moonieful intake file',
-                },
+            _upsert_document(
+                site, file_ref,
+                label=answer.get('question_text') or 'Moonieful intake file',
+                description=entry.get('form_title') or '',
+                direction='from_client',
+                category='intake',
+                updated_at=entry.get('submitted_at'),
             )
+
+
+def _apply_extra(site, bundle):
+    """Copy the optional extension keys into Website.moonieful_extra.
+
+    Each key present in the bundle overwrites; absent keys are left as
+    they were (so a Moonieful build that never sends them wipes nothing).
+    Files attached to those records arrive as `extra_files` and become
+    ordinary ClientDocuments.
+    """
+    extra = dict(site.moonieful_extra or {})
+    changed = False
+    for key in EXTRA_KEYS:
+        if key in bundle:
+            extra[key] = bundle[key]
+            changed = True
+    if changed:
+        site.moonieful_extra = extra
+        site._from_sync = True
+        site.save(update_fields=['moonieful_extra', 'updated_at'])
+    if bundle.get('extra_files'):
+        _upsert_documents(site, bundle['extra_files'])
+
+
+def _apply_intake(site, intake_data):
+    intake, _ = IntakeResponse.objects.get_or_create(website_new=site)
+    intake._from_sync = True
+    intake.moonieful_intake_raw = intake_data or []
+    update = ['moonieful_intake_raw', 'updated_at']
+    # Moonieful owns intake for the clients it refers — the answers live
+    # in moonieful_intake_raw, not the typed fields — so Aspired's own
+    # intake form is never the gate for these sites.
+    if not intake.completed:
+        intake.completed = True
+        intake.completed_at = timezone.now()
+        update += ['completed', 'completed_at']
+    intake.save(update_fields=update)
+    _upsert_intake_file_documents(site, intake_data)
 
 
 def handle_client_created(bundle):
@@ -180,16 +297,16 @@ def handle_client_created(bundle):
     site.moonieful_referred = True
     site.moonieful_package = data.get('moonieful_package') or ''
     site.moonieful_stage_history = bundle.get('stage_history') or []
+    # Moonieful owns intake — never park a referred site behind Aspired's
+    # own intake form (clients/decorators.py `pending_intake` gate).
+    if site.onboarding_status == 'pending_intake':
+        site.onboarding_status = 'intake_complete'
     site._from_sync = True
     site.save()
 
-    intake, _ = IntakeResponse.objects.get_or_create(website_new=site)
-    intake._from_sync = True
-    intake.moonieful_intake_raw = bundle.get('intake') or {}
-    intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
-
+    _apply_intake(site, bundle.get('intake'))
     _upsert_documents(site, bundle.get('documents'))
-    _upsert_intake_file_documents(site, bundle.get('intake'))
+    _apply_extra(site, bundle)
 
     logger.info('sync: created client %s from Moonieful (%s)', profile.pk,
                 profile.moonieful_client_id)
@@ -228,13 +345,21 @@ def handle_client_updated(bundle):
         profile.user.email = account_data['email'].strip().lower()
         profile.user.save(update_fields=['email'])
 
-    if 'intake' in bundle and site is not None:
-        intake = IntakeResponse.objects.filter(website_new=site).first()
-        if intake is not None:
-            intake._from_sync = True
-            intake.moonieful_intake_raw = bundle['intake']
-            intake.save(update_fields=['moonieful_intake_raw', 'updated_at'])
-        _upsert_intake_file_documents(site, bundle['intake'])
+    if site is not None:
+        site_fields = []
+        if 'stage_history' in bundle:
+            site.moonieful_stage_history = bundle.get('stage_history') or []
+            site_fields.append('moonieful_stage_history')
+        if data.get('moonieful_package'):
+            site.moonieful_package = data['moonieful_package']
+            site_fields.append('moonieful_package')
+        if site_fields:
+            site._from_sync = True
+            site.save(update_fields=site_fields + ['updated_at'])
+        if 'intake' in bundle:
+            _apply_intake(site, bundle['intake'])
+        _upsert_documents(site, bundle.get('documents'))
+        _apply_extra(site, bundle)
 
     profile.last_synced_at = timezone.now()
     profile._from_sync = True
@@ -310,6 +435,7 @@ def handle_document_added(bundle):
             'document_added: account has no Moonieful-referred website')
 
     _upsert_documents(site, docs)
+    _apply_extra(site, bundle)
     return profile
 
 
@@ -335,6 +461,7 @@ def handle_stage_changed(bundle):
     site.moonieful_stage_history = bundle.get('stage_history') or []
     site._from_sync = True
     site.save(update_fields=['moonieful_stage_history', 'updated_at'])
+    _apply_extra(site, bundle)
     return profile
 
 

@@ -33,6 +33,9 @@ $PYTHON manage.py migrate --noinput 2>&1 | tee -a $LOG
 # Step 4 — Collect static files
 echo "[4/7] Collecting static files..." | tee -a $LOG
 $PYTHON manage.py collectstatic --noinput --clear 2>&1 | tee -a $LOG
+# Idempotent — moves any client document still under the public MEDIA_ROOT
+# into PRIVATE_MEDIA_ROOT (see clients/storage.py).
+$PYTHON manage.py move_documents_private 2>&1 | tee -a $LOG
 
 # Step 5 — Run Django system check
 echo "[5/7] Running Django system check..." | tee -a $LOG

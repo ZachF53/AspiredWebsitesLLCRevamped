@@ -328,6 +328,11 @@ LOGGING = {
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = env('MEDIA_ROOT') or (BASE_DIR / 'media')
+# Client documents (ClientDocument.file) live OUTSIDE MEDIA_ROOT: Nginx
+# serves /media/ publicly with no auth, so anything a client or Moonieful
+# uploads would be readable by anyone holding the URL. Files here are only
+# reachable through the auth-checked download views.
+PRIVATE_MEDIA_ROOT = env('PRIVATE_MEDIA_ROOT') or (BASE_DIR / 'private_media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -674,6 +679,10 @@ MOONIEFUL_SYNC_URL = env('MOONIEFUL_SYNC_URL', '')
 # value is https://moonieful.com/portal/api/sync/file/ — the sender appends
 # <document_id>/.
 MOONIEFUL_SYNC_FILE_URL = env('MOONIEFUL_SYNC_FILE_URL', '')
+# Max size of one inbound Moonieful file (streamed to disk, never held in
+# memory). Matches Moonieful's own 500 MB upload limit. Nginx needs a
+# matching client_max_body_size on /api/sync/file/ — see _deploy_steps.html.
+SYNC_MAX_FILE_SIZE = int(env('SYNC_MAX_FILE_SIZE', str(500 * 1024 * 1024)))
 SITE_BASE_URL = env('SITE_BASE_URL', 'https://aspiredwebsites.com')
 
 

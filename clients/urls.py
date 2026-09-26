@@ -26,6 +26,8 @@ urlpatterns = [
          views.intake_photo_delete, name='intake_photo_delete'),
     path('files/', views.files, name='files'),
     path('files/upload/', views.file_upload, name='file_upload'),
+    path('files/<uuid:doc_id>/download/', views.portal_document_download,
+         name='portal_document_download'),
     path('revisions/', views.revisions, name='revisions'),
     path('revisions/new/', views.revision_new, name='revision_new'),
     path('support/', views.support, name='support'),

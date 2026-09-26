@@ -93,9 +93,17 @@ class SyncLog(TimestampedModel):
     # The sender's event id. Looked up before applying anything, so a
     # redelivered event is acknowledged rather than applied a second time.
     event_id = models.CharField(max_length=64, blank=True, db_index=True)
+    # Stored with client.account.password_hash redacted — see
+    # sync.views._redact. Never write the raw bundle here.
     payload_received = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES)
     error_message = models.TextField(blank=True)
+    # Set once a handler resolves the Account, so the v2 dashboard can
+    # show per-client sync activity. Null for rejected/unmatched events.
+    account_new = models.ForeignKey(
+        'clients.Account', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='sync_logs',
+    )
 
     class Meta:
         ordering = ['-created_at']

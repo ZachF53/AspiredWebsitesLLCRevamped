@@ -1,5 +1,6 @@
 """v2 Websites — list + tabbed detail. The core page of the v2 build."""
 
+import json
 import logging
 from datetime import timedelta
 
@@ -7,6 +8,7 @@ from django.contrib import messages
 from django.core.management import call_command
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from admin_dashboard.decorators import admin_required
 from clients.account_models import Website
@@ -382,6 +384,149 @@ def _maintenance_intake_sections(onboarding):
     return out
 
 
+
+# ── Moonieful (read-only mirror of what Miki sees) ──────────────────────────
+
+# (bundle key, card title). Order = display order on the Moonieful tab.
+MOONIEFUL_EXTRA_SECTIONS = [
+    ('stage_details', 'Stage notes'),
+    ('tasks', 'Tasks'),
+    ('meetings', 'Meetings'),
+    ('contracts', 'Contracts'),
+    ('invoices', 'Invoices'),
+    ('approvals', 'Approvals'),
+    ('change_requests', 'Change requests'),
+    ('recommendations', 'Website recommendations'),
+    ('completion', 'Wrap-up'),
+    ('testimonial', 'Testimonial'),
+    ('activity', 'Activity'),
+]
+
+
+def _cell(value):
+    """A display string for one JSON value (autoescaped by the template)."""
+    if value is None or value == '':
+        return ''
+    if isinstance(value, bool):
+        return 'Yes' if value else 'No'
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _label(key):
+    return str(key).replace('_', ' ').strip().capitalize()
+
+
+def _moonieful_sections(extra):
+    """Turn Website.moonieful_extra into renderable cards.
+
+    The shape is Moonieful's to decide (docs/sync_contract.md lists the
+    fields we ask for), so this renders generically: a list of objects
+    becomes a table whose columns are the union of their keys, a single
+    object becomes a key/value list, anything else a single line. Keys
+    Moonieful hasn't sent yet render as an explicit "not shared yet".
+    """
+    extra = extra or {}
+    out = []
+    for key, title in MOONIEFUL_EXTRA_SECTIONS:
+        if key not in extra:
+            out.append({'key': key, 'title': title, 'kind': 'missing'})
+            continue
+        value = extra[key]
+        if isinstance(value, list):
+            rows = [r for r in value if isinstance(r, dict)]
+            if not rows:
+                out.append({'key': key, 'title': title, 'kind': 'empty'})
+                continue
+            columns = []
+            for row in rows:
+                for col in row:
+                    if col not in columns and col != 'id':
+                        columns.append(col)
+            out.append({
+                'key': key, 'title': title, 'kind': 'table',
+                'columns': [_label(c) for c in columns],
+                'rows': [[_cell(r.get(c)) for c in columns] for r in rows],
+            })
+        elif isinstance(value, dict):
+            if not value:
+                out.append({'key': key, 'title': title, 'kind': 'empty'})
+                continue
+            out.append({
+                'key': key, 'title': title, 'kind': 'kv',
+                'items': [(_label(k), _cell(v)) for k, v in value.items()
+                          if k != 'id'],
+            })
+        else:
+            out.append({'key': key, 'title': title, 'kind': 'text',
+                        'text': _cell(value)})
+    return out
+
+
+def _moonieful_intake(intake, website):
+    """moonieful_intake_raw with each file answer resolved to its
+    ClientDocument (for the download link), or [] if there is none."""
+    raw = getattr(intake, 'moonieful_intake_raw', None) if intake else None
+    if not raw or not isinstance(raw, list):
+        return []
+    docs = {
+        str(d.moonieful_document_id): d
+        for d in website.documents.filter(moonieful_document_id__isnull=False)
+    }
+    forms = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        answers = []
+        for a in entry.get('answers') or []:
+            if not isinstance(a, dict):
+                continue
+            ref = a.get('file_ref')
+            answers.append({
+                'question': a.get('question_text') or '',
+                'type': a.get('question_type') or '',
+                'value': _cell(a.get('value_text')),
+                'doc': docs.get(str(ref)) if ref else None,
+                'has_file': bool(ref),
+            })
+        forms.append({
+            'title': entry.get('form_title') or 'Intake',
+            'submitted_at': parse_datetime(entry['submitted_at'])
+            if entry.get('submitted_at') else None,
+            'answers': answers,
+        })
+    return forms
+
+
+def _moonieful_stage_history(website):
+    out = []
+    for s in website.moonieful_stage_history or []:
+        if not isinstance(s, dict):
+            continue
+        out.append({
+            'name': s.get('stage_name') or '',
+            'note': s.get('note') or '',
+            'created_at': parse_datetime(s['created_at'])
+            if s.get('created_at') else None,
+            'updated_at': parse_datetime(s['updated_at'])
+            if s.get('updated_at') else None,
+        })
+    return out
+
+
+def _moonieful_sync_activity(website):
+    from sync.models import SyncJob, SyncLog
+
+    inbound = []
+    if website.account_id:
+        inbound = list(SyncLog.objects.filter(
+            account_new=website.account).order_by('-created_at')[:25])
+    outbound = list(SyncJob.objects.filter(
+        website_new=website).order_by('-created_at')[:25])
+    return inbound, outbound
+
+
 @admin_required
 def website_detail(request, website_id):
     website = get_object_or_404(
@@ -460,6 +605,18 @@ def website_detail(request, website_id):
                           .order_by('-created_at'))
         upload_form = AdminDocumentUploadForm()
 
+    moonieful_intake = []
+    if active_tab == 'intake' and intake_subtab == 'website':
+        moonieful_intake = _moonieful_intake(intake, website)
+
+    moonieful_sections = []
+    moonieful_stages = []
+    sync_inbound, sync_outbound = [], []
+    if active_tab == 'moonieful' and website.moonieful_referred:
+        moonieful_sections = _moonieful_sections(website.moonieful_extra)
+        moonieful_stages = _moonieful_stage_history(website)
+        sync_inbound, sync_outbound = _moonieful_sync_activity(website)
+
     ctx = {
         'website': website,
         'account': website.account,
@@ -506,6 +663,12 @@ def website_detail(request, website_id):
         # Documents
         'documents': documents,
         'upload_form': upload_form,
+        # Moonieful
+        'moonieful_intake': moonieful_intake,
+        'moonieful_sections': moonieful_sections,
+        'moonieful_stages': moonieful_stages,
+        'sync_inbound': sync_inbound,
+        'sync_outbound': sync_outbound,
     }
     return render(request, 'admin_dashboard/v2/website_detail.html', ctx)
 
@@ -539,6 +702,21 @@ def website_document_upload(request, website_id):
         messages.error(
             request, errors or 'Upload failed — check the file and try again.')
     return redirect(redirect_to)
+
+
+@admin_required
+def website_document_download(request, website_id, doc_id):
+    """Admin: download one of this website's documents.
+
+    Documents live in private storage (clients/storage.py) with no public
+    URL, so this is the only way the v2 Files tab reaches the bytes.
+    """
+    from clients.downloads import document_download_response
+    from clients.models import ClientDocument
+
+    doc = get_object_or_404(
+        ClientDocument, id=doc_id, website_new_id=website_id)
+    return document_download_response(doc)
 
 
 @admin_required

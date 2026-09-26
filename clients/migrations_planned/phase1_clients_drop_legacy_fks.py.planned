@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0066_website_stripe_build_installment_subscription_id'),
+        ('clients', '0068_moonieful_sites_intake_complete'),
     ]
 
     operations = [

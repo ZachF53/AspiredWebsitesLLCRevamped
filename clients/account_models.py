@@ -481,6 +481,14 @@ class Website(TimestampedModel):
     moonieful_handoff_at = models.DateTimeField(null=True, blank=True)
     moonieful_stage_history = models.JSONField(default=list, blank=True)
     moonieful_package = models.CharField(max_length=100, blank=True)
+    # Everything else Miki can see on her side that she chooses to share
+    # (tasks, meetings, contracts, invoices, approvals, change requests,
+    # recommendations, wrap-up, testimonial, activity, stage notes) —
+    # optional top-level bundle keys, stored verbatim per key and shown
+    # read-only on the v2 Moonieful tab. Moonieful owns it; each key
+    # present in a bundle overwrites, absent keys are left alone. See
+    # docs/sync_contract.md "Optional extension keys".
+    moonieful_extra = models.JSONField(default=dict, blank=True)
     handoff_followup_sent = models.JSONField(default=dict, blank=True)
     maintenance_upsell_log = models.JSONField(default=dict, blank=True)
 

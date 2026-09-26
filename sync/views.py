@@ -8,11 +8,16 @@ format this must match — it is a locked cross-repo contract, not a local
 convention.
 """
 
+import copy
 import json
 import logging
+import os
+import tempfile
 
 from django.conf import settings
 from django.contrib.auth import login
+from django.core.files import File
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -63,6 +68,58 @@ def _authenticated(raw_body, timestamp, signature):
     return verify(timestamp, raw_body, signature)
 
 
+REDACTED = '[redacted]'
+
+# Every file type Moonieful's upload form lets her send, minus archives
+# (their contents are invisible to an extension check) and .html/.htm.
+# SVG is allowed: files are only ever served by the auth-checked download
+# views, forced to Content-Disposition: attachment with a sandbox CSP and
+# nosniff, so a scripted SVG never renders on this origin.
+SYNC_ALLOWED_EXTS = frozenset({
+    # docs
+    'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages', 'epub',
+    'xls', 'xlsx', 'csv', 'ods', 'numbers',
+    'ppt', 'pptx', 'odp', 'key',
+    # images
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+    'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif',
+    # audio / video
+    'mp4', 'mov', 'webm', 'avi', 'mkv', 'wmv', 'm4v', 'mpg', 'mpeg',
+    'mp3', 'wav', 'm4a', 'm4b', 'aac', 'flac', 'ogg', 'oga', 'aif', 'aiff',
+    # design / source files
+    'psd', 'ai', 'sketch', 'fig', 'xd', 'indd', 'eps',
+    'afdesign', 'afphoto', 'procreate', 'dwg', 'dxf',
+    # fonts — brand handovers routinely include the licensed typeface
+    'ttf', 'otf', 'woff', 'woff2',
+})
+
+_CHUNK = 64 * 1024
+
+
+def _redact(bundle):
+    """A copy of the bundle safe to keep in SyncLog.
+
+    Moonieful ships the client's Django password hash on every event. The
+    handler needs it once (to create the login); the audit log must never
+    hold it.
+    """
+    safe = copy.deepcopy(bundle)
+    client = safe.get('client')
+    account = client.get('account') if isinstance(client, dict) else None
+    if isinstance(account, dict) and account.get('password_hash'):
+        account['password_hash'] = REDACTED
+    return safe
+
+
+def _reject(status, message, *, event_type='unknown', payload=None):
+    SyncLog.objects.create(
+        source_site='moonieful', event_type=event_type,
+        payload_received=payload or {}, status='failed',
+        error_message=message,
+    )
+    return JsonResponse({'error': message}, status=status)
+
+
 @csrf_exempt
 @require_POST
 def sync_inbound(request):
@@ -82,11 +139,13 @@ def sync_inbound(request):
     try:
         bundle = json.loads(raw)
     except ValueError:
-        return JsonResponse({'error': 'invalid JSON'}, status=400)
+        return _reject(400, 'invalid JSON')
     if not isinstance(bundle, dict):
-        return JsonResponse({'error': 'invalid payload'}, status=400)
+        return _reject(400, 'invalid payload')
     if bundle.get('schema_version') != 1:
-        return JsonResponse({'error': 'unsupported schema_version'}, status=400)
+        return _reject(400, 'unsupported schema_version',
+                       event_type=str(bundle.get('event_type') or 'unknown')[:100],
+                       payload=_redact(bundle))
 
     event_type = bundle.get('event_type', '')
     event_id = str(bundle.get('event_id') or '')
@@ -106,102 +165,141 @@ def sync_inbound(request):
                 'status': 'ok', 'detail': 'already applied', 'duplicate': True,
             })
 
-    log = SyncLog.objects.create(
-        source_site='moonieful', event_type=event_type, event_id=event_id,
-        payload_received=bundle, status='processed',
-    )
-
     handler = HANDLERS.get(event_type)
     if handler is None:
-        log.status = 'skipped'
-        log.error_message = f'No handler for event_type "{event_type}"'
-        log.save(update_fields=['status', 'error_message', 'updated_at'])
+        SyncLog.objects.create(
+            source_site='moonieful', event_type=event_type, event_id=event_id,
+            payload_received=_redact(bundle), status='skipped',
+            error_message=f'No handler for event_type "{event_type}"',
+        )
         return JsonResponse({'error': 'unknown event_type'}, status=400)
 
+    # The handler runs in its own transaction: a failure halfway through
+    # (account saved, website not) rolls back to nothing rather than
+    # leaving a half-synced client. The log row is written after, with
+    # the real outcome, so a crash can no longer leave it saying
+    # "processed" for an event that was never applied.
     try:
-        client = handler(bundle)
+        with transaction.atomic():
+            client = handler(bundle)
     except Exception as exc:
         logger.exception('sync inbound handler failed for %s', event_type)
-        log.status = 'failed'
-        log.error_message = str(exc)
-        log.save(update_fields=['status', 'error_message', 'updated_at'])
+        SyncLog.objects.create(
+            source_site='moonieful', event_type=event_type, event_id=event_id,
+            payload_received=_redact(bundle), status='failed',
+            error_message=str(exc),
+        )
         return JsonResponse({'error': 'handler error'}, status=400)
 
+    SyncLog.objects.create(
+        source_site='moonieful', event_type=event_type, event_id=event_id,
+        payload_received=_redact(bundle), status='processed',
+        account_new=client if isinstance(client, Account) else None,
+    )
     return JsonResponse({
         'status': 'ok',
         'aspired_client_id': str(client.id) if client else None,
     }, status=200)
 
 
+def _file_log(document_id, status, message='', *, document=None, filename='', size=None):
+    account = None
+    if document is not None and document.website_new_id:
+        account = document.website_new.account
+    SyncLog.objects.create(
+        source_site='moonieful', event_type='file_received',
+        payload_received={
+            'document_id': str(document_id),
+            'filename': filename,
+            'size': size,
+        },
+        status=status, error_message=message, account_new=account,
+    )
+
+
 @csrf_exempt
 @require_POST
 def sync_file(request, document_id):
-    """POST /api/sync/file/<document_id>/ — receive a document's file body."""
-    raw = request.body
+    """POST /api/sync/file/<document_id>/ — receive a document's file body.
+
+    Moonieful streams the file as the raw request body
+    (Content-Type: application/octet-stream). The signature covers
+    "<absolute url>\n<byte length>", so it is checked against the declared
+    Content-Length BEFORE a single byte is read, and the body is then
+    streamed to a temp file in chunks and held to that exact length.
+
+    This never touches request.body: that path loads the whole file into
+    memory and is capped by DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB by
+    default), which used to reject every real brand file with a 400
+    before the size check here ever ran.
+    """
     timestamp = request.META.get('HTTP_X_SYNC_TIMESTAMP', '')
     signature = request.META.get('HTTP_X_SYNC_SIGNATURE', '')
-    signed_over = f'{request.build_absolute_uri()}\n{len(raw)}'.encode('utf-8')
+    max_size = settings.SYNC_MAX_FILE_SIZE
+
+    try:
+        declared = int(request.META.get('CONTENT_LENGTH') or '')
+    except ValueError:
+        return JsonResponse({'error': 'Content-Length required'}, status=411)
+    if declared < 0:
+        return JsonResponse({'error': 'invalid Content-Length'}, status=400)
+
+    signed_over = f'{request.build_absolute_uri()}\n{declared}'.encode('utf-8')
     if not _authenticated(signed_over, timestamp, signature):
         return JsonResponse({'error': 'invalid signature'}, status=403)
-
-    document = ClientDocument.objects.filter(
-        moonieful_document_id=document_id
-    ).first()
-    if document is None:
-        return JsonResponse({'error': 'document not found'}, status=404)
-
-    # Moonieful streams the file as the raw request body
-    # (Content-Type: application/octet-stream), not a multipart upload —
-    # request.FILES is never populated for that, so this used to reject
-    # every real file Moonieful ever sent. The filename travels in a
-    # header the sender controls, so only its base name is trusted (no
-    # path traversal), and the reconstructed upload runs through the same
-    # type/size validation a multipart upload would have gotten.
-    import os
-
-    from django.core.files.uploadedfile import SimpleUploadedFile
 
     raw_name = request.headers.get('X-Sync-Filename', '') or f'{document_id}.bin'
     filename = os.path.basename(raw_name.replace('\\', '/')).strip() or f'{document_id}.bin'
 
-    SYNC_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
-    # Widened to match what Moonieful's own upload form actually lets her
-    # send (portal/forms.py PORTAL_UPLOAD_ALLOWED_EXT on her side) — the
-    # narrower list below used to accept the metadata for a document Miki
-    # sent and then 400 the file body itself for anything not on it,
-    # silently leaving a fileless row behind. Archives (.zip etc.) and
-    # .html/.htm are deliberately NOT included even though her form allows
-    # them: an archive's contents are invisible to an extension check, and
-    # .html is only safe on her side because her serving view forces a
-    # Content-Disposition: attachment header — Aspired serves MEDIA_URL
-    # directly with no such view in front of it.
-    SYNC_ALLOWED_EXTS = {
-        # docs
-        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages', 'epub',
-        'xls', 'xlsx', 'csv', 'ods', 'numbers',
-        'ppt', 'pptx', 'odp', 'key',
-        # images
-        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-        'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif',
-        # audio / video
-        'mp4', 'mov', 'webm', 'avi', 'mkv', 'wmv', 'm4v', 'mpg', 'mpeg',
-        'mp3', 'wav', 'm4a', 'm4b', 'aac', 'flac', 'ogg', 'oga', 'aif', 'aiff',
-        # design / source files
-        'psd', 'ai', 'sketch', 'fig', 'xd', 'indd', 'eps',
-        'afdesign', 'afphoto', 'procreate', 'dwg', 'dxf',
-        # fonts — brand handovers routinely include the licensed typeface
-        'ttf', 'otf', 'woff', 'woff2',
-    }
-    if len(raw) > SYNC_MAX_SIZE:
-        return JsonResponse(
-            {'error': 'file too large (50 MB max)'}, status=400)
+    document = ClientDocument.objects.filter(
+        moonieful_document_id=document_id
+    ).select_related('website_new__account').first()
+    if document is None:
+        _file_log(document_id, 'failed', 'document not found (metadata not synced yet)',
+                  filename=filename, size=declared)
+        return JsonResponse({'error': 'document not found'}, status=404)
+
+    if declared > max_size:
+        msg = f'file too large ({max_size // (1024 * 1024)} MB max)'
+        _file_log(document_id, 'failed', msg, document=document,
+                  filename=filename, size=declared)
+        return JsonResponse({'error': msg}, status=413)
+
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
     if ext not in SYNC_ALLOWED_EXTS:
-        return JsonResponse(
-            {'error': f'file type ".{ext}" not allowed'}, status=400)
+        msg = f'file type ".{ext}" not allowed'
+        _file_log(document_id, 'failed', msg, document=document,
+                  filename=filename, size=declared)
+        return JsonResponse({'error': msg}, status=400)
 
-    upload = SimpleUploadedFile(filename, raw)
-    document.file.save(filename, upload, save=True)
+    with tempfile.TemporaryFile() as tmp:
+        received = 0
+        while True:
+            chunk = request.read(min(_CHUNK, declared - received + 1))
+            if not chunk:
+                break
+            received += len(chunk)
+            if received > declared:
+                break
+            tmp.write(chunk)
+        if received != declared:
+            msg = f'body length {received} does not match Content-Length {declared}'
+            _file_log(document_id, 'failed', msg, document=document,
+                      filename=filename, size=declared)
+            return JsonResponse({'error': 'body does not match Content-Length'}, status=400)
+
+        tmp.seek(0)
+        # A re-send replaces the stored file rather than piling up
+        # name_XXXX.ext duplicates next to it.
+        if document.file:
+            document.file.delete(save=False)
+        document.file.save(filename, File(tmp, name=filename), save=False)
+        if not document.original_filename:
+            document.original_filename = filename[:255]
+        document.save(update_fields=['file', 'original_filename', 'updated_at'])
+
+    _file_log(document_id, 'processed', document=document,
+              filename=filename, size=declared)
     return JsonResponse({'status': 'ok'}, status=200)
 
 

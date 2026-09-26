@@ -5,6 +5,7 @@ Every model inherits TimestampedModel (UUID primary key) per CLAUDE.md, so
 Aspired and Moonieful record IDs never collide across the sync bridge.
 """
 
+import os
 import uuid
 from decimal import Decimal
 
@@ -13,6 +14,7 @@ from django.db import models
 from django.utils import timezone
 
 from clients.display import owner_label
+from clients.storage import private_document_storage
 from core.models import TimestampedModel
 
 # Account / Website live in a separate module — re-export so Django's
@@ -793,14 +795,40 @@ class ClientDocument(TimestampedModel):
         related_name='documents_new', null=True, blank=True,
     )
     direction = models.CharField(max_length=20, choices=DIRECTION_CHOICES)
-    file = models.FileField(upload_to=client_document_path)
+    # Private storage — never served from /media/. See clients/storage.py.
+    file = models.FileField(
+        upload_to=client_document_path, storage=private_document_storage,
+        max_length=255,
+    )
     label = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='uploaded_documents',
     )
-    moonieful_document_id = models.UUIDField(null=True, blank=True)
+    moonieful_document_id = models.UUIDField(null=True, blank=True, db_index=True)
+    # Moonieful's document category (blueprint/contract/invoice/asset/
+    # deliverable/meeting/other), or intake/task/screenshot/testimonial for
+    # files attached to those records. Blank for Aspired-originated files.
+    category = models.CharField(max_length=30, blank=True)
+    original_filename = models.CharField(max_length=255, blank=True)
+    # Last-writer-wins for Moonieful-owned metadata: an incoming row only
+    # overwrites label/description/etc. when its updated_at is newer.
+    moonieful_updated_at = models.DateTimeField(null=True, blank=True)
+    # Moonieful soft-deleted this file, or Miki hid it from the client.
+    # Admin still sees these (flagged); the client portal does not.
+    moonieful_deleted = models.BooleanField(default=False)
+    moonieful_visible_to_client = models.BooleanField(default=True)
+
+    @property
+    def filename(self):
+        if self.original_filename:
+            return self.original_filename
+        return os.path.basename(self.file.name) if self.file else ''
+
+    @property
+    def client_can_see(self):
+        return not self.moonieful_deleted and self.moonieful_visible_to_client
 
     class Meta:
         ordering = ['-created_at']

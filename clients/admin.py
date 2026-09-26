@@ -19,7 +19,9 @@ the box, so the admin would have looked fine right up until it was used.
 
 from decimal import Decimal
 
+from django import forms
 from django.contrib import admin, messages
+from django.db import models
 from django.urls import reverse
 from django.utils.html import format_html
 
@@ -271,11 +273,26 @@ class RevisionRequestAdmin(admin.ModelAdmin):
 
 @admin.register(ClientDocument)
 class ClientDocumentAdmin(admin.ModelAdmin):
-    list_display = ('label', 'website_new', 'direction', 'created_at')
-    list_filter = ('direction',)
-    search_fields = WEBSITE_SEARCH + ('label', 'description')
-    readonly_fields = ('created_at', 'updated_at')
+    list_display = ('label', 'website_new', 'direction', 'category',
+                    'moonieful_deleted', 'created_at')
+    list_filter = ('direction', 'category', 'moonieful_deleted')
+    search_fields = WEBSITE_SEARCH + ('label', 'description', 'original_filename')
+    readonly_fields = ('download', 'created_at', 'updated_at')
     list_select_related = ('website_new',)
+    # Private storage has no public URL (clients/storage.py), and the
+    # default ClearableFileInput renders a "Currently: <a href=url>" link
+    # that would raise. A bare FileInput plus the download link below.
+    formfield_overrides = {
+        models.FileField: {'widget': forms.FileInput},
+    }
+
+    @admin.display(description='Download')
+    def download(self, obj):
+        if not obj.pk or not obj.file or not obj.website_new_id:
+            return '—'
+        url = reverse('admin_dashboard:v2_website_document_download',
+                      args=[obj.website_new_id, obj.pk])
+        return format_html('<a href="{}">{}</a>', url, obj.filename or 'Download')
 
 
 @admin.register(SupportTicket)

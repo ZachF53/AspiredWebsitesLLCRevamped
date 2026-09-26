@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sync', '0003_synclog_event_id_syncjob_event_id'),
+        ('sync', '0005_redact_synclog_password_hash'),
     ]
 
     operations = [

@@ -1098,10 +1098,18 @@ def _on_intake_submitted(profile, project):
 
 # ── Page 4: Files ───────────────────────────────────────────────────────────
 
+def _client_visible_docs(project):
+    """This website's documents the client is allowed to see — excludes
+    files Moonieful soft-deleted or Miki hid from the client."""
+    if not project:
+        return []
+    return [d for d in project.documents.all() if d.client_can_see]
+
+
 @client_required
 def files(request):
     project = _active_project(request)
-    docs = list(project.documents.all()) if project else []
+    docs = _client_visible_docs(project)
     ctx = _portal_context(
         request, 'files',
         docs_to_client=[d for d in docs if d.direction == 'to_client'],
@@ -1126,11 +1134,29 @@ def file_upload(request):
             return redirect('clients:files')
         ctx = _portal_context(request, 'files', upload_form=form,
                               docs_to_client=[], docs_from_client=[])
-        docs = list(project.documents.all()) if project else []
+        docs = _client_visible_docs(project)
         ctx['docs_to_client'] = [d for d in docs if d.direction == 'to_client']
         ctx['docs_from_client'] = [d for d in docs if d.direction == 'from_client']
         return render(request, 'clients/files.html', ctx)
     return redirect('clients:files')
+
+
+@client_required
+def portal_document_download(request, doc_id):
+    """Download one of the signed-in client's own documents.
+
+    Documents live in private storage (clients/storage.py), so this is the
+    only way a client reaches the bytes. Scoped to the request's Account:
+    another client's document id is a 404, never a 403, so ids can't be
+    probed. Moonieful-deleted or hidden files are 404 too.
+    """
+    from clients.downloads import document_download_response
+
+    doc = get_object_or_404(
+        ClientDocument, id=doc_id, website_new__account=request.account,
+        moonieful_deleted=False, moonieful_visible_to_client=True,
+    )
+    return document_download_response(doc)
 
 
 # ── Page 5: Revisions ───────────────────────────────────────────────────────
