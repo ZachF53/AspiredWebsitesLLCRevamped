@@ -28,7 +28,7 @@ def generate_invoice_receipt_pdf(invoice):
     Best-effort: a render failure logs and returns None rather than
     raising, so the calling webhook never blocks on a missing PDF.
     """
-    client = invoice.client
+    client = _billing_contact(invoice.client, getattr(invoice, 'account_new', None))
 
     # Snapshot line items as plain floats for the template — easier
     # to format than JSON-stringified Decimals.
@@ -51,7 +51,7 @@ def generate_invoice_receipt_pdf(invoice):
         },
     )
 
-    rel_dir = Path('receipts') / str(client.id)
+    rel_dir = Path('receipts') / str(getattr(client, 'id', None) or invoice.pk)
     abs_dir = Path(settings.MEDIA_ROOT) / rel_dir
     abs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -79,6 +79,32 @@ def generate_invoice_receipt_pdf(invoice):
     return saved_rel
 
 
+class _AccountContact:
+    """The billing-contact shape receipt_pdf.html expects (ClientProfile's
+    firm_name / contact_name / user / address fields), built from an
+    Account. Current-terms agreements (Sept 2026) are billed to an
+    Account and carry no legacy ClientProfile, which made receipt
+    generation crash on `client.id` for every pay-in-full build."""
+
+    def __init__(self, account):
+        self.id = account.pk
+        self.firm_name = account.name
+        self.contact_name = getattr(account, 'contact_name', '')
+        self.user = getattr(account, 'user', None)
+        self.address = getattr(account, 'address', '')
+        self.city = getattr(account, 'city', '')
+        self.state = getattr(account, 'state', '')
+        self.zip_code = getattr(account, 'zip_code', '')
+
+
+def _billing_contact(client, account):
+    if client is not None:
+        return client
+    if account is not None:
+        return _AccountContact(account)
+    return None
+
+
 def render_payment_receipt(record):
     """Render a branded receipt for a PaymentRecord on demand.
 
@@ -94,7 +120,7 @@ def render_payment_receipt(record):
         'billing/receipt_pdf.html',
         {
             'invoice': record,            # template reads invoice.id for the #
-            'client': record.client,
+            'client': _billing_contact(record.client, record.account),
             'line_items': line_items,
             'total_amount': float(record.amount or 0),
             'paid_at': record.paid_at or timezone.now(),

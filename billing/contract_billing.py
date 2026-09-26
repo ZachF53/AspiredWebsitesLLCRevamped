@@ -150,12 +150,19 @@ def _settle_subscription(stripe, sub_id, pm):
     """
     sub = stripe.Subscription.retrieve(
         sub_id, expand=['latest_invoice.confirmation_secret'])
-    if _g(sub, 'status') in ('active', 'trialing'):
-        return 'paid', None
     inv = _g(sub, 'latest_invoice')
     if inv is None or isinstance(inv, str):
-        return 'pending', None
-    if _g(inv, 'status') == 'paid':
+        # Can't see the invoice; only a subscription Stripe itself calls
+        # active with nothing to collect counts as settled.
+        return ('paid', None) if _g(sub, 'status') in (
+            'active', 'trialing') else ('pending', None)
+    # NOT the subscription status: a subscription created by a
+    # SubscriptionSchedule is 'active' immediately while its first
+    # invoice sits in DRAFT for about an hour before Stripe finalizes
+    # and charges it. Trusting 'active' meant installment agreements
+    # were marked paid at signing with nothing charged (found in the
+    # staging Stripe test run, Sept 2026). Settle the invoice itself.
+    if _g(inv, 'status') == 'paid' or _g(inv, 'amount_due') == 0:
         return 'paid', None
     if _g(inv, 'status') == 'draft':
         inv = stripe.Invoice.finalize_invoice(

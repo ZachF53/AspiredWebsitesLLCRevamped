@@ -146,6 +146,14 @@ def guarantee_status(website, now=None):
     elif now > deadline:
         status['reason'] = (f'Outside the {GUARANTEE_DAYS}-day window — '
                             f'it closed {deadline:%b %d, %Y}.')
+    elif total == 0:
+        # Never "complete" a $0 refund: if nothing is in the ledger yet
+        # (webhook still in flight, or a payment recorded against the
+        # wrong row), cancelling everything and refunding nothing would
+        # keep 100% of the client's money. Check Stripe and retry.
+        status['reason'] = ('No payments are recorded for this agreement '
+                            'yet. Check the payments in Stripe before '
+                            'refunding.')
     else:
         status['eligible'] = True
     return status

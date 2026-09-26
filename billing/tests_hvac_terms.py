@@ -350,6 +350,30 @@ class ContractCheckoutTests(TestCase):
         c.refresh_from_db()
         self.assertIsNone(c.paid_at_signing_at)
 
+    def test_schedule_draft_first_invoice_is_charged_at_signing(self):
+        """Regression (staging Stripe test run, Sept 2026): a schedule's
+        subscription is 'active' at once while its first invoice is still
+        a DRAFT. Checkout must finalize and charge it, not trust the
+        subscription status."""
+        from billing.contract_billing import run_contract_checkout
+        self.stripe.Subscription.retrieve.return_value = {
+            'status': 'active',
+            'latest_invoice': {'id': 'in_draft', 'status': 'draft',
+                               'amount_due': 10500}}
+        self.stripe.Invoice.finalize_invoice.return_value = {
+            'id': 'in_draft', 'status': 'open', 'amount_due': 10500,
+            'confirmation_secret': {'client_secret': 'pi_7_secret_y'}}
+        self.stripe.PaymentIntent.retrieve.return_value = {
+            'status': 'requires_payment_method'}
+        self.stripe.PaymentIntent.confirm.return_value = {
+            'status': 'succeeded'}
+        c = _contract(self.account, self.site, 'installment', 'none')
+        self.assertEqual(run_contract_checkout(c, payment_method_id='pm_1'),
+                         {'ok': True})
+        self.stripe.Invoice.finalize_invoice.assert_called_once()
+        self.stripe.PaymentIntent.confirm.assert_called_once_with(
+            'pi_7', payment_method='pm_1')
+
     def test_legacy_contract_refused(self):
         from billing.contract_billing import run_contract_checkout
         legacy = Contract.objects.create(
@@ -623,6 +647,19 @@ class GuaranteeAdminViewTests(TestCase):
         # A live installment subscription must NOT block this action.
         self.site.stripe_build_installment_subscription_id = 'sub_live'
         self.site.save()
+        # The first installment, charged at signing. With nothing in the
+        # ledger the panel refuses (never a $0 "refund").
+        PaymentRecord.objects.create(
+            account=self.account, website=self.site, kind='installment',
+            amount=Decimal('105.00'), stripe_id='in_panel_1',
+            paid_at=timezone.now())
+
+    def test_panel_refuses_when_no_payment_is_recorded(self):
+        from billing.guarantee import guarantee_status
+        PaymentRecord.objects.filter(website=self.site).delete()
+        status = guarantee_status(self.site)
+        self.assertFalse(status['eligible'])
+        self.assertIn('No payments are recorded', status['reason'])
 
     def test_billing_tab_shows_panel(self):
         r = self.client.get(
