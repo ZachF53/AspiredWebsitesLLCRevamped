@@ -1,11 +1,10 @@
 """
 Custom-priced build contracts, and the WordPress no-Droplet rule.
 
-Before this, `website_send_contract` priced strictly off the Essential /
-Premium ServiceTier and refused to send without one — so a one-off rate
-(friend discount, WordPress port, scoped project) had no route into the
-contract → 50% deposit → intake flow. The only alternative was a flat
-pay-in-full invoice, which skips the deposit machinery entirely.
+A one-off rate (friend discount, WordPress port, scoped project) goes
+through the normal contract → pay at signing → intake flow. Since the
+Sept 2026 terms there is no deposit: a custom price applies to a
+pay-in-full build and is charged in full at signing.
 
 Separately, intake completion enqueued Droplet provisioning
 unconditionally, which would create and bill a server for a WordPress
@@ -27,6 +26,10 @@ User = get_user_model()
 class SendContractWithCustomPrice(TestCase):
 
     def setUp(self):
+        from unittest.mock import MagicMock
+
+        from django.core.management import call_command
+        call_command('seed_pricing', stdout=MagicMock())
         staff = User.objects.create_user(
             username='cbstaff', email='cbstaff@example.com',
             password='test-pass-123', is_staff=True, is_superuser=True)
@@ -44,20 +47,28 @@ class SendContractWithCustomPrice(TestCase):
     def _url(self):
         return f'/admin-dashboard/websites/{self.website.id}/send-contract/'
 
-    def test_custom_price_creates_contract_with_half_deposit(self):
+    def test_custom_price_creates_pay_in_full_contract(self):
         resp = self.client.post(self._url(), {
             'custom_build_price': '750', 'build_platform': 'wordpress'})
         self.assertEqual(resp.status_code, 302)
 
         contract = Contract.objects.get(website_new=self.website)
         self.assertEqual(contract.build_price, Decimal('750.00'))
-        self.assertEqual(contract.deposit_amount, Decimal('375.00'))
+        self.assertIsNone(contract.deposit_amount)
+        self.assertEqual(contract.payment_option, 'pay_in_full')
         self.assertTrue(contract.includes_build)
 
         svc = ContractService.objects.get(contract=contract)
         self.assertEqual(svc.service_type, 'build')
         self.assertEqual(svc.price, Decimal('750.00'))
-        self.assertEqual(svc.deposit_amount, Decimal('375.00'))
+        self.assertIsNone(svc.deposit_amount)
+
+    def test_custom_price_refused_for_installments(self):
+        self.client.post(self._url(), {
+            'custom_build_price': '750', 'build_option': 'installment',
+            'plan_option': 'none'})
+        self.assertFalse(Contract.objects.filter(
+            website_new=self.website).exists())
 
     def test_custom_price_and_platform_persist_on_the_website(self):
         self.client.post(self._url(), {
@@ -68,8 +79,9 @@ class SendContractWithCustomPrice(TestCase):
         self.assertFalse(self.website.needs_droplet)
         self.assertEqual(self.website.lifecycle_status, 'contract_sent')
 
-    def test_no_package_and_no_price_is_refused(self):
-        resp = self.client.post(self._url(), {'custom_build_price': ''})
+    def test_nothing_selected_is_refused(self):
+        resp = self.client.post(self._url(), {
+            'build_option': 'none', 'plan_option': 'none'})
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(Contract.objects.filter(
             website_new=self.website).exists())
@@ -94,7 +106,8 @@ class SendContractWithCustomPrice(TestCase):
         text = Contract.objects.get(website_new=self.website).contract_text
         self.assertIn('WordPress', text)
         self.assertIn('$750', text)
-        self.assertIn('$375', text)
+        self.assertNotIn('$375', text)
+        self.assertNotIn('50%', text)
         self.assertNotIn('hand-coded', text)
         self.assertNotIn('practice area pages', text)
 

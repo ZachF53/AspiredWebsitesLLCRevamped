@@ -83,10 +83,7 @@
             </form>
         {% endif %}
         {% if can_send_contract and contract_pending or can_send_contract and not website_contracts %}
-            <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn-secondary btn-sm">Send contract ({{ website.get_package_display }})</button>
-            </form>
+            <a href="#send-contract" class="btn-secondary btn-sm">Send contract &darr;</a>
         {% endif %}
         {% if website.url %}<a href="{{ website.url }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Visit site ↗</a>{% endif %}
         {% if do_console_url %}<a href="{{ do_console_url }}" target="_blank" rel="noopener" class="btn-secondary btn-sm">Open in DigitalOcean ↗</a>{% endif %}
@@ -168,7 +165,7 @@
     {% comment %}
         Contract (per-website). Priced from the build tier captured at
         booking, or from a custom amount entered on the form below.
-        Signing flows into deposit → setup → intake.
+        Signing flows into pay-at-signing (legacy rows: deposit) → setup → intake.
     {% endcomment %}
     <div class="admin-card">
         <div class="admin-card__header">
@@ -213,20 +210,37 @@
             {% endif %}
 
             {% comment %}
-                Send-contract form. Price comes from the package tier
-                unless a custom amount is entered here, which is what
-                lets a one-off rate use the contract → 50% deposit →
-                intake flow instead of a flat pay-in-full invoice.
+                Send-contract form. The operator picks how the build is
+                paid (in full / 24-month installment / none) and the plan
+                (Full Plan / Hosting + Security / none). Everything is
+                charged when the client signs; there is no deposit. A
+                custom price only applies to a pay-in-full build.
                 Platform decides whether intake provisions a Droplet.
             {% endcomment %}
-            <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" class="wd-contract-form">
+            <form method="post" action="{% url 'admin_dashboard:website_send_contract' website.id %}" class="wd-contract-form" id="send-contract">
                 {% csrf_token %}
                 <div class="form-row">
-                    <span class="form-label">Custom build price (USD) — optional</span>
+                    <span class="form-label">Build</span>
+                    <select class="form-control" name="build_option">
+                        <option value="pay_in_full" {% if contract_build_default == 'pay_in_full' %}selected{% endif %}>Pay in full at signing</option>
+                        <option value="installment" {% if contract_build_default == 'installment' %}selected{% endif %}>24-month installment (first charged at signing)</option>
+                        <option value="none" {% if contract_build_default == 'none' %}selected{% endif %}>No build</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <span class="form-label">Plan</span>
+                    <select class="form-control" name="plan_option">
+                        <option value="full_plan" {% if contract_plan_default == 'full_plan' %}selected{% endif %}>Full Plan</option>
+                        <option value="hosting" {% if contract_plan_default == 'hosting' %}selected{% endif %}>Hosting + Security only</option>
+                        <option value="none" {% if contract_plan_default == 'none' %}selected{% endif %}>No plan</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <span class="form-label">Custom build price (USD) — optional, pay-in-full only</span>
                     <input class="form-control" type="number" min="1" step="0.01"
                            name="custom_build_price"
                            value="{{ website.custom_build_price|default_if_none:'' }}"
-                           placeholder="{% if website.package %}Leave blank to use {{ website.get_package_display }}{% else %}e.g. 750.00{% endif %}">
+                           placeholder="Leave blank to use the tier price">
                 </div>
                 <div class="form-row">
                     <span class="form-label">Platform</span>
@@ -236,12 +250,9 @@
                         {% endfor %}
                     </select>
                 </div>
-                <button type="submit" class="btn-primary btn-sm">
-                    Send contract{% if website.package %} ({{ website.get_package_display }}){% endif %}
-                </button>
+                <button type="submit" class="btn-primary btn-sm">Send contract</button>
                 <p class="muted" style="margin:.5rem 0 0;">
-                    Client signs, then chooses 50% deposit or pay in full.
-                    {% if not website.package %}No package set — enter a custom price above.{% endif %}
+                    Client signs, then pays on our own card page: the full build or the first installment, plus the first month of any plan. Installment + Full Plan is one monthly schedule that steps down to the paid-in-full plan rate after month 24.
                 </p>
             </form>
         </div>

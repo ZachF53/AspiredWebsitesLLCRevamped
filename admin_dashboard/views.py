@@ -1691,8 +1691,11 @@ from .views_recordings import (  # noqa: E402,F401
 def _billing_packages():
     """Build options for the new-invoice form: website-build tiers + Custom."""
     from billing.pricing_models import ServiceTier
+    # One-time tiers only. The 24-month installment build is a recurring
+    # Stripe schedule set up by the contract checkout — offered here it
+    # became a single one-off $105 invoice for a $2,520 build.
     tiers = list(ServiceTier.objects.filter(
-        category='website_build', is_active=True
+        category='website_build', is_active=True, is_recurring=False,
     ).order_by('sort_order', 'price'))
     return tiers
 
@@ -1706,11 +1709,18 @@ def _billing_maintenance_plans():
 
 
 def _billing_hosting():
-    """The single hosting line ($150/yr)."""
+    """The legacy annual hosting line ($150/yr), while that tier is sold.
+
+    Pinned to its slug: this invoice path bills hosting as a one-off
+    line plus the legacy annual subscription, which is wrong for the
+    monthly hvac-hosting-security tier (that one is sold through the
+    contract checkout and /checkout/hvac-hosting-security/). With
+    hosting-annual discontinued this returns None and the form hides
+    the option.
+    """
     from billing.pricing_models import ServiceTier
     return ServiceTier.objects.filter(
-        category='hosting', is_active=True
-    ).order_by('price').first()
+        slug='hosting-annual', is_active=True).first()
 
 
 @admin_required
@@ -1798,7 +1808,7 @@ def new_invoice(request):
                 package_db_slug = (
                     'essential_build' if 'essential' in tier.slug
                     else 'premium_build' if 'premium' in tier.slug
-                    else '')
+                    else _BUILD_SLUG_TO_PACKAGE.get(tier.slug, ''))
 
         # ── Optional maintenance + hosting lines ──
         line_items = []
@@ -2007,15 +2017,23 @@ def new_invoice(request):
                 'city':      lead.city or '',
                 'state':     lead.state or '',
             }
-            # Build_type tag → suggested package
-            if 'build_type:essential' in (lead.tags or ''):
-                prefill['package'] = 'essential-build' if any(
-                    t.slug == 'essential-build' for t in packages
-                ) else 'website-essential'
-            elif 'build_type:premium' in (lead.tags or ''):
-                prefill['package'] = 'premium-build' if any(
-                    t.slug == 'premium-build' for t in packages
-                ) else 'website-premium'
+            # Build_type tag (from /design/schedule/) → suggested
+            # package + plan. See scheduler.views.BUILD_TYPE_OPTIONS for
+            # the six booking values; only tiers this form can actually
+            # bill one-off are prefilled (installments and plans go
+            # through the contract checkout instead).
+            from scheduler.views import BUILD_TYPE_PREFILL
+            tags = lead.tags or ''
+            for build_type, (pkg_slug, plan_slug) in (
+                    BUILD_TYPE_PREFILL.items()):
+                if f'build_type:{build_type}' not in tags.split(','):
+                    continue
+                if pkg_slug and any(t.slug == pkg_slug for t in packages):
+                    prefill['package'] = pkg_slug
+                if plan_slug and any(
+                        t.slug == plan_slug for t in maintenance_plans):
+                    prefill['maintenance_plan'] = plan_slug
+                break
             opted = list(getattr(lead, 'opted_in_addons', None) or [])
             if opted:
                 addon_opt_in = True
@@ -3570,27 +3588,127 @@ def account_set_comp_tier(request, account_id):
 _BUILD_SLUG_TO_PACKAGE = {
     'website-essential': 'essential_build',
     'website-premium': 'premium_build',
+    'hvac-build-full': 'hvac_build',
+    'hvac-build-installment': 'hvac_build',
 }
-# Reverse: Website.package code → build ServiceTier slug.
-_PACKAGE_TO_BUILD_SLUG = {v: k for k, v in _BUILD_SLUG_TO_PACKAGE.items()}
+# Reverse: Website.package code → build ServiceTier slug. hvac_build maps
+# to the pay-in-full tier; whether it is actually paid in full or in
+# installments is Contract.payment_option, chosen when the contract is sent.
+_PACKAGE_TO_BUILD_SLUG = {
+    'essential_build': 'website-essential',
+    'premium_build': 'website-premium',
+    'hvac_build': 'hvac-build-full',
+}
+
+
+def _default_contract_options(website):
+    """Pre-selected (build_option, plan_option) for the send-contract form,
+    read off what the client booked (Website.package)."""
+    package = getattr(website, 'package', '') or ''
+    if package == 'hvac_full_plan':
+        return 'installment', 'full_plan'
+    if package == 'hvac_plan_paid_in_full':
+        return 'none', 'full_plan'
+    if package == 'hvac_hosting_security':
+        return 'none', 'hosting'
+    return 'pay_in_full', 'none'
+
+
+def _create_new_terms_contract(*, account, website, build_option,
+                               plan_option, custom_price=None,
+                               platform='custom'):
+    """Create a Contract + ContractService rows on the current terms: the
+    build paid in full or in 24 installments, plus an optional Full Plan
+    or Hosting + Security plan. There is no deposit on any of it.
+
+    Raises clients.contract_options.ContractOptionError (operator-facing
+    message) on an invalid combination or a missing tier.
+    """
+    from clients.contract_options import (
+        payment_option_for, resolve_contract_services)
+    from clients.contract_template import generate_combined_contract_text
+    from clients.models import Contract, ContractService
+
+    services = resolve_contract_services(
+        build_option, plan_option, custom_build_price=custom_price,
+        platform=platform)
+    payment_option = payment_option_for(build_option)
+    build = next((s for s in services if s['service_type'] == 'build'),
+                 None)
+
+    if build is None:
+        package = ''
+        build_price = None
+    elif payment_option == 'installment':
+        from clients.contract_options import installment_total
+        package = 'hvac_build'
+        build_price = installment_total(build['price'])
+    else:
+        package = 'hvac_build'
+        build_price = build['price']
+
+    contract = Contract.objects.create(
+        account=account, website_new=website,
+        package=package,
+        build_price=build_price,
+        # No deposit on current-terms contracts, ever. Contract.final_amount
+        # is therefore never read for these rows — start_contract_final_
+        # payment refuses anything with a payment_option.
+        deposit_amount=None,
+        payment_option=payment_option,
+        timeline_weeks=(build['weeks'] if build else 0),
+        contract_text=generate_combined_contract_text(
+            account, services, payment_option=(
+                payment_option if build else None)),
+    )
+    for svc in services:
+        tier = svc['tier']
+        ContractService.objects.create(
+            contract=contract, service_type=svc['service_type'],
+            tier_slug=tier.slug, tier_name=svc.get('name') or tier.name,
+            price=svc['price'], deposit_amount=None,
+            is_recurring=bool(tier.is_recurring),
+            billing_interval=tier.billing_interval or '')
+    return contract
+
+
+def _contract_summary(contract):
+    """One line for the operator's flash message, e.g.
+    'Website Build (24 × $105) + Full Plan ($250/mo)'."""
+    from clients.contract_options import INSTALLMENT_COUNT
+
+    parts = []
+    for svc in contract.services.all():
+        if svc.service_type == 'build':
+            if contract.payment_option == 'installment':
+                parts.append(f'{svc.tier_name} ({INSTALLMENT_COUNT} × '
+                             f'${svc.price:,.2f})')
+            else:
+                parts.append(f'{svc.tier_name} (${svc.price:,.2f} in full)')
+        else:
+            parts.append(f'{svc.tier_name} (${svc.price:,.2f}/mo)')
+    return ' + '.join(parts) or '—'
 
 
 @admin_required
 @require_POST
 def website_send_contract(request, website_id):
-    """Create + email the build contract for a single Website (one click —
-    uses the build tier captured on the Website at booking). The Contract is
-    tied to `website_new`; signing flows into deposit → setup → intake.
+    """Create + email the agreement for a single Website.
+
+    The operator chooses how the build is paid (in full / 24-month
+    installment / no build) and which plan comes with it (Full Plan /
+    Hosting + Security / none). Everything is charged at signing — there
+    is no deposit. A custom build price overrides the tier on a
+    pay-in-full build (friend rate, WordPress port, scoped project).
     """
     from decimal import Decimal, InvalidOperation
 
     from django.contrib import messages as _messages
 
-    from billing.pricing_models import ServiceTier
     from clients.account_models import Website
-    from clients.contract_template import generate_combined_contract_text
+    from clients.contract_options import (
+        BUILD_OPTIONS, PLAN_OPTIONS, ContractOptionError)
     from clients.emails import send_contract_ready_email
-    from clients.models import Contract, ContractService
 
     website = get_object_or_404(
         Website.objects.select_related('account'), id=website_id)
@@ -3599,18 +3717,15 @@ def website_send_contract(request, website_id):
         _messages.error(
             request, 'This website has no account — cannot send a contract.')
         return redirect('admin_dashboard:website_detail', website_id=website.id)
-    profile = account
 
-    slug = _PACKAGE_TO_BUILD_SLUG.get(website.package or '')
-    tier = (ServiceTier.objects.filter(slug=slug, category='website_build',
-                                       is_active=True).first()
-            if slug else None)
+    default_build, default_plan = _default_contract_options(website)
+    build_option = (request.POST.get('build_option') or default_build).strip()
+    plan_option = (request.POST.get('plan_option') or default_plan).strip()
+    if build_option not in dict(BUILD_OPTIONS) or (
+            plan_option not in dict(PLAN_OPTIONS)):
+        _messages.error(request, 'Unknown build or plan option.')
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
 
-    # A custom price posted with the form (or already stored on the
-    # website) replaces the tier price, and stands in for the tier
-    # entirely when there isn't one. Without this a one-off rate had no
-    # route to the contract → 50% deposit → intake flow at all: the only
-    # alternative was a flat pay-in-full invoice.
     custom_raw = (request.POST.get('custom_build_price') or '').strip()
     custom_price = None
     if custom_raw:
@@ -3623,15 +3738,8 @@ def website_send_contract(request, website_id):
                 request, 'Custom build price must be a positive number.')
             return redirect(
                 'admin_dashboard:website_detail', website_id=website.id)
-    elif website.custom_build_price:
+    elif (website.custom_build_price and build_option == 'pay_in_full'):
         custom_price = Decimal(website.custom_build_price)
-
-    if tier is None and custom_price is None:
-        _messages.error(
-            request,
-            'Set this website’s package to Essential or Premium build, or '
-            'enter a custom build price, before sending a contract.')
-        return redirect('admin_dashboard:website_detail', website_id=website.id)
 
     # Platform decides whether a Droplet is provisioned at intake, and
     # which scope wording the contract carries.
@@ -3640,10 +3748,14 @@ def website_send_contract(request, website_id):
     if platform not in dict(Website.BUILD_PLATFORM_CHOICES):
         platform = 'custom'
 
-    price = custom_price if custom_price is not None else Decimal(tier.price)
-    deposit = (price / 2).quantize(Decimal('0.01'))
-    weeks = (tier.timeline_weeks if tier is not None else 0) or 4
-    label = (tier.name if tier is not None else 'Custom Website Build')
+    try:
+        contract = _create_new_terms_contract(
+            account=account, website=website, build_option=build_option,
+            plan_option=plan_option, custom_price=custom_price,
+            platform=platform)
+    except ContractOptionError as exc:
+        _messages.error(request, str(exc))
+        return redirect('admin_dashboard:website_detail', website_id=website.id)
 
     fields = []
     if custom_price is not None and website.custom_build_price != custom_price:
@@ -3652,29 +3764,14 @@ def website_send_contract(request, website_id):
     if website.build_platform != platform:
         website.build_platform = platform
         fields.append('build_platform')
-    if fields:
-        website.save(update_fields=fields + ['updated_at'])
-
-    contract = Contract.objects.create(
-        account=account, website_new=website,
-        package=website.package,
-        build_price=price,
-        deposit_amount=deposit,
-        timeline_weeks=weeks,
-        contract_text=generate_combined_contract_text(
-            profile, [{'service_type': 'build', 'tier': tier,
-                       'price': price, 'name': label,
-                       'platform': platform, 'weeks': weeks}]),
-    )
-    ContractService.objects.create(
-        contract=contract, service_type='build',
-        tier_slug=(tier.slug if tier is not None else 'custom'),
-        tier_name=label, price=price,
-        deposit_amount=deposit,
-        is_recurring=False, billing_interval='')
-
+    if build_option != 'none' and website.package != 'hvac_build' and (
+            website.package in ('', 'hvac_full_plan', 'hvac_hosting_security',
+                                'hvac_plan_paid_in_full')):
+        website.package = 'hvac_build'
+        fields.append('package')
     website.lifecycle_status = 'contract_sent'
-    website.save(update_fields=['lifecycle_status', 'updated_at'])
+    fields.append('lifecycle_status')
+    website.save(update_fields=fields + ['updated_at'])
 
     sign_url = request.build_absolute_uri(
         reverse('clients:contract_sign', args=[contract.contract_token]))
@@ -3688,18 +3785,18 @@ def website_send_contract(request, website_id):
     # signing link is in the message either way.
     from clients.emails import _contract_owner, _recipient
     to = _recipient(_contract_owner(contract))
+    summary = _contract_summary(contract)
     if to:
         _messages.success(
             request,
-            f'Contract sent to {to[0]} for {website.name} '
-            f'({label} — ${price:,.2f}, ${deposit:,.2f} deposit). '
-            f'Signing link: {sign_url}')
+            f'Contract sent to {to[0]} for {website.name} ({summary}; '
+            f'charged at signing). Signing link: {sign_url}')
     else:
         _messages.warning(
             request,
-            f'Contract created for {website.name} ({label} — ${price:,.2f}, '
-            f'${deposit:,.2f} deposit) but NOT emailed — this account has no '
-            f'email address on file. Send the link manually: {sign_url}')
+            f'Contract created for {website.name} ({summary}) but NOT '
+            f'emailed — this account has no email address on file. Send '
+            f'the link manually: {sign_url}')
     return redirect('admin_dashboard:website_detail', website_id=website.id)
 
 
@@ -3709,7 +3806,10 @@ def _regenerate_contract_text(contract):
     Mirrors what website_send_contract / account_send_contract produce,
     so "Reset to template" gives back exactly the generated wording —
     including the custom price, name and platform for a build with no
-    ServiceTier behind it. Returns None if there is nothing to rebuild.
+    ServiceTier behind it. A LEGACY contract (no payment_option) is
+    re-rendered with its original 50/50 deposit wording, because that is
+    what the client agreed to be offered; every other contract gets the
+    current terms. Returns None if there is nothing to rebuild.
     """
     from billing.pricing_models import ServiceTier
     from clients.contract_template import generate_combined_contract_text
@@ -3718,11 +3818,11 @@ def _regenerate_contract_text(contract):
     services = []
     for svc in contract.services.all():
         tier = ServiceTier.objects.filter(slug=svc.tier_slug).first()
-        entry = {'service_type': svc.service_type, 'tier': tier}
+        entry = {'service_type': svc.service_type, 'tier': tier,
+                 'price': svc.price}
         if svc.service_type == 'build':
             entry.update({
-                'price': svc.price,
-                'name': svc.tier_name or 'Custom Website Build',
+                'name': svc.tier_name or 'Website Build',
                 'platform': getattr(website, 'build_platform', 'custom'),
                 'weeks': contract.timeline_weeks or 4,
             })
@@ -3732,7 +3832,13 @@ def _regenerate_contract_text(contract):
     owner = contract.account or contract.client
     if owner is None:
         return None
-    return generate_combined_contract_text(owner, services)
+    legacy = contract.is_legacy_billing and bool(contract.deposit_amount)
+    return generate_combined_contract_text(
+        owner, services,
+        payment_option=(contract.payment_option
+                        if contract.payment_option in (
+                            'pay_in_full', 'installment') else None),
+        legacy_deposit=legacy)
 
 
 @admin_required
@@ -3862,7 +3968,9 @@ def _issue_website_final_invoice(website):
     from billing.stripe_helpers import start_contract_final_payment
     from clients.models import Contract
 
-    if website.payment_status == 'fully_paid':
+    # Nothing is owed at Pre-Launch on current terms: the build was paid
+    # in full at signing, or its installments keep billing monthly.
+    if website.payment_status in ('fully_paid', 'installments_active'):
         return
     # The signed contract is the only thing this needs. It also required a
     # legacy ClientProfile and returned early without one, so moving a
@@ -3928,23 +4036,19 @@ def _start_website_live_plans(website):
 @admin_required
 @require_POST
 def account_send_contract(request, account_id):
-    """Create + email a combined services contract from the Account page.
+    """Create + email an agreement from the Account page.
 
-    The operator multiselects any of three services (website development,
-    maintenance, social media) and picks a tier for each. We build ONE
-    Contract with one ContractService row per selected service, render the
-    combined agreement text, and email the client the signing link. Signing
-    is handled by the existing token-gated ``clients:contract_sign`` view.
+    Same two choices as the Website page — build (pay in full / 24-month
+    installment / none) and plan (Full Plan / Hosting + Security / none) —
+    and the same current terms: everything charged at signing, no deposit.
+    The contract is tied to the account's website when it has exactly one;
+    with several, send it from the right Website page instead.
     """
-    from decimal import Decimal
-
     from django.contrib import messages as _messages
 
-    from billing.pricing_models import ServiceTier
     from clients.account_models import Account
-    from clients.contract_template import generate_combined_contract_text
+    from clients.contract_options import ContractOptionError
     from clients.emails import send_contract_ready_email
-    from clients.models import Contract, ContractService
 
     account = get_object_or_404(Account, id=account_id)
 
@@ -3954,67 +4058,21 @@ def account_send_contract(request, account_id):
             'This account has no user on file — cannot create a contract.')
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
-    profile = account
 
-    # (service_type, checkbox field, tier-select field, ServiceTier category)
-    service_form = [
-        ('build', 'svc_build', 'tier_build', 'website_build'),
-        ('maintenance', 'svc_maintenance', 'tier_maintenance', 'maintenance'),
-        ('social', 'svc_social', 'tier_social', 'social_media'),
-    ]
-    selected = []
-    for service_type, check_field, tier_field, category in service_form:
-        if request.POST.get(check_field) != 'on':
-            continue
-        slug = (request.POST.get(tier_field) or '').strip()
-        if not slug:
-            _messages.error(
-                request,
-                f'Select a tier for the {service_type} service before sending.')
-            return redirect(
-                'admin_dashboard:account_detail', account_id=account.id)
-        tier = ServiceTier.objects.filter(
-            slug=slug, category=category, is_active=True).first()
-        if tier is None:
-            _messages.error(
-                request, f'Unknown {service_type} tier: {slug!r}.')
-            return redirect(
-                'admin_dashboard:account_detail', account_id=account.id)
-        selected.append((service_type, tier))
+    build_option = (request.POST.get('build_option') or '').strip()
+    plan_option = (request.POST.get('plan_option') or '').strip()
+    sites = list(account.websites.all()[:2])
+    website = sites[0] if len(sites) == 1 else None
 
-    if not selected:
-        _messages.error(
-            request, 'Select at least one service for the contract.')
+    try:
+        contract = _create_new_terms_contract(
+            account=account, website=website, build_option=build_option,
+            plan_option=plan_option,
+            platform=getattr(website, 'build_platform', 'custom'))
+    except ContractOptionError as exc:
+        _messages.error(request, str(exc))
         return redirect(
             'admin_dashboard:account_detail', account_id=account.id)
-
-    build_tier = next((t for st, t in selected if st == 'build'), None)
-
-    contract = Contract.objects.create(
-        account=account,
-        package=(_BUILD_SLUG_TO_PACKAGE.get(build_tier.slug, '')
-                 if build_tier else ''),
-        build_price=Decimal(build_tier.price) if build_tier else None,
-        deposit_amount=((Decimal(build_tier.price) / 2).quantize(Decimal('0.01'))
-                        if build_tier else None),
-        timeline_weeks=(build_tier.timeline_weeks or 4) if build_tier else 0,
-        contract_text=generate_combined_contract_text(
-            profile, [{'service_type': st, 'tier': t} for st, t in selected]),
-    )
-    for service_type, tier in selected:
-        deposit = (
-            (Decimal(tier.price) / 2).quantize(Decimal('0.01'))
-            if service_type == 'build' else None)
-        ContractService.objects.create(
-            contract=contract,
-            service_type=service_type,
-            tier_slug=tier.slug,
-            tier_name=tier.name,
-            price=Decimal(tier.price),
-            deposit_amount=deposit,
-            is_recurring=bool(tier.is_recurring),
-            billing_interval=tier.billing_interval or '',
-        )
 
     sign_url = request.build_absolute_uri(
         reverse('clients:contract_sign', args=[contract.contract_token]))
@@ -4027,7 +4085,7 @@ def account_send_contract(request, account_id):
     _messages.success(
         request,
         f'Contract created for {account.name} covering '
-        f'{contract.service_summary}. Signing link: {sign_url}')
+        f'{_contract_summary(contract)}. Signing link: {sign_url}')
     return redirect(
         'admin_dashboard:account_detail', account_id=account.id)
 
@@ -4304,8 +4362,11 @@ def website_detail(request, website_id):
     # A custom price is a valid basis for a contract on its own — the
     # form below lets one be entered, so a website with no package tier
     # is no longer a dead end.
-    can_send_contract = (website.package in _PACKAGE_TO_BUILD_SLUG
-                         or bool(website.custom_build_price))
+    # The send form picks the build + plan options itself, so any site
+    # with an account can be sent a contract.
+    can_send_contract = website.account_id is not None
+    contract_build_default, contract_plan_default = (
+        _default_contract_options(website))
     # Summary-strip flags — cheap derivations off the already-fetched list.
     contract_signed = any(c.signed for c in website_contracts)
     contract_pending = any(not c.signed for c in website_contracts)
@@ -4399,6 +4460,8 @@ def website_detail(request, website_id):
             website_contracts=website_contracts,
             contract_sign_base=contract_sign_base,
             can_send_contract=can_send_contract,
+            contract_build_default=contract_build_default,
+            contract_plan_default=contract_plan_default,
             contract_signed=contract_signed,
             contract_pending=contract_pending,
             maintenance_tiers=maintenance_tiers,

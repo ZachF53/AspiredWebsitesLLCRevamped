@@ -114,17 +114,18 @@ class BuildClausesSurviveWithoutATier(TestCase):
 
     def test_ownership_clause_present(self):
         self.assertIn('Ownership', self.html)
-        self.assertIn('until the final build payment has cleared', self.html)
+        self.assertIn('until the build has been paid in full', self.html)
 
     def test_revision_limit_present(self):
         self.assertIn('Revisions', self.html)
-        self.assertIn('two (2) major revisions', self.html)
+        self.assertIn('two (2) rounds of revisions', self.html)
 
     def test_out_of_scope_rate_present(self):
         self.assertIn('per hour', self.html)
 
     def test_money_back_guarantee_present(self):
-        self.assertIn('Money-Back', self.html)
+        self.assertIn('30-Day Guarantee', self.html)
+        self.assertNotIn('50%', self.html)
 
     def test_maintenance_only_has_no_build_clauses(self):
         html = generate_combined_contract_text(
