@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0071_burgland_city'),
+        ('clients', '0073_case_study_deep_dive_content'),
     ]
 
     operations = [

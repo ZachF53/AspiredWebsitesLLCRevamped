@@ -1600,6 +1600,30 @@ class CaseStudy(TimestampedModel):
     metric_3_label = models.CharField(max_length=100, blank=True)
     metric_3_value = models.CharField(max_length=50, blank=True)
 
+    # ── Measured scorecard + technical deep dive (Sept 2026) ─────────
+    # scorecard holds numbers somebody actually measured, with the date
+    # and method, never estimates:
+    #   {"measured_on": "2026-09-26", "method": "...",
+    #    "lighthouse": {"performance": 97, "accessibility": 100, ...},
+    #    "vitals": [["224 KB", "Total homepage weight"], ...],  (value, label)
+    #    "uptime": {"percent": "100%", "checks": "20,076",
+    #               "since": "May 23, 2026"},
+    #    "security_scan": {"date": "Sept 24, 2026", "critical": 0,
+    #                      "high": 0}}
+    # Any key may be absent; the template shows only what is present.
+    scorecard = models.JSONField(
+        default=dict, blank=True,
+        help_text='Measured numbers only (Lighthouse, uptime, scan), '
+                  'with measured_on and method. Leave empty rather than '
+                  'estimate.')
+    # deep_dive: [{"eyebrow": "Speed", "heading": "...", "intro": "...",
+    #              "points": ["...", "..."]}, ...]. Every point must be
+    # checkable on the live site or in the code.
+    deep_dive = models.JSONField(
+        default=list, blank=True,
+        help_text='Technical sections (speed, mobile, SEO, security, '
+                  'accessibility, under the hood). Verifiable facts only.')
+
     testimonial_quote = models.TextField(blank=True)
     testimonial_name = models.CharField(max_length=100, blank=True)
 
@@ -1698,6 +1722,35 @@ class CaseStudy(TimestampedModel):
         from django.urls import reverse
         return reverse('public:case_study_detail',
                        kwargs={'slug': self.slug})
+
+    def scorecard_view(self):
+        """
+        The scorecard shaped for the template: a display date, the
+        Lighthouse categories in a fixed order, and vitals as pairs.
+        Returns {} when nothing was measured, so the section is omitted.
+        """
+        import datetime
+        sc = self.scorecard or {}
+        if not sc:
+            return {}
+        view = dict(sc)
+        measured = sc.get('measured_on')
+        if measured:
+            try:
+                day = datetime.date.fromisoformat(measured)
+                view['measured_on_display'] = (
+                    f'{day:%B} {day.day}, {day.year}')
+            except ValueError:
+                view['measured_on_display'] = measured
+        order = [('performance', 'Performance'),
+                 ('accessibility', 'Accessibility'),
+                 ('best_practices', 'Best Practices'),
+                 ('seo', 'SEO')]
+        lh = sc.get('lighthouse') or {}
+        view['lighthouse_items'] = [
+            (label, lh[key]) for key, label in order
+            if isinstance(lh.get(key), int)]
+        return view
 
     def metrics(self):
         """Iterable of populated (label, value) tuples — convenience for

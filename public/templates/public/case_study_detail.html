@@ -107,6 +107,52 @@ measuring. The phone-width shot sits beside it and IS lazy-loaded.
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
+{% comment %}
+Scorecard: numbers somebody measured on a stated date with a stated
+method (Lighthouse mobile run, our uptime monitor, our monthly security
+scan). Each block renders only when its data exists; nothing here is
+estimated.
+{% endcomment %}
+{% with sc=study.scorecard_view %}
+{% if sc %}
+<section class="section section--alt case-scorecard">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Measured, Not Claimed</span>
+            <h2>How the Live Site Scores</h2>
+            {% if sc.measured_on_display %}<p>Tested on the live site, {{ sc.measured_on_display }}.{% if sc.method %} {{ sc.method }}{% endif %}</p>{% endif %}
+        </div>
+
+        {% if sc.lighthouse %}
+            <div class="case-scorecard__scores">
+                {% for label, value in sc.lighthouse_items %}
+                    <div class="case-score{% if value >= 90 %} case-score--good{% elif value >= 50 %} case-score--ok{% endif %}">
+                        <span class="case-score__value">{{ value }}</span>
+                        <span class="case-score__label">{{ label }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if sc.vitals or sc.uptime or sc.security_scan %}
+            <div class="case-scorecard__facts">
+                {% for value, label in sc.vitals %}
+                    <div class="case-fact"><span class="case-fact__value">{{ value }}</span><span class="case-fact__label">{{ label }}</span></div>
+                {% endfor %}
+                {% if sc.uptime %}
+                    <div class="case-fact"><span class="case-fact__value">{{ sc.uptime.percent }}</span><span class="case-fact__label">Uptime: {{ sc.uptime.checks }} checks since {{ sc.uptime.since }}</span></div>
+                {% endif %}
+                {% if sc.security_scan %}
+                    <div class="case-fact"><span class="case-fact__value">{{ sc.security_scan.critical }} critical &middot; {{ sc.security_scan.high }} high</span><span class="case-fact__label">Findings in the monthly security scan, {{ sc.security_scan.date }}</span></div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</section>
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+{% endwith %}
+
 {# ───────── Metrics — only if real ones exist ───────── #}
 {% if study.metrics %}
 <section class="section section--alt">
@@ -155,6 +201,33 @@ measuring. The phone-width shot sits beside it and IS lazy-loaded.
         {% endif %}
     </div>
 </section>
+
+{% if study.deep_dive %}
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section section--alt case-deep-dive">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">{% if study.engagement_type == 'maintained' %}The Site Today{% else %}Under the Hood{% endif %}</span>
+            <h2>{% if study.engagement_type == 'maintained' %}What the Site Runs On{% else %}How It Was Built{% endif %}</h2>
+        </div>
+        <div class="cards cards--2col">
+            {% for part in study.deep_dive %}
+                <article class="card card--accent-left case-deep-dive__part">
+                    {% if part.eyebrow %}<span class="eyebrow">{{ part.eyebrow }}</span>{% endif %}
+                    <h3>{{ part.heading }}</h3>
+                    {% if part.intro %}<p>{{ part.intro }}</p>{% endif %}
+                    {% if part.points %}
+                        <ul class="bullet-list">
+                            {% for point in part.points %}<li>{{ point }}</li>{% endfor %}
+                        </ul>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
 
 {# ───────── Testimonial — only if real ───────── #}
 {% if study.testimonial_quote %}

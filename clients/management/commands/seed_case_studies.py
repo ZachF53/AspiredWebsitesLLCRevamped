@@ -257,6 +257,17 @@ STUDIES = [
 ]
 
 
+# Sept 2026: measured scorecard, technical deep dive and corrected
+# narrative copy live in clients/case_study_deep_dive.py.
+from clients.case_study_deep_dive import CONTENT, NARRATIVE  # noqa: E402
+
+for _study in STUDIES:
+    _study.update(NARRATIVE.get(_study['slug'], {}))
+    _extra = CONTENT.get(_study['slug'], {})
+    _study['scorecard'] = _extra.get('scorecard', {})
+    _study['deep_dive'] = _extra.get('deep_dive', [])
+
+
 class Command(BaseCommand):
     help = 'Seed or refresh the five public portfolio case studies.'
 
