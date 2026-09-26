@@ -177,6 +177,15 @@ class Article(models.Model):
                   'e.g. /pricing/. Rendered as the in-article CTA.')
     related_label = models.CharField(max_length=120, blank=True)
 
+    # Kept reachable for readers who already have the link, but noindexed,
+    # dropped from /insights/ and the sitemap, and shown with a notice
+    # pointing at current pricing (plan M-3.05: the law-firm cost post
+    # after the HVAC repositioning).
+    is_archived = models.BooleanField(
+        default=False,
+        help_text='Reachable by URL but noindexed, unlisted, and shown '
+                  'with an "archived" notice.')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -279,3 +288,187 @@ class AuditLead(models.Model):
             (self.performance_score + self.seo_score
              + self.best_practices_score + self.accessibility_score) / 4
         )
+
+
+class SiteContent(models.Model):
+    """
+    Owner-supplied facts the public site may only state once they exist.
+
+    The Sept 2026 implementation plan (IMPLEMENTATION_GUIDE.md) forbids
+    shipping placeholders: a section that depends on an owner answer
+    either renders real content or nothing. Every field here defaults to
+    blank / False, and every template that reads one wraps the whole
+    section in an if-block on that field, so an empty row renders the
+    site exactly as it was, and filling a field in the admin dashboard
+    (/admin-dashboard/v2/site-content/) publishes it without a deploy.
+
+    Singleton: always use `SiteContent.get_solo()`. Cached for five
+    minutes and invalidated on save.
+    """
+
+    CACHE_KEY = 'public:site_content:v1'
+
+    # Build scope (D-07)
+    build_scope = models.TextField(
+        blank=True,
+        help_text='What the $2,000 build includes, one item per line. '
+                  'Blank hides the "What the build includes" list.')
+
+    # Review automation facts (D-08)
+    review_platforms = models.TextField(
+        blank=True, help_text='Job/field-service systems it connects to today.')
+    review_manual_trigger = models.TextField(
+        blank=True, help_text='How it works with no job software (manual trigger).')
+    review_channel = models.TextField(blank=True, help_text='SMS, email, or both.')
+    review_message_costs = models.TextField(
+        blank=True, help_text='Who pays per-message costs, if any.')
+    review_consent_model = models.TextField(
+        blank=True, help_text='How the homeowner agreed to be contacted (TCPA).')
+    review_opt_out = models.TextField(
+        blank=True, help_text='How recipients opt out (STOP / unsubscribe).')
+    review_multi_location = models.TextField(
+        blank=True, help_text='How requests route for multi-location companies.')
+    review_setup_steps = models.TextField(blank=True, help_text='Setup steps, one per line.')
+    review_live_at_launch = models.TextField(
+        blank=True, help_text='Is it live on launch day? What is needed?')
+    review_reporting = models.TextField(blank=True, help_text='What reporting the client receives.')
+    review_sample_message = models.TextField(
+        blank=True, help_text='A real sample review-request message.')
+
+    # Continuity / support (D-16)
+    continuity_backups = models.CharField(
+        max_length=300, blank=True,
+        help_text='Backup cadence, e.g. "Daily backups, kept for 30 days".')
+    continuity_outage_response = models.CharField(
+        max_length=300, blank=True,
+        help_text='Outage response target, e.g. "Work starts on an outage within 1 hour".')
+
+    # Proof acquisition (D-17)
+    founding_client_enabled = models.BooleanField(default=False)
+    founding_client_headline = models.CharField(max_length=200, blank=True)
+    founding_client_offer = models.TextField(
+        blank=True, help_text='What the founding client gets, one item per line.')
+    founding_client_ask = models.TextField(
+        blank=True, help_text='What Aspired asks in return, one item per line.')
+
+    demo_enabled = models.BooleanField(default=False)
+    demo_title = models.CharField(max_length=200, blank=True)
+    demo_url = models.URLField(blank=True)
+    demo_description = models.TextField(blank=True)
+
+    # Credentials / proof links
+    google_reviews_url = models.URLField(blank=True, help_text="Aspired's own Google reviews link.")
+    cissp_member_number = models.CharField(
+        max_length=40, blank=True,
+        help_text='(ISC)2 member number. Blank shows "member number on request".')
+
+    # Contact channel
+    phone_accepts_sms = models.BooleanField(
+        default=False, help_text='The 210 number receives texts ("Call or text").')
+
+    # Retention statements (privacy page); blank omits the sentence
+    session_recording_retention_days = models.PositiveIntegerField(null=True, blank=True)
+    audit_retention_days = models.PositiveIntegerField(null=True, blank=True)
+
+    # Policy-dependent FAQ answers (M-2.14); blank hides the question
+    faq_finance_with_hosting = models.TextField(
+        blank=True, help_text='"Can I finance the build and take the $45 plan?"')
+    faq_url_migration = models.TextField(
+        blank=True, help_text='"Do you carry over my old page URLs?"')
+    faq_client_time = models.TextField(
+        blank=True, help_text='"How much of my time does a build take?"')
+    faq_travel_fee = models.TextField(
+        blank=True, help_text='"Is there a travel fee for in-person meetings?"')
+    faq_pause_plan = models.TextField(
+        blank=True, help_text='"Can I pause the Full Plan in slow months?"')
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Site content (owner inputs)'
+        verbose_name_plural = 'Site content (owner inputs)'
+
+    def __str__(self):
+        return 'Site content'
+
+    @classmethod
+    def get_solo(cls):
+        from django.core.cache import cache
+        try:
+            row = cache.get(cls.CACHE_KEY)
+        except Exception:  # noqa: BLE001 (a cache outage must not 500 a page)
+            row = None
+        if row is not None:
+            return row
+        row = cls.objects.order_by('pk').first() or cls.objects.create()
+        try:
+            cache.set(cls.CACHE_KEY, row, 300)
+        except Exception:  # noqa: BLE001
+            pass
+        return row
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        from django.core.cache import cache
+        try:
+            cache.delete(self.CACHE_KEY)
+        except Exception:  # noqa: BLE001
+            pass
+
+    @staticmethod
+    def _lines(value):
+        return [line.strip() for line in (value or '').splitlines() if line.strip()]
+
+    @property
+    def build_scope_items(self):
+        return self._lines(self.build_scope)
+
+    @property
+    def founding_client_offer_items(self):
+        return self._lines(self.founding_client_offer)
+
+    @property
+    def founding_client_ask_items(self):
+        return self._lines(self.founding_client_ask)
+
+    @property
+    def review_setup_items(self):
+        return self._lines(self.review_setup_steps)
+
+    @property
+    def founding_client_ready(self):
+        return bool(self.founding_client_enabled and self.founding_client_headline
+                    and self.founding_client_offer)
+
+    @property
+    def demo_ready(self):
+        return bool(self.demo_enabled and self.demo_url and self.demo_title)
+
+    @property
+    def review_facts(self):
+        """(label, value) pairs for the filled review-automation fields only."""
+        pairs = [
+            ('Job systems it connects to', self.review_platforms),
+            ('No job software?', self.review_manual_trigger),
+            ('How requests are sent', self.review_channel),
+            ('Message costs', self.review_message_costs),
+            ('Consent', self.review_consent_model),
+            ('Opting out', self.review_opt_out),
+            ('Multiple locations', self.review_multi_location),
+            ('Live at launch', self.review_live_at_launch),
+            ('Reporting', self.review_reporting),
+        ]
+        return [(label, value) for label, value in pairs if (value or '').strip()]
+
+    @property
+    def policy_faqs(self):
+        pairs = [
+            ('Can I finance the build and take the $45 hosting plan instead of the Full Plan?',
+             self.faq_finance_with_hosting),
+            ('Do you carry over my existing page URLs so I don’t lose rankings?',
+             self.faq_url_migration),
+            ('How much of my time does a build take?', self.faq_client_time),
+            ('Is there a travel fee for in-person meetings?', self.faq_travel_fee),
+            ('Can I pause the Full Plan in slow months?', self.faq_pause_plan),
+        ]
+        return [(q, a) for q, a in pairs if (a or '').strip()]

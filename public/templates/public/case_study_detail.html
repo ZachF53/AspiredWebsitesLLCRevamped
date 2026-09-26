@@ -56,6 +56,9 @@ Organisation entity, canonical and og:image come from base.html (D8).
                     {{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}
                 </p>
             {% endif %}
+            {% if study.engagement_type == 'maintained' %}
+                <p><span class="pill-tag">Maintained, not built</span></p>
+            {% endif %}
             {% if study.live_url %}
                 <div class="hero__ctas">
                     <a class="btn-secondary btn-lg" href="{{ study.live_url }}" target="_blank" rel="noopener">Visit the live site</a>
@@ -94,8 +97,6 @@ measuring.
         </figure>
     </div>
 </section>
-
-<hr class="section-divider" aria-hidden="true">
 {% endif %}
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
@@ -105,8 +106,8 @@ measuring.
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Results</span>
-            <h2>By The Numbers</h2>
+            <span class="eyebrow">The Build</span>
+            <h2>At a Glance</h2>
         </div>
         <div class="value-tiles value-tiles--3col">
             {% for label, value in study.metrics %}
@@ -134,7 +135,7 @@ measuring.
 
             {% if study.solution %}
                 <article class="card card--accent-left">
-                    <h2>{{ study.work_heading }}</h2>
+                    <h2>{% if study.engagement_type == 'maintained' %}What We Do for the Client{% else %}{{ study.work_heading }}{% endif %}</h2>
                     {{ study.solution|linebreaks }}
                 </article>
             {% endif %}
@@ -142,7 +143,7 @@ measuring.
 
         {% if study.results %}
             <div class="callout">
-                <h2>The Outcome</h2>
+                <h2>{% if study.engagement_type == 'maintained' %}What This Engagement Is{% else %}The Outcome{% endif %}</h2>
                 {{ study.results|linebreaks }}
             </div>
         {% endif %}

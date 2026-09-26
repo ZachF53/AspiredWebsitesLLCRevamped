@@ -14,6 +14,9 @@ public/sitemaps.py — so the ranking signal consolidates on one URL. The
 other three stay crawlable and reachable; they simply stop competing.
 {% endcomment %}
 {% block canonical %}{% if IS_PRODUCTION_HOST %}<link rel="canonical" href="{{ SITE_BASE_URL }}{% url 'scheduler:design_schedule' %}">{% endif %}{% endblock %}
+{% block meta_description %}Book a free 30-minute Strategy Call with Aspired Websites: your goals, your service area and your current site, by phone or video. Or call or text {{ PHONE_DISPLAY }}.{% endblock %}
+{% block og_title %}Book a Free 30-Minute Strategy Call | Aspired Websites{% endblock %}
+{% block og_description %}Pick a time for a free 30-minute call about your HVAC or home-service website. No preparation needed.{% endblock %}
 
 {% block content %}
 
@@ -40,6 +43,15 @@ other three stay crawlable and reachable; they simply stop competing.
             <article class="card">
                 <span class="eyebrow">Step 1</span>
                 <h2 class="card__title">Pick a time</h2>
+                {% comment %}
+                Plan M-4.04: say what the call is, which timezone the
+                slots are in, and offer the phone before the calendar has
+                even loaded. #schedule-tz is filled in by schedule_call.js
+                with the visitor's own zone; the fallback text is true
+                without JavaScript.
+                {% endcomment %}
+                <p class="schedule-help">30 minutes, by phone or video; we&rsquo;ll send the link. <span id="schedule-tz">Times are shown in your local time.</span></p>
+                <p class="schedule-help">Prefer to talk now? {% if SITE_CONTENT.phone_accepts_sms %}Call or text{% else %}Call{% endif %} <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>.</p>
                 <div id="slot-list" class="schedule-slots__list">
                     Loading slots&hellip;
                 </div>
@@ -60,8 +72,9 @@ other three stay crawlable and reachable; they simply stop competing.
                 <noscript>
                     <div class="callout callout--warning">
                         <p><strong>Choosing a time needs JavaScript.</strong> The calendar can&rsquo;t load, so this form can&rsquo;t book a slot right now.</p>
-                        <p>Please <a href="{% url 'public:contact' %}">send us a message</a> instead and we&rsquo;ll arrange a time by email.</p>
+                        <p>Please <a href="{% url 'public:contact' %}">send us a message</a>, {% if SITE_CONTENT.phone_accepts_sms %}call or text{% else %}call{% endif %} <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>, or use the call-back form below and we&rsquo;ll arrange a time.</p>
                     </div>
+                    {% include "core/_callback_form.html" %}
                 </noscript>
 
                 <form id="schedule-form" class="form" method="post" action="" novalidate>
@@ -203,6 +216,19 @@ other three stay crawlable and reachable; they simply stop competing.
             </article>
 
         </div>
+
+        {% comment %}
+        What happens next (plan M-4.04 / copy block 15.6). Below the
+        grid so it never pushes the calendar down on a phone.
+        {% endcomment %}
+        <article class="card card--accent-left mt-4">
+            <h2 class="card__title">What happens next</h2>
+            <ol class="schedule-next">
+                <li><strong>Confirmation.</strong> You&rsquo;ll get an email with the call link within a few minutes.</li>
+                <li><strong>The call.</strong> 30 minutes on your goals, your service area, and what&rsquo;s on your current site. Nothing to prepare, though your Google Business Profile link and a couple of competitor names help.</li>
+                <li><strong>If we&rsquo;re a fit.</strong> Kickoff is usually within a week. Most builds launch {{ BUILD_TIMELINE }} after that.</li>
+            </ol>
+        </article>
     </div>
 </section>
 

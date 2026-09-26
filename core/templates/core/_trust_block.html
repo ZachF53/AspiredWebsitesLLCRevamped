@@ -1,0 +1,44 @@
+{% load static %}{% comment %}
+"Who's behind this" trust block (plan M-5.04), placed on the location
+pages and the blog posts: the person, one real testimonial, the offer in
+three lines, and where to check the claims. The Google-reviews link only
+renders once it is set in Site Content. Chilton Carpet Cleaning has
+closed, so his (still-public) Google review is quoted without a link.
+Optional: pass hide_offer=True to drop the offer summary.
+{% endcomment %}
+<section class="section section--alt trust-block" aria-labelledby="trust-block-heading">
+    <div class="container">
+        <div class="trust-block__grid">
+            <div class="trust-block__person">
+                <img class="trust-block__photo"
+                     src="{% static 'images/founder-zachery-long.jpg' %}?v={{ STATIC_VERSION }}"
+                     alt="Zachery Long, founder of Aspired Websites LLC"
+                     width="96" height="120" loading="lazy" decoding="async">
+                <div>
+                    <h2 id="trust-block-heading" class="trust-block__heading">Who&rsquo;s behind this</h2>
+                    <p class="trust-block__name"><strong>Zachery Long</strong>, Founder &amp; Lead Developer</p>
+                    <p class="trust-block__creds">CISSP &middot; M.S. Cybersecurity &middot; {{ LOCATION_BASE }}</p>
+                    <p class="trust-block__phone"><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>: {{ PHONE_NOTE }}.</p>
+                </div>
+            </div>
+            <figure class="trust-block__quote">
+                <blockquote><p>&ldquo;Mr. Long went above and beyond to get my website up and running and designed just the way I wanted it to be. Responsibly priced and worth every penny. HIGHLY RECOMMEND.&rdquo;</p></blockquote>
+                <figcaption>Christopher Chilton, Chilton Carpet Cleaning</figcaption>
+            </figure>
+            {% if not hide_offer %}
+                <div class="trust-block__offer">
+                    <ul class="bullet-list">
+                        <li>One custom-coded build{% if build_full %}: {{ build_full.get_price_display }}{% if build_installment %} or {{ build_installment.get_price_display }}{% endif %}{% endif %}</li>
+                        <li>Full Plan with automated review generation</li>
+                        <li>You own the code once it&rsquo;s paid off</li>
+                    </ul>
+                    <p class="trust-block__links">
+                        <a href="{% url 'public:pricing' %}">See pricing</a>
+                        &middot; <a href="{% url 'public:portfolio' %}">See the work</a>
+                        {% if SITE_CONTENT.google_reviews_url %}&middot; <a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">Read our Google reviews</a>{% endif %}
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>

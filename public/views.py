@@ -105,27 +105,29 @@ def _score_tier(score):
 
 
 def home(request):
-    # The "Recent Builds" strip was four hardcoded cards with
-    # placeholder visuals and copy that had drifted from the database —
-    # it described Denis Law Group as a "personal-injury practice" when
-    # the firm actually does family law and adoption. Driving it from
-    # the same CaseStudy rows as /portfolio/ fixes the wrong detail,
-    # brings in the real screenshots, and means it cannot drift again.
+    # The "Recent Work" strip is driven by the same CaseStudy rows as
+    # /portfolio/, so it carries the real screenshots and cannot drift.
     #
-    # HVAC-only since the Sept 2026 repositioning — non-HVAC work is
-    # still on the site (public:portfolio_other), just not on the page
-    # that's supposed to be selling to HVAC contractors specifically.
+    # Plan M-1.04 (Sept 2026): every published, non-concept project, not
+    # an HVAC-only filter. There is no HVAC work yet, and an HVAC-only
+    # strip rendered an empty "Recent HVAC Builds / publishing shortly"
+    # block that implied work that doesn't exist.
+    from billing.pricing_models import ServiceTier
     from clients.models import CaseStudy
     return render(request, 'public/home.html', {
         'active_nav': 'home',
         'studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=True,
-        ).order_by('-published_at')[:4],
+            is_published=True, is_concept=False,
+        ).order_by('-published_at')[:6],
+        'build_full': ServiceTier.objects.filter(
+            slug='hvac-build-full', is_active=True).first(),
+        'build_installment': ServiceTier.objects.filter(
+            slug='hvac-build-installment', is_active=True).first(),
         'meta_title': 'Custom Websites for HVAC Contractors',
         'meta_description': (
             'Aspired Websites builds custom-coded websites and automated '
-            'review generation for HVAC contractors. Led by a '
-            'CISSP-certified cybersecurity engineer.'
+            'review generation for HVAC and home-service contractors. Led '
+            'by a CISSP-certified cybersecurity engineer.'
         ),
     })
 
@@ -180,58 +182,25 @@ def law_firms(request):
 
 def portfolio(request):
     """
-    Portfolio index — now driven by published CaseStudy rows.
+    /portfolio/ — the single, indexable portfolio (plan M-5.01).
 
-    Previously four hardcoded cards. Master Plan §11 requires each
-    project to have its own indexable URL, which needs them to be data
-    rather than markup. Seeded by `manage.py seed_case_studies`.
-
-    HVAC-only since the Sept 2026 repositioning (Change 5) — non-HVAC
-    work moved to /portfolio/other/ (portfolio_other, below) rather than
-    off the site, and this page links to it.
+    Every published, non-concept CaseStudy. Until Sept 2026 this page
+    was HVAC-only (and empty) while the real work sat on
+    /portfolio/other/; that page now 301s here. Concept/demo builds are
+    never mixed in: a labelled demonstration renders separately, and
+    only once the owner enables it (core/_demo_build.html).
     """
     from clients.models import CaseStudy
     return render(request, 'public/portfolio.html', {
         'active_nav': 'portfolio',
         'case_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=True, is_concept=False,
+            is_published=True, is_concept=False,
         ).order_by('-published_at', '-created_at'),
-        # Concept/demo builds get their own section (never mixed into
-        # the real-client grid above) — see the "Concept Designs"
-        # section in portfolio.html.
-        'concept_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=True, is_concept=True,
-        ).order_by('-published_at', '-created_at'),
-        'meta_title': 'HVAC Website Design Portfolio | Aspired Websites',
+        'meta_title': 'Website Portfolio | Aspired Websites',
         'meta_description': (
-            'Custom-coded websites built for HVAC contractors by '
-            'Aspired Websites. Real projects, real screenshots, '
-            'hand-coded and mobile-first.'
-        ),
-    })
-
-
-def portfolio_other(request):
-    """
-    /portfolio/other/ — non-HVAC work (Sept 2026 repositioning, Change 4).
-
-    Aspired's public positioning narrowed to HVAC contractors only; this
-    page is where the pre-repositioning work stays visible — reachable
-    from the main portfolio's "Not an HVAC company?" CTA — rather than
-    disappearing from the site. Same grid, card and filtering as
-    /portfolio/, just is_hvac=False instead of True.
-    """
-    from clients.models import CaseStudy
-    return render(request, 'public/portfolio_other.html', {
-        'active_nav': 'portfolio',
-        'case_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=False,
-        ).order_by('-published_at', '-created_at'),
-        'meta_title': 'Other Web Design Work | Aspired Websites',
-        'meta_description': (
-            'Aspired Websites now focuses on HVAC contractors, but '
-            'here is the custom, hand-coded work we’ve built for '
-            'other businesses, including law firms and food trucks.'
+            'Custom-coded websites by Aspired Websites: hand-coded, '
+            'mobile-first, built to book jobs. See live client work and '
+            'case studies.'
         ),
     })
 
@@ -428,7 +397,8 @@ def insights_index(request):
     from .models import Article
     return render(request, 'public/insights_index.html', {
         'active_nav': 'insights',
-        'articles': Article.objects.filter(status='published'),
+        'articles': Article.objects.filter(
+            status='published', is_archived=False),
         'meta_title': 'Insights',
         'meta_description': (
             'Straight answers on what websites cost, why custom beats '
@@ -442,10 +412,16 @@ def insight_detail(request, slug):
     """/insights/<slug>/ — one article."""
     from django.shortcuts import get_object_or_404
     from .models import Article
+    from billing.pricing_models import ServiceTier
     article = get_object_or_404(Article, slug=slug, status='published')
     return render(request, 'public/insight_detail.html', {
         'active_nav': 'insights',
         'article': article,
+        # For the "Who's behind this" trust block (plan M-5.04).
+        'build_full': ServiceTier.objects.filter(
+            slug='hvac-build-full', is_active=True).first(),
+        'build_installment': ServiceTier.objects.filter(
+            slug='hvac-build-installment', is_active=True).first(),
         'breadcrumbs': [
             ('Insights', '/insights/'),
             (article.title, None),
@@ -577,22 +553,64 @@ def pricing(request):
             is_active=True, is_public=True,
         ).prefetch_related('features')
     }
+    from public.models import SiteContent
+    from public.pricing_content import (
+        cost_table, faq_schema, money, pricing_faqs,
+    )
+
+    build_full = tiers.get('hvac-build-full')
+    build_installment = tiers.get('hvac-build-installment')
+    full_plan = tiers.get('hvac-full-plan')
+    plan_paid_in_full = tiers.get('hvac-plan-paid-in-full')
+    hosting_security = tiers.get('hvac-hosting-security')
+    hourly = AddonPricing.objects.filter(
+        slug='addon-hourly', is_active=True).first()
+    hourly_display = hourly.get_price_display() if hourly else ''
+
+    faqs = pricing_faqs(
+        build_full, build_installment, full_plan, plan_paid_in_full,
+        hosting_security, hourly_display, SiteContent.get_solo())
+    costs = cost_table(
+        build_full, build_installment, full_plan, plan_paid_in_full,
+        hosting_security)
+
+    def _p(tier):
+        return money(tier.price) if tier else ''
+
+    if all((build_full, build_installment, full_plan, hosting_security)):
+        meta_description = (
+            'Transparent pricing for HVAC and home-service contractor '
+            f'websites: a {_p(build_full)} build (or {_p(build_installment)}/mo), '
+            f'a {_p(full_plan)}/mo Full Plan with hosting, maintenance and '
+            'automated review generation, or hosting and security alone at '
+            f'{_p(hosting_security)}/mo.'
+        )
+    else:
+        # A missing tier must not render "a  build (or /mo)".
+        meta_description = (
+            'Transparent pricing for HVAC and home-service contractor '
+            'websites: one custom-coded build, a Full Plan with hosting, '
+            'maintenance and automated review generation, or hosting and '
+            'security alone.'
+        )
+
     return render(request, 'public/pricing.html', {
         'active_nav': 'pricing',
-        'meta_title': 'HVAC Website Pricing | Aspired Websites',
-        'meta_description': (
-            'Transparent pricing for HVAC contractor websites: a '
-            '$2,000 build (or $105/mo), a $250/mo Full Plan with '
-            'hosting, maintenance and automated review generation, '
-            'or hosting and security alone at $45/mo.'
-        ),
-        'build_full': tiers.get('hvac-build-full'),
-        'build_installment': tiers.get('hvac-build-installment'),
-        'full_plan': tiers.get('hvac-full-plan'),
-        'plan_paid_in_full': tiers.get('hvac-plan-paid-in-full'),
-        'hosting_security': tiers.get('hvac-hosting-security'),
-        'hourly': AddonPricing.objects.filter(
-            slug='addon-hourly', is_active=True).first(),
+        'meta_title': 'HVAC & Home-Service Website Pricing | Aspired Websites',
+        'meta_description': meta_description,
+        'build_full': build_full,
+        'build_installment': build_installment,
+        'full_plan': full_plan,
+        'plan_paid_in_full': plan_paid_in_full,
+        'hosting_security': hosting_security,
+        'hourly': hourly,
+        'hourly_display': hourly_display or '$85/hour',
+        'installment_total': (
+            money(build_installment.price * 24) if build_installment else ''),
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
+        'cost_rows': costs['rows'],
+        'cost_savings': costs['savings'],
     })
 
 
@@ -936,6 +954,74 @@ def contact(request):
             f'{LOCATION_STATEMENT}'
         ),
     })
+
+
+@ratelimit(key='ip', rate='5/h', method='POST', block=False)
+def callback_request(request):
+    """
+    POST-only "call me back" (plan M-4.05). Same spam layers as the
+    contact form (per-IP cap, honeypot, signed render time) minus the
+    message-content rules, which have no message to read. Works with
+    JavaScript off: a plain form POST that lands on the thanks page.
+    """
+    import logging
+    from django.core.cache import cache
+    from .forms import CallbackForm
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return redirect('public:contact')
+
+    ip = _client_ip(request) or ''
+    cache_key = f'callback_form:{ip}'
+    per_ip_count = cache.get(cache_key, 0)
+    if getattr(request, 'limited', False) or per_ip_count >= 3:
+        logger.info('CALLBACK BLOCKED (rate-limit IP=%s)', ip)
+        return _silently_pretend_success(request)
+    if (request.POST.get('website_url') or '').strip():
+        logger.info('CALLBACK BLOCKED (honeypot IP=%s)', ip)
+        cache.set(cache_key, per_ip_count + 1, 3600)
+        return _silently_pretend_success(request)
+    age, ok = _form_age_seconds((request.POST.get('form_timestamp') or '').strip())
+    if not ok or age < 2:
+        logger.info('CALLBACK BLOCKED (timing IP=%s ok=%s age=%.1fs)', ip, ok, age)
+        cache.set(cache_key, per_ip_count + 1, 3600)
+        return _silently_pretend_success(request)
+
+    form = CallbackForm(request.POST)
+    if not form.is_valid():
+        return render(request, 'public/callback_error.html', {
+            'form': form,
+            'meta_title': 'Call Me Back | Aspired Websites',
+        }, status=400)
+
+    name = form.cleaned_data['name']
+    lower = name.lower()
+    if any(word in lower for word in _SPAM_NAME_WORDS) or (
+            ' ' not in name and len(name) > 20):
+        logger.info('CALLBACK BLOCKED (name IP=%s)', ip)
+        cache.set(cache_key, per_ip_count + 1, 3600)
+        return _silently_pretend_success(request)
+
+    lead = form.save_as_lead(ip_address=ip or None)
+    best = (form.cleaned_data.get('best_time') or '').strip() or 'not given'
+    send_mail(
+        subject=f'Callback request: {lead.attorney_name}',
+        message=(
+            f'{lead.attorney_name} asked for a call back.\n\n'
+            f'Phone:        {lead.phone}\n'
+            f'Best time:    {best}\n'
+            f'Page:         {request.POST.get("source_page", "")[:200]}\n'
+            f'IP address:   {lead.ip_address or "unknown"}\n'
+            f'Submitted at: {lead.created_at:%Y-%m-%d %H:%M %Z}\n'
+        ),
+        from_email=settings.EMAIL_FROM_MAIN,
+        recipient_list=[settings.LEAD_NOTIFICATION_EMAIL],
+        fail_silently=True,
+    )
+    queue_event(request, 'callback_request', page_path=request.path)
+    cache.set(cache_key, per_ip_count + 1, 3600)
+    return redirect('public:contact_thanks')
 
 
 def contact_thanks(request):

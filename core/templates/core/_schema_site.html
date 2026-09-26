@@ -4,9 +4,16 @@ entity for the whole site, identified by @id so every other node
 (Service, Person, Breadcrumb) references it instead of re-declaring a
 second organisation.
 
-Facts here are the §1 master record verbatim and must not drift:
-Atlanta address of record, one phone, one email, 24/7 availability.
-Service areas are areaServed — never separate LocalBusiness entities.
+Facts here must match the footer and core/site_facts.py: Warner
+Robins, GA (city-level; service-area business), one phone, one email.
+Service areas are areaServed, never separate LocalBusiness entities.
+
+Sept 2026 plan (M-3.08): "Local SEO" dropped from knowsAbout (the
+service is discontinued), logo points at the current logo-2x.png, the
+Person carries the founder photo, and the 00:00-23:59 x7 opening hours
+were removed. "We answer within 24 hours" is a response commitment, not
+opening hours, and a 24/7 claim here would contradict the Google
+Business Profile.
 
 Rendered on every page via base.html. Repeating the same @id across
 pages is correct: it is one node described consistently, not many.
@@ -23,10 +30,10 @@ pages is correct: it is one node described consistently, not many.
       "url": "{{ SITE_BASE_URL }}/",
       "logo": {
         "@type": "ImageObject",
-        "url": "{{ SITE_BASE_URL }}{% static 'images/logo.png' %}"
+        "url": "{{ SITE_BASE_URL }}{% static 'images/logo-2x.png' %}"
       },
       "image": "{{ SITE_BASE_URL }}{% static 'images/og-default.png' %}",
-      "description": "Custom-coded, security-first websites and automated review generation for HVAC contractors.",
+      "description": "Custom-coded, security-first websites and automated review generation for HVAC and home-service contractors.",
       "telephone": "+1-210-896-2536",
       "email": "zacherylong@aspiredwebsites.com",
       "priceRange": "$$",
@@ -43,24 +50,12 @@ pages is correct: it is one node described consistently, not many.
         { "@type": "State", "name": "Georgia" },
         { "@type": "City", "name": "San Antonio" }
       ],
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": [
-            "Monday", "Tuesday", "Wednesday", "Thursday",
-            "Friday", "Saturday", "Sunday"
-          ],
-          "opens": "00:00",
-          "closes": "23:59"
-        }
-      ],
       "founder": { "@id": "{{ SITE_BASE_URL }}/#zachery-long" },
       "knowsAbout": [
         "HVAC website design",
         "Automated review generation",
         "Custom web design",
         "Web development",
-        "Local SEO",
         "Website security"
       ]
     },
@@ -71,6 +66,7 @@ pages is correct: it is one node described consistently, not many.
       "jobTitle": "Founder & Lead Developer",
       "worksFor": { "@id": "{{ SITE_BASE_URL }}/#organization" },
       "url": "{{ SITE_BASE_URL }}/about/",
+      "image": "{{ SITE_BASE_URL }}{% static 'images/founder-zachery-long.jpg' %}",
       "hasCredential": [
         {
           "@type": "EducationalOccupationalCredential",

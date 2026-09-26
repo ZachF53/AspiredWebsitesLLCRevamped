@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Call Me Back | Aspired Websites{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <article class="card card--accent-left">
+            <h1 class="card__title">We couldn&rsquo;t send that request</h1>
+            {% for field in form %}{% if field.errors %}<p class="form-field-error">{{ field.label }}: {{ field.errors|join:" " }}</p>{% endif %}{% endfor %}
+            <p>Please go back and check your name and phone number, or {% if SITE_CONTENT.phone_accepts_sms %}call or text{% else %}call{% endif %} us directly at <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>.</p>
+            <p><a class="btn-secondary" href="{% url 'public:contact' %}">Back to the contact page</a></p>
+        </article>
+    </div>
+</section>
+{% endblock %}

@@ -78,7 +78,7 @@ def provision_ga4_for_website(website):
             json={
                 'parent': f'accounts/{account_id}',
                 'displayName': display_name,
-                'timeZone': getattr(settings, 'TIME_ZONE', 'America/Chicago'),
+                'timeZone': getattr(settings, 'TIME_ZONE', 'America/New_York'),
                 'currencyCode': 'USD',
             })
         r.raise_for_status()

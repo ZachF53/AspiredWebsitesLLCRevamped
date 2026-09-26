@@ -4,7 +4,7 @@
 City dropped — revised D5. A contact page has no business competing
 for "atlanta web design"; /locations/atlanta/ owns that intent.
 {% endcomment %}
-{% block title %}Contact Aspired Websites | Custom Web Design &amp; SEO{% endblock %}
+{% block title %}Contact Aspired Websites | Custom Websites for HVAC &amp; Home Services{% endblock %}
 
 {% block content %}
 
@@ -25,6 +25,8 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
 {# ───────── Form + Contact Info ───────── #}
 <section class="section section--alt">
     <div class="container">
+        {% include "core/_callback_form.html" %}
+
         <div class="contact-grid">
 
             {# Left: form #}
@@ -99,7 +101,8 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         </span>
                         <div class="contact-list__detail">
                             <div class="contact-list__label">Phone</div>
-                            <a class="contact-list__value" href="tel:+12108962536">(210) 896-2536</a>
+                            <a class="contact-list__value" href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>
+                            <span class="footer-note">{{ PHONE_NOTE }}.{% if SITE_CONTENT.phone_accepts_sms %} Call or text.{% endif %}</span>
                         </div>
                     </li>
 
@@ -126,7 +129,7 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
 
                 <hr class="contact-divider" aria-hidden="true">
 
-                <p class="contact-promise">We respond within 24 hours.</p>
+                <p class="contact-promise">We respond within 24 hours, seven days a week.</p>
 
                 <hr class="contact-divider" aria-hidden="true">
 

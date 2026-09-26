@@ -1,0 +1,1881 @@
+[
+{
+ "model": "clients.casestudy",
+ "pk": "8490ef3b-d978-4009-8286-39b326847ca6",
+ "fields": {
+  "created_at": "2026-08-02T16:23:42.442Z",
+  "updated_at": "2026-09-18T02:29:51.532Z",
+  "client": null,
+  "website_new": null,
+  "title": "Moonieful Designs",
+  "business_type": "Creative Studio",
+  "location": "San Antonio, TX",
+  "engagement_type": "built",
+  "platform": "",
+  "slug": "moonieful-designs",
+  "summary": "A portfolio site for a creative studio where the work has to be the loudest thing on the page.",
+  "live_url": "https://moonieful.com/",
+  "screenshot": "portfolio/moonieful-designs-2026-09.webp",
+  "card_gradient": "gradient-purple",
+  "challenge": "A design studio’s website is itself a portfolio piece. If the site looks templated, the work looks templated, no matter how good it is.\n\nThe difficulty is restraint: the site has to be visually confident without competing with the projects it exists to display.",
+  "solution": "A clean, deliberately quiet build that puts the project showcase first and keeps browsing frictionless, with a direct path for a prospective client to get in touch rather than a buried contact page.",
+  "results": "A portfolio that presents the studio’s work without talking over it, and an ongoing working relationship between the two studios.",
+  "metric_1_label": "",
+  "metric_1_value": "",
+  "metric_2_label": "",
+  "metric_2_value": "",
+  "metric_3_label": "",
+  "metric_3_value": "",
+  "testimonial_quote": "",
+  "testimonial_name": "",
+  "is_published": true,
+  "published_at": "2026-08-02T16:23:42.442Z",
+  "pdf_path": "",
+  "is_hvac": false,
+  "is_concept": false,
+  "city": 1
+ }
+},
+{
+ "model": "clients.casestudy",
+ "pk": "98c8c5f8-e635-4c5a-8b46-319eca31a269",
+ "fields": {
+  "created_at": "2026-08-02T16:23:42.438Z",
+  "updated_at": "2026-09-18T02:29:51.528Z",
+  "client": null,
+  "website_new": null,
+  "title": "Food Trucks of San Antonio",
+  "business_type": "Food & Events",
+  "location": "San Antonio, TX",
+  "engagement_type": "built",
+  "platform": "",
+  "slug": "food-trucks-of-san-antonio",
+  "summary": "A mobile-first directory for San Antonio’s food truck community: event listings, truck profiles and a location finder.",
+  "live_url": "https://foodtrucksofsa.com/",
+  "screenshot": "portfolio/food-trucks-of-san-antonio.webp",
+  "card_gradient": "gradient-rust",
+  "challenge": "Food truck customers are almost always on a phone, often outdoors, often on patchy mobile data, and deciding where to eat in the next few minutes. A site that takes several seconds to load has already lost them.\n\nThe content also changes constantly (trucks move, events come and go), so the site had to stay easy to update without a developer involved every time.",
+  "solution": "A lean, mobile-first build with the weight kept deliberately low so it holds up on a phone away from wifi.\n\nTruck profiles, event listings and a location finder are structured as real content rather than a static page, so the directory can grow without the layout fighting it.",
+  "results": "A directory the community can actually use on a phone, built to stay fast as more trucks and events are added.",
+  "metric_1_label": "",
+  "metric_1_value": "",
+  "metric_2_label": "",
+  "metric_2_value": "",
+  "metric_3_label": "",
+  "metric_3_value": "",
+  "testimonial_quote": "",
+  "testimonial_name": "",
+  "is_published": true,
+  "published_at": "2026-08-02T16:23:42.438Z",
+  "pdf_path": "",
+  "is_hvac": false,
+  "is_concept": false,
+  "city": 1
+ }
+},
+{
+ "model": "clients.casestudy",
+ "pk": "c2e13120-bf27-42e7-8154-f64215fe5b3b",
+ "fields": {
+  "created_at": "2026-08-02T16:23:42.432Z",
+  "updated_at": "2026-09-18T02:29:51.522Z",
+  "client": null,
+  "website_new": null,
+  "title": "Denis Law Group",
+  "business_type": "Law Firm",
+  "location": "San Antonio, TX",
+  "engagement_type": "maintained",
+  "platform": "WordPress",
+  "slug": "denis-law-group",
+  "summary": "An existing WordPress website for a law practice, maintained and improved by Aspired Websites.",
+  "live_url": "https://denislawgroup.com/",
+  "screenshot": "portfolio/denis-law-group.webp",
+  "card_gradient": "gradient-blue",
+  "challenge": "The firm already had a WordPress website and needed it looked after rather than replaced. Ongoing maintenance on a live legal website has to keep the site available and current without interrupting the enquiries it already receives.",
+  "solution": "Aspired Websites took over ongoing maintenance of the existing WordPress site and made targeted improvements to it.\n\nThe specific improvements are not itemised here. Listing them publicly requires confirming exactly which changes Aspired made and may describe; see the Denis Law Group rows in docs/brand_fact_matrix.md.",
+  "results": "This is a maintenance and improvement engagement on a site Aspired did not build, so there is no before-and-after build comparison to report and none is claimed.\n\nNo performance figures are published for this engagement until their source, measurement window, baseline and client approval are documented.",
+  "metric_1_label": "",
+  "metric_1_value": "",
+  "metric_2_label": "",
+  "metric_2_value": "",
+  "metric_3_label": "",
+  "metric_3_value": "",
+  "testimonial_quote": "",
+  "testimonial_name": "",
+  "is_published": true,
+  "published_at": "2026-08-02T16:23:42.431Z",
+  "pdf_path": "",
+  "is_hvac": false,
+  "is_concept": false,
+  "city": 1
+ }
+},
+{
+ "model": "clients.casestudy",
+ "pk": "d401a857-91a8-44a2-af0f-39834ecda1b4",
+ "fields": {
+  "created_at": "2026-08-02T16:23:42.446Z",
+  "updated_at": "2026-09-18T02:29:51.535Z",
+  "client": null,
+  "website_new": null,
+  "title": "Burgland Technologies",
+  "business_type": "Technology",
+  "location": "",
+  "engagement_type": "built",
+  "platform": "",
+  "slug": "burgland-technologies",
+  "summary": "A credibility-first site for a technology company, built to a standard a technical audience would actually inspect.",
+  "live_url": "https://burglandtech.com/",
+  "screenshot": "portfolio/burgland-technologies.webp",
+  "card_gradient": "gradient-forest",
+  "challenge": "Selling technology to people who understand technology sets a higher bar. A slow site, a broken layout or a missing security header is not a cosmetic problem to that audience. It is evidence.",
+  "solution": "A hand-coded, security-hardened build: HTTPS with strict transport security, hardened headers, a real content security policy, and clean semantic markup that stands up to someone opening developer tools.",
+  "results": "A site whose technical execution supports the claim the business is making, rather than quietly undermining it.",
+  "metric_1_label": "",
+  "metric_1_value": "",
+  "metric_2_label": "",
+  "metric_2_value": "",
+  "metric_3_label": "",
+  "metric_3_value": "",
+  "testimonial_quote": "",
+  "testimonial_name": "",
+  "is_published": true,
+  "published_at": "2026-08-02T16:23:42.446Z",
+  "pdf_path": "",
+  "is_hvac": false,
+  "is_concept": false,
+  "city": null
+ }
+},
+{
+ "model": "clients.casestudy",
+ "pk": "e111431d-ee1e-4ad4-ac12-b893fc271a22",
+ "fields": {
+  "created_at": "2026-09-03T01:30:11.332Z",
+  "updated_at": "2026-09-03T01:34:01.117Z",
+  "client": "47ac01b8-c428-40fd-b257-1196d2a2218c",
+  "website_new": "53e6909e-a6f2-4653-884f-13c2c174bb2b",
+  "title": "Whitehead Wellness",
+  "business_type": "Health and Wellness",
+  "location": "San Antonio, TX",
+  "engagement_type": "built",
+  "platform": "",
+  "slug": "whitehead-wellness",
+  "summary": "A membership platform for a wellness coach who wanted progress to feel human: seven Guardians, crests you earn rather than buy, and a real person reading every submission.",
+  "live_url": "https://whiteheadwellness.com/",
+  "screenshot": "portfolio/whitehead-wellness-2026-09.webp",
+  "card_gradient": "gradient-blue",
+  "challenge": "Most wellness platforms are built for the version of a person who never has a hard week. They count things at you, shame a broken streak, and rank members against one another. Kate wanted the opposite: a membership her clients could have a bad week inside of without falling out of it, where a missed day is quietly absorbed rather than punished, and where progress is confirmed by a human being instead of an algorithm. The hard part was keeping real structure and real standards while stripping out every pressure mechanic that usually enforces them.",
+  "solution": "A custom-built membership site organised around seven Guardians, one for each pillar of wellbeing: nutrition, movement, sleep, stress, community, lifestyle, and mental wellness. Members progress through five crest tiers on each Guardian, from Hatchling to Dragon Master, with time gates that cannot be rushed and every goal read and verified by Kate herself before the next one opens. A two-minute daily ritual is free forever, grace days cover missed days automatically with no action from the member, and the full goal library is readable before anyone is asked for a card. Four membership levels run from a free account up to direct one-to-one access, with member sign-in, the community wall, and the crest-verification workflow all handled in the build.",
+  "results": "Launched as a complete membership product rather than a brochure site: free signup, four membership levels, community posting, the crest-verification flow, and the daily ritual were all live on day one. Every goal on every Guardian at every tier is readable before payment, a deliberate trust decision built into the structure of the site, not a page added to it.",
+  "metric_1_label": "Wellness pillars",
+  "metric_1_value": "7",
+  "metric_2_label": "Progression tiers",
+  "metric_2_value": "5",
+  "metric_3_label": "Membership levels",
+  "metric_3_value": "4",
+  "testimonial_quote": "",
+  "testimonial_name": "",
+  "is_published": true,
+  "published_at": "2026-09-03T01:33:05.235Z",
+  "pdf_path": "",
+  "is_hvac": false,
+  "is_concept": false,
+  "city": 1
+ }
+},
+{
+ "model": "public.article",
+ "pk": 1,
+ "fields": {
+  "title": "How Much Does a Custom Website Cost?",
+  "slug": "how-much-does-a-custom-website-cost",
+  "summary": "Real numbers, what drives them up or down, and an honest answer about when you should spend far less than we charge.",
+  "body": "<p>Nobody publishes this number, which is why you are reading a fourth\narticle about it. So: <strong>a custom, hand-coded website for an HVAC\ncompany costs $2,000 upfront, or $105 a month for 24 months</strong>\n($2,520 total, financed). Hosting and security runs $45 a month on its\nown, or bundled into the Full Plan below.</p>\n\n<p>That is our pricing, published, not a range designed to get you on a\ncall. What follows is what actually moves the number, and where the\ncheaper options genuinely beat us.</p>\n\n<h2>The four price tiers, honestly</h2>\n\n<h3>$0–$50/month: website builders</h3>\n<p>Wix, Squarespace, GoDaddy. You do the work. Genuinely fine for a\nsingle page with your hours and phone number, and we will tell you so\nrather than sell against it. The costs show up later: you cannot change\nwhat the platform will not let you change, and the site is rented, not\nowned.</p>\n\n<h3>$500–$1,500: freelancer on a template</h3>\n<p>A person installs a theme and fills it with your content. Faster and\ncheaper, and the result is only as good as the theme. The common\nfailure is that it looks identical to three competitors who bought the\nsame one.</p>\n\n<h3>$2,000: custom build</h3>\n<p>Where we sit. Flat price, no range: $2,000 upfront, or $105 a month\nfor 24 months if you would rather spread it out. Every page designed\naround your business and written from scratch. No theme to fight, no\nplugin to break, and the structure can be built around how homeowners\nactually search when a unit fails.</p>\n\n<h3>$10,000+: agency</h3>\n<p>A team, a strategist, a project manager, and an office to pay for.\nSometimes worth it. Often you are buying the overhead.</p>\n\n<h2>What actually changes the price</h2>\n<p>Four things, in order of impact:</p>\n<ul>\n  <li><strong>Page count.</strong> A five-page site is not half the work\n  of a ten-page site, but it is not the same either. For law firms this\n  is usually practice areas: each one needs its own real page.</li>\n  <li><strong>Functionality.</strong> Booking, payments, client logins,\n  intake forms that route somewhere specific. A brochure site and a site\n  that <em>does</em> something are different projects.</li>\n  <li><strong>Content.</strong> If you have copy, we build. If you do\n  not, we write it. That is real work, and it is the stage that most\n  often slips.</li>\n  <li><strong>Migration.</strong> Moving an existing site means mapping\n  every old URL so you do not lose the rankings you already have. That\n  is real work, and it matters more than the design.</li>\n</ul>\n\n<h2>The costs people forget</h2>\n<p>The build is not the whole number. Budget for:</p>\n<ul>\n  <li><strong>Domain.</strong> $12–$20/year, and you should own it, not\n  your developer.</li>\n  <li><strong>Hosting and security.</strong> $45/month on its own, or\n  bundled into the Full Plan.</li>\n  <li><strong>The Full Plan.</strong> $250/month, build payment\n  included, covering hosting, maintenance, unlimited content updates\n  and automated review generation. Drops to $145/month automatically\n  once the build is paid off at month 24. If you paid the build\n  upfront, the same plan is $145/month from day one.</li>\n  <li><strong>Out-of-scope work.</strong> $85/hour, invoiced before it\n  starts, for anything outside the original build.</li>\n  <li><strong>SEO.</strong> A separate ongoing discipline. A well-built\n  site can be found. Being found <em>first</em>, especially in the map\n  pack, comes from reviews as much as it does from the build. See\n  <a href=\"/services/review-automation/\">automated review generation</a>.</li>\n</ul>\n\n<h2>A decision framework</h2>\n<p>Spend the money on custom when at least two of these are true:</p>\n<ol>\n  <li>One customer is worth more than the build cost.</li>\n  <li>You compete on search, and your competitors all use the same theme.</li>\n  <li>The site has a job beyond existing: booking, intake, payments.</li>\n  <li>You are losing mobile visitors to load time today.</li>\n  <li>You want to own the asset rather than rent it indefinitely.</li>\n</ol>\n<p>If none of those are true, buy a $16/month builder subscription and\nspend the difference on something that grows the business faster. That\nadvice costs us work and it is still the right advice.</p>\n\n<h2>Why we publish the number</h2>\n<p>Quoting \"it depends\" is a way of finding out what you will pay before\nsaying what it costs. You can see our prices without talking to anyone,\nand if the range does not fit, you have lost nothing but a minute.</p>",
+  "author_name": "Zachery Long",
+  "author_title": "Founder & Lead Developer, CISSP",
+  "status": "published",
+  "published_at": "2026-08-02T16:23:44.381Z",
+  "related_url": "/pricing/",
+  "related_label": "See our full pricing →",
+  "created_at": "2026-08-02T16:23:44.382Z",
+  "updated_at": "2026-09-18T02:29:49.889Z"
+ }
+},
+{
+ "model": "public.article",
+ "pk": 2,
+ "fields": {
+  "title": "Why Your Business Isn't Showing Up on Google",
+  "slug": "why-your-business-isnt-showing-up-on-google",
+  "summary": "Seven reasons, ordered by how often they are actually the cause, with the fix for each and how long it takes.",
+  "body": "<p>You searched for your own business, did not find it, and now you are\nhere. Below are the seven causes, roughly in the order they turn out to\nbe the real one, with how to check each yourself.</p>\n\n<h2>1. You are searching in a way nobody else does</h2>\n<p>Searching your exact business name while logged in, from your own\noffice, on the network you always use, tells you almost nothing. Google\npersonalises heavily. Search the way a <em>customer</em> would (the\nservice plus the city) in a private window.</p>\n<p><strong>Fix:</strong> none needed. Re-test properly first, before\nspending money on a problem you might not have.</p>\n\n<h2>2. You have no Google Business Profile, or it is half-built</h2>\n<p>For local searches, the map block above the normal results is where\nmost clicks go. If you are not in it, you are effectively invisible\nregardless of how good your website is. Most profiles have a name, an\naddress, and nothing else.</p>\n<p><strong>Fix:</strong> claim it, then actually fill it in: correct\nprimary category, services, hours, real photos, service areas.\n<strong>Timeline:</strong> weeks, and the fastest win available.</p>\n\n<h2>3. Your site is new</h2>\n<p>New sites are not trusted immediately. Three to six months before\nmeaningful movement is normal, longer in competitive markets.</p>\n<p><strong>Fix:</strong> patience, plus doing the other six properly\nwhile you wait.</p>\n\n<h2>4. Google cannot read your site properly</h2>\n<p>Missing title tags, no headings, JavaScript that hides the content\nfrom crawlers, pages blocked in robots.txt, or no sitemap. More common\nthan people expect, especially on builder and page-builder sites.</p>\n<p><strong>Fix:</strong> a technical audit. Our\n<a href=\"/audit/\">free website audit</a> checks the basics in about a\nminute. <strong>Timeline:</strong> fixes land in days; Google notices\nin weeks.</p>\n\n<h2>5. One page is trying to be ten</h2>\n<p>The single biggest structural mistake. A \"Services\" page listing\neight things cannot be the best answer for eight different searches.\nGoogle picks whoever wrote a whole page about the one thing.</p>\n<p><strong>Fix:</strong> a real page per service. For an HVAC company\nthat usually means AC repair, heating repair, installation and\nmaintenance plans, each getting its own page instead of one combined\nlist. <strong>Timeline:</strong> two to three months to see movement.</p>\n\n<h2>6. Your site is too slow</h2>\n<p>Speed is both a ranking factor and a conversion factor. If your\nhomepage takes more than about three seconds on mobile data, you are\nlosing people before they see anything, and Google knows.</p>\n<p><strong>Fix:</strong> usually images and bloat. When we rebuilt this\nsite, mobile load time went from 4.1 seconds to 1.5, measured before\nand after, not estimated.</p>\n\n<h2>7. Your listings disagree with each other</h2>\n<p>An old suite number on one directory, a former phone number on\nanother. Google uses consistency as a confidence signal, and\ninconsistency quietly suppresses you.</p>\n<p><strong>Fix:</strong> pick one exact format and make every listing\nmatch it. Tedious, unglamorous, effective.</p>\n\n<h2>The order to work through it</h2>\n<ol>\n  <li>Re-test properly in a private window.</li>\n  <li>Fix your Google Business Profile: fastest return.</li>\n  <li>Run a technical audit and fix what it finds.</li>\n  <li>Fix your speed if it is bad.</li>\n  <li>Split services onto real pages.</li>\n  <li>Clean up listings.</li>\n  <li>Wait. It takes months, and anyone who says otherwise is selling.</li>\n</ol>\n\n<p>One thing worth saying plainly: nobody can guarantee you a ranking.\nAnyone who does is either targeting keywords nobody searches or is not\nbeing straight with you.</p>",
+  "author_name": "Zachery Long",
+  "author_title": "Founder & Lead Developer, CISSP",
+  "status": "published",
+  "published_at": "2026-08-02T16:23:44.386Z",
+  "related_url": "/services/review-automation/",
+  "related_label": "See automated review generation →",
+  "created_at": "2026-08-02T16:23:44.386Z",
+  "updated_at": "2026-09-18T02:29:49.892Z"
+ }
+},
+{
+ "model": "public.article",
+ "pk": 3,
+ "fields": {
+  "title": "How Much Does Law Firm Web Design Cost?",
+  "slug": "how-much-does-law-firm-web-design-cost",
+  "summary": "What attorneys actually pay, why the vendor platforms cost more than the invoice says, and the contract questions to ask before signing anything.",
+  "body": "<p>Law firm websites are priced differently from other small-business\nsites, and not always for good reasons. Here is what the options\nactually cost.</p>\n\n<h2>The three ways firms buy a website</h2>\n\n<h3>Vendor platforms: $200–$1,500/month, indefinitely</h3>\n<p>The legal-marketing platforms. You pay monthly, forever, and in most\narrangements you do not own the site. Stop paying and it disappears,\nalong with the rankings you spent years earning. Over five years at\neven $300/month that is $18,000, and you finish with nothing you can\ntake with you.</p>\n\n<h3>General freelancer: $800–$2,500 once</h3>\n<p>Cheapest up front. The risk is that legal has requirements a general\ndesigner will not know to ask about: practice-area structure, bar\nadvertising rules, and intake that handles sensitive facts properly.</p>\n\n<h3>Custom build: typically $3,000–$6,000 once</h3>\n<p>The most durable option, if you find the right developer. You own\nthe code, the content and the domain, and the site keeps working\nwhether or not you keep paying anyone afterward. Price depends heavily\non scope: how many practice-area pages, how much custom functionality,\nhow much of the copy you are supplying versus having written. Extra\npractice-area pages typically add to the quote rather than coming\nfree.</p>\n\n<h2>The number that actually matters</h2>\n<p>Not the invoice. The five-year total, and what you hold at the end\nof it.</p>\n<ul>\n  <li><strong>Vendor at $300/month:</strong> $18,000, and you own\n  nothing.</li>\n  <li><strong>Custom at roughly $4,000 once, plus hosting at around\n  $150–$300/year:</strong> about $5,000 over five years, and you own\n  everything.</li>\n</ul>\n<p>Even adding ongoing maintenance for all five years, the custom route\nfinishes with an asset instead of a cancelled subscription.</p>\n\n<h2>What drives a law firm quote up</h2>\n<ul>\n  <li><strong>Practice areas.</strong> The main driver. Each area needs\n  a real page to rank for its own searches. A combined list ranks for\n  none of them.</li>\n  <li><strong>Attorney bios.</strong> Each attorney is effectively a\n  page. Prospects search for people by name.</li>\n  <li><strong>Intake.</strong> A form carrying facts about a legal\n  problem before any engagement letter exists deserves proper\n  handling: validated server-side, rate-limited, delivered straight to\n  the firm.</li>\n  <li><strong>Migration.</strong> Leaving a vendor means mapping every\n  old URL so the rankings survive the move.</li>\n</ul>\n\n<h2>Questions to ask before you sign anything</h2>\n<ol>\n  <li>Do I own the source code?</li>\n  <li>Who holds the domain registration? (Check this today: it is where\n  switches get stuck.)</li>\n  <li>What happens to the site if I stop paying?</li>\n  <li>Can I take the content with me?</li>\n  <li>What is the notice period?</li>\n  <li>Is each practice area its own page, or one combined list?</li>\n</ol>\n<p>Question two catches more firms than the rest combined. Look up your\nown domain's registration record before you do anything else.</p>\n\n<h2>A note on bar advertising rules</h2>\n<p>They vary by state and typically cover disclaimers, claims about\nresults, and how testimonials may be used. Build the site so required\ndisclaimers are easy to place and keep current. Confirming what your\nstate bar requires is the attorney's call. This is information, not\nlegal advice.</p>\n\n<p><em>A note on who wrote this: Aspired Websites now builds for\n<a href=\"/services/web-design/\">HVAC contractors</a>, not law firms.\nThis article stays up because the math and the questions above are\nstill accurate no matter who ends up building the site.</em></p>",
+  "author_name": "Zachery Long",
+  "author_title": "Founder & Lead Developer, CISSP",
+  "status": "published",
+  "published_at": "2026-08-02T16:23:44.389Z",
+  "related_url": "/services/web-design/",
+  "related_label": "See what we build now →",
+  "created_at": "2026-08-02T16:23:44.389Z",
+  "updated_at": "2026-09-18T02:29:49.895Z"
+ }
+},
+{
+ "model": "public.city",
+ "pk": 1,
+ "fields": {
+  "name": "San Antonio",
+  "slug": "san-antonio",
+  "state": "TX",
+  "is_active": true,
+  "sort_order": 1,
+  "url_name": "public:location_san_antonio",
+  "meta_title": "HVAC Website Design San Antonio | Aspired Websites",
+  "meta_description": "Custom websites for San Antonio HVAC contractors, built for emergency calls, seasonal demand and the Google map pack. Hand-coded, security-first, you own the code.",
+  "og_title": "San Antonio HVAC Website Design | Aspired Websites",
+  "og_description": "Custom websites for San Antonio HVAC contractors, built to turn an \"AC is out\" search into a phone call. Hand-coded, security-first, and you own every file.",
+  "hero_eyebrow": "San Antonio",
+  "hero_heading_html": "Web Design for <span class=\"accent\">San Antonio</span> HVAC Contractors",
+  "hero_lead": "South Texas summers push AC systems past their limit every year, and when a unit fails, homeowners are searching for whoever can be there today. A site that loads slowly or buries your phone number loses that call to the contractor whose site comes up first. We build sites for that moment: fast on a phone, the number impossible to miss, and structured so the map pack has a reason to show you.",
+  "honesty_eyebrow": "Straight Up",
+  "honesty_heading": "We Don’t Have a San Antonio Office",
+  "honesty_subheading": "You’ll find agencies claiming addresses they don’t occupy. Here’s our actual setup.",
+  "honesty_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>How This Actually Works</h3>\n        <p>\n            We’re based in Georgia and work with San Antonio clients\n            remotely: calls, screen shares, and a staging link you can\n            review from anywhere. Our <strong>(210)</strong> number is a real\n            San Antonio line, not a redirect trick, and it’s where you\n            reach us.\n        </p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>Whether That Matters</h3>\n        <p>\n            For a website build, it usually doesn’t. The work is\n            calls, drafts and reviews either way. If you specifically want\n            someone who can sit in your office, hire locally, and we’ll\n            say so on the call rather than talk you out of it.\n        </p>\n    </article>\n</div>",
+  "proof_eyebrow": "Proof",
+  "proof_heading": "What We’ve Built in San Antonio",
+  "proof_subheading": "Not a stock photo of the Riverwalk. Actual clients you can go and look at.",
+  "value_tiles_eyebrow": "What You Get",
+  "value_tiles_heading": "The Same Build, Wherever You Are",
+  "secondary_eyebrow": "Who We Work With",
+  "secondary_heading": "San Antonio HVAC Companies We’re a Good Fit For",
+  "secondary_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>Residential AC &amp; Heating Repair</h3>\n        <p>The bread and butter call: a unit fails in July heat and the homeowner is searching on a phone, right now, for whoever shows up first. See <a href=\"/services/review-automation/\">automated review generation</a> for how we help you win the map pack.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>24/7 Emergency Service Companies</h3>\n        <p>If you run emergency dispatch, the site's whole job is to make \"yes, we're open now\" the first thing a visitor sees. Buried contact info costs you the call.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>New Construction &amp; Commercial HVAC</h3>\n        <p>A different buyer and a longer sales cycle. The site needs to establish credibility with a builder or property manager, not just answer a panic call.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>Multi-Truck Operations</h3>\n        <p>Once you're running more than one truck, the site is doing real work: routing the right lead to the right service. See <a href=\"/pricing/\">pricing</a>.</p>\n    </article>\n</div>",
+  "cross_link_html": "",
+  "cta_heading": "Let’s Talk About Your San Antonio Business",
+  "cta_body_html": "Call <a href=\"tel:+12108962536\">(210) 896-2536</a> or book a time. We answer within 24 hours, and we’ll tell you honestly if you’d be better served by someone local.",
+  "schema_service_name": "Web Design for San Antonio HVAC Contractors",
+  "schema_description": "Custom, hand-coded web design and development for HVAC contractors in San Antonio, Texas. Built for emergency-call urgency and the local map pack that drives most residential HVAC searches. Delivered remotely from Georgia.",
+  "schema_area_served": [
+   {
+    "name": "San Antonio",
+    "type": "City"
+   }
+  ],
+  "created_at": "2026-09-17T10:30:57.040Z",
+  "updated_at": "2026-09-17T10:30:57.040Z"
+ }
+},
+{
+ "model": "public.city",
+ "pk": 2,
+ "fields": {
+  "name": "Atlanta",
+  "slug": "atlanta",
+  "state": "GA",
+  "is_active": true,
+  "sort_order": 2,
+  "url_name": "public:location_atlanta",
+  "meta_title": "HVAC Website Design Atlanta | Aspired Websites",
+  "meta_description": "Custom web design for Atlanta HVAC contractors from a Georgia company. Built for emergency-call urgency and local search. Hand-coded, security-hardened, you own every file.",
+  "og_title": "Atlanta HVAC Website Design | Aspired Websites",
+  "og_description": "Custom websites for Atlanta HVAC contractors, built by a Georgia company. Hand-coded, security-first, and you own the code.",
+  "hero_eyebrow": "Atlanta",
+  "hero_heading_html": "Web Design for <span class=\"accent\">Atlanta</span> HVAC Contractors",
+  "hero_lead": "Georgia summers are long and humid, and an AC outage turns into an emergency fast. Atlanta’s HVAC market is crowded, from national franchises to independent shops, so the contractors who win the call are the ones whose site loads fast, shows up in the map pack, and makes it obvious they can come out today. That’s what we build.",
+  "honesty_eyebrow": "Straight Up",
+  "honesty_heading": "We’re Georgia-Based, Not Atlanta-Based",
+  "honesty_subheading": "Plenty of agencies rent a Buckhead mailbox and call it a headquarters. Here’s our actual setup.",
+  "honesty_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>Where We Actually Are</h3>\n        <p>\n            Warner Robins, in Middle Georgia: about 100 miles\n            south of Atlanta on I-75. Same state, same time zone, and\n            close enough to sit in your office when a project genuinely\n            calls for it. We don’t keep an Atlanta suite, and we\n            won’t list one.\n        </p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>How The Work Happens</h3>\n        <p>\n            Most of it remotely, because that’s what a website\n            build actually is: calls, drafts, a staging link you\n            review from anywhere. Kickoff or a launch review in person\n            is a drive, not a flight, so ask if you want it.\n        </p>\n    </article>\n</div>",
+  "proof_eyebrow": "Proof",
+  "proof_heading": "Work You Can Go And Look At",
+  "proof_subheading": "Live sites, not mockups. We’ll be straight about where each client is.",
+  "value_tiles_eyebrow": "What You Get",
+  "value_tiles_heading": "What Actually Ships",
+  "secondary_eyebrow": "Who We Work With",
+  "secondary_heading": "Atlanta HVAC Companies We’re a Good Fit For",
+  "secondary_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>Residential AC &amp; Heating Repair</h3>\n        <p>Georgia summers are long and humid, and an outage turns into an emergency fast. Atlanta's residential HVAC market is crowded with national franchises, so the site has to work as hard as the truck does. See <a href=\"/services/review-automation/\">automated review generation</a>.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>24/7 Emergency Service Companies</h3>\n        <p>The site's job is to make \"yes, we're open now\" obvious in the first five seconds, not something a visitor scrolls to find.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>New Construction &amp; Commercial HVAC</h3>\n        <p>Builders and property managers comparing bids need a site that reads as an established operation, not a one-page flyer.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>Businesses Outside The Perimeter</h3>\n        <p>Marietta, Alpharetta, Decatur, Sandy Springs. HVAC search is hyper-local, and a site built for \"Atlanta\" in general tends to rank for nowhere in particular. We build for the areas you actually serve.</p>\n    </article>\n</div>",
+  "cross_link_html": "<p class=\"section-note\">\n    Closer to home? We’re based in\n    <a href=\"/locations/warner-robins/\">Warner Robins</a> and\n    work across Middle Georgia. Outside Georgia entirely, our largest client\n    base is in <a href=\"/locations/san-antonio/\">San Antonio</a>.\n</p>",
+  "cta_heading": "Let’s Talk About Your Atlanta Business",
+  "cta_body_html": "Call <a href=\"tel:+12108962536\">(210) 896-2536</a> or book a time. We answer within 24 hours, and we’ll tell you honestly if you’d be better served by an agency in the city.",
+  "schema_service_name": "Web Design for Atlanta HVAC Contractors",
+  "schema_description": "Custom, hand-coded web design and development for HVAC contractors in Atlanta, Georgia. Built for emergency-call urgency and the map-pack search behavior that drives residential HVAC leads. Delivered by a Georgia-based studio in Warner Robins.",
+  "schema_area_served": [
+   {
+    "name": "Atlanta",
+    "type": "City"
+   }
+  ],
+  "created_at": "2026-09-17T10:30:57.044Z",
+  "updated_at": "2026-09-17T10:30:57.044Z"
+ }
+},
+{
+ "model": "public.city",
+ "pk": 3,
+ "fields": {
+  "name": "Warner Robins",
+  "slug": "warner-robins",
+  "state": "GA",
+  "is_active": true,
+  "sort_order": 3,
+  "url_name": "public:location_warner_robins",
+  "meta_title": "HVAC Website Design Warner Robins GA | Aspired Websites",
+  "meta_description": "Custom web design for HVAC contractors in Warner Robins, Georgia. We’re actually based here. Hand-coded, security-hardened sites built for emergency-call urgency, and you own every file.",
+  "og_title": "Warner Robins HVAC Website Design | Aspired Websites",
+  "og_description": "Custom web design for HVAC contractors in Warner Robins, GA. Locally based, hand-coded, security-first, and you own the code.",
+  "hero_eyebrow": "Warner Robins, Georgia",
+  "hero_heading_html": "HVAC Web Design in <span class=\"accent\">Warner Robins</span>",
+  "hero_lead": "Middle Georgia heat and humidity keep AC units working overtime, and when one fails, homeowners in Houston County are searching for whoever can get there fastest. We build sites for Warner Robins, Macon and Middle Georgia HVAC contractors: your number is impossible to miss, the site loads fast on a phone in July, and the structure gives the map pack a reason to show you first.",
+  "honesty_eyebrow": "Actually Local",
+  "honesty_heading": "Based Here, Not Just Targeting Here",
+  "honesty_subheading": "The difference matters more than the marketing usually admits.",
+  "honesty_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>You Can Meet Us</h3>\n        <p>\n            Warner Robins is home. Coffee in Houston County, a sit-down\n            in Macon, or a drive out to Perry: that’s a\n            normal week, not a special arrangement. Most of the build\n            still happens over calls and a staging link, because\n            that’s what works, but in person is genuinely on the\n            table.\n        </p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>We Work From Here, Not From A Storefront</h3>\n        <p>\n            There’s no walk-in office and we’re not going to\n            invent one. Like most one-engineer studios we run as a\n            service-area business: we come to you, or we work\n            remotely, whichever suits the project.\n        </p>\n        <p>\n            One thing worth explaining: our number is a\n            <strong>210</strong> area code. That’s a San Antonio\n            line from our largest client base, not a hint that\n            we’re in Texas. It rings the same person, here in\n            Warner Robins.\n        </p>\n    </article>\n</div>",
+  "proof_eyebrow": "Proof",
+  "proof_heading": "Work You Can Go And Look At",
+  "proof_subheading": "Live sites, not mockups.",
+  "value_tiles_eyebrow": "",
+  "value_tiles_heading": "",
+  "secondary_eyebrow": "Middle Georgia",
+  "secondary_heading": "What A Middle Georgia HVAC Company Actually Needs",
+  "secondary_html": "<div class=\"cards cards--2col\">\n    <article class=\"card card--accent-left\">\n        <h3>To Be Found On A Phone, In An Emergency</h3>\n        <p>Most HVAC searches happen from a phone at the worst possible moment: a unit down in Middle Georgia humidity. A slow site loses that call before it starts.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>To Win The Map Pack, Not Just The Search Bar</h3>\n        <p>Robins Air Force Base anchors a lot of the local economy, and a lot of residential HVAC demand comes from the neighborhoods built up around it. Reviews and a correct Google profile matter as much as the site itself. See <a href=\"/services/review-automation/\">automated review generation</a>.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>Not To Be Locked In</h3>\n        <p>Some local shops build on a platform they don't own, so leaving means starting over. Ours is standard code on standard hosting, and you own it, so any developer can pick it up. See <a href=\"/pricing/\">pricing</a>.</p>\n    </article>\n\n    <article class=\"card card--accent-left\">\n        <h3>Not To Overspend</h3>\n        <p>If you need one page with your hours and a phone number, say so and we'll tell you a $16/month builder is the better buy. Custom is worth it once the site has real dispatch and reputation work to do.</p>\n    </article>\n</div>",
+  "cross_link_html": "<p class=\"section-note\">\n    Up the interstate? We work with\n    <a href=\"/locations/atlanta/\">Atlanta businesses</a> too,\n    about 100 miles, and close enough to drive when a project needs\n    it. Outside Georgia, most of our clients are in\n    <a href=\"/locations/san-antonio/\">San Antonio</a>.\n</p>",
+  "cta_heading": "Let’s Talk About Your Business",
+  "cta_body_html": "Call <a href=\"tel:+12108962536\">(210) 896-2536</a> or book a time. We answer within 24 hours, and if a website isn’t what you need right now, we’ll say so.",
+  "schema_service_name": "Web Design for Warner Robins and Middle Georgia HVAC Contractors",
+  "schema_description": "Custom, hand-coded web design and development for HVAC contractors in Warner Robins, Macon and Middle Georgia. Locally based, built for emergency-call urgency, with full client ownership of the code.",
+  "schema_area_served": [
+   {
+    "name": "Warner Robins",
+    "type": "City"
+   },
+   {
+    "name": "Macon",
+    "type": "City"
+   },
+   {
+    "name": "Perry",
+    "type": "City"
+   },
+   {
+    "name": "Centerville",
+    "type": "City"
+   },
+   {
+    "name": "Houston County, Georgia",
+    "type": "AdministrativeArea"
+   }
+  ],
+  "created_at": "2026-09-17T10:30:57.047Z",
+  "updated_at": "2026-09-17T10:30:57.047Z"
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "00306af8-284d-4dba-96e4-e00af5d85a40",
+ "fields": {
+  "created_at": "2026-09-17T10:31:08.551Z",
+  "updated_at": "2026-09-19T13:55:10.608Z",
+  "category": "website_build",
+  "name": "Website Build: Pay in Full",
+  "slug": "hvac-build-full",
+  "tagline": "Own it outright from day one.",
+  "description": "Aspired Websites LLC retains ownership of the website until paid in full.",
+  "price": "2000.00",
+  "price_display": "",
+  "is_recurring": false,
+  "billing_interval": "",
+  "stripe_price_id": "price_1UHOjSRm8IUsmaKX0xXPrMOf",
+  "stripe_product_id": "prod_VHygHfGdjuRzhb",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 20,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "4efa108f-fe7e-4d13-b122-e914dda7710c",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.188Z",
+  "updated_at": "2026-09-18T02:29:48.281Z",
+  "category": "social_media",
+  "name": "Basic",
+  "slug": "social-basic",
+  "tagline": "",
+  "description": "",
+  "price": "399.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH2Rm8IUsmaKX2ja4gGsb",
+  "stripe_product_id": "prod_V96TKpN7swHWkx",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 1,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.141Z",
+  "updated_at": "2026-09-18T02:29:48.225Z",
+  "category": "website_build",
+  "name": "Premium Build",
+  "slug": "website-premium",
+  "tagline": "",
+  "description": "",
+  "price": "4500.00",
+  "price_display": "",
+  "is_recurring": false,
+  "billing_interval": "",
+  "stripe_price_id": "price_1U8oH3Rm8IUsmaKXNtG9A0Wd",
+  "stripe_product_id": "prod_V96UofWliJb0JS",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": true,
+  "sort_order": 2,
+  "pages_included": 15,
+  "practice_areas_included": 10,
+  "timeline_weeks": 4,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "6b883ee3-6b11-4f78-86b6-e0156b9addac",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.194Z",
+  "updated_at": "2026-09-18T02:29:48.289Z",
+  "category": "social_media",
+  "name": "Standard",
+  "slug": "social-standard",
+  "tagline": "",
+  "description": "",
+  "price": "699.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH2Rm8IUsmaKXrkbS8ThU",
+  "stripe_product_id": "prod_V96UwSqolIBmTN",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": true,
+  "sort_order": 2,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.069Z",
+  "updated_at": "2026-09-18T02:29:48.206Z",
+  "category": "website_build",
+  "name": "Essential Build",
+  "slug": "website-essential",
+  "tagline": "",
+  "description": "",
+  "price": "2500.00",
+  "price_display": "",
+  "is_recurring": false,
+  "billing_interval": "",
+  "stripe_price_id": "price_1U8oH3Rm8IUsmaKXq1ZT0heh",
+  "stripe_product_id": "prod_V96US1sU0G3wzz",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 1,
+  "pages_included": 8,
+  "practice_areas_included": 5,
+  "timeline_weeks": 3,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "8d741c8f-6d8d-44ac-b726-5ba32c8d9ce2",
+ "fields": {
+  "created_at": "2026-09-17T10:31:08.560Z",
+  "updated_at": "2026-09-19T13:55:10.931Z",
+  "category": "website_build",
+  "name": "Website Build: 24-Month Installment",
+  "slug": "hvac-build-installment",
+  "tagline": "$2,520 total — same build, spread out.",
+  "description": "Aspired Websites LLC retains ownership of the website until paid in full.",
+  "price": "105.00",
+  "price_display": "$105/mo",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1UHOjSRm8IUsmaKXWAImDhmd",
+  "stripe_product_id": "prod_VHygA21GSYXrgH",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 21,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "8ee1e99d-fd11-47d3-8fc8-ed5dd25daf1e",
+ "fields": {
+  "created_at": "2026-09-17T10:31:08.600Z",
+  "updated_at": "2026-09-19T13:55:09.604Z",
+  "category": "hosting",
+  "name": "Hosting + Security Only",
+  "slug": "hvac-hosting-security",
+  "tagline": "Server and OS patching, SSL renewal, security updates. Forms stay live.",
+  "description": "No content edits, no code changes, no review system.",
+  "price": "45.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1UHOjRRm8IUsmaKXBJm8NLsg",
+  "stripe_product_id": "prod_VHygoNF8Mvit4f",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 20,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "a5499abb-27c3-47bc-b763-6fad771faab9",
+ "fields": {
+  "created_at": "2026-05-25T00:39:28.746Z",
+  "updated_at": "2026-09-18T02:29:48.371Z",
+  "category": "addon",
+  "name": "Domain Registration — Attorney TLDs",
+  "slug": "domain-law",
+  "tagline": "",
+  "description": "",
+  "price": "175.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "year",
+  "stripe_price_id": "price_1U8oH0Rm8IUsmaKXOTlM6RRY",
+  "stripe_product_id": "prod_V96THCXQQmXFzc",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 11,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "bbed7c62-81fd-494b-829e-280121115806",
+ "fields": {
+  "created_at": "2026-09-17T10:31:08.587Z",
+  "updated_at": "2026-09-19T13:55:10.286Z",
+  "category": "maintenance",
+  "name": "Full Plan: Build Paid in Full",
+  "slug": "hvac-plan-paid-in-full",
+  "tagline": "For clients who paid the $2,000 build upfront — no build payment folded into the monthly rate.",
+  "description": "Hosting, maintenance, unlimited content updates, security patching, and the automated review system. Month-to-month, cancel anytime.",
+  "price": "145.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1UHOjSRm8IUsmaKXV1U7lBTY",
+  "stripe_product_id": "prod_VHygvAXiIDwp98",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 1,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.175Z",
+  "updated_at": "2026-09-18T02:29:48.266Z",
+  "category": "maintenance",
+  "name": "Dominant",
+  "slug": "maintenance-dominant",
+  "tagline": "",
+  "description": "",
+  "price": "1199.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH1Rm8IUsmaKXv3s8wD4y",
+  "stripe_product_id": "prod_V96Tgsa4HrIYDZ",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 3,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+ "fields": {
+  "created_at": "2026-05-25T00:39:28.722Z",
+  "updated_at": "2026-09-18T02:29:48.361Z",
+  "category": "addon",
+  "name": "Domain Registration",
+  "slug": "domain-standard",
+  "tagline": "",
+  "description": "",
+  "price": "75.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "year",
+  "stripe_price_id": "price_1U8oGzRm8IUsmaKXSFB9S7qV",
+  "stripe_product_id": "prod_V96TVXtVnGnhog",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 10,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "d486de9b-88e8-4c41-9414-7c7c1fddb3e2",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.212Z",
+  "updated_at": "2026-09-18T02:29:48.306Z",
+  "category": "hosting",
+  "name": "Annual Hosting",
+  "slug": "hosting-annual",
+  "tagline": "",
+  "description": "",
+  "price": "150.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "year",
+  "stripe_price_id": "price_1U8oH0Rm8IUsmaKX6YJyea0D",
+  "stripe_product_id": "prod_V96TFOIiiK1mXp",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 1,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.153Z",
+  "updated_at": "2026-09-18T02:29:48.241Z",
+  "category": "maintenance",
+  "name": "Essentials",
+  "slug": "maintenance-essentials",
+  "tagline": "",
+  "description": "",
+  "price": "299.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH0Rm8IUsmaKX3Ag8fvgF",
+  "stripe_product_id": "prod_V96TLqrEO6pmQ7",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 1,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.163Z",
+  "updated_at": "2026-09-18T02:29:48.253Z",
+  "category": "maintenance",
+  "name": "Growth",
+  "slug": "maintenance-growth",
+  "tagline": "",
+  "description": "",
+  "price": "599.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH1Rm8IUsmaKX7DhLhIgR",
+  "stripe_product_id": "prod_V96TydAhwGWNP4",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": true,
+  "sort_order": 2,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "fa901462-e0e2-4874-b0f3-2477636465a9",
+ "fields": {
+  "created_at": "2026-05-22T00:34:05.200Z",
+  "updated_at": "2026-09-18T02:29:48.298Z",
+  "category": "social_media",
+  "name": "Full Management",
+  "slug": "social-full",
+  "tagline": "",
+  "description": "",
+  "price": "999.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1U8oH2Rm8IUsmaKXyN84lQv2",
+  "stripe_product_id": "prod_V96UMK3d5RxKoL",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": false,
+  "sort_order": 3,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.servicetier",
+ "pk": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+ "fields": {
+  "created_at": "2026-09-17T10:31:08.570Z",
+  "updated_at": "2026-09-19T13:55:09.949Z",
+  "category": "maintenance",
+  "name": "Full Plan",
+  "slug": "hvac-full-plan",
+  "tagline": "Build payment plus hosting, maintenance, and the automated review system — bundled into one plan.",
+  "description": "Includes the $105/month build payment plus $145/month for hosting, maintenance, unlimited content updates, security patching, and the automated review system. After the build is paid off at month 24, the rate drops automatically to $145/month. Month-to-month after that — cancel anytime.",
+  "price": "250.00",
+  "price_display": "",
+  "is_recurring": true,
+  "billing_interval": "month",
+  "stripe_price_id": "price_1UHOjRRm8IUsmaKXdTGmne3x",
+  "stripe_product_id": "prod_VHyg2hKLUdBppl",
+  "is_active": true,
+  "is_public": true,
+  "is_featured": true,
+  "sort_order": 0,
+  "pages_included": null,
+  "practice_areas_included": null,
+  "timeline_weeks": null,
+  "max_channels": null,
+  "reply_handling": ""
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "01c50589-c7d2-4cbe-9d4d-170cc50276fa",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.376Z",
+  "updated_at": "2026-09-18T02:29:48.376Z",
+  "tier": "a5499abb-27c3-47bc-b763-6fad771faab9",
+  "text": "DNS management through your client portal",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "04352d98-de5d-4764-8cc8-2ca0259a7079",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.358Z",
+  "updated_at": "2026-09-18T02:29:48.358Z",
+  "tier": "8ee1e99d-fd11-47d3-8fc8-ed5dd25daf1e",
+  "text": "Forms stay live",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "04658fa0-6a7c-4f73-bd99-b3f9a8179a4d",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.261Z",
+  "updated_at": "2026-09-18T02:29:48.261Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Session recording & visual heatmaps",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "052de53f-aa6e-4152-a9d0-aea2f6cd0982",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.375Z",
+  "updated_at": "2026-09-18T02:29:48.375Z",
+  "tier": "a5499abb-27c3-47bc-b763-6fad771faab9",
+  "text": "WHOIS privacy included free for life",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "145cc4dd-8a1d-4fbf-b450-e74d341df126",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.302Z",
+  "updated_at": "2026-09-18T02:29:48.302Z",
+  "tier": "fa901462-e0e2-4874-b0f3-2477636465a9",
+  "text": "Comment responses",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "1576fce5-3880-4a1a-9344-f9ed18f96723",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.247Z",
+  "updated_at": "2026-09-18T02:29:48.247Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Up to 4 hours of content updates per month",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "18581768-cafa-4ba0-b653-b26468f3c0d7",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.303Z",
+  "updated_at": "2026-09-18T02:29:48.303Z",
+  "tier": "fa901462-e0e2-4874-b0f3-2477636465a9",
+  "text": "Monthly analytics report",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "19be4a31-c02c-4d58-b5ff-52475f0a54b5",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.300Z",
+  "updated_at": "2026-09-18T02:29:48.300Z",
+  "tier": "fa901462-e0e2-4874-b0f3-2477636465a9",
+  "text": "Daily posting across all platforms",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "1aae9aef-00d6-4282-b2bd-662ba4452ca4",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.247Z",
+  "updated_at": "2026-09-18T02:29:48.248Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Monthly performance report",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "1adb77d5-41cb-4a69-999b-6c1c08e2d738",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.216Z",
+  "updated_at": "2026-09-18T02:29:48.216Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "Google Business Profile setup",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "2265e9b6-b250-4b20-b1d9-955346c13207",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.335Z",
+  "updated_at": "2026-09-18T02:29:48.336Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Drops to $145/mo automatically after month 24",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "24a57b4b-0588-46a0-a332-1165a6324e84",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.344Z",
+  "updated_at": "2026-09-18T02:29:48.344Z",
+  "tier": "bbed7c62-81fd-494b-829e-280121115806",
+  "text": "Hosting, maintenance, and unlimited content updates",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "25e5b736-0e71-467b-9af1-2ddf854c6b2a",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.236Z",
+  "updated_at": "2026-09-18T02:29:48.236Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Competitor analysis included",
+  "sort_order": 8,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "28423747-4a98-44d3-b3bc-1e2c1628b402",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.257Z",
+  "updated_at": "2026-09-18T02:29:48.257Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Up to 8 hours of content updates per month",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "2c7cff8a-a676-4add-931b-78008602f3fb",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.276Z",
+  "updated_at": "2026-09-18T02:29:48.276Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Response within 4 hours",
+  "sort_order": 9,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "2e264f8c-0142-4e2c-bf4c-5078a4989f9f",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.337Z",
+  "updated_at": "2026-09-18T02:29:48.337Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Monthly security report: an automated scan of your site, summarized in a one-page PDF emailed to you on the 1st. Included in every plan.",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "31cedc6b-d097-471e-a07d-0fc4feda5a94",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.263Z",
+  "updated_at": "2026-09-18T02:29:48.263Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Quarterly strategy call (30 minutes)",
+  "sort_order": 9,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "347b4585-cd4a-451b-a9bd-64494520db27",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.229Z",
+  "updated_at": "2026-09-18T02:29:48.229Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Up to 15 pages including up to 10 practice area pages",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "3854d588-66e1-40b5-8c62-bead918cf654",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.364Z",
+  "updated_at": "2026-09-18T02:29:48.364Z",
+  "tier": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+  "text": "WHOIS privacy included free for life",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "38767ab2-54d4-464b-bfe2-94a4d65d2ba4",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.346Z",
+  "updated_at": "2026-09-18T02:29:48.346Z",
+  "tier": "bbed7c62-81fd-494b-829e-280121115806",
+  "text": "Automated review generation included",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "3a936a82-af03-4131-9f66-954ffa53dc2f",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.335Z",
+  "updated_at": "2026-09-18T02:29:48.335Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Automated review generation included",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "3b8000de-6a0a-499f-b92d-5b39f6e8b741",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.332Z",
+  "updated_at": "2026-09-18T02:29:48.332Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Hosting, maintenance, and unlimited content updates",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "3e0ada7a-ab08-4349-a894-af51d9ab7bf8",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.367Z",
+  "updated_at": "2026-09-18T02:29:48.367Z",
+  "tier": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+  "text": "Cancel any time — transfer-out package sent automatically",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "3e82a0ef-c5a8-418d-9b0d-4c68f7381dad",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.217Z",
+  "updated_at": "2026-09-18T02:29:48.217Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "Basic on-page SEO",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "44aabd59-1a46-4bc8-a7dd-2dd47de1438b",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.301Z",
+  "updated_at": "2026-09-18T02:29:48.301Z",
+  "tier": "fa901462-e0e2-4874-b0f3-2477636465a9",
+  "text": "Engagement monitoring",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "45c633f4-b935-4368-b06f-67489d4332ac",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.278Z",
+  "updated_at": "2026-09-18T02:29:48.278Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Quarterly full website audit",
+  "sort_order": 11,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "4da49c5b-cc58-47da-b0ad-bd11abe7d252",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.319Z",
+  "updated_at": "2026-09-18T02:29:48.319Z",
+  "tier": "00306af8-284d-4dba-96e4-e00af5d85a40",
+  "text": "Custom-coded, not a template",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "4dc8be33-9f34-4bda-af6c-8713380d2822",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.292Z",
+  "updated_at": "2026-09-18T02:29:48.292Z",
+  "tier": "6b883ee3-6b11-4f78-86b6-e0156b9addac",
+  "text": "5 posts per week across 3 platforms",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "4fe9a5ca-afb4-4417-8f8f-592c7d1b3493",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.233Z",
+  "updated_at": "2026-09-18T02:29:48.233Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Google Analytics + Search Console setup",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "5349b0a5-983b-4e1f-a900-531fa81af8ca",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.271Z",
+  "updated_at": "2026-09-18T02:29:48.271Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "2 blog posts per month",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "54985a38-fa56-44f0-8475-4c15b833e3f5",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.331Z",
+  "updated_at": "2026-09-18T02:29:48.331Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Includes the $105/mo build payment",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "55ed3ac2-68fe-4803-987f-4bca8814232c",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.377Z",
+  "updated_at": "2026-09-18T02:29:48.377Z",
+  "tier": "a5499abb-27c3-47bc-b763-6fad771faab9",
+  "text": "Auto-renewal handled by Stripe",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "574c4baa-b659-456d-8012-dc70d9465cc2",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.221Z",
+  "updated_at": "2026-09-18T02:29:48.221Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "2-week post-launch support",
+  "sort_order": 8,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "576166da-35f1-455f-8dd5-4e7442d7628f",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.309Z",
+  "updated_at": "2026-09-18T02:29:48.310Z",
+  "tier": "d486de9b-88e8-4c41-9414-7c7c1fddb3e2",
+  "text": "Your own dedicated server — not shared hosting",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "59c64619-3b39-4924-af05-0807ab59c9cc",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.283Z",
+  "updated_at": "2026-09-18T02:29:48.284Z",
+  "tier": "4efa108f-fe7e-4d13-b122-e914dda7710c",
+  "text": "3 posts per week across 2 platforms",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "6b231c7c-b1be-42f6-8330-d4c2dfd0ccf3",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.348Z",
+  "updated_at": "2026-09-18T02:29:48.348Z",
+  "tier": "bbed7c62-81fd-494b-829e-280121115806",
+  "text": "Monthly security report: an automated scan of your site, summarized in a one-page PDF emailed to you on the 1st. Included in every plan.",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "6b7b31be-da32-464d-8d82-5bc9ec8a10f7",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.260Z",
+  "updated_at": "2026-09-18T02:29:48.260Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Basic SEO monitoring and recommendations",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "6d5e8a07-595a-43c9-966e-b8296fd24470",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.368Z",
+  "updated_at": "2026-09-18T02:29:48.368Z",
+  "tier": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+  "text": "Covers .com, .net, and .org",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "73e78b59-fcfd-4f96-bce6-92c24a7232b1",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.213Z",
+  "updated_at": "2026-09-18T02:29:48.213Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "Mobile responsive",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "76bcb2cc-655e-409a-932d-c70e2955f7a8",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.215Z",
+  "updated_at": "2026-09-18T02:29:48.215Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "Consultation request form",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "772e66bb-c806-4736-88c1-45f38432a0d1",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.244Z",
+  "updated_at": "2026-09-18T02:29:48.244Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Uptime monitoring 24/7",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "7b13daea-18d3-4e5c-987a-80213991ce98",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.273Z",
+  "updated_at": "2026-09-18T02:29:48.273Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Competitor rank tracking",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "809f4476-1125-4f5c-8376-359ae57df341",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.285Z",
+  "updated_at": "2026-09-18T02:29:48.285Z",
+  "tier": "4efa108f-fe7e-4d13-b122-e914dda7710c",
+  "text": "Google Business Profile posts included",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "82538031-1e51-41f6-9feb-6f419a52586d",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.324Z",
+  "updated_at": "2026-09-18T02:29:48.325Z",
+  "tier": "8d741c8f-6d8d-44ac-b726-5ba32c8d9ce2",
+  "text": "Custom-coded, not a template",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "82ca5db5-e2e9-4b5d-9a0b-010e95a32d55",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.232Z",
+  "updated_at": "2026-09-18T02:29:48.232Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Advanced lead capture forms",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "86c1987a-458a-4491-8e6c-a81e20c327fc",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.365Z",
+  "updated_at": "2026-09-18T02:29:48.365Z",
+  "tier": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+  "text": "DNS management through your client portal",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "87e64577-483c-4890-82e8-d7cd9319bcc6",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.234Z",
+  "updated_at": "2026-09-18T02:29:48.234Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Schema markup for law firms",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "8f04857f-571a-4f7a-8b1c-6bb560ab6c35",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.378Z",
+  "updated_at": "2026-09-18T02:29:48.378Z",
+  "tier": "a5499abb-27c3-47bc-b763-6fad771faab9",
+  "text": "Cancel any time — transfer-out package sent automatically",
+  "sort_order": 5,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "8f4f65a4-52b0-4804-8f3c-a30d69792c5b",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.269Z",
+  "updated_at": "2026-09-18T02:29:48.269Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Everything in Growth",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "8f647b2f-879f-4c39-a41e-78869b69ca8b",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.245Z",
+  "updated_at": "2026-09-18T02:29:48.245Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "SSL certificate management",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "93170f64-4456-48ae-83ab-875a320fde32",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.272Z",
+  "updated_at": "2026-09-18T02:29:48.272Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Full SEO management",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "9b98533e-d454-4bfd-8ad9-07e807b9c4e1",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.274Z",
+  "updated_at": "2026-09-18T02:29:48.274Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Google Ads management (ad spend billed separately)",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "a017809e-e7af-4de4-8a5c-1a2510c38563",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.312Z",
+  "updated_at": "2026-09-18T02:29:48.312Z",
+  "tier": "d486de9b-88e8-4c41-9414-7c7c1fddb3e2",
+  "text": "SSL certificate management",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "a3221c5c-64da-47be-89b5-7af10427a7ec",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.238Z",
+  "updated_at": "2026-09-18T02:29:48.238Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "2-week post-launch support",
+  "sort_order": 9,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "a8efc054-00d9-4541-ad6f-c0c814a17286",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.356Z",
+  "updated_at": "2026-09-18T02:29:48.356Z",
+  "tier": "8ee1e99d-fd11-47d3-8fc8-ed5dd25daf1e",
+  "text": "SSL certificate renewal",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "a9954097-d0d2-4cd0-8eed-0a1238d50990",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.218Z",
+  "updated_at": "2026-09-18T02:29:48.219Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "SSL + security hardened by a CISSP-certified designer",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "aa96f0e1-4caf-4e99-ae24-538ebf235e94",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.333Z",
+  "updated_at": "2026-09-18T02:29:48.334Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Security patching included",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "ab11bc01-5a04-4bbc-b276-6e96e14de97e",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.355Z",
+  "updated_at": "2026-09-18T02:29:48.355Z",
+  "tier": "8ee1e99d-fd11-47d3-8fc8-ed5dd25daf1e",
+  "text": "Server and OS patching",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "ac3bab6e-ea5a-4e7c-a34f-1cf419154169",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.261Z",
+  "updated_at": "2026-09-18T02:29:48.261Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Plain-English Google Analytics summary",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "b0e58ef1-a31a-446d-ac28-909d51817622",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.294Z",
+  "updated_at": "2026-09-18T02:29:48.294Z",
+  "tier": "6b883ee3-6b11-4f78-86b6-e0156b9addac",
+  "text": "Story posts included",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "b39ab490-b0cb-4bbd-8943-6b9760b0f7f8",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.284Z",
+  "updated_at": "2026-09-18T02:29:48.285Z",
+  "tier": "4efa108f-fe7e-4d13-b122-e914dda7710c",
+  "text": "Facebook + LinkedIn included",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "b3c17154-198c-4d47-ad97-5d33d95c3086",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.246Z",
+  "updated_at": "2026-09-18T02:29:48.246Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Monthly security patches and updates",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "b4a4a0ec-a398-47b9-b346-7fa9c8c80cdd",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.249Z",
+  "updated_at": "2026-09-18T02:29:48.249Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Monthly backup verified",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "ba4f7ee1-508d-4114-9ec0-6173f45e2a4d",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.274Z",
+  "updated_at": "2026-09-18T02:29:48.274Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Schema markup updates",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "bc6434d1-560f-4805-af59-b16420104d6b",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.231Z",
+  "updated_at": "2026-09-18T02:29:48.231Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Live chat widget",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "bd8eb78b-ca7b-403d-99d8-11906b1dd005",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.211Z",
+  "updated_at": "2026-09-18T02:29:48.211Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "Up to 8 pages including up to 5 practice area pages",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "bee540c5-29b0-4846-bb72-82c2c174131e",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.325Z",
+  "updated_at": "2026-09-18T02:29:48.326Z",
+  "tier": "8d741c8f-6d8d-44ac-b726-5ba32c8d9ce2",
+  "text": "24 payments of $105 ($2,520 total)",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "c26d4fa3-7298-4076-85fc-f999030c91b3",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.357Z",
+  "updated_at": "2026-09-18T02:29:48.357Z",
+  "tier": "8ee1e99d-fd11-47d3-8fc8-ed5dd25daf1e",
+  "text": "Application and dependency security updates",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "cb48b623-94b9-415b-86eb-a3f9ae7b2c05",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.235Z",
+  "updated_at": "2026-09-18T02:29:48.235Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Speed optimization audit post-launch",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "cee73ac9-5f2b-48e2-8d59-fb2b719fe794",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.366Z",
+  "updated_at": "2026-09-18T02:29:48.366Z",
+  "tier": "cd11be0b-40f5-42e1-b1e7-aeb6e63f450d",
+  "text": "Auto-renewal handled by Stripe (you stay in control)",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "cfac4337-d71b-4757-88fb-bd5cbc7246d7",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.256Z",
+  "updated_at": "2026-09-18T02:29:48.256Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Everything in Essentials",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "d2b1480c-03f4-40cb-9a48-f6c2f05afee3",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.259Z",
+  "updated_at": "2026-09-18T02:29:48.259Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Google Business Profile management",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "da3c1dc6-6a9b-490a-af13-60a48793347b",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.275Z",
+  "updated_at": "2026-09-18T02:29:48.275Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Session recording & visual heatmaps",
+  "sort_order": 8,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "da8313e5-1962-454a-ae29-322553c4bb6e",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.310Z",
+  "updated_at": "2026-09-18T02:29:48.311Z",
+  "tier": "d486de9b-88e8-4c41-9414-7c7c1fddb3e2",
+  "text": "Uptime monitoring 24/7",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "da879679-bd6c-4878-a23d-49d517b1e792",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.270Z",
+  "updated_at": "2026-09-18T02:29:48.270Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Up to 12 hours of content updates per month",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "dc908721-6205-48df-b874-90d71cd6014c",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.336Z",
+  "updated_at": "2026-09-18T02:29:48.337Z",
+  "tier": "fcba0f1e-caf7-43c3-aa30-d8e9d00527e2",
+  "text": "Month-to-month after the build term: cancel anytime",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "dfd364ef-e5a1-41c3-afa1-d30271cde80c",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.345Z",
+  "updated_at": "2026-09-18T02:29:48.345Z",
+  "tier": "bbed7c62-81fd-494b-829e-280121115806",
+  "text": "Security patching included",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "e18ed7e6-bbc8-476d-a3f4-94fbc7a66d89",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.277Z",
+  "updated_at": "2026-09-18T02:29:48.277Z",
+  "tier": "c71ac798-34ad-4b2e-b0f7-a49004c59c54",
+  "text": "Monthly strategy call (45 minutes)",
+  "sort_order": 10,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "e493f159-4943-4672-8a58-84dc0886cc34",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.248Z",
+  "updated_at": "2026-09-18T02:29:48.248Z",
+  "tier": "dd416cc0-f52e-4245-911f-d105c48e12b9",
+  "text": "Emergency response within 24 hours",
+  "sort_order": 6,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "efff1d91-a9a5-4a1e-bf27-a44a6ea3a4d7",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.347Z",
+  "updated_at": "2026-09-18T02:29:48.347Z",
+  "tier": "bbed7c62-81fd-494b-829e-280121115806",
+  "text": "Month-to-month from day one: cancel anytime",
+  "sort_order": 4,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "f0abec8e-22f7-46c7-bb17-6a5c85b038a5",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.374Z",
+  "updated_at": "2026-09-18T02:29:48.374Z",
+  "tier": "a5499abb-27c3-47bc-b763-6fad771faab9",
+  "text": "Premium attorney-niche TLDs — .law, .legal, .attorney",
+  "sort_order": 1,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "f1481545-a04d-4abd-9c23-d7750a41bbe7",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.293Z",
+  "updated_at": "2026-09-18T02:29:48.293Z",
+  "tier": "6b883ee3-6b11-4f78-86b6-e0156b9addac",
+  "text": "Custom graphics included",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "f469c17a-12ca-473a-8878-933079dbfb9c",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.220Z",
+  "updated_at": "2026-09-18T02:29:48.220Z",
+  "tier": "6ddf27b6-cf61-4492-8f1d-384835e8b8e2",
+  "text": "2 rounds of revisions included",
+  "sort_order": 7,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "f53dd339-f81c-446f-89d6-c26207ef3a77",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.230Z",
+  "updated_at": "2026-09-18T02:29:48.230Z",
+  "tier": "50afd230-d119-4e7b-85d2-b03657cec4a3",
+  "text": "Everything in Essential",
+  "sort_order": 2,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "fb5ff78e-acf5-4a4d-bd52-8fade641768c",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.311Z",
+  "updated_at": "2026-09-18T02:29:48.311Z",
+  "tier": "d486de9b-88e8-4c41-9414-7c7c1fddb3e2",
+  "text": "Monthly backups verified",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "fd3fa308-7cf1-42ae-b0cc-b71ebac64233",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.258Z",
+  "updated_at": "2026-09-18T02:29:48.258Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "1 blog post per month",
+  "sort_order": 3,
+  "is_highlight": false
+ }
+},
+{
+ "model": "billing.tierfeature",
+ "pk": "fe175141-75fc-4db5-a266-6a56406155d3",
+ "fields": {
+  "created_at": "2026-09-18T02:29:48.262Z",
+  "updated_at": "2026-09-18T02:29:48.262Z",
+  "tier": "f2abe682-460a-47aa-b4ab-2354ee281d29",
+  "text": "Priority response within 8 hours",
+  "sort_order": 8,
+  "is_highlight": false
+ }
+}
+]

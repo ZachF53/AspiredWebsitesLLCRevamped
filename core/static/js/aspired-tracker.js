@@ -8,7 +8,10 @@
  * exit intent signals.
  *
  * All data batched and sent on page unload.
- * No cookies. No PII. No external requests.
+ * No cookies. No PII. No third-party requests.
+ * Session recording (Tier 2, opt-in per site)
+ * masks every input and is skipped entirely
+ * when the browser sends Global Privacy Control.
  *
  * <script src="...aspired-tracker.js"
  *   data-aspired-client="UUID" defer></script>
@@ -338,10 +341,35 @@
     'https://aspiredwebsites.com/api/tracker-config/' +
     CLIENT_ID + '/';
 
-  // Non-blocking — Tier 1 analytics already
-  // running above. We only wait on this fetch
-  // to decide whether to load rrweb.
-  if (typeof fetch === 'function') {
+  // Global Privacy Control: a visitor whose
+  // browser sends GPC is never recorded, on our
+  // site or a client's. Tier 1 (anonymous,
+  // aggregate event counts) still runs.
+  var gpcOptOut = (navigator.globalPrivacyControl === true);
+
+  // Deferred until after the page has loaded
+  // and the main thread is idle: the recorder's
+  // first full snapshot is the single heaviest
+  // thing this script does, and running it
+  // during load was pushing the host page's
+  // Largest Contentful Paint back.
+  function afterLoadIdle(fn) {
+    function idle() {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(fn, { timeout: 4000 });
+      } else {
+        setTimeout(fn, 1500);
+      }
+    }
+    if (document.readyState === 'complete') { idle(); }
+    else { window.addEventListener('load', idle, { once: true }); }
+  }
+
+  if (typeof fetch === 'function' && !gpcOptOut) {
+    afterLoadIdle(loadRecordingConfig);
+  }
+
+  function loadRecordingConfig() {
     fetch(CONFIG_ENDPOINT, {
       method: 'GET',
       credentials: 'omit',

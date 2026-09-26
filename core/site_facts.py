@@ -24,39 +24,39 @@ Scope, deliberately narrow:
   schema.org consumers expect a locality.
 
 Approved 2026-08-16: "Based in Georgia. Serving clients nationwide."
+Tightened 2026-09-25 (implementation plan D-14): the canonical location
+is the city, Warner Robins, GA, everywhere, so prose now names it too.
 """
 
+from django.utils.functional import SimpleLazyObject
 
-# Where the company is. State-level, per the approved public wording.
-LOCATION_BASE = 'Georgia'
+
+# Where the company is. City-level since the Sept 2026 plan (D-14).
+LOCATION_BASE = 'Warner Robins, GA'
 
 # Reach. Approved: the business serves the whole US.
 LOCATION_REACH = 'nationwide'
 
 # The canonical one-line statement for prose and meta descriptions.
-LOCATION_STATEMENT = 'Based in Georgia. Serving clients nationwide.'
+LOCATION_STATEMENT = 'Based in Warner Robins, Georgia. Serving clients nationwide.'
 
 # Compact form for places with a tight character budget (meta
 # descriptions, email signatures) where the full stop-separated sentence
 # reads awkwardly mid-paragraph.
-LOCATION_PHRASE = 'based in Georgia, serving clients nationwide'
+LOCATION_PHRASE = 'based in Warner Robins, Georgia, serving clients nationwide'
 
 # Governing law. Approved 2026-08-16 and corroborated by both contract
 # templates, which already specified it. The venue COUNTY is still
 # unresolved, so nothing here names one.
 GOVERNING_LAW_STATE = 'Georgia'
 
-# ── Delivery timeline. Approved 2026-08-17 ────────────────────────────
-# Three weeks Essential, four weeks Premium. This matches what
-# `seed_pricing` already writes to ServiceTier.timeline_weeks, so the
-# database and the public copy finally agree; the "about six weeks"
-# wording scattered across a dozen pages was the outlier.
-#
-# The numbers themselves are NOT restated here — they live on
-# ServiceTier.timeline_weeks and templates render them from the tier, so
-# a pricing-admin edit updates the pages. Only the shared phrasing lives
-# in this module.
-DELIVERY_QUALIFIER = 'after kickoff, depending on scope and content readiness'
+# ── Delivery timeline. Revised 2026-09-25 (plan D-18) ────────────────
+# One build, one timeline: four to six weeks, depending on how quickly
+# content comes back. The Week 1 -> Week 6 process on /services/web-design/
+# is the same statement broken into steps.
+BUILD_TIMELINE = 'four to six weeks'
+BUILD_TIMELINE_TITLE = 'Four to Six Weeks'
+DELIVERY_QUALIFIER = 'depending on how quickly content comes back'
 
 # ── The sales call. Approved 2026-08-17 ───────────────────────────────
 # One name, one duration, one destination. Before this the site offered
@@ -85,14 +85,50 @@ CALL_CTA_SHORT = 'Book a Strategy Call'
 # canonical scheduler can move without another thirty-link sweep.
 CALL_URL_NAME = 'scheduler:design_schedule'
 
-# The build guarantee, as the signed contract actually grants it
-# (clients/contract_template.py §7 and §10). Public copy must not promise
-# more or less than this.
+# The build guarantee, as the signed contract grants it
+# (clients/contract_template.py). Revised 2026-09-25 by the owner: within
+# 30 days of signing the client may cancel; 25% of what has been paid is
+# retained for work already done and the other 75% is refunded, and any
+# remaining installments are cancelled. Public copy must not promise more
+# or less than this. The refund itself is executed from the admin
+# dashboard (website detail -> Billing -> 30-day guarantee).
+GUARANTEE_DAYS = 30
+GUARANTEE_REFUND_PERCENT = 75
+GUARANTEE_RETAINED_PERCENT = 25
 BUILD_GUARANTEE = (
-    'If you are not satisfied with your website build, you may request a '
-    'full refund of the build fee within 30 days of signing your agreement.'
+    'If you are not satisfied with your website build, you may cancel '
+    'within 30 days of signing your agreement. We refund 75% of what you '
+    'have paid, keep 25% for the work already done, and cancel any '
+    'remaining payments.'
 )
-BUILD_GUARANTEE_SHORT = '30-Day Money-Back Guarantee'
+BUILD_GUARANTEE_SHORT = '30-Day Guarantee'
+
+# Phone. A San Antonio number that rings in Warner Robins; explained
+# wherever it is shown so the 210 area code doesn't read as a Texas office.
+PHONE_DISPLAY = '(210) 896-2536'
+PHONE_TEL = '+12108962536'
+PHONE_NOTE = 'A San Antonio number that rings in Warner Robins, GA'
+
+
+# Routes where the visitor tracker and session recorder never load:
+# anything carrying a credential, a token in the URL, payment details or
+# a logged-in client's data. Recording is for improving the marketing
+# pages, nothing else (plan M-1.08, disclosed in the privacy policy).
+TRACKING_EXCLUDED_PREFIXES = (
+    '/login', '/logout', '/password-reset', '/set-password', '/portal',
+    '/onboarding', '/pay/', '/plan-pay/', '/billing/', '/checkout',
+    '/maintenance/', '/admin', '/proposals/', '/intelligence/', '/nps/',
+    '/ref/', '/api/',
+)
+
+
+def tracking_allowed(path):
+    return not any(path.startswith(p) for p in TRACKING_EXCLUDED_PREFIXES)
+
+
+def _site_content():
+    from public.models import SiteContent
+    return SiteContent.get_solo()
 
 
 def site_facts(request):
@@ -106,6 +142,16 @@ def site_facts(request):
         'BUILD_GUARANTEE': BUILD_GUARANTEE,
         'BUILD_GUARANTEE_SHORT': BUILD_GUARANTEE_SHORT,
         'DELIVERY_QUALIFIER': DELIVERY_QUALIFIER,
+        'BUILD_TIMELINE': BUILD_TIMELINE,
+        'BUILD_TIMELINE_TITLE': BUILD_TIMELINE_TITLE,
+        'GUARANTEE_DAYS': GUARANTEE_DAYS,
+        'GUARANTEE_REFUND_PERCENT': GUARANTEE_REFUND_PERCENT,
+        'GUARANTEE_RETAINED_PERCENT': GUARANTEE_RETAINED_PERCENT,
+        'PHONE_DISPLAY': PHONE_DISPLAY,
+        'PHONE_TEL': PHONE_TEL,
+        'PHONE_NOTE': PHONE_NOTE,
+        'SITE_CONTENT': SimpleLazyObject(_site_content),
+        'TRACKING_ALLOWED': tracking_allowed(getattr(request, 'path', '') or ''),
         'CALL_NAME': CALL_NAME,
         'CALL_DURATION_MINUTES': CALL_DURATION_MINUTES,
         'CALL_CTA': CALL_CTA,

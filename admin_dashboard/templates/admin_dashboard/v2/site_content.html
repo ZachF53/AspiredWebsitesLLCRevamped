@@ -1,0 +1,52 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Site Content — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2 · Public site</span>
+            <h1 class="admin-page-title">Site content (owner inputs)</h1>
+            <p class="admin-page-sub">
+                Each section below stays hidden on the public site until its fields are filled in.
+                Only write what is true today. Saving publishes immediately.
+                {% if row.updated_at %}Last saved {{ row.updated_at|date:"M j, Y g:i A" }}.{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+            <div class="admin-flash admin-flash--{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" class="pricing-form">
+        {% csrf_token %}
+        {% for title, fields in groups %}
+            <div class="admin-card">
+                <div class="admin-card__header"><h2 class="admin-card__title">{{ title }}</h2></div>
+                <div class="admin-card__body">
+                    {% for field in fields %}
+                        {% if field.field.widget.input_type == 'checkbox' %}
+                            <label class="checkbox-row">
+                                {{ field }}
+                                <span>{{ field.label }}{% if field.help_text %} ({{ field.help_text }}){% endif %}</span>
+                            </label>
+                        {% else %}
+                            <div class="form-group">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<p class="form-hint">{{ field.help_text }}</p>{% endif %}
+                                {% if field.errors %}<div class="form-field-error">{{ field.errors|join:" " }}</div>{% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn-primary btn-sm">Save site content</button>
+    </form>
+</div>
+{% endblock %}

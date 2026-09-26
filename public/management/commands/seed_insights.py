@@ -68,12 +68,14 @@ actually search when a unit fails.</p>
 <p>A team, a strategist, a project manager, and an office to pay for.
 Sometimes worth it. Often you are buying the overhead.</p>
 
-<h2>What actually changes the price</h2>
-<p>Four things, in order of impact:</p>
+<h2>What changes the <em>work</em>, and when we’ll tell you the flat price doesn’t fit</h2>
+<p>The build is one flat price. These four things change how much work it is.
+If yours needs far more than a normal build, we’ll say so on the call and
+quote it rather than guess:</p>
 <ul>
   <li><strong>Page count.</strong> A five-page site is not half the work
-  of a ten-page site, but it is not the same either. For law firms this
-  is usually practice areas: each one needs its own real page.</li>
+  of a ten-page site, but it is not the same either. For an HVAC or home-service company this
+  is usually service pages and service-area pages: each one needs its own real page.</li>
   <li><strong>Functionality.</strong> Booking, payments, client logins,
   intake forms that route somewhere specific. A brochure site and a site
   that <em>does</em> something are different projects.</li>
@@ -93,16 +95,15 @@ Sometimes worth it. Often you are buying the overhead.</p>
   <li><strong>Hosting and security.</strong> $45/month on its own, or
   bundled into the Full Plan.</li>
   <li><strong>The Full Plan.</strong> $250/month, build payment
-  included, covering hosting, maintenance, unlimited content updates
-  and automated review generation. Drops to $145/month automatically
+  included, covering hosting, maintenance, unlimited content updates, a monthly security
+  report and automated review generation. Drops to $145/month automatically
   once the build is paid off at month 24. If you paid the build
   upfront, the same plan is $145/month from day one.</li>
-  <li><strong>Out-of-scope work.</strong> $85/hour, invoiced before it
-  starts, for anything outside the original build.</li>
-  <li><strong>SEO.</strong> A separate ongoing discipline. A well-built
-  site can be found. Being found <em>first</em>, especially in the map
-  pack, comes from reviews as much as it does from the build. See
-  <a href="/services/review-automation/">automated review generation</a>.</li>
+  <li><strong>Out-of-scope work.</strong> $85/hour, quoted and approved before it
+  starts and invoiced after, for anything outside the original build.</li>
+  <li><strong>Reviews.</strong> Being found first in the map pack comes from review
+  count and recency as much as the build. Automated review generation is included in
+  the Full Plan; see <a href="/services/review-automation/">how it works</a>.</li>
 </ul>
 
 <h2>A decision framework</h2>
@@ -166,8 +167,7 @@ while you wait.</p>
 from crawlers, pages blocked in robots.txt, or no sitemap. More common
 than people expect, especially on builder and page-builder sites.</p>
 <p><strong>Fix:</strong> a technical audit. Our
-<a href="/audit/">free website audit</a> checks the basics in about a
-minute. <strong>Timeline:</strong> fixes land in days; Google notices
+<a href="/audit/">free website audit</a> checks the basics in about 30 seconds. <strong>Timeline:</strong> fixes land in days; Google notices
 in weeks.</p>
 
 <h2>5. One page is trying to be ten</h2>
@@ -184,8 +184,8 @@ list. <strong>Timeline:</strong> two to three months to see movement.</p>
 homepage takes more than about three seconds on mobile data, you are
 losing people before they see anything, and Google knows.</p>
 <p><strong>Fix:</strong> usually images and bloat. When we rebuilt this
-site, mobile load time went from 4.1 seconds to 1.5, measured before
-and after, not estimated.</p>
+site, the biggest mobile wins came from exactly those two things: smaller
+images and less code on every page.</p>
 
 <h2>7. Your listings disagree with each other</h2>
 <p>An old suite number on one directory, a former phone number on
@@ -212,6 +212,9 @@ being straight with you.</p>
     },
     {
         'slug': 'how-much-does-law-firm-web-design-cost',
+        # Sept 2026 plan M-3.05: kept reachable, but noindexed, unlisted
+        # and shown with an archived notice.
+        'is_archived': True,
         'title': 'How Much Does Law Firm Web Design Cost?',
         'summary': (
             'What attorneys actually pay, why the vendor platforms cost '

@@ -20,6 +20,9 @@ own indexable URL).
         {% if study.business_type or study.location %}
             <span class="pill-tag">{{ study.business_type }}{% if study.business_type and study.location %} &middot; {% endif %}{{ study.location }}</span>
         {% endif %}
+        {% if study.engagement_type == 'maintained' %}
+            <span class="pill-tag">Maintained, not built</span>
+        {% endif %}
         <h3><a href="{{ study.get_absolute_url }}">{{ study.title }}</a></h3>
         {% if study.summary %}<p>{{ study.summary }}</p>{% endif %}
         <a class="btn-secondary" href="{{ study.get_absolute_url }}">Read the case study</a>

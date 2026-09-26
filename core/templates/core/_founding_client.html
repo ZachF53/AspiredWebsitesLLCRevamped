@@ -1,0 +1,38 @@
+{% comment %}
+Founding-client offer (plan D-17a / M-5.02). Renders nothing until the
+owner enables it AND writes the terms in Site Content
+(/admin-dashboard/v2/site-content/). Never shipped with placeholder
+terms: SiteContent.founding_client_ready requires the switch, a headline
+and at least one offer line.
+{% endcomment %}
+{% if SITE_CONTENT.founding_client_ready %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Founding Client Offer</span>
+            <h2>{{ SITE_CONTENT.founding_client_headline }}</h2>
+        </div>
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>What you get</h3>
+                <ul class="bullet-list">
+                    {% for item in SITE_CONTENT.founding_client_offer_items %}<li>{{ item }}</li>{% endfor %}
+                </ul>
+            </article>
+            {% if SITE_CONTENT.founding_client_ask_items %}
+                <article class="card card--accent-left">
+                    <h3>What we ask in return</h3>
+                    <ul class="bullet-list">
+                        {% for item in SITE_CONTENT.founding_client_ask_items %}<li>{{ item }}</li>{% endfor %}
+                    </ul>
+                </article>
+            {% endif %}
+        </div>
+        <p class="text-center mt-4">
+            <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}

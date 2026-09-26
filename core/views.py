@@ -12,7 +12,7 @@ from datetime import date
 from django.shortcuts import render
 
 
-LEGAL_EFFECTIVE_DATE = date(2026, 5, 23)
+LEGAL_EFFECTIVE_DATE = date(2026, 9, 25)
 
 
 def privacy_policy(request):
@@ -40,13 +40,19 @@ def terms_of_service(request):
 
 
 def refund_policy(request):
+    # The hourly rate is quoted in the policy; read it from the database
+    # like every other price (CLAUDE.md: never hardcode prices).
+    from billing.pricing_models import AddonPricing
+    hourly = AddonPricing.objects.filter(
+        slug='addon-hourly', is_active=True).first()
     return render(request, 'core/refund_policy.html', {
         'active_nav': '',
         'effective_date': LEGAL_EFFECTIVE_DATE,
+        'hourly_display': hourly.get_price_display() if hourly else 'Billed hourly',
         'meta_title': 'Refund Policy | Aspired Websites',
         'meta_description': (
-            'Refund terms for builds, maintenance, social media, '
-            'hosting, and add-on services from Aspired Websites LLC.'
+            'Refund terms for website builds, the Full Plan, hosting, '
+            'and add-on services from Aspired Websites LLC.'
         ),
     })
 

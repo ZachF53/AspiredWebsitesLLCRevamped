@@ -1,5 +1,5 @@
 """
-Seed the four public case studies (Master Plan §11).
+Seed the five public case studies (Master Plan §11).
 
 The portfolio page used to hardcode these as markup, which meant all
 four projects shared one URL. They are data now so each can have its
@@ -82,22 +82,21 @@ STUDIES = [
             'current without interrupting the enquiries it already '
             'receives.'
         ),
+        # Sept 2026 plan M-1.02: the previous copy published an internal
+        # working note (a pointer to docs/brand_fact_matrix.md). Public
+        # copy states the engagement plainly and claims no numbers.
         'solution': (
-            'Aspired Websites took over ongoing maintenance of the '
-            'existing WordPress site and made targeted improvements to '
-            'it.\n\n'
-            'The specific improvements are not itemised here. Listing '
-            'them publicly requires confirming exactly which changes '
-            'Aspired made and may describe; see the Denis Law Group rows '
-            'in docs/brand_fact_matrix.md.'
+            'Aspired Websites maintains the firm’s existing WordPress '
+            'site: security and plugin updates, uptime monitoring, '
+            'backups, and content changes as the practice needs them, '
+            'without interrupting the enquiries the site already brings in.'
         ),
         'results': (
-            'This is a maintenance and improvement engagement on a site '
-            'Aspired did not build, so there is no before-and-after '
-            'build comparison to report and none is claimed.\n\n'
-            'No performance figures are published for this engagement '
-            'until their source, measurement window, baseline and client '
-            'approval are documented.'
+            'A maintenance and improvement engagement on a site Aspired '
+            'did not build. There is no before-and-after rebuild to show '
+            'here, and we don’t publish performance numbers for it. If '
+            'you have a working WordPress site that just needs looking '
+            'after, this is what that looks like.'
         ),
     },
     {
@@ -195,11 +194,71 @@ STUDIES = [
             'business is making, rather than quietly undermining it.'
         ),
     },
+    {
+        # Added to the seed Sept 2026 (plan owner answer 6): copied from
+        # the production row. The client/website links and the
+        # screenshot live on production only.
+        'slug': 'whitehead-wellness',
+        'engagement_type': 'built',
+        'title': 'Whitehead Wellness',
+        'business_type': 'Health and Wellness',
+        'location': 'San Antonio, TX',
+        'live_url': 'https://whiteheadwellness.com/',
+        'card_gradient': 'gradient-blue',
+        'summary': (
+            'A membership platform for a wellness coach who wanted '
+            'progress to feel human: seven Guardians, crests you earn '
+            'rather than buy, and a real person reading every submission.'
+        ),
+        'challenge': (
+            'Most wellness platforms are built for the version of a '
+            'person who never has a hard week. They count things at you, '
+            'shame a broken streak, and rank members against one another. '
+            'Kate wanted the opposite: a membership her clients could '
+            'have a bad week inside of without falling out of it, where a '
+            'missed day is quietly absorbed rather than punished, and '
+            'where progress is confirmed by a human being instead of an '
+            'algorithm. The hard part was keeping real structure and real '
+            'standards while stripping out every pressure mechanic that '
+            'usually enforces them.'
+        ),
+        'solution': (
+            'A custom-built membership site organised around seven '
+            'Guardians, one for each pillar of wellbeing: nutrition, '
+            'movement, sleep, stress, community, lifestyle, and mental '
+            'wellness. Members progress through five crest tiers on each '
+            'Guardian, from Hatchling to Dragon Master, with time gates '
+            'that cannot be rushed and every goal read and verified by '
+            'Kate herself before the next one opens. A two-minute daily '
+            'ritual is free forever, grace days cover missed days '
+            'automatically with no action from the member, and the full '
+            'goal library is readable before anyone is asked for a card. '
+            'Four membership levels run from a free account up to direct '
+            'one-to-one access, with member sign-in, the community wall, '
+            'and the crest-verification workflow all handled in the '
+            'build.'
+        ),
+        'results': (
+            'Launched as a complete membership product rather than a '
+            'brochure site: free signup, four membership levels, '
+            'community posting, the crest-verification flow, and the '
+            'daily ritual were all live on day one. Every goal on every '
+            'Guardian at every tier is readable before payment, a '
+            'deliberate trust decision built into the structure of the '
+            'site, not a page added to it.'
+        ),
+        'metric_1_label': 'Wellness pillars',
+        'metric_1_value': '7',
+        'metric_2_label': 'Progression tiers',
+        'metric_2_value': '5',
+        'metric_3_label': 'Membership levels',
+        'metric_3_value': '4',
+    },
 ]
 
 
 class Command(BaseCommand):
-    help = 'Seed or refresh the four public portfolio case studies.'
+    help = 'Seed or refresh the five public portfolio case studies.'
 
     def add_arguments(self, parser):
         parser.add_argument(

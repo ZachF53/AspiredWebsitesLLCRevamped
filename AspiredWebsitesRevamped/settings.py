@@ -213,7 +213,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # ── Internationalization ────────────────────────────────────────────────────
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'America/Chicago'
+# Eastern: the business and both servers run on New York time (owner,
+# 2026-09-25). Celery beat crontabs follow this (CELERY_TIMEZONE below).
+TIME_ZONE = 'America/New_York'
 USE_I18N = True
 USE_TZ = True
 

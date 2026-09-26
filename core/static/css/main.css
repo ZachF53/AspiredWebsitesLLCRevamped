@@ -18009,3 +18009,318 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     border-radius: 6px;
     border: 1px solid var(--color-border);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Sept 2026 implementation plan (IMPLEMENTATION_GUIDE.md)
+   Public-site components: header tap-to-call, pricing cost table,
+   FAQ accordion, trust block, callback form, booking help.
+   Dark theme tokens only; no light fallbacks.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Header tap-to-call (M-4.01): always visible, outside the hamburger,
+   44px minimum tap target. */
+.nav-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 0.75rem;
+    margin-left: auto;
+    margin-right: var(--space-1);
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: 0.9375rem;
+    white-space: nowrap;
+    text-decoration: none;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+}
+.nav-phone:hover,
+.nav-phone:focus-visible {
+    color: var(--color-orange-light);
+    border-color: var(--color-orange);
+}
+.nav-phone__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--color-orange);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+@media (max-width: 359px) {
+    .nav-phone__number { display: none; }
+}
+@media (min-width: 1024px) {
+    .nav-menu { order: 2; margin-left: auto; }
+    .nav-phone { order: 3; margin-left: var(--space-2); margin-right: 0; }
+}
+
+.footer-note {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+/* Pricing: build scope / billing cards under the build cards. */
+.pricing-scope,
+.pricing-billing {
+    max-width: 920px;
+    margin: var(--space-4) auto 0;
+}
+
+/* Hosting banner: CTA row now sits under the features (M-2.10). */
+.hosting-banner__cta {
+    grid-column: 1 / -1;
+}
+
+/* Total-cost table (M-2.08). Real table on wide screens; each row
+   becomes a labelled card on phones so nothing scrolls sideways. */
+.table-scroll {
+    max-width: 100%;
+}
+.cost-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+.cost-table th,
+.cost-table td {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--color-border);
+}
+.cost-table thead th {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.cost-table tbody th {
+    color: var(--color-text);
+}
+.cost-table__note {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+@media (max-width: 859px) {
+    .cost-table,
+    .cost-table tbody,
+    .cost-table tr,
+    .cost-table th,
+    .cost-table td {
+        display: block;
+        width: 100%;
+    }
+    .cost-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+    .cost-table {
+        background: transparent;
+        border: none;
+    }
+    .cost-table tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        margin-bottom: var(--space-2);
+        background: var(--color-bg-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+    }
+    .cost-table tbody th,
+    .cost-table td[data-label="Included"] {
+        grid-column: 1 / -1;
+    }
+    .cost-table th,
+    .cost-table td {
+        padding: 0.625rem 0.875rem;
+        border-bottom: none;
+    }
+    .cost-table tbody th {
+        font-size: 1.0625rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .cost-table td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+    }
+}
+
+/* FAQ accordion (M-4.08): native details/summary, no JS. */
+.faq-list {
+    display: grid;
+    gap: 0.75rem;
+    max-width: var(--container-narrow);
+    margin: 0 auto;
+}
+.faq-item {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+.faq-item__q {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 1rem 1.25rem;
+    min-height: 44px;
+    font-weight: 700;
+    color: var(--color-text);
+    cursor: pointer;
+    list-style: none;
+}
+.faq-item__q::-webkit-details-marker { display: none; }
+.faq-item__q::after {
+    content: "+";
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-orange);
+}
+.faq-item[open] .faq-item__q::after { content: "\2212"; }
+.faq-item__q:focus-visible {
+    outline: 2px solid var(--color-orange);
+    outline-offset: 2px;
+}
+.faq-item__a {
+    padding: 0 1.25rem 1rem;
+    color: var(--color-text-muted);
+}
+.faq-item__a p { margin: 0; }
+
+/* "Who's behind this" trust block (M-5.04). */
+.trust-block__grid {
+    display: grid;
+    gap: var(--space-3);
+    align-items: start;
+}
+.trust-block__person {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+}
+.trust-block__photo {
+    width: 96px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border-strong);
+    flex-shrink: 0;
+}
+.trust-block__heading {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+}
+.trust-block__name,
+.trust-block__creds,
+.trust-block__phone {
+    margin: 0 0 0.25rem;
+    font-size: 0.9375rem;
+}
+.trust-block__creds,
+.trust-block__phone {
+    color: var(--color-text-muted);
+}
+.trust-block__quote {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-raised);
+    border-left: 3px solid var(--color-orange);
+    border-radius: var(--radius);
+}
+.trust-block__quote blockquote { margin: 0; }
+.trust-block__quote figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+.trust-block__links {
+    font-size: 0.9375rem;
+}
+@media (min-width: 900px) {
+    .trust-block__grid {
+        grid-template-columns: 1.1fr 1.3fr 1fr;
+    }
+}
+
+/* Call-me-back form (M-4.05). */
+.callback-card {
+    margin-bottom: var(--space-3);
+}
+.callback-form {
+    display: grid;
+    gap: var(--space-2);
+}
+@media (min-width: 720px) {
+    .callback-form {
+        grid-template-columns: 1fr 1fr 1fr auto;
+        align-items: end;
+    }
+    .callback-form .form-group { margin-bottom: 0; }
+}
+
+/* Booking page help (M-4.04). */
+.schedule-help {
+    margin: 0 0 var(--space-2);
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+}
+.schedule-help a { font-weight: 700; }
+.schedule-next {
+    counter-reset: next;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--space-2);
+}
+.schedule-next li {
+    counter-increment: next;
+    position: relative;
+    padding-left: 2.25rem;
+}
+.schedule-next li::before {
+    content: counter(next);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--color-orange);
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Trust line under the homepage hero CTAs (M-4.02). */
+.hero__trust {
+    margin: var(--space-2) 0 0;
+    font-weight: 700;
+}
+.hero__trust a { color: inherit; }
+
+/* Jargon glosses (M-5.05): the visible parenthetical is the gloss. */
+.gloss {
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+}

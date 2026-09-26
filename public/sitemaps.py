@@ -8,7 +8,7 @@ crawl this for fast discovery of new pages.
 Priority rationale:
   1.0  home — root
   0.9  services/<*> — money pages that should rank
-  0.8  for-law-firms, pricing, portfolio, audit — strong intent
+  0.8  pricing, portfolio, audit, insights — strong intent
   0.7  about, contact, design/schedule
   0.5  refund-policy, privacy-policy, terms-of-service — required, low-priority
 """
@@ -57,26 +57,20 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
 
 class StrongIntentSitemap(_StaticPageMixin, Sitemap):
     """
-    Pricing, portfolio, audit — high-intent funnels.
+    Pricing, portfolio, audit, insights index: high-intent funnels.
 
-    portfolio_other added Sept 2026 once its noindex was lifted — it's
-    the only real proof of finished work while the HVAC portfolio is
-    still empty. Lower priority than the HVAC portfolio it isn't
-    meant to compete with, so priority is a per-item method rather than
-    the mixin's flat class attribute.
+    /portfolio/other/ was merged into /portfolio/ and 301s (plan M-5.01),
+    so it is no longer listed. The /insights/ index was missing entirely
+    until the Sept 2026 plan (M-6.06).
     """
+    priority = 0.8
     changefreq = 'monthly'
     pages = [
         'public:pricing',
         'public:portfolio',
         'public:audit',
+        'public:insights',
     ]
-
-    def items(self):
-        return list(self.pages) + ['public:portfolio_other']
-
-    def priority(self, item):
-        return 0.6 if item == 'public:portfolio_other' else 0.8
 
 
 class SecondarySitemap(_StaticPageMixin, Sitemap):
@@ -144,7 +138,7 @@ class ArticleSitemap(Sitemap):
 
     def items(self):
         from public.models import Article
-        return Article.objects.filter(status='published')
+        return Article.objects.filter(status='published', is_archived=False)
 
     def location(self, item):
         return item.get_absolute_url()

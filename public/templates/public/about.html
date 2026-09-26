@@ -40,7 +40,7 @@
                          width="400" height="500" decoding="async">
                 </div>
                 <h2 class="bio-name">Zachery Long</h2>
-                <p class="bio-title">Founder, Aspired Websites LLC</p>
+                <p class="bio-title">Founder &amp; Lead Developer, Aspired Websites LLC</p>
                 {% comment %}
                 The location pills used to read "San Antonio, TX" and
                 "Atlanta, GA", which contradicted the approved location
@@ -89,7 +89,7 @@
 
             <article class="card card--teal">
                 <h3>Monthly Security Audits: Included</h3>
-                <p>Every maintenance plan includes a monthly security scan, summarized in a one-page report emailed to you on the 1st. Not an upsell. Standard.</p>
+                <p>Every plan, the Full Plan and Hosting + Security alike, includes a monthly security scan, summarized in a one-page report emailed to you on the 1st. Not an upsell. Standard.</p>
             </article>
         </div>
     </div>
@@ -103,10 +103,12 @@ E-E-A-T fix: "link CISSP to the (ISC)² verification directory and the
 M.S. to the institution". An unverifiable credential claim is worth
 less than no claim, because the reader has no way to check it.
 
-[ZACH] The (ISC)² member-verification link points at the public
-directory. If you have a direct verification URL or a credential ID
-you're willing to publish, swap it in — a direct link is stronger
-than "go look me up".
+The old isc2.org/register-for-exam/verify-a-certification URL returns
+404 (confirmed Sept 2026). (ISC)2's public member-verification tool is
+my.isc2.org/s/MemberVerification: search by last name + member number.
+The member number comes from Site Content (cissp_member_number); until
+it is entered, the page says it is available on request rather than
+printing a placeholder.
 {% endcomment %}
 <section class="section">
     <div class="container">
@@ -120,7 +122,8 @@ than "go look me up".
             <article class="card card--accent-left">
                 <h3>CISSP: (ISC)&sup2;</h3>
                 <p>Certified Information Systems Security Professional. It requires five years of paid security experience across multiple domains, a supervised exam, an endorsement from an existing member, and ongoing continuing education to keep.</p>
-                <p><a href="https://www.isc2.org/register-for-exam/verify-a-certification" target="_blank" rel="noopener">Verify a certification with (ISC)&sup2; &rarr;</a></p>
+                <p><a href="https://my.isc2.org/s/MemberVerification" target="_blank" rel="noopener">Verify with (ISC)&sup2;&rsquo;s member verification tool &rarr;</a></p>
+                <p>Search by last name <strong>Long</strong>{% if SITE_CONTENT.cissp_member_number %} and member number <strong>{{ SITE_CONTENT.cissp_member_number }}</strong>{% else %}; ask us for the member number and we&rsquo;ll send it{% endif %}.</p>
             </article>
 
             <article class="card card--accent-left">
@@ -158,7 +161,7 @@ before they cost anyone a call.
             <article class="card card--accent-left">
                 <h3>We&rsquo;re A Good Fit If</h3>
                 <ul class="bullet-list">
-                    <li>You&rsquo;re an HVAC contractor where one job is worth more than the build</li>
+                    <li>You&rsquo;re an HVAC, plumbing, electrical or other home-service contractor where one job is worth more than the build</li>
                     <li>You want to own the site outright rather than rent it</li>
                     <li>Your website has a job to do: intake, bookings, being found</li>
                     <li>You&rsquo;d rather hear &ldquo;you don&rsquo;t need that&rdquo; than be upsold</li>
@@ -170,7 +173,7 @@ before they cost anyone a call.
                 <h3>We&rsquo;re Probably Not If</h3>
                 <ul class="bullet-list">
                     <li>You need a single page with your hours: a $16/month builder is genuinely better value</li>
-                    <li>You need it live next week; a proper build takes three to four weeks</li>
+                    <li>You need it live next week; a proper build takes {{ BUILD_TIMELINE }}</li>
                     <li>You want guaranteed rankings: nobody can honestly promise those</li>
                     <li>You want the cheapest possible option; we&rsquo;re not it</li>
                     <li>You need a large in-house team on retainer: that&rsquo;s an agency, not us</li>
@@ -188,6 +191,10 @@ before they cost anyone a call.
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% include "core/_continuity.html" %}
+
+<hr class="section-divider" aria-hidden="true">
 
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">

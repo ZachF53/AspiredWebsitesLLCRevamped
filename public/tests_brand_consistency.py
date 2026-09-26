@@ -129,31 +129,30 @@ class PolicyConsistencyTests(TestCase):
         self.assertNotIn('State of Texas', source)
 
     def test_build_guarantee_is_stated_consistently(self):
-        """The pricing badge, Terms and the refund policy must describe
-        the same guarantee the contract grants."""
-        from clients import contract_template
-
-        contract = open(
-            contract_template.__file__, encoding='utf-8').read().lower()
-        self.assertIn('30-day money-back guarantee', contract)
+        """The pricing page, Terms and the refund policy must describe
+        the same guarantee the contract grants. Revised by the owner
+        2026-09-25: within 30 days of signing, 75% of what was paid is
+        refunded and 25% retained."""
+        from core.site_facts import (
+            GUARANTEE_REFUND_PERCENT, GUARANTEE_RETAINED_PERCENT)
 
         for path in ('/pricing/', '/terms/', '/refund-policy/'):
             html = self.client.get(path).content.decode().lower()
             with self.subTest(path=path):
-                self.assertIn('30', html)
-                self.assertIn('money-back guarantee', html)
+                self.assertIn('30 days', html.replace('30-day', '30 days'))
+                self.assertIn('guarantee', html)
+                self.assertIn(f'{GUARANTEE_REFUND_PERCENT}%', html)
+                self.assertIn(f'{GUARANTEE_RETAINED_PERCENT}%', html)
+                self.assertNotIn('full refund of the build fee', html)
 
     def test_refund_policy_does_not_contradict_the_guarantee(self):
-        """It previously said the deposit was refundable for only 7 days
-        while the contract granted 30 days from signing."""
+        """The old milestone treatment (deposit refundable for 7 days,
+        50/50 payments) contradicted the 30-day guarantee and no longer
+        exists: builds are paid in full or in 24 installments."""
         html = self.client.get('/refund-policy/').content.decode().lower()
-        guarantee = html.find('30-day money-back guarantee')
-        seven_day = html.find('7 days from payment')
-        self.assertNotEqual(guarantee, -1)
-        self.assertTrue(
-            seven_day == -1 or guarantee < seven_day,
-            'The 30-day guarantee must be stated before the milestone '
-            'treatment it takes precedence over.')
+        self.assertNotEqual(html.find('30-day guarantee'), -1)
+        self.assertEqual(html.find('7 days from payment'), -1)
+        self.assertEqual(html.find('50% deposit'), -1)
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
@@ -203,7 +202,7 @@ class LocationStatementTests(TestCase):
         html = self.client.get('/about/').content.decode()
         self.assertNotIn('San Antonio, TX', html)
         self.assertNotIn('Atlanta, GA', html)
-        self.assertIn('Based in Georgia', html)
+        self.assertIn('Based in Warner Robins, GA', html)
 
     def test_law_firm_metadata_does_not_promise_bar_compliance(self):
         html = self.client.get('/for-law-firms/').content.decode().lower()
@@ -320,11 +319,16 @@ class DeadInternalLinkTests(TestCase):
     def _retired_names_and_paths():
         from django.urls import reverse
 
-        from public.urls import _RETIRED_TO_WEB_DESIGN, urlpatterns
+        from public.urls import (
+            _MERGED_INTO_PORTFOLIO, _RETIRED_TO_REVIEW_AUTOMATION,
+            _RETIRED_TO_WEB_DESIGN, urlpatterns,
+        )
 
+        retired = (_RETIRED_TO_WEB_DESIGN, _RETIRED_TO_REVIEW_AUTOMATION,
+                   _MERGED_INTO_PORTFOLIO)
         names = {
             pattern.name for pattern in urlpatterns
-            if getattr(pattern, 'callback', None) is _RETIRED_TO_WEB_DESIGN
+            if getattr(pattern, 'callback', None) in retired
         }
         paths = {reverse(f'public:{name}') for name in names}
         return names, paths

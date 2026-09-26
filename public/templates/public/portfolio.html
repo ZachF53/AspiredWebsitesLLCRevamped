@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}HVAC Website Design Portfolio | Aspired Websites{% endblock %}
+{% block title %}Website Portfolio: Custom-Coded Client Work | Aspired Websites{% endblock %}
 
-{% block meta_description %}Custom-coded websites built for HVAC contractors by Aspired Websites. Real projects, real screenshots, hand-coded and mobile-first.{% endblock %}
+{% block meta_description %}Custom-coded websites by Aspired Websites: hand-coded, mobile-first, built to book jobs. See live client work and case studies.{% endblock %}
 
+{% comment %}
+Plan M-5.01 (Sept 2026): the single, indexable portfolio. It used to
+be an HVAC-only grid (empty, with two "coming soon" blocks) plus a
+separate /portfolio/other/ page for the real work; that page now 301s
+here. No HVAC projects exist yet, so the page says so plainly and
+claims nothing it can't show.
+{% endcomment %}
 {% block content %}
 
 {# ───────── Hero ───────── #}
@@ -11,9 +18,9 @@
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Our Work</span>
-            <h1>HVAC Work <span class="accent">In Progress</span></h1>
+            <h1>Custom-Coded Websites, <span class="accent">Built to Book Jobs</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">Custom-coded sites for HVAC contractors, built mobile-first and tied to automated review generation. Project write-ups are publishing shortly. In the meantime, see the businesses I&rsquo;ve already built for.</p>
+            <p class="hero__lead">Hand-coded, mobile-first, and tied to our automated review system. HVAC case studies will be added as they launch; here&rsquo;s the work that&rsquo;s live today.</p>
         </div>
     </div>
 </section>
@@ -25,71 +32,41 @@
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Portfolio</span>
-            <h2>Recent HVAC Projects</h2>
+            <h2>Live Client Work</h2>
         </div>
 
         {% comment %}
-        Rendered from published CaseStudy rows where is_hvac=True rather
-        than hardcoded markup, so each project can have its own indexable
-        URL (§11). Seeded by `manage.py seed_case_studies`; is_hvac is
-        set per row in the admin.
-
-        The primary link is now the case study, not the live client
-        site — an outbound link sends the visitor away, whereas the
-        study keeps them here and does the selling. The live site is
-        still linked, secondarily, on the study itself.
+        Published, non-concept CaseStudy rows (public.views.portfolio).
+        Each card links to the study's own indexable /portfolio/<slug>/
+        page; the live client site is linked from the study itself.
+        Maintained-not-built engagements are labelled on the card
+        (core/_case_study_card.html).
         {% endcomment %}
-        <div class="cards cards--2col">
-            {% for study in case_studies %}
-                {% include "core/_case_study_card.html" with study=study %}
-            {% empty %}
-                <article class="card card--empty-state">
-                    <div class="card__body">
-                        <h3>HVAC case studies coming soon</h3>
-                        <p>Our HVAC project write-ups are being published. In the meantime, <a href="{% url 'public:contact' %}">get in touch</a> and we&rsquo;ll walk you through relevant work directly.</p>
-                    </div>
-                </article>
-            {% endfor %}
-        </div>
+        {% if case_studies %}
+            <div class="cards cards--2col">
+                {% for study in case_studies %}
+                    {% include "core/_case_study_card.html" with study=study %}
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 </section>
 
 <hr class="section-divider" aria-hidden="true">
 
-{% comment %}
-Concept/demo builds, kept strictly separate from the real-client grid
-above (view filters is_concept=False there, is_concept=True here) so
-demonstration work never reads as a paid client project. Hard rule:
-this section's heading must never contain "clients", "contractors",
-"results", or "case studies".
-{% endcomment %}
-<section class="section section--alt">
+<section class="section">
     <div class="container">
-        <div class="section-header">
-            <h2>Concept Designs</h2>
-            <p>These are demonstration builds, not client sites. They show how I approach HVAC layout, speed, and intake. Real project write-ups are coming.</p>
-        </div>
-
-        <div class="cards cards--2col">
-            {% for study in concept_studies %}
-                {% include "core/_case_study_card.html" with study=study %}
-            {% empty %}
-                <article class="card card--empty-state">
-                    <div class="card__body">
-                        <h3>Concept designs coming soon</h3>
-                        <p>HVAC concept builds are being added shortly.</p>
-                    </div>
-                </article>
-            {% endfor %}
-        </div>
+        <article class="card card--accent-left">
+            <h2>HVAC builds: coming as they launch</h2>
+            <p>Every site above is hand-coded to the same standard we build HVAC and home-service sites to. Want to see what an HVAC site would look like for your company? <a href="{% url 'scheduler:design_schedule' %}">Book a call</a> and we&rsquo;ll walk through it with you.</p>
+        </article>
     </div>
 </section>
 
 <hr class="section-divider" aria-hidden="true">
 
-{% include "core/_not_hvac_cta.html" %}
-
-<hr class="section-divider" aria-hidden="true">
+{% include "core/_demo_build.html" %}
+{% include "core/_founding_client.html" %}
 
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block cta-block--deep">
@@ -98,7 +75,7 @@ this section's heading must never contain "clients", "contractors",
             <h2>Ready to Be Our Next Case Study?</h2>
             <p>Your business deserves a site that actually works. Let&rsquo;s build it.</p>
             <div class="hero__ctas">
-                <a class="btn-primary btn-lg" href="{% url 'public:contact' %}">Start Your Project</a>
+                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Start Your Project</a>
                 <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
             </div>
         </div>

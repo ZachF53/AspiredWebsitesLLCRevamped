@@ -9,6 +9,12 @@
 {% block og_description %}{{ article.summary }}{% endblock %}
 
 {% comment %}
+Archived posts (plan M-3.05) stay reachable by URL but are noindexed,
+unlisted and carry a notice pointing at current pricing.
+{% endcomment %}
+{% block robots %}{% if article.is_archived or not IS_PRODUCTION_HOST %}<meta name="robots" content="noindex, follow">{% endif %}{% endblock %}
+
+{% comment %}
 Article schema with named authorship — §11 lists "named authorship and
 bio on every article" as an explicit E-E-A-T fix, and the author is a
 real Person node already declared sitewide, referenced by @id rather
@@ -54,6 +60,18 @@ Organisation entity, canonical and og:image come from base.html (D8).
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% if article.is_archived %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="callout">
+            <p><strong>Archived article.</strong> Aspired Websites now builds for HVAC and home-service contractors. This article is kept for readers who found it useful; see <a href="/insights/how-much-does-a-custom-website-cost/">how much a custom website costs</a> for current pricing.</p>
+        </div>
+    </div>
+</section>
+{% else %}
+{% include "core/_trust_block.html" %}
+{% endif %}
 
 <section class="section">
     <div class="container">

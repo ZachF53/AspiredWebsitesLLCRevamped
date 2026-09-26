@@ -913,12 +913,20 @@ class RetiredServicePageTests(TestCase):
         '/services/web-design/custom-web-development/',
     ]
 
+    # Sept 2026 plan M-3.04: local SEO's closest surviving intent is
+    # map-pack visibility, i.e. automated review generation.
+    REDIRECT_TARGETS = {
+        '/services/seo/local-seo/': '/services/review-automation/',
+    }
+
     def test_retired_pages_redirect_permanently_to_web_design(self):
         for path in self.RETIRED_PATHS:
             with self.subTest(path=path):
                 resp = self.client.get(path)
                 self.assertEqual(resp.status_code, 301)
-                self.assertEqual(resp['Location'], '/services/web-design/')
+                self.assertEqual(
+                    resp['Location'],
+                    self.REDIRECT_TARGETS.get(path, '/services/web-design/'))
 
     def test_retired_pages_are_not_in_the_sitemap(self):
         xml = self.client.get('/sitemap.xml').content.decode()
@@ -1189,28 +1197,23 @@ class CaseStudyTests(TestCase):
 
     def test_portfolio_links_to_every_hvac_study_and_other_page_the_rest(self):
         """
-        Sept 2026 repositioning — /portfolio/ only links HVAC-flagged
-        studies; everything else moved to /portfolio/other/ rather than
-        off the site. None of the seed_case_studies fixtures are
-        actually HVAC, so this splits them to exercise both pages.
+        Sept 2026 plan M-5.01: one indexable /portfolio/ listing every
+        published, non-concept study (HVAC or not); /portfolio/other/
+        301s to it.
         """
         from clients.models import CaseStudy
         studies = list(CaseStudy.objects.filter(is_published=True))
-        hvac, other = studies[:2], studies[2:]
         CaseStudy.objects.filter(
-            pk__in=[s.pk for s in hvac]).update(is_hvac=True)
+            pk__in=[s.pk for s in studies[:2]]).update(is_hvac=True)
 
         portfolio_html = self.client.get('/portfolio/').content.decode()
-        other_html = self.client.get('/portfolio/other/').content.decode()
-
-        for study in hvac:
-            with self.subTest(slug=study.slug, page='portfolio'):
+        for study in studies:
+            with self.subTest(slug=study.slug):
                 self.assertIn(study.get_absolute_url(), portfolio_html)
-                self.assertNotIn(study.get_absolute_url(), other_html)
-        for study in other:
-            with self.subTest(slug=study.slug, page='other'):
-                self.assertIn(study.get_absolute_url(), other_html)
-                self.assertNotIn(study.get_absolute_url(), portfolio_html)
+
+        resp = self.client.get('/portfolio/other/')
+        self.assertEqual(resp.status_code, 301)
+        self.assertEqual(resp['Location'], '/portfolio/')
 
     def test_unpublished_study_404s(self):
         from clients.models import CaseStudy
@@ -1727,7 +1730,7 @@ class ConversionBlockTests(TestCase):
     def test_pricing_has_ownership_block(self):
         html = self.client.get('/pricing/').content.decode()
         self.assertIn('Your Website Should Belong to You', html)
-        for claim in ('source code', 'domain', '30 days notice'):
+        for claim in ('source code', 'domain', '30 days&rsquo; notice'):
             self.assertIn(claim, html)
 
     def test_pricing_objection_faq_covers_the_required_questions(self):
@@ -1817,10 +1820,23 @@ class ConversionBlockTests(TestCase):
 @override_settings(PRODUCTION_HOST='testserver')
 class RobotsTxtTests(TestCase):
     def test_declares_sitemap_and_blocks_app_surfaces(self):
+        """Plan M-3.07: robots.txt no longer maps the back office. Only
+        /admin/ and /api/ are disallowed; everything else private is kept
+        out of search by an X-Robots-Tag header instead."""
         body = self.client.get('/robots.txt').content.decode()
         self.assertIn('Sitemap: https://aspiredwebsites.com/sitemap.xml', body)
-        for path in ('/admin-dashboard/', '/portal/', '/api/', '/pay/'):
+        for path in ('/admin/', '/api/'):
             self.assertIn(f'Disallow: {path}', body)
+        for path in ('/admin-dashboard/', '/portal/', '/outreach/',
+                     '/proposals/', '/intelligence/', '/pay/'):
+            self.assertNotIn(f'Disallow: {path}', body)
+
+    def test_back_office_routes_send_noindex_header(self):
+        for path in ('/admin-dashboard/', '/portal/', '/login/'):
+            with self.subTest(path=path):
+                resp = self.client.get(path)
+                self.assertEqual(resp.get('X-Robots-Tag'), 'noindex, nofollow')
+        self.assertIsNone(self.client.get('/pricing/').get('X-Robots-Tag'))
 
     def test_does_not_block_pages_that_rely_on_noindex(self):
         """Blocking these would hide the noindex tag from crawlers."""
@@ -1851,7 +1867,7 @@ class AccessibilityStructureTests(TestCase):
     """
 
     PAGES = ['/', '/pricing/', '/contact/', '/portfolio/', '/about/',
-             '/audit/', '/insights/', '/portfolio/other/',
+             '/audit/', '/insights/',
              '/locations/atlanta/', '/locations/warner-robins/',
              '/services/review-automation/', '/design/schedule/']
 

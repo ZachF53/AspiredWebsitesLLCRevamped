@@ -157,14 +157,16 @@ CSP_ADMIN_DASHBOARD = CSP_PUBLIC.replace(
     "style-src 'self'; ", "style-src 'self' 'unsafe-inline'; ")
 
 # Disable browser features we never use.
+#
+# Sept 2026 (plan M-6.08): ambient-light-sensor, battery, document-domain
+# and web-share removed. Chrome doesn't recognise them in
+# Permissions-Policy and logged an "Unrecognized feature" console warning
+# on every page view; they were protecting nothing.
 PERMISSIONS_POLICY = (
     "accelerometer=(), "
-    "ambient-light-sensor=(), "
     "autoplay=(), "
-    "battery=(), "
     "camera=(), "
     "display-capture=(), "
-    "document-domain=(), "
     "encrypted-media=(), "
     "fullscreen=(self), "
     "geolocation=(), "
@@ -178,8 +180,17 @@ PERMISSIONS_POLICY = (
     "screen-wake-lock=(), "
     "sync-xhr=(), "
     "usb=(), "
-    "web-share=(), "
     "xr-spatial-tracking=()"
+)
+
+# Back-office and token-gated routes: never indexed, even if a link to
+# one leaks. Paired with the trimmed robots.txt (plan M-3.07), which no
+# longer enumerates these paths.
+NOINDEX_PREFIXES = (
+    '/admin', '/portal/', '/onboarding/', '/pay/', '/plan-pay/',
+    '/set-password/', '/maintenance/', '/sendgrid/', '/outreach/',
+    '/ref/', '/proposals/', '/intelligence/', '/nps/', '/billing/',
+    '/api/', '/login/', '/password-reset/', '/logout/',
 )
 
 
@@ -240,6 +251,8 @@ class SecurityHeadersMiddleware:
             response['X-Frame-Options'] = 'SAMEORIGIN'
 
         response['Permissions-Policy'] = PERMISSIONS_POLICY
+        if path.startswith(NOINDEX_PREFIXES):
+            response['X-Robots-Tag'] = 'noindex, nofollow'
         # Belt-and-suspenders: explicitly assert nosniff even though
         # Django's SecurityMiddleware also sets this.
         response.setdefault('X-Content-Type-Options', 'nosniff')

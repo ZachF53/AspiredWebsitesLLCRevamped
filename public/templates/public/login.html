@@ -11,9 +11,6 @@
 <section class="section login-page">
     <div class="container">
         <article class="card card--featured login-card">
-            <a class="login-card__logo" href="{% url 'public:home' %}" aria-label="Aspired Websites Home">
-                <img src="{% static 'images/logo.png' %}" alt="Aspired Websites" width="122" height="56">
-            </a>
 
             {% if is_admin_login %}
                 <span class="eyebrow">Admin Sign In</span>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ meta_title|default:"Aspired Websites" }} | Aspired Websites{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC contractors.' }}{% endblock %}">
+    <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC and home-service contractors.' }}{% endblock %}">
     <meta name="theme-color" content="#0C1121">
 
     {% comment %}
@@ -46,13 +46,13 @@
 
     <meta property="og:site_name" content="Aspired Websites">
     <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Aspired Websites' }}{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC contractors.' }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ meta_description|default:'Custom-coded websites and automated review generation for HVAC and home-service contractors.' }}{% endblock %}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ CANONICAL_URL }}">
     {% block og_image %}<meta property="og:image" content="{{ SITE_BASE_URL }}{% static 'images/og-default.png' %}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Aspired Websites: custom-coded websites for HVAC contractors">{% endblock %}
+    <meta property="og:image:alt" content="{% block og_image_alt %}Aspired Websites logo{% endblock %}">{% endblock %}
     <meta name="twitter:card" content="summary_large_image">
 
     {# Disable HTMX's auto-injected indicator <style> — blocked by our strict CSP. #}
@@ -102,6 +102,17 @@
                         <source srcset="{% static 'images/logo.webp' %}" type="image/webp">
                         <img src="{% static 'images/logo-2x.png' %}" alt="Aspired Websites" class="logo-img" width="87" height="40">
                     </picture>
+                </a>
+
+                {% comment %}
+                Tap-to-call (plan M-4.01). Outside .nav-menu on purpose:
+                on a phone the menu is collapsed behind the hamburger, and
+                the number has to be one thumb away on every page without
+                opening anything. .nav-phone keeps a 44px tap target.
+                {% endcomment %}
+                <a class="nav-phone" href="tel:{{ PHONE_TEL }}" aria-label="Call or text Aspired Websites at {{ PHONE_DISPLAY }}">
+                    <svg class="nav-phone__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    <span class="nav-phone__number">{{ PHONE_DISPLAY }}</span>
                 </a>
 
                 <button class="nav-toggle"
@@ -174,7 +185,7 @@
                         <span class="logo-mark" aria-hidden="true"></span>
                         <span class="logo-text">Aspired Websites</span>
                     </a>
-                    <p>Custom-coded websites and automated review generation for HVAC contractors.</p>
+                    <p>Custom-coded websites and automated review generation for HVAC and home-service contractors.</p>
                     {% comment %}
                     NAP block — Master Plan §1.1.
 
@@ -200,7 +211,7 @@
                         <span class="footer-nap__name">Aspired Websites LLC</span>
                         Warner Robins, GA
                     </address>
-                    <p class="footer-locations">Serving Warner Robins &nbsp;·&nbsp; Macon &nbsp;·&nbsp; Atlanta &nbsp;·&nbsp; San Antonio</p>
+                    <p class="footer-locations">Serving Warner Robins &nbsp;·&nbsp; Macon &amp; Middle Georgia &nbsp;·&nbsp; Atlanta &nbsp;·&nbsp; San Antonio &nbsp;·&nbsp; Remote nationwide</p>
                 </div>
 
                 {% comment %}
@@ -213,10 +224,9 @@
                 The old law-firm/SEO/social service pages 301 to
                 service_web_design now (Sept 2026 repositioning, see
                 public/urls.py), so they're gone from here rather than
-                linking to a redirect. /portfolio/other/ is the one
-                genuinely distinct piece of pre-repositioning content
-                left, so it's folded into Services below instead of
-                keeping its own column for one link.
+                linking to a redirect. /portfolio/other/ was merged into
+                /portfolio/ (plan M-5.01) and 301s there, so the
+                Portfolio link under Company covers it.
                 {% endcomment %}
                 <div class="footer-col">
                     <h3>Services</h3>
@@ -225,7 +235,6 @@
                         <li><a href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
                         <li><a href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
                         <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
-                        <li><a href="{% url 'public:portfolio_other' %}">Other Businesses We&rsquo;ve Helped</a></li>
                     </ul>
                 </div>
 
@@ -243,7 +252,7 @@
                     <ul>
                         <li><a href="{% url 'public:portfolio' %}">Portfolio</a></li>
                         <li><a href="{% url 'public:insights' %}">Insights</a></li>
-                        <li><a href="{% url 'public:about' %}">About Me</a></li>
+                        <li><a href="{% url 'public:about' %}">About</a></li>
                         <li><a href="{% url 'public:contact' %}">Contact</a></li>
                         {% if request.user.is_authenticated %}
                             <li><a href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
@@ -257,8 +266,9 @@
                     <h3>Contact</h3>
                     <ul>
                         <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
-                        <li><a href="tel:+12108962536">(210) 896-2536</a></li>
-                        <li class="footer-hours">Open any time, we answer within 24&nbsp;hours</li>
+                        <li><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>{% if SITE_CONTENT.phone_accepts_sms %} <span class="footer-note">(call or text)</span>{% endif %}</li>
+                        <li class="footer-note">{{ PHONE_NOTE }}</li>
+                        <li class="footer-hours">Open any time: we answer within 24&nbsp;hours</li>
                     </ul>
                 </div>
             </div>
@@ -269,6 +279,8 @@
                     <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a>
                     <span aria-hidden="true">·</span>
                     <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="{% url 'core:refund_policy' %}">Refund Policy</a>
                 </nav>
                 <div>Hand-coded in Georgia. Serving clients nationwide.</div>
             </div>
@@ -296,7 +308,13 @@
        staging traffic into production's analytics. So only load it
        when we ARE the canonical host.
     {% endcomment %}
-    {% if IS_PRODUCTION_HOST %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
+    {% comment %}
+    TRACKING_ALLOWED (core/site_facts.py) keeps the tracker and its
+    session recorder off every login, password, portal, onboarding,
+    payment and token-bearing route (plan M-1.08). The script itself
+    skips recording when the browser sends Global Privacy Control.
+    {% endcomment %}
+    {% if IS_PRODUCTION_HOST and TRACKING_ALLOWED %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
     {% comment %}
     Google Analytics 4 for the marketing site.
 

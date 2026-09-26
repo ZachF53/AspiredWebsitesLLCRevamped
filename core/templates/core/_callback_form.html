@@ -1,0 +1,35 @@
+{% comment %}
+"Call me back" form (plan M-4.05). Two required fields, one optional.
+A plain POST to public:callback, so it works with JavaScript off (it is
+shown inside the booking page's noscript fallback too). Spam traps match
+the contact form: hidden honeypot plus a signed render time.
+The signed timestamp comes from the signed_form_timestamp tag, so any
+page can include this partial without view changes.
+{% endcomment %}{% load public_forms %}
+<article class="card callback-card">
+    <span class="eyebrow">Rather talk?</span>
+    <h2 class="card__title">Call me back</h2>
+    <p class="schedule-help">Leave a name and number and we&rsquo;ll call you, usually the same day. Or {% if SITE_CONTENT.phone_accepts_sms %}call or text{% else %}call{% endif %} us now at <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>.</p>
+    <form method="post" action="{% url 'public:callback' %}" class="form callback-form">
+        {% csrf_token %}
+        <div aria-hidden="true" class="visually-hidden">
+            <label for="cb_website_url">Website URL (leave blank)</label>
+            <input type="text" name="website_url" id="cb_website_url" autocomplete="off" tabindex="-1">
+        </div>
+        <input type="hidden" name="form_timestamp" value="{% signed_form_timestamp %}">
+        <input type="hidden" name="source_page" value="{{ request.path }}">
+        <div class="form-group">
+            <label for="cb_name">Name <span class="required" aria-hidden="true">*</span></label>
+            <input id="cb_name" name="name" type="text" class="form-control" autocomplete="name" required maxlength="255">
+        </div>
+        <div class="form-group">
+            <label for="cb_phone">Phone <span class="required" aria-hidden="true">*</span></label>
+            <input id="cb_phone" name="phone" type="tel" class="form-control" autocomplete="tel" inputmode="tel" required maxlength="20">
+        </div>
+        <div class="form-group">
+            <label for="cb_best_time">Best time (optional)</label>
+            <input id="cb_best_time" name="best_time" type="text" class="form-control" maxlength="100" placeholder="e.g. weekdays after 4">
+        </div>
+        <button type="submit" class="btn-primary">Call me back</button>
+    </form>
+</article>

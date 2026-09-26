@@ -1,0 +1,24 @@
+{% comment %}
+Labelled demonstration HVAC build (plan D-17b / M-5.02). Renders only
+when the owner enables it and supplies a real, live demo URL and title
+in Site Content. The "not a client site" label is hardcoded here, not a
+field, so it can't be edited away: a demo must never read as client work,
+and this block makes no outcome claims.
+{% endcomment %}
+{% if SITE_CONTENT.demo_ready %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Demonstration Build</span>
+            <h2>{{ SITE_CONTENT.demo_title }}</h2>
+            <p class="concept-label">A demonstration HVAC build, not a client site. It shows how we&rsquo;d build yours; it makes no claims about results.</p>
+        </div>
+        <article class="card card--accent-left">
+            {% if SITE_CONTENT.demo_description %}{{ SITE_CONTENT.demo_description|linebreaks }}{% endif %}
+            <p><a class="btn-secondary" href="{{ SITE_CONTENT.demo_url }}" target="_blank" rel="noopener">Open the demonstration site</a></p>
+        </article>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}

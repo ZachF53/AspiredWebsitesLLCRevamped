@@ -27,8 +27,8 @@
             <h2>2. Information We Collect</h2>
             <h3>From you, directly</h3>
             <ul>
-                <li><strong>Contact form submissions:</strong> your name, business name, phone number, email address, and the message you send us.</li>
-                <li><strong>Website audit data:</strong> the website URL you submit for analysis and the performance scores returned.</li>
+                <li><strong>Contact and call-back requests:</strong> your name, phone number, email address, and the message or best time to call that you send us.</li>
+                <li><strong>Website audit data:</strong> the website URL you submit and the scores returned. The URL is sent to Google PageSpeed Insights to run the checks and to Anthropic to write the plain-English summary. We keep it with your results for your visit only, unless you ask us to email you the full report; then we keep the URL, scores and your email address so we can send it{% if SITE_CONTENT.audit_retention_days %} and delete them after {{ SITE_CONTENT.audit_retention_days }} days{% endif %}.</li>
                 <li><strong>Client portal information:</strong> your login credentials, project details, business information you supply during intake, files you upload, and messages you send through the portal.</li>
                 <li><strong>Payment information:</strong> processed by Stripe. We do not store credit card numbers on our servers.</li>
             </ul>
@@ -36,8 +36,12 @@
             <h3>Automatically</h3>
             <ul>
                 <li><strong>Standard web logs:</strong> IP address, browser type and version, the pages you visit on our site, the time you spent on each page, and the referring URL.</li>
-                <li><strong>Session and heatmap data:</strong> when the Aspired Websites conversion tracker is installed on a client site, it collects anonymized interaction data (clicks, scroll depth, form submissions) to help measure performance. No personally identifying information is captured.</li>
+                <li><strong>Session replay on this website:</strong> we record how visitors move through aspiredwebsites.com (page views, scrolling, clicks, and the page layout) to improve the site. Anything you type into a form is masked in your browser before it is sent and is never recorded. Recordings are kept for {% if SITE_CONTENT.session_recording_retention_days %}{{ SITE_CONTENT.session_recording_retention_days }}{% else %}30{% endif %} days and are not shared outside Aspired Websites. We never record the login, password, client portal, onboarding or payment pages. If your browser sends the Global Privacy Control signal, we don&rsquo;t record your session at all.</li>
+                <li><strong>Session and heatmap data on client sites:</strong> when the Aspired Websites conversion tracker is installed on a client site, it collects anonymized interaction data (clicks, scroll depth, form submissions) to help measure performance, and session replay only where the client has turned it on, with the same input masking and Global Privacy Control rules. No personally identifying information is captured.</li>
             </ul>
+
+            <h3>Review requests sent on behalf of clients</h3>
+            <p>When a client uses automated review generation, the contact details of their customers (name, and phone number or email address) and the fact that a job was completed are used only to send that customer a review request. They are never sold or used for marketing.</p>
 
             <h2>3. How We Use Your Information</h2>
             <ul>
@@ -55,7 +59,8 @@
                 <li><strong>Stripe:</strong> payment processing for invoices and subscriptions.</li>
                 <li><strong>SendGrid:</strong> transactional and marketing email delivery.</li>
                 <li><strong>DigitalOcean:</strong> website hosting and server infrastructure.</li>
-                <li><strong>Anthropic:</strong> AI-powered features (content suggestions, security analysis, customer support automation).</li>
+                <li><strong>Anthropic:</strong> the plain-English summary on website audit results, and our internal tools (content suggestions, security analysis, support drafting).</li>
+                <li><strong>Google PageSpeed Insights:</strong> the website URL you submit to the audit tool, to run its checks.</li>
                 <li><strong>Google:</strong> analytics (Google Analytics) and search visibility data (Google Search Console).</li>
             </ul>
             <p>We may also disclose your information when required by law, to enforce our Terms of Service, or to protect the rights, property, or safety of our users.</p>
@@ -64,8 +69,9 @@
             <p>We use cookies for:</p>
             <ul>
                 <li><strong>Session management:</strong> to keep you signed in to the client portal and to remember your form-filling progress.</li>
-                <li><strong>Analytics:</strong> to understand how visitors use our site so we can improve it.</li>
+                <li><strong>Analytics:</strong> Google Analytics cookies, to understand how visitors use our site so we can improve it. Google Analytics does not load if your browser sends the Global Privacy Control signal.</li>
             </ul>
+            <p>Our own visitor tracker and session replay set no cookies; they use a random identifier that lasts only for the page view.</p>
             <p>We do not use third-party advertising cookies or cross-site tracking. You can disable cookies in your browser, but some site features (including the client portal) will not function without them.</p>
 
             <h2>6. Data Retention</h2>
@@ -97,7 +103,7 @@
             <h2>11. Contact Us</h2>
             <address class="legal-doc__address">
                 <strong>Aspired Websites LLC</strong><br>
-                San Antonio, Texas<br>
+                Warner Robins, Georgia<br>
                 Email: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
                 Phone: <a href="tel:+12108962536">(210) 896-2536</a><br>
                 Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>

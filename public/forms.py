@@ -102,6 +102,64 @@ class ContactForm(forms.Form):
         )
 
 
+class CallbackForm(forms.Form):
+    """
+    "Call me back" (plan M-4.05): the shortest possible path for a phone
+    user who won't fill in the long form or wait for the calendar to load.
+    Name and phone only, plus an optional best time. Saved as a Lead
+    (source='contact_form', tagged 'callback') and emailed to the owner;
+    no SMS alert by owner decision (2026-09-25).
+    """
+
+    name = forms.CharField(
+        label='Name', max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'autocomplete': 'name',
+        }),
+    )
+    phone = forms.CharField(
+        label='Phone', max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'type': 'tel', 'autocomplete': 'tel',
+            'inputmode': 'tel', 'maxlength': '14',
+        }),
+    )
+    best_time = forms.CharField(
+        label='Best time (optional)', max_length=100, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': 'e.g. weekdays after 4',
+        }),
+    )
+    website_url = forms.CharField(required=False)
+    form_timestamp = forms.CharField(required=False)
+
+    def clean_phone(self):
+        from core.phone_utils import normalize_phone
+        phone = normalize_phone(self.cleaned_data.get('phone'))
+        digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
+        if len(digits) < 10:
+            raise forms.ValidationError('Enter a phone number we can call.')
+        return phone
+
+    def save_as_lead(self, ip_address=None):
+        cleaned = self.cleaned_data
+        best = (cleaned.get('best_time') or '').strip()
+        return Lead.objects.create(
+            firm_name='',
+            attorney_name=cleaned['name'],
+            business_type='HVAC',
+            phone=cleaned['phone'],
+            email='',
+            inquiry_text=(
+                'Callback requested.' + (f' Best time: {best}' if best else '')),
+            source='contact_form',
+            tags='callback',
+            status='new',
+            score=0,
+            ip_address=ip_address,
+        )
+
+
 class AuditForm(forms.Form):
     """Single-field form: visitor enters a URL to audit."""
 

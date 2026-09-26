@@ -334,6 +334,26 @@
           });
     });
 
+    // Timezone label (plan M-4.04). Slots are rendered in the visitor's
+    // own zone; say which one, e.g. "Times are shown in your local time
+    // (EDT)." Falls back silently to the server-rendered sentence.
+    (function labelTimezone() {
+        var el = document.getElementById('schedule-tz');
+        if (!el || typeof Intl === 'undefined') { return; }
+        try {
+            var parts = new Intl.DateTimeFormat('en-US', {
+                timeZoneName: 'short'
+            }).formatToParts(new Date());
+            var tz = '';
+            for (var i = 0; i < parts.length; i++) {
+                if (parts[i].type === 'timeZoneName') { tz = parts[i].value; }
+            }
+            if (tz) {
+                el.textContent = 'Times are shown in your local time (' + tz + ').';
+            }
+        } catch (e) { /* keep the fallback sentence */ }
+    })();
+
     // Boot
     buildShell();
     fetchSlots().then(autoSelectFirstAvailable);

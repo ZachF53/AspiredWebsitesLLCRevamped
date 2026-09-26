@@ -26,7 +26,10 @@ custom HVAC websites + automated review generation.
                 <a class="btn btn--primary btn--lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
                 <a class="btn btn--outline-light btn--lg" href="{% url 'public:pricing' %}">See Pricing</a>
             </div>
-            <p class="hero__meta">No annual contracts · 2-week post-launch support · Month-to-month after</p>
+            <p class="hero__trust">
+                {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a> &middot; You own the code
+            </p>
+            <p class="hero__meta">No annual maintenance contracts · 2 weeks free post-launch support · Month-to-month after the build</p>
         </div>
     </div>
 </section>
@@ -39,7 +42,7 @@ custom HVAC websites + automated review generation.
         <div class="section-header">
             <span class="eyebrow">What We Do</span>
             <h2>Three Services. One Goal: Book More Jobs.</h2>
-            <p>Everything we build is owned by you, written in code we can hand off, and built for HVAC customers specifically. Not a generic template with your logo on it.</p>
+            <p>Built for HVAC first. Plumbers, electricians and other home-service trades get the same build, the same price, and the same review automation. Not a generic template with your logo on it.</p>
         </div>
 
         <div class="cards">
@@ -66,7 +69,7 @@ custom HVAC websites + automated review generation.
                     <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
                 </div>
                 <h3>Hosting &amp; Maintenance</h3>
-                <p>Your own isolated server, security patching, unlimited content updates, and a real person who answers. Not a ticket queue.</p>
+                <p>Your own isolated server, security patching, a monthly security report, unlimited content updates, and a real person who answers. Not a ticket queue.</p>
                 <a class="card__link" href="{% url 'public:pricing' %}">Hosting &amp; maintenance pricing </a>
             </article>
         </div>
@@ -107,7 +110,7 @@ custom HVAC websites + automated review generation.
                     <svg viewBox="0 0 24 24"><path d="m13 2-3 12h6l-3 8"/></svg>
                 </div>
                 <h3>Speed-Tuned</h3>
-                <p>Lightweight, hand-coded sites that load in under two seconds. No bloated frameworks, no slow page builders, no abandoned visitors.</p>
+                <p>Lightweight, hand-coded sites with no bloated frameworks and no slow page builders, so visitors on a phone aren&rsquo;t left waiting.</p>
             </div>
 
             <div class="value-tile">
@@ -140,12 +143,12 @@ custom HVAC websites + automated review generation.
             <div class="step">
                 <div class="step__num" aria-hidden="true"></div>
                 <h3>We Build</h3>
-                <p>Custom design, hand-coded site, full SEO setup. You review at every stage and approve before we move on.</p>
+                <p>Custom design, hand-coded site, SEO fundamentals built in. Four to six weeks, and you review and approve every stage before we move on.</p>
             </div>
             <div class="step">
                 <div class="step__num" aria-hidden="true"></div>
                 <h3>Launch &amp; Grow</h3>
-                <p>Site goes live. Two weeks of free support included. Optional monthly maintenance keeps your edge sharp.</p>
+                <p>Site goes live. Two weeks of free support included. The Full Plan keeps it updated, secure, and collecting reviews after that.</p>
             </div>
         </div>
 
@@ -192,10 +195,14 @@ custom HVAC websites + automated review generation.
                 <p class="testimonial__quote">&ldquo;They listened to my ideas and provided valuable suggestions that made sense. The final product exceeded my expectations and I will continue to use their services and refer them to others.&rdquo;</p>
                 <div class="testimonial__author">
                     <div class="testimonial__name">Miki Roberts</div>
-                    <div class="testimonial__title">Moonieful Designs</div>
+                    <div class="testimonial__title"><a href="https://moonieful.com/" target="_blank" rel="noopener">Moonieful Designs</a></div>
                 </div>
             </article>
         </div>
+
+        {% if SITE_CONTENT.google_reviews_url %}
+            <p class="text-center mt-4"><a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">Read our Google reviews &rarr;</a></p>
+        {% endif %}
     </div>
 </section>
 
@@ -203,51 +210,42 @@ custom HVAC websites + automated review generation.
 
 {# ───────── Portfolio strip ───────── #}
 {% comment %}
-Deliberately smaller and shorter than the full /portfolio/ grid — this
-is a homepage teaser, not the portfolio itself. Compact card variant +
-compact-grid (core/_case_study_card.html, core/static/css/main.css)
-instead of the old dedicated portfolio-item markup, so this is the same
-card component used everywhere else on the site, just sized down.
+Deliberately smaller and shorter than the full /portfolio/ grid; this
+is a homepage teaser, not the portfolio itself. Same card partial as
+everywhere else (core/_case_study_card.html), compact variant.
 
-HVAC-only (is_hvac=True, filtered in public.views.home) since the Sept
-2026 repositioning — will often be empty at first, hence the {% empty %}
-fallback below, until HVAC case studies exist.
+Plan M-1.04: every real, published, non-concept project. There are no
+HVAC projects yet and nothing here claims or teases one; the section is
+simply omitted if there were ever no published work at all.
 {% endcomment %}
+{% if studies %}
 <section class="section">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Selected Work</span>
-            <h2>Recent HVAC Builds</h2>
+            <h2>Recent Work</h2>
+            <p>Sites we&rsquo;ve built and maintain, hand-coded to the same standard we build HVAC sites to.</p>
         </div>
 
         <div class="cards cards--compact-grid">
             {% for study in studies %}
                 {% include "core/_case_study_card.html" with study=study compact=True %}
-            {% empty %}
-                <article class="card card--with-visual card--compact card--empty-state">
-                    <div class="card__visual gradient-blue" aria-hidden="true"></div>
-                    <div class="card__body">
-                        <h3><a href="{% url 'public:portfolio' %}">See the portfolio</a></h3>
-                        <p>HVAC project write-ups are publishing shortly.</p>
-                    </div>
-                </article>
             {% endfor %}
         </div>
+
+        <p class="text-center mt-4"><a class="btn-secondary" href="{% url 'public:portfolio' %}">See the portfolio</a></p>
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
-
-{% include "core/_not_hvac_cta.html" %}
-
-<hr class="section-divider" aria-hidden="true">
+{% endif %}
 
 {# ───────── Bottom CTA ───────── #}
 <section class="cta-block">
     <div class="container">
         <div class="cta-block__inner">
             <h2>Ready to Build a Website That Books More HVAC Jobs?</h2>
-            <p>Free 30-minute consultation. Custom-coded, security-hardened, built around HVAC customers. Not a template.</p>
+            <p>Free 30-minute Strategy Call. Custom-coded, security-hardened, built around HVAC and home-service customers. Not a template. Prefer to talk now? Call or text <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>.</p>
             <a class="btn btn--primary btn--lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
         </div>
     </div>

@@ -1,0 +1,24 @@
+{% comment %}
+Continuity and support statement (plan M-3.06). The four default lines
+are verifiably true today; backup cadence and the outage-response target
+render only once the owner fills them in Site Content.
+{% endcomment %}
+<section class="section" id="support">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Continuity</span>
+            <h2>How We Support You</h2>
+            <p>What you can count on from a one-engineer studio, stated plainly.</p>
+        </div>
+        <article class="card card--accent-left">
+            <ul class="bullet-list">
+                <li><strong>One engineer.</strong> Aspired Websites is one engineer. You&rsquo;ll always talk to the person who built your site.</li>
+                <li><strong>Response time.</strong> We answer within 24 hours, seven days a week.</li>
+                <li><strong>No dependency on us.</strong> Once the build is paid off you own your files, so nothing about your site depends on us staying in business.</li>
+                <li><strong>Hosting.</strong> We target 99.9% uptime on DigitalOcean. It&rsquo;s a target, not a guarantee.</li>
+                {% if SITE_CONTENT.continuity_backups %}<li><strong>Backups.</strong> {{ SITE_CONTENT.continuity_backups }}</li>{% endif %}
+                {% if SITE_CONTENT.continuity_outage_response %}<li><strong>Outages.</strong> {{ SITE_CONTENT.continuity_outage_response }}</li>{% endif %}
+            </ul>
+        </article>
+    </div>
+</section>

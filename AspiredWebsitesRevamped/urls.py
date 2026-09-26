@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap as sitemap_view
 from django.http import HttpResponse
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from billing.views import (
     pay_invoice, pay_plan, pay_plan_confirm, pay_plan_success, pay_success,
@@ -31,12 +32,19 @@ def robots_txt(request):
     tag on a page it is not allowed to crawl.
 
     So the split is deliberate:
-      - Disallow  → application surfaces with nothing to index and real
-                    crawl cost (dashboards, APIs, token-gated flows).
-      - noindex   → pages that must stay crawlable so the directive is
-                    actually read (/login/, /audit/results/, thanks and
-                    password-reset pages). See core/templates/
-                    _meta_noindex.html.
+      - Disallow  → only /admin/ and /api/: no HTML worth crawling and
+                    real crawl cost.
+      - noindex   → everything else that must stay out of search. Pages
+                    use the meta tag (core/templates/_meta_noindex.html);
+                    back-office and token-gated routes also get an
+                    X-Robots-Tag header from core.middleware.
+
+    Sept 2026 plan (M-3.07): this file used to list every back-office
+    route (/admin-dashboard/, /portal/, /outreach/, /proposals/,
+    /intelligence/ ...). robots.txt is public, so that was a map of the
+    application handed to anyone who asked, and Disallow is not access
+    control anyway. Those routes are protected by authentication and
+    kept out of search by the X-Robots-Tag header instead.
     """
     # Non-production hosts (staging) disallow everything. Staging has
     # public DNS and a valid certificate, so an "Allow: /" there invites
@@ -52,19 +60,7 @@ def robots_txt(request):
         "User-agent: *\n"
         "Allow: /\n"
         "Disallow: /admin/\n"
-        "Disallow: /admin-dashboard/\n"
-        "Disallow: /portal/\n"
-        "Disallow: /onboarding/\n"
-        "Disallow: /pay/\n"
-        "Disallow: /set-password/\n"
-        "Disallow: /maintenance/\n"
         "Disallow: /api/\n"
-        "Disallow: /sendgrid/\n"
-        "Disallow: /outreach/\n"
-        "Disallow: /ref/\n"
-        "Disallow: /proposals/\n"
-        "Disallow: /intelligence/\n"
-        "Disallow: /nps/\n"
         "\n"
         "Sitemap: https://aspiredwebsites.com/sitemap.xml\n"
     )
@@ -75,6 +71,15 @@ urlpatterns = [
     path('sitemap.xml', sitemap_view, {'sitemaps': SITEMAPS},
          name='django.contrib.sitemaps.views.sitemap'),
     path('robots.txt', robots_txt, name='robots_txt'),
+    # Browsers and crawlers request these at the root regardless of the
+    # <link> tags (which correctly point under /static/images/). They
+    # 404'd in every server log (plan M-6.08); send them to the real files.
+    path('favicon.ico', RedirectView.as_view(
+        url=settings.STATIC_URL + 'images/favicon.ico', permanent=True)),
+    path('apple-touch-icon.png', RedirectView.as_view(
+        url=settings.STATIC_URL + 'images/apple-touch-icon.png', permanent=True)),
+    path('site.webmanifest', RedirectView.as_view(
+        url=settings.STATIC_URL + 'images/site.webmanifest', permanent=True)),
     path('nps/<uuid:token>/<int:score>/', nps_response, name='nps_response'),
     # SendGrid Event Webhook — opens/clicks/bounces/spam reports.
     # Public endpoint, locked by ECDSA signature verification against

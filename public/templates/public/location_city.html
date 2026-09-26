@@ -57,7 +57,7 @@ business entity for the whole site).
                 <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">View Pricing</a>
             </div>
             <p class="hero__meta">
-                {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:+12108962536">(210) 896-2536</a> &middot; You own the code
+                {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a> &middot; You own the code
             </p>
         </div>
     </div>
@@ -110,7 +110,7 @@ section.
 
         {% if other_studies %}
             <div class="section-header">
-                <h2>Here are other businesses we helped out in {{ city.name }}</h2>
+                <h2>Work we&rsquo;ve built for {{ city.name }} businesses</h2>
             </div>
             <div class="cards cards--2col">
                 {% for study in other_studies %}
@@ -141,7 +141,7 @@ section.
 
             <div class="value-tile">
                 <h3>Fast On A Phone</h3>
-                <p>Most local searches happen on mobile data, not office wifi. Our own site loads in about 1.5 seconds on mobile, measured, and you can check it yourself.</p>
+                <p>Most local searches happen on mobile data, not office wifi. We build lean pages with no page builder or bloated framework, so the phone number is on screen fast.</p>
             </div>
 
             <div class="value-tile">
@@ -156,7 +156,7 @@ section.
 
             <div class="value-tile">
                 <h3>You Own It</h3>
-                <p>Code, content, domain, hosting. Leave whenever and take every file. The site keeps working.</p>
+                <p>Code, content, domain. Once the build is paid off, every file is yours, and the site keeps working if you ever cancel the Full Plan.</p>
             </div>
 
             <div class="value-tile">
@@ -169,6 +169,10 @@ section.
 
 <hr class="section-divider" aria-hidden="true">
 {% endif %}
+
+{% include "core/_trust_block.html" %}
+
+<hr class="section-divider" aria-hidden="true">
 
 {% comment %}
 Secondary section — "Who We Work With" / local-fit cards, whatever this

@@ -24,6 +24,12 @@
     var id = tag.getAttribute('data-ga-id');
     if (!id) { return; }
 
+    // Global Privacy Control: GA4 sends visitor data to Google, so a
+    // browser that asks not to have its data shared gets no GA at all.
+    // events.js calls window.gtag only if it exists, so this is a clean
+    // no-op for the conversion events too.
+    if (navigator.globalPrivacyControl === true) { return; }
+
     // gtag.js reads window.dataLayer, so the queue must exist before the
     // remote script lands. Ordering is deliberate: define the shim first,
     // then request the library.
@@ -55,9 +61,26 @@
     // blocked request and the console noise.
     gtag('config', id, { allow_google_signals: false });
 
-    var lib = document.createElement('script');
-    lib.async = true;
-    lib.src = 'https://www.googletagmanager.com/gtag/js?id='
-        + encodeURIComponent(id);
-    document.head.appendChild(lib);
+    // The library itself is fetched only after the page has finished
+    // loading. gtag.js is ~850 ms of main-thread work on a throttled
+    // phone (Lighthouse, Sept 2026 baseline) and was the largest single
+    // contributor to mobile LCP. Nothing is lost by waiting: every
+    // gtag() call before then sits in dataLayer and is sent when the
+    // library arrives.
+    function loadLibrary() {
+        var lib = document.createElement('script');
+        lib.async = true;
+        lib.src = 'https://www.googletagmanager.com/gtag/js?id='
+            + encodeURIComponent(id);
+        document.head.appendChild(lib);
+    }
+    function whenIdle() {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(loadLibrary, { timeout: 3000 });
+        } else {
+            setTimeout(loadLibrary, 1200);
+        }
+    }
+    if (document.readyState === 'complete') { whenIdle(); }
+    else { window.addEventListener('load', whenIdle, { once: true }); }
 })();

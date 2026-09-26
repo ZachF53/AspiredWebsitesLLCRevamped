@@ -16,14 +16,24 @@ app_name = 'public'
 _RETIRED_TO_WEB_DESIGN = RedirectView.as_view(
     pattern_name='public:service_web_design', permanent=True)
 
+# Plan M-3.04 (Sept 2026): local SEO as a service is discontinued, and the
+# closest surviving intent for someone who searched for it (showing up in
+# the map pack) is automated review generation, not the build page.
+_RETIRED_TO_REVIEW_AUTOMATION = RedirectView.as_view(
+    pattern_name='public:service_review_automation', permanent=True)
+
+# Plan M-5.01: /portfolio/other/ merged into the single /portfolio/.
+_MERGED_INTO_PORTFOLIO = RedirectView.as_view(
+    pattern_name='public:portfolio', permanent=True)
+
 urlpatterns = [
     path('', views.home, name='home'),
     path('for-law-firms/', _RETIRED_TO_WEB_DESIGN, name='law_firms'),
     path('portfolio/', views.portfolio, name='portfolio'),
-    # Non-HVAC portfolio (Sept 2026 repositioning) — must come before the
+    # Merged into /portfolio/ (plan M-5.01); 301. Must come before the
     # <slug:slug> pattern below, or '/portfolio/other/' would match it
     # first with slug='other' and 404 as a case study that doesn't exist.
-    path('portfolio/other/', views.portfolio_other, name='portfolio_other'),
+    path('portfolio/other/', _MERGED_INTO_PORTFOLIO, name='portfolio_other'),
     # Master Plan §11 — every project gets its own indexable URL.
     path('portfolio/<slug:slug>/', views.case_study_detail,
          name='case_study_detail'),
@@ -49,7 +59,7 @@ urlpatterns = [
     path('services/web-design/law-firm-web-design/',
          _RETIRED_TO_WEB_DESIGN,
          name='service_law_firm_web_design'),
-    path('services/seo/local-seo/', _RETIRED_TO_WEB_DESIGN,
+    path('services/seo/local-seo/', _RETIRED_TO_REVIEW_AUTOMATION,
          name='service_local_seo'),
     path('services/web-design/small-business-web-design/',
          _RETIRED_TO_WEB_DESIGN,
@@ -87,6 +97,7 @@ urlpatterns = [
          {'slug': 'warner-robins'}, name='location_warner_robins'),
     path('contact/', views.contact, name='contact'),
     path('contact/thanks/', views.contact_thanks, name='contact_thanks'),
+    path('callback/', views.callback_request, name='callback'),
     path('about/', views.about, name='about'),
     path('audit/', views.audit, name='audit'),
     path('audit/results/', views.audit_results, name='audit_results'),

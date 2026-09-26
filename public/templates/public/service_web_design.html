@@ -3,7 +3,7 @@
 
 {% block title %}Custom HVAC Website Design | Aspired Websites{% endblock %}
 
-{% block meta_description %}Custom website design for HVAC contractors in Texas & Georgia. Hand-coded, security-hardened, mobile-perfect websites with automated review generation built in. No templates, no page builders.{% endblock %}
+{% block meta_description %}Custom website design for HVAC and home-service contractors in Georgia, Texas and nationwide. Hand-coded, security-hardened, mobile-first websites with automated review generation. No templates, no page builders.{% endblock %}
 
 {% block og_title %}Custom HVAC Website Design | Aspired Websites{% endblock %}
 {% block og_description %}Hand-coded, security-hardened websites built for HVAC contractors. Built by a CISSP-certified engineer, with automated review generation included.{% endblock %}
@@ -30,7 +30,7 @@ rather than re-declaring it (Master Plan D8).
         { "@type": "State", "name": "Georgia" },
         { "@type": "City", "name": "San Antonio" }
     ],
-    "description": "Custom, hand-coded, security-hardened websites for HVAC contractors, with automated review generation built in. No templates, no page builders.",
+    "description": "Custom, hand-coded, security-hardened websites for HVAC and home-service contractors, with automated review generation built in. No templates, no page builders.",
     "offers": {
         "@type": "Offer",
         "price": "{{ build_full.price|default:'0'|floatformat:0 }}",
@@ -52,7 +52,8 @@ rather than re-declaring it (Master Plan D8).
             <p class="hero__lead">
                 Every website we build is hand-coded from scratch around your business:
                 your clients, your offers, your conversion path. No templates.
-                No drag-and-drop bloat. No monthly lock-in. You own every file.
+                No drag-and-drop bloat. Month-to-month after the build, and you own
+                every file once it&rsquo;s paid off.
             </p>
             <div class="hero__ctas">
                 <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get a Free Website Audit</a>
@@ -70,7 +71,7 @@ rather than re-declaring it (Master Plan D8).
         <div class="section-header">
             <span class="eyebrow">Sound Familiar?</span>
             <h2>Your Current Website Is Costing You Business.</h2>
-            <p>If any of these are true, you're leaking revenue every single day.</p>
+            <p>If you have a site, here&rsquo;s what&rsquo;s probably wrong with it. If you don&rsquo;t have one yet, skip to <a href="#just-starting">Just starting out</a>.</p>
         </div>
 
         <div class="cards cards--2col">
@@ -81,7 +82,7 @@ rather than re-declaring it (Master Plan D8).
 
             <article class="card card--accent-left">
                 <h3>Built On Someone Else's Platform</h3>
-                <p>FindLaw, GoDaddy site builders, Wix, Squarespace: you don't own that site. They do. The day you leave, the site disappears with them.</p>
+                <p>GoDaddy site builders, Wix, Squarespace: you don't own that site. They do. The day you leave, the site disappears with them.</p>
             </article>
 
             <article class="card card--accent-left">
@@ -99,6 +100,38 @@ rather than re-declaring it (Master Plan D8).
 
 <hr class="section-divider" aria-hidden="true">
 
+{% comment %}
+Just starting out (plan M-5.05). New businesses are welcome at the same
+price; this section tells them honestly what matters first, including
+when a cheap builder is the better call. No starter package is offered
+because none exists.
+{% endcomment %}
+<section class="section" id="just-starting">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Just Starting Out?</span>
+            <h2>New HVAC or Home-Service Company? Start Here.</h2>
+            <p>New businesses are welcome, at the same price. Here&rsquo;s what matters first, in order.</p>
+        </div>
+        <div class="cards">
+            <article class="card card--accent-left">
+                <h3>1. Claim your Google Business Profile</h3>
+                <p>It&rsquo;s free, and it&rsquo;s what shows up when a homeowner searches &ldquo;AC repair near me.&rdquo; Fill in every field: services, service area, hours, photos.</p>
+            </article>
+            <article class="card card--accent-left">
+                <h3>2. Get your first reviews</h3>
+                <p>Ask every happy customer. Review count and recency decide who shows up first on the map, often more than the website does.</p>
+            </article>
+            <article class="card card--accent-left">
+                <h3>3. Then a fast site with tap-to-call</h3>
+                <p>That&rsquo;s where we come in. If you only need a single page with your hours, a $16/month builder is honestly better value; <a href="/insights/how-much-does-a-custom-website-cost/">our cost article</a> explains when.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
 {# ───────── What you get ───────── #}
 <section class="section">
     <div class="container">
@@ -111,7 +144,7 @@ rather than re-declaring it (Master Plan D8).
         <div class="value-tiles value-tiles--3col">
             <div class="value-tile">
                 <h3>Hand-Coded</h3>
-                <p>Every line of HTML, CSS, and JavaScript written by a real engineer. No WordPress. No page builders. No third-party theme to break the next time it auto-updates.</p>
+                <p>Every line of HTML, CSS, and JavaScript written by a real engineer. We don&rsquo;t build on WordPress or page builders (we do maintain one client&rsquo;s existing WordPress site). No third-party theme to break the next time it auto-updates.</p>
             </div>
 
             <div class="value-tile">
@@ -121,22 +154,22 @@ rather than re-declaring it (Master Plan D8).
 
             <div class="value-tile">
                 <h3>Speed-Tuned</h3>
-                <p>Optimized images, lean code, no bloated frameworks. Sub-2-second loads on real connections, not just on the developer's wifi.</p>
+                <p>Optimized images, lean code, no bloated frameworks. Built to load fast on a phone on mobile data, not just on the developer's wifi.</p>
             </div>
 
             <div class="value-tile">
                 <h3>Security-Hardened</h3>
-                <p>Built by a CISSP-certified cybersecurity engineer. SSL, security headers, OWASP Top 10 protections, hardened hosting.</p>
+                <p>Built by a CISSP-certified <span class="gloss">(an independent security certification)</span> engineer. SSL <span class="gloss">(the padlock: encrypted connections)</span>, security headers <span class="gloss">(browser instructions that block common attacks)</span>, OWASP Top 10 <span class="gloss">(the ten most common web attacks)</span> protections, hardened hosting.</p>
             </div>
 
             <div class="value-tile">
                 <h3>SEO Foundation</h3>
-                <p>Clean semantic HTML, schema markup, sitemap, meta tags, and a structure Google can understand and rank. Built in on every site, not sold separately.</p>
+                <p>Clean semantic HTML <span class="gloss">(code that labels what each part of the page is)</span>, schema markup <span class="gloss">(structured data that tells Google what your business is)</span>, sitemap, meta tags, and a structure Google can understand. Built in on every site, not sold separately.</p>
             </div>
 
             <div class="value-tile">
                 <h3>You Own It</h3>
-                <p>Source code, hosting, domain, content: all yours. No "you can't take this with you." If we ever part ways, you walk out with every file.</p>
+                <p>Source code, domain, content: all yours once the build is paid off. No "you can't take this with you." If we ever part ways after that, you walk out with every file.</p>
             </div>
         </div>
     </div>
@@ -149,8 +182,8 @@ rather than re-declaring it (Master Plan D8).
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">How It Works</span>
-            <h2>Three To Four Weeks. One Site. Zero Surprises.</h2>
-            <p>Same proven process every time. You always know what stage we're in and what's next.</p>
+            <h2>{{ BUILD_TIMELINE_TITLE }}. One Site. Zero Surprises.</h2>
+            <p>Same process every time, {{ DELIVERY_QUALIFIER }}. You always know what stage we're in and what's next.</p>
         </div>
 
         <div class="cards">
@@ -181,13 +214,13 @@ rather than re-declaring it (Master Plan D8).
             <article class="card">
                 <span class="eyebrow">Week 6</span>
                 <h3>5. Launch</h3>
-                <p>DNS pointed, SSL live, analytics installed, search console verified. Site goes live. We monitor it for the first two weeks, free.</p>
+                <p>DNS <span class="gloss">(the setting that points your domain at the site)</span> pointed, SSL live, analytics installed, Search Console verified. Site goes live. We monitor it for the first two weeks, free.</p>
             </article>
 
             <article class="card">
                 <span class="eyebrow">Ongoing</span>
-                <h3>6. Maintenance (optional)</h3>
-                <p>Monthly plans for updates, monitoring, content tweaks, and the SEO work that keeps you climbing. <a href="{% url 'public:pricing' %}">See plans</a>.</p>
+                <h3>6. The Full Plan (optional)</h3>
+                <p>Monthly plans for updates, monitoring, content changes, security patching, a monthly security report, and automated review generation. <a href="{% url 'public:pricing' %}">See plans</a>.</p>
             </article>
         </div>
     </div>
@@ -218,7 +251,7 @@ rather than re-declaring it (Master Plan D8).
     <div class="container">
         <div class="cta-block">
             <h2>Ready For A Site That Earns Its Place?</h2>
-            <p>The free audit takes 60 seconds. We'll tell you exactly what's working, what's broken, and whether you need a rebuild or just a polish.</p>
+            <p>The free audit takes about 30 seconds. We'll tell you exactly what's working, what's broken, and whether you need a rebuild or just a polish.</p>
             <div class="hero__ctas">
                 <a class="btn-primary btn-lg" href="{% url 'public:audit' %}">Get My Free Audit</a>
                 <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Schedule A Call</a>

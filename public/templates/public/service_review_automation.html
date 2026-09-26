@@ -3,7 +3,7 @@
 
 {% block title %}Automated Review Generation for HVAC | Aspired Websites{% endblock %}
 
-{% block meta_description %}Automated Google review generation for HVAC contractors: every completed job triggers a review request automatically. No technician or office manager has to remember to ask.{% endblock %}
+{% block meta_description %}Automated Google review generation for HVAC and home-service contractors: every completed job triggers a review request automatically. No technician or office manager has to remember to ask.{% endblock %}
 
 {% block og_title %}Automated Review Generation for HVAC | Aspired Websites{% endblock %}
 {% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% endblock %}
@@ -59,6 +59,14 @@ Organisation entity, canonical and og:image come from base.html (D8).
         },
         {
             "@type": "Question",
+            "name": "Which job systems does it connect to?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "It depends on what you already run. Tell us your setup on the call and we'll confirm how the request gets triggered before you sign."
+            }
+        },
+        {
+            "@type": "Question",
             "name": "Is review automation sold on its own?",
             "acceptedAnswer": {
                 "@type": "Answer",
@@ -101,7 +109,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
         <div class="section-header">
             <span class="eyebrow">Why It Matters</span>
             <h2>Reviews Are How HVAC Customers Actually Choose</h2>
-            <p>A homeowner searching for emergency AC repair picks from what Google shows them. Review count and recency decide who gets the call.</p>
+            <p>A homeowner searching for emergency AC repair picks from what Google shows them. Review count and recency decide who gets the call. The same is true for plumbing, electrical and any trade where the homeowner picks from the map.</p>
         </div>
 
         <div class="cards cards--2col">
@@ -149,6 +157,49 @@ Organisation entity, canonical and og:image come from base.html (D8).
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+"How it connects" (plan D-08 / M-5.06). Every row is owner-supplied in
+Site Content and renders only when filled; platform names are never
+invented. Consent and opt-out are first-class fields because SMS review
+requests fall under TCPA consent rules.
+{% endcomment %}
+{% if SITE_CONTENT.review_facts or SITE_CONTENT.review_setup_items or SITE_CONTENT.review_sample_message %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Under The Hood</span>
+            <h2>How It Connects</h2>
+        </div>
+        {% if SITE_CONTENT.review_facts %}
+            <div class="cards cards--2col">
+                {% for label, value in SITE_CONTENT.review_facts %}
+                    <article class="card card--accent-left">
+                        <h3>{{ label }}</h3>
+                        {{ value|linebreaks }}
+                    </article>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% if SITE_CONTENT.review_setup_items %}
+            <article class="card card--accent-left mt-4">
+                <h3>Setup</h3>
+                <ol class="schedule-next">
+                    {% for step in SITE_CONTENT.review_setup_items %}<li>{{ step }}</li>{% endfor %}
+                </ol>
+            </article>
+        {% endif %}
+        {% if SITE_CONTENT.review_sample_message %}
+            <figure class="card pull-quote mt-4">
+                <figcaption>A real review request, as your customer sees it</figcaption>
+                <blockquote>{{ SITE_CONTENT.review_sample_message|linebreaks }}</blockquote>
+            </figure>
+        {% endif %}
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
 
 {# ───────── Honesty ───────── #}
 <section class="section section--alt">
@@ -210,6 +261,11 @@ Organisation entity, canonical and og:image come from base.html (D8).
             <article class="card">
                 <h3>Does this risk violating Google&rsquo;s policies?</h3>
                 <p>No. The system asks every customer the same way after a real completed job, with no incentive and no filtering for positive reviews only. That consistency is what keeps it compliant.</p>
+            </article>
+
+            <article class="card">
+                <h3>Which job systems does it connect to?</h3>
+                <p>It depends on what you already run. Tell us your setup on the call and we&rsquo;ll confirm how the request gets triggered before you sign.</p>
             </article>
 
             <article class="card">
