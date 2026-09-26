@@ -314,7 +314,13 @@
     payment and token-bearing route (plan M-1.08). The script itself
     skips recording when the browser sends Global Privacy Control.
     {% endcomment %}
-    {% if IS_PRODUCTION_HOST and TRACKING_ALLOWED %}<script src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80" defer></script>{% endif %}
+    {% comment %}
+    Loaded by main.js (initDeferredScripts) on the first interaction or
+    3.5 s after load, not during load: run during load it cost the
+    homepage about 3 s of mobile LCP (re-audit 2026-09-26). The data-*
+    attributes are copied onto the real script it creates.
+    {% endcomment %}
+    {% if IS_PRODUCTION_HOST and TRACKING_ALLOWED %}<script type="text/plain" data-deferred-src="{% static 'js/aspired-tracker.js' %}?v={{ STATIC_VERSION }}" data-aspired-client="5e81695a-ec80-4b0a-83cd-6f55409d4f80"></script>{% endif %}
     {% comment %}
     Google Analytics 4 for the marketing site.
 

@@ -81,6 +81,11 @@
             setTimeout(loadLibrary, 1200);
         }
     }
-    if (document.readyState === 'complete') { whenIdle(); }
+    // main.js (loaded first, also deferred) provides aspiredWhenSettled:
+    // first interaction or a few seconds after load. Idle-after-load
+    // alone still ran gtag.js before a throttled phone's first paint.
+    if (typeof window.aspiredWhenSettled === 'function') {
+        window.aspiredWhenSettled(loadLibrary);
+    } else if (document.readyState === 'complete') { whenIdle(); }
     else { window.addEventListener('load', whenIdle, { once: true }); }
 })();

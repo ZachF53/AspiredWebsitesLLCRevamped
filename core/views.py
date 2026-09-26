@@ -13,6 +13,8 @@ from django.shortcuts import render
 
 
 LEGAL_EFFECTIVE_DATE = date(2026, 9, 25)
+# The refund policy was revised on its own (first-month vs 30-day guarantee).
+REFUND_EFFECTIVE_DATE = date(2026, 9, 26)
 
 
 def privacy_policy(request):
@@ -47,7 +49,7 @@ def refund_policy(request):
         slug='addon-hourly', is_active=True).first()
     return render(request, 'core/refund_policy.html', {
         'active_nav': '',
-        'effective_date': LEGAL_EFFECTIVE_DATE,
+        'effective_date': REFUND_EFFECTIVE_DATE,
         'hourly_display': hourly.get_price_display() if hourly else 'Billed hourly',
         'meta_title': 'Refund Policy | Aspired Websites',
         'meta_description': (

@@ -23,6 +23,7 @@ Usage:
     python manage.py capture_case_study_screenshots
     python manage.py capture_case_study_screenshots --slug denis-law-group
     python manage.py capture_case_study_screenshots --force
+    python manage.py capture_case_study_screenshots --mobile   # phone width
 """
 
 import asyncio
@@ -37,6 +38,9 @@ from clients.models import CaseStudy
 
 VIEWPORT = {'width': 1440, 'height': 900}   # 16:10, matches the card
 OUTPUT_WIDTH = 1200                          # enough for a 2x card
+# --mobile: an iPhone-sized viewport, stored in screenshot_mobile.
+MOBILE_VIEWPORT = {'width': 390, 'height': 844}
+MOBILE_OUTPUT_WIDTH = 585                    # 1.5x of 390
 WEBP_QUALITY = 82
 SETTLE_SECONDS = 2.5                         # let fonts/hero animations land
 
@@ -50,6 +54,9 @@ class Command(BaseCommand):
         parser.add_argument(
             '--force', action='store_true',
             help='Re-capture even if a screenshot already exists.')
+        parser.add_argument(
+            '--mobile', action='store_true',
+            help='Capture the 390 px phone view into screenshot_mobile.')
         parser.add_argument(
             '--dry-run', action='store_true',
             help='Report what would be captured; write nothing.')
@@ -89,13 +96,19 @@ class Command(BaseCommand):
         if not studies:
             raise CommandError('No published case studies with a live_url.')
 
+        mobile = opts['mobile']
+        field = 'screenshot_mobile' if mobile else 'screenshot'
+        viewport = MOBILE_VIEWPORT if mobile else VIEWPORT
+        out_width = MOBILE_OUTPUT_WIDTH if mobile else OUTPUT_WIDTH
+        suffix = '-mobile' if mobile else ''
+
         captured = skipped = failed = 0
         pending = []   # (study, webp_bytes, width, height)
 
         with sync_playwright() as p:
             browser = p.chromium.launch()
             for study in studies:
-                if study.screenshot and not opts['force']:
+                if getattr(study, field) and not opts['force']:
                     self.stdout.write(
                         f'  = {study.slug}: has one already (--force to '
                         f'replace)')
@@ -103,7 +116,8 @@ class Command(BaseCommand):
                     continue
 
                 page = browser.new_page(
-                    viewport=VIEWPORT, device_scale_factor=2)
+                    viewport=viewport, device_scale_factor=2,
+                    is_mobile=mobile, has_touch=mobile)
                 try:
                     resp = page.goto(study.live_url, wait_until='networkidle',
                                      timeout=45000)
@@ -142,11 +156,11 @@ class Command(BaseCommand):
                     page.close()
 
                 img = Image.open(io.BytesIO(raw)).convert('RGB')
-                height = round(img.height * (OUTPUT_WIDTH / img.width))
-                img = img.resize((OUTPUT_WIDTH, height), Image.LANCZOS)
+                height = round(img.height * (out_width / img.width))
+                img = img.resize((out_width, height), Image.LANCZOS)
                 buf = io.BytesIO()
                 img.save(buf, 'WEBP', quality=WEBP_QUALITY, method=6)
-                pending.append((study, buf.getvalue(), OUTPUT_WIDTH, height))
+                pending.append((study, buf.getvalue(), out_width, height))
 
             browser.close()
 
@@ -159,8 +173,8 @@ class Command(BaseCommand):
                     f'  ~ {study.slug}: would write {size_kb:.0f} KB '
                     f'({width}x{height})')
                 continue
-            study.screenshot.save(
-                f'{study.slug}.webp', ContentFile(data), save=True)
+            getattr(study, field).save(
+                f'{study.slug}{suffix}.webp', ContentFile(data), save=True)
             self.stdout.write(self.style.SUCCESS(
                 f'  + {study.slug}: {size_kb:.0f} KB '
                 f'({width}x{height}) from {study.live_url}'))

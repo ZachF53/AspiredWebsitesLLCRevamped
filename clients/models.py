@@ -1569,6 +1569,15 @@ class CaseStudy(TimestampedModel):
                   'Captured by `capture_case_study_screenshots`; falls '
                   'back to card_gradient when empty.',
     )
+    # Phone-width capture (390 px viewport) shown beside the desktop
+    # shot on the case-study page, so a buyer on a phone sees the site
+    # as their customers will. `capture_case_study_screenshots --mobile`.
+    screenshot_mobile = models.ImageField(
+        upload_to='portfolio/', blank=True,
+        help_text='Phone-width screenshot of the live site (390 px '
+                  'viewport). Captured by `capture_case_study_screenshots '
+                  '--mobile`; omitted from the page when empty.',
+    )
     # The gradient is no longer the only option, but it stays as the
     # fallback: a client site can go offline, get redesigned by someone
     # else, or simply not be public, and a coloured card is a better

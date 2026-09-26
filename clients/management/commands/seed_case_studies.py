@@ -170,7 +170,7 @@ STUDIES = [
         'engagement_type': 'built',
         'title': 'Burgland Technologies',
         'business_type': 'Technology',
-        'location': '',
+        'location': 'San Antonio, TX',
         'live_url': 'https://burglandtech.com/',
         'card_gradient': 'gradient-forest',
         'summary': (

@@ -69,6 +69,16 @@
                     <a href="/refund-policy/">refund policy</a>.
                 </p>
             </div>
+            {% if tier.category == 'hosting' %}
+                <div class="checkout-next">
+                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <ol class="checkout-next__steps">
+                        <li>Your account is created right away. You&rsquo;ll set a password and a 4-digit PIN, then land in your client portal.</li>
+                        <li>We contact you within 24 hours to plan moving your site onto our servers. If the move needs hands-on work, we quote it first{% if hourly_display %} ({{ hourly_display }}){% endif %} and nothing starts until you approve.</li>
+                        <li>Once your site is running on our servers, your monthly security report arrives by email on the 1st of each month.</li>
+                    </ol>
+                </div>
+            {% endif %}
         </aside>
 
         {# ── RIGHT: payment form ────────────────────────────────── #}

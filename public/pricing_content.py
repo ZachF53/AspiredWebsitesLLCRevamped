@@ -126,14 +126,18 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          'Everything starts the day you sign: the build payment (in full, or the '
          f'first of {m} installments) and your first month of the Full Plan or '
          'Hosting + Security. After that, monthly charges run on the same date '
-         'each month.'),
+         'each month. The plan starts before launch because we set up your '
+         'dedicated server the day you pay, and your site is built and hosted '
+         'on it from the start.'),
         ('How does the 30-day guarantee work?',
          f'For {GUARANTEE_DAYS} days from the day you sign, you can cancel for any '
          f'reason. We refund {GUARANTEE_REFUND_PERCENT}% of everything you’ve '
          f'paid, keep {GUARANTEE_RETAINED_PERCENT}% for the work already done, and '
          'cancel any remaining payments. After 30 days our fix-it commitment '
          'applies: anything we built that doesn’t work as agreed gets fixed '
-         'at no charge.'),
+         'at no charge. Signed up online for Hosting + Security without an '
+         'agreement? Your first month is refunded in full if you ask within 30 '
+         'days.'),
         ('Do I own my website?',
          'Once the build is paid in full, yes, completely. Source code, content, '
          'domain and data are yours to take anywhere. Your domain is registered in '

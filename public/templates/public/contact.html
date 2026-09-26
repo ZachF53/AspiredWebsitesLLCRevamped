@@ -79,6 +79,23 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.trade.id_for_label }}">Trade</label>
+                            {{ form.trade }}
+                        </div>
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.trucks.id_for_label }}">Trucks on the road</label>
+                            {{ form.trucks }}
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.software.id_for_label }}">{{ form.software.label }}</label>
+                        {{ form.software }}
+                        {% if form.software.errors %}<div class="form-field-error">{{ form.software.errors|join:" " }}</div>{% endif %}
+                    </div>
+
                     <div class="form-group">
                         <label for="{{ form.message.id_for_label }}">Message <span class="required" aria-hidden="true">*</span></label>
                         {{ form.message }}

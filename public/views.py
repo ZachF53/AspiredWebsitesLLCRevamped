@@ -1069,6 +1069,7 @@ def _send_lead_internal_notification(lead):
         f'Name:          {lead.attorney_name}\n'
         f'Phone:         {lead.phone}\n'
         f'Email:         {lead.email}\n'
+        f'Trade:         {lead.business_type}\n'
         f'IP address:    {lead.ip_address or "unknown"}\n'
         f'Submitted at:  {lead.created_at:%Y-%m-%d %H:%M:%S %Z}\n\n'
         f'Message:\n'

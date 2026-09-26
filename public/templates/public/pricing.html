@@ -86,6 +86,7 @@ visible answers and structured data cannot drift apart.
             <h3>How billing works</h3>
             <ul class="bullet-list">
                 <li><strong>At signing:</strong> the build payment (in full, or the first of 24 monthly installments) and the first month of the Full Plan or Hosting + Security, if you chose one.</li>
+                <li><strong>Before launch:</strong> we set up your dedicated server the day you pay, and your site is built and hosted on it from the start, so the plan is working for you before the site goes live.</li>
                 <li><strong>Installments:</strong> 24 monthly payments on the same date each month. After the 24th, the build is paid off and yours.</li>
                 <li><strong>Full Plan and Hosting + Security:</strong> billed monthly, month-to-month, 30 days&rsquo; notice to cancel. Always billed monthly.</li>
                 <li><strong>Anything out of scope:</strong> {{ hourly_display }}, quoted and approved before work starts, invoiced after it&rsquo;s done.</li>
@@ -179,6 +180,8 @@ visible answers and structured data cannot drift apart.
             <p>The same three paths, added up. Your domain (usually $12&ndash;$20 a year, paid to your registrar) is separate.</p>
         </div>
 
+        <details class="collapse-sm" open>
+        <summary class="collapse-sm__summary">Show the cost table</summary>
         <div class="table-scroll">
             <table class="cost-table">
                 <caption class="visually-hidden">Total cost of each pricing path over 24 and 36 months</caption>
@@ -206,6 +209,7 @@ visible answers and structured data cannot drift apart.
                 </tbody>
             </table>
         </div>
+        </details>
         {% if cost_savings %}<p class="pricing-note">Paying the build upfront saves {{ cost_savings }} over 24 months compared with financing it inside the Full Plan.</p>{% endif %}
     </div>
 </section>
@@ -242,27 +246,17 @@ cleanest argument against a vendor-locked platform, and still true.
             <p>The most expensive thing about a cheap website is usually not being able to leave it.</p>
         </div>
 
-        <div class="cards cards--2col">
-            <article class="card card--accent-left">
-                <h3>What You Own Once Paid Off</h3>
-                <ul class="bullet-list">
-                    <li><strong>The source code.</strong> Every file. Yours to take, host anywhere, or hand to another developer.</li>
-                    <li><strong>The content.</strong> Copy, images, structure, including anything we wrote for you.</li>
-                    <li><strong>The domain.</strong> Registered in your name from day one. We never hold a client&rsquo;s domain.</li>
-                    <li><strong>The data.</strong> Form submissions and reviews go to you, not into a platform you rent access to.</li>
-                </ul>
-            </article>
-
-            <article class="card card--accent-left">
-                <h3>What Happens If You Leave</h3>
-                <ul class="bullet-list">
-                    <li><strong>The site keeps working.</strong> Once the build is paid off, cancelling the Full Plan stops updates and support, not your website.</li>
-                    <li><strong>You take everything.</strong> Files and database provided free of charge at payoff.</li>
-                    <li><strong>Month-to-month after the build term.</strong> No annual contract, no exit fee.</li>
-                    <li><strong>No hostage negotiation.</strong> Leaving is a support ticket, not a dispute.</li>
-                </ul>
-            </article>
-        </div>
+        <article class="card card--accent-left">
+            <h3>What You Own Once Paid Off, and What Happens If You Leave</h3>
+            <ul class="bullet-list">
+                <li><strong>The source code.</strong> Every file. Yours to take, host anywhere, or hand to another developer.</li>
+                <li><strong>The content.</strong> Copy, images, structure, including anything we wrote for you.</li>
+                <li><strong>The domain.</strong> Registered in your name from day one. We never hold a client&rsquo;s domain.</li>
+                <li><strong>The data.</strong> Form submissions and reviews go to you, not into a platform you rent access to.</li>
+                <li><strong>The site keeps working if you leave.</strong> Once the build is paid off, cancelling the Full Plan stops updates and support, not your website. Files and database are handed over free.</li>
+                <li><strong>No lock-in.</strong> Month-to-month after the build term, no annual contract, no exit fee. Leaving is a support ticket, not a dispute.</li>
+            </ul>
+        </article>
     </div>
 </section>
 
@@ -277,9 +271,12 @@ cleanest argument against a vendor-locked platform, and still true.
             <p>Everything the Terms of Service say that affects your money, in one place.</p>
         </div>
 
+        <details class="collapse-sm" open>
+        <summary class="collapse-sm__summary">Read the fine print</summary>
         <article class="card card--accent-left">
             <ul class="bullet-list">
                 <li><strong>{{ GUARANTEE_DAYS }}-day guarantee.</strong> The window starts the day you sign. If you cancel within it, we refund {{ GUARANTEE_REFUND_PERCENT }}% of everything you&rsquo;ve paid, keep {{ GUARANTEE_RETAINED_PERCENT }}% for the work already done, and cancel any remaining payments. After {{ GUARANTEE_DAYS }} days our fix-it commitment applies: anything we built that doesn&rsquo;t work as agreed gets fixed at no charge.</li>
+                <li><strong>Signed up online for a plan only?</strong> Without a services agreement, your first month is refunded in full if you ask within 30 days of the first charge.</li>
                 <li><strong>Ownership on the installment.</strong> We hold ownership of the site until the 24 payments are done; it&rsquo;s live and working for you the whole time. If payments stop, the site stays up while we sort it out. We&rsquo;ll always contact you before anything is suspended (14 days&rsquo; notice).</li>
                 <li><strong>If you go quiet.</strong> If a build stalls more than 30 days because we can&rsquo;t get feedback, restarting it costs 25% of the build price. We&rsquo;d rather never charge it; just tell us if life gets busy.</li>
                 <li><strong>Revisions.</strong> Two rounds are included. More is {{ hourly_display }}, quoted first.</li>
@@ -288,6 +285,7 @@ cleanest argument against a vendor-locked platform, and still true.
             </ul>
             <p>Full text: <a href="{% url 'core:terms_of_service' %}">Terms of Service</a> &middot; <a href="{% url 'core:refund_policy' %}">Refund Policy</a> &middot; <a href="{% url 'public:about' %}#support">How we support you</a></p>
         </article>
+        </details>
     </div>
 </section>
 

@@ -75,6 +75,41 @@ class ContactForm(forms.Form):
         }),
     )
 
+    # Optional qualifiers (re-audit 2026-09-26, plan M-4.06): which trade,
+    # how big, and what job software they run, so the call starts with
+    # the answers. All optional; blank keeps the old behaviour.
+    TRADE_CHOICES = [
+        ('', 'Choose one (optional)'),
+        ('HVAC', 'HVAC'),
+        ('Plumbing', 'Plumbing'),
+        ('Electrical', 'Electrical'),
+        ('Other home service', 'Other home service'),
+    ]
+    TRUCK_CHOICES = [
+        ('', 'Choose one (optional)'),
+        ('Not started yet', 'Just starting out'),
+        ('1', '1'),
+        ('2-5', '2 to 5'),
+        ('6-15', '6 to 15'),
+        ('16+', '16 or more'),
+    ]
+    trade = forms.ChoiceField(
+        label='Trade', choices=TRADE_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    trucks = forms.ChoiceField(
+        label='Trucks on the road', choices=TRUCK_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    software = forms.CharField(
+        label='Job or scheduling software, if any', max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g. ServiceTitan, Housecall Pro, Jobber, none',
+        }),
+    )
+
     # ── Spam-trap fields (no validation, just plumbing) ───────────────
     # Honeypot: real users never see this; bots that scan the DOM and
     # fill every input will tag themselves. Validated in the view.
@@ -87,13 +122,23 @@ class ContactForm(forms.Form):
     def save_as_lead(self, ip_address=None, referral_code=''):
         """Map cleaned form data to a Lead row and return it."""
         cleaned = self.cleaned_data
+        qualifiers = [
+            f'{label}: {value}' for label, value in (
+                ('Trade', cleaned.get('trade')),
+                ('Trucks', cleaned.get('trucks')),
+                ('Software', (cleaned.get('software') or '').strip()),
+            ) if value
+        ]
+        inquiry = cleaned['message']
+        if qualifiers:
+            inquiry = inquiry + '\n\n' + '\n'.join(qualifiers)
         return Lead.objects.create(
             firm_name='',
             attorney_name=cleaned['name'],
-            business_type='HVAC',
+            business_type=cleaned.get('trade') or 'HVAC',
             phone=cleaned['phone'],
             email=cleaned['email'],
-            inquiry_text=cleaned['message'],
+            inquiry_text=inquiry,
             source='contact_form',
             status='new',
             score=0,

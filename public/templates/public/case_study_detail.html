@@ -79,15 +79,21 @@ nothing in it is just wasted screen, so the section is simply omitted.
 
 Not lazy-loaded: at this size and position it is very likely the LCP
 element, and deferring it would cost the §5.2 budget the thing it is
-measuring.
+measuring. The phone-width shot sits beside it and IS lazy-loaded.
 {% endcomment %}
 {% if study.screenshot %}
 <section class="section case-study-shot">
     <div class="container">
-        <figure class="case-study-shot__frame">
+        <figure class="case-study-shot__frame{% if study.screenshot_mobile %} case-study-shot__frame--pair{% endif %}">
             <img src="{{ study.screenshot.url }}"
                  alt="{{ study.image_alt }}"
                  width="1200" height="750" decoding="async">
+            {% if study.screenshot_mobile %}
+                <img class="case-study-shot__phone" src="{{ study.screenshot_mobile.url }}"
+                     alt="{{ study.image_alt }}, on a phone"
+                     width="{{ study.screenshot_mobile.width }}" height="{{ study.screenshot_mobile.height }}"
+                     loading="lazy" decoding="async">
+            {% endif %}
             {% if study.live_url %}
                 <figcaption>
                     Captured from the live site:

@@ -219,6 +219,62 @@
         });
     }
 
+    function initCollapseSm() {
+        // <details class="collapse-sm" open>: open on desktop, closed on
+        // phones so long reference blocks don't stretch the page.
+        if (!window.matchMedia('(max-width: 767px)').matches) { return; }
+        document.querySelectorAll('details.collapse-sm[open]').forEach(
+            function (el) { el.removeAttribute('open'); });
+    }
+
+    // Third-party-weight scripts (our visitor tracker; GA's gtag.js
+    // library) wait for the visitor's first interaction, or a few
+    // seconds after load, whichever comes first. Lighthouse showed them
+    // costing the homepage ~3 s of mobile LCP when they ran during load.
+    var AFTER_LOAD_MS = 3500;
+    function whenSettled(fn) {
+        var done = false;
+        var events = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+        function run() {
+            if (done) { return; }
+            done = true;
+            events.forEach(function (name) {
+                window.removeEventListener(name, run, { passive: true });
+            });
+            fn();
+        }
+        events.forEach(function (name) {
+            window.addEventListener(name, run, { passive: true });
+        });
+        function arm() { setTimeout(run, AFTER_LOAD_MS); }
+        if (document.readyState === 'complete') { arm(); }
+        else { window.addEventListener('load', arm, { once: true }); }
+    }
+    window.aspiredWhenSettled = whenSettled;
+
+    function initDeferredScripts() {
+        // <script type="text/plain" data-deferred-src="..." data-*>:
+        // re-created as a real script, data-* attributes carried over
+        // so the script can still read its config via currentScript.
+        var holders = document.querySelectorAll(
+            'script[type="text/plain"][data-deferred-src]');
+        if (!holders.length) { return; }
+        whenSettled(function () {
+            Array.prototype.forEach.call(holders, function (holder) {
+                var s = document.createElement('script');
+                Array.prototype.forEach.call(holder.attributes, function (a) {
+                    if (a.name.indexOf('data-') === 0
+                            && a.name !== 'data-deferred-src') {
+                        s.setAttribute(a.name, a.value);
+                    }
+                });
+                s.async = false;
+                s.src = holder.getAttribute('data-deferred-src');
+                holder.parentNode.insertBefore(s, holder.nextSibling);
+            });
+        });
+    }
+
     function ready(fn) {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', fn);
@@ -233,4 +289,6 @@
     ready(initScrapeFormLoading);
     ready(initConfirmActions);
     ready(initCopyButtons);
+    ready(initCollapseSm);
+    ready(initDeferredScripts);
 })();

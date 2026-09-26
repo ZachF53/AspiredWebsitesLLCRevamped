@@ -51,6 +51,7 @@ other three stay crawlable and reachable; they simply stop competing.
                 without JavaScript.
                 {% endcomment %}
                 <p class="schedule-help">30 minutes, by phone or video; we&rsquo;ll send the link. <span id="schedule-tz">Times are shown in your local time.</span></p>
+                {% if availability_summary %}<p class="schedule-help">Call hours: {{ availability_summary }}. Weekday calls are late afternoon and evening so you don&rsquo;t lose time on the job; Saturdays run all day.</p>{% endif %}
                 <p class="schedule-help">Prefer to talk now? {% if SITE_CONTENT.phone_accepts_sms %}Call or text{% else %}Call{% endif %} <a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>.</p>
                 <div id="slot-list" class="schedule-slots__list">
                     Loading slots&hellip;

@@ -261,8 +261,15 @@ def checkout_page(request, tier_slug):
             - Decimal(HOSTING_FIRST_YEAR_DISCOUNT_CENTS) / Decimal(100)
         )
 
+    # Hourly rate for the "what happens after you pay" note (never
+    # hardcode prices).
+    from billing.pricing_models import AddonPricing
+    hourly = AddonPricing.objects.filter(
+        slug='addon-hourly', is_active=True).first()
+
     return render(request, 'billing/checkout.html', {
         'tier': tier,
+        'hourly_display': hourly.get_price_display() if hourly else '',
         'hosting_tier': hosting_tier,
         'show_hosting_upsell': show_hosting_upsell,
         'hosting_first_year_price': hosting_first_year_price,

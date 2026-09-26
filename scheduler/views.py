@@ -296,7 +296,52 @@ def schedule_page(request, service='web_design'):
         'service_config': config,
         'build_types': build_types,
         'fallback_notice': fallback_notice,
+        'availability_summary': availability_summary(),
     })
+
+
+def _clock(t):
+    """4 PM, 9:30 AM."""
+    hour = t.hour % 12 or 12
+    mins = f':{t.minute:02d}' if t.minute else ''
+    return f'{hour}{mins} {"AM" if t.hour < 12 else "PM"}'
+
+
+def availability_summary():
+    """
+    One line describing the bookable hours, built from the active
+    AvailabilityWindow rows so it can't drift from the calendar:
+    "Weekdays 4 PM to 8 PM ET · Saturday 9 AM to 8 PM ET · Sunday closed".
+    Returns '' when there are no windows or they span several timezones.
+    """
+    from .models import AvailabilityWindow, DAY_CHOICES
+    windows = list(AvailabilityWindow.objects.filter(active=True))
+    if not windows or len({w.timezone for w in windows}) != 1:
+        return ''
+    tz = windows[0].timezone
+    tz_label = {'America/New_York': 'ET', 'America/Chicago': 'CT',
+                'America/Denver': 'MT', 'America/Los_Angeles': 'PT'}.get(tz, tz)
+    by_day = {}
+    for w in sorted(windows, key=lambda w: w.start_time):
+        by_day.setdefault(w.day_of_week, []).append(
+            f'{_clock(w.start_time)} to {_clock(w.end_time)}')
+    day_names = dict(DAY_CHOICES)
+    parts, day = [], 0
+    while day < 7:
+        hours = by_day.get(day)
+        end = day
+        while end + 1 < 7 and by_day.get(end + 1) == hours:
+            end += 1
+        if day == 0 and end == 4 and by_day.get(5) != hours:
+            label = 'Weekdays'
+        elif day == end:
+            label = day_names[day]
+        else:
+            label = f'{day_names[day]} to {day_names[end]}'
+        parts.append(f'{label} {", ".join(hours)} {tz_label}' if hours
+                     else f'{label} closed')
+        day = end + 1
+    return ' · '.join(parts)
 
 
 def slots_api(request):

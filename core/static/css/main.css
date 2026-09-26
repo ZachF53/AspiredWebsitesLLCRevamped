@@ -1747,6 +1747,26 @@ textarea.form-control {
     box-shadow: var(--shadow);
 }
 
+/* Desktop shot + phone-width shot side by side; stacked on phones,
+   phone shot first-width capped so it reads as a phone. */
+.case-study-shot__frame--pair {
+    max-width: 1100px;
+    display: grid;
+    gap: var(--space-3, 1.5rem);
+    align-items: start;
+}
+.case-study-shot__frame--pair .case-study-shot__phone {
+    width: 100%;
+    max-width: 300px;
+    margin-inline: auto;
+}
+.case-study-shot__frame--pair figcaption { grid-column: 1 / -1; }
+@media (min-width: 768px) {
+    .case-study-shot__frame--pair {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    }
+}
+
 .case-study-shot__frame figcaption {
     margin-top: var(--space-2);
     text-align: center;
@@ -18204,6 +18224,42 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 }
 .faq-item__a p { margin: 0; }
 
+/* Collapse long reference blocks on phones (pricing cost table, fine
+   print). Open by default; main.js closes them below 768px. The toggle
+   only shows on small screens. */
+.collapse-sm__summary {
+    display: none;
+    list-style: none;
+}
+.collapse-sm__summary::-webkit-details-marker { display: none; }
+@media (max-width: 767px) {
+    .collapse-sm__summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 44px;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 0.75rem;
+        background: var(--color-bg-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        font-weight: 700;
+        color: var(--color-text);
+        cursor: pointer;
+    }
+    .collapse-sm__summary::after {
+        content: "+";
+        font-size: 1.25rem;
+        line-height: 1;
+        color: var(--color-orange);
+    }
+    .collapse-sm[open] > .collapse-sm__summary::after { content: "\2212"; }
+    .collapse-sm__summary:focus-visible {
+        outline: 2px solid var(--color-orange);
+        outline-offset: 2px;
+    }
+}
+
 /* "Who's behind this" trust block (M-5.04). */
 .trust-block__grid {
     display: grid;
@@ -18324,3 +18380,23 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     color: var(--color-text-muted);
     font-size: 0.9em;
 }
+
+
+/* Checkout: "what happens after you pay" (hosting plans). */
+.checkout-next {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+.checkout-next__title {
+    font-size: 1rem;
+    margin: 0 0 0.5rem;
+}
+.checkout-next__steps {
+    margin: 0;
+    list-style: decimal;
+    padding-left: 1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+.checkout-next__steps li + li { margin-top: 0.4rem; }
