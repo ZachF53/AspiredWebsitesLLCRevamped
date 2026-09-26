@@ -390,10 +390,46 @@ def droplet_check_detail(request, check_id):
         duration = int(
             (check.completed_at - check.started_at).total_seconds())
 
+    from reporting.models import FileIntegrityBaseline
+    baseline = None
+    if check.website_new_id:
+        baseline = (FileIntegrityBaseline.objects
+                    .filter(website_id=check.website_new_id)
+                    .order_by('-created_at').first())
+    integrity = check.raw_file_integrity or {}
+
     return render(request, 'admin_dashboard/v2/droplet_check_detail.html', {
         'check': check,
         'duration_seconds': duration,
+        'integrity': integrity,
+        'integrity_baseline': baseline,
+        'can_accept_baseline': bool(
+            integrity.get('manifest') and integrity.get('status') == 'changed'),
     })
+
+
+@admin_required
+@require_POST
+def droplet_check_accept_baseline(request, check_id):
+    """Accept this check's current file manifest as the site's new
+    file-integrity baseline (after reviewing an expected change such as
+    a deploy). Future checks diff against it."""
+    from reporting.file_integrity import accept_check_as_baseline
+    from reporting.models import DropletHealthCheck
+
+    check = get_object_or_404(DropletHealthCheck, id=check_id)
+    who = (request.user.get_full_name() or request.user.username)
+    baseline = accept_check_as_baseline(check, accepted_by=who)
+    if baseline is None:
+        messages.error(
+            request, 'This check has no file manifest to accept.')
+    else:
+        messages.success(
+            request,
+            f'New file-integrity baseline accepted '
+            f'({baseline.file_count} files).')
+    return redirect('admin_dashboard:v2_droplet_check_detail',
+                    check_id=check_id)
 
 
 @admin_required

@@ -526,11 +526,127 @@ def run_wpscan(target_url, timeout=120):
                 'cve_id': ', '.join(cves),
             })
 
+    # Theme vulnerabilities — the active theme is reported under
+    # `main_theme`, any others enumerated under `themes`.
+    themes = dict(data.get('themes') or {})
+    main_theme = data.get('main_theme') or {}
+    if main_theme.get('slug'):
+        themes.setdefault(main_theme['slug'], main_theme)
+    for theme_name, theme_data in themes.items():
+        for vuln in (theme_data or {}).get('vulnerabilities') or []:
+            cves = ((vuln.get('references') or {}).get('cve') or [])
+            findings.append({
+                'title': (f"Theme vulnerability ({theme_name}): "
+                          f"{vuln.get('title', '')}"),
+                'severity': 'high',
+                'description': vuln.get('title', ''),
+                'recommendation': (f'Update or replace theme: '
+                                   f'{theme_name}'),
+                'evidence': f'Theme: {theme_name}',
+                'cve_id': ', '.join(cves),
+            })
+
     return {
         'findings': findings,
         'is_wordpress': True,
         'raw_output': (result.stdout or '')[:3000],
     }
+
+
+# ── Direct HTTP checks: security headers + certificate expiry ─────────────
+
+# Response headers the monthly security summary reports on, with the
+# plain-English purpose shown to the client.
+SECURITY_HEADERS = (
+    ('strict-transport-security', 'Strict-Transport-Security',
+     'forces browsers to always use HTTPS'),
+    ('content-security-policy', 'Content-Security-Policy',
+     'limits which scripts may run on the page'),
+    ('x-content-type-options', 'X-Content-Type-Options',
+     'stops browsers guessing file types'),
+    ('x-frame-options', 'X-Frame-Options',
+     'prevents the site being framed by other sites'),
+    ('referrer-policy', 'Referrer-Policy',
+     'limits what is shared when visitors click away'),
+    ('permissions-policy', 'Permissions-Policy',
+     'turns off browser features the site does not use'),
+)
+
+
+def check_security_headers(headers):
+    """Pure: given a response-headers mapping, return
+    ``{'present': [names], 'missing': [names]}`` over SECURITY_HEADERS.
+    X-Frame-Options counts as present when CSP carries
+    ``frame-ancestors`` (the modern equivalent)."""
+    lower = {str(k).lower(): v for k, v in (headers or {}).items()}
+    present, missing = [], []
+    for key, label, _ in SECURITY_HEADERS:
+        ok = key in lower
+        if (not ok and key == 'x-frame-options'
+                and 'frame-ancestors' in str(
+                    lower.get('content-security-policy', '')).lower()):
+            ok = True
+        (present if ok else missing).append(label)
+    return {'present': present, 'missing': missing}
+
+
+def check_certificate(domain, port=443, timeout=15):
+    """Open a TLS connection to `domain` and report the served
+    certificate's expiry. Returns ``{'valid': True, 'not_after': iso,
+    'days_remaining': int, 'issuer': str}`` or a dict with ``error``."""
+    import socket
+    import ssl
+    from datetime import datetime, timezone as dt_tz
+
+    domain = _strip_to_domain(domain)
+    if not domain:
+        return {'error': 'No domain provided'}
+    ctx = ssl.create_default_context()
+    try:
+        with socket.create_connection((domain, port), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=domain) as tls:
+                cert = tls.getpeercert()
+    except ssl.SSLCertVerificationError as exc:
+        return {'valid': False,
+                'error': f'certificate did not verify: {exc.verify_message}'}
+    except (OSError, ssl.SSLError) as exc:
+        return {'error': str(exc)[:300]}
+
+    not_after = cert.get('notAfter')
+    if not not_after:
+        return {'error': 'certificate has no expiry date'}
+    expires = datetime.fromtimestamp(
+        ssl.cert_time_to_seconds(not_after), tz=dt_tz.utc)
+    issuer = ''
+    for rdn in cert.get('issuer') or ():
+        for key, value in rdn:
+            if key in ('organizationName', 'commonName') and not issuer:
+                issuer = value
+    days = (expires - datetime.now(dt_tz.utc)).days
+    return {'valid': True, 'not_after': expires.isoformat(),
+            'days_remaining': days, 'issuer': issuer}
+
+
+def run_http_security_check(target_url, timeout=15):
+    """Fetch the live site once and record which security headers it
+    sends, plus the TLS certificate's expiry. Stored on
+    VulnerabilityScan.raw_http; produces no findings."""
+    if not target_url:
+        return {'error': 'No URL provided'}
+    if not target_url.startswith('http'):
+        target_url = f'https://{target_url}'
+    out = {'url': target_url}
+    try:
+        resp = requests.get(
+            target_url, timeout=timeout, allow_redirects=True,
+            headers={'User-Agent': 'AspiredWebsites-SecurityCheck/1.0'})
+        out['status_code'] = resp.status_code
+        out['final_url'] = resp.url
+        out['headers'] = check_security_headers(resp.headers)
+    except requests.RequestException as exc:
+        out['headers_error'] = str(exc)[:300]
+    out['certificate'] = check_certificate(target_url)
+    return out
 
 
 # ── Normaliser ─────────────────────────────────────────────────────────────

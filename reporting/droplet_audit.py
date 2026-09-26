@@ -10,7 +10,8 @@ Unlike VulnerabilityScan (external black-box scanning against the
 public IP/URL, run from the Celery worker host), this authenticates
 INTO the droplet via vault.ssh_ops.open_automation_ssh and reads real
 system state: disk/memory usage, service status, pending OS updates,
-pip-audit dependency CVEs, basic security posture (ufw/fail2ban).
+pip-audit dependency CVEs, basic security posture (ufw/fail2ban), and
+file integrity of the application code (reporting/file_integrity.py).
 
 Custom-build sites only (build_platform != 'wordpress') — WordPress
 sites have no Aspired-managed Droplet to SSH into. Guarded at every
@@ -223,6 +224,20 @@ def _check_pip_audit(ssh):
     return {'venvs': results}, total_vulns
 
 
+def _check_file_integrity(ssh, website, check):
+    """sha256 manifest of the site's code vs its accepted baseline —
+    see reporting/file_integrity.py. Best-effort like every other
+    step: an unexpected error is recorded as skipped, not a failed
+    check."""
+    from reporting.file_integrity import run_file_integrity
+    try:
+        return run_file_integrity(ssh, website, check)
+    except Exception as exc:  # noqa: BLE001 — recorded on the row
+        logger.exception(
+            'file integrity step failed for website %s', website.pk)
+        return {'status': 'skipped', 'reason': f'error: {exc}'[:500]}, None
+
+
 def run_droplet_health_check(check_id):
     """Entry point. Opens SSH, runs every check best-effort, stores
     results, sets status. Returns the DropletHealthCheck row."""
@@ -264,6 +279,8 @@ def run_droplet_health_check(check_id):
         raw_os_updates, updates_count = _check_os_updates(ssh)
         raw_pip_audit, vuln_count = _check_pip_audit(ssh)
         raw_security = _check_security(ssh)
+        raw_integrity, integrity_changes = _check_file_integrity(
+            ssh, website, check)
 
         check.raw_disk = raw_disk
         check.raw_memory = raw_memory
@@ -275,6 +292,8 @@ def run_droplet_health_check(check_id):
         check.pending_os_updates_count = updates_count
         check.pip_audit_vulnerability_count = vuln_count
         check.services_down = services_down
+        check.raw_file_integrity = raw_integrity
+        check.file_integrity_changes_count = integrity_changes
         check.status = 'complete'
     except Exception as exc:  # noqa: BLE001 — surfaced on the check row
         logger.exception(
