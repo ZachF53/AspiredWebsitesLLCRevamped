@@ -89,7 +89,8 @@ def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
 
 
 def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
-                 hosting_security, hourly_display, site_content=None):
+                 hosting_security, hourly_display, site_content=None,
+                 location_addon=None):
     """[(question, answer)] in page order. Plain text: the same strings go
     into the FAQPage schema."""
     full = money(_price(build_full)) or 'the build price'
@@ -184,10 +185,12 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          'Multi-location work is quoted from a simple structure: one build, '
          'plus a set of location pages for each branch, review requests routed '
          'to the right Google Business Profile per location, and reporting '
-         'split the same way. Your old page addresses are carried across so '
-         'you don’t lose your search history. Tell us the locations on the '
-         'call and you get a written number before you sign — quoted, '
-         'never guessed.'),
+         'split the same way. '
+         + (f'Pricing typically starts at {money(location_addon.price_min)} '
+            'per additional location. ' if location_addon else '')
+         + 'Your old page addresses are carried across so you don’t lose '
+         'your search history. Tell us the locations on the call and you get '
+         'a written number before you sign — quoted, never guessed.'),
         ('What happens if Aspired Websites shuts down?',
          'It’s written into the agreement: if Aspired Websites LLC ever '
          'ceased operating before your build was paid off, ownership of the '

@@ -11,8 +11,22 @@ of database-driven values. They deliberately do not assert any business
 fact that `docs/brand_fact_matrix.md` still lists as PENDING.
 """
 
+import re
+
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+
+
+def _without_mailing_address(html):
+    """Drop the footer's labeled mailing-address line before location
+    assertions. The CAN-SPAM mailing address (COMPANY_POSTAL_ADDRESS) is
+    an Atlanta mail-receiving box, rendered ONLY as
+    'Mail: ... (mail receiving only — we work from Warner Robins)', so it
+    is the one sanctioned appearance of 'Atlanta, GA' — any other
+    occurrence is still the location-claim regression these tests guard
+    against."""
+    return re.sub(
+        r'<li class="footer-note">Mail:.*?</li>', '', html, flags=re.S)
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
@@ -199,7 +213,8 @@ class LocationStatementTests(TestCase):
         """The About sidebar listed "San Antonio, TX" and "Atlanta, GA"
         as location pills, two paragraphs above the approved statement
         saying the business is based in Georgia."""
-        html = self.client.get('/about/').content.decode()
+        html = _without_mailing_address(
+            self.client.get('/about/').content.decode())
         self.assertNotIn('San Antonio, TX', html)
         self.assertNotIn('Atlanta, GA', html)
         self.assertIn('Based in Warner Robins, GA', html)
@@ -215,7 +230,8 @@ class LocationStatementTests(TestCase):
         find out where the company is."""
         from core.site_facts import LOCATION_STATEMENT
 
-        html = self.client.get('/contact/').content.decode()
+        html = _without_mailing_address(
+            self.client.get('/contact/').content.decode())
         self.assertIn(LOCATION_STATEMENT, html)
         self.assertNotIn('San Antonio, TX', html)
         self.assertNotIn('Atlanta, GA', html)

@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('billing', '0012_build_tier_feature_bullets'),
+        ('billing', '0013_addon_location_pricing'),
     ]
 
     operations = [

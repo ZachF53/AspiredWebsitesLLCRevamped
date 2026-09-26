@@ -305,6 +305,259 @@ This article stays up because the math and the questions above are
 still accurate no matter who ends up building the site.</em></p>
 """,
     },
+    {
+        'slug': 'google-review-gating-rules',
+        'title': 'The Google Review Rule Most Contractors Break Without Knowing',
+        'summary': (
+            'Asking only your happy customers for reviews feels smart — and '
+            'it is exactly what gets Google profiles penalized. What the '
+            'rule actually says, and how to grow reviews without risking '
+            'your listing.'
+        ),
+        'related_url': '/services/review-automation/',
+        'related_label': 'See how compliant review automation works →',
+        'body': """
+<p>Somewhere right now, a contractor is paying for review software that
+quietly asks customers "how was your experience?" first, sends the happy
+ones to Google, and routes the unhappy ones to a private feedback form.
+It feels clever. It is called <strong>review gating</strong>, and it is
+specifically what Google's review policies prohibit.</p>
+
+<h2>What the rule actually says</h2>
+
+<p>Google's policy language is short: businesses shouldn't
+"discourage or prohibit negative reviews, or selectively solicit
+positive reviews from customers." Two behaviors sit squarely inside
+that sentence:</p>
+
+<ul>
+<li><strong>Filtering.</strong> Pre-screening customers by sentiment and
+only inviting the satisfied ones to review you.</li>
+<li><strong>Incentivizing.</strong> Offering a discount, a gift card, or
+an entry in a drawing in exchange for a review — positive or not.</li>
+</ul>
+
+<p>The FTC now has a rule aimed at the same territory: buying,
+incentivizing, or misrepresenting reviews can carry real civil
+penalties, not just a platform slap. This stopped being a gray area a
+while ago.</p>
+
+<h2>What a penalty actually looks like</h2>
+
+<p>Nobody gets a letter. What happens is quieter and worse: reviews
+start getting filtered or removed, new ones stop appearing, and in
+serious cases the profile's reviews are suspended entirely while your
+competitors' keep growing. For a contractor who lives on the map pack,
+that is the phone going quiet with no explanation.</p>
+
+<p>And the risk usually arrives bundled inside software the owner never
+inspected. If your review tool has a "minimum star rating" setting or a
+"feedback first" step, it is gating on your behalf, under your business
+name.</p>
+
+<h2>The compliant way is also the better way</h2>
+
+<p>The fix is boring: <strong>ask every customer, the same way, after
+every real completed job.</strong> No filter, no incentive, no
+ghostwriting.</p>
+
+<p>Here is the part contractors don't expect: asked consistently, most
+customers who bother to respond leave positive reviews anyway — people
+who had a fine experience just need the nudge and the link. The
+occasional three-star review does two useful things: it makes the
+five-star ones believable, and it tells you something true about a crew
+or a process. Respond to it professionally in public and it reads
+better to the next homeowner than a suspiciously perfect wall of
+praise.</p>
+
+<h2>Timing beats volume</h2>
+
+<p>The single biggest factor in whether a customer leaves a review is
+how soon you ask. A request an hour or two after the technician leaves,
+while the house is comfortable again, converts at a completely
+different rate than a newsletter blast three weeks later. That is the
+whole argument for automating the ask off the job itself instead of
+depending on a busy technician remembering.</p>
+
+<h2>A quick self-audit</h2>
+
+<ul>
+<li>Does your review tool ask "how did we do?" before showing the
+Google link? That's gating.</li>
+<li>Do your technicians offer anything — even a sticker — for a review?
+That's incentivizing.</li>
+<li>Do requests go to every customer, or only the ones the office
+liked? Only some is selective solicitation.</li>
+<li>Are reviews written or "polished" by anyone other than the
+customer? That one can now involve the FTC.</li>
+</ul>
+
+<p>If any answer made you wince, fix the process before Google fixes it
+for you. Our own <a href="/services/review-automation/">review
+automation</a> is built inside these rules on purpose — every customer,
+the same message, triggered by the completed job — because a review
+count that survives scrutiny is the only kind worth building.</p>
+""",
+    },
+    {
+        'slug': 'google-business-profile-multiple-locations',
+        'title': 'Google Business Profile for Multi-Location Home-Service Companies',
+        'summary': (
+            'Two branches, one phone number, and a map pack that only shows '
+            'one of you. How multi-location contractors should structure '
+            'profiles, pages, and review flow — and the shortcut that gets '
+            'listings suspended.'
+        ),
+        'related_url': '/pricing/',
+        'related_label': 'See how multi-location builds are priced →',
+        'body': """
+<p>The moment a home-service company opens a second branch, its Google
+presence gets more complicated than anyone warned. The map pack is
+local by design: it shows a searcher businesses near <em>them</em>. If
+everything about your company points at your original location, your
+second territory is invisible — no matter how many trucks you run
+there.</p>
+
+<h2>One real location, one profile</h2>
+
+<p>The foundation rule: each Google Business Profile must represent a
+real, staffed location. Two branches with their own crews and
+dispatching earn two profiles. What does <em>not</em> earn a profile is
+a mailbox, a virtual office, or a storage unit rented to plant a pin in
+a richer suburb. Google removes those listings routinely, and a
+suspension on one listing can drag scrutiny onto the whole account.</p>
+
+<p>Service-area businesses — most contractors — can hide their street
+address and define the area they serve instead. That is the honest
+setup when a branch works out of a yard nobody should visit. What the
+address toggle never does is let one branch pretend to be in two
+places.</p>
+
+<h2>Each profile needs its own page to land on</h2>
+
+<p>A profile's website link is a ranking signal and a conversion page
+at once. Pointing both profiles at one generic homepage wastes it. Each
+location should link to its own page on your site — real content about
+that branch: the area it covers, the crew, the number that rings its
+dispatch, reviews from those neighborhoods. Not a template with the
+city name swapped: searchers and Google both recognize wallpaper.</p>
+
+<h2>Reviews have to land on the right profile</h2>
+
+<p>This is the detail almost every multi-location contractor gets
+wrong. A customer in your second territory who reviews the
+headquarters profile just deepened the imbalance: one listing with 300
+reviews, one with 9, and the 9-review listing is the one competing in
+the new market.</p>
+
+<p>The fix is mechanical: the review request a customer receives must
+carry the review link for <strong>the location that did the job</strong>.
+That routing belongs in the automation, keyed off the job record — not
+in a technician's memory. It is exactly how we wire
+<a href="/services/review-automation/">review automation</a> for
+multi-location clients: each completed job triggers a request pointing
+at that branch's profile, so both listings grow where they compete.</p>
+
+<h2>Keep the boring details identical</h2>
+
+<p>Name, address, phone — consistent everywhere each branch appears:
+the profile, your site, directories. A branch that is "Smith Heating
+&amp; Air – Macon" on Google and "Smith HVAC South" on the website
+reads, to a machine, like two different businesses splitting their
+credibility.</p>
+
+<h2>What it costs, honestly</h2>
+
+<p>A second location is not a second website — it is a set of location
+pages, review routing, and per-location tracking added to the build you
+already have. That is how we quote it: in writing, from
+<a href="/pricing/">the same published pricing</a> everything else
+uses, before you sign anything. If someone quotes you a full second
+build for a second branch, ask them what exactly is being built
+twice.</p>
+""",
+    },
+    {
+        'slug': 'hvac-seasonal-demand-website',
+        'title': "HVAC Demand Is Seasonal. Your Website Shouldn't Ride the Wave.",
+        'summary': (
+            'Calls triple in a heat wave and vanish in October. What that '
+            'means for how a contractor website is built, what to do with '
+            'the slow months, and why next summer is won in the off-season.'
+        ),
+        'related_url': '/services/web-design/',
+        'related_label': 'See how we build HVAC websites →',
+        'body': """
+<p>Every HVAC owner knows the shape of the year: the first 95-degree
+week and the first hard freeze bury the phones, and the shoulder months
+go quiet enough to make you nervous. Most contractors staff for that
+curve and budget for it. Almost nobody builds their <em>website</em>
+for it — and the website feels the swing more than anything else in the
+business.</p>
+
+<h2>Peak season: the site is an emergency dispatcher</h2>
+
+<p>A homeowner whose AC died at 4 PM in July is the least patient
+visitor on the internet. They search, tap the first believable result,
+and decide in seconds. During a demand spike, three things on your site
+do all the work:</p>
+
+<ul>
+<li><strong>Speed on a phone.</strong> The searcher is standing in a
+hot kitchen on mobile data. A site that hesitates loses to one that
+doesn't — Google's own research shows abandonment climbing sharply
+with every second of load time.</li>
+<li><strong>A number they cannot miss.</strong> Tap-to-call, at the
+top, on every page. Peak-season visitors don't fill out long forms.</li>
+<li><strong>Proof they can trust you today.</strong> Recent reviews
+beat a big number of stale ones. "Two days ago" is the most
+persuasive phrase on the page.</li>
+</ul>
+
+<p>None of that can be bolted on the week the heat wave hits. It is
+decided when the site is built — which is an off-season decision.</p>
+
+<h2>Shoulder season: sell the calendar, not the emergency</h2>
+
+<p>Spring and fall customers are planners: tune-ups, replacements
+scheduled around a tax refund, the smart ones fixing in April what
+would fail in July. The site should meet them differently — maintenance
+pages that talk about avoiding the failure, financing information for
+replacements, and an easy way to book non-urgent work. If your only
+call to action is "24/7 emergency service," you are invisible to the
+customer who plans.</p>
+
+<h2>Off-season: this is where next summer is won</h2>
+
+<p>The quiet months are when the compounding assets get built, because
+they are all slow assets:</p>
+
+<ul>
+<li><strong>Reviews.</strong> A steady trickle through the winter means
+you enter June with recent proof while competitors show reviews from
+last August. Automating the ask off every completed job keeps the
+trickle going without anyone thinking about it.</li>
+<li><strong>Pages that answer real questions.</strong> The homeowner
+researching "furnace making a clicking noise" in November is the
+same person who calls someone in December. Useful answers published in
+slow months earn calls in busy ones.</li>
+<li><strong>The rebuild itself.</strong> A proper custom build takes
+four to six weeks. Start it in the off-season and it is live, indexed,
+and gathering reviews before the first heat wave — start it in June and
+you paid for a peak season it missed.</li>
+</ul>
+
+<h2>The one-line version</h2>
+
+<p>Your trucks ride the seasonal wave; the website's job is to be
+ready before each wave arrives. Fast and phone-first for the
+emergency months, calendar-friendly for the planners, and quietly
+stacking reviews and answers the rest of the year. That is the
+standard we <a href="/services/web-design/">build to</a> — and the
+reason the best month to fix your website is the month nobody's AC is
+broken.</p>
+""",
+    },
 ]
 
 

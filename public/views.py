@@ -336,6 +336,23 @@ def service_hosting_maintenance(request):
     })
 
 
+def sample_security_report(request):
+    """
+    /services/hosting-maintenance/sample-report/ — an illustrative copy
+    of the monthly security summary (Sept 2026 review item 3.2: show a
+    sample instead of describing the report). Noindexed and out of the
+    sitemap; scanned by the content gate via EXTRA_PATHS.
+    """
+    return render(request, 'public/sample_security_report.html', {
+        'active_nav': 'services',
+        'active_service': 'hosting_maintenance',
+        'breadcrumbs': [
+            ('Hosting & Maintenance', '/services/hosting-maintenance/'),
+            ('Sample Report', None),
+        ],
+    })
+
+
 def service_custom_web_development(request):
     """
     /services/web-design/custom-web-development/ — ~3,780/mo across
@@ -612,10 +629,13 @@ def pricing(request):
     hourly = AddonPricing.objects.filter(
         slug='addon-hourly', is_active=True).first()
     hourly_display = hourly.get_price_display() if hourly else ''
+    location_addon = AddonPricing.objects.filter(
+        slug='addon-location', is_active=True).first()
 
     faqs = pricing_faqs(
         build_full, build_installment, full_plan, plan_paid_in_full,
-        hosting_security, hourly_display, SiteContent.get_solo())
+        hosting_security, hourly_display, SiteContent.get_solo(),
+        location_addon=location_addon)
     costs = cost_table(
         build_full, build_installment, full_plan, plan_paid_in_full,
         hosting_security)

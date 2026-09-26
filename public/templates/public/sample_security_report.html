@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sample Monthly Security Report | Aspired Websites{% endblock %}
+
+{% block meta_description %}What the monthly security report actually looks like: dependency vulnerabilities, file integrity, SSL status, security headers, and uptime — one page, plain English, every month.{% endblock %}
+
+{% block og_title %}Sample Monthly Security Report | Aspired Websites{% endblock %}
+{% block og_description %}One page, plain English, every month: what our hosting clients receive on the first of the month.{% endblock %}
+
+{% comment %}
+Secondary page (not in the sitemap; scanned via content_gate
+EXTRA_PATHS). An ILLUSTRATIVE sample — the layout and categories are
+the real monthly summary's, the numbers are representative and the page
+says so, because publishing a real client's scan would leak exactly the
+information the report exists to protect.
+{% endcomment %}
+{% block robots %}<meta name="robots" content="noindex, follow">{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Hosting &amp; Maintenance</span>
+            <h1>The Monthly Report, <span class="accent">As You'd Receive It</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                On the first of each month, every hosting client gets a one-page
+                summary of an automated scan of their site. This is what it looks
+                like &mdash; the categories are exactly the real report&rsquo;s;
+                the numbers below are a representative sample, because we
+                don&rsquo;t publish real clients&rsquo; scan results.
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Sample Report</span>
+            <h2>Monthly Security Summary &mdash; Sample HVAC Client</h2>
+            <p>Covering the previous calendar month. Illustrative numbers.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3>Uptime</h3>
+                <p><strong>100%</strong> across 8,640 checks this month, against
+                a 99.9% target. Longest response time observed: 412&nbsp;ms.
+                If the site had gone down, this section names when, for how
+                long, and what was done.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Dependency Vulnerabilities</h3>
+                <p><strong>0 critical &middot; 0 high &middot; 1 moderate</strong>
+                &mdash; the moderate finding was a third-party library update,
+                applied on the 14th. Every finding is listed with what it was
+                and what we did; fixing them is covered by your plan, never an
+                extra invoice.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>SSL Certificate</h3>
+                <p><strong>Valid</strong>, auto-renewed on the 9th, next renewal
+                scheduled well before expiry. Visitors never see a browser
+                warning where your website should be.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>Security Headers</h3>
+                <p><strong>All present</strong>: strict transport security,
+                content-type protections, frame blocking, and a content
+                security policy. These are the browser-level instructions that
+                shut out entire classes of common attacks.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>File Integrity</h3>
+                <p><strong>No unexpected changes.</strong> Every file on the
+                server is checked against what we deployed. A tampered or
+                injected file &mdash; how most small-business hacks announce
+                themselves &mdash; shows up here first.</p>
+            </article>
+
+            <article class="card card--accent-left">
+                <h3>What Your Site Booked</h3>
+                <p><strong>Form submissions and call-backs, counted</strong> by
+                the first-party tracker: quote requests, call-back asks, and
+                which pages produced them. The measurement side of the same
+                report &mdash; so the site&rsquo;s output is a number, not a
+                feeling.</p>
+            </article>
+        </div>
+
+        <p class="section-note">
+            The real report arrives by email as one page, written in plain
+            English. When something needs attention, it says what we found,
+            what we did, and whether you need to do anything (usually:
+            nothing).
+        </p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Want This Landing In Your Inbox Every Month?</h2>
+            <p>The report is included with both plans &mdash; hosting alone, or the Full Plan.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:service_hosting_maintenance' %}">See Hosting &amp; Maintenance</a>
+                <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

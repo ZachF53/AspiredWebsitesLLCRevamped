@@ -328,6 +328,15 @@ ADDONS = [
         'description': 'Extra practice area pages beyond the tier limit',
     },
     {
+        'slug': 'addon-location', 'name': 'Additional Location',
+        'price_min': Decimal('500.00'), 'price_max': None,
+        'unit': 'per location',
+        'description': ('Location pages, review-request routing to that '
+                        'branch\'s Google Business Profile, and per-location '
+                        'reporting, added to an existing build. Always '
+                        'quoted in writing before signing.'),
+    },
+    {
         'slug': 'addon-hourly', 'name': 'Out-of-Scope Work',
         'price_min': Decimal('85.00'), 'price_max': None,
         'unit': 'per hour',
