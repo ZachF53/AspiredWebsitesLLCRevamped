@@ -109,7 +109,7 @@ visible answers and structured data cannot drift apart.
             {% if full_plan %}
                 <article class="card card--pricing card--featured">
                     <span class="card__badge">Most Popular</span>
-                    <h3 class="card__title">Full Plan: Build Financed</h3>
+                    <h3 class="card__title">{{ full_plan.name }}</h3>
                     {% include "core/_price.html" with tier=full_plan %}
                     {% if plan_paid_in_full %}<p class="card__price-meta">Drops to {{ plan_paid_in_full.get_price_display }} automatically after month 24</p>{% endif %}
                     <ul class="feature-list">
@@ -121,7 +121,7 @@ visible answers and structured data cannot drift apart.
 
             {% if plan_paid_in_full %}
                 <article class="card card--pricing">
-                    <h3 class="card__title">Full Plan: Build Paid Upfront</h3>
+                    <h3 class="card__title">{{ plan_paid_in_full.name }}</h3>
                     {% include "core/_price.html" with tier=plan_paid_in_full %}
                     {% if build_full %}<p class="card__price-meta">For clients who paid the {{ build_full.get_price_display }} build upfront</p>{% endif %}
                     <ul class="feature-list">
@@ -155,7 +155,8 @@ visible answers and structured data cannot drift apart.
                 {% for feature in hosting_security.features.all %}<li>{{ feature.text }}</li>{% endfor %}
             </ul>
             <div class="hosting-banner__cta">
-                <a class="btn-secondary" href="{% url 'scheduler:design_schedule' %}">Get Started</a>
+                <a class="btn-secondary" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a>
+                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
             </div>
         </article>
 

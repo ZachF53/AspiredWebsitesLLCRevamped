@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('reporting', '0021_securitysummaryreport'),
+        ('reporting', '0022_security_summary_automation'),
     ]
 
     operations = [

@@ -85,7 +85,7 @@
 - [x] M-0.05 `SiteContent` singleton + admin editor + `docs/owner-actions.md`
 
 ### Phase 1 — Stop the bleeding
-- [ ] M-1.01 Booking dropdown: six options, handler, emails, CRM, packages *(payments track)*
+- [x] M-1.01 Booking dropdown: six options, handler, emails, CRM, packages *(payments track)* — six options from ServiceTier; old values rejected (400); hvac_* packages; CRM prefill; add-on fieldset removed
 - [x] M-1.02 Denis Law Group internal note removed
 - [x] M-1.03 CISSP link → `https://my.isc2.org/s/MemberVerification` (member number on request)
 - [x] M-1.04 Portfolio + homepage honest ("Recent Work", no "coming soon", real projects)
@@ -111,7 +111,7 @@
 - [x] M-2.13 Missed-payment sentence
 - [x] M-2.14 FAQ additions (true answers only)
 - [x] M-2.15 Security report sold consistently
-- [ ] Backend: pay-in-full / installment contracts and checkout, $45 hosting checkout, guarantee refund *(payments track)*
+- [x] Backend: contracts choose Build (pay in full / 24-month installment) + Plan (Full Plan / Hosting + Security); `/pay/contract/<token>/` charges everything at signing (SubscriptionSchedules: $105×24; $250×24→$145); webhooks count installments and set paid-off; $45 hosting self-checkout; 30-day guarantee refund (75%/25%) on v2 Website → Billing; retired tiers deactivated (`billing/0011`); 50% copy removed from portal/emails; Full Plan tiers renamed (`public/0017`)
 
 ### Phase 3 — Legacy purge
 - [x] M-3.01 `/about/` residuals (Warner Robins, continuity block, "About" link)
@@ -122,7 +122,7 @@
 - [x] M-3.06 Continuity statement component
 - [x] M-3.07 robots.txt trimmed + `X-Robots-Tag` on back-office routes
 - [x] M-3.08 JSON-LD cleanup + `TIME_ZONE = America/New_York` (+ server TZ)
-- [ ] M-3.09 Grep gate passes
+- [x] M-3.09 Grep gate passes (`public.tests_content_gate` green on the merged tree)
 
 ### Phase 4 — Conversion path
 - [x] M-4.01 Tap-to-call in the header on every page
@@ -165,8 +165,8 @@
   - Remaining for you: vault SSH credentials per client server (needed for file integrity); nmap/nikto/wpscan on the worker host; WordPress file integrity only runs once those sites are on our servers
 
 ### Phase 7 — Verification + deploy
-- [ ] Merge the tracks; `manage.py check`; targeted tests
-- [ ] CLAUDE.md updated
+- [x] Merge the tracks; `manage.py check`; targeted tests: public, core, billing, clients, scheduler, admin_dashboard, domains, reporting: all pass except the 4 pre-existing `tests_audit_sequence` failures (local `.env`)
+- [x] CLAUDE.md updated (offer, pricing table, payment terms, guarantee, business rules 1–2, onboarding steps, new "Sept 2026 standing facts" section). Gitignored, so local copy only
 - [ ] Staging deploy + smoke test + content gate
 - [ ] Prod deploy + smoke test + content gate + Lighthouse after
 - [ ] `docs/verification/2026-09-26.md`

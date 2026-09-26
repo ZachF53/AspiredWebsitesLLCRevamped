@@ -215,7 +215,7 @@ TIERS = [
     },
     {
         'slug': 'hvac-full-plan', 'category': 'maintenance',
-        'name': 'Full Plan', 'price': Decimal('250.00'),
+        'name': 'Full Plan: Build Financed', 'price': Decimal('250.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 0, 'is_featured': True,
         'env': 'STRIPE_PRICE_HVAC_FULL_PLAN',
@@ -236,13 +236,12 @@ TIERS = [
             'Drops to $145/mo automatically after month 24',
             'Month-to-month after the build term: cancel anytime',
             'Monthly security report: an automated scan of your site, '
-            'summarized in a one-page PDF emailed to you on the 1st. '
-            'Included in every plan.',
+            'summarized in a one-page PDF emailed to you on the 1st.',
         ],
     },
     {
         'slug': 'hvac-plan-paid-in-full', 'category': 'maintenance',
-        'name': 'Full Plan: Build Paid in Full', 'price': Decimal('145.00'),
+        'name': 'Full Plan: Build Paid Upfront', 'price': Decimal('145.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 1, 'is_featured': False,
         'env': 'STRIPE_PRICE_HVAC_PLAN_PAID_IN_FULL',
@@ -257,8 +256,7 @@ TIERS = [
             'Automated review generation included',
             'Month-to-month from day one: cancel anytime',
             'Monthly security report: an automated scan of your site, '
-            'summarized in a one-page PDF emailed to you on the 1st. '
-            'Included in every plan.',
+            'summarized in a one-page PDF emailed to you on the 1st.',
         ],
     },
     {
@@ -276,6 +274,8 @@ TIERS = [
             'SSL certificate renewal',
             'Application and dependency security updates',
             'Forms stay live',
+            'Monthly security report: an automated scan of your site, '
+            'summarized in a one-page PDF emailed to you on the 1st.',
         ],
     },
     # ─── Domain registrations ───
