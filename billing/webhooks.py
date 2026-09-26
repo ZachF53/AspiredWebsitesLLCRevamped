@@ -168,15 +168,30 @@ def _infer_subscription_kind(sub_id, client, invoice):
             return 'maintenance', None
         return 'other', None
 
+    # 24-month installment build. With a Full Plan the same subscription
+    # carries the build ($105 of the $250) until it is paid off, then
+    # keeps running as the plan — so after build_paid_off_at its charges
+    # are maintenance, not installments.
+    inst_site = Website.objects.filter(
+        stripe_build_installment_subscription_id=sub_id).first()
+    if inst_site is not None:
+        if inst_site.build_paid_off_at is None:
+            return 'installment', inst_site
+        return 'maintenance', inst_site
+
     if isinstance(client, Account):
         hosting_site = Website.objects.filter(
             account=client, stripe_hosting_subscription_id=sub_id).first()
         if hosting_site is not None:
-            return 'hosting', None
+            return 'hosting', hosting_site
     elif sub_id == getattr(client, 'stripe_hosting_subscription_id', ''):
         return 'hosting', None
 
     mp = MaintenancePlan.objects.filter(stripe_subscription_id=sub_id).first()
+    if mp is not None and mp.tier_slug == 'hvac-hosting-security':
+        # Self-checkout Hosting + Security rides on a MaintenancePlan row
+        # (billing.checkout_views._provision_product_type) but is hosting.
+        return 'hosting', mp.website
     if mp is not None or sub_id == getattr(client, 'stripe_subscription_id', ''):
         return 'maintenance', (mp.website if mp else None)
     sp = SocialMediaPlan.objects.filter(stripe_subscription_id=sub_id).first()
@@ -320,9 +335,18 @@ def _handle_payment_intent_succeeded(event):
             desc = invoice.line_items[0].get('description', '')
     except Exception:
         desc = ''
+    # A current-terms contract (payment_option set) has no deposit/final
+    # split: its one payment is the whole build.
+    contract = getattr(invoice, 'contract', None)
+    if invoice.is_deposit:
+        pay_kind = 'deposit'
+    elif contract is not None and contract.payment_option:
+        pay_kind = 'build'
+    else:
+        pay_kind = 'final'
     _record_payment(
         client=client, stripe_id=pi.get('id'),
-        kind=('deposit' if invoice.is_deposit else 'final'),
+        kind=pay_kind,
         amount=invoice.total_amount,
         description=desc or 'Website payment',
         paid_at=timezone.now(),
@@ -602,11 +626,20 @@ def _handle_invoice_paid(event):
             description=line_desc or f'{kind.title()} subscription',
             paid_at=timezone.now(), website=plan_website,
             receipt_url=(invoice.get('hosted_invoice_url') or ''))
+        if kind == 'installment' and plan_website is not None:
+            _count_build_installment(plan_website)
     # Per-website maintenance/social plans (new model) own their own
     # subscription ids. Recognise + clear any awaiting_payment hold first so
     # they don't fall through to the legacy ClientProfile branches below.
     if sub_id and _activate_website_plan_sub(sub_id):
         return
+    if sub_id:
+        from clients.account_models import Website as _Website
+        if _Website.objects.filter(
+                stripe_build_installment_subscription_id=sub_id).exists():
+            # A build installment — recorded + counted above; nothing
+            # else to activate.
+            return
     if sub_id:
         # Which SITE this subscription belongs to. Comparing the id
         # against one profile could only ever match a single site.
@@ -731,6 +764,33 @@ def _handle_invoice_paid(event):
         website.save(update_fields=[
             'payment_status', 'deposit_paid_at', 'updated_at'])
         _on_deposit_paid(client, website)
+
+
+def _count_build_installment(website):
+    """Recount paid installments for a site and mark the build paid off
+    after the 24th. Counted from the PaymentRecord ledger (one row per
+    paid Stripe invoice, unique on the invoice id), so webhook
+    re-deliveries can never double-count."""
+    from clients.contract_options import INSTALLMENT_COUNT
+    from clients.models import PaymentRecord
+
+    paid = (PaymentRecord.objects
+            .filter(website=website, kind='installment', amount__gt=0)
+            .count())
+    fields = []
+    if website.build_installments_paid != paid:
+        website.build_installments_paid = paid
+        fields.append('build_installments_paid')
+    if paid >= INSTALLMENT_COUNT and website.build_paid_off_at is None:
+        now = timezone.now()
+        website.build_paid_off_at = now
+        website.payment_status = 'fully_paid'
+        website.final_paid_at = website.final_paid_at or now
+        fields += ['build_paid_off_at', 'payment_status', 'final_paid_at']
+        logger.info('invoice.paid: website %s build paid off after %s '
+                    'installments', website.pk, paid)
+    if fields:
+        website.save(update_fields=fields + ['updated_at'])
 
 
 def _activate_website_plan_sub(sub_id):
@@ -879,11 +939,23 @@ def _on_onboarding_invoice_paid(client, invoice=None):
             website.payment_status = 'fully_paid'
             website.final_paid_at = timezone.now()
             website.final_invoice_url = ''
+            # Paid in full → ownership transfers (contract Ownership
+            # clause). Stamp it once.
+            if not website.build_paid_off_at:
+                website.build_paid_off_at = timezone.now()
             if not website.stage:
                 website.stage = 'intake'
-            website.save(update_fields=[
-                'payment_status', 'final_paid_at', 'stage',
-                'final_invoice_url', 'updated_at'])
+            fields = ['payment_status', 'final_paid_at', 'stage',
+                      'final_invoice_url', 'build_paid_off_at', 'updated_at']
+            # First (and only) payment of a current-terms build: the
+            # build can start now, same as a legacy deposit did.
+            if (invoice is not None and invoice.contract_id
+                    and invoice.contract.payment_option
+                    and website.lifecycle_status in (
+                        '', 'inquiry', 'contract_sent', 'contract_signed')):
+                website.lifecycle_status = 'deposit_paid'
+                fields.append('lifecycle_status')
+            website.save(update_fields=fields)
 
     # `client` is an Account here — `_client_for_customer` resolves one.
     # Both of these keyed the row on the legacy `client` FK, which points
@@ -1068,9 +1140,25 @@ def _handle_subscription_deleted(event):
     hosted = _site_by_sub(client, 'stripe_hosting_subscription_id', sub_id)
     maintained = _site_by_sub(
         client, 'stripe_maintenance_subscription_id', sub_id)
+    installing = _site_by_sub(
+        client, 'stripe_build_installment_subscription_id', sub_id)
 
     fields = []
-    target = hosted or maintained
+    target = hosted or maintained or installing
+    if (installing is not None and target is not None
+            and target.pk == installing.pk):
+        # Installment + Full Plan share one subscription on one site —
+        # write both sets of fields onto the same instance.
+        installing = target
+    if installing is not None:
+        # The 24-installment schedule ended (end_behavior=cancel after
+        # the 24th payment), or was cancelled early (guarantee refund,
+        # non-payment). Paid-off state is decided by the installment
+        # count in invoice.paid, never here.
+        installing.stripe_build_installment_subscription_id = ''
+        installing.stripe_build_installment_schedule_id = ''
+        fields.extend(['stripe_build_installment_subscription_id',
+                       'stripe_build_installment_schedule_id'])
     if hosted is not None:
         hosted.stripe_hosting_subscription_id = ''
         fields.append('stripe_hosting_subscription_id')
@@ -1152,6 +1240,17 @@ def _handle_invoice_upcoming(event):
         # their own gate (or none).
         return
 
+    # Monthly Hosting + Security (and the Full Plan) now bill from the
+    # day the contract is signed — weeks before intake provisions a
+    # Droplet, and forever for a client-hosted WordPress site. A site
+    # that has never had a Droplet has nothing to have "lost", so the
+    # gate only applies once one existed (or it was destroyed).
+    if not client.do_droplet_id and client.site_status != 'destroyed':
+        logger.info(
+            'invoice.upcoming: hosting renewal for %s allowed — no '
+            'Droplet provisioned yet', client.pk)
+        return
+
     if _droplet_alive(client):
         logger.info(
             'invoice.upcoming: hosting renewal cleared for client %s '
@@ -1178,10 +1277,10 @@ def _handle_invoice_upcoming(event):
         from django.conf import settings as _s
         from django.core.mail import send_mail
         send_mail(
-            subject=(f'[Hosting auto-cancelled] {client.firm_name} — '
+            subject=(f'[Hosting auto-cancelled] {client.name} — '
                      f'droplet missing at renewal'),
             message=(
-                f'The annual hosting subscription for {client.firm_name} '
+                f'The hosting subscription for {client.name} '
                 f'has been cancelled because their Droplet is no longer '
                 f'on our DigitalOcean account.\n\n'
                 f'Subscription ID: {sub_id}\n'

@@ -42,7 +42,7 @@
                 {% elif tier.reply_handling == 'full' %}
                     <li>✓ Full reply &amp; DM management</li>
                 {% endif %}
-                {% if tier.category == 'maintenance' %}
+                {% if tier.category == 'maintenance' or tier.category == 'hosting' %}
                     <li>✓ Month-to-month &mdash; cancel anytime</li>
                 {% endif %}
             </ul>

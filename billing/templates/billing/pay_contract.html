@@ -1,0 +1,96 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete your payment — Aspired Websites</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#070614">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+</head>
+<body class="pay-body">
+
+    <div class="pay-logo">
+        <img src="{% static 'images/logo.png' %}" alt="Aspired Websites">
+    </div>
+
+    <div class="pay-card">
+
+        <div class="pay-card__head">
+            <span class="pay-card__eyebrow">Agreement signed</span>
+            <h1 class="pay-card__title">${{ summary.today_total|floatformat:2 }}</h1>
+            <p class="pay-card__sub">Due today{% if client_name %} · for {{ client_name }}{% endif %}</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="pay-message">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <table class="pay-lines">
+            <tbody>
+                {% for label, amount in summary.today %}
+                    <tr>
+                        <td class="pay-lines__desc">{{ label }}</td>
+                        <td class="pay-lines__amt">${{ amount|floatformat:2 }}</td>
+                    </tr>
+                {% endfor %}
+                <tr class="pay-lines__total">
+                    <td class="pay-lines__desc">Total today</td>
+                    <td class="pay-lines__amt">${{ summary.today_total|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {% if summary.recurring %}
+            <div class="pay-lines__desc" style="margin:0 0 16px;">
+                <strong>After today, charged automatically to this card:</strong>
+                <ul style="margin:6px 0 0 18px;padding:0;">
+                    {% for line in summary.recurring %}<li>{{ line }}</li>{% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <p class="pay-lines__desc" style="margin:0 0 16px;">
+            30-day guarantee: cancel in writing within 30 days of signing and we refund 75% of everything you have paid under this agreement and cancel all remaining payments.
+        </p>
+
+        <div class="pay-form-wrap">
+            {% comment %}
+                Element ids match core/static/js/plan_pay.js, which is
+                reused as-is: it creates a PaymentMethod, posts it to
+                stripe_config.confirm_url, finishes any 3-D Secure step,
+                then goes to stripe_config.success_url.
+            {% endcomment %}
+            <form id="plan-pay-form" novalidate>
+                <div id="plan-pay-element"></div>
+
+                <div id="plan-pay-message" class="pay-message" hidden></div>
+
+                <button id="plan-pay-submit" type="submit" class="pay-submit">
+                    <span id="plan-pay-button-text">Pay ${{ summary.today_total|floatformat:2 }} &amp; continue</span>
+                    <span id="plan-pay-spinner" class="pay-spinner" hidden></span>
+                </button>
+            </form>
+
+            <p class="pay-secure">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;">
+                    <path fill="currentColor" d="M12 2l8 4v6c0 5-3.5 9.7-8 10-4.5-.3-8-5-8-10V6l8-4z M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" fill="none"/>
+                </svg>
+                Secured by Stripe · your card details never touch our servers
+            </p>
+        </div>
+
+    </div>
+
+    <div class="pay-footer">
+        Questions? <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+    </div>
+
+    <script src="https://js.stripe.com/v3/" defer></script>
+    {{ stripe_config|json_script:"plan-pay-config" }}
+    <script src="{% static 'js/plan_pay.js' %}?v={{ STATIC_VERSION }}" defer></script>
+</body>
+</html>

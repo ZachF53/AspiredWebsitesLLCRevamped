@@ -137,10 +137,16 @@ def _create_build_invoice(client, contract, kind, description):
 
 
 def create_deposit_invoice(client, contract):
-    """Create + send the 50% deposit invoice for a build contract."""
+    """Create + send the deposit invoice for a LEGACY build contract.
+
+    Current-terms contracts (payment_option set) have no deposit and are
+    refused — they are charged at signing by billing/contract_billing.py.
+    """
+    if getattr(contract, 'payment_option', ''):
+        return None
     label = contract.get_package_display()
     return _create_build_invoice(
-        client, contract, 'deposit', f'{label} — Deposit (50%)',
+        client, contract, 'deposit', f'{label} — Deposit',
     )
 
 
@@ -179,6 +185,8 @@ MAINTENANCE_TIER_TO_PACKAGE = {
     'maintenance-essentials': 'maintenance_essentials',
     'maintenance-growth': 'maintenance_growth',
     'maintenance-dominant': 'maintenance_dominant',
+    'hvac-full-plan': 'hvac_full_plan',
+    'hvac-plan-paid-in-full': 'hvac_plan_paid_in_full',
 }
 
 
@@ -1199,12 +1207,16 @@ def get_domain_tier(tld):
     from billing.pricing_models import ServiceTier
     from domains.models import tier_slug_for_tld
 
-    slug = tier_slug_for_tld(tld.lower().lstrip('.'))
+    clean_tld = tld.lower().lstrip('.')
+    slug = tier_slug_for_tld(clean_tld)
     tier = ServiceTier.objects.filter(
         slug=slug, is_active=True, category='addon').first()
     if tier is None:
+        # e.g. .law / .legal / .attorney once domain-law was retired
+        # (Sept 2026). This message is shown to the client as-is.
         raise ValueError(
-            f'No active domain pricing tier "{slug}" — run seed_pricing.')
+            f'.{clean_tld} domains are not available for registration. '
+            f'Try a .com, .net or .org instead.')
     if not tier.stripe_price_id:
         raise ValueError(
             f'Domain tier "{slug}" has no Stripe Price ID — run '
@@ -1436,7 +1448,9 @@ def start_contract_payment(contract, amount, *, is_deposit):
 
     amount = Decimal(amount)
     label = contract.get_package_display() or 'Website Build'
-    desc = f'{label} — {"Deposit (50%)" if is_deposit else "Paid in full"}'
+    # Only LEGACY contracts reach this with is_deposit=True (the
+    # current terms have no deposit — see billing/contract_billing.py).
+    desc = f'{label} — {"Deposit" if is_deposit else "Paid in full"}'
 
     # Find this build's existing unpaid invoice. Keyed on `client` alone,
     # a null client matched ANY invoice whose legacy FK was unset — i.e.
@@ -1550,6 +1564,11 @@ def start_contract_final_payment(contract):
             'nor account — cannot bill anyone.', contract.pk)
         return None
 
+    # Current-terms contracts have no final balance: the build was paid
+    # in full at signing or runs as 24 installments. final_amount would
+    # read the whole build price for them (no deposit to subtract).
+    if contract.payment_option:
+        return None
     amount = Decimal(contract.final_amount or 0)
     if amount <= 0:
         return None

@@ -537,7 +537,7 @@ def _intake_unlocked(client, project):
             and getattr(client, 'stripe_invoice_id', '')):
         return True
     if project and getattr(project, 'payment_status', '') in (
-            'deposit_paid', 'fully_paid'):
+            'deposit_paid', 'installments_active', 'fully_paid'):
         return True
     return False
 
@@ -2089,9 +2089,13 @@ def contract_sign(request, contract_token):
         web = contract.website_new
         paid_status = (getattr(web, 'payment_status', '')
                        or getattr(contract.client, 'payment_status', '') or '')
-        awaiting_payment = (contract.includes_build
-                            and paid_status not in ('deposit_paid',
-                                                    'fully_paid'))
+        if contract.is_legacy_billing:
+            awaiting_payment = (contract.includes_build
+                                and paid_status not in ('deposit_paid',
+                                                        'fully_paid'))
+        else:
+            awaiting_payment = (contract.bills_at_signing
+                                and not contract.paid_at_signing_at)
         return render(request, 'clients/contract_sign.html', {
             'contract': contract,
             'already_signed': True,
@@ -2124,11 +2128,22 @@ def contract_sign(request, contract_token):
             contract.pdf_path = render_contract_pdf(contract)
             contract.save()
 
-            # Build contracts flow straight into the inline payment page
-            # (sign → pay → account setup → intake). Maintenance/social-only
-            # contracts just record the signed agreement — billing for those
-            # recurring plans is handled separately (self-serve checkout or
-            # operator setup).
+            # Current-terms agreements (payment_option set) charge
+            # everything at signing — the build in full or its first
+            # installment, plus the first month of any Full Plan /
+            # Hosting + Security plan — on our own card page.
+            if contract.bills_at_signing:
+                web = contract.website_new
+                if web is not None and contract.includes_build:
+                    web.lifecycle_status = 'contract_signed'
+                    web.save(update_fields=['lifecycle_status',
+                                            'updated_at'])
+                return redirect('pay_contract',
+                                contract_token=contract.contract_token)
+
+            # LEGACY build contracts (50% deposit terms) flow into the
+            # old deposit / pay-in-full choice page. Social-only legacy
+            # contracts just record the signed agreement.
             if contract.includes_build:
                 # Mirror onto the legacy ClientProfile when there is one.
                 # Contracts raised from the Website/Account pages set
@@ -2172,8 +2187,10 @@ def contract_signed(request):
 
 def contract_pay(request, contract_token):
     """
-    Deposit / pay-in-full choice for a signed build contract, then hand the
-    client off to the inline Stripe Elements page.
+    LEGACY contracts only (created under the old 50% deposit terms, i.e.
+    Contract.payment_option blank): deposit / pay-in-full choice, then
+    hand the client off to the inline Stripe Elements page. Current-terms
+    contracts are redirected to /pay/contract/<token>/.
 
     GET  → show the two amounts (50% deposit or pay in full).
     POST → create the OnboardingInvoice + PaymentIntent for the chosen
@@ -2190,6 +2207,11 @@ def contract_pay(request, contract_token):
     if not contract.signed:
         return redirect('clients:contract_sign',
                         contract_token=contract_token)
+    # Current-terms agreements have no deposit choice — everything due is
+    # charged on the pay-at-signing page. This view is only the LEGACY
+    # 50/50 deposit flow, kept for contracts created under those terms.
+    if not contract.is_legacy_billing:
+        return redirect('pay_contract', contract_token=contract_token)
     if not contract.includes_build:
         return redirect('clients:contract_signed')
 

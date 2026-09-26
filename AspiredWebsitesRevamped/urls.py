@@ -113,6 +113,21 @@ urlpatterns = [
     path('pay/<uuid:token>/', pay_invoice, name='pay_invoice'),
     path('pay/<uuid:token>/success/',
          pay_success, name='pay_success'),
+    # Signed agreement → charge everything due at signing (build in full
+    # or first installment + first month of any plan). Under /pay/ so it
+    # inherits the Stripe-permissive CSP. See billing/contract_billing.py.
+    path('pay/contract/<uuid:contract_token>/',
+         __import__('billing.contract_checkout_views',
+                    fromlist=['pay_contract']).pay_contract,
+         name='pay_contract'),
+    path('pay/contract/<uuid:contract_token>/confirm/',
+         __import__('billing.contract_checkout_views',
+                    fromlist=['pay_contract_confirm']).pay_contract_confirm,
+         name='pay_contract_confirm'),
+    path('pay/contract/<uuid:contract_token>/complete/',
+         __import__('billing.contract_checkout_views',
+                    fromlist=['pay_contract_complete']).pay_contract_complete,
+         name='pay_contract_complete'),
     # Maintenance/social plan pay page — see billing/plan_billing.py's
     # module docstring (start_website_plan's no-card branch).
     path('plan-pay/<uuid:plan_id>/', pay_plan, name='pay_plan'),
