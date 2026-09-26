@@ -161,7 +161,8 @@
 - [x] M-6.10 Insights order
 
 ### Security-report automation (owner answer 14)
-- [ ] Plan-based recipients · domain-only scans · pre-report scans · file integrity · uptime · auto-send fix · management command *(security track)*
+- [x] Plan-based recipients (`reporting/security_eligibility.py`) · domain-only scans for sites off our servers · pre-report scan sweep on the 26th–28th (2am ET) · file-integrity baselines in the droplet health audit (+ "accept new baseline" admin action) · uptime section · per-scan auto-send fixed (`scan.website_new`) · `manage.py send_security_summaries [--dry-run] [--month] [--website] [--resend]` · 217 reporting tests pass
+  - Remaining for you: vault SSH credentials per client server (needed for file integrity); nmap/nikto/wpscan on the worker host; WordPress file integrity only runs once those sites are on our servers
 
 ### Phase 7 — Verification + deploy
 - [ ] Merge the tracks; `manage.py check`; targeted tests
