@@ -70,16 +70,24 @@ def check_availability_all_tlds(name, tlds=None):
     from decimal import Decimal
     from billing.pricing_models import ServiceTier
 
-    tlds = tlds or ['com', 'net', 'org', 'law', 'legal', 'attorney']
-    candidates = [f'{name}.{t}' for t in tlds]
-    client = get_client()
-    raw = client.check_availability(candidates)
-
     # Pre-load retail prices once, keyed by tier slug so adding new
     # premium TLDs is a one-line change in PREMIUM_TLDS (no second
     # edit needed here).
     standard = ServiceTier.objects.filter(slug='domain-standard').first()
     law = ServiceTier.objects.filter(slug='domain-law').first()
+
+    tlds = tlds or ['com', 'net', 'org', 'law', 'legal', 'attorney']
+    # A TLD whose pricing tier is retired (domain-law, Sept 2026) is not
+    # offered at all — searching it would only lead to a registration
+    # page that cannot sell it.
+    active_slugs = set(ServiceTier.objects.filter(
+        slug__in=('domain-standard', 'domain-law'), is_active=True,
+    ).values_list('slug', flat=True))
+    if active_slugs:
+        tlds = [t for t in tlds if tier_slug_for_tld(t) in active_slugs]
+    candidates = [f'{name}.{t}' for t in tlds]
+    client = get_client()
+    raw = client.check_availability(candidates)
     price_by_slug = {
         'domain-standard': standard.price if standard else Decimal('75'),
         'domain-law':      law.price      if law      else Decimal('175'),

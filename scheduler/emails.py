@@ -86,11 +86,14 @@ def _lead_attrs(call):
     return out
 
 
-_BUILD_TYPE_LABELS = {
-    'essential': 'Essential Build',
-    'premium':   'Premium Build',
-    'not_sure':  'Not sure yet',
-}
+def _build_type_display(value):
+    """Label for a booking build_type — the same six options (and
+    ServiceTier prices) the booking form shows. Legacy values from old
+    leads (essential / premium) fall through as-is."""
+    if not value:
+        return ''
+    from scheduler.views import build_type_label
+    return build_type_label(value)
 
 
 def send_schedule_confirmation_to_customer(call):
@@ -162,15 +165,10 @@ def send_schedule_notification_to_admin(call):
     lead_attrs = _lead_attrs(call)
 
     lead_url = ''
-    addons = []
     if call.lead_id:
         base = getattr(
             settings, 'SITE_BASE_URL', 'https://aspiredwebsites.com')
         lead_url = f'{base}/admin-dashboard/leads/{call.lead_id}/'
-        try:
-            addons = list(call.lead.opted_in_addons or [])
-        except Exception:
-            addons = []
 
     build_type = lead_attrs['build_type']
     context = {
@@ -180,8 +178,7 @@ def send_schedule_notification_to_admin(call):
         'business': lead_attrs['business'],
         'website': lead_attrs['website'],
         'build_type': build_type,
-        'build_type_display': _BUILD_TYPE_LABELS.get(build_type, build_type),
-        'addons': addons,
+        'build_type_display': _build_type_display(build_type),
         'inquiry': call.notes or '',
         'when_str': when_str,
         'lead_url': lead_url,
@@ -194,9 +191,7 @@ def send_schedule_notification_to_admin(call):
         f"Email: {call.customer_email or '—'}\n"
         f"Phone: {lead_attrs['phone'] or '—'}\n"
         f"Business: {lead_attrs['business'] or '—'}\n"
-        f"Build type: "
-        f"{_BUILD_TYPE_LABELS.get(build_type, build_type) or '—'}\n"
-        f"Opt-in add-ons: {', '.join(addons) if addons else '—'}\n\n"
+        f"Build type: {_build_type_display(build_type) or '—'}\n\n"
         f"What they want to build:\n{call.notes or '(none provided)'}\n\n"
         f"Lead: {lead_url or '(no lead linked)'}\n"
     )

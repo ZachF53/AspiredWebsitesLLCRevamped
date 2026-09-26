@@ -340,7 +340,8 @@ def _preflight_warnings(intent, args, profile):
     they click confirm. Each item: {'text': str, 'blocked': bool}."""
     warnings = []
     state = get_client_status(profile)
-    if intent in ('mark_live',) and not state['payment_status'] == 'fully_paid':
+    if intent in ('mark_live',) and state['payment_status'] not in (
+            'fully_paid', 'installments_active'):
         warnings.append({
             'text': (f'Final payment NOT cleared (payment_status='
                      f'{state["payment_status"]}). This action will be '

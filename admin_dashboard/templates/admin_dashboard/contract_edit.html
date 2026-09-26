@@ -19,7 +19,7 @@
                 {{ contract.account.name|default:"—" }}
                 {% if contract.build_price %}
                     &middot; ${{ contract.build_price|floatformat:2 }} build
-                    {% if contract.deposit_amount %}(${{ contract.deposit_amount|floatformat:2 }} deposit){% endif %}
+                    {% if contract.deposit_amount %}(${{ contract.deposit_amount|floatformat:2 }} deposit — legacy terms){% elif contract.payment_option %}({{ contract.get_payment_option_display }}){% endif %}
                 {% endif %}
             </p>
         </div>

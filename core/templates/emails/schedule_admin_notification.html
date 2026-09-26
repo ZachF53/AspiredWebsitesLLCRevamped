@@ -68,14 +68,6 @@
         <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">{{ build_type_display|default:build_type }}</td>
     </tr>
     {% endif %}
-    {% if addons %}
-    <tr>
-        <td style="padding:6px 0;color:#94A3B8;font-size:13px;vertical-align:top;">Opted-in add-ons</td>
-        <td style="padding:6px 0;color:#F8FAFC;font-size:14px;">
-            {% for a in addons %}<span style="display:inline-block;background:rgba(232,101,10,0.15);color:#E8650A;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;margin:0 4px 4px 0;">{{ a }}</span>{% endfor %}
-        </td>
-    </tr>
-    {% endif %}
 </table>
 
 {% if inquiry %}

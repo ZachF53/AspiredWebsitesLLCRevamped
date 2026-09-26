@@ -26,6 +26,7 @@ TIERS = [
         'is_recurring': False, 'billing_interval': '',
         'pages_included': 8, 'practice_areas_included': 5,
         'timeline_weeks': 3, 'sort_order': 1, 'is_featured': False,
+        'is_active': False,
         'env': 'STRIPE_PRICE_ESSENTIAL',
         'features': [
             'Up to 8 pages including up to 5 practice area pages',
@@ -44,6 +45,7 @@ TIERS = [
         'is_recurring': False, 'billing_interval': '',
         'pages_included': 15, 'practice_areas_included': 10,
         'timeline_weeks': 4, 'sort_order': 2, 'is_featured': True,
+        'is_active': False,
         'env': 'STRIPE_PRICE_PREMIUM',
         'features': [
             'Up to 15 pages including up to 10 practice area pages',
@@ -125,6 +127,7 @@ TIERS = [
         'name': 'Basic', 'price': Decimal('399.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 1, 'is_featured': False,
+        'is_active': False,
         'env': 'STRIPE_PRICE_SOCIAL_BASIC',
         'features': [
             '3 posts per week across 2 platforms',
@@ -137,6 +140,7 @@ TIERS = [
         'name': 'Standard', 'price': Decimal('699.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 2, 'is_featured': True,
+        'is_active': False,
         'env': 'STRIPE_PRICE_SOCIAL_STANDARD',
         'features': [
             '5 posts per week across 3 platforms',
@@ -149,6 +153,7 @@ TIERS = [
         'name': 'Full Management', 'price': Decimal('999.00'),
         'is_recurring': True, 'billing_interval': 'month',
         'sort_order': 3, 'is_featured': False,
+        'is_active': False,
         'env': 'STRIPE_PRICE_SOCIAL_FULL',
         'features': [
             'Daily posting across all platforms',
@@ -163,6 +168,7 @@ TIERS = [
         'name': 'Annual Hosting', 'price': Decimal('150.00'),
         'is_recurring': True, 'billing_interval': 'year',
         'sort_order': 1, 'is_featured': False,
+        'is_active': False,
         'env': 'STRIPE_PRICE_HOSTING',
         'features': [
             'Your own dedicated server — not shared hosting',
@@ -293,6 +299,7 @@ TIERS = [
         'price': Decimal('175.00'),
         'is_recurring': True, 'billing_interval': 'year',
         'sort_order': 11, 'is_featured': False,
+        'is_active': False,
         'env': 'STRIPE_PRICE_DOMAIN_LAW',
         'features': [
             'Premium attorney-niche TLDs — .law, .legal, .attorney',
@@ -366,27 +373,31 @@ class Command(BaseCommand):
                 existing.stripe_product_id if existing
                 and existing.stripe_product_id else ''
             )
+            defaults = {
+                'category': data['category'],
+                'name': data['name'],
+                'price': data['price'],
+                'price_display': data.get('price_display', ''),
+                'tagline': data.get('tagline', ''),
+                'description': data.get('description', ''),
+                'is_recurring': data['is_recurring'],
+                'billing_interval': data['billing_interval'],
+                'stripe_price_id': preserve_id,
+                'stripe_product_id': preserve_product,
+                'is_active': data.get('is_active', True),
+                'is_featured': data['is_featured'],
+                'sort_order': data['sort_order'],
+                'pages_included': data.get('pages_included'),
+                'practice_areas_included': data.get('practice_areas_included'),
+                'timeline_weeks': data.get('timeline_weeks'),
+            }
+            # Discontinued tiers (see billing migration 0011) are also
+            # hidden. Active tiers leave is_public alone, so an operator's
+            # choice to hide one survives a re-seed.
+            if not data.get('is_active', True):
+                defaults['is_public'] = False
             tier, _ = ServiceTier.objects.update_or_create(
-                slug=data['slug'],
-                defaults={
-                    'category': data['category'],
-                    'name': data['name'],
-                    'price': data['price'],
-                    'price_display': data.get('price_display', ''),
-                    'tagline': data.get('tagline', ''),
-                    'description': data.get('description', ''),
-                    'is_recurring': data['is_recurring'],
-                    'billing_interval': data['billing_interval'],
-                    'stripe_price_id': preserve_id,
-                    'stripe_product_id': preserve_product,
-                    'is_active': data.get('is_active', True),
-                    'is_featured': data['is_featured'],
-                    'sort_order': data['sort_order'],
-                    'pages_included': data.get('pages_included'),
-                    'practice_areas_included': data.get('practice_areas_included'),
-                    'timeline_weeks': data.get('timeline_weeks'),
-                },
-            )
+                slug=data['slug'], defaults=defaults)
             tier_count += 1
             # Use the preserved id for the status line so re-seeds
             # accurately reflect what's actually in the DB.

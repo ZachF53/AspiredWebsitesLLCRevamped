@@ -586,12 +586,15 @@ def website_detail(request, website_id):
     has_card_on_file, card_brand, card_last4 = False, '', ''
     active_maintenance_plan = None
     website_plans = []
+    guarantee = None
     if active_tab == 'billing':
         from billing.pricing_models import ServiceTier
 
         maintenance_tiers = list(ServiceTier.objects.filter(
             category='maintenance', is_active=True).order_by('sort_order'))
         has_card_on_file, card_brand, card_last4 = _card_state(website)
+        from billing.guarantee import guarantee_status
+        guarantee = guarantee_status(website)
         active_maintenance_plan = _active_plan(website, 'maintenance')
         website_plans = (list(website.maintenance_plans.all())
                           + list(website.social_media_plans.all()))
@@ -656,6 +659,8 @@ def website_detail(request, website_id):
         'card_brand': card_brand,
         'card_last4': card_last4,
         'active_maintenance_plan': active_maintenance_plan,
+        # Billing — 30-day guarantee panel (billing.guarantee)
+        'guarantee': guarantee,
         # Monitoring
         'changelog_entries': website.changelog_entries.order_by('-date_of_change')[:25],
         'uptime_records': website.uptime_records_new.order_by('-checked_at')[:20],
@@ -1187,4 +1192,42 @@ def website_add_plan(request, website_id):
             f'(active), {amount_txt}, {discount_txt}. Charged the card '
             f'on file. {local_txt}.')
 
+    return redirect(redirect_to)
+
+
+@admin_required
+def website_guarantee_refund(request, website_id):
+    """30-day guarantee: refund 75% of what was paid under the agreement,
+    keep 25%, and cancel every remaining installment / plan payment now.
+
+    Thin caller over billing.guarantee.execute_guarantee_refund. It
+    DELIBERATELY skips _block_if_live_subscription: a live installment or
+    plan subscription is exactly what this action exists to cancel, and
+    the guarantee is a contractual right the client can exercise however
+    this site is billed.
+    """
+    redirect_to = f"{reverse_v2_website_tab(website_id, 'billing')}"
+    if request.method != 'POST':
+        return redirect(redirect_to)
+
+    website = get_object_or_404(Website, id=website_id)
+    if (request.POST.get('confirmed') or '').strip() != 'yes':
+        messages.error(request, 'Confirm the refund before submitting.')
+        return redirect(redirect_to)
+
+    from billing.guarantee import execute_guarantee_refund
+
+    try:
+        row = execute_guarantee_refund(
+            website, requested_by=_setter_name(request),
+            reason=(request.POST.get('reason') or '').strip())
+    except GuardError as e:
+        messages.error(request, str(e))
+        return redirect(redirect_to)
+
+    messages.success(
+        request,
+        f'Guarantee refund complete — refunded ${row.refund_amount:,.2f} '
+        f'(75%), retained ${row.retained_amount:,.2f} (25%), cancelled '
+        f'{len(row.cancelled_subscriptions)} subscription/schedule(s).')
     return redirect(redirect_to)

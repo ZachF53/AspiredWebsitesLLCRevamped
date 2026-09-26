@@ -204,6 +204,7 @@ class Account(TimestampedModel):
     BUILD_COMP_CHOICES = [
         ('essential_build', 'Essential Website Build'),
         ('premium_build',   'Premium Website Build'),
+        ('hvac_build',      'Website Build'),
     ]
     MAINTENANCE_COMP_CHOICES = [
         ('maintenance_essentials', 'Maintenance — Essentials'),
@@ -293,10 +294,20 @@ class Website(TimestampedModel):
         ('maintenance_growth', 'Maintenance — Growth'),
         ('maintenance_dominant', 'Maintenance — Dominant'),
         ('moonieful_referred', 'Moonieful Referred'),
+        # HVAC-era packages (Sept 2026). The legacy values above stay:
+        # existing clients still carry essential_build / premium_build.
+        ('hvac_build', 'Website Build'),
+        ('hvac_full_plan', 'Full Plan'),
+        ('hvac_plan_paid_in_full', 'Full Plan — build paid upfront'),
+        ('hvac_hosting_security', 'Hosting + Security'),
     ]
     PAYMENT_STATUS_CHOICES = [
         ('awaiting_deposit', 'Awaiting Deposit'),
         ('deposit_paid', 'Deposit Paid'),
+        # 24-month installment build: the first installment has been
+        # charged and the rest bill monthly. The site may go live during
+        # installments; it flips to fully_paid after the 24th payment.
+        ('installments_active', 'Installments Active'),
         ('fully_paid', 'Fully Paid'),
     ]
     # Website-level onboarding tracks the build-specific intake form
@@ -381,8 +392,10 @@ class Website(TimestampedModel):
     LIFECYCLE_STATUS_CHOICES = [
         ('inquiry', 'New inquiry — no contract'),
         ('contract_sent', 'Contract sent — unsigned'),
-        ('contract_signed', 'Signed — awaiting deposit'),
-        ('deposit_paid', 'Deposit paid'),
+        ('contract_signed', 'Signed — awaiting payment'),
+        # Key kept for existing rows; means "first payment in" — a legacy
+        # deposit, a pay-in-full build, or the first of 24 installments.
+        ('deposit_paid', 'Paid — build can start'),
         ('in_build', 'In build'),
         ('live', 'Live'),
     ]
@@ -507,6 +520,18 @@ class Website(TimestampedModel):
     # can be told apart in Stripe dashboards and webhook routing.
     stripe_build_installment_subscription_id = models.CharField(
         max_length=255, blank=True)
+    # The SubscriptionSchedule that drives the installment subscription
+    # (24 iterations, then either cancel or step down to the $145 plan).
+    # Cancelling the schedule cancels its subscription immediately, which
+    # is what the 30-day guarantee needs.
+    stripe_build_installment_schedule_id = models.CharField(
+        max_length=255, blank=True)
+    # How many installment invoices have been paid, and when the build
+    # was paid off (the pay-in-full payment, the legacy final payment, or
+    # the 24th installment). Ownership transfers to the client at
+    # build_paid_off_at — until then Aspired Websites LLC owns the site.
+    build_installments_paid = models.PositiveIntegerField(default=0)
+    build_paid_off_at = models.DateTimeField(null=True, blank=True)
     stripe_invoice_id = models.CharField(
         max_length=255, blank=True,
         help_text='One-time onboarding invoice ID for this build.',

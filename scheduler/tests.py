@@ -117,7 +117,7 @@ class ConfirmSlotTests(TestCase):
                 'business': 'Jane LLC',
                 'inquiry': 'I want a website.',
                 'service': 'web_design',
-                'build_type': 'essential',
+                'build_type': 'build_full',
             })
         self.assertEqual(r.status_code, 200)
         call = ScheduledCall.objects.get(id=self.call_id)
@@ -172,7 +172,8 @@ def _seed_addon_tiers():
 
 class WebDevInquiryProvisioningTests(TestCase):
     """Phase 1 — a Website Development booking provisions an inactive
-    User + Account + Website with the build tier + opt-ins recorded."""
+    User + Account + Website with the build package recorded. (Plan
+    opt-ins at booking were retired in Sept 2026.)"""
 
     @classmethod
     def setUpTestData(cls):
@@ -184,13 +185,12 @@ class WebDevInquiryProvisioningTests(TestCase):
         from scheduler.views import _provision_webdev_inquiry
         web = _provision_webdev_inquiry(
             email='biz@example.com', business='Biz LLC', contact_name='Bo',
-            phone='210-000-0000', website='', build_package='essential_build',
-            addons=['maintenance-growth', 'social-standard'])
+            phone='210-000-0000', website='', build_package='hvac_build')
         self.assertIsNotNone(web)
-        self.assertEqual(web.package, 'essential_build')
+        self.assertEqual(web.package, 'hvac_build')
         self.assertEqual(web.lifecycle_status, 'inquiry')
-        self.assertEqual(web.opted_in_maintenance_tier, 'maintenance-growth')
-        self.assertEqual(web.opted_in_social_tier, 'social-standard')
+        self.assertEqual(web.opted_in_maintenance_tier, '')
+        self.assertEqual(web.opted_in_social_tier, '')
         # Inactive user — no login until they set a password post-payment.
         u = get_user_model().objects.get(username='biz@example.com')
         self.assertFalse(u.is_active)
@@ -203,10 +203,10 @@ class WebDevInquiryProvisioningTests(TestCase):
         from scheduler.views import _provision_webdev_inquiry
         w1 = _provision_webdev_inquiry(
             email='same@example.com', business='Same LLC', contact_name='',
-            phone='', website='', build_package='essential_build', addons=[])
+            phone='', website='', build_package='hvac_build')
         w2 = _provision_webdev_inquiry(
             email='same@example.com', business='Same LLC', contact_name='',
-            phone='', website='', build_package='premium_build', addons=[])
+            phone='', website='', build_package='hvac_full_plan')
         self.assertEqual(
             get_user_model().objects.filter(
                 username='same@example.com').count(), 1)
@@ -231,7 +231,9 @@ class WebDevInquiryProvisioningTests(TestCase):
                 data=json.dumps({
                     'call_id': call_id, 'name': 'Web Dev',
                     'email': 'webdev@example.com', 'business': 'WebDev LLC',
-                    'service': 'web_design', 'build_type': 'premium',
+                    'service': 'web_design', 'build_type': 'full_plan',
+                    # A stale client still posting the retired opt-in
+                    # list is ignored, not stored.
                     'addons': ['maintenance-growth'],
                 }),
                 content_type='application/json')
@@ -239,9 +241,9 @@ class WebDevInquiryProvisioningTests(TestCase):
         web = Website.objects.filter(
             account__user__email='webdev@example.com').first()
         self.assertIsNotNone(web)
-        self.assertEqual(web.package, 'premium_build')
+        self.assertEqual(web.package, 'hvac_full_plan')
         self.assertEqual(web.lifecycle_status, 'inquiry')
-        self.assertEqual(web.opted_in_maintenance_tier, 'maintenance-growth')
+        self.assertEqual(web.opted_in_maintenance_tier, '')
 
     def test_confirm_social_does_not_create_website(self):
         from unittest.mock import patch

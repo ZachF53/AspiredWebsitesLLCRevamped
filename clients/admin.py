@@ -17,8 +17,6 @@ a silent one: ``search_fields`` is not validated until someone types in
 the box, so the admin would have looked fine right up until it was used.
 """
 
-from decimal import Decimal
-
 from django import forms
 from django.contrib import admin, messages
 from django.db import models
@@ -48,6 +46,7 @@ from .models import (
 BUILD_PACKAGE_TO_SLUG = {
     'essential_build': 'website-essential',
     'premium_build': 'website-premium',
+    'hvac_build': 'hvac-build-full',
 }
 
 # Reused search paths, so a rename shows up in one place rather than twelve.
@@ -71,25 +70,37 @@ def generate_contract(modeladmin, request, queryset):
     created = 0
     for site in queryset.select_related('account'):
         slug = BUILD_PACKAGE_TO_SLUG.get(site.package)
-        tier = ServiceTier.objects.filter(slug=slug).first() if slug else None
+        # Only a tier that is still sold: the retired Essential/Premium
+        # tiers carried the old 50% deposit terms.
+        tier = (ServiceTier.objects.filter(slug=slug, is_active=True).first()
+                if slug else None)
         if tier is None:
             modeladmin.message_user(
                 request,
-                f'{site.name}: set package to Essential or Premium '
-                f'build, and run seed_pricing, before generating a contract.',
+                f'{site.name}: set package to Website Build (hvac_build), '
+                f'and run seed_pricing, before generating a contract. For '
+                f'installments or a plan, use the Website page in the '
+                f'admin dashboard.',
                 level=messages.WARNING,
             )
             continue
-        text = generate_contract_text(_ContractParty(site), tier.slug)
+        # Pay in full at signing — no deposit on current-terms contracts.
+        text = generate_contract_text(
+            _ContractParty(site), tier.slug, payment_option='pay_in_full')
         contract = Contract.objects.create(
             account=site.account,
             website_new=site,
-            package=site.package,
+            package='hvac_build',
             build_price=tier.price,
-            deposit_amount=(tier.price / 2).quantize(Decimal('0.01')),
-            timeline_weeks=tier.timeline_weeks or 0,
+            deposit_amount=None,
+            payment_option='pay_in_full',
+            timeline_weeks=tier.timeline_weeks or 4,
             contract_text=text,
         )
+        ContractService.objects.create(
+            contract=contract, service_type='build', tier_slug=tier.slug,
+            tier_name=tier.name, price=tier.price, deposit_amount=None,
+            is_recurring=False, billing_interval='')
         sign_url = request.build_absolute_uri(
             reverse('clients:contract_sign', args=[contract.contract_token])
         )

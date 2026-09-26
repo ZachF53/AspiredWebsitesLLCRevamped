@@ -129,8 +129,7 @@ def _create_hosting_subscription(stripe, customer_id, payment_method_id,
     immediately on the card we just saved. Returns the subscription or
     None. Never raises — a hosting failure must not undo the primary sale.
     """
-    hosting_tier = ServiceTier.objects.filter(
-        category='hosting', is_active=True).first()
+    hosting_tier = _legacy_hosting_tier()
     if not (hosting_tier and hosting_tier.stripe_price_id):
         logger.warning('checkout: no hosting tier/price configured')
         return None
@@ -201,25 +200,53 @@ def _stripe_error_message(exc, fallback='Your payment could not be '
     return msg or fallback
 
 
+# Monthly Hosting + Security is self-checkout-able (Sept 2026). The legacy
+# $150/yr hosting-annual tier never was — it is only ever the move-over
+# upsell on a maintenance checkout.
+SELF_CHECKOUT_HOSTING_SLUGS = ('hvac-hosting-security',)
+
+
 def _tier_allows_selfcheckout(tier):
     """Web design tiers DO NOT allow self-checkout — they go through
-    the Schedule a Call page."""
+    the Schedule a Call page. Monthly hosting does."""
+    if tier.category == 'hosting':
+        return (tier.slug in SELF_CHECKOUT_HOSTING_SLUGS
+                and tier.billing_interval == 'month')
     return tier.category in ('maintenance', 'social_media')
+
+
+def _provision_product_type(tier):
+    """Which onboarding / plan-row shape a self-checkout sale gets.
+    Hosting + Security buyers bring a site they already have, so they
+    get the maintenance onboarding (hosting-panel access etc.) and a
+    MaintenancePlan row carrying the hosting tier slug."""
+    return 'maintenance' if tier.category == 'hosting' else tier.category
+
+
+def _legacy_hosting_tier():
+    """The $150/yr move-over tier, while it is still sold."""
+    return ServiceTier.objects.filter(
+        slug='hosting-annual', is_active=True).first()
 
 
 def checkout_page(request, tier_slug):
     """Render the checkout form. Tier comes from URL slug."""
-    tier = get_object_or_404(
-        ServiceTier, slug=tier_slug, is_active=True,
-    )
+    tier = ServiceTier.objects.filter(slug=tier_slug).first()
+    if tier is None:
+        from django.http import Http404
+        raise Http404('No such plan')
+    if not tier.is_active:
+        # A discontinued tier (old links, bookmarks, cached pricing
+        # pages): point the visitor at what we sell now instead of a 404.
+        return redirect('/design/schedule/')
     if not _tier_allows_selfcheckout(tier):
-        # Web design / hosting / addons → redirect to schedule a call
+        # Web design / annual hosting / addons → schedule a call
         return redirect('/design/schedule/')
 
-    # Maintenance customers can opt into hosting move-over inline.
-    hosting_tier = ServiceTier.objects.filter(
-        category='hosting', is_active=True,
-    ).first()
+    # Maintenance customers can opt into the legacy hosting move-over
+    # inline — only while that $150/yr tier is still sold. The Full Plan
+    # already includes hosting, so with it retired the upsell is gone.
+    hosting_tier = _legacy_hosting_tier()
     show_hosting_upsell = (
         tier.category == 'maintenance' and hosting_tier is not None
     )
@@ -293,7 +320,12 @@ def checkout_confirm(request, tier_slug):
 
     email = (payload.get('email') or '').strip().lower()
     payment_method_id = (payload.get('payment_method_id') or '').strip()
-    hosting_upsell = bool(payload.get('hosting_upsell'))
+    # The upsell only exists on a maintenance checkout while the legacy
+    # annual hosting tier is sold; ignore a stale flag otherwise.
+    hosting_upsell = bool(payload.get('hosting_upsell')) and (
+        tier.category == 'maintenance'
+        and _legacy_hosting_tier() is not None)
+    product_type = _provision_product_type(tier)
 
     if not email or not payment_method_id:
         return JsonResponse({
@@ -346,7 +378,7 @@ def checkout_confirm(request, tier_slug):
         'expand': ['latest_invoice.confirmation_secret'],
         'metadata': {
             'tier_slug': tier.slug,
-            'product_type': tier.category,
+            'product_type': product_type,
             'hosting_upsell': '1' if hosting_upsell else '0',
         },
     }
@@ -380,7 +412,7 @@ def checkout_confirm(request, tier_slug):
             email=email,
             customer_id=customer.id,
             tier_slug=tier.slug,
-            product_type=tier.category,
+            product_type=product_type,
             subscription_id=subscription.id,
             hosting_upsell=hosting_upsell,
             customer_name=getattr(customer, 'name', '') or '',

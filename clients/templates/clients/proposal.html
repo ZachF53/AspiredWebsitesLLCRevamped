@@ -82,13 +82,16 @@ Styled via _PDF_CSS in clients/proposal_pdf.py — do not add main.css here.
             </div>
         {% endif %}
         <div class="pricing__row">
-            <span class="label">Due to start</span>
-            <span class="amount">${{ p.project_price|floatformat:0|slice:":-1" }}{{ p.project_price|floatformat:0|slice:"-1:" }}{% comment %}50% rendered below{% endcomment %}</span>
+            <span class="label">Build price</span>
+            <span class="amount">${{ p.project_price|floatformat:0 }}</span>
         </div>
     </div>
-    <p><strong>Payment terms:</strong> 50% deposit to start. 50% on launch.
-    No long-term contracts — maintenance is month-to-month, cancel anytime
-    with 30 days notice.</p>
+    <p><strong>Payment terms:</strong> the build is paid in full when you sign,
+    or in 24 monthly installments with the first charged when you sign. Monthly
+    plans also start when you sign and are month-to-month &mdash; cancel anytime
+    with 30 days&rsquo; notice. 30-day guarantee: cancel within 30 days of
+    signing and we refund 75% of what you have paid and cancel every remaining
+    payment.</p>
     {% if p.expires_at %}
         <p style="color:#666; font-size: 10pt;">This proposal expires on
         <strong>{{ p.expires_at|date:"F j, Y" }}</strong>.</p>

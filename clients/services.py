@@ -57,7 +57,11 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
         raise ValueError(
             f'Unknown stage "{new_stage}". '
             f'Valid stages: {", ".join(sorted(valid))}')
-    if new_stage == 'live' and profile.payment_status != 'fully_paid':
+    # 'installments_active' is a 24-month installment build: the site
+    # goes live during installments (Aspired keeps ownership until the
+    # last one clears — see the contract Ownership clause).
+    if new_stage == 'live' and profile.payment_status not in (
+            'fully_paid', 'installments_active'):
         raise GuardError(
             f'Cannot move {profile.name} to "live" — final payment '
             f'has not cleared yet (payment_status='

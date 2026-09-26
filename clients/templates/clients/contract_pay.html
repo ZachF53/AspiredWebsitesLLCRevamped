@@ -42,17 +42,19 @@
         </div>
 
         {% comment %}
-            Two payment options. The 50% deposit is the minimum per the
-            signed agreement; paying in full now means no second invoice
-            on delivery. Each radio is its own labelled option; the single
-            Continue button posts the chosen amount.
+            LEGACY page. Only agreements signed under the old deposit terms
+            (Contract.payment_option blank) reach it; everything sold since
+            is paid in full or in 24 installments on /pay/contract/.
+            The deposit option below is what those agreements promised.
+            Each radio is its own labelled option; the single Continue
+            button posts the chosen amount.
         {% endcomment %}
         <form method="post" class="contract-pay-form">
             {% csrf_token %}
 
             <label class="pay-option">
                 <span class="pay-option__row">
-                    <span><input type="radio" name="amount_choice" value="deposit" checked> Pay 50% deposit now</span>
+                    <span><input type="radio" name="amount_choice" value="deposit" checked> Pay the deposit in your agreement now</span>
                     <span>${{ deposit|floatformat:2 }}</span>
                 </span>
                 <span class="pay-option__desc">
