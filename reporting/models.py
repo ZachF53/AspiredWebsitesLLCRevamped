@@ -439,6 +439,13 @@ class VulnerabilityScan(TimestampedModel):
     raw_nikto = models.JSONField(default=dict, blank=True)
     raw_ssl = models.JSONField(default=dict, blank=True)
     raw_wpscan = models.JSONField(default=dict, blank=True)
+    # Direct HTTP checks from the worker host — security response
+    # headers present/missing and the live TLS certificate's expiry
+    # (reporting.scanners.run_http_security_check). Feeds the monthly
+    # security summary's "Security headers" and "SSL certificate"
+    # sections; produces no VulnerabilityFinding rows (HSTS is already
+    # a finding from the SSL Labs pass, and Nikto covers the rest).
+    raw_http = models.JSONField(default=dict, blank=True)
 
     # Parsed summary — denormalised so the list page renders without
     # an N+1 over findings.
@@ -615,6 +622,14 @@ class DropletHealthCheck(TimestampedModel):
         null=True, blank=True)
     services_down = models.JSONField(default=list, blank=True)
 
+    # File-integrity pass (reporting.file_integrity): the current
+    # sha256 manifest of the application code plus the diff against
+    # the site's FileIntegrityBaseline. `status` is one of
+    # baseline_recorded / clean / changed / skipped.
+    raw_file_integrity = models.JSONField(default=dict, blank=True)
+    file_integrity_changes_count = models.IntegerField(
+        null=True, blank=True)
+
     # True if triggered by the daily Celery beat sweep, False if
     # triggered manually from the admin dashboard.
     is_scheduled = models.BooleanField(default=False)
@@ -684,6 +699,18 @@ class SecuritySummaryReport(TimestampedModel):
     services_down_count = models.IntegerField(default=0)
     overall_status = models.CharField(
         max_length=10, choices=OVERALL_STATUS_CHOICES, default='green')
+    # Uptime for the reported calendar month (clients.models
+    # UptimeRecord / UptimeAlert). None when the site had no checks.
+    uptime_percent = models.FloatField(null=True, blank=True)
+    uptime_incident_count = models.IntegerField(null=True, blank=True)
+    # True when no scan completed inside the freshness window (35 days
+    # before the send date) — the PDF says the scan could not complete
+    # rather than reporting stale data, and the admin is alerted.
+    scan_stale = models.BooleanField(default=False)
+    # Per-section snapshot exactly as rendered into the PDF (dependency
+    # vulnerabilities, file integrity, SSL certificate, security
+    # headers, uptime) — lets the admin see what the client was told.
+    sections = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-report_month']
@@ -697,6 +724,43 @@ class SecuritySummaryReport(TimestampedModel):
 
     def __str__(self):
         return f"{owner_label(self)} — {self.report_month.strftime('%B %Y')}"
+
+
+class FileIntegrityBaseline(TimestampedModel):
+    """
+    Accepted sha256 manifest of a site's application code files,
+    captured over SSH by the droplet health audit. The newest row per
+    website is the live baseline; older rows are kept as history.
+
+    The first audit that finds no baseline records one automatically
+    ("baseline recorded"). After that, every audit diffs the current
+    manifest against the newest baseline and reports added / removed /
+    changed files. When a change is expected (a deploy), the admin
+    accepts the current state as the new baseline from the droplet
+    check page, which writes a new row here.
+    """
+
+    website = models.ForeignKey(
+        'clients.Website', on_delete=models.CASCADE,
+        related_name='file_integrity_baselines',
+    )
+    # {relative-or-absolute path: sha256 hex}
+    manifest = models.JSONField(default=dict, blank=True)
+    file_count = models.IntegerField(default=0)
+    source_check = models.ForeignKey(
+        DropletHealthCheck, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='integrity_baselines')
+    # '' = recorded automatically on the first run.
+    accepted_by = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'File Integrity Baseline'
+        verbose_name_plural = 'File Integrity Baselines'
+
+    def __str__(self):
+        return (f'{owner_label(self.website)} — baseline '
+                f'{self.created_at:%Y-%m-%d} ({self.file_count} files)')
 
 
 # ── Tier 1 analytics — one row per page view ──────────────────────────────

@@ -71,6 +71,36 @@
     </div>
 
     <div class="admin-card">
+        <div class="admin-card__header"><h2 class="admin-card__title">File integrity</h2></div>
+        <div class="admin-card__body">
+            {% if not integrity %}
+                <p class="admin-empty">Not run on this check (checks before file-integrity monitoring existed).</p>
+            {% elif integrity.status == 'skipped' %}
+                <p class="admin-empty">Skipped — {{ integrity.reason }}</p>
+            {% else %}
+                <table class="v2-kv-table">
+                    <tr><th>Result</th><td>{% if integrity.status == 'baseline_recorded' %}Baseline recorded on this run{% elif integrity.status == 'clean' %}No changes vs baseline{% else %}Changes vs baseline{% endif %}</td></tr>
+                    <tr><th>Files hashed</th><td>{{ integrity.file_count }}{% if integrity.truncated %} (capped){% endif %} under {{ integrity.root }}</td></tr>
+                    <tr><th>Added / changed / removed</th><td>{{ integrity.added_count|default:0 }} / {{ integrity.changed_count|default:0 }} / {{ integrity.removed_count|default:0 }}</td></tr>
+                    <tr><th>Current baseline</th><td>{% if integrity_baseline %}{{ integrity_baseline.created_at|date:"Y-m-d H:i" }} · {{ integrity_baseline.file_count }} files · {{ integrity_baseline.accepted_by|default:"recorded automatically" }}{% else %}—{% endif %}</td></tr>
+                </table>
+                {% if integrity.changed %}<p><strong>Changed:</strong></p><pre>{% for p in integrity.changed %}{{ p }}
+{% endfor %}</pre>{% endif %}
+                {% if integrity.added %}<p><strong>Added:</strong></p><pre>{% for p in integrity.added %}{{ p }}
+{% endfor %}</pre>{% endif %}
+                {% if integrity.removed %}<p><strong>Removed:</strong></p><pre>{% for p in integrity.removed %}{{ p }}
+{% endfor %}</pre>{% endif %}
+                {% if can_accept_baseline %}
+                    <form method="post" action="{% url 'admin_dashboard:v2_droplet_check_accept_baseline' check.id %}" style="margin-top:1rem;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-sm">Accept current state as new baseline</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-card">
         <div class="admin-card__header"><h2 class="admin-card__title">Security posture</h2></div>
         <div class="admin-card__body">
             <p><strong>ufw:</strong> {% if check.raw_security.ufw_active %}active{% else %}inactive{% endif %}</p>
