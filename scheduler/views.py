@@ -16,11 +16,83 @@ from .models import ScheduledCall
 
 logger = logging.getLogger(__name__)
 
-# Schedule-page build-type form value → ClientProfile/Website package code.
+# ── "Build type" on /design/schedule/ ──────────────────────────────────
+# EXACTLY these six options, in this order (Sept 2026, one HVAC offer).
+# (form value, label template, ServiceTier slug whose price fills
+# ``{price}``). Prices are rendered from ServiceTier, never written here;
+# when a tier is missing the price parenthetical is simply left off.
+BUILD_TYPE_OPTIONS = [
+    ('build_full', 'Website Build — Pay in Full ({price})',
+     'hvac-build-full'),
+    ('build_installment', 'Website Build — 24-Month Installment ({price})',
+     'hvac-build-installment'),
+    ('full_plan',
+     'Full Plan (build + hosting + maintenance + review automation)', None),
+    ('hosting_only',
+     'Hosting + Security Only ({price}) — I already have a site',
+     'hvac-hosting-security'),
+    ('multi_location', 'Larger or multi-location project — let’s scope it',
+     None),
+    ('not_sure', 'Not sure yet', None),
+]
+VALID_BUILD_TYPES = frozenset(v for v, _, _ in BUILD_TYPE_OPTIONS)
+
+# Booking value → Website.package code (clients.account_models). The
+# pay-in-full / installment split is chosen again when the contract is
+# sent; the lead's build_type tag keeps what they asked for.
 _BUILD_TYPE_TO_PACKAGE = {
-    'essential': 'essential_build',
-    'premium': 'premium_build',
+    'build_full': 'hvac_build',
+    'build_installment': 'hvac_build',
+    'full_plan': 'hvac_full_plan',
+    'hosting_only': 'hvac_hosting_security',
 }
+
+# Booking value → (build ServiceTier slug, plan ServiceTier slug) used to
+# prefill the admin CRM new-invoice form (admin_dashboard.views
+# new_invoice). That form only offers one-off tiers, so recurring slugs
+# simply don't match there — installments and plans are sold through the
+# contract checkout instead.
+BUILD_TYPE_PREFILL = {
+    'build_full': ('hvac-build-full', None),
+    'build_installment': ('hvac-build-installment', None),
+    'full_plan': ('hvac-build-installment', 'hvac-full-plan'),
+    'hosting_only': (None, 'hvac-hosting-security'),
+    'multi_location': (None, None),
+    'not_sure': (None, None),
+}
+
+
+def _short_price(tier):
+    """'$2,000' / '$105/mo' — a tier's own price_display wins; otherwise
+    monthly tiers read '/mo' (get_price_display says '/month')."""
+    if tier.price_display:
+        return tier.price_display
+    if tier.is_recurring and tier.billing_interval == 'month':
+        return f'${tier.price:,.0f}/mo'
+    return tier.get_price_display()
+
+
+def build_type_choices():
+    """[(value, label)] for the booking select, prices from ServiceTier."""
+    from billing.pricing_models import ServiceTier
+
+    slugs = [slug for _, _, slug in BUILD_TYPE_OPTIONS if slug]
+    tiers = {t.slug: t for t in ServiceTier.objects.filter(slug__in=slugs)}
+    out = []
+    for value, label, slug in BUILD_TYPE_OPTIONS:
+        if slug:
+            tier = tiers.get(slug)
+            if tier is not None:
+                label = label.format(price=_short_price(tier))
+            else:
+                label = label.replace(' ({price})', '')
+        out.append((value, label))
+    return out
+
+
+def build_type_label(value):
+    """Human label for a stored build_type value (emails, admin)."""
+    return dict(build_type_choices()).get(value, value)
 
 
 def _attribute_booking_to_variant(email):
@@ -64,37 +136,23 @@ def _attribute_booking_to_variant(email):
 
 
 def _provision_webdev_inquiry(*, email, business, contact_name, phone,
-                              website, build_package, addons):
+                              website, build_package):
     """For a Website Development booking, create (or reuse) an inactive
     User + Account + Website so the contract, invoice, and account setup all
     tie to a real account from the moment they book. Returns the Website or
     None. Never raises — a provisioning hiccup must not fail the booking.
 
-    The maintenance/social opt-ins are recorded on the Website to drive the
-    "go Live → start billing (10% off first month)" flow later.
+    Plans are no longer opted into at booking: the Full Plan and Hosting +
+    Security are chosen on the contract and billed from signing.
     """
     try:
         from django.contrib.auth import get_user_model
 
-        from billing.pricing_models import ServiceTier
         from clients.account_models import Account, Website, _slugify_unique
 
         User = get_user_model()
         if not email:
             return None
-
-        # Split opt-ins into the maintenance + social picks.
-        maint_tier = social_tier = ''
-        if addons:
-            cats = dict(
-                ServiceTier.objects.filter(slug__in=addons)
-                .values_list('slug', 'category'))
-            for slug in addons:
-                cat = cats.get(slug)
-                if cat == 'maintenance' and not maint_tier:
-                    maint_tier = slug
-                elif cat == 'social_media' and not social_tier:
-                    social_tier = slug
 
         user, _created = User.objects.get_or_create(
             username=email, defaults={'email': email, 'is_active': False})
@@ -135,8 +193,6 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
                 slug=_slugify_unique(business or 'website', Website))
 
         web.lifecycle_status = 'inquiry'
-        web.opted_in_maintenance_tier = maint_tier
-        web.opted_in_social_tier = social_tier
         if build_package:
             web.package = build_package
         if business:
@@ -144,8 +200,7 @@ def _provision_webdev_inquiry(*, email, business, contact_name, phone,
         if website and not web.url:
             web.url = website
         web.save(update_fields=[
-            'lifecycle_status', 'opted_in_maintenance_tier',
-            'opted_in_social_tier', 'package', 'name', 'url', 'updated_at'])
+            'lifecycle_status', 'package', 'name', 'url', 'updated_at'])
         return web
     except Exception:
         logger.exception('scheduler: web-dev inquiry provisioning failed')
@@ -164,7 +219,6 @@ SERVICE_CONFIG = {
         'h1_post': '.',
         'lead': '30-minute Strategy Call. Pick a time that works for you.',
         'show_build_type': True,
-        'show_addons': False,
         'inquiry_label': 'What are you trying to build?',
         'website_label': 'Existing website (if any)',
         'meta_title': 'Schedule a Call: Web Design',
@@ -176,7 +230,6 @@ SERVICE_CONFIG = {
         'h1_post': '.',
         'lead': '30-minute Strategy Call. Pick a time that works for you.',
         'show_build_type': False,
-        'show_addons': False,
         'inquiry_label': 'Tell us about your current presence and what you want it to do for the business.',
         'website_label': 'Website (if any)',
         'meta_title': 'Schedule a Call: Social Media Strategy',
@@ -188,7 +241,6 @@ SERVICE_CONFIG = {
         'h1_post': '.',
         'lead': '30-minute Strategy Call. Pick a time that works for you.',
         'show_build_type': False,
-        'show_addons': False,
         'inquiry_label': 'What are you trying to rank for, and in which cities?',
         'website_label': 'Current website',
         'meta_title': 'Schedule a Call: SEO Strategy',
@@ -211,37 +263,15 @@ def schedule_page(request, service='web_design'):
         /social/schedule/  → service='social_media'
         /seo/schedule/     → service='seo'
     """
-    from billing.pricing_models import ServiceTier
-
     config = SERVICE_CONFIG.get(service) or SERVICE_CONFIG['web_design']
 
-    # Addons — every plan (maintenance + social) gets surfaced as a
-    # cross-sell on every service page (even social/seo) since the
-    # 10%-off-first-month promise still applies.
-    addons = (ServiceTier.objects
-              .filter(category__in=('maintenance', 'social_media'),
-                      is_active=True)
-              .order_by('category', 'price')) if config['show_addons'] else []
-
-    # Build-type options — only relevant for the web-design schedule
-    # page. Pulled from the pricing DB so the dropdown labels stay in
-    # sync if prices ever change.
-    build_tiers = []
-    if config['show_build_type']:
-        for t in (ServiceTier.objects
-                  .filter(category='website_build', is_active=True)
-                  .order_by('price')):
-            if 'essential' in t.slug:
-                form_value = 'essential'
-            elif 'premium' in t.slug:
-                form_value = 'premium'
-            else:
-                form_value = t.slug
-            build_tiers.append({
-                'value': form_value,
-                'name': t.name,
-                'price': t.get_price_display(),
-            })
+    # Build-type options — only on the web-design schedule page. The six
+    # options are fixed (BUILD_TYPE_OPTIONS); their prices come from the
+    # pricing DB so the labels stay in sync if prices change.
+    #
+    # The old "Save 10% on your first month" maintenance/social opt-in
+    # fieldset is gone: every tier it listed is discontinued.
+    build_types = build_type_choices() if config['show_build_type'] else []
 
     # A POST here is the no-JavaScript fallback: the booking flow itself
     # is fetch()-driven, so reaching this branch means the calendar never
@@ -264,8 +294,7 @@ def schedule_page(request, service='web_design'):
     return render(request, 'scheduler/schedule.html', {
         'service': service,
         'service_config': config,
-        'addons': addons,
-        'build_tiers': build_tiers,
+        'build_types': build_types,
         'fallback_notice': fallback_notice,
     })
 
@@ -371,12 +400,30 @@ def confirm_slot(request):
     business = (payload.get('business') or '').strip()
     website = (payload.get('website') or '').strip()
     build_type = (payload.get('build_type') or '').strip()
+    # `inquiry` is the free-text "What are you trying to build?" box. It is
+    # stored verbatim as Lead.inquiry_text (kept apart from Lead.notes,
+    # which is internal CRM-only) and as ScheduledCall.notes, and is
+    # quoted back in both confirmation emails.
     inquiry = (payload.get('inquiry') or '').strip()
-    addons = payload.get('addons') or []
+    # `service` is the hidden <input name="service"> on schedule.html, set
+    # from the URL the visitor booked through (/design/, /social/ or
+    # /seo/schedule/). The server uses it for two things only: it is
+    # written into Lead.tags as "service:<value>" so the pipeline can be
+    # triaged by interest, and only 'web_design' bookings provision an
+    # inactive Account + Website below.
     service = (payload.get('service') or 'web_design').strip()
+    # `addons` (the retired 10%-off plan opt-in) is no longer read — the
+    # tiers it offered are discontinued.
     if not (name and email and business):
         return JsonResponse({
             'error': 'name, email, business required'}, status=400)
+    # Exactly the six booking options, or nothing. Old values
+    # (essential / premium) and anything else are rejected outright
+    # rather than quietly provisioning a discontinued package.
+    if build_type and build_type not in VALID_BUILD_TYPES:
+        return JsonResponse({
+            'error': 'Please choose a build type from the list.'},
+            status=400)
 
     # Build tag string — service prefix lets the operator triage the
     # admin pipeline by what the lead is interested in. Build-type
@@ -401,11 +448,6 @@ def confirm_slot(request):
             tags=tags_str,
             status='new',
         )
-        # Save opt-ins if the Lead model has the field
-        if hasattr(lead, 'opted_in_addons'):
-            lead.opted_in_addons = addons
-            lead.opted_in_addons_at = timezone.now()
-            lead.save(update_fields=['opted_in_addons', 'opted_in_addons_at'])
         call.lead = lead
     except Exception:
         pass
@@ -442,7 +484,6 @@ def confirm_slot(request):
             phone=phone,
             website=website,
             build_package=_BUILD_TYPE_TO_PACKAGE.get(build_type, ''),
-            addons=addons,
         )
 
     # Try to push to Google Calendar — fall back silently if not connected

@@ -119,10 +119,9 @@ other three stay crawlable and reachable; they simply stop competing.
                         <label for="s-build">Build type</label>
                         <select id="s-build" name="build_type" class="form-control">
                             <option value="">Select one</option>
-                            {% for t in build_tiers %}
-                                <option value="{{ t.value }}">{{ t.name }} ({{ t.price }})</option>
+                            {% for value, label in build_types %}
+                                <option value="{{ value }}">{{ label }}</option>
                             {% endfor %}
-                            <option value="not_sure">Not sure yet</option>
                         </select>
                     </div>
                     {% endif %}
@@ -132,63 +131,17 @@ other three stay crawlable and reachable; they simply stop competing.
                         <textarea id="s-inquiry" name="inquiry" rows="4" class="form-control" required></textarea>
                     </div>
 
-                    {# Hidden service identifier — read by schedule_call.js, posted to /schedule/confirm/ #}
+                    {% comment %}
+                        Hidden service identifier (web_design, social_media
+                        or seo — whichever /…/schedule/ URL rendered this
+                        page). schedule_call.js posts it to
+                        /schedule/confirm/, where it becomes the
+                        "service:<value>" Lead tag and decides whether an
+                        inactive Account + Website is provisioned (only
+                        web_design). The inquiry textarea above is stored as
+                        Lead.inquiry_text and ScheduledCall.notes.
+                    {% endcomment %}
                     <input type="hidden" name="service" value="{{ service }}">
-
-
-                    {% if addons %}
-                        {% comment %}
-                            Group the addon list by category so the
-                            visitor sees a Maintenance header above
-                            Essentials/Growth/Dominant, and a Social
-                            Media header above Basic/Standard/Full —
-                            otherwise the labels are ambiguous in
-                            isolation.
-                        {% endcomment %}
-                        {% regroup addons by category as addon_groups %}
-                        <fieldset class="addon-fieldset">
-                            <legend class="addon-fieldset__legend">Save 10% on your first month: opt in now</legend>
-                            <p class="form-help addon-fieldset__hint">
-                                Lock in 10% off the first month on any
-                                maintenance or social plan when you sign up.
-                                We&rsquo;ll apply the discount when we send your
-                                invoice after our call.
-                            </p>
-                            {% for group in addon_groups %}
-                                <div class="addon-group">
-                                    {# h3, not h4 — these sit under the section h2, and skipping a level breaks heading navigation for screen readers. #}
-                                    <h3 class="addon-group__title">
-                                        {% if group.grouper == 'maintenance' %}Monthly maintenance plans
-                                        {% elif group.grouper == 'social_media' %}Social media plans
-                                        {% else %}{{ group.grouper|title }}
-                                        {% endif %}
-                                    </h3>
-                                    <p class="addon-group__sub">
-                                        {% if group.grouper == 'maintenance' %}
-                                            We keep your site sharp: updates, backups, monitoring.
-                                        {% elif group.grouper == 'social_media' %}
-                                            We run your posts, content, and analytics across your channels.
-                                        {% endif %}
-                                    </p>
-                                    <div class="addon-grid">
-                                        {% for a in group.list %}
-                                            <label class="addon-option">
-                                                <input type="checkbox" name="addons" value="{{ a.slug }}" class="addon-option__check">
-                                                <span class="addon-option__body">
-                                                    <span class="addon-option__title">{{ a.name }}</span>
-                                                    {% if a.tagline %}<span class="addon-option__tagline">{{ a.tagline }}</span>{% endif %}
-                                                    <span class="addon-option__meta">
-                                                        {{ a.get_price_display }} &middot;
-                                                        <span class="addon-option__discount">10% off month 1</span>
-                                                    </span>
-                                                </span>
-                                            </label>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </fieldset>
-                    {% endif %}
 
                     <input type="hidden" id="s-selected-slot" name="starts_at">
                     <p id="s-chosen-time" class="form-help"></p>
