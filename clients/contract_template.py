@@ -367,7 +367,11 @@ def generate_combined_contract_text(client, services, payment_option=None,
   <p>All build work product, including the website and its source code, remains
   the property of Aspired Websites LLC until the build has been paid in full
   &mdash; that is, until {when_paid}. Ownership of the completed website then
-  transfers to the Client. The Client owns their domain name at all times.</p>{installment_terms}"""
+  transfers to the Client. The Client owns their domain name at all times.</p>
+  <p><strong>Continuity.</strong> If Aspired Websites LLC ceases operating
+  before the build has been paid in full, ownership of the website, its source
+  code, and all related files transfers to the Client immediately and at no
+  further cost, and any remaining build payments are cancelled.</p>{installment_terms}"""
         revisions = f"""
   <p>The build includes <strong>two (2) rounds of revisions</strong>. Additional
   revision rounds, post-launch changes, and any work outside the scope above

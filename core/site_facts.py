@@ -133,7 +133,14 @@ def _site_content():
 
 def site_facts(request):
     """Context processor exposing the approved facts to every template."""
+    from django.conf import settings as _settings
     return {
+        # CAN-SPAM mailing address from .env (settings.COMPANY_POSTAL_ADDRESS).
+        # It is a mail-receiving address, not an office — templates must
+        # label it "Mail:" so it never contradicts the location pages'
+        # "we don't fake an office" stance. Blank renders nothing.
+        'COMPANY_POSTAL_ADDRESS': getattr(
+            _settings, 'COMPANY_POSTAL_ADDRESS', ''),
         'LOCATION_BASE': LOCATION_BASE,
         'LOCATION_REACH': LOCATION_REACH,
         'LOCATION_STATEMENT': LOCATION_STATEMENT,

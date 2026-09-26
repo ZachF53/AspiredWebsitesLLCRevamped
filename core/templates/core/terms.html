@@ -94,6 +94,7 @@
             <address class="legal-doc__address">
                 <strong>Aspired Websites LLC</strong><br>
                 Warner Robins, Georgia<br>
+                {% if COMPANY_POSTAL_ADDRESS %}Mail: {{ COMPANY_POSTAL_ADDRESS }} (mail receiving only)<br>{% endif %}
                 Email: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
                 Phone: <a href="tel:+12108962536">(210) 896-2536</a><br>
                 Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>

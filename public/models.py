@@ -358,9 +358,21 @@ class SiteContent(models.Model):
 
     # Credentials / proof links
     google_reviews_url = models.URLField(blank=True, help_text="Aspired's own Google reviews link.")
+    google_review_count = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Number of Google reviews Aspired itself has. Blank keeps '
+                  'the plain "Read our Google reviews" link.')
+    google_review_rating = models.DecimalField(
+        max_digits=2, decimal_places=1, null=True, blank=True,
+        help_text='Aspired\'s own Google rating, e.g. 5.0. Shown only with '
+                  'a review count.')
     cissp_member_number = models.CharField(
         max_length=40, blank=True,
         help_text='(ISC)2 member number. Blank shows "member number on request".')
+    ms_university = models.CharField(
+        max_length=120, blank=True,
+        help_text='Institution that issued the M.S. in Cybersecurity. Blank '
+                  'shows "available on request" on the About page.')
 
     # Contact channel
     phone_accepts_sms = models.BooleanField(

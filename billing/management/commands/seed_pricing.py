@@ -195,6 +195,12 @@ TIERS = [
                         'website until paid in full.'),
         'features': [
             'Custom-coded, not a template',
+            'Four main pages plus up to six service pages',
+            'Copy written for you from your notes and photos',
+            'Live in four to six weeks',
+            'Two rounds of revisions included',
+            'Domain registered in your name from day one',
+            'Paid in full at signing: the site is yours at launch',
         ],
     },
     {
@@ -211,6 +217,9 @@ TIERS = [
         'features': [
             'Custom-coded, not a template',
             '24 payments of $105 ($2,520 total)',
+            'Same build: four main pages plus up to six service pages',
+            'First payment at signing; the site can launch while payments continue',
+            'Ownership transfers to you at payment 24',
         ],
     },
     {

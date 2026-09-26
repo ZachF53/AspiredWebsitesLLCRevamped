@@ -113,6 +113,21 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          'ownership transfers to you once the build is paid off. If installments '
          'stop, the site stays up while we sort it out; we’ll always talk '
          'before anything is suspended (14 days’ notice per our Terms).'),
+        ('What does the build actually include?',
+         f'The {full} build covers four main pages plus up to six individual '
+         'service pages, built around your trades and service area. Copy for '
+         'those pages is written as part of the build from your notes, photos '
+         'and the discovery call; you approve everything before launch. Two '
+         'rounds of revisions are included. A larger site is quoted in '
+         'writing before you sign, never sprung on you after.'),
+        ('What do you need from me, and when?',
+         'Your logo (or the go-ahead to keep it simple), photos of your team '
+         'and trucks if you have them, answers to a short intake form you can '
+         'finish in one sitting from a phone, and access to your Google '
+         'Business Profile if you take review automation. Your domain stays '
+         'registered to you; at launch we just point it at the new site. '
+         'No content ready? Bullet points are enough; writing it up is part '
+         'of the build.'),
         ('What counts as an unlimited content update?',
          'Text changes, photo swaps, hours, service areas, pricing updates, new '
          'promotions: routine edits to the site you already have. It does not '
@@ -127,8 +142,9 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          f'first of {m} installments) and your first month of the Full Plan or '
          'Hosting + Security. After that, monthly charges run on the same date '
          'each month. The plan starts before launch because we set up your '
-         'dedicated server the day you pay, and your site is built and hosted '
-         'on it from the start.'),
+         'dedicated server the day you pay, your site is built and hosted on '
+         'it from the start, and your client portal login lets you follow '
+         'the build stage by stage from day one.'),
         ('How does the 30-day guarantee work?',
          f'For {GUARANTEE_DAYS} days from the day you sign, you can cancel for any '
          f'reason. We refund {GUARANTEE_REFUND_PERCENT}% of everything you’ve '
@@ -165,10 +181,21 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          f'Yes. Hosting + Security clients can move to the Full Plan any time; '
          'it’s month-to-month.'),
         ('Running several locations or a larger site?',
-         'That’s scoped on the call: service-area pages, moving your old page '
-         'addresses across, and which Google Business Profile each review request '
-         'goes to. There’s no price list for it, and we’d rather quote it '
-         'than guess.'),
+         'Multi-location work is quoted from a simple structure: one build, '
+         'plus a set of location pages for each branch, review requests routed '
+         'to the right Google Business Profile per location, and reporting '
+         'split the same way. Your old page addresses are carried across so '
+         'you don’t lose your search history. Tell us the locations on the '
+         'call and you get a written number before you sign — quoted, '
+         'never guessed.'),
+        ('What happens if Aspired Websites shuts down?',
+         'It’s written into the agreement: if Aspired Websites LLC ever '
+         'ceased operating before your build was paid off, ownership of the '
+         'site, the source code and all files would transfer to you '
+         'immediately and at no further cost, and any remaining installments '
+         'would be cancelled. Once the build is paid off you own everything '
+         'anyway, so nothing about your site depends on us staying in '
+         'business.'),
         ('Is SEO included?',
          'Yes. Clean markup, schema, sitemap, headings and fast load are part of '
          'every build, not a separate product. We never promise rankings.'),

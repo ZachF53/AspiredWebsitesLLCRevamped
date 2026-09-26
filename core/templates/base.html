@@ -150,7 +150,7 @@
                             <ul class="nav-submenu" id="services-submenu" role="menu">
                                 <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
                                 <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'review_automation' %}is-active{% endif %}" href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
-                                <li role="none"><a role="menuitem" class="nav-sublink" href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'hosting_maintenance' %}is-active{% endif %}" href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
                             </ul>
                         </li>
                         <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
@@ -233,7 +233,7 @@
                     <ul>
                         <li><a href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
                         <li><a href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
-                        <li><a href="{% url 'public:pricing' %}">Hosting &amp; Maintenance</a></li>
+                        <li><a href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
                         <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
                     </ul>
                 </div>
@@ -268,6 +268,7 @@
                         <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
                         <li><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>{% if SITE_CONTENT.phone_accepts_sms %} <span class="footer-note">(call or text)</span>{% endif %}</li>
                         <li class="footer-note">{{ PHONE_NOTE }}</li>
+                        {% if COMPANY_POSTAL_ADDRESS %}<li class="footer-note">Mail: {{ COMPANY_POSTAL_ADDRESS }} (mail receiving only &mdash; we work from Warner Robins)</li>{% endif %}
                         <li class="footer-hours">Open any time: we answer within 24&nbsp;hours</li>
                     </ul>
                 </div>

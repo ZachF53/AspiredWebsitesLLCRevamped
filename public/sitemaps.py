@@ -49,6 +49,7 @@ class ServiceSitemap(_StaticPageMixin, Sitemap):
     pages = [
         'public:service_web_design',
         'public:service_review_automation',
+        'public:service_hosting_maintenance',
         'public:location_san_antonio',
         'public:location_atlanta',
         'public:location_warner_robins',

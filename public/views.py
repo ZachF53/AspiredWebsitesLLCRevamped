@@ -305,6 +305,37 @@ def service_review_automation(request):
     })
 
 
+def service_hosting_maintenance(request):
+    """
+    /services/hosting-maintenance/ — Sept 2026 buyer-persona review,
+    item 1.7: the Services dropdown listed "Hosting & Maintenance" but
+    linked to /pricing/, so "the dropdown promises three pages and
+    delivers two". This page explains the two plans in service terms
+    (what hosting means here, the monthly security report, the edits
+    policy) and reads every price from the live ServiceTier rows.
+    """
+    from billing.pricing_models import AddonPricing, ServiceTier
+
+    tiers = {
+        t.slug: t for t in ServiceTier.objects.filter(
+            slug__in=['hvac-hosting-security', 'hvac-plan-paid-in-full'],
+            is_active=True, is_public=True,
+        ).prefetch_related('features')
+    }
+    hourly = AddonPricing.objects.filter(
+        slug='addon-hourly', is_active=True).first()
+    return render(request, 'public/service_hosting_maintenance.html', {
+        'active_nav': 'services',
+        'active_service': 'hosting_maintenance',
+        'hosting_security': tiers.get('hvac-hosting-security'),
+        'plan_paid_in_full': tiers.get('hvac-plan-paid-in-full'),
+        'hourly_display': hourly.get_price_display() if hourly else '',
+        'breadcrumbs': [
+            ('Hosting & Maintenance', None),
+        ],
+    })
+
+
 def service_custom_web_development(request):
     """
     /services/web-design/custom-web-development/ — ~3,780/mo across
@@ -369,17 +400,32 @@ def location_city(request, slug):
     build_installment = ServiceTier.objects.filter(
         slug='hvac-build-installment', is_active=True).first()
 
+    hvac_studies = CaseStudy.objects.filter(
+        is_published=True, is_hvac=True, city=city,
+    ).order_by('-published_at')
+    other_studies = CaseStudy.objects.filter(
+        is_published=True, is_hvac=False, city=city,
+    ).order_by('-published_at')
+
+    # Sept 2026 buyer-persona review: a searcher landing cold on the
+    # Atlanta page found San Antonio's page carrying five portfolio
+    # cards while Atlanta — the biggest target market — carried none.
+    # Cities without local work show recent builds from elsewhere under
+    # an honest "none of it is local yet" heading instead of nothing.
+    fallback_studies = CaseStudy.objects.none()
+    if not hvac_studies.exists() and not other_studies.exists():
+        fallback_studies = CaseStudy.objects.filter(
+            is_published=True,
+        ).order_by('-published_at')[:4]
+
     return render(request, 'public/location_city.html', {
         'active_nav': '',
         'city': city,
         'build_full': build_full,
         'build_installment': build_installment,
-        'hvac_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=True, city=city,
-        ).order_by('-published_at'),
-        'other_studies': CaseStudy.objects.filter(
-            is_published=True, is_hvac=False, city=city,
-        ).order_by('-published_at'),
+        'hvac_studies': hvac_studies,
+        'other_studies': other_studies,
+        'fallback_studies': fallback_studies,
         'breadcrumbs': [
             (f'{city.name} Web Design', None),
         ],

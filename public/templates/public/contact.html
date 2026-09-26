@@ -119,7 +119,12 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         <div class="contact-list__detail">
                             <div class="contact-list__label">Phone</div>
                             <a class="contact-list__value" href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>
-                            <span class="footer-note">{{ PHONE_NOTE }}.{% if SITE_CONTENT.phone_accepts_sms %} Call or text.{% endif %}</span>
+                            {% comment %}
+                            The 210-number explainer lives once per page in
+                            the footer; repeating it here was flagged by the
+                            buyer-persona review.
+                            {% endcomment %}
+                            {% if SITE_CONTENT.phone_accepts_sms %}<span class="footer-note">Call or text.</span>{% endif %}
                         </div>
                     </li>
 

@@ -129,7 +129,7 @@ printing a placeholder.
             <article class="card card--accent-left">
                 <h3>M.S. Cybersecurity</h3>
                 <p>A master&rsquo;s degree in cybersecurity, the academic side of the same discipline: cryptography, secure architecture, risk, and incident response.</p>
-                <p>Degree verification is available through the issuing institution on request.</p>
+                <p>{% if SITE_CONTENT.ms_university %}Issued by {{ SITE_CONTENT.ms_university }}; degree verification is available through the university on request.{% else %}Degree verification is available through the issuing institution on request.{% endif %}</p>
             </article>
         </div>
 

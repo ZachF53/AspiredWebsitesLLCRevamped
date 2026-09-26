@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Hosting & Maintenance for HVAC Websites | Aspired Websites{% endblock %}
+
+{% block meta_description %}Hosting and maintenance for HVAC and home-service websites: your own server, security patching by a CISSP-certified engineer, a monthly security report, and month-to-month billing.{% endblock %}
+
+{% block og_title %}Hosting & Maintenance for HVAC Websites | Aspired Websites{% endblock %}
+{% block og_description %}Your own server, security patching by a CISSP-certified engineer, a monthly security report, and month-to-month billing. Cancel anytime with 30 days' notice.{% endblock %}
+
+{% comment %}
+Organisation entity, canonical and og:image come from base.html (D8).
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "Website Hosting and Maintenance",
+    "name": "Hosting & Maintenance for HVAC Contractors",
+    "url": "{{ CANONICAL_URL }}",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "description": "Managed hosting and maintenance for HVAC and home-service contractor websites: a dedicated server per client, security patching, SSL renewal, uptime monitoring, and a monthly security report.",
+    "offers": {
+        "@type": "Offer",
+        "priceRange": "$$"
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">Hosting &amp; Maintenance</span>
+            <h1>Hosting With An <span class="accent">Engineer Attached</span></h1>
+            <hr class="accent-line hero__divider" aria-hidden="true">
+            <p class="hero__lead">
+                Most hosting is a server and a support queue. This is your own
+                server, patched and monitored by the engineer who can actually
+                fix your site &mdash; with a security report in your inbox every
+                month proving it.
+            </p>
+            <div class="hero__ctas">
+                {% if hosting_security %}
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a>
+                {% else %}
+                    <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                {% endif %}
+                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See All Pricing</a>
+            </div>
+            <p class="hero__meta">Month-to-month &middot; Cancel anytime with 30 days&rsquo; notice &middot; No annual contracts</p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── What hosting means here ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What You Get</span>
+            <h2>What &ldquo;Managed&rdquo; Actually Means Here</h2>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Your Own Server</h3>
+                <p>Every client site runs on its own server &mdash; never shared hosting, never another business&rsquo;s traffic slowing yours down or their compromise becoming your problem.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Patched, Not Parked</h3>
+                <p>The server, its operating system, and your site&rsquo;s dependencies get security updates as they&rsquo;re needed, applied by a CISSP-certified engineer, not left for an outage to reveal.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>SSL That Never Lapses</h3>
+                <p>Certificate renewal is handled for you. The padlock stays on, and visitors never hit a browser warning where your website should be.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Uptime, Watched</h3>
+                <p>Your site is monitored around the clock against a 99.9% uptime target. It&rsquo;s a target, not a guarantee &mdash; and the monthly report shows you the actual number.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>A Monthly Security Report</h3>
+                <p>On the first of each month: a one-page summary of an automated scan &mdash; dependency vulnerabilities, file integrity, SSL status, security headers, and uptime. If something needs attention, fixing it is covered by your plan.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>The Engineer, Not A Queue</h3>
+                <p>Questions and problems go to the person who runs your server. We answer within 24 hours, seven days a week.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── The two plans ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Two Ways To Run It</span>
+            <h2>Hosting Alone, Or The Full Plan</h2>
+            <p>Both are month-to-month. The difference is whether content updates and automated review generation are bundled in, or content edits are billed as needed.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            {% if hosting_security %}
+                <article class="card card--accent-left">
+                    <h3>Hosting + Security &mdash; {{ hosting_security.get_price_display }}</h3>
+                    <ul class="bullet-list">
+                        {% for feature in hosting_security.features.all %}
+                            <li>{{ feature.text }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% if hourly_display %}<p>Content edits are quoted first at {{ hourly_display }}/hour and invoiced after the work is done. No surprise invoices.</p>{% endif %}
+                    <p><a class="btn-primary" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a></p>
+                </article>
+            {% endif %}
+
+            {% if plan_paid_in_full %}
+                <article class="card card--accent-left">
+                    <h3>Full Plan &mdash; {{ plan_paid_in_full.get_price_display }}</h3>
+                    <ul class="bullet-list">
+                        <li>Everything in Hosting + Security</li>
+                        <li>Unlimited content updates: text, photos, hours, service areas, promotions</li>
+                        <li><a href="{% url 'public:service_review_automation' %}">Automated review generation</a> included</li>
+                    </ul>
+                    <p>The rate shown is for a build that&rsquo;s already paid off; financing a new build inside the Full Plan is on the <a href="{% url 'public:pricing' %}">pricing page</a>.</p>
+                    <p><a class="btn-secondary" href="{% url 'scheduler:design_schedule' %}">Talk It Through First</a></p>
+                </article>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Already have a site elsewhere ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Already Have A Site?</span>
+            <h2>Moving An Existing Site Over</h2>
+            <p>
+                Hosting + Security works for sites we didn&rsquo;t build, too. Sign
+                up, and we look at what the move involves. If it needs hands-on
+                work, it&rsquo;s quoted first{% if hourly_display %} at {{ hourly_display }}/hour{% endif %}
+                and nothing starts until you approve &mdash; and if the first month
+                doesn&rsquo;t work out, it&rsquo;s refunded in full if you ask
+                within 30 days.
+            </p>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Hosting, Answered</h2>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Am I locked in?</h3>
+                <p>No. Both plans are month-to-month with 30 days&rsquo; notice. Once your build is paid off, the files are yours &mdash; leaving is a support ticket, not a dispute.</p>
+            </article>
+
+            <article class="card">
+                <h3>What happens if I cancel?</h3>
+                <p>Once the build is paid off, the site keeps working; the plan buys updates, monitoring, and support, not the right to keep your own website online. Standard code on standard hosting means any competent developer can take it over.</p>
+            </article>
+
+            <article class="card">
+                <h3>Who actually does the work?</h3>
+                <p>The engineer who built the platform. See <a href="{% url 'public:about' %}">about</a> for the credentials and how to verify them.</p>
+            </article>
+
+            <article class="card">
+                <h3>What does an edit cost on Hosting + Security?</h3>
+                <p>{% if hourly_display %}{{ hourly_display }}/hour, quoted and approved before any work starts.{% else %}Quoted and approved before any work starts.{% endif %} On the Full Plan, routine content updates are unlimited and included.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Want Your Site Handled, Not Just Hosted?</h2>
+            <p>Sign up online in a few minutes, or book a free call and talk it through first.</p>
+            <div class="hero__ctas">
+                {% if hosting_security %}
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a>
+                {% endif %}
+                <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

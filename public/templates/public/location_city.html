@@ -122,6 +122,29 @@ section.
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+{% elif fallback_studies %}
+{% comment %}
+Cities without local case studies show recent work from elsewhere,
+labelled honestly (Sept 2026 buyer-persona review: the Atlanta page
+carried no proof at all while San Antonio's carried five cards). Every
+build is remote-first, so out-of-town work is the true picture, and the
+copy says so instead of implying local clients that don't exist.
+{% endcomment %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <h2>The work, so far built elsewhere</h2>
+            <p>No {{ city.name }} client is in the portfolio yet, and we won&rsquo;t pretend otherwise. Every build runs the same way wherever the client is &mdash; here&rsquo;s the recent work, live and inspectable.</p>
+        </div>
+        <div class="cards cards--2col">
+            {% for study in fallback_studies %}
+                {% include "core/_case_study_card.html" with study=study %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
 {% endif %}
 
 {# ───────── What You Get ───────── #}

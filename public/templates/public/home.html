@@ -196,12 +196,13 @@ custom HVAC websites + automated review generation.
                 <div class="testimonial__author">
                     <div class="testimonial__name">Miki Roberts</div>
                     <div class="testimonial__title"><a href="https://moonieful.com/" target="_blank" rel="noopener">Moonieful Designs</a></div>
+                    <div class="testimonial__note">Moonieful also refers clients to us &mdash; and still chose us to build their own site.</div>
                 </div>
             </article>
         </div>
 
         {% if SITE_CONTENT.google_reviews_url %}
-            <p class="text-center mt-4"><a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">Read our Google reviews &rarr;</a></p>
+            <p class="text-center mt-4"><a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">{% if SITE_CONTENT.google_review_count %}Read our {{ SITE_CONTENT.google_review_count }} Google review{{ SITE_CONTENT.google_review_count|pluralize }}{% if SITE_CONTENT.google_review_rating %} ({{ SITE_CONTENT.google_review_rating }}&nbsp;&#9733;){% endif %}{% else %}Read our Google reviews{% endif %} &rarr;</a></p>
         {% endif %}
     </div>
 </section>

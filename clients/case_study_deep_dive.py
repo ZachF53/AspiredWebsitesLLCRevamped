@@ -158,7 +158,7 @@ CONTENT = {
             'measured_on': MEASURED_ON,
             'method': FACTS_METHOD,
             'vitals': [
-                ['21', 'Food trucks with full profiles'],
+                ['21', 'Truck profiles built (8+ featured live at a time)'],
                 ['34', 'Pages in the sitemap'],
                 ['100', 'Lighthouse SEO score (mobile)'],
                 ['0.04', 'Layout shift while loading (CLS)'],
@@ -495,7 +495,7 @@ NARRATIVE = {
     },
     'food-trucks-of-san-antonio': {
         'solution': 'A Django and PostgreSQL platform rather than a static page: truck owners manage their own profiles and menus, a live map shows who is out right now, and every truck, cuisine and article has its own indexable page.\n\nCritical styles are written into the page, photos are resized on upload and served as WebP, and images further down wait until they are needed, so the first screen appears without the layout jumping around.',
-        'results': 'A directory the community can actually use on a phone: 21 trucks with full menus, a live map, reviews, and a way for local businesses to book a truck for an event, with every truck page structured for search.',
+        'results': 'A directory the community can actually use on a phone: 21 truck profiles with full menus (the homepage features the trucks that are active right now), a live map, reviews, and a way for local businesses to book a truck for an event, with every truck page structured for search.',
     },
     'moonieful-designs': {
         'challenge': 'A brand-clarity studio’s website is itself proof of the service. If the site looks templated or muddled, the promise of clarity falls flat before anyone reads a word.\n\nThe studio also needed more than a brochure: somewhere to run client projects, sell the founder’s book, and hand finished clients on to a website build without re-entering everything.',

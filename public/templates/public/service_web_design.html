@@ -77,7 +77,7 @@ rather than re-declaring it (Master Plan D8).
         <div class="cards cards--2col">
             <article class="card card--accent-left">
                 <h3>Loads Too Slowly</h3>
-                <p>If your homepage takes more than 3 seconds to load on a phone, more than half your visitors are gone before they ever see it. Speed isn't a nice-to-have. It's the entire game.</p>
+                <p>Google&rsquo;s own mobile research found that as a page&rsquo;s load time goes from one second to three, the chance the visitor gives up jumps by about a third &mdash; and it only gets worse from there. Speed isn't a nice-to-have. It's the entire game.</p>
             </article>
 
             <article class="card card--accent-left">
@@ -172,6 +172,50 @@ because none exists.
                 <p>Source code, domain, content: all yours once the build is paid off. No "you can't take this with you." If we ever part ways after that, you walk out with every file.</p>
             </div>
         </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{% comment %}
+Measurement section (Sept 2026 buyer-persona review, item 3.2): the
+first-party conversion tracker existed only in the privacy policy;
+a marketing-manager buyer read that as "no way to demonstrate ROI".
+This section sells what is already built, without overclaiming: the
+tracker counts interactions, call tracking is compatible rather than
+bundled, and analytics are installed at launch.
+{% endcomment %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Measurement</span>
+            <h2>Know What Your Site Books</h2>
+            <p>A site that &ldquo;looks great&rdquo; but can&rsquo;t show you numbers is a brochure. Every build ships with measurement wired in from day one.</p>
+        </div>
+
+        <div class="value-tiles value-tiles--3col">
+            <div class="value-tile">
+                <h3>Form Fills, Counted</h3>
+                <p>Every quote request and call-back submission is counted by our own first-party tracker, along with which pages get read and which buttons get used. Whether the site is producing stops being a guess.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Calls, Attributable</h3>
+                <p>HVAC work is won on the phone, so the site is built to work with call-tracking numbers. Run one already, or want one? The calls the site generates can be counted, not assumed.</p>
+            </div>
+
+            <div class="value-tile">
+                <h3>Analytics From Day One</h3>
+                <p>Google Analytics and Search Console are installed and verified at launch, so the history starts on day one &mdash; and the data travels with the site, same as the code.</p>
+            </div>
+        </div>
+
+        <p class="section-note">
+            Tracking is first-party and anonymized: what visitors do, never who
+            they are. It&rsquo;s disclosed plainly in our
+            <a href="{% url 'core:privacy_policy' %}">privacy policy</a>,
+            and it never runs on login or payment pages.
+        </p>
     </div>
 </section>
 

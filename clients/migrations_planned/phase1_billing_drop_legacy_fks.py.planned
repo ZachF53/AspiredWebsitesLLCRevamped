@@ -11,7 +11,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('billing', '0011_deactivate_discontinued_tiers'),
+        ('billing', '0012_build_tier_feature_bullets'),
     ]
 
     operations = [

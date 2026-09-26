@@ -69,8 +69,6 @@ Organisation entity, canonical and og:image come from base.html (D8).
         </div>
     </div>
 </section>
-{% else %}
-{% include "core/_trust_block.html" %}
 {% endif %}
 
 <section class="section">
@@ -91,6 +89,17 @@ Organisation entity, canonical and og:image come from base.html (D8).
         {% endif %}
     </div>
 </section>
+
+{% comment %}
+The "Who's behind this" block used to sit ABOVE the article body — the
+buyer-persona review called that "pitching me before it has answered my
+question, exactly the move the article criticizes agencies for". It now
+follows the article, where a reader who got value is ready to hear who
+wrote it.
+{% endcomment %}
+{% if not article.is_archived %}
+{% include "core/_trust_block.html" %}
+{% endif %}
 
 <hr class="section-divider" aria-hidden="true">
 

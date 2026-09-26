@@ -18,7 +18,12 @@ Optional: pass hide_offer=True to drop the offer summary.
                     <h2 id="trust-block-heading" class="trust-block__heading">Who&rsquo;s behind this</h2>
                     <p class="trust-block__name"><strong>Zachery Long</strong>, Founder &amp; Lead Developer</p>
                     <p class="trust-block__creds">CISSP &middot; M.S. Cybersecurity &middot; {{ LOCATION_BASE }}</p>
-                    <p class="trust-block__phone"><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>: {{ PHONE_NOTE }}.</p>
+                    {% comment %}
+                    The 210-number explainer used to repeat here; the
+                    footer already carries it once per page, and the
+                    buyer-persona review flagged the repetition.
+                    {% endcomment %}
+                    <p class="trust-block__phone"><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>{% if SITE_CONTENT.phone_accepts_sms %} (call or text){% endif %}</p>
                 </div>
             </div>
             <figure class="trust-block__quote">
@@ -35,7 +40,7 @@ Optional: pass hide_offer=True to drop the offer summary.
                     <p class="trust-block__links">
                         <a href="{% url 'public:pricing' %}">See pricing</a>
                         &middot; <a href="{% url 'public:portfolio' %}">See the work</a>
-                        {% if SITE_CONTENT.google_reviews_url %}&middot; <a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">Read our Google reviews</a>{% endif %}
+                        {% if SITE_CONTENT.google_reviews_url %}&middot; <a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">{% if SITE_CONTENT.google_review_count %}Read our {{ SITE_CONTENT.google_review_count }} Google review{{ SITE_CONTENT.google_review_count|pluralize }}{% if SITE_CONTENT.google_review_rating %} ({{ SITE_CONTENT.google_review_rating }}&nbsp;&#9733;){% endif %}{% else %}Read our Google reviews{% endif %}</a>{% endif %}
                     </p>
                 </div>
             {% endif %}
