@@ -54,6 +54,12 @@ PROJECT_STAGES = [
 BUILD_PACKAGE_CHOICES = [
     ('essential_build', 'Essential Website Build'),
     ('premium_build', 'Premium Website Build'),
+    # HVAC-era build (Sept 2026) — paid in full or in 24 installments;
+    # which one is recorded on Contract.payment_option. Only the build
+    # package lives here: Contract.package / Project.package are
+    # max_length=20, and plans are not builds.
+    ('hvac_build', 'Website Build'),
+    ('hvac_full_plan', 'Full Plan'),
 ]
 
 
@@ -91,6 +97,10 @@ class ClientProfile(TimestampedModel):
         ('maintenance_growth', 'Maintenance — Growth'),
         ('maintenance_dominant', 'Maintenance — Dominant'),
         ('moonieful_referred', 'Moonieful Referred'),
+        ('hvac_build', 'Website Build'),
+        ('hvac_full_plan', 'Full Plan'),
+        ('hvac_plan_paid_in_full', 'Full Plan — build paid upfront'),
+        ('hvac_hosting_security', 'Hosting + Security'),
     ]
     CONTACT_METHOD_CHOICES = [
         ('email', 'Email'),
@@ -270,6 +280,7 @@ class ClientProfile(TimestampedModel):
     BUILD_COMP_CHOICES = [
         ('essential_build', 'Essential Website Build'),
         ('premium_build',   'Premium Website Build'),
+        ('hvac_build',      'Website Build'),
     ]
     MAINTENANCE_COMP_CHOICES = [
         ('maintenance_essentials', 'Maintenance — Essentials'),
@@ -929,6 +940,33 @@ class Contract(TimestampedModel):
     deposit_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True)
     timeline_weeks = models.IntegerField(default=4)
+
+    # ── How the agreement is billed (Sept 2026) ──
+    # Blank = a LEGACY contract created under the old 50% deposit / 50%
+    # final terms; those rows keep using the deposit flow unchanged. Every
+    # contract created since carries one of these, and none of them has a
+    # deposit:
+    #   pay_in_full  — build charged in full at signing
+    #   installment  — build charged as 24 monthly installments, the first
+    #                  at signing
+    #   none         — no build on this agreement (plan / hosting only)
+    PAYMENT_OPTION_CHOICES = [
+        ('pay_in_full', 'Build paid in full at signing'),
+        ('installment', 'Build in 24 monthly installments'),
+        ('none', 'No build (plan / hosting only)'),
+    ]
+    payment_option = models.CharField(
+        max_length=20, choices=PAYMENT_OPTION_CHOICES, blank=True,
+        help_text='Blank on legacy 50/50 deposit contracts.')
+    # Stripe objects created when this agreement was paid at signing —
+    # PaymentIntent, SubscriptionSchedule, Subscription ids. The signing
+    # checkout reads it to stay idempotent across retries and SCA
+    # round-trips; the 30-day guarantee reads it to know exactly which
+    # subscriptions belong to THIS agreement.
+    stripe_objects = models.JSONField(default=dict, blank=True)
+    # Set once everything due at signing has been charged.
+    paid_at_signing_at = models.DateTimeField(null=True, blank=True)
+
     contract_text = models.TextField()
     signed = models.BooleanField(default=False)
     signed_at = models.DateTimeField(null=True, blank=True)
@@ -954,6 +992,19 @@ class Contract(TimestampedModel):
     @property
     def final_amount(self):
         return (self.build_price or Decimal('0')) - (self.deposit_amount or Decimal('0'))
+
+    @property
+    def is_legacy_billing(self):
+        """True for contracts created under the old 50/50 deposit terms."""
+        return not self.payment_option
+
+    @property
+    def bills_at_signing(self):
+        """New-terms contracts charge everything due at signing: the build
+        (in full or first installment) and any Full Plan / Hosting plan."""
+        if self.is_legacy_billing:
+            return False
+        return self.services.exclude(service_type='social').exists()
 
     @property
     def includes_build(self):
@@ -985,14 +1036,17 @@ class Contract(TimestampedModel):
 class ContractService(TimestampedModel):
     """One service line on a :class:`Contract`.
 
-    A contract can bundle a website build (one-time, 50% deposit) with
-    recurring maintenance and/or social plans (monthly). Each selected
-    service gets a row capturing the tier and its price at signing time.
+    A contract can bundle a website build (paid in full or in 24
+    installments; legacy rows used a 50% deposit) with a recurring Full
+    Plan or Hosting + Security plan (monthly). Each selected service gets
+    a row capturing the tier and its price at signing time. 'social' is
+    kept only so legacy rows still validate.
     """
 
     SERVICE_TYPE_CHOICES = [
         ('build', 'Website Development'),
-        ('maintenance', 'Website Maintenance'),
+        ('maintenance', 'Full Plan / Website Maintenance'),
+        ('hosting', 'Hosting + Security'),
         ('social', 'Social Media Marketing'),
     ]
 
@@ -1005,7 +1059,8 @@ class ContractService(TimestampedModel):
     tier_slug = models.CharField(max_length=50)
     tier_name = models.CharField(max_length=120, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    # Only set for the build line (50% upfront). Null for recurring services.
+    # Only set on LEGACY build lines (50% upfront). Null for new-terms
+    # builds and for recurring services.
     deposit_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True)
     is_recurring = models.BooleanField(default=False)
@@ -2185,6 +2240,8 @@ class PaymentRecord(TimestampedModel):
         ('deposit', 'Website Deposit'),
         ('final', 'Website Final Payment'),
         ('build', 'Website Payment'),
+        ('installment', 'Website Build Installment'),
+        ('refund', 'Refund'),
         ('maintenance', 'Maintenance'),
         ('social', 'Social Media'),
         ('hosting', 'Hosting'),
@@ -2223,3 +2280,49 @@ class PaymentRecord(TimestampedModel):
     def __str__(self):
         return (f'{owner_label(self)} — {self.get_kind_display()} '
                 f'${self.amount:,.2f}')
+
+
+class GuaranteeRefund(TimestampedModel):
+    """Audit record of a 30-day guarantee cancellation.
+
+    Within 30 days of signing, a client may cancel their agreement:
+    Aspired Websites keeps 25% of everything paid under it and refunds
+    the other 75%, and every subscription / installment schedule the
+    agreement created is cancelled immediately. One row per contract —
+    the unique constraint is what makes a double refund impossible.
+    See billing/guarantee.py.
+    """
+
+    STATUS_CHOICES = [
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed — safe to retry'),
+    ]
+
+    contract = models.OneToOneField(
+        Contract, on_delete=models.PROTECT, related_name='guarantee_refund')
+    account = models.ForeignKey(
+        'clients.Account', on_delete=models.SET_NULL,
+        related_name='guarantee_refunds', null=True, blank=True)
+    website = models.ForeignKey(
+        'clients.Website', on_delete=models.SET_NULL,
+        related_name='guarantee_refunds', null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='processing')
+    total_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    retained_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    requested_by = models.CharField(max_length=150, blank=True)
+    reason = models.TextField(blank=True)
+    # [{"payment_record_id", "stripe_id", "amount", "refund_id"}, ...]
+    refunds = models.JSONField(default=list, blank=True)
+    cancelled_subscriptions = models.JSONField(default=list, blank=True)
+    error = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (f'Guarantee refund — {owner_label(self.contract)} '
+                f'${self.refund_amount:,.2f} ({self.status})')
