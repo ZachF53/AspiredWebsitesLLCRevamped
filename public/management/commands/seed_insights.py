@@ -305,10 +305,9 @@ still accurate no matter who ends up building the site.</em></p>
         'slug': 'google-review-gating-rules',
         'title': 'The Google Review Rule Most Contractors Break Without Knowing',
         'summary': (
-            'Asking only your happy customers for reviews feels smart, and '
-            'it is exactly what gets Google profiles penalized. What the '
-            'rule says, and how to grow reviews without risking '
-            'your listing.'
+            'Asking only happy customers for reviews feels smart, and it '
+            'is exactly what gets Google profiles penalized. What the rule '
+            'says and how to stay inside it.'
         ),
         'related_url': '/services/review-automation/',
         'related_label': 'See how compliant review automation works →',
@@ -396,12 +395,11 @@ count that survives scrutiny is the only kind worth building.</p>
     },
     {
         'slug': 'google-business-profile-multiple-locations',
-        'title': 'Google Business Profile for Multi-Location Home-Service Companies',
+        'title': 'Google Business Profile for Multi-Location Contractors',
         'summary': (
-            'Two branches, one phone number, and a map pack that only shows '
-            'one of you. How multi-location contractors should structure '
-            'profiles, pages, and review flow, and the shortcut that gets '
-            'listings suspended.'
+            'Two branches, one phone number, and a map pack that shows only '
+            'one of you. How to set up profiles, pages and review routing '
+            'for every location.'
         ),
         'related_url': '/pricing/',
         'related_label': 'See how multi-location builds are priced →',
@@ -477,8 +475,8 @@ twice.</p>
         'title': "HVAC Demand Is Seasonal. Your Website Shouldn't Ride the Wave.",
         'summary': (
             'Calls triple in a heat wave and vanish in October. What that '
-            'means for how a contractor website is built, what to do with '
-            'the slow months, and why next summer is won in the off-season.'
+            'means for how a contractor website is built, and why next '
+            'summer is won in the off-season.'
         ),
         'related_url': '/services/web-design/',
         'related_label': 'See how we build HVAC websites →',

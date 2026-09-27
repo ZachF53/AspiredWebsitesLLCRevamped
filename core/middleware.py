@@ -156,6 +156,9 @@ CSP_ADMIN = (
 CSP_ADMIN_DASHBOARD = CSP_PUBLIC.replace(
     "style-src 'self'; ", "style-src 'self' 'unsafe-inline'; ")
 
+# Where browsers POST CSP violation reports (core.views.csp_report).
+CSP_REPORT_PATH = '/csp-report/'
+
 # Disable browser features we never use.
 #
 # Sept 2026 (plan M-6.08): ambient-light-sensor, battery, document-domain
@@ -249,6 +252,17 @@ class SecurityHeadersMiddleware:
                 response['Content-Security-Policy'].replace(
                     "frame-ancestors 'none'", "frame-ancestors 'self'"))
             response['X-Frame-Options'] = 'SAMEORIGIN'
+
+        # Violation reporting for every policy set above (a view's own
+        # keep_csp policy is left exactly as the view wrote it). report-uri
+        # covers Firefox/Safari; report-to + Reporting-Endpoints covers
+        # Chromium, which needs an absolute URL.
+        if (not getattr(response, 'keep_csp', False)
+                and 'Content-Security-Policy' in response):
+            response['Content-Security-Policy'] += (
+                f'; report-uri {CSP_REPORT_PATH}; report-to csp')
+            response['Reporting-Endpoints'] = (
+                f'csp="{request.build_absolute_uri(CSP_REPORT_PATH)}"')
 
         response['Permissions-Policy'] = PERMISSIONS_POLICY
         if path.startswith(NOINDEX_PREFIXES):

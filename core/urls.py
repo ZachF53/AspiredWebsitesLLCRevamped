@@ -13,4 +13,5 @@ urlpatterns = [
          name='terms_of_service'),
     path('refund-policy/', views.refund_policy,
          name='refund_policy'),
+    path('csp-report/', views.csp_report, name='csp_report'),
 ]

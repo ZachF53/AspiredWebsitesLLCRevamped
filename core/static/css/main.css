@@ -12,6 +12,10 @@
     /* Brand — orange */
     --color-orange: #E8650A;
     --color-orange-dark: #C45508;
+    /* Fill behind white text: white on #C45508 is 5.4:1 (WCAG AA);
+       the bright brand orange is 3.33:1, so it stays for accents,
+       glows and hover states only. */
+    --color-orange-fill: #C45508;
     --color-orange-light: #FF7B1E;
     --color-gold: var(--color-orange);
 
@@ -306,16 +310,16 @@ p {
 
 .btn--primary,
 .btn-primary {
-    background: var(--color-orange);
+    background: var(--color-orange-fill);
     color: #FFFFFF;
-    border-color: var(--color-orange);
+    border-color: var(--color-orange-fill);
     box-shadow: 0 0 24px rgba(232, 101, 10, 0.3);
 }
 
 .btn--primary:hover,
 .btn-primary:hover {
-    background: var(--color-orange-light);
-    border-color: var(--color-orange-light);
+    background: var(--color-orange);
+    border-color: var(--color-orange);
     color: #FFFFFF;
     box-shadow: 0 0 40px rgba(232, 101, 10, 0.5);
     transform: translateY(-2px);
@@ -480,7 +484,7 @@ p {
 }
 
 .nav-link--cta {
-    background: var(--color-orange);
+    background: var(--color-orange-fill);
     color: #FFFFFF;
     text-align: center;
     margin-top: var(--space-1);
@@ -489,7 +493,7 @@ p {
 }
 
 .nav-link--cta:hover {
-    background: var(--color-orange-light);
+    background: var(--color-orange);
     color: #FFFFFF;
     box-shadow: 0 0 40px rgba(232, 101, 10, 0.5);
 }
@@ -1129,7 +1133,7 @@ p {
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
-    background-color: var(--color-orange);
+    background-color: var(--color-orange-fill);
     color: #FFFFFF;
     font-size: 0.6875rem;
     font-weight: 700;
@@ -1538,7 +1542,7 @@ textarea.form-control {
 .footer-locations {
     font-size: 0.875rem;
     color: var(--color-text-muted);
-    opacity: 0.7;
+    opacity: 0.85;
 }
 
 /* NAP block — must render as a readable postal address, not italic
@@ -1617,7 +1621,7 @@ textarea.form-control {
     text-align: center;
     font-size: 0.8125rem;
     color: var(--color-text-muted);
-    opacity: 0.7;
+    opacity: 0.85;
 }
 
 /* ── 16. Misc ───────────────────────────────────────────────── */
@@ -2168,7 +2172,7 @@ textarea.form-control {
     top: -12px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-orange);
+    background: var(--color-orange-fill);
     color: #FFFFFF;
     font-size: 0.6875rem;
     font-weight: 700;
@@ -17001,9 +17005,9 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 }
 .cal__cell--selected,
 .cal__cell--selected.cal__cell--today {
-    background: var(--color-orange);
+    background: var(--color-orange-fill);
     color: #fff;
-    border-color: var(--color-orange);
+    border-color: var(--color-orange-fill);
 }
 
 .cal-slots {
@@ -18423,7 +18427,7 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     width: 1.5rem;
     height: 1.5rem;
     border-radius: 50%;
-    background: var(--color-orange);
+    background: var(--color-orange-fill);
     color: #FFFFFF;
     font-weight: 700;
     font-size: 0.8125rem;
@@ -18464,3 +18468,13 @@ button.is-loading { cursor: progress; opacity: 0.85; }
     font-size: 0.9rem;
 }
 .checkout-next__steps li + li { margin-top: 0.4rem; }
+
+/* A11y (Sept 2026 Lighthouse pass): in-prose links must not rely on
+   color alone (WCAG 1.4.1). */
+main p a:not([class*="btn"]),
+main .bullet-list a,
+main .section-note a,
+.schedule-help a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}

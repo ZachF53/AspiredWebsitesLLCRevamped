@@ -46,16 +46,13 @@ class StructuredDataTests(TestCase):
                 for question in questions:
                     self.assertIn(question, visible)
 
-    def test_homepage_reviews_match_the_visible_testimonials(self):
+    def test_homepage_has_no_self_serving_review_markup(self):
+        """Google ignores reviews an organization publishes about itself;
+        the testimonials stay as visible text only."""
         body = self.client.get('/').content.decode()
-        reviews = [n for block in _json_ld(body)
-                   for n in block.get('@graph', []) if n.get('@type') == 'Review']
-        visible = _visible_text(body)
-        self.assertEqual(len(reviews), 2)
-        for review in reviews:
-            self.assertIn(review['reviewBody'], visible)
-            self.assertIn(review['author']['name'], visible)
+        self.assertNotIn('"Review"', body)
         self.assertNotIn('aggregateRating', body)
+        self.assertIn('Christopher Chilton', body)
 
     def test_hosting_page_states_the_hourly_rate_once(self):
         body = self.client.get('/services/hosting-maintenance/').content.decode()

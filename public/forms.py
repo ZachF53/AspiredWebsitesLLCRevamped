@@ -218,7 +218,7 @@ class AuditForm(forms.Form):
             'required': True,
         }),
         error_messages={
-            'invalid': 'Please enter a valid URL — e.g. https://yourbusiness.com',
+            'invalid': 'Please enter a valid URL, e.g. https://yourbusiness.com',
             'required': 'Enter your website URL to get started.',
         },
     )

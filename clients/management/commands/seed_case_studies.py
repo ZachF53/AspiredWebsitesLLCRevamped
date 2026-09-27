@@ -207,8 +207,8 @@ STUDIES = [
         'card_gradient': 'gradient-blue',
         'summary': (
             'A membership platform for a wellness coach who wanted '
-            'progress to feel human: seven Guardians, crests you earn '
-            'rather than buy, and a real person reading every submission.'
+            'progress to feel human: seven Guardians, crests you earn, '
+            'and a real person reading every submission.'
         ),
         'challenge': (
             'Most wellness platforms are built for the version of a '

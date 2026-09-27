@@ -9,13 +9,12 @@
 {% block og_description %}One page, every month: what our hosting clients receive on the first of the month.{% endblock %}
 
 {% comment %}
-Secondary page (not in the sitemap; scanned via content_gate
-EXTRA_PATHS). An ILLUSTRATIVE sample: the layout and categories are
+Indexable and in the secondary sitemap (linked from llms.txt and the
+hosting page). An ILLUSTRATIVE sample: the layout and categories are
 the real monthly summary's, the numbers are representative and the page
 says so, because publishing a real client's scan would leak exactly the
 information the report exists to protect.
 {% endcomment %}
-{% block robots %}<meta name="robots" content="noindex, follow">{% endblock %}
 
 {% block content %}
 

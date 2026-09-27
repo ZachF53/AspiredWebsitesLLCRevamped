@@ -125,9 +125,9 @@ def home(request):
             slug='hvac-build-installment', is_active=True).first(),
         'meta_title': 'Custom Websites for HVAC Contractors',
         'meta_description': (
-            'Aspired Websites builds custom-coded websites and automated '
-            'review generation for HVAC and home-service contractors. Led '
-            'by a CISSP-certified cybersecurity engineer.'
+            'Custom-coded websites and automated Google review generation '
+            'for HVAC and home-service contractors, built by a '
+            'CISSP-certified security engineer.'
         ),
     })
 
@@ -670,19 +670,17 @@ def pricing(request):
 
     if all((build_full, build_installment, full_plan, hosting_security)):
         meta_description = (
-            'Transparent pricing for HVAC and home-service contractor '
-            f'websites: a {_p(build_full)} build (or {_p(build_installment)}/mo), '
-            f'a {_p(full_plan)}/mo Full Plan with hosting, maintenance and '
-            'automated review generation, or hosting and security alone at '
+            f'HVAC website pricing: a {_p(build_full)} build or '
+            f'{_p(build_installment)}/mo, a {_p(full_plan)}/mo Full Plan with '
+            'hosting and review automation, or hosting and security alone at '
             f'{_p(hosting_security)}/mo.'
         )
     else:
         # A missing tier must not render "a  build (or /mo)".
         meta_description = (
-            'Transparent pricing for HVAC and home-service contractor '
-            'websites: one custom-coded build, a Full Plan with hosting, '
-            'maintenance and automated review generation, or hosting and '
-            'security alone.'
+            'HVAC website pricing: one custom-coded build, a Full Plan '
+            'with hosting and review automation, or hosting and security '
+            'alone.'
         )
 
     return render(request, 'public/pricing.html', {
@@ -1181,9 +1179,9 @@ def about(request):
         'active_nav': 'about',
         'meta_title': 'About Zachery Long | Aspired Websites',
         'meta_description': (
-            'Aspired Websites is built by Zachery Long, CISSP-certified, '
-            f'M.S. in Cybersecurity, {LOCATION_PHRASE}. '
-            'Direct access, no outsourcing, security-first.'
+            'Aspired Websites is Zachery Long: CISSP, M.S. in '
+            f'Cybersecurity, {LOCATION_PHRASE}. '
+            'Direct access, no outsourcing.'
         ),
     })
 

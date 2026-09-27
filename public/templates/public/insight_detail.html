@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ article.title }} | Aspired Websites{% endblock %}
+{% block title %}{{ article.title }}{% if article.title|length <= 41 %} | Aspired Websites{% endif %}{% endblock %}
 
-{% block meta_description %}{{ article.summary }}{% endblock %}
+{% block meta_description %}{{ article.summary|truncatechars:158 }}{% endblock %}
 
 {% block og_title %}{{ article.title }}{% endblock %}
 {% block og_description %}{{ article.summary }}{% endblock %}

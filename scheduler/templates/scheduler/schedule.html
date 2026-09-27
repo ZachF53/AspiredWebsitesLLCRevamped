@@ -14,7 +14,7 @@ public/sitemaps.py — so the ranking signal consolidates on one URL. The
 other three stay crawlable and reachable; they simply stop competing.
 {% endcomment %}
 {% block canonical %}{% if IS_PRODUCTION_HOST %}<link rel="canonical" href="{{ SITE_BASE_URL }}{% url 'scheduler:design_schedule' %}">{% endif %}{% endblock %}
-{% block meta_description %}Book a free 30-minute Strategy Call with Aspired Websites: your goals, your service area and your current site, by phone or video. Or call or text {{ PHONE_DISPLAY }}.{% endblock %}
+{% block meta_description %}Book a free 30-minute Strategy Call: your goals, your service area and your current site, by phone or video. Or call or text {{ PHONE_DISPLAY }}.{% endblock %}
 {% block og_title %}Book a Free 30-Minute Strategy Call | Aspired Websites{% endblock %}
 {% block og_description %}Pick a time for a free 30-minute call about your HVAC or home-service website. No preparation needed.{% endblock %}
 
@@ -103,28 +103,28 @@ other three stay crawlable and reachable; they simply stop competing.
 
                     <div class="form-group">
                         <label for="s-name">Your name <span class="required" aria-hidden="true">*</span></label>
-                        <input id="s-name" name="name" type="text" class="form-control" required>
+                        <input id="s-name" name="name" type="text" class="form-control" autocomplete="name" required>
                     </div>
 
                     <div class="form-group">
                         <label for="s-email">Email <span class="required" aria-hidden="true">*</span></label>
-                        <input id="s-email" name="email" type="email" class="form-control" required>
+                        <input id="s-email" name="email" type="email" class="form-control" autocomplete="email" inputmode="email" required>
                     </div>
 
                     <div class="form-group">
                         <label for="s-phone">Phone</label>
-                        <input id="s-phone" name="phone" type="tel" class="form-control"
+                        <input id="s-phone" name="phone" type="tel" class="form-control" autocomplete="tel" inputmode="tel"
                                placeholder="(210) 555-1234">
                     </div>
 
                     <div class="form-group">
                         <label for="s-business">Business name <span class="required" aria-hidden="true">*</span></label>
-                        <input id="s-business" name="business" type="text" class="form-control" required>
+                        <input id="s-business" name="business" type="text" class="form-control" autocomplete="organization" required>
                     </div>
 
                     <div class="form-group">
                         <label for="s-website">{{ service_config.website_label|default:"Existing website (if any)" }}</label>
-                        <input id="s-website" name="website" type="url" class="form-control"
+                        <input id="s-website" name="website" type="url" class="form-control" autocomplete="url" inputmode="url"
                                placeholder="https://&hellip;">
                     </div>
 

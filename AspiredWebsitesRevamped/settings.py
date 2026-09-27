@@ -325,6 +325,13 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        # CSP violation reports (core.views.csp_report): one line each
+        # in the gunicorn supervisor log.
+        'security.csp': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
     },
 }
 

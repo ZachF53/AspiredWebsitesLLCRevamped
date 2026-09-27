@@ -499,7 +499,7 @@ NARRATIVE = {
     },
     'moonieful-designs': {
         'challenge': 'A brand-clarity studio’s website is itself proof of the service. If the site looks templated or muddled, the promise of clarity falls flat before anyone reads a word.\n\nThe studio also needed more than a brochure: somewhere to run client projects, sell the founder’s book, and hand finished clients on to a website build without re-entering everything.',
-        'summary': 'The website and client platform for a brand-clarity studio: a focused homepage, a shop for the founder’s book, and the portal the studio runs its client work through.',
+        'summary': 'The website and client platform for a brand-clarity studio: a focused homepage, a shop for the founder’s book, and the portal the studio runs on.',
         'solution': 'A deliberately quiet homepage that keeps attention on the studio’s message, with a direct path to a fit call rather than a buried contact page.\n\nBehind it, a custom Django platform: a client portal for projects, files and approvals, intake forms the founder builds herself, a Stripe-powered shop for her book, and a signed sync bridge that hands clients to Aspired Websites for their website build.',
         'results': 'A site that presents the studio without talking over it, a platform the studio runs on day to day, and an ongoing working relationship between the two studios.',
     },

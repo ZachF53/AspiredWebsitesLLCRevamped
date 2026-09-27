@@ -1687,6 +1687,11 @@ class CaseStudy(TimestampedModel):
             self.engagement_type, '')
 
     @property
+    def screenshot_srcset(self):
+        from clients.screenshot_variants import srcset
+        return srcset(self.screenshot, 1200)
+
+    @property
     def image_alt(self):
         """Alt text that states the real relationship.
 

@@ -3,7 +3,7 @@
 
 {% block title %}{{ study.title }} Case Study | Aspired Websites{% endblock %}
 
-{% block meta_description %}{% if study.summary %}{{ study.summary }}{% else %}How Aspired Websites built {{ study.title }}: a custom, hand-coded, security-hardened website.{% endif %}{% endblock %}
+{% block meta_description %}{% if study.summary %}{{ study.summary|truncatechars:158 }}{% else %}How Aspired Websites built {{ study.title }}: a custom, hand-coded, security-hardened website.{% endif %}{% endblock %}
 
 {% block og_title %}{{ study.title }}: Case Study{% endblock %}
 {% block og_description %}{{ study.summary|default:"A custom website build by Aspired Websites." }}{% endblock %}

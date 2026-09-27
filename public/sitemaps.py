@@ -82,6 +82,7 @@ class SecondarySitemap(_StaticPageMixin, Sitemap):
         'public:about',
         'public:contact',
         'scheduler:design_schedule',
+        'public:sample_security_report',
     ]
 
 

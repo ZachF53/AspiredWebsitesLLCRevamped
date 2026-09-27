@@ -10,36 +10,12 @@ custom HVAC websites + automated review generation.
 {% block title %}Custom Websites for HVAC Contractors | Aspired{% endblock %}
 
 {% comment %}
-Review markup for the two testimonials shown below, word for word. Only
-reviews visible on this page are marked up, and there is deliberately no
-aggregateRating: Google treats a business's reviews of itself as
-self-serving (no star rich result), and a rating built from reviews not
-shown here would describe content that isn't on the page. If a quote
-below changes, change it here too.
+No Review JSON-LD for the testimonials below. Google treats reviews a
+business publishes about itself (Organization / LocalBusiness types,
+including ProfessionalService) as self-serving and ineligible for
+review rich results, so the markup bought nothing. The testimonials
+stay as visible text, and the Google reviews link is the real proof.
 {% endcomment %}
-{% block extra_head %}
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@graph": [
-        {
-            "@type": "Review",
-            "itemReviewed": { "@id": "{{ SITE_BASE_URL }}/#organization" },
-            "author": { "@type": "Person", "name": "Christopher Chilton" },
-            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
-            "reviewBody": "Mr. Long went above and beyond to get my website up and running and designed just the way I wanted it to be. Responsibly priced and worth every penny. Sat down with me and showed me several options. HIGHLY RECOMMEND."
-        },
-        {
-            "@type": "Review",
-            "itemReviewed": { "@id": "{{ SITE_BASE_URL }}/#organization" },
-            "author": { "@type": "Person", "name": "Miki Roberts" },
-            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
-            "reviewBody": "They listened to my ideas and provided valuable suggestions that made sense. The final product exceeded my expectations and I will continue to use their services and refer them to others."
-        }
-    ]
-}
-</script>
-{% endblock %}
 
 {% block content %}
 

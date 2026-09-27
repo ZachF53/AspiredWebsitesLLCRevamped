@@ -175,6 +175,9 @@ class Command(BaseCommand):
                 continue
             getattr(study, field).save(
                 f'{study.slug}{suffix}.webp', ContentFile(data), save=True)
+            if field == 'screenshot':
+                from clients.screenshot_variants import make_variant
+                make_variant(study.screenshot, force=True)
             self.stdout.write(self.style.SUCCESS(
                 f'  + {study.slug}: {size_kb:.0f} KB '
                 f'({width}x{height}) from {study.live_url}'))

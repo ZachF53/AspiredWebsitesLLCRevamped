@@ -11,13 +11,17 @@ width/height are the real intrinsic dimensions (1200x750, the 16:10 the
 capture command enforces to match .card--with-visual .card__visual), so
 the browser reserves the right box before the image arrives and the
 card does not shift. loading="lazy" because these sit below the fold on
-every page that uses them.
+every page that uses them. srcset offers the 600 px copy from
+make_screenshot_variants, and is omitted when that copy doesn't exist.
 {% endcomment %}
 {% if study.screenshot %}
     <div class="card__visual card__visual--shot">
+        {% with srcset=study.screenshot_srcset %}
         <img src="{{ study.screenshot.url }}"
+             {% if srcset %}srcset="{{ srcset }}" sizes="(min-width: 1200px) 560px, (min-width: 720px) 48vw, 100vw"{% endif %}
              alt="{{ study.image_alt }}"
              width="1200" height="750" loading="lazy" decoding="async">
+        {% endwith %}
     </div>
 {% else %}
     <div class="card__visual {{ study.card_gradient|default:'gradient-blue' }}" aria-hidden="true"></div>
