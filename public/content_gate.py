@@ -173,6 +173,7 @@ EXTRA_PATHS = [
     '/design/schedule/', '/contact/', '/login/', '/password-reset/',
     '/insights/how-much-does-law-firm-web-design-cost/',
     '/services/hosting-maintenance/sample-report/',
+    '/llms.txt',
 ]
 
 

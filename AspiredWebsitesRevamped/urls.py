@@ -17,6 +17,7 @@ from clients.views import (
 from outreach.sendgrid_webhook import receive as sendgrid_events
 from outreach.instantly_webhook import receive as instantly_events
 from public.legacy_redirects import legacy_redirect_patterns
+from public.llms import llms_txt
 from public.sitemaps import SITEMAPS
 from reporting.views import nps_response
 
@@ -71,6 +72,7 @@ urlpatterns = [
     path('sitemap.xml', sitemap_view, {'sitemaps': SITEMAPS},
          name='django.contrib.sitemaps.views.sitemap'),
     path('robots.txt', robots_txt, name='robots_txt'),
+    path('llms.txt', llms_txt, name='llms_txt'),
     # Browsers and crawlers request these at the root regardless of the
     # <link> tags (which correctly point under /static/images/). They
     # 404'd in every server log (plan M-6.08); send them to the real files.
