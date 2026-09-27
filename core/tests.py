@@ -9,15 +9,6 @@ from django.urls import reverse
 
 
 
-def _without_mailing_line(html):
-    """Drop the footer's labeled CAN-SPAM mailing line before address
-    assertions. Owner-approved (2026-09-26): the registered-agent address
-    may appear ONLY as "Mail: ... (mail receiving only; we work from
-    Warner Robins)", never in schema, a location page's copy, or as an
-    unlabeled address."""
-    return re.sub(r'<li class="footer-note">Mail:.*?mail receiving only.*?</li>',
-                  '', html, flags=re.S)
-
 class EnvironmentSettingsTests(TestCase):
     """The normal test command must be isolated from the operator's .env."""
 
@@ -1513,8 +1504,7 @@ class SanAntonioLocationPageTests(TestCase):
         carries the operating city (Warner Robins, GA) and nothing else —
         no street address anywhere, in either metro.
         """
-        html = _without_mailing_line(
-            self.client.get('/locations/san-antonio/').content.decode())
+        html = self.client.get('/locations/san-antonio/').content.decode()
         self.assertNotIn('San Antonio, TX 7', html)   # any SA ZIP
         self.assertIn('Warner Robins, GA', html)      # footer master record
         self.assertNotIn('8735 Dunwoody', html)       # registered agent
@@ -1584,10 +1574,19 @@ class GeorgiaLocationPageTests(TestCase):
         """
         for path in self.PAGES:
             with self.subTest(path=path):
-                html = _without_mailing_line(
-                    self.client.get(path).content.decode())
+                html = self.client.get(path).content.decode()
                 self.assertNotIn('8735 Dunwoody', html)
                 self.assertNotIn('Dunwoody Place', html)
+
+    @override_settings(COMPANY_POSTAL_ADDRESS='8735 Dunwoody Place, Ste R, Atlanta, GA 30350')
+    def test_registered_agent_address_stays_email_only(self):
+        """COMPANY_POSTAL_ADDRESS is for CAN-SPAM email footers only.
+        Owner decision (2026-09-26, reaffirming b56a914): it must not
+        render in the site footer or legal pages even when it is set."""
+        for path in ('/', '/terms/', '/privacy-policy/', '/contact/'):
+            with self.subTest(path=path):
+                html = self.client.get(path).content.decode()
+                self.assertNotIn('Dunwoody', html)
 
     def test_atlanta_page_states_it_has_no_atlanta_office(self):
         html = self.client.get('/locations/atlanta/').content.decode()
