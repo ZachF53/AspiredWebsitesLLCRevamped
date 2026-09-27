@@ -31,12 +31,12 @@ class BuildTypeOptionTests(TestCase):
     def test_labels_carry_servicetier_prices(self):
         labels = dict(build_type_choices())
         self.assertEqual(labels['build_full'],
-                         'Website Build — Pay in Full ($2,000)')
+                         'Website Build: Pay in Full ($2,000)')
         self.assertEqual(labels['build_installment'],
-                         'Website Build — 24-Month Installment ($105/mo)')
+                         'Website Build: 24-Month Installment ($105/mo)')
         self.assertEqual(
             labels['hosting_only'],
-            'Hosting + Security Only ($45/mo) — I already have a site')
+            'Hosting + Security Only ($45/mo): I already have a site')
         self.assertEqual(labels['not_sure'], 'Not sure yet')
 
     def test_price_follows_the_tier(self):

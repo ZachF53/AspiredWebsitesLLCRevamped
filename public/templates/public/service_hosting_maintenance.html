@@ -49,9 +49,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
             <hr class="accent-line hero__divider" aria-hidden="true">
             <p class="hero__lead">
                 Most hosting is a server and a support queue. This is your own
-                server, patched and monitored by the engineer who can actually
-                fix your site &mdash; with a security report in your inbox every
-                month proving it.
+                server, patched and monitored by the engineer who can fix your site, with a security report in your inbox every month to show for it.
             </p>
             <div class="hero__ctas">
                 {% if hosting_security %}
@@ -73,13 +71,13 @@ Organisation entity, canonical and og:image come from base.html (D8).
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">What You Get</span>
-            <h2>What &ldquo;Managed&rdquo; Actually Means Here</h2>
+            <h2>What “Managed” Means Here</h2>
         </div>
 
         <div class="value-tiles value-tiles--3col">
             <div class="value-tile">
                 <h3>Your Own Server</h3>
-                <p>Every client site runs on its own server &mdash; never shared hosting, never another business&rsquo;s traffic slowing yours down or their compromise becoming your problem.</p>
+                <p>Every client site runs on its own server: never shared hosting, never another business&rsquo;s traffic slowing yours down or their compromise becoming your problem.</p>
             </div>
 
             <div class="value-tile">
@@ -94,12 +92,12 @@ Organisation entity, canonical and og:image come from base.html (D8).
 
             <div class="value-tile">
                 <h3>Uptime, Watched</h3>
-                <p>Your site is monitored around the clock against a 99.9% uptime target. It&rsquo;s a target, not a guarantee &mdash; and the monthly report shows you the actual number.</p>
+                <p>Your site is monitored around the clock against a 99.9% uptime target. It&rsquo;s a target, not a guarantee, and the monthly report shows you the real number.</p>
             </div>
 
             <div class="value-tile">
                 <h3>A Monthly Security Report</h3>
-                <p>On the first of each month: a one-page summary of an automated scan &mdash; dependency vulnerabilities, file integrity, SSL status, security headers, and uptime. If something needs attention, fixing it is covered by your plan. <a href="{% url 'public:sample_security_report' %}">See a sample report &rarr;</a></p>
+                <p>On the first of each month: a one-page summary of an automated scan covering dependency vulnerabilities, file integrity, SSL status, security headers, and uptime. If something needs attention, fixing it is covered by your plan. <a href="{% url 'public:sample_security_report' %}">See a sample report &rarr;</a></p>
             </div>
 
             <div class="value-tile">
@@ -124,7 +122,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
         <div class="cards cards--2col">
             {% if hosting_security %}
                 <article class="card card--accent-left">
-                    <h3>Hosting + Security &mdash; {{ hosting_security.get_price_display }}</h3>
+                    <h3>Hosting + Security: {{ hosting_security.get_price_display }}</h3>
                     <ul class="bullet-list">
                         {% for feature in hosting_security.features.all %}
                             <li>{{ feature.text }}</li>
@@ -137,7 +135,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
 
             {% if plan_paid_in_full %}
                 <article class="card card--accent-left">
-                    <h3>Full Plan &mdash; {{ plan_paid_in_full.get_price_display }}</h3>
+                    <h3>Full Plan: {{ plan_paid_in_full.get_price_display }}</h3>
                     <ul class="bullet-list">
                         <li>Everything in Hosting + Security</li>
                         <li>Unlimited content updates: text, photos, hours, service areas, promotions</li>
@@ -163,7 +161,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
                 Hosting + Security works for sites we didn&rsquo;t build, too. Sign
                 up, and we look at what the move involves. If it needs hands-on
                 work, it&rsquo;s quoted first{% if hourly_display %} at {{ hourly_display }}/hour{% endif %}
-                and nothing starts until you approve &mdash; and if the first month
+                and nothing starts until you approve. If the first month
                 doesn&rsquo;t work out, it&rsquo;s refunded in full if you ask
                 within 30 days.
             </p>
@@ -202,7 +200,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
 <section class="section">
     <div class="container">
         <div class="cta-block">
-            <h2>Want Your Site Handled, Not Just Hosted?</h2>
+            <h2>Want Your Site Handled for You?</h2>
             <p>Sign up online in a few minutes, or book a free call and talk it through first.</p>
             <div class="hero__ctas">
                 {% if hosting_security %}

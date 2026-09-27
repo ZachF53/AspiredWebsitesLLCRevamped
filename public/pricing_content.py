@@ -114,7 +114,7 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
          'ownership transfers to you once the build is paid off. If installments '
          'stop, the site stays up while we sort it out; we’ll always talk '
          'before anything is suspended (14 days’ notice per our Terms).'),
-        ('What does the build actually include?',
+        ('What does the build include?',
          f'The {full} build covers four main pages plus up to six individual '
          'service pages, built around your trades and service area. Copy for '
          'those pages is written as part of the build from your notes, photos '
@@ -190,7 +190,7 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
             'per additional location. ' if location_addon else '')
          + 'Your old page addresses are carried across so you don’t lose '
          'your search history. Tell us the locations on the call and you get '
-         'a written number before you sign — quoted, never guessed.'),
+         'a written number before you sign.'),
         ('What happens if Aspired Websites shuts down?',
          'It’s written into the agreement: if Aspired Websites LLC ever '
          'ceased operating before your build was paid off, ownership of the '

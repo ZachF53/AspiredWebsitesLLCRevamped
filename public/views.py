@@ -489,7 +489,7 @@ def insights_index(request):
             status='published', is_archived=False),
         'meta_title': 'Insights',
         'meta_description': (
-            'Straight answers on what websites cost, why custom beats '
+            'What websites cost, why custom beats '
             'templates, and how to get found on Google. Written by a '
             'CISSP-certified engineer who builds them.'
         ),

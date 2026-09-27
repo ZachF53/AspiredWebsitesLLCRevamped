@@ -22,16 +22,16 @@ logger = logging.getLogger(__name__)
 # ``{price}``). Prices are rendered from ServiceTier, never written here;
 # when a tier is missing the price parenthetical is simply left off.
 BUILD_TYPE_OPTIONS = [
-    ('build_full', 'Website Build — Pay in Full ({price})',
+    ('build_full', 'Website Build: Pay in Full ({price})',
      'hvac-build-full'),
-    ('build_installment', 'Website Build — 24-Month Installment ({price})',
+    ('build_installment', 'Website Build: 24-Month Installment ({price})',
      'hvac-build-installment'),
     ('full_plan',
      'Full Plan (build + hosting + maintenance + review automation)', None),
     ('hosting_only',
-     'Hosting + Security Only ({price}) — I already have a site',
+     'Hosting + Security Only ({price}): I already have a site',
      'hvac-hosting-security'),
-    ('multi_location', 'Larger or multi-location project — let’s scope it',
+    ('multi_location', 'Larger or multi-location project: let’s scope it',
      None),
     ('not_sure', 'Not sure yet', None),
 ]

@@ -45,7 +45,7 @@ CONTENT = {
         'deep_dive': [
             {
                 'eyebrow': 'The Platform',
-                'heading': 'A studio’s whole operating system, not just a portfolio',
+                'heading': 'The system the studio runs on',
                 'intro': (
                     'The homepage is the storefront. Behind it is the '
                     'system Miki runs her studio on, built in Django and '
@@ -199,7 +199,7 @@ CONTENT = {
                 'points': [
                     'Every truck page is marked up as a Restaurant, with '
                     'its address and a breadcrumb trail, and titled for '
-                    'the search people actually make (“Curbside Eats | '
+                    'the searches people run (“Curbside Eats | '
                     'American Food Truck in San Antonio”).',
                     'The directory is an ItemList; the homepage carries '
                     'WebSite (with a site search action), Organization, '
@@ -495,7 +495,7 @@ NARRATIVE = {
     },
     'food-trucks-of-san-antonio': {
         'solution': 'A Django and PostgreSQL platform rather than a static page: truck owners manage their own profiles and menus, a live map shows who is out right now, and every truck, cuisine and article has its own indexable page.\n\nCritical styles are written into the page, photos are resized on upload and served as WebP, and images further down wait until they are needed, so the first screen appears without the layout jumping around.',
-        'results': 'A directory the community can actually use on a phone: 21 truck profiles with full menus (the homepage features the trucks that are active right now), a live map, reviews, and a way for local businesses to book a truck for an event, with every truck page structured for search.',
+        'results': 'A directory the community can use on a phone: 21 truck profiles with full menus (the homepage features the trucks that are active right now), a live map, reviews, and a way for local businesses to book a truck for an event, with every truck page structured for search.',
     },
     'moonieful-designs': {
         'challenge': 'A brand-clarity studio’s website is itself proof of the service. If the site looks templated or muddled, the promise of clarity falls flat before anyone reads a word.\n\nThe studio also needed more than a brochure: somewhere to run client projects, sell the founder’s book, and hand finished clients on to a website build without re-entering everything.',

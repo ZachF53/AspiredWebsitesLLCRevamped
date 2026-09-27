@@ -129,7 +129,7 @@ STUDIES = [
             'the directory can grow without the layout fighting it.'
         ),
         'results': (
-            'A directory the community can actually use on a phone, '
+            'A directory the community can use on a phone, '
             'built to stay fast as more trucks and events are added.'
         ),
     },
@@ -175,7 +175,7 @@ STUDIES = [
         'card_gradient': 'gradient-forest',
         'summary': (
             'A credibility-first site for a technology company, built '
-            'to a standard a technical audience would actually inspect.'
+            'to hold up when a technical audience inspects it.'
         ),
         'challenge': (
             'Selling technology to people who understand technology '

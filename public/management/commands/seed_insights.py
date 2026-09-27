@@ -39,14 +39,12 @@ company costs $2,000 upfront, or $105 a month for 24 months</strong>
 own, or bundled into the Full Plan below.</p>
 
 <p>That is our pricing, published, not a range designed to get you on a
-call. What follows is what actually moves the number, and where the
-cheaper options genuinely beat us.</p>
+call. What follows is what moves the number, and where the cheaper options beat us.</p>
 
-<h2>The four price tiers, honestly</h2>
+<h2>The four price tiers</h2>
 
 <h3>$0–$50/month: website builders</h3>
-<p>Wix, Squarespace, GoDaddy. You do the work. Genuinely fine for a
-single page with your hours and phone number, and we will tell you so
+<p>Wix, Squarespace, GoDaddy. You do the work. Fine for a single page with your hours and phone number, and we will tell you so
 rather than sell against it. The costs show up later: you cannot change
 what the platform will not let you change, and the site is rented, not
 owned.</p>
@@ -61,8 +59,7 @@ same one.</p>
 <p>Where we sit. Flat price, no range: $2,000 upfront, or $105 a month
 for 24 months if you would rather spread it out. Every page designed
 around your business and written from scratch. No theme to fight, no
-plugin to break, and the structure can be built around how homeowners
-actually search when a unit fails.</p>
+plugin to break, and the structure can be built around how homeowners search when a unit fails.</p>
 
 <h3>$10,000+: agency</h3>
 <p>A team, a strategist, a project manager, and an office to pay for.
@@ -129,7 +126,7 @@ and if the range does not fit, you have lost nothing but a minute.</p>
         'slug': 'why-your-business-isnt-showing-up-on-google',
         'title': "Why Your Business Isn't Showing Up on Google",
         'summary': (
-            'Seven reasons, ordered by how often they are actually the '
+            'Seven reasons, ordered by how often they turn out to be the '
             'cause, with the fix for each and how long it takes.'
         ),
         'related_url': '/services/review-automation/',
@@ -152,7 +149,7 @@ spending money on a problem you might not have.</p>
 most clicks go. If you are not in it, you are effectively invisible
 regardless of how good your website is. Most profiles have a name, an
 address, and nothing else.</p>
-<p><strong>Fix:</strong> claim it, then actually fill it in: correct
+<p><strong>Fix:</strong> claim it, then fill it in completely: correct
 primary category, services, hours, real photos, service areas.
 <strong>Timeline:</strong> weeks, and the fastest win available.</p>
 
@@ -192,7 +189,7 @@ images and less code on every page.</p>
 another. Google uses consistency as a confidence signal, and
 inconsistency quietly suppresses you.</p>
 <p><strong>Fix:</strong> pick one exact format and make every listing
-match it. Tedious, unglamorous, effective.</p>
+match it. It is tedious, and it works.</p>
 
 <h2>The order to work through it</h2>
 <ol>
@@ -205,7 +202,7 @@ match it. Tedious, unglamorous, effective.</p>
   <li>Wait. It takes months, and anyone who says otherwise is selling.</li>
 </ol>
 
-<p>One thing worth saying plainly: nobody can guarantee you a ranking.
+<p>Nobody can guarantee you a ranking.
 Anyone who does is either targeting keywords nobody searches or is not
 being straight with you.</p>
 """,
@@ -217,7 +214,7 @@ being straight with you.</p>
         'is_archived': True,
         'title': 'How Much Does Law Firm Web Design Cost?',
         'summary': (
-            'What attorneys actually pay, why the vendor platforms cost '
+            'What attorneys pay, why the vendor platforms cost '
             'more than the invoice says, and the contract questions to '
             'ask before signing anything.'
         ),
@@ -225,8 +222,7 @@ being straight with you.</p>
         'related_label': 'See what we build now →',
         'body': """
 <p>Law firm websites are priced differently from other small-business
-sites, and not always for good reasons. Here is what the options
-actually cost.</p>
+sites, and not always for good reasons. Here is what the options cost.</p>
 
 <h2>The three ways firms buy a website</h2>
 
@@ -251,7 +247,7 @@ how much of the copy you are supplying versus having written. Extra
 practice-area pages typically add to the quote rather than coming
 free.</p>
 
-<h2>The number that actually matters</h2>
+<h2>The number that matters</h2>
 <p>Not the invoice. The five-year total, and what you hold at the end
 of it.</p>
 <ul>
@@ -309,9 +305,9 @@ still accurate no matter who ends up building the site.</em></p>
         'slug': 'google-review-gating-rules',
         'title': 'The Google Review Rule Most Contractors Break Without Knowing',
         'summary': (
-            'Asking only your happy customers for reviews feels smart — and '
+            'Asking only your happy customers for reviews feels smart, and '
             'it is exactly what gets Google profiles penalized. What the '
-            'rule actually says, and how to grow reviews without risking '
+            'rule says, and how to grow reviews without risking '
             'your listing.'
         ),
         'related_url': '/services/review-automation/',
@@ -323,7 +319,7 @@ ones to Google, and routes the unhappy ones to a private feedback form.
 It feels clever. It is called <strong>review gating</strong>, and it is
 specifically what Google's review policies prohibit.</p>
 
-<h2>What the rule actually says</h2>
+<h2>What the rule says</h2>
 
 <p>Google's policy language is short: businesses shouldn't
 "discourage or prohibit negative reviews, or selectively solicit
@@ -334,7 +330,7 @@ that sentence:</p>
 <li><strong>Filtering.</strong> Pre-screening customers by sentiment and
 only inviting the satisfied ones to review you.</li>
 <li><strong>Incentivizing.</strong> Offering a discount, a gift card, or
-an entry in a drawing in exchange for a review — positive or not.</li>
+an entry in a drawing in exchange for a review, positive or not.</li>
 </ul>
 
 <p>The FTC now has a rule aimed at the same territory: buying,
@@ -342,7 +338,7 @@ incentivizing, or misrepresenting reviews can carry real civil
 penalties, not just a platform slap. This stopped being a gray area a
 while ago.</p>
 
-<h2>What a penalty actually looks like</h2>
+<h2>What a penalty looks like</h2>
 
 <p>Nobody gets a letter. What happens is quieter and worse: reviews
 start getting filtered or removed, new ones stop appearing, and in
@@ -361,8 +357,7 @@ name.</p>
 every real completed job.</strong> No filter, no incentive, no
 ghostwriting.</p>
 
-<p>Here is the part contractors don't expect: asked consistently, most
-customers who bother to respond leave positive reviews anyway — people
+<p>Asked consistently, most customers who respond leave positive reviews anyway. People
 who had a fine experience just need the nudge and the link. The
 occasional three-star review does two useful things: it makes the
 five-star ones believable, and it tells you something true about a crew
@@ -384,7 +379,7 @@ depending on a busy technician remembering.</p>
 <ul>
 <li>Does your review tool ask "how did we do?" before showing the
 Google link? That's gating.</li>
-<li>Do your technicians offer anything — even a sticker — for a review?
+<li>Do your technicians offer anything for a review, even a sticker?
 That's incentivizing.</li>
 <li>Do requests go to every customer, or only the ones the office
 liked? Only some is selective solicitation.</li>
@@ -394,8 +389,8 @@ customer? That one can now involve the FTC.</li>
 
 <p>If any answer made you wince, fix the process before Google fixes it
 for you. Our own <a href="/services/review-automation/">review
-automation</a> is built inside these rules on purpose — every customer,
-the same message, triggered by the completed job — because a review
+automation</a> is built inside these rules on purpose: every customer gets
+the same message, triggered by the completed job, because a review
 count that survives scrutiny is the only kind worth building.</p>
 """,
     },
@@ -405,7 +400,7 @@ count that survives scrutiny is the only kind worth building.</p>
         'summary': (
             'Two branches, one phone number, and a map pack that only shows '
             'one of you. How multi-location contractors should structure '
-            'profiles, pages, and review flow — and the shortcut that gets '
+            'profiles, pages, and review flow, and the shortcut that gets '
             'listings suspended.'
         ),
         'related_url': '/pricing/',
@@ -415,7 +410,7 @@ count that survives scrutiny is the only kind worth building.</p>
 presence gets more complicated than anyone warned. The map pack is
 local by design: it shows a searcher businesses near <em>them</em>. If
 everything about your company points at your original location, your
-second territory is invisible — no matter how many trucks you run
+second territory is invisible, no matter how many trucks you run
 there.</p>
 
 <h2>One real location, one profile</h2>
@@ -427,7 +422,7 @@ a mailbox, a virtual office, or a storage unit rented to plant a pin in
 a richer suburb. Google removes those listings routinely, and a
 suspension on one listing can drag scrutiny onto the whole account.</p>
 
-<p>Service-area businesses — most contractors — can hide their street
+<p>Service-area businesses (most contractors) can hide their street
 address and define the area they serve instead. That is the honest
 setup when a branch works out of a yard nobody should visit. What the
 address toggle never does is let one branch pretend to be in two
@@ -437,7 +432,7 @@ places.</p>
 
 <p>A profile's website link is a ranking signal and a conversion page
 at once. Pointing both profiles at one generic homepage wastes it. Each
-location should link to its own page on your site — real content about
+location should link to its own page on your site with real content about
 that branch: the area it covers, the crew, the number that rings its
 dispatch, reviews from those neighborhoods. Not a template with the
 city name swapped: searchers and Google both recognize wallpaper.</p>
@@ -452,7 +447,7 @@ the new market.</p>
 
 <p>The fix is mechanical: the review request a customer receives must
 carry the review link for <strong>the location that did the job</strong>.
-That routing belongs in the automation, keyed off the job record — not
+That routing belongs in the automation, keyed off the job record, not
 in a technician's memory. It is exactly how we wire
 <a href="/services/review-automation/">review automation</a> for
 multi-location clients: each completed job triggers a request pointing
@@ -460,15 +455,15 @@ at that branch's profile, so both listings grow where they compete.</p>
 
 <h2>Keep the boring details identical</h2>
 
-<p>Name, address, phone — consistent everywhere each branch appears:
+<p>Name, address and phone should match everywhere each branch appears:
 the profile, your site, directories. A branch that is "Smith Heating
-&amp; Air – Macon" on Google and "Smith HVAC South" on the website
+&amp; Air of Macon" on Google and "Smith HVAC South" on the website
 reads, to a machine, like two different businesses splitting their
 credibility.</p>
 
-<h2>What it costs, honestly</h2>
+<h2>What it costs</h2>
 
-<p>A second location is not a second website — it is a set of location
+<p>A second location is not a second website. It is a set of location
 pages, review routing, and per-location tracking added to the build you
 already have. That is how we quote it: in writing, from
 <a href="/pricing/">the same published pricing</a> everything else
@@ -492,7 +487,7 @@ twice.</p>
 week and the first hard freeze bury the phones, and the shoulder months
 go quiet enough to make you nervous. Most contractors staff for that
 curve and budget for it. Almost nobody builds their <em>website</em>
-for it — and the website feels the swing more than anything else in the
+for it, and the website feels the swing more than anything else in the
 business.</p>
 
 <h2>Peak season: the site is an emergency dispatcher</h2>
@@ -504,8 +499,7 @@ do all the work:</p>
 
 <ul>
 <li><strong>Speed on a phone.</strong> The searcher is standing in a
-hot kitchen on mobile data. A site that hesitates loses to one that
-doesn't — Google's own research shows abandonment climbing sharply
+hot kitchen on mobile data. A site that hesitates loses to one that doesn’t. Google’s own research shows abandonment climbing sharply
 with every second of load time.</li>
 <li><strong>A number they cannot miss.</strong> Tap-to-call, at the
 top, on every page. Peak-season visitors don't fill out long forms.</li>
@@ -515,13 +509,13 @@ persuasive phrase on the page.</li>
 </ul>
 
 <p>None of that can be bolted on the week the heat wave hits. It is
-decided when the site is built — which is an off-season decision.</p>
+decided when the site is built, and that is an off-season decision.</p>
 
 <h2>Shoulder season: sell the calendar, not the emergency</h2>
 
 <p>Spring and fall customers are planners: tune-ups, replacements
 scheduled around a tax refund, the smart ones fixing in April what
-would fail in July. The site should meet them differently — maintenance
+would fail in July. The site should meet them differently: maintenance
 pages that talk about avoiding the failure, financing information for
 replacements, and an easy way to book non-urgent work. If your only
 call to action is "24/7 emergency service," you are invisible to the
@@ -543,8 +537,7 @@ same person who calls someone in December. Useful answers published in
 slow months earn calls in busy ones.</li>
 <li><strong>The rebuild itself.</strong> A proper custom build takes
 four to six weeks. Start it in the off-season and it is live, indexed,
-and gathering reviews before the first heat wave — start it in June and
-you paid for a peak season it missed.</li>
+and gathering reviews before the first heat wave. Start it in June and you’ve paid for a peak season it missed.</li>
 </ul>
 
 <h2>The one-line version</h2>
@@ -553,8 +546,7 @@ you paid for a peak season it missed.</li>
 ready before each wave arrives. Fast and phone-first for the
 emergency months, calendar-friendly for the planners, and quietly
 stacking reviews and answers the rest of the year. That is the
-standard we <a href="/services/web-design/">build to</a> — and the
-reason the best month to fix your website is the month nobody's AC is
+standard we <a href="/services/web-design/">build to</a>, which is why the best month to fix your website is the month nobody's AC is
 broken.</p>
 """,
     },

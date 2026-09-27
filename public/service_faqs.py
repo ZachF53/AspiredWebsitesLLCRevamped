@@ -40,8 +40,8 @@ def web_design_faqs(build_full=None, build_installment=None):
          'site loses the call to the competitor whose site answers the '
          'question. Brand-new with no reviews yet? Set up the profile first.'),
         ('Is a custom website better than Wix or Squarespace for HVAC?',
-         'For a single page with your hours, a builder is honestly cheaper and '
-         'fine. A custom build wins on speed, on owning the code outright, and '
+         'For a single page with your hours, a builder is cheaper and does the '
+         'job. A custom build wins on speed, on owning the code outright, and '
          'on service pages built around your trades instead of a template '
          'someone else also bought.'),
         ('Will I own my website?',
@@ -58,8 +58,8 @@ def web_design_faqs(build_full=None, build_installment=None):
 def review_automation_faqs():
     return [
         ('How do HVAC companies get more Google reviews?',
-         'By asking every customer, every time, while the job is fresh — '
-         'which is exactly the step busy crews forget. Automating the request '
+         'By asking every customer, every time, while the job is fresh, '
+         'which is the step busy crews forget. Automating the request '
          'off the completed job turns asking into a habit that runs itself, '
          'and a steady flow of recent reviews is what homeowners and Google '
          'both weigh most.'),
@@ -75,7 +75,7 @@ def review_automation_faqs():
          'request at nine at night.'),
         ('Which job systems does it connect to?',
          'Any job or scheduling system that can send a webhook when a job '
-         'closes — that covers ServiceTitan, Housecall Pro, Jobber and most '
+         'closes. That covers ServiceTitan, Housecall Pro, Jobber and most '
          'others, either directly or through Zapier. The automation is set up '
          'inside your system during onboarding, so marking the job complete is '
          'the only thing your team ever does. Run something unusual, or '
@@ -106,7 +106,7 @@ def hosting_faqs(hourly_display=''):
          'updates, monitoring and support, not the right to keep your own '
          'website online. Standard code on standard hosting means any '
          'competent developer can take it over.'),
-        ('Who actually does the work?',
+        ('Who does the work?',
          'The engineer who built the platform, a CISSP-certified security '
          'professional. The About page lists the credentials and how to '
          'verify them.'),
