@@ -232,12 +232,19 @@ def service_web_design(request):
     # left over from the pre-pivot Essential/Premium tiers; the build is
     # one flat-priced product now, so this reads the live number.
     from billing.pricing_models import ServiceTier
+    from public.pricing_content import faq_schema
+    from public.service_faqs import web_design_faqs
     build_full = ServiceTier.objects.filter(
         slug='hvac-build-full', is_active=True).first()
+    build_installment = ServiceTier.objects.filter(
+        slug='hvac-build-installment', is_active=True).first()
+    faqs = web_design_faqs(build_full, build_installment)
     return render(request, 'public/service_web_design.html', {
         'active_nav': 'services',
         'active_service': 'web_design',
         'build_full': build_full,
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
         'breadcrumbs': [
             ('Services', '/services/web-design/'),
             ('Custom Web Design', None),
@@ -296,9 +303,19 @@ def service_review_automation(request):
     # No 'Services' index page exists to point a parent crumb at —
     # /services/web-design/ is a specific page, not a hub — so the
     # trail is just this page rather than a crumb pointing sideways.
+    from billing.pricing_models import ServiceTier
+    from public.pricing_content import faq_schema
+    from public.service_faqs import review_automation_faqs
+    faqs = review_automation_faqs()
     return render(request, 'public/service_review_automation.html', {
         'active_nav': 'services',
         'active_service': 'review_automation',
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
+        # Review automation isn't sold alone; the Service offer is the plan
+        # that includes it, priced from the live row.
+        'plan_paid_in_full': ServiceTier.objects.filter(
+            slug='hvac-plan-paid-in-full', is_active=True).first(),
         'breadcrumbs': [
             ('Review Automation', None),
         ],
@@ -322,14 +339,22 @@ def service_hosting_maintenance(request):
             is_active=True, is_public=True,
         ).prefetch_related('features')
     }
+    from public.pricing_content import faq_schema, money
+    from public.service_faqs import hosting_faqs
     hourly = AddonPricing.objects.filter(
         slug='addon-hourly', is_active=True).first()
+    # The template writes "{{ hourly_display }}/hour", so pass the bare rate;
+    # get_price_display() already ends in "per hour" ("$85 per hour/hour").
+    hourly_display = money(hourly.price_min) if hourly else ''
+    faqs = hosting_faqs(hourly_display)
     return render(request, 'public/service_hosting_maintenance.html', {
         'active_nav': 'services',
         'active_service': 'hosting_maintenance',
         'hosting_security': tiers.get('hvac-hosting-security'),
         'plan_paid_in_full': tiers.get('hvac-plan-paid-in-full'),
-        'hourly_display': hourly.get_price_display() if hourly else '',
+        'hourly_display': hourly_display,
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
         'breadcrumbs': [
             ('Hosting & Maintenance', None),
         ],

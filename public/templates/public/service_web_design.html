@@ -38,6 +38,7 @@ rather than re-declaring it (Master Plan D8).
     }
 }
 </script>
+<script type="application/ld+json">{{ faq_schema }}</script>
 {% endblock %}
 
 {% block content %}
@@ -290,6 +291,32 @@ bundled, and analytics are installed at launch.
 </section>
 
 <hr class="section-divider" aria-hidden="true">
+
+{% comment %}
+Questions phrased the way contractors search them. Rendered from
+public.service_faqs.web_design_faqs, which also feeds the FAQPage
+JSON-LD in extra_head, so the visible answers and the schema can't drift.
+{% endcomment %}
+{% if faqs %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>HVAC Websites, Answered</h2>
+        </div>
+        <div class="cards cards--2col">
+            {% for question, answer in faqs %}
+                <article class="card">
+                    <h3>{{ question }}</h3>
+                    <p>{{ answer }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+{% endif %}
 
 {# ───────── Final CTA ───────── #}
 <section class="section">

@@ -22,60 +22,21 @@ Organisation entity, canonical and og:image come from base.html (D8).
     "url": "{{ CANONICAL_URL }}",
     "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
     "description": "Automated Google review request system for HVAC contractors, included with the Full Plan. Every completed job triggers a review request automatically.",
-    "offers": {
+    "offers": {% if plan_paid_in_full %}{
         "@type": "Offer",
-        "priceRange": "$$"
-    }
-}
-</script>
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-        {
-            "@type": "Question",
-            "name": "How does automated review generation work?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "When a job is marked complete, the system automatically sends the customer a request to leave a Google review. No one on your team has to remember to ask. It happens the same way every time."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "When does the request go out?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "One to two hours after the job is marked complete, while the work is still fresh. Jobs finished in the evening wait until 8:00 AM the customer's local time the next morning, so nobody gets a review request at nine at night."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Does this violate Google's review policies?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "No. The system asks every customer the same way after a real completed job. It never incentivizes a review, filters for positive ones only, or offers anything in exchange. That kind of selective or incentivized asking is what actually violates Google's policies."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Which job systems does it connect to?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Any job or scheduling system that can send a webhook when a job closes, which covers ServiceTitan, Housecall Pro, Jobber and most others, either directly or through Zapier. We set the automation up inside your system during onboarding, so marking the job complete is the only thing your team ever does. Run something unusual, or nothing at all? Tell us on the call and we'll confirm the exact trigger before you sign."
-            }
-        },
-        {
-            "@type": "Question",
-            "name": "Is review automation sold on its own?",
-            "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "It's included in the Full Plan, not sold as a standalone product. See pricing for what's bundled with it."
-            }
+        "name": "Included in the Full Plan",
+        "price": "{{ plan_paid_in_full.price|floatformat:0 }}",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+            "@type": "UnitPriceSpecification",
+            "price": "{{ plan_paid_in_full.price|floatformat:0 }}",
+            "priceCurrency": "USD",
+            "unitText": "MONTH"
         }
-    ]
+    }{% else %}{ "@type": "Offer", "priceCurrency": "USD" }{% endif %}
 }
 </script>
+<script type="application/ld+json">{{ faq_schema }}</script>
 {% endblock %}
 
 {% block content %}
@@ -247,31 +208,17 @@ requests fall under TCPA consent rules.
             <h2>Review Automation, Answered</h2>
         </div>
 
+        {% comment %}
+        Rendered from public.service_faqs.review_automation_faqs — the same
+        list feeds the FAQPage JSON-LD in extra_head, so the two can't drift.
+        {% endcomment %}
         <div class="cards cards--2col">
-            <article class="card">
-                <h3>How does it work?</h3>
-                <p>When a job is marked complete, the system automatically sends the customer a request to leave a Google review. No one has to remember to ask.</p>
-            </article>
-
-            <article class="card">
-                <h3>When does the request go out?</h3>
-                <p>One to two hours after the job is marked complete, while the work is still fresh. Jobs finished in the evening wait until 8:00&nbsp;AM the customer&rsquo;s local time the next morning &mdash; nobody gets a review request at nine at night.</p>
-            </article>
-
-            <article class="card">
-                <h3>Does this risk violating Google&rsquo;s policies?</h3>
-                <p>No. The system asks every customer the same way after a real completed job, with no incentive and no filtering for positive reviews only. That consistency is what keeps it compliant.</p>
-            </article>
-
-            <article class="card">
-                <h3>Which job systems does it connect to?</h3>
-                <p>Any job or scheduling system that can send a webhook when a job closes &mdash; that covers ServiceTitan, Housecall&nbsp;Pro, Jobber and most others, either directly or through Zapier. We set the automation up inside your system during onboarding, so marking the job complete is the only thing your team ever does. Run something unusual, or nothing at all? Tell us on the call and we&rsquo;ll confirm the exact trigger before you sign.</p>
-            </article>
-
-            <article class="card">
-                <h3>Is this sold by itself?</h3>
-                <p>No, it&rsquo;s included in the Full Plan alongside hosting, maintenance, and unlimited content updates. See <a href="{% url 'public:pricing' %}">pricing</a> for the full breakdown.</p>
-            </article>
+            {% for question, answer in faqs %}
+                <article class="card">
+                    <h3>{{ question }}</h3>
+                    <p>{{ answer }}</p>
+                </article>
+            {% endfor %}
         </div>
     </div>
 </section>

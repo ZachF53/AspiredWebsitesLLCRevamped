@@ -22,12 +22,20 @@ Organisation entity, canonical and og:image come from base.html (D8).
     "url": "{{ CANONICAL_URL }}",
     "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
     "description": "Managed hosting and maintenance for HVAC and home-service contractor websites: a dedicated server per client, security patching, SSL renewal, uptime monitoring, and a monthly security report.",
-    "offers": {
+    "offers": {% if hosting_security %}{
         "@type": "Offer",
-        "priceRange": "$$"
-    }
+        "price": "{{ hosting_security.price|floatformat:0 }}",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+            "@type": "UnitPriceSpecification",
+            "price": "{{ hosting_security.price|floatformat:0 }}",
+            "priceCurrency": "USD",
+            "unitText": "MONTH"
+        }
+    }{% else %}{ "@type": "Offer", "priceCurrency": "USD" }{% endif %}
 }
 </script>
+<script type="application/ld+json">{{ faq_schema }}</script>
 {% endblock %}
 
 {% block content %}
@@ -173,26 +181,17 @@ Organisation entity, canonical and og:image come from base.html (D8).
             <h2>Hosting, Answered</h2>
         </div>
 
+        {% comment %}
+        Rendered from public.service_faqs.hosting_faqs — the same list feeds
+        the FAQPage JSON-LD in extra_head, so the two can't drift.
+        {% endcomment %}
         <div class="cards cards--2col">
-            <article class="card">
-                <h3>Am I locked in?</h3>
-                <p>No. Both plans are month-to-month with 30 days&rsquo; notice. Once your build is paid off, the files are yours &mdash; leaving is a support ticket, not a dispute.</p>
-            </article>
-
-            <article class="card">
-                <h3>What happens if I cancel?</h3>
-                <p>Once the build is paid off, the site keeps working; the plan buys updates, monitoring, and support, not the right to keep your own website online. Standard code on standard hosting means any competent developer can take it over.</p>
-            </article>
-
-            <article class="card">
-                <h3>Who actually does the work?</h3>
-                <p>The engineer who built the platform. See <a href="{% url 'public:about' %}">about</a> for the credentials and how to verify them.</p>
-            </article>
-
-            <article class="card">
-                <h3>What does an edit cost on Hosting + Security?</h3>
-                <p>{% if hourly_display %}{{ hourly_display }}/hour, quoted and approved before any work starts.{% else %}Quoted and approved before any work starts.{% endif %} On the Full Plan, routine content updates are unlimited and included.</p>
-            </article>
+            {% for question, answer in faqs %}
+                <article class="card">
+                    <h3>{{ question }}</h3>
+                    <p>{{ answer }}</p>
+                </article>
+            {% endfor %}
         </div>
     </div>
 </section>

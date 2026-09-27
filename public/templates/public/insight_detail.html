@@ -46,7 +46,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
     <div class="container">
         <div class="hero__inner">
             <span class="eyebrow">Insights</span>
-            <h1>{{ article.title }}</h1>
+            <h1 id="article-title">{{ article.title }}</h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
             <p class="hero__lead">{{ article.summary }}</p>
             <p class="hero__meta">
@@ -73,9 +73,9 @@ Organisation entity, canonical and og:image come from base.html (D8).
 
 <section class="section">
     <div class="container">
-        <div class="article-body">
+        <article class="article-body" aria-labelledby="article-title">
             {{ article.body|safe }}
-        </div>
+        </article>
 
         {% if article.related_url %}
             {% comment %}

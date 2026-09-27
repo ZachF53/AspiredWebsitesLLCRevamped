@@ -76,7 +76,11 @@ pages is correct: it is one node described consistently, not many.
         {
           "@type": "EducationalOccupationalCredential",
           "credentialCategory": "degree",
-          "name": "M.S. Cybersecurity"
+          "name": "M.S. Cybersecurity and Information Assurance"{% if SITE_CONTENT.ms_university %},
+          "recognizedBy": {
+            "@type": "CollegeOrUniversity",
+            "name": "{{ SITE_CONTENT.ms_university|escapejs }}"
+          }{% endif %}
         }
       ]
     },

@@ -116,7 +116,7 @@ def _main_prose(markup):
         body = re.sub(rf'<{tag}\b.*?</{tag}>', ' ', body, flags=re.S | re.I)
     # Testimonial and byline blocks are someone else's words, or the
     # author's name, not site voice.
-    body = re.sub(r'<(p|div)[^>]*class="[^"]*(testimonial__quote|hero__meta|'
+    body = re.sub(r'<(p|div|article)[^>]*class="[^"]*(testimonial__quote|hero__meta|'
                   r'trust-block__quote|article-body)[^"]*"[^>]*>.*?</\1>',
                   ' ', body, flags=re.S | re.I)
     text = _visible_text(body)
