@@ -694,6 +694,7 @@ def pricing(request):
         'hosting_security': hosting_security,
         'hourly': hourly,
         'hourly_display': hourly_display or '$85/hour',
+        'location_addon': location_addon,
         'installment_total': (
             money(build_installment.price * 24) if build_installment else ''),
         'faqs': faqs,

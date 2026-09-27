@@ -222,14 +222,23 @@ visible answers and structured data cannot drift apart.
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Out of Scope</span>
-            <h2>Anything Beyond the Plan</h2>
+            <span class="eyebrow">Beyond the Plan</span>
+            <h2>Extra Locations and Out-of-Scope Work</h2>
         </div>
 
-        <article class="card card--accent-left">
-            <p>{{ hourly_display }}, quoted and approved before anything starts, invoiced after it&rsquo;s done. Covers redesigns, new pages, new functionality, and hands-on migration to a third-party host if you ever want to leave.</p>
-            <p><strong>Your website files and database are always provided free of charge at payoff.</strong> Migrating them out is the only thing billed hourly, not the handoff itself.</p>
-        </article>
+        <div class="cards cards--2col">
+            {% if location_addon %}
+                <article class="card card--accent-left">
+                    <h3>More Than One Location: From {{ location_addon.get_price_display }}</h3>
+                    <p>Each additional branch gets its own location pages, review requests routed to that branch&rsquo;s Google Business Profile, and its own line in your reporting. Added to the one build, not a second website. You get a written number before you sign.</p>
+                </article>
+            {% endif %}
+            <article class="card card--accent-left">
+                <h3>Out-of-Scope Work: {{ hourly_display }}</h3>
+                <p>Quoted and approved before anything starts, invoiced after it&rsquo;s done. Covers redesigns, new pages, new functionality, and hands-on migration to a third-party host if you ever want to leave.</p>
+                <p><strong>Your website files and database are always provided free of charge at payoff.</strong> Migrating them out is the only thing billed hourly, not the handoff itself.</p>
+            </article>
+        </div>
     </div>
 </section>
 
