@@ -5,7 +5,8 @@
  *      with `data-no-phone-mask` — e.g. the 4-digit vault PIN boxes
  *      which also use type=tel for the numeric keypad on mobile) is
  *      formatted to `(###) ###-####` as the user types. Strips
- *      non-digits, truncates to 10 digits, formats progressively.
+ *      non-digits, drops a leading US "1" country code, truncates to
+ *      10 digits, formats progressively.
  *
  *   2. Autocaps-off enforcement on email + password fields. Set as
  *      HTML attributes too in the templates (canonical), but this
@@ -21,7 +22,13 @@
 
     // ── 1. Phone mask ────────────────────────────────────────────────
     function formatPhone(value) {
-        var digits = (value || '').replace(/\D/g, '').slice(0, 10);
+        var digits = (value || '').replace(/\D/g, '');
+        // Drop a leading US country code (autofill often hands us
+        // "+12108962536") so it doesn't get mistaken for the area code.
+        if (digits.length === 11 && digits.charAt(0) === '1') {
+            digits = digits.slice(1);
+        }
+        digits = digits.slice(0, 10);
         if (!digits) { return ''; }
         if (digits.length < 4)  { return '(' + digits; }
         if (digits.length < 7)  { return '(' + digits.slice(0, 3) + ') ' + digits.slice(3); }
