@@ -128,23 +128,24 @@ def pricing_list(request):
     tiers = list(
         ServiceTier.objects.all().order_by('category', 'sort_order', 'price'))
     # Custom Plans — every hidden/negotiated tier (is_public=False),
-    # across all categories, pulled to the top as its own table. A
-    # one-off tier created for a single client (e.g. "Denis Custom") is
-    # otherwise just a "Hidden" row buried inside its category's table;
-    # this surfaces every such tier in one place regardless of category.
-    # Unchecking "Public" on the create/edit form is what puts a tier
-    # here — no separate field.
-    groups = [{
-        'key': 'custom',
-        'label': 'Custom Plans',
-        'tiers': [t for t in tiers if not t.is_public],
-    }]
+    # across all categories, pulled into its own table below the regular
+    # category tables. A one-off tier created for a single client (e.g.
+    # "Denis Custom") is otherwise just a "Hidden" row buried inside its
+    # category's table; this surfaces every such tier in one place
+    # regardless of category. Unchecking "Public" on the create/edit
+    # form is what puts a tier here — no separate field.
+    groups = []
     for key, label in _CATEGORIES:
         groups.append({
             'key': key,
             'label': label,
             'tiers': [t for t in tiers if t.category == key],
         })
+    groups.append({
+        'key': 'custom',
+        'label': 'Custom Plans',
+        'tiers': [t for t in tiers if not t.is_public],
+    })
     unsynced_count = sum(
         1 for t in tiers if t.is_active and not t.stripe_price_id)
     return render(request, 'admin_dashboard/v2/pricing_list.html', {
