@@ -181,6 +181,20 @@ class FidelityTests(ImpersonationBaseTests):
         resp = self.client.get(reverse('clients:dashboard'))
         self.assertContains(resp, 'portal_readonly.js')
 
+    def test_exit_form_itself_carries_the_allow_attribute(self):
+        """portal_readonly.js's capture-phase submit listener checks
+        evt.target (the <form>), not the button inside it — closest()
+        only looks at an element and its ancestors, never descendants.
+        An allow attribute on the button alone does not exempt the form,
+        so the Exit button looked clickable but silently did nothing
+        (the listener ate every submit). Regression test for that exact
+        bug: the <form> tag must carry data-readonly-allow too."""
+        self.start_view_as()
+        resp = self.client.get(reverse('clients:dashboard'))
+        self.assertContains(
+            resp,
+            '<form method="post" action="/portal/exit-view-as/" data-readonly-allow>')
+
     def test_no_banner_or_script_outside_a_session(self):
         self.client.force_login(self.client_user)
         resp = self.client.get(reverse('clients:dashboard'))

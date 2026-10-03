@@ -218,7 +218,7 @@
                         <strong class="portal-impersonation-bar__name">{{ impersonated_account.name }}</strong>
                         <span class="portal-impersonation-bar__tag">read-only &middot; logged</span>
                     </div>
-                    <form method="post" action="{% url 'clients:exit_view_as' %}">
+                    <form method="post" action="{% url 'clients:exit_view_as' %}" data-readonly-allow>
                         {% csrf_token %}
                         <button type="submit"
                                 class="portal-impersonation-bar__exit"
