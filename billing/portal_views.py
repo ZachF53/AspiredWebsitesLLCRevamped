@@ -40,16 +40,33 @@ def _stripe():
     return stripe
 
 
-def _customer_id_for_user(user):
-    """Find the user's Stripe Customer id — prefer the Account record."""
+def _customer_id_for_request(request):
+    """Stripe Customer id for whoever this request is acting as.
+
+    Takes the request, not the user, so a staff "view as client" session
+    resolves the TARGET's customer rather than the operator's. Reading
+    request.user here would show an operator their own cards and
+    invoices inside the client's portal — the page would quietly
+    disagree with every other page around it.
+
+    Prefers the Account record; falls back to a Stripe lookup by email.
+    """
+    from clients.impersonation import active_target
+
+    target = active_target(request)
+    user = request.user
     try:
         from clients.account_models import Account
-        account = Account.objects.filter(user=user).first()
+        account = target or Account.objects.filter(user=user).first()
         if account and account.stripe_customer_id:
             return account.stripe_customer_id
     except Exception:
         pass
-    # Fallback: lookup by email
+    # Fallback: lookup by email. Skipped while impersonating — the
+    # operator's email would resolve to the operator's customer, which
+    # is precisely the confusion this function exists to avoid.
+    if target is not None:
+        return None
     stripe = _stripe()
     try:
         existing = stripe.Customer.list(email=user.email, limit=1).data
@@ -189,7 +206,7 @@ def subscription_change(request, sub_id):
 @login_required
 def add_card(request):
     """Render the Stripe Elements SetupIntent flow for adding a card."""
-    customer_id = _customer_id_for_user(request.user)
+    customer_id = _customer_id_for_request(request)
     if not customer_id:
         messages.error(request, 'No billing account found.')
         return redirect('billing:portal_home')
@@ -210,7 +227,7 @@ def add_card(request):
 @login_required
 @require_POST
 def card_set_default(request, payment_method_id):
-    customer_id = _customer_id_for_user(request.user)
+    customer_id = _customer_id_for_request(request)
     if not customer_id:
         return HttpResponseBadRequest('no customer')
     stripe = _stripe()
@@ -240,10 +257,32 @@ def card_remove(request, payment_method_id):
 
 @login_required
 def invoice_pdf(request, invoice_id):
-    """Redirect to Stripe-hosted invoice PDF URL."""
+    """Redirect to the Stripe-hosted invoice PDF, if it is this client's.
+
+    The ownership check is the point. This used to retrieve whatever
+    `invoice_id` the URL carried and redirect straight to its PDF, with
+    @login_required as the only gate — so ANY authenticated client could
+    read ANY other client's invoice (name, address, line items, amounts)
+    by putting someone else's invoice id in the path. Stripe invoice ids
+    are not secrets: they appear in receipt emails, payment pages and
+    Stripe's own customer-facing URLs.
+
+    Comparing against the requester's own customer id closes it. Failure
+    returns the same generic message as a missing invoice, so the
+    endpoint cannot be used to probe which invoice ids exist.
+    """
+    customer_id = _customer_id_for_request(request)
     stripe = _stripe()
     try:
         invoice = stripe.Invoice.retrieve(invoice_id)
+        if not customer_id or invoice.get('customer') != customer_id:
+            logger.warning(
+                'invoice_pdf: user %s requested invoice %s belonging to '
+                'customer %s (their customer is %s) — refused',
+                request.user.pk, invoice_id, invoice.get('customer'),
+                customer_id)
+            messages.error(request, 'Could not load invoice.')
+            return redirect('billing:portal_home')
         if invoice.get('invoice_pdf'):
             return redirect(invoice['invoice_pdf'])
     except Exception:

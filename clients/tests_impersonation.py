@@ -215,6 +215,141 @@ class FidelityTests(ImpersonationBaseTests):
             [url for url, _code in resp.redirect_chain])
 
 
+class RecommendationLinkTests(ImpersonationBaseTests):
+    """The approve/decline magic links must not act on a bare GET.
+
+    They are reachable by GET because the recommendation email links
+    straight to them. Recording there let anything that merely FOLLOWS
+    the link — prefetchers, mail scanners, antivirus URL checkers —
+    approve a paid recommendation and fire the admin notification with
+    no human involved.
+    """
+
+    def _suggestion(self):
+        from clients.models import IntelligenceSuggestion
+
+        return IntelligenceSuggestion.objects.create(
+            website_new=self.target_site,
+            title='Add a booking widget',
+            description='Lift conversions on the contact page.',
+            status='sent_to_client',
+            one_time_fee=450,
+        )
+
+    def test_a_get_shows_a_confirmation_instead_of_approving(self):
+        s = self._suggestion()
+        self.client.force_login(self.client_user)
+
+        resp = self.client.get(
+            reverse('intelligence_approve', args=[s.response_token]))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Approve this recommendation?')
+        s.refresh_from_db()
+        self.assertIsNone(s.client_responded_at)
+        self.assertEqual(s.status, 'sent_to_client')
+        self.assertEqual(mail.outbox, [])
+
+    def test_a_get_to_decline_also_only_confirms(self):
+        s = self._suggestion()
+        self.client.force_login(self.client_user)
+
+        resp = self.client.get(
+            reverse('intelligence_decline', args=[s.response_token]))
+
+        self.assertEqual(resp.status_code, 200)
+        s.refresh_from_db()
+        self.assertIsNone(s.client_responded_at)
+        self.assertEqual(mail.outbox, [])
+
+    def test_a_post_still_records_the_approval(self):
+        """The confirm button must actually work."""
+        s = self._suggestion()
+        self.client.force_login(self.client_user)
+
+        self.client.post(
+            reverse('intelligence_approve', args=[s.response_token]))
+
+        s.refresh_from_db()
+        self.assertEqual(s.status, 'client_approved')
+        self.assertIsNotNone(s.client_responded_at)
+
+    def test_a_post_still_records_the_decline(self):
+        s = self._suggestion()
+        self.client.force_login(self.client_user)
+
+        self.client.post(
+            reverse('intelligence_decline', args=[s.response_token]))
+
+        s.refresh_from_db()
+        self.assertEqual(s.status, 'client_declined')
+
+    def test_an_impersonator_cannot_post_an_approval(self):
+        """These live at the root urlconf, not under /portal/, so they
+        had to be named in the guard's prefix list explicitly — without
+        that, the non-GET rule never covered them and an operator could
+        have approved a paid recommendation for the client."""
+        s = self._suggestion()
+        self.start_view_as()
+
+        resp = self.client.post(
+            reverse('intelligence_approve', args=[s.response_token]))
+
+        self.assertEqual(resp.status_code, 403)
+        s.refresh_from_db()
+        self.assertIsNone(s.client_responded_at)
+
+    def test_an_impersonator_may_still_view_the_confirmation(self):
+        """GET is safe now, and seeing it is the point of view-as."""
+        s = self._suggestion()
+        self.start_view_as()
+
+        resp = self.client.get(
+            reverse('intelligence_approve', args=[s.response_token]))
+
+        self.assertEqual(resp.status_code, 200)
+        s.refresh_from_db()
+        self.assertIsNone(s.client_responded_at)
+
+
+class SubscriptionOnlyClientTests(ImpersonationBaseTests):
+    """A client with no Website must still get a working dashboard.
+
+    Maintenance and social-only buyers never get a Website (see
+    clients.signals, _skip_website_autocreate). _active_project falls
+    back to the Account for them, and the dashboard's build block read
+    Account.stage — a 500 on their own dashboard.
+    """
+
+    def test_the_dashboard_renders_without_a_website(self):
+        self.target_site.delete()
+
+        self.client.force_login(self.client_user)
+        resp = self.client.get(reverse('clients:dashboard'))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['stage_steps'], [])
+
+    def test_the_project_page_renders_without_a_website(self):
+        """Same bug as the dashboard, same two exceptions."""
+        self.target_site.delete()
+
+        self.client.force_login(self.client_user)
+        resp = self.client.get(reverse('clients:project'))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['timeline'], [])
+
+    def test_view_as_renders_a_websiteless_client(self):
+        self.target_site.delete()
+
+        self.start_view_as()
+        resp = self.client.get(reverse('clients:dashboard'))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context['impersonating'])
+
+
 class SilenceTests(ImpersonationBaseTests):
     """Nothing may be written to the client's data by a view-as GET."""
 

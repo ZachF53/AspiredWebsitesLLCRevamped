@@ -398,11 +398,23 @@ def exit_view_as(request):
 @client_required
 def dashboard(request):
     project = _active_project(request)
+    # Build-scoped work must key off the Website, not off `project`.
+    #
+    # _active_project falls back to the Account when the request has no
+    # website, which is the normal shape for a subscription-only client:
+    # maintenance and social buyers never get a Website (see
+    # clients.signals, _skip_website_autocreate). An Account is truthy,
+    # so `if project` admitted them to code that only Website satisfies,
+    # and their own dashboard 500'd two different ways — AttributeError
+    # on Account.stage in _stage_steps, then ValueError out of
+    # reporting.scope.scope_filter, which accepts a Website or a legacy
+    # ClientProfile but not an Account.
+    site = getattr(request, 'website', None)
 
     next_invoice = None
     stage_steps = []
     activity = []
-    if project:
+    if site is not None:
         stage_steps = _stage_steps(project)
         activity = list(project.stage_logs.all()[:5])
         contract = project.contracts.order_by('-created_at').first()
@@ -443,9 +455,9 @@ def dashboard(request):
         stage_steps=stage_steps,
         activity=activity,
         next_invoice=next_invoice,
-        uptime_30=get_uptime_percentage(project, 30) if project else None,
+        uptime_30=get_uptime_percentage(site, 30) if site else None,
         uptime_avg_response=(
-            get_avg_response_time(project, 30) if project else None),
+            get_avg_response_time(site, 30) if site else None),
         maintenance_plans=maintenance_plans,
         social_media_plans=social_media_plans,
         droplets=droplets,
@@ -499,13 +511,18 @@ def social_channels(request):
 @client_required
 def project_detail(request):
     project = _active_project(request)
+    # Website-scoped, same as dashboard() — see the comment there. A
+    # subscription-only client (no Website) reaching this URL directly
+    # got AttributeError on Account.stage_logs, then ValueError out of
+    # scope_filter. The page has nothing to show them either way.
+    site = getattr(request, 'website', None)
 
     timeline = []
     revisions = []
     support_window_left = None
     final_pay_url = ''
     final_due = None
-    if project:
+    if site is not None:
         timeline = _project_timeline(project)
         revisions = list(project.revisions.all())
         if project.stage == 'live' and project.support_window_ends:
@@ -525,7 +542,7 @@ def project_detail(request):
     from reporting.uptime_helpers import (
         get_current_status, get_uptime_chart_data, get_uptime_percentage,
     )
-    uptime_chart = get_uptime_chart_data(project, 30) if project else []
+    uptime_chart = get_uptime_chart_data(site, 30) if site else []
     peak_ms = max(
         (d['avg_response_ms'] or 0 for d in uptime_chart), default=0) or 1
     for day in uptime_chart:
@@ -538,9 +555,9 @@ def project_detail(request):
         support_window_left=support_window_left,
         final_pay_url=final_pay_url,
         final_due=final_due,
-        uptime_status=get_current_status(project) if project else None,
-        uptime_30=get_uptime_percentage(project, 30) if project else None,
-        uptime_90=get_uptime_percentage(project, 90) if project else None,
+        uptime_status=get_current_status(site) if site else None,
+        uptime_30=get_uptime_percentage(site, 30) if site else None,
+        uptime_90=get_uptime_percentage(site, 90) if site else None,
         uptime_chart=uptime_chart,
     )
     return render(request, 'clients/project.html', ctx)
@@ -2495,6 +2512,21 @@ def _intel_respond(request, token, action):
     if s.client_responded_at is not None:
         messages.info(request, f'You already responded to "{s.title}".')
         return redirect('clients:portal_suggestions')
+
+    if request.method != 'POST':
+        # GET — show a confirmation page instead of recording.
+        #
+        # This route accepts GET because the recommendation email links
+        # straight to it, and that is exactly the problem: recording on
+        # GET lets anything that merely FOLLOWS the link answer on the
+        # client's behalf and email the admin about it. Link prefetchers,
+        # corporate mail scanners and antivirus URL checkers all do that
+        # without a human ever clicking. The decision costs real money
+        # (one_time_fee), so it needs a deliberate POST.
+        return render(
+            request, 'clients/intelligence_confirm.html',
+            _portal_context(request, 'suggestions',
+                            suggestion=s, pending_action=action))
 
     _intel_record_response(s, action)
     if action == 'approve':

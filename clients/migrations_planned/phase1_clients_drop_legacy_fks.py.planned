@@ -11,7 +11,11 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0074_food_trucks_count_reconciled'),
+        # Re-pointed at the current leaf. 0075 added
+        # Account.visible_plan_tiers (per-client plan visibility) and
+        # touches none of the legacy owner FKs dropped below. Promoting
+        # this against a stale parent would branch the migration graph.
+        ('clients', '0075_account_visible_plan_tiers'),
     ]
 
     operations = [

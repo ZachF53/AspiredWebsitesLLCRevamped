@@ -136,6 +136,19 @@ class NavigationV2DefinitionTests(TestCase):
                 broken.append(f'{item.label} -> {item.url_name}')
         self.assertEqual(broken, [])
 
+    # Label sets that are ALLOWED to share one page.
+    #
+    # Pricing and Subscriptions both point at the ServiceTier
+    # create/edit flow on purpose — see the comment on the Subscriptions
+    # entry in admin_dashboard/navigation.py: "Subscriptions" is the
+    # entry point the owner thinks in terms of, and reusing the existing
+    # page was preferred over building a duplicate one.
+    #
+    # Allowlisted rather than deleting the guard: two nav items landing
+    # on the same page is normally a copy-paste mistake, and this test
+    # still catches that.
+    ALLOWED_SHARED_PAGES = ({'Pricing', 'Subscriptions'},)
+
     def test_no_two_items_point_at_the_same_page(self):
         targets = {}
         for item in all_items(NAVIGATION_V2):
@@ -143,17 +156,41 @@ class NavigationV2DefinitionTests(TestCase):
         duplicates = {
             url: labels for url, labels in targets.items() if len(labels) > 1
         }
-        self.assertEqual(duplicates, {})
+        unexpected = {
+            url: labels for url, labels in duplicates.items()
+            if set(labels) not in self.ALLOWED_SHARED_PAGES
+        }
+        self.assertEqual(unexpected, {})
+
+    def test_only_one_item_is_marked_active_on_a_shared_page(self):
+        """The property the shared page could have broken.
+
+        active_item picks by strictly-longest prefix, so of two items
+        with identical paths the first one defined wins and the second
+        never highlights. If that ever became >= the sidebar would mark
+        two items as the current page, which is both wrong visually and
+        an aria-current violation.
+        """
+        from admin_dashboard.navigation import is_active
+
+        path = reverse('admin_dashboard:v2_pricing_list')
+        active = [
+            item.label for item in all_items(NAVIGATION_V2)
+            if is_active(item, path, NAVIGATION_V2)
+        ]
+        self.assertEqual(active, ['Pricing'])
 
     def test_labels_are_unique(self):
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(len(labels), len(set(labels)))
 
-    def test_exactly_nine_items_in_this_order(self):
+    def test_exactly_ten_items_in_this_order(self):
+        """Subscriptions was added after Pricing (commit 157789a) and
+        the count moved from nine to ten."""
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(labels, [
             'Dashboard', 'Accounts', 'Websites', 'Scans', 'Domains',
-            'Billing', 'Pricing', 'Site Content', 'Vault',
+            'Billing', 'Pricing', 'Subscriptions', 'Site Content', 'Vault',
         ])
 
 

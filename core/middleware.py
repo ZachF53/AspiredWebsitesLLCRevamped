@@ -285,7 +285,19 @@ class SecurityHeadersMiddleware:
 # flows that resolve their subject from a URL token rather than from the
 # session, so an impersonation session has no bearing on them and
 # blocking them here would only break real clients and real webhooks.
-IMPERSONATION_PORTAL_PREFIXES = ('/portal/', '/billing/portal/')
+#
+# /intelligence/respond/ is included even though it is mounted at the
+# ROOT urlconf rather than under /portal/. It is the approve / decline
+# magic link from the recommendation email, and it belongs here for two
+# reasons: its GET now renders a harmless confirmation page (good for
+# fidelity — the operator sees what the client would see), while its
+# POST commits a decision that costs the client money. Leaving it out
+# meant the non-GET rule below never covered it, so an impersonating
+# operator could have approved a paid recommendation on the client's
+# behalf.
+IMPERSONATION_PORTAL_PREFIXES = (
+    '/portal/', '/billing/portal/', '/intelligence/respond/',
+)
 
 # Hard-blocked for ALL methods, not just writes.
 #
@@ -296,19 +308,6 @@ IMPERSONATION_PORTAL_PREFIXES = ('/portal/', '/billing/portal/')
 # their own credentials. Neither belongs in a "look at what they see"
 # session; the same secrets are available to staff through the admin vault.
 IMPERSONATION_BLOCKED_PREFIXES = ('/portal/credentials',)
-
-# Blocked on GET too, because these mutate on GET by design.
-#
-# intelligence_approve / intelligence_decline record a client's answer to
-# a paid recommendation and email the admin, and they accept GET on
-# purpose so the link in the recommendation email works without a form.
-# That makes them unsafe to merely render: loading the page IS the
-# action, so the non-GET rule below cannot catch them.
-#
-# They are also mounted at the ROOT urlconf (/intelligence/respond/...),
-# outside IMPERSONATION_PORTAL_PREFIXES, which is the other reason they
-# need naming explicitly. Matched by prefix because both carry a UUID.
-IMPERSONATION_GET_DENY_PREFIXES = ('/intelligence/respond/',)
 
 IMPERSONATION_SAFE_METHODS = frozenset(['GET', 'HEAD', 'OPTIONS'])
 
@@ -357,13 +356,6 @@ class ImpersonationGuardMiddleware:
                 request,
                 'Client credentials are not viewable in view-as mode. '
                 'Use the admin vault instead.')
-
-        if path.startswith(IMPERSONATION_GET_DENY_PREFIXES):
-            note_blocked(request)
-            return self._refuse(
-                request,
-                'That link records a client decision, so it is blocked in '
-                'view-as mode.')
 
         if (request.method not in IMPERSONATION_SAFE_METHODS
                 and path.startswith(IMPERSONATION_PORTAL_PREFIXES)
