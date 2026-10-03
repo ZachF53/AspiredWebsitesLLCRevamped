@@ -587,6 +587,7 @@ def website_detail(request, website_id):
     active_maintenance_plan = None
     website_plans = []
     guarantee = None
+    visible_tier_ids = set()
     if active_tab == 'billing':
         from billing.pricing_models import ServiceTier
 
@@ -598,6 +599,11 @@ def website_detail(request, website_id):
         active_maintenance_plan = _active_plan(website, 'maintenance')
         website_plans = (list(website.maintenance_plans.all())
                           + list(website.social_media_plans.all()))
+        # Plan Visibility card — which of maintenance_tiers (above) this
+        # client's account is currently restricted to. Empty = default
+        # (client sees the full public lineup).
+        visible_tier_ids = set(
+            website.account.visible_plan_tiers.values_list('id', flat=True))
 
     documents = []
     upload_form = None
@@ -659,6 +665,7 @@ def website_detail(request, website_id):
         'card_brand': card_brand,
         'card_last4': card_last4,
         'active_maintenance_plan': active_maintenance_plan,
+        'visible_tier_ids': visible_tier_ids,
         # Billing — 30-day guarantee panel (billing.guarantee)
         'guarantee': guarantee,
         # Monitoring
@@ -1192,6 +1199,44 @@ def website_add_plan(request, website_id):
             f'(active), {amount_txt}, {discount_txt}. Charged the card '
             f'on file. {local_txt}.')
 
+    return redirect(redirect_to)
+
+
+@admin_required
+def account_set_visible_tiers(request, website_id):
+    """Operator: restrict which maintenance tiers this client's account
+    can see on the self-serve /portal/maintenance/ chooser.
+
+    Empty selection = default behavior (client sees the full public
+    lineup). A non-empty selection replaces that entirely with exactly
+    the tiers checked, including non-public/custom ones — this is how a
+    one-off negotiated plan gets shown to exactly one client without
+    exposing it to everyone else. Visibility-only; does not touch
+    billing, Stripe, or any plan row.
+    """
+    redirect_to = f"{reverse_v2_website_tab(website_id, 'billing')}"
+    if request.method != 'POST':
+        return redirect(redirect_to)
+
+    website = get_object_or_404(Website, id=website_id)
+    account = website.account
+
+    from billing.pricing_models import ServiceTier
+
+    tier_ids = request.POST.getlist('tier_ids')
+    tiers = ServiceTier.objects.filter(id__in=tier_ids, category='maintenance')
+    account.visible_plan_tiers.set(tiers)
+
+    if tiers:
+        names = ', '.join(t.name for t in tiers)
+        messages.success(
+            request,
+            f'{account.name} will now see only: {names}.')
+    else:
+        messages.success(
+            request,
+            f'{account.name} will now see the full public plan lineup '
+            '(default).')
     return redirect(redirect_to)
 
 

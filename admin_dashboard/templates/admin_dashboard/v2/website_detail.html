@@ -714,6 +714,44 @@
             </div>
         </div>
 
+        {% comment %}
+            Plan Visibility — restricts which maintenance tiers THIS
+            client's account can see on the self-serve /portal/maintenance/
+            chooser. Visibility-only: it never touches billing, Stripe, or
+            any plan row — that's all still the Add Plan form above.
+            Leaving every box unchecked keeps the default (client sees the
+            full public lineup). Checking specific tiers replaces that
+            with exactly those tiers, including hidden/custom ones, which
+            is how a one-off negotiated plan is shown to only one client.
+        {% endcomment %}
+        <div class="admin-card">
+            <div class="admin-card__header"><h2 class="admin-card__title">Plan visibility</h2></div>
+            <div class="admin-card__body">
+                <p class="muted">
+                    Controls what this client sees on their own Maintenance
+                    Plans page. Leave everything unchecked to show the full
+                    public plan lineup (the default for every client).
+                    Check specific plans to restrict {{ account.name }} to
+                    only those — e.g. a custom negotiated plan.
+                </p>
+                <form method="post" action="{% url 'admin_dashboard:v2_account_set_visible_tiers' website.id %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        {% for t in maintenance_tiers %}
+                            <label class="checkbox-label" style="display:block; margin-bottom: 6px;">
+                                <input type="checkbox" name="tier_ids" value="{{ t.id }}"
+                                       {% if t.id in visible_tier_ids %}checked{% endif %}>
+                                {{ t.name }} &mdash; {{ t.price_display|default:t.price }}{% if not t.is_public %} (hidden){% endif %}
+                            </label>
+                        {% empty %}
+                            <p class="admin-empty">No maintenance tiers exist yet.</p>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn-secondary btn-sm">Save visibility</button>
+                </form>
+            </div>
+        </div>
+
         <div class="admin-card">
             <div class="admin-card__header"><h2 class="admin-card__title">Invoices</h2></div>
             <div class="admin-card__body">

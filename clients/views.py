@@ -2864,7 +2864,7 @@ def portal_subscriptions(request):
     # Suppressed when a plan is already pending (they've chosen — no picker).
     upsell_tiers = []
     if upsell_state['show_upsell'] and pending_maintenance is None:
-        upsell_tiers = list(_maintenance_tiers())
+        upsell_tiers = list(_maintenance_tiers(account))
 
     ctx = _portal_context(
         request, 'subscriptions',
@@ -3039,16 +3039,26 @@ _MAINTENANCE_TIER_SLUGS = (
 )
 
 
-def _maintenance_tiers():
-    """Active, publicly-visible maintenance tiers + features, sorted for
-    display. Both callers (the /portal/maintenance/ chooser and the
+def _maintenance_tiers(account=None):
+    """Active maintenance tiers + features, sorted for display. Both
+    callers (the /portal/maintenance/ chooser and the
     /portal/subscriptions/ upsell card) are self-serve surfaces — a
     legacy/negotiated tier (is_public=False) must not appear on either,
-    even though it stays fully billable elsewhere."""
+    even though it stays fully billable elsewhere.
+
+    If `account` has a non-empty `visible_plan_tiers` override, that
+    exact set is shown instead of the public lineup — this is how a
+    one-off negotiated plan is surfaced to exactly one client (e.g.
+    Deins) without exposing it to everyone else."""
     from billing.pricing_models import ServiceTier
+    base_qs = ServiceTier.objects.filter(category='maintenance', is_active=True)
+    if account is not None:
+        overrides = account.visible_plan_tiers.filter(category='maintenance')
+        if overrides.exists():
+            return overrides.order_by('sort_order', 'price').prefetch_related('features')
     return (
-        ServiceTier.objects
-        .filter(category='maintenance', is_active=True, is_public=True)
+        base_qs
+        .filter(is_public=True)
         .order_by('sort_order', 'price')
         .prefetch_related('features')
     )
@@ -3175,7 +3185,7 @@ def portal_maintenance(request):
     If the client already has maintenance, the matching tier shows as
     Current and the others offer Upgrade/Downgrade.
     """
-    tiers = list(_maintenance_tiers())
+    tiers = list(_maintenance_tiers(request.account))
     state = _maintenance_upsell_state(request.account)
 
     ctx = _portal_context(

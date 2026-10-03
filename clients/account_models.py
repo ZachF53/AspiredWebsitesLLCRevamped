@@ -226,6 +226,19 @@ class Account(TimestampedModel):
         max_length=30, choices=SOCIAL_COMP_CHOICES, blank=True)
     comp_notes = models.TextField(blank=True)
 
+    # ── Per-client plan visibility override ──
+    # Empty (the default, every account today) = the portal shows the
+    # normal public maintenance lineup. Non-empty = the portal shows
+    # ONLY the tiers checked here, including non-public/custom ones --
+    # this is how a one-off negotiated plan gets shown to exactly one
+    # client without exposing it to everyone else.
+    visible_plan_tiers = models.ManyToManyField(
+        'billing.ServiceTier',
+        blank=True,
+        related_name='restricted_to_accounts',
+        limit_choices_to={'category': 'maintenance'},
+    )
+
     # ── Multi-website migration review ──
     # An Account with more than one Website cannot have its legacy,
     # client-level rows allocated by any automatic rule — the cutover
