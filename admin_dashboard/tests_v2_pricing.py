@@ -269,3 +269,48 @@ class NavigationAndNoDeleteTests(TestCase):
             pass
         else:
             self.fail('a v2 pricing delete route exists — out of scope')
+
+
+@override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
+class CustomPlansGroupTests(TestCase):
+    """A hidden (is_public=False) tier is pulled into its own 'Custom
+    Plans' table on the list page, regardless of category, in addition
+    to still appearing in its normal category table."""
+
+    def setUp(self):
+        self.admin = _admin()
+        self.client.force_login(self.admin)
+
+    def test_hidden_tier_appears_in_custom_plans_group(self):
+        ServiceTier.objects.create(
+            category='maintenance', name='Denis Custom',
+            slug='maintenance-denis-custom-cp', price=Decimal('350.00'),
+            is_active=True, is_public=False)
+        resp = self.client.get(reverse('admin_dashboard:v2_pricing_list'))
+        self.assertContains(resp, 'Custom Plans')
+        groups = resp.context['groups']
+        custom_group = next(g for g in groups if g['key'] == 'custom')
+        self.assertIn(
+            'maintenance-denis-custom-cp',
+            [t.slug for t in custom_group['tiers']])
+
+    def test_public_tier_absent_from_custom_plans_group(self):
+        ServiceTier.objects.create(
+            category='maintenance', name='Public Plan CP',
+            slug='maintenance-public-cp', price=Decimal('299.00'),
+            is_active=True, is_public=True)
+        resp = self.client.get(reverse('admin_dashboard:v2_pricing_list'))
+        groups = resp.context['groups']
+        custom_group = next(g for g in groups if g['key'] == 'custom')
+        self.assertNotIn(
+            'maintenance-public-cp',
+            [t.slug for t in custom_group['tiers']])
+        # Still shows up in its own category table.
+        maint_group = next(g for g in groups if g['key'] == 'maintenance')
+        self.assertIn(
+            'maintenance-public-cp',
+            [t.slug for t in maint_group['tiers']])
+
+    def test_create_form_explains_how_to_land_in_custom_plans(self):
+        resp = self.client.get(reverse('admin_dashboard:v2_pricing_create'))
+        self.assertContains(resp, 'Custom Plans')

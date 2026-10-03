@@ -127,7 +127,18 @@ def _validate_tier_fields(post, tier=None):
 def pricing_list(request):
     tiers = list(
         ServiceTier.objects.all().order_by('category', 'sort_order', 'price'))
-    groups = []
+    # Custom Plans — every hidden/negotiated tier (is_public=False),
+    # across all categories, pulled to the top as its own table. A
+    # one-off tier created for a single client (e.g. "Denis Custom") is
+    # otherwise just a "Hidden" row buried inside its category's table;
+    # this surfaces every such tier in one place regardless of category.
+    # Unchecking "Public" on the create/edit form is what puts a tier
+    # here — no separate field.
+    groups = [{
+        'key': 'custom',
+        'label': 'Custom Plans',
+        'tiers': [t for t in tiers if not t.is_public],
+    }]
     for key, label in _CATEGORIES:
         groups.append({
             'key': key,

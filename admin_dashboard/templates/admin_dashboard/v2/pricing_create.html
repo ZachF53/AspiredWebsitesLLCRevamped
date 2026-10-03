@@ -74,7 +74,7 @@
                 </label>
                 <label class="checkbox-row">
                     <input type="checkbox" name="is_public"{% if post.is_public == 'on' or not post %} checked{% endif %}>
-                    <span>Is Public (shows on the public pricing page and the portal's self-serve plan chooser)</span>
+                    <span>Is Public (shows on the public pricing page and the portal's self-serve plan chooser — uncheck to put this in Custom Plans instead, e.g. a one-off negotiated tier for a single client)</span>
                 </label>
                 <label class="checkbox-row">
                     <input type="checkbox" name="is_featured"{% if post.is_featured == 'on' %} checked{% endif %}>
