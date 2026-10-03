@@ -271,3 +271,132 @@ class SecurityHeadersMiddleware:
         # Django's SecurityMiddleware also sets this.
         response.setdefault('X-Content-Type-Options', 'nosniff')
         return response
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Staff "view as client" — the read-only boundary
+# ──────────────────────────────────────────────────────────────────────
+
+# Everything the client portal serves. /portal/ also covers /portal/domains/
+# (mounted separately in the root urlconf, but under the same prefix).
+#
+# Deliberately NOT listed: /billing/checkout/, /pay/, /plan-pay/,
+# /billing/webhook/ and /maintenance/. Those are token- or Stripe-gated
+# flows that resolve their subject from a URL token rather than from the
+# session, so an impersonation session has no bearing on them and
+# blocking them here would only break real clients and real webhooks.
+IMPERSONATION_PORTAL_PREFIXES = ('/portal/', '/billing/portal/')
+
+# Hard-blocked for ALL methods, not just writes.
+#
+# /portal/credentials/ renders the client's stored site passwords in
+# plaintext (clients/templates/clients/_pcred_card.html), and its PIN form
+# writes failed-attempt and lockout columns on the Account — so a staff
+# member fumbling the client's PIN would lock the actual client out of
+# their own credentials. Neither belongs in a "look at what they see"
+# session; the same secrets are available to staff through the admin vault.
+IMPERSONATION_BLOCKED_PREFIXES = ('/portal/credentials',)
+
+# Blocked on GET too, because these mutate on GET by design.
+#
+# intelligence_approve / intelligence_decline record a client's answer to
+# a paid recommendation and email the admin, and they accept GET on
+# purpose so the link in the recommendation email works without a form.
+# That makes them unsafe to merely render: loading the page IS the
+# action, so the non-GET rule below cannot catch them.
+#
+# They are also mounted at the ROOT urlconf (/intelligence/respond/...),
+# outside IMPERSONATION_PORTAL_PREFIXES, which is the other reason they
+# need naming explicitly. Matched by prefix because both carry a UUID.
+IMPERSONATION_GET_DENY_PREFIXES = ('/intelligence/respond/',)
+
+IMPERSONATION_SAFE_METHODS = frozenset(['GET', 'HEAD', 'OPTIONS'])
+
+
+class ImpersonationGuardMiddleware:
+    """Enforces that a staff "view as client" session cannot change data.
+
+    The portal's action buttons are also disabled in the browser
+    (portal_readonly.js), but that is cosmetic — it keeps the admin from
+    clicking something by reflex. THIS is the actual boundary. The
+    operator is still authenticated as themselves with a valid session
+    and a valid CSRF token, so a re-enabled button would otherwise submit
+    successfully.
+
+    Runs after AuthenticationMiddleware: it needs both request.user and
+    the session to decide anything.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from clients.impersonation import active_target, note_blocked
+
+        # Cheapest possible exit for ordinary traffic: one session dict
+        # lookup, no DB query, before anything else happens.
+        if not request.session.get('impersonate_account_id'):
+            request.impersonation_target = None
+            request.is_read_only = False
+            return self.get_response(request)
+
+        # Revalidates staff status + operator identity on every request
+        # and clears the session if either fails, so this returning None
+        # means "not impersonating" and the request proceeds as the
+        # logged-in user's own.
+        target = active_target(request)
+        request.impersonation_target = target
+        request.is_read_only = target is not None
+        if target is None:
+            return self.get_response(request)
+
+        path = request.path
+        if path.startswith(IMPERSONATION_BLOCKED_PREFIXES):
+            note_blocked(request)
+            return self._refuse(
+                request,
+                'Client credentials are not viewable in view-as mode. '
+                'Use the admin vault instead.')
+
+        if path.startswith(IMPERSONATION_GET_DENY_PREFIXES):
+            note_blocked(request)
+            return self._refuse(
+                request,
+                'That link records a client decision, so it is blocked in '
+                'view-as mode.')
+
+        if (request.method not in IMPERSONATION_SAFE_METHODS
+                and path.startswith(IMPERSONATION_PORTAL_PREFIXES)
+                and not self._is_exempt(path)):
+            note_blocked(request)
+            return self._refuse(
+                request,
+                'Blocked — this is a read-only view of the client portal.')
+
+        return self.get_response(request)
+
+    @staticmethod
+    def _is_exempt(path):
+        """Routes that must keep working while impersonating.
+
+        Exiting is itself a POST, so without this exemption the operator
+        would be trapped in the client's portal until the session cookie
+        expired — the block would have eaten the only way out.
+
+        Logout needs no entry: it lives at /logout/ (public/urls.py),
+        outside the portal prefixes, so it never reaches this check.
+        """
+        return path == '/portal/exit-view-as/'
+
+    @staticmethod
+    def _refuse(request, message):
+        from django.http import HttpResponse
+
+        # HTMX swaps the response body into the page, so a bare status
+        # code renders as an empty region with no explanation. Give it
+        # something to show.
+        if request.META.get('HTTP_HX_REQUEST'):
+            return HttpResponse(
+                f'<div class="portal-readonly-block">{message}</div>',
+                status=403)
+        return HttpResponse(message, status=403, content_type='text/plain')

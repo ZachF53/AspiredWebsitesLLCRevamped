@@ -103,6 +103,85 @@ class AIAssistantLog(TimestampedModel):
         return f'{self.intent} ({"ok" if self.success else "FAIL"}) — {self.created_at}'
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Staff "view as client" — impersonation audit log
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ImpersonationSession(TimestampedModel):
+    """One row per staff "view as client" session. Append-only.
+
+    The client is never notified that a session happened, so this log is
+    the ONLY record that it did. That makes two things load-bearing:
+
+      - `created_at` (from TimestampedModel) is the session start; there
+        is deliberately no separate `started_at` column to drift from it.
+      - deletion is blocked in the admin (see admin.py). A log the
+        accessor can erase cannot answer "did anyone open my account?"
+        if a client ever asks — which is the only question this table
+        exists to answer.
+
+    A row with `ended_at = None` is either a live session or one whose
+    close-out was missed; the `user_logged_out` receiver and `begin()`'s
+    supersede pass exist to keep that set small.
+    """
+
+    END_REASON_CHOICES = [
+        ('manual_exit', 'Exited via the banner'),
+        ('logout', 'Operator logged out'),
+        ('operator_mismatch', 'Session failed revalidation'),
+        ('superseded', 'Operator started another session'),
+    ]
+
+    operator = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='impersonation_sessions',
+    )
+    # `account` / `website`, not the `_new` suffix the models above carry:
+    # that suffix exists to disambiguate a canonical FK from a legacy
+    # ClientProfile one. This model is new and has no legacy FK, so the
+    # plain name is the canonical name.
+    #
+    # SET_NULL for the same reason as AIAssistantLog — losing the subject
+    # must never delete the evidence that it was viewed.
+    account = models.ForeignKey(
+        'clients.Account',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='impersonation_sessions',
+    )
+    website = models.ForeignKey(
+        'clients.Website',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='impersonation_sessions',
+    )
+    ended_at = models.DateTimeField(null=True, blank=True)
+    end_reason = models.CharField(
+        max_length=32, blank=True, choices=END_REASON_CHOICES)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+
+    # Count of state-changing requests the guard middleware refused during
+    # this session. Zero is the expected value: the UI disables every
+    # action button, so a non-zero count means something got past the UI
+    # and tried to act as the client. That is the single most
+    # audit-relevant signal here, which is why it earns a column.
+    blocked_attempts = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Impersonation Session'
+        verbose_name_plural = 'Impersonation Sessions'
+
+    def __str__(self):
+        who = self.operator.username if self.operator else 'unknown'
+        target = self.account.name if self.account else 'deleted account'
+        state = 'open' if self.ended_at is None else 'closed'
+        return f'{who} → {target} ({state}) — {self.created_at}'
+
+
 # ──────────────────────────────────────────────────────────────────────
 # AI Employees — the agent registry + run log (COLD_OUTREACH_AGENT.md §8.1)
 #

@@ -182,9 +182,14 @@ def step(request, product_type, tier_slug, section_key):
         # Bad section — bounce to dispatch
         return redirect('onboarding:dispatch')
 
-    # Bookmark resume position
-    ob.last_section = section_key
-    ob.save(update_fields=['last_section'])
+    # Bookmark resume position. Skipped during a staff view-as session —
+    # this is a GET, and moving a client's "resume here" bookmark because
+    # someone else looked at their onboarding would send them back to the
+    # wrong step next time they log in.
+    from clients.impersonation import is_read_only
+    if not is_read_only(request):
+        ob.last_section = section_key
+        ob.save(update_fields=['last_section'])
 
     secs = visible_sections(ob)
     section_index = next(

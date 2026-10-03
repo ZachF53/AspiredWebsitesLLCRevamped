@@ -120,6 +120,11 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
+    # Must sit after AuthenticationMiddleware: it reads request.user and
+    # the session to decide whether this is a staff "view as client"
+    # session, and refuses every state-changing portal request while one
+    # is active. Before Auth it would see neither.
+    'core.middleware.ImpersonationGuardMiddleware',
     'core.middleware.SecurityHeadersMiddleware',
 ]
 
@@ -166,6 +171,10 @@ TEMPLATES = [
                 'onboarding.context_processors.todo_count',
                 # Phase D4 — per-service portal sidebar nav.
                 'clients.context_processors.portal_services',
+                # Staff "view as client" banner + read-only flag. A
+                # context processor so no portal view can render a
+                # read-only session without saying so on screen.
+                'clients.context_processors.impersonation',
             ],
         },
     },

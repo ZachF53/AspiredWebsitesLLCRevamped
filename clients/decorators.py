@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 
+from .impersonation import active_target
 from .portal_resolvers import (
     resolve_account_for_user,
     resolve_website,
@@ -70,7 +71,19 @@ def client_required(view_func):
         # views that still read it. A user with an Account but no profile
         # (the shape every post-cutover signup will have) is let in; before
         # this change they were bounced to the login page in a loop.
-        account = resolve_account_for_user(request.user)
+        # ── Staff "view as client" ──
+        # A staff view-as session substitutes the target account here and
+        # nowhere else. The operator stays authenticated as themselves
+        # (see clients/impersonation.py for why login-as is not used), so
+        # this one swap is what makes the whole portal render as the
+        # client — every portal view is gated by this decorator and reads
+        # request.account, so none of them need to know.
+        #
+        # Resolution fails closed: a session that no longer validates
+        # returns None here and the operator sees their own portal.
+        impersonated = active_target(request)
+        account = (impersonated if impersonated is not None
+                   else resolve_account_for_user(request.user))
         if account is None:
             # Authenticated, but not a client. Bouncing them to the login
             # page loops — login sees a valid session and sends them

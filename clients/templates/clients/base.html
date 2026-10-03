@@ -199,6 +199,35 @@
 
         <main class="portal-main" id="portal-main">
             {% comment %}
+                Staff "view as client" banner. Fed by
+                clients.context_processors.impersonation, so it cannot be
+                missing from a portal page that builds its context
+                without _portal_context().
+
+                This is the one piece of chrome a view-as session adds on
+                top of what the client actually sees. It earns the
+                exception: sessions only end when the operator clicks
+                Exit (there is no idle timeout), so a persistent marker
+                is the only thing stopping someone from forgetting which
+                account they are looking at.
+            {% endcomment %}
+            {% if impersonating %}
+                <div class="portal-impersonation-bar">
+                    <div class="portal-impersonation-bar__left">
+                        <span class="portal-impersonation-bar__label">Viewing as</span>
+                        <strong class="portal-impersonation-bar__name">{{ impersonated_account.name }}</strong>
+                        <span class="portal-impersonation-bar__tag">read-only &middot; logged</span>
+                    </div>
+                    <form method="post" action="{% url 'clients:exit_view_as' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="portal-impersonation-bar__exit"
+                                data-readonly-allow>Exit view-as</button>
+                    </form>
+                </div>
+            {% endif %}
+
+            {% comment %}
                 Phase C — active-website header strip. Only renders on
                 multi-website accounts so single-site users (the majority
                 during transition) don't see chrome they don't need.
@@ -232,6 +261,16 @@
     <script src="{% static 'js/htmx_csrf.js' %}?v={{ STATIC_VERSION }}" defer></script>
     <script src="{% static 'js/input_masks.js' %}?v={{ STATIC_VERSION }}" defer></script>
     <script src="{% static 'js/portal_todo_modal.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    {% if impersonating %}
+        {% comment %}
+            Cosmetic only — ImpersonationGuardMiddleware is the actual
+            read-only boundary and refuses these submits server-side
+            whatever the DOM says. This exists so the operator sees the
+            portal in the state the client sees it, without arming any
+            of the buttons.
+        {% endcomment %}
+        <script src="{% static 'js/portal_readonly.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    {% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

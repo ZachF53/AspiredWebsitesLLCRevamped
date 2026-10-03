@@ -14,6 +14,7 @@ away entirely, and Account / Website are the only writes.
 
 import logging
 
+from django.contrib.auth.signals import user_logged_out
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -174,3 +175,30 @@ def autocreate_account_and_website(sender, instance, created, **kwargs):
         logger.exception(
             'clients: failed to auto-create Website for ClientProfile %s',
             instance.pk)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Close out impersonation sessions on logout
+# ──────────────────────────────────────────────────────────────────────
+
+@receiver(user_logged_out)
+def close_impersonation_on_logout(sender, request=None, user=None, **kwargs):
+    """Stamp any open "view as client" row closed when the operator
+    logs out.
+
+    `django.contrib.auth.logout()` sends this signal and THEN flushes the
+    session, so this is the last moment the session still carries
+    `impersonate_log_id`. Without this receiver, every session ended by
+    logging out rather than by clicking Exit would stay open forever with
+    no `ended_at` — and the audit log would fill with rows that look like
+    sessions nobody ever left.
+    """
+    if request is None:
+        return
+    try:
+        from .impersonation import end
+        if request.session.get('impersonate_log_id'):
+            end(request, reason='logout')
+    except Exception:
+        logger.exception(
+            'clients: failed to close impersonation session on logout')

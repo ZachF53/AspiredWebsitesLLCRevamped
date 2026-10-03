@@ -396,6 +396,32 @@ def account_reset_password(request, account_id):
 
 
 @admin_required
+@require_POST
+def account_view_as(request, account_id):
+    """Start a read-only "view as client" session against this account.
+
+    POST-only on purpose. As a GET this would be triggerable by any link
+    or image pointing at the URL — including one in an email — which
+    would silently open a session (and write an audit row) without the
+    operator choosing to.
+
+    The operator is NOT logged in as the client; see
+    clients/impersonation.py for why. Every state-changing portal request
+    is refused by ImpersonationGuardMiddleware for the duration.
+    """
+    from clients.impersonation import begin
+
+    account = get_object_or_404(Account.objects.select_related('user'),
+                                 id=account_id)
+    begin(request, account)
+    messages.info(
+        request,
+        f'Viewing the portal as {account.name}. This is read-only — '
+        'actions are disabled and the session is logged.')
+    return redirect('clients:dashboard')
+
+
+@admin_required
 def account_create(request):
     """Records only. Sends nothing — this is also how dormant legacy
     clients get a record without triggering any onboarding email.

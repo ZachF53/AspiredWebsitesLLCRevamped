@@ -39,6 +39,9 @@ urlpatterns = [
     path('accounts/<uuid:account_id>/delete/',
          views_accounts.account_delete,
          name='v2_account_delete'),
+    path('accounts/<uuid:account_id>/view-as/',
+         views_accounts.account_view_as,
+         name='v2_account_view_as'),
 
     path('websites/', views_websites.websites_list, name='v2_websites_list'),
     path('websites/new/', views_websites.website_create,

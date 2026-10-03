@@ -14,6 +14,7 @@ from vault.crypto import generate_salt, hash_client_pin, verify_client_pin
 
 from .decorators import allow_pending_intake, client_required
 from .emails import send_contract_signed_email
+from .impersonation import is_read_only
 from .forms import (
     FileUploadForm,
     IntakeForm,
@@ -147,13 +148,19 @@ def _owns(request, obj):
     return False
 
 
-def _intake_for(profile, site):
+def _intake_for(profile, site, *, read_only=False):
     """Resolve (or create) the IntakeResponse for a site.
 
     Keyed on the website: an intake describes one build, and a client
     with two builds owes an intake for each. `profile` is the site too —
     both arguments are the same object now — and is kept in the signature
     only because several callers pass it positionally.
+
+    `read_only=True` (a staff view-as session) returns an UNSAVED
+    instance instead of creating one, so looking at a client's intake
+    page does not mint the row that marks them as having started it.
+    The form and the step-progress helpers only read fields, so an
+    unsaved instance renders identically.
     """
     from .models import IntakeResponse
     site = site or profile
@@ -161,6 +168,8 @@ def _intake_for(profile, site):
         return None
     obj = IntakeResponse.objects.filter(website_new=site).first()
     if obj is None:
+        if read_only:
+            return IntakeResponse(website_new=site)
         obj = IntakeResponse.objects.create(website_new=site)
     return obj
 
@@ -357,6 +366,31 @@ def _intake_steps(intake):
     completed = sum(done)
     percent = round(completed / 6 * 100)
     return steps, completed, percent
+
+
+# ── Staff "view as client" — exit ───────────────────────────────────────────
+
+@require_POST
+def exit_view_as(request):
+    """End a read-only view-as session and go back to the account page.
+
+    Deliberately NOT wrapped in @client_required: that decorator
+    substitutes the impersonated account, and a view whose whole job is
+    to undo the substitution should not depend on it. Deliberately not
+    @admin_required either — a non-staff session cannot be impersonating
+    in the first place (active_target refuses), so the worst a stray POST
+    here can do is clear session keys that are not set.
+    """
+    from .impersonation import end
+
+    log = end(request, reason='manual_exit')
+    if log is None:
+        return redirect('clients:dashboard')
+    messages.success(request, 'Left view-as mode.')
+    if log.account_id:
+        return redirect('admin_dashboard:v2_account_detail',
+                        account_id=log.account_id)
+    return redirect('admin_dashboard:v2_accounts_list')
 
 
 # ── Page 1: Dashboard ───────────────────────────────────────────────────────
@@ -597,7 +631,7 @@ def _intake_missing_required(intake_obj):
     return missing
 
 
-def _ensure_project_for_unlocked_intake(client):
+def _ensure_project_for_unlocked_intake(client, *, read_only=False):
     """
     Lazily create the IntakeResponse + ClientVault for a new-flow
     client who has reached the intake page without a real Stripe
@@ -613,7 +647,19 @@ def _ensure_project_for_unlocked_intake(client):
     that pass the result around still get something truthy.
 
     Idempotent.
+
+    `read_only=True` (a staff view-as session) returns immediately
+    without writing. This is the single most important suppression in
+    the impersonation feature: every write below fires on a plain GET to
+    /portal/intake/, which is the page view-as mode exists to inspect.
+    Without the guard, opening a pending-intake client's portal would
+    stamp them `payment_status='fully_paid'` with a `final_paid_at`
+    timestamp — silently marking an unpaid client as having paid in
+    full.
     """
+    if read_only:
+        return client
+
     fields_to_save = []
     if not client.stage:
         client.stage = 'intake'
@@ -650,10 +696,16 @@ def intake(request):
     # Unlocked but no Project yet — materialise it now. Covers the
     # new-flow test path where no real Stripe webhook ever fired (so
     # the webhook-side _on_onboarding_invoice_paid hook never ran).
+    #
+    # Suppressed under a staff view-as session: both helpers write, and
+    # this is a GET.
+    read_only = is_read_only(request)
     if project is None:
-        project = _ensure_project_for_unlocked_intake(profile)
+        project = _ensure_project_for_unlocked_intake(
+            profile, read_only=read_only)
 
-    intake_obj = _intake_for(profile, getattr(request, 'website', None))
+    intake_obj = _intake_for(
+        profile, getattr(request, 'website', None), read_only=read_only)
 
     if request.method == 'POST':
         # Final submission — fields are already auto-saved; this just
@@ -2043,7 +2095,11 @@ def portal_report_download(request, report_id):
     abs_path = os.path.join(settings.MEDIA_ROOT, report.pdf_path or '')
     if not report.pdf_path or not os.path.exists(abs_path):
         raise Http404('Report file not found.')
-    if not report.opened:
+    # `opened` is read-receipt data — it answers "has the client looked at
+    # their report yet". A staff view-as session must not answer it for
+    # them, so the stamp is skipped while impersonating and the file is
+    # still served.
+    if not report.opened and not is_read_only(request):
         report.opened = True
         report.opened_at = timezone.now()
         report.save(update_fields=['opened', 'opened_at', 'updated_at'])
@@ -3662,11 +3718,20 @@ def portal_referral(request):
     if link is None:
         link = ReferralLink.objects.filter(
             account_new=account).first()
+    read_only = is_read_only(request)
     if link is None:
-        link = ReferralLink.objects.create(
+        # Visiting this page is what mints a client's referral code. Under
+        # a staff view-as session we build the row in memory only and
+        # never save it, so the admin sees the page the client would see
+        # without claiming a code on their behalf. The code shown is
+        # therefore a throwaway — it is NOT the code the client will get
+        # when they visit for real.
+        link = ReferralLink(
             account_new=account,
             code=generate_referral_code(account.name))
-    elif link.account_new_id is None:
+        if not read_only:
+            link.save()
+    elif link.account_new_id is None and not read_only:
         link.account_new = account
         link.save(update_fields=['account_new', 'updated_at'])
 

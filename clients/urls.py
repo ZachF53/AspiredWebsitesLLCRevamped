@@ -15,6 +15,12 @@ urlpatterns = [
     path('chooser/pick/<slug:slug>/', views.chooser_pick,
          name='chooser_pick'),
 
+    # Staff "view as client" exit. Lives under /portal/ because that is
+    # where the banner carrying it renders, and is the one POST the
+    # impersonation guard lets through — see
+    # core.middleware.ImpersonationGuardMiddleware._is_exempt.
+    path('exit-view-as/', views.exit_view_as, name='exit_view_as'),
+
     path('', views.dashboard, name='dashboard'),
     path('social/', views.social_channels, name='social_channels'),
     path('project/', views.project_detail, name='project'),

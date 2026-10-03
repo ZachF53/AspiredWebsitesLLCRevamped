@@ -5751,6 +5751,84 @@ button.htmx-request {
     text-decoration: underline;
 }
 
+/* ── Staff "view as client" banner ──────────────────────────────────────
+   Deliberately loud: this is the only on-screen signal that the portal
+   being viewed is not the operator's own, and a view-as session only
+   ends when they click Exit. Matches .portal-site-bar's geometry so it
+   stacks cleanly above it. */
+.portal-impersonation-bar {
+    background: var(--color-orange-soft, rgba(232, 101, 10, 0.15));
+    border: 1px solid var(--color-orange-light, #E8650A);
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    margin-bottom: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.portal-impersonation-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.portal-impersonation-bar__label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+.portal-impersonation-bar__name {
+    color: var(--color-text);
+    font-size: 0.95rem;
+}
+.portal-impersonation-bar__tag {
+    background: var(--color-orange-light, #E8650A);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+.portal-impersonation-bar__exit {
+    background: var(--color-orange-light, #E8650A);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.portal-impersonation-bar__exit:hover {
+    filter: brightness(1.08);
+}
+
+/* Applied by portal_readonly.js to every control it disables. The
+   cursor and opacity are the whole point — the control stays visible so
+   the operator sees the client's real page, but reads as inert. */
+.is-readonly {
+    opacity: 0.55;
+    cursor: not-allowed !important;
+}
+form.is-readonly {
+    opacity: 1;
+}
+
+/* Server-rendered refusal body for a blocked htmx request. */
+.portal-readonly-block {
+    background: var(--color-orange-soft, rgba(232, 101, 10, 0.15));
+    border: 1px solid var(--color-orange-light, #E8650A);
+    border-radius: 6px;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+}
+
 .portal-page-head {
     margin-bottom: var(--space-4);
 }

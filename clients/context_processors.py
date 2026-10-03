@@ -31,7 +31,12 @@ def portal_services(request):
     if not user or not user.is_authenticated:
         return blank
     try:
-        account = getattr(user, 'account', None)
+        # Under a staff view-as session the target's account decides the
+        # sidebar, not the operator's own. Reading `user.account` alone
+        # would render the operator's service nav around the client's
+        # pages — the sidebar would disagree with every page it links to.
+        from .impersonation import active_target
+        account = active_target(request) or getattr(user, 'account', None)
         if account is None:
             return blank
 
@@ -61,3 +66,30 @@ def portal_services(request):
         }
     except Exception:
         return blank
+
+
+def impersonation(request):
+    """Expose the live staff "view as client" session to every template.
+
+    A context processor rather than a key in ``_portal_context`` on
+    purpose: that helper is called explicitly by each portal view, and a
+    view that builds its context some other way would silently render
+    with no banner and no disabled buttons — the operator would be in a
+    read-only session with nothing on screen saying so. A context
+    processor cannot be forgotten.
+
+    Returns:
+        {
+            'impersonating':         bool,
+            'impersonated_account':  Account | None,
+        }
+    """
+    try:
+        from .impersonation import active_target
+        target = active_target(request)
+    except Exception:
+        return {'impersonating': False, 'impersonated_account': None}
+    return {
+        'impersonating': target is not None,
+        'impersonated_account': target,
+    }

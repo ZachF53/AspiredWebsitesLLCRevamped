@@ -15,6 +15,19 @@
             </p>
         </div>
         <div>
+            {% comment %}
+                POST, not a link: as a GET this would open a view-as
+                session (and write an audit row) from any prefetch or
+                stray navigation to the URL.
+            {% endcomment %}
+            {% if account.user_id %}
+                <form method="post"
+                      action="{% url 'admin_dashboard:v2_account_view_as' account.id %}"
+                      style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary btn-sm">View as client</button>
+                </form>
+            {% endif %}
             <a class="btn-secondary btn-sm" href="{% url 'admin_dashboard:v2_accounts_list' %}">&larr; All accounts</a>
         </div>
     </div>

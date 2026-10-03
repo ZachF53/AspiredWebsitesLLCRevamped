@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 
-from .models import AIAssistantLog, DeploymentLog
+from .models import AIAssistantLog, DeploymentLog, ImpersonationSession
 
 
 @admin.register(DeploymentLog)
@@ -34,4 +34,35 @@ class AIAssistantLogAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ImpersonationSession)
+class ImpersonationSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        'created_at', 'operator', 'account', 'website', 'ended_at',
+        'end_reason', 'blocked_attempts',
+    )
+    list_filter = ('end_reason', 'operator')
+    search_fields = ('operator__username', 'account__name', 'website__name',
+                     'ip_address')
+    readonly_fields = (
+        'created_at', 'updated_at', 'operator', 'account', 'website',
+        'ended_at', 'end_reason', 'ip_address', 'user_agent',
+        'blocked_attempts',
+    )
+
+    def has_add_permission(self, request):
+        # Rows are written by begin()/end() in clients/impersonation.py.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Deliberate departure from the two ModelAdmins above, which leave
+        # deletion enabled: the client is never told a view-as session
+        # happened, so this table is the sole record. If the person who
+        # can open a client's portal can also erase the trace, the log
+        # documents nothing. Prune via a migration if it ever needs it.
         return False
