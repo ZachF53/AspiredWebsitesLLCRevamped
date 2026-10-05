@@ -260,4 +260,12 @@ simply omitted if there were ever no published work at all.
     </div>
 </section>
 
+{% comment %}
+GHL/LeadConnector chat widget — homepage only (per Zach, Oct 2026).
+Needs core/middleware.py CSP_CHAT (script-src/connect-src/frame-src for
+widgets.leadconnectorhq.com + services.leadconnectorhq.com) or the browser
+blocks it silently.
+{% endcomment %}
+<script src="https://widgets.leadconnectorhq.com/loader.js" data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js" data-widget-id="6ac3cd0a083698c05240d1a8" data-source="WEB_USER"></script>
+
 {% endblock %}

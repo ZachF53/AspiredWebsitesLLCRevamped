@@ -51,6 +51,30 @@ CSP_PUBLIC = (
     "object-src 'none'"
 )
 
+# Chat widget CSP — homepage only. The LeadConnector/GoHighLevel loader
+# (public/templates/public/home.html) loads its bootstrap script and default
+# avatar icon from widgets.leadconnectorhq.com, then fetches widget config
+# from services.leadconnectorhq.com and renders the actual chat UI as an
+# iframe from that same host. Because the chat UI is an iframe — a separate
+# document with its own CSP from leadconnectorhq's server — style-src stays
+# 'self' only; nothing here needs 'unsafe-inline'.
+# script-src keeps {GA_SCRIPT_SRC} first so it stays a prefix match of
+# CSP_PUBLIC's script-src (core/tests.py relies on that substring).
+CSP_CHAT = (
+    "default-src 'self'; "
+    f"script-src 'self' {GA_SCRIPT_SRC} https://widgets.leadconnectorhq.com; "
+    "style-src 'self'; "
+    f"img-src 'self' data: {GA_IMG_SRC} https://widgets.leadconnectorhq.com; "
+    "font-src 'self'; "
+    f"connect-src 'self' {GA_CONNECT_SRC} https://widgets.leadconnectorhq.com "
+    "https://services.leadconnectorhq.com; "
+    "frame-src https://services.leadconnectorhq.com; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
 # Terminal CSP — the SSH terminal page. Scripts stay strict ('self' only; all
 # terminal JS is external), but style-src allows inline because xterm.js
 # applies dynamic styling at runtime. The page is staff-only and TOTP-gated.
@@ -238,6 +262,9 @@ class SecurityHeadersMiddleware:
             # vault terminal and the recording replay above are more
             # specific and must keep their own policies.
             response['Content-Security-Policy'] = CSP_ADMIN_DASHBOARD
+        elif path == '/':
+            # Homepage only — carries the LeadConnector chat widget.
+            response['Content-Security-Policy'] = CSP_CHAT
         else:
             response['Content-Security-Policy'] = CSP_PUBLIC
 

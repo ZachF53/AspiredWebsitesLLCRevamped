@@ -28,6 +28,7 @@
             <h3>From you, directly</h3>
             <ul>
                 <li><strong>Contact and call-back requests:</strong> your name, phone number, email address, and the message or best time to call that you send us.</li>
+                <li><strong>Chat widget conversations:</strong> if you start a chat on our website, the name, phone number, email address, and messages you provide are collected by our chat platform, LeadConnector (GoHighLevel), and added to our CRM so we can follow up with you.</li>
                 <li><strong>Website audit data:</strong> the website URL you submit and the scores returned. The URL is sent to Google PageSpeed Insights to run the checks and to Anthropic to write the plain-English summary. We keep it with your results for your visit only, unless you ask us to email you the full report; then we keep the URL, scores and your email address so we can send it{% if SITE_CONTENT.audit_retention_days %} and delete them after {{ SITE_CONTENT.audit_retention_days }} days{% endif %}.</li>
                 <li><strong>Client portal information:</strong> your login credentials, project details, business information you supply during intake, files you upload, and messages you send through the portal.</li>
                 <li><strong>Payment information:</strong> processed by Stripe. We do not store credit card numbers on our servers.</li>
@@ -48,6 +49,7 @@
                 <li>To respond to your contact form inquiries.</li>
                 <li>To provide the web design, hosting, and maintenance services you've engaged us for.</li>
                 <li>To send you project updates, monthly reports, and other operational communications.</li>
+                <li>To send you operational text messages if you provide your phone number &mdash; for example, appointment reminders, project status updates, and replies to a chat conversation you started with us. These are not marketing texts and do not require separate marketing opt-in. Message and data rates may apply; reply STOP at any time to stop receiving texts, or HELP for help. See our <a href="{% url 'core:terms_of_service' %}">Terms of Service</a> for details.</li>
                 <li>To send you marketing emails about our services. You can unsubscribe at any time using the link in any marketing email.</li>
                 <li>To improve our services based on aggregate usage patterns.</li>
                 <li>To process payments and bill recurring subscriptions through Stripe.</li>
@@ -58,6 +60,8 @@
             <ul>
                 <li><strong>Stripe:</strong> payment processing for invoices and subscriptions.</li>
                 <li><strong>SendGrid:</strong> transactional and marketing email delivery.</li>
+                <li><strong>Twilio:</strong> delivery of the operational text messages described above.</li>
+                <li><strong>LeadConnector (GoHighLevel):</strong> our chat widget and CRM platform, used to run the live chat on our site and follow up with you by text or email.</li>
                 <li><strong>DigitalOcean:</strong> website hosting and server infrastructure.</li>
                 <li><strong>Anthropic:</strong> the plain-English summary on website audit results, and our internal tools (content suggestions, security analysis, support drafting).</li>
                 <li><strong>Google PageSpeed Insights:</strong> the website URL you submit to the audit tool, to run its checks.</li>
