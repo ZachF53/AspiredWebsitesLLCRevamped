@@ -6,7 +6,9 @@ from outreach.models import Lead
 class ContactForm(forms.Form):
     """
     Public-facing contact form. Saves to a Lead row with source='contact_form'
-    per CLAUDE.md → Data Model Decisions → Contact Form → Lead Mapping.
+    per CLAUDE.md → Data Model Decisions → Contact Form → Lead Mapping, and
+    pushes the same submission to GoHighLevel (outreach/ghl.py) per the
+    2026-10-05 GHL integration spec.
 
     Sept 2026 — trimmed to name/phone/email/message. Business name,
     business type, "what do you need" and "how did you hear about us"
@@ -21,6 +23,15 @@ class ContactForm(forms.Form):
       phone   → Lead.phone
       email   → Lead.email
       message → Lead.inquiry_text
+
+    2026-10-05 — business_name/project_type/budget_range/timeline/
+    current_website/sms_consent added for the GHL integration. These
+    describe the WEBSITE PROJECT (what, budget, how soon, existing
+    site) — a different axis from the Sept trade/trucks/software
+    qualifiers below, which describe the BUSINESS calling in. Both
+    sets are optional and coexist; none of them replace each other.
+    business_name reintroduces what firm_name was for pre-pivot, so it
+    maps back to Lead.firm_name.
     """
 
     name = forms.CharField(
@@ -66,6 +77,15 @@ class ContactForm(forms.Form):
     def clean_email(self):
         return (self.cleaned_data.get('email') or '').strip().lower()
 
+    business_name = forms.CharField(
+        label='Business Name', max_length=255, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Doe Heating & Air',
+            'autocomplete': 'organization',
+        }),
+    )
+
     message = forms.CharField(
         label='Message',
         widget=forms.Textarea(attrs={
@@ -110,6 +130,69 @@ class ContactForm(forms.Form):
         }),
     )
 
+    # ── Website-project qualifiers (2026-10-05 GHL integration) ────────
+    # Describe the project itself, not the business — see class
+    # docstring. All optional; sent to GHL as custom fields and folded
+    # into inquiry_text same as trade/trucks/software above.
+    PROJECT_TYPE_CHOICES = [
+        ('', 'Choose one (optional)'),
+        ('New website', 'New website'),
+        ('Redesign existing site', 'Redesign existing site'),
+        ('Not sure yet', 'Not sure yet'),
+    ]
+    BUDGET_RANGE_CHOICES = [
+        ('', 'Choose one (optional)'),
+        ('Under $2,000', 'Under $2,000'),
+        ('2000-5000', '$2,000 - $5,000'),
+        ('5000+', '$5,000+'),
+        ('Not sure yet', 'Not sure yet'),
+    ]
+    TIMELINE_CHOICES = [
+        ('', 'Choose one (optional)'),
+        ('ASAP', 'ASAP'),
+        ('1-3 months', '1-3 months'),
+        ('3+ months', '3+ months'),
+        ('Just looking', 'Just looking'),
+    ]
+    project_type = forms.ChoiceField(
+        label='Project type', choices=PROJECT_TYPE_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    budget_range = forms.ChoiceField(
+        label='Budget range', choices=BUDGET_RANGE_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    timeline = forms.ChoiceField(
+        label='Timeline', choices=TIMELINE_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    current_website = forms.CharField(
+        label='Current website, if any', max_length=500, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'type': 'url',
+            'placeholder': 'https://your-current-site.com',
+        }),
+    )
+
+    # SMS consent — carrier-reviewed, must stay unchecked by default and
+    # NOT required. One checkbox per purpose (this one covers project/
+    # transactional texts only) — see claude-code-website-spec.md Job 3.
+    sms_consent = forms.BooleanField(required=False)
+
+    # UTM / attribution — populated by JS (core/static/js/utm_capture.js),
+    # never typed by the user. Plain CharFields, no validation: a JS
+    # failure must degrade to an empty string, never a broken form.
+    utm_source = forms.CharField(max_length=500, required=False)
+    utm_medium = forms.CharField(max_length=500, required=False)
+    utm_campaign = forms.CharField(max_length=500, required=False)
+    utm_term = forms.CharField(max_length=500, required=False)
+    utm_content = forms.CharField(max_length=500, required=False)
+    gclid = forms.CharField(max_length=500, required=False)
+    fbclid = forms.CharField(max_length=500, required=False)
+    landing_page = forms.CharField(max_length=500, required=False)
+    referrer = forms.CharField(max_length=500, required=False)
+
     # ── Spam-trap fields (no validation, just plumbing) ───────────────
     # Honeypot: real users never see this; bots that scan the DOM and
     # fill every input will tag themselves. Validated in the view.
@@ -127,13 +210,18 @@ class ContactForm(forms.Form):
                 ('Trade', cleaned.get('trade')),
                 ('Trucks', cleaned.get('trucks')),
                 ('Software', (cleaned.get('software') or '').strip()),
+                ('Project type', cleaned.get('project_type')),
+                ('Budget range', cleaned.get('budget_range')),
+                ('Timeline', cleaned.get('timeline')),
+                ('Current website',
+                 (cleaned.get('current_website') or '').strip()),
             ) if value
         ]
         inquiry = cleaned['message']
         if qualifiers:
             inquiry = inquiry + '\n\n' + '\n'.join(qualifiers)
         return Lead.objects.create(
-            firm_name='',
+            firm_name=(cleaned.get('business_name') or '').strip(),
             attorney_name=cleaned['name'],
             business_type=cleaned.get('trade') or 'HVAC',
             phone=cleaned['phone'],

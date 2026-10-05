@@ -54,6 +54,7 @@ msgpack==1.1.2
 packaging==26.2
 paramiko==5.0.0
 parsel==1.11.0
+phonenumbers==9.0.40
 pillow==12.2.0
 playwright==1.60.0
 prompt_toolkit==3.0.52

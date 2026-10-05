@@ -55,6 +55,25 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                     <input type="hidden" name="form_timestamp"
                            value="{{ form.form_timestamp.value|default:'' }}">
 
+                    {% comment %}
+                        UTM / attribution — populated by
+                        core/static/js/utm_capture.js on
+                        DOMContentLoaded, never typed by the user. A JS
+                        failure degrades to empty strings, not a broken
+                        form. First-touch lives in localStorage, last-
+                        touch in sessionStorage; the script sends the
+                        last-touch set (more actionable) in these.
+                    {% endcomment %}
+                    <input type="hidden" name="utm_source" id="utm_source" value="">
+                    <input type="hidden" name="utm_medium" id="utm_medium" value="">
+                    <input type="hidden" name="utm_campaign" id="utm_campaign" value="">
+                    <input type="hidden" name="utm_term" id="utm_term" value="">
+                    <input type="hidden" name="utm_content" id="utm_content" value="">
+                    <input type="hidden" name="gclid" id="gclid" value="">
+                    <input type="hidden" name="fbclid" id="fbclid" value="">
+                    <input type="hidden" name="landing_page" id="landing_page" value="">
+                    <input type="hidden" name="referrer" id="referrer" value="">
+
                     {% if form.non_field_errors %}
                         <div class="form-error" role="alert">
                             {{ form.non_field_errors }}
@@ -79,6 +98,11 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         {% if form.email.errors %}<div class="form-field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
                     </div>
 
+                    <div class="form-group">
+                        <label for="{{ form.business_name.id_for_label }}">{{ form.business_name.label }}</label>
+                        {{ form.business_name }}
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group form-group--half">
                             <label for="{{ form.trade.id_for_label }}">Trade</label>
@@ -96,11 +120,55 @@ for "atlanta web design"; /locations/atlanta/ owns that intent.
                         {% if form.software.errors %}<div class="form-field-error">{{ form.software.errors|join:" " }}</div>{% endif %}
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.project_type.id_for_label }}">{{ form.project_type.label }}</label>
+                            {{ form.project_type }}
+                        </div>
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.budget_range.id_for_label }}">{{ form.budget_range.label }}</label>
+                            {{ form.budget_range }}
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.timeline.id_for_label }}">{{ form.timeline.label }}</label>
+                            {{ form.timeline }}
+                        </div>
+                        <div class="form-group form-group--half">
+                            <label for="{{ form.current_website.id_for_label }}">{{ form.current_website.label }}</label>
+                            {{ form.current_website }}
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label for="{{ form.message.id_for_label }}">Message <span class="required" aria-hidden="true">*</span></label>
                         {{ form.message }}
                         {% if form.message.errors %}<div class="form-field-error">{{ form.message.errors|join:" " }}</div>{% endif %}
                     </div>
+
+                    {% comment %}
+                        SMS consent — carrier-reviewed for A2P 10DLC. Must
+                        stay unchecked by default, must NOT be required to
+                        submit, and this covers project/transactional
+                        texts only (one consent per purpose — a separate
+                        checkbox would be needed if marketing texts are
+                        ever sent). Disclosure text sits next to the
+                        checkbox, not on a linked page. Do not reformat
+                        this block without rereading
+                        claude-code-website-spec.md Job 3 — this exact
+                        shape is a documented carrier rejection cause.
+                    {% endcomment %}
+                    <label class="consent">
+                        {{ form.sms_consent }}
+                        <span>
+                            I consent to receive text messages from Aspired Websites LLC about my
+                            project and quote at the phone number provided. Message frequency may vary.
+                            Message &amp; data rates may apply. Text HELP for assistance, reply STOP to
+                            opt out.
+                        </span>
+                    </label>
 
                     <button type="submit" class="btn-primary btn-block">Send Message &rarr;</button>
                 </form>

@@ -7,11 +7,14 @@ from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django_ratelimit.decorators import ratelimit
 
 from core.analytics import queue_event
 from core.site_facts import LOCATION_PHRASE, LOCATION_STATEMENT
+from outreach import ghl as ghl_client
+from outreach.models import FailedLeadSubmission
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
 from .models import AuditLead
@@ -1009,6 +1012,7 @@ def contact(request):
                     credit_referral_for_lead(lead, ref_code)
                 except Exception:  # noqa: BLE001 — never break contact form
                     pass
+            _push_lead_to_ghl(lead, form.cleaned_data)
             _send_lead_auto_reply(lead)
             _send_lead_internal_notification(lead)
             # §10 conversion. Queued only here — past every spam layer
@@ -1128,6 +1132,81 @@ def _client_ip(request):
     if xff:
         return xff.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
+
+
+def _push_lead_to_ghl(lead, cleaned):
+    """
+    Push the contact-form submission to GoHighLevel. Never raises —
+    on any failure (outage, 4xx/5xx, timeout, missing token) the lead
+    is already saved and the visitor already sees success; this only
+    adds the fallback email + FailedLeadSubmission safety net so the
+    lead isn't silently lost to GHL. See claude-code-website-spec.md
+    Job 1 §"Never lose a lead."
+    """
+    custom_fields = {
+        'utm_source': cleaned.get('utm_source', ''),
+        'utm_medium': cleaned.get('utm_medium', ''),
+        'utm_campaign': cleaned.get('utm_campaign', ''),
+        'utm_term': cleaned.get('utm_term', ''),
+        'utm_content': cleaned.get('utm_content', ''),
+        'gclid': cleaned.get('gclid', ''),
+        'fbclid': cleaned.get('fbclid', ''),
+        'landing_page': cleaned.get('landing_page', ''),
+        'referrer': cleaned.get('referrer', ''),
+        'project_type': cleaned.get('project_type', ''),
+        'budget_range': cleaned.get('budget_range', ''),
+        'timeline': cleaned.get('timeline', ''),
+        'current_website': cleaned.get('current_website', ''),
+        'lead_message': cleaned.get('message', ''),
+        'sms_consent': 'true' if cleaned.get('sms_consent') else 'false',
+    }
+    try:
+        contact_id, trace_id = ghl_client.sync_lead_to_ghl(
+            first_name=lead.attorney_name,
+            email=lead.email,
+            phone_raw=lead.phone,
+            company_name=lead.firm_name,
+            custom_fields=custom_fields,
+        )
+    except ghl_client.GHLError as exc:
+        logger.error('GHL push failed for lead id=%s: %s', lead.id, exc)
+        FailedLeadSubmission.objects.create(
+            lead=lead,
+            payload=getattr(exc, 'payload', {}),
+            error=str(exc)[:2000],
+        )
+        _send_ghl_fallback_email(lead, str(exc))
+        return
+
+    lead.ghl_contact_id = contact_id
+    lead.pushed_to_ghl_at = timezone.now()
+    lead.save(update_fields=['ghl_contact_id', 'pushed_to_ghl_at'])
+
+
+def _send_ghl_fallback_email(lead, error):
+    body = (
+        f'The GoHighLevel push failed for a new contact-form lead — '
+        f'the Lead row was still created and the visitor still saw '
+        f'success, but this contact is NOT in GHL and needs to be '
+        f'added by hand.\n\n'
+        f'Name:          {lead.attorney_name}\n'
+        f'Phone:         {lead.phone}\n'
+        f'Email:         {lead.email}\n'
+        f'Business:      {lead.firm_name or "(not given)"}\n'
+        f'Lead id:       {lead.id}\n'
+        f'Submitted at:  {lead.created_at:%Y-%m-%d %H:%M:%S %Z}\n\n'
+        f'GHL error:\n{error}\n\n'
+        f'Message:\n'
+        f'{"-" * 60}\n'
+        f'{lead.inquiry_text}\n'
+    )
+    send_mail(
+        subject=f'GHL push failed — {lead.attorney_name}',
+        message=body,
+        from_email=settings.EMAIL_FROM_MAIN,
+        recipient_list=[settings.LEAD_FALLBACK_EMAIL],
+        fail_silently=True,
+    )
 
 
 def _send_lead_auto_reply(lead):

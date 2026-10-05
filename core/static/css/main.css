@@ -1467,6 +1467,25 @@ p {
     opacity: 0.7;
 }
 
+/* SMS consent checkbox — carrier-reviewed, see public/templates/public/
+   contact.html. Unchecked, optional; disclosure text sits inline next
+   to the checkbox rather than linking out. */
+.consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.consent input[type="checkbox"] {
+    margin-top: 0.1875rem;
+    flex-shrink: 0;
+    width: 1.0625rem;
+    height: 1.0625rem;
+}
+
 .form-control:focus {
     outline: none;
     border-color: var(--color-orange);

@@ -100,5 +100,12 @@ META_APP_ID = ''
 META_APP_SECRET = ''
 LINKEDIN_CLIENT_ID = ''
 LINKEDIN_CLIENT_SECRET = ''
+INSTANTLY_TOKEN = ''
+# 2026-10-05 — same incident as the Stripe block above, new vendor: the
+# contact-form GHL integration has no mock-by-default, so a real
+# GHL_API_KEY in .env made every test that POSTs to /contact/ create a
+# real contact in the live sub-account. Caught when a routine full-suite
+# run logged 5 live "GHL upsert ok" lines with real GHL trace ids.
+GHL_API_KEY = ''
 MOONIEFUL_SYNC_SECRET = 'test-moonieful-sync-secret'
 VAULT_SERVER_SECRET = 'test-vault-server-secret'

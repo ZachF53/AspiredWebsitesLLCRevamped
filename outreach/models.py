@@ -335,6 +335,16 @@ class Lead(models.Model):
     opted_in_addons = models.JSONField(default=list, blank=True)
     opted_in_addons_at = models.DateTimeField(null=True, blank=True)
 
+    # ── GoHighLevel (outreach/ghl.py) ───────────────────────────────────
+    # GHL's own contact id, returned by /contacts/upsert. The closest
+    # existing pattern is instantly_lead_id above — same idea, different
+    # CRM. Blank until the push succeeds (never retried automatically;
+    # a failure writes a FailedLeadSubmission instead).
+    ghl_contact_id = models.CharField(
+        max_length=64, blank=True, db_index=True,
+        help_text="GoHighLevel's own id, returned by /contacts/upsert.")
+    pushed_to_ghl_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -347,6 +357,37 @@ class Lead(models.Model):
     def __str__(self):
         loc = f', {self.city}, {self.state}' if self.city else ''
         return f'{self.firm_name}{loc}'
+
+
+class FailedLeadSubmission(models.Model):
+    """
+    A lead whose push to GoHighLevel failed (outage, 4xx/5xx, timeout).
+
+    The Lead row is still created and the visitor still sees success —
+    see public.views.contact and CLAUDE.md spec Job 1 §"Never lose a
+    lead." This table plus the fallback email to LEAD_FALLBACK_EMAIL
+    are the two safety nets so a GHL outage never costs a lead.
+    """
+
+    lead = models.ForeignKey(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='failed_ghl_submissions',
+    )
+    payload = models.JSONField(
+        default=dict,
+        help_text='The GHL request body that failed to send.')
+    error = models.TextField(blank=True)
+    resolved = models.BooleanField(
+        default=False,
+        help_text='Manually pushed to GHL by hand / confirmed not needed.')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        who = self.lead.attorney_name if self.lead else '(no lead)'
+        return f'Failed GHL push — {who} ({self.created_at:%Y-%m-%d %H:%M})'
 
 
 class LeadNote(models.Model):

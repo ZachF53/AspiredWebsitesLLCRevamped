@@ -447,6 +447,22 @@ TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', '')
 TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', '')
 
 
+# ── GoHighLevel (GHL) ────────────────────────────────────────────────────────
+# Private Integration Token, sub-account scoped. Server-side only — see
+# outreach/ghl.py docstring. Never log its value, never send to the client.
+GHL_API_KEY = env('GHL_API_KEY', '')
+GHL_LOCATION_ID = env('GHL_LOCATION_ID', 'elhJFAz0ZPa2EmAqthti')
+GHL_API_BASE = env('GHL_API_BASE', 'https://services.leadconnectorhq.com')
+GHL_API_VERSION = env('GHL_API_VERSION', '2021-07-28')
+# Where the full submission goes when the GHL push fails for any reason
+# (outage, 4xx/5xx, timeout) — a GHL outage must never cost a lead.
+LEAD_FALLBACK_EMAIL = env('LEAD_FALLBACK_EMAIL', 'zacherylong@aspiredwebsites.com')
+# key -> GHL custom-field id. Empty until Zach creates the fields in GHL
+# and supplies the ids; outreach.ghl falls back to {"key": ...} (works,
+# but "id" is the documented-reliable route) until this is populated.
+GHL_CUSTOM_FIELD_IDS = {}
+
+
 # ── Google APIs ─────────────────────────────────────────────────────────────
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', '')
