@@ -257,11 +257,20 @@ class CallbackForm(forms.Form):
             'inputmode': 'tel', 'maxlength': '14',
         }),
     )
-    best_time = forms.CharField(
-        label='Best time (optional)', max_length=100, required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control', 'placeholder': 'e.g. weekdays after 4',
-        }),
+    # Four slots a human (or a GHL workflow) can actually act on, rather
+    # than free text nobody can route on. Blank is its own choice,
+    # meaning "as soon as possible" — not a missing answer — so no
+    # separate ASAP value is needed and the field can stay optional.
+    BEST_TIME_CHOICES = [
+        ('', 'As soon as possible'),
+        ('morning', 'Morning (8am–12pm)'),
+        ('afternoon', 'Afternoon (12pm–5pm)'),
+        ('evening', 'Evening (5pm–8pm)'),
+    ]
+    BEST_TIME_LABELS = dict(BEST_TIME_CHOICES)
+    best_time = forms.ChoiceField(
+        label='Best time', choices=BEST_TIME_CHOICES, required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
     )
     website_url = forms.CharField(required=False)
     form_timestamp = forms.CharField(required=False)
@@ -276,15 +285,15 @@ class CallbackForm(forms.Form):
 
     def save_as_lead(self, ip_address=None):
         cleaned = self.cleaned_data
-        best = (cleaned.get('best_time') or '').strip()
+        best_label = self.BEST_TIME_LABELS.get(
+            cleaned.get('best_time', ''), 'As soon as possible')
         return Lead.objects.create(
             firm_name='',
             attorney_name=cleaned['name'],
             business_type='HVAC',
             phone=cleaned['phone'],
             email='',
-            inquiry_text=(
-                'Callback requested.' + (f' Best time: {best}' if best else '')),
+            inquiry_text=f'Callback requested. Best time: {best_label}',
             source='contact_form',
             tags='callback',
             status='new',

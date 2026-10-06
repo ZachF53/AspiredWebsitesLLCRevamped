@@ -108,7 +108,7 @@ class CallbackFormTests(TestCase):
         from public.views import _signed_form_timestamp
         import time
         payload = {'name': 'Pat Jones', 'phone': '(478) 555-0142',
-                   'best_time': 'after 4', 'website_url': '',
+                   'best_time': 'afternoon', 'website_url': '',
                    'form_timestamp': _signed_form_timestamp()}
         payload.update(data)
         time.sleep(0)  # timestamp age is faked below
@@ -122,7 +122,28 @@ class CallbackFormTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         lead = Lead.objects.get()
         self.assertEqual(lead.tags, 'callback')
-        self.assertIn('after 4', lead.inquiry_text)
+        self.assertIn('Afternoon (12pm–5pm)', lead.inquiry_text)
+
+    def test_blank_best_time_defaults_to_asap(self):
+        """Blank is its own valid choice, meaning ASAP — not a missing
+        answer — per the four-option dropdown (2026-10-05)."""
+        from unittest import mock
+        from outreach.models import Lead
+        with mock.patch('public.views._form_age_seconds', return_value=(10, True)):
+            resp = self._post(best_time='')
+        self.assertEqual(resp.status_code, 302)
+        lead = Lead.objects.get()
+        self.assertIn('As soon as possible', lead.inquiry_text)
+
+    def test_invalid_best_time_value_rejected(self):
+        """The field is a closed choice set now — free text (the old
+        behaviour) must fail validation, not silently pass through."""
+        from unittest import mock
+        from outreach.models import Lead
+        with mock.patch('public.views._form_age_seconds', return_value=(10, True)):
+            resp = self._post(best_time='whenever works I guess')
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(Lead.objects.exists())
 
     def test_honeypot_creates_nothing(self):
         from unittest import mock

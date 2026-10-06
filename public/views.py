@@ -1098,7 +1098,8 @@ def callback_request(request):
         return _silently_pretend_success(request)
 
     lead = form.save_as_lead(ip_address=ip or None)
-    best = (form.cleaned_data.get('best_time') or '').strip() or 'not given'
+    best = CallbackForm.BEST_TIME_LABELS.get(
+        form.cleaned_data.get('best_time', ''), 'As soon as possible')
     send_mail(
         subject=f'Callback request: {lead.attorney_name}',
         message=(

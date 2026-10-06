@@ -28,7 +28,12 @@ page can include this partial without view changes.
         </div>
         <div class="form-group">
             <label for="cb_best_time">Best time (optional)</label>
-            <input id="cb_best_time" name="best_time" type="text" class="form-control" maxlength="100" placeholder="e.g. weekdays after 4">
+            <select id="cb_best_time" name="best_time" class="form-control">
+                <option value="">As soon as possible</option>
+                <option value="morning">Morning (8am&ndash;12pm)</option>
+                <option value="afternoon">Afternoon (12pm&ndash;5pm)</option>
+                <option value="evening">Evening (5pm&ndash;8pm)</option>
+            </select>
         </div>
         <button type="submit" class="btn-primary">Call me back</button>
     </form>
