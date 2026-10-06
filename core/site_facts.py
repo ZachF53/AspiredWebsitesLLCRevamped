@@ -133,7 +133,18 @@ def _site_content():
 
 def site_facts(request):
     """Context processor exposing the approved facts to every template."""
+    from django.conf import settings
     return {
+        # TEMPORARY (added 2026-10-06, remove once A2P 10DLC campaign is
+        # approved — see claude-code-website-spec.md Job 5 for the
+        # matching phone-number hold). Owner decision 2026-09-26
+        # (reaffirming b56a914) was to keep this address OFF the public
+        # site entirely; carriers reviewing the A2P campaign require a
+        # verifiable physical business address, so it's back for the
+        # duration of that review only. core/tests.py has matching
+        # assertions flipped for this window — flip them back on removal.
+        'A2P_FOOTER_ADDRESS': (
+            getattr(settings, 'COMPANY_POSTAL_ADDRESS', '') or ''),
         'LOCATION_BASE': LOCATION_BASE,
         'LOCATION_REACH': LOCATION_REACH,
         'LOCATION_STATEMENT': LOCATION_STATEMENT,

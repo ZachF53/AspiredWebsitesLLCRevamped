@@ -170,6 +170,37 @@ class ContactGhlIntegrationTests(TestCase):
 
     @patch('public.views._form_age_seconds', return_value=(10, True))
     @patch('outreach.ghl.sync_lead_to_ghl')
+    def test_name_is_split_for_ghl_first_last_name(self, mock_sync, mock_age):
+        """2026-10-06: "Dave Moreno" sent whole as firstName breaks
+        {{contact.first_name}} in automated GHL messages — it must
+        split into firstName="Dave", lastName="Moreno"."""
+        mock_sync.return_value = ('ghl-contact-7', 'trace-7')
+        self.client.post(reverse('public:contact'), data=self._payload(
+            name='Dave Moreno'))
+        self.assertEqual(mock_sync.call_args.kwargs['first_name'], 'Dave')
+        self.assertEqual(mock_sync.call_args.kwargs['last_name'], 'Moreno')
+
+    @patch('public.views._form_age_seconds', return_value=(10, True))
+    @patch('outreach.ghl.sync_lead_to_ghl')
+    def test_single_word_name_has_blank_last_name(self, mock_sync, mock_age):
+        mock_sync.return_value = ('ghl-contact-8', 'trace-8')
+        self.client.post(reverse('public:contact'), data=self._payload(
+            name='Cher'))
+        self.assertEqual(mock_sync.call_args.kwargs['first_name'], 'Cher')
+        self.assertEqual(mock_sync.call_args.kwargs['last_name'], '')
+
+    @patch('public.views._form_age_seconds', return_value=(10, True))
+    @patch('outreach.ghl.sync_lead_to_ghl')
+    def test_tag_and_source_are_contact_form_specific(
+            self, mock_sync, mock_age):
+        mock_sync.return_value = ('ghl-contact-9', 'trace-9')
+        self.client.post(reverse('public:contact'), data=self._payload())
+        self.assertEqual(mock_sync.call_args.kwargs['tag'], 'website-lead')
+        self.assertEqual(
+            mock_sync.call_args.kwargs['source'], 'website-contact-form')
+
+    @patch('public.views._form_age_seconds', return_value=(10, True))
+    @patch('outreach.ghl.sync_lead_to_ghl')
     def test_honeypot_submission_never_reaches_ghl(self, mock_sync, mock_age):
         """Spam layers run before the GHL push — a bot must never
         consume a GHL API call or create a FailedLeadSubmission."""

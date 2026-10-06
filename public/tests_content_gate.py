@@ -5,6 +5,7 @@ that reintroduces "Premium Build", "local SEO", "three to four weeks" or
 a first-person "I" in site copy breaks the suite, not just a manual run.
 """
 
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
@@ -104,11 +105,18 @@ class SiteContentGatingTests(TestCase):
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
 class CallbackFormTests(TestCase):
 
+    def setUp(self):
+        # Without this, the per-IP rate-limit cache (shared LocMemCache,
+        # not reset between TestCase classes) can carry a count in from
+        # another test file that also posts to /callback/ — e.g.
+        # public.tests_callback_ghl — and trip the 3/hour cap here.
+        cache.clear()
+
     def _post(self, **data):
         from public.views import _signed_form_timestamp
         import time
         payload = {'name': 'Pat Jones', 'phone': '(478) 555-0142',
-                   'best_time': 'afternoon', 'website_url': '',
+                   'best_time': 'Afternoon (12pm-5pm)', 'website_url': '',
                    'form_timestamp': _signed_form_timestamp()}
         payload.update(data)
         time.sleep(0)  # timestamp age is faked below
@@ -122,7 +130,7 @@ class CallbackFormTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         lead = Lead.objects.get()
         self.assertEqual(lead.tags, 'callback')
-        self.assertIn('Afternoon (12pm–5pm)', lead.inquiry_text)
+        self.assertIn('Afternoon (12pm-5pm)', lead.inquiry_text)
 
     def test_blank_best_time_defaults_to_asap(self):
         """Blank is its own valid choice, meaning ASAP — not a missing

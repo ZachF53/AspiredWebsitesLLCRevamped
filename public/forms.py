@@ -257,21 +257,45 @@ class CallbackForm(forms.Form):
             'inputmode': 'tel', 'maxlength': '14',
         }),
     )
-    # Four slots a human (or a GHL workflow) can actually act on, rather
-    # than free text nobody can route on. Blank is its own choice,
-    # meaning "as soon as possible" — not a missing answer — so no
-    # separate ASAP value is needed and the field can stay optional.
+    # Four slots a human (or the GHL workflow) can actually act on,
+    # rather than free text nobody can route on.
+    #
+    # Values are BYTE-EXACT to GHL's "best_time" SINGLE_OPTIONS custom
+    # field (verified live against the GHL API 2026-10-06) — GHL
+    # silently drops a dropdown value that doesn't match an existing
+    # option (HTTP 200, nothing written, no error anywhere). That
+    # means: plain ASCII hyphen in the ranges (NOT an en dash — looks
+    # identical in a browser, parses differently, and would silently
+    # drop), lowercase am/pm with no periods or leading space, and
+    # value == label exactly. Do not "clean up" this formatting.
+    #
+    # Blank is allowed and stays blank (not mapped to a value) — the
+    # GHL workflow treats blank as "call now". BEST_TIME_LABELS below
+    # maps blank to a friendly label for Django-side display only
+    # (Lead.inquiry_text, the internal notification email); the blank
+    # string itself is still what gets sent to GHL.
     BEST_TIME_CHOICES = [
-        ('', 'As soon as possible'),
-        ('morning', 'Morning (8am–12pm)'),
-        ('afternoon', 'Afternoon (12pm–5pm)'),
-        ('evening', 'Evening (5pm–8pm)'),
+        ('', 'Choose one (optional)'),
+        ('As soon as possible', 'As soon as possible'),
+        ('Morning (8am-12pm)', 'Morning (8am-12pm)'),
+        ('Afternoon (12pm-5pm)', 'Afternoon (12pm-5pm)'),
+        ('Evening (5pm-8pm)', 'Evening (5pm-8pm)'),
     ]
     BEST_TIME_LABELS = dict(BEST_TIME_CHOICES)
+    BEST_TIME_LABELS[''] = 'As soon as possible'
     best_time = forms.ChoiceField(
         label='Best time', choices=BEST_TIME_CHOICES, required=False,
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
+
+    # UTM/attribution — same deal as ContactForm's: populated by
+    # core/static/js/utm_capture.js, never typed by the user, and a JS
+    # failure must degrade to an empty string, not a broken form. The
+    # callback form only needs landing_page/referrer per the GHL spec
+    # (it has no ad-campaign custom fields to attribute to).
+    landing_page = forms.CharField(max_length=500, required=False)
+    referrer = forms.CharField(max_length=500, required=False)
+
     website_url = forms.CharField(required=False)
     form_timestamp = forms.CharField(required=False)
 

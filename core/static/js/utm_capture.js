@@ -82,11 +82,16 @@
 
     function populateHiddenFields(touch) {
         touch = touch || {};
-        var ids = FIELDS.concat(['landing_page', 'referrer']);
-        ids.forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) {
-                el.value = touch[id] || '';
+        // By `name`, not `id`: the contact page includes the callback
+        // form partial alongside the main contact form, and both have
+        // hidden inputs named landing_page/referrer — duplicate ids
+        // would mean getElementById only ever reaches the first one.
+        // getElementsByName fills every matching field on the page.
+        var names = FIELDS.concat(['landing_page', 'referrer']);
+        names.forEach(function (name) {
+            var elements = document.getElementsByName(name);
+            for (var i = 0; i < elements.length; i++) {
+                elements[i].value = touch[name] || '';
             }
         });
     }

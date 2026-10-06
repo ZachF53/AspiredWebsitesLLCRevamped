@@ -1501,13 +1501,17 @@ class SanAntonioLocationPageTests(TestCase):
     def test_no_postal_address_claimed_for_san_antonio(self):
         """
         A location page must not fabricate a local office. The footer
-        carries the operating city (Warner Robins, GA) and nothing else —
-        no street address anywhere, in either metro.
+        carries the operating city (Warner Robins, GA) — no SAN ANTONIO
+        street address anywhere.
+
+        2026-10-06: the registered-agent address itself now appears
+        site-wide (temporary A2P 10DLC exception — see
+        core/site_facts.py), so this only guards against a fabricated
+        SAN ANTONIO address, not the real Atlanta one.
         """
         html = self.client.get('/locations/san-antonio/').content.decode()
         self.assertNotIn('San Antonio, TX 7', html)   # any SA ZIP
         self.assertIn('Warner Robins, GA', html)      # footer master record
-        self.assertNotIn('8735 Dunwoody', html)       # registered agent
 
     def test_carries_real_san_antonio_proof(self):
         """
@@ -1568,25 +1572,35 @@ class GeorgiaLocationPageTests(TestCase):
 
     def test_no_street_address_is_reintroduced(self):
         """
-        The registered-agent suite was deliberately removed from the
-        site. A city page is the most tempting place for it to creep
-        back, so assert it does not.
+        2026-10-06: superseded by test_registered_agent_address_is_in_
+        footer_for_a2p below. The registered-agent address is back
+        site-wide, deliberately, for the duration of A2P 10DLC campaign
+        review — see core/site_facts.py site_facts(). Kept as a no-op
+        placeholder (rather than deleted) so the history and the
+        revert instructions stay attached to the right test name.
         """
-        for path in self.PAGES:
-            with self.subTest(path=path):
-                html = self.client.get(path).content.decode()
-                self.assertNotIn('8735 Dunwoody', html)
-                self.assertNotIn('Dunwoody Place', html)
+        pass
 
     @override_settings(COMPANY_POSTAL_ADDRESS='8735 Dunwoody Place, Ste R, Atlanta, GA 30350')
-    def test_registered_agent_address_stays_email_only(self):
-        """COMPANY_POSTAL_ADDRESS is for CAN-SPAM email footers only.
-        Owner decision (2026-09-26, reaffirming b56a914): it must not
-        render in the site footer or legal pages even when it is set."""
-        for path in ('/', '/terms/', '/privacy-policy/', '/contact/'):
+    def test_registered_agent_address_is_in_footer_for_a2p(self):
+        """
+        TEMPORARY, 2026-10-06: carriers reviewing the A2P 10DLC campaign
+        require a verifiable physical business address, so
+        COMPANY_POSTAL_ADDRESS now renders in the site-wide footer.
+
+        This REVERSES the 2026-09-26 owner decision (reaffirming
+        b56a914) that it must stay email-only — see
+        core/site_facts.py's A2P_FOOTER_ADDRESS comment for the full
+        note and the removal instructions once the campaign is
+        approved. When reverted, flip this assertion back to
+        assertNotIn and restore the original docstring/name.
+        """
+        for path in ('/', '/terms/', '/privacy-policy/', '/contact/',
+                     '/locations/atlanta/', '/locations/warner-robins/',
+                     '/locations/san-antonio/'):
             with self.subTest(path=path):
                 html = self.client.get(path).content.decode()
-                self.assertNotIn('Dunwoody', html)
+                self.assertIn('Dunwoody', html)
 
     def test_atlanta_page_states_it_has_no_atlanta_office(self):
         html = self.client.get('/locations/atlanta/').content.decode()

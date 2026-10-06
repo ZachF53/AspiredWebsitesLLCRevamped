@@ -199,10 +199,18 @@ class LocationStatementTests(TestCase):
     def test_credential_pills_do_not_contradict_the_location_statement(self):
         """The About sidebar listed "San Antonio, TX" and "Atlanta, GA"
         as location pills, two paragraphs above the approved statement
-        saying the business is based in Georgia."""
+        saying the business is based in Georgia.
+
+        2026-10-06: exactly one "Atlanta, GA" is now expected — the
+        temporary A2P registered-agent address in the footer (see
+        core/site_facts.py A2P_FOOTER_ADDRESS), a postal address, not a
+        location-pill claim. Still zero-tolerance for San Antonio, and
+        for any SECOND "Atlanta, GA" appearing anywhere else.
+        """
         html = self.client.get('/about/').content.decode()
         self.assertNotIn('San Antonio, TX', html)
-        self.assertNotIn('Atlanta, GA', html)
+        self.assertEqual(html.count('Atlanta, GA'), 1)
+        self.assertIn('8735 Dunwoody', html)
         self.assertIn('Based in Warner Robins, GA', html)
 
     def test_law_firm_metadata_does_not_promise_bar_compliance(self):
@@ -213,13 +221,18 @@ class LocationStatementTests(TestCase):
         """The contact page listed "San Antonio, TX · Atlanta, GA" under a
         "Locations" heading -- the most literal possible contradiction of
         the approved statement, on the page a prospect checks precisely to
-        find out where the company is."""
+        find out where the company is.
+
+        2026-10-06: see test_credential_pills_do_not_contradict_the_
+        location_statement above — one "Atlanta, GA" now expected from
+        the temporary A2P footer address, not a location-pill claim.
+        """
         from core.site_facts import LOCATION_STATEMENT
 
         html = self.client.get('/contact/').content.decode()
         self.assertIn(LOCATION_STATEMENT, html)
         self.assertNotIn('San Antonio, TX', html)
-        self.assertNotIn('Atlanta, GA', html)
+        self.assertEqual(html.count('Atlanta, GA'), 1)
 
 
 class ContractLocationTests(TestCase):

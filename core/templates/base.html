@@ -282,6 +282,12 @@
                     <span aria-hidden="true">·</span>
                     <a href="{% url 'core:refund_policy' %}">Refund Policy</a>
                 </nav>
+                {% comment %}
+                TEMPORARY — see core/site_facts.py site_facts() for the
+                full note. Remove this block (and A2P_FOOTER_ADDRESS)
+                once the A2P 10DLC campaign is approved.
+                {% endcomment %}
+                {% if A2P_FOOTER_ADDRESS %}<div class="footer-note">{{ A2P_FOOTER_ADDRESS }}</div>{% endif %}
                 <div>Hand-coded in Georgia. Serving clients nationwide.</div>
             </div>
         </div>

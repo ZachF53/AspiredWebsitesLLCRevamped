@@ -457,10 +457,20 @@ GHL_API_VERSION = env('GHL_API_VERSION', '2021-07-28')
 # Where the full submission goes when the GHL push fails for any reason
 # (outage, 4xx/5xx, timeout) — a GHL outage must never cost a lead.
 LEAD_FALLBACK_EMAIL = env('LEAD_FALLBACK_EMAIL', 'zacherylong@aspiredwebsites.com')
-# key -> GHL custom-field id. Empty until Zach creates the fields in GHL
-# and supplies the ids; outreach.ghl falls back to {"key": ...} (works,
-# but "id" is the documented-reliable route) until this is populated.
-GHL_CUSTOM_FIELD_IDS = {}
+# key -> GHL custom-field id. outreach.ghl falls back to {"key": ...}
+# for any key not listed here. Verified live against the GHL API
+# 2026-10-06 — these five cover the callback form's custom fields
+# (also used by the contact form for landing_page/referrer/phone_raw,
+# which both forms share). The contact form's remaining custom fields
+# (utm_*, gclid, fbclid, project_type, etc.) don't have GHL field ids
+# yet and still go by key.
+GHL_CUSTOM_FIELD_IDS = {
+    'best_time': 'E2gTC20sWQ16yws9grne',
+    'source_page': 'Y0cG2nqqaus15J1wCUw7',
+    'landing_page': 'H5m4yChjx6VA03ablgPJ',
+    'referrer': 'VWUKBnZWteaU1xWtYG0D',
+    'phone_raw': '6EPNyqnrWd7XlkBRHKcH',
+}
 
 
 # ── Google APIs ─────────────────────────────────────────────────────────────

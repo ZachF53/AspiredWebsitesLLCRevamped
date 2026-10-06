@@ -1098,6 +1098,8 @@ def callback_request(request):
         return _silently_pretend_success(request)
 
     lead = form.save_as_lead(ip_address=ip or None)
+    source_page = request.POST.get('source_page', '')
+    _push_callback_to_ghl(lead, form.cleaned_data, source_page)
     best = CallbackForm.BEST_TIME_LABELS.get(
         form.cleaned_data.get('best_time', ''), 'As soon as possible')
     send_mail(
@@ -1167,16 +1169,60 @@ def _push_lead_to_ghl(lead, cleaned):
         'lead_message': cleaned.get('message', ''),
         'sms_consent': 'true' if cleaned.get('sms_consent') else 'false',
     }
+    first_name, last_name = ghl_client.split_name(lead.attorney_name)
     try:
         contact_id, trace_id = ghl_client.sync_lead_to_ghl(
-            first_name=lead.attorney_name,
+            first_name=first_name,
+            last_name=last_name,
             email=lead.email,
             phone_raw=lead.phone,
             company_name=lead.firm_name,
             custom_fields=custom_fields,
+            source='website-contact-form',
+            tag='website-lead',
         )
     except ghl_client.GHLError as exc:
         logger.error('GHL push failed for lead id=%s: %s', lead.id, exc)
+        FailedLeadSubmission.objects.create(
+            lead=lead,
+            payload=getattr(exc, 'payload', {}),
+            error=str(exc)[:2000],
+        )
+        _send_ghl_fallback_email(lead, str(exc))
+        return
+
+    lead.ghl_contact_id = contact_id
+    lead.pushed_to_ghl_at = timezone.now()
+    lead.save(update_fields=['ghl_contact_id', 'pushed_to_ghl_at'])
+
+
+def _push_callback_to_ghl(lead, cleaned, source_page):
+    """
+    Push a "call me back" submission to GoHighLevel, tagged
+    'callback-request' — the GHL workflow fires on that tag, not on
+    anything else, so a push that creates/updates the contact but
+    fails to tag it is still treated as a full failure (see
+    outreach.ghl.sync_lead_to_ghl). Never raises — same fallback-email
+    + FailedLeadSubmission safety net as _push_lead_to_ghl.
+    """
+    custom_fields = {
+        'best_time': cleaned.get('best_time', ''),
+        'source_page': (source_page or '')[:500],
+        'landing_page': cleaned.get('landing_page', ''),
+        'referrer': cleaned.get('referrer', ''),
+    }
+    first_name, last_name = ghl_client.split_name(lead.attorney_name)
+    try:
+        contact_id, trace_id = ghl_client.sync_lead_to_ghl(
+            first_name=first_name,
+            last_name=last_name,
+            phone_raw=lead.phone,
+            custom_fields=custom_fields,
+            source='website-callback-form',
+            tag='callback-request',
+        )
+    except ghl_client.GHLError as exc:
+        logger.error('GHL callback push failed for lead id=%s: %s', lead.id, exc)
         FailedLeadSubmission.objects.create(
             lead=lead,
             payload=getattr(exc, 'payload', {}),

@@ -18,6 +18,14 @@ page can include this partial without view changes.
         </div>
         <input type="hidden" name="form_timestamp" value="{% signed_form_timestamp %}">
         <input type="hidden" name="source_page" value="{{ request.path }}">
+        {% comment %}
+        UTM/attribution — populated by core/static/js/utm_capture.js,
+        matched by `name` (not id, since this partial can be included
+        on the same page as the main contact form, which has its own
+        identically-named hidden inputs).
+        {% endcomment %}
+        <input type="hidden" name="landing_page" value="">
+        <input type="hidden" name="referrer" value="">
         <div class="form-group">
             <label for="cb_name">Name <span class="required" aria-hidden="true">*</span></label>
             <input id="cb_name" name="name" type="text" class="form-control" autocomplete="name" required maxlength="255">
@@ -28,11 +36,20 @@ page can include this partial without view changes.
         </div>
         <div class="form-group">
             <label for="cb_best_time">Best time (optional)</label>
+            {% comment %}
+            Option VALUES are byte-exact to GHL's best_time custom
+            field (verified live 2026-10-06) — plain ASCII hyphens,
+            not en dashes, value == label exactly. GHL silently drops
+            a value that doesn't match an existing option: HTTP 200,
+            nothing written, no error anywhere. Do not "clean up" this
+            formatting without re-verifying against GHL.
+            {% endcomment %}
             <select id="cb_best_time" name="best_time" class="form-control">
-                <option value="">As soon as possible</option>
-                <option value="morning">Morning (8am&ndash;12pm)</option>
-                <option value="afternoon">Afternoon (12pm&ndash;5pm)</option>
-                <option value="evening">Evening (5pm&ndash;8pm)</option>
+                <option value="">Choose one (optional)</option>
+                <option value="As soon as possible">As soon as possible</option>
+                <option value="Morning (8am-12pm)">Morning (8am-12pm)</option>
+                <option value="Afternoon (12pm-5pm)">Afternoon (12pm-5pm)</option>
+                <option value="Evening (5pm-8pm)">Evening (5pm-8pm)</option>
             </select>
         </div>
         <button type="submit" class="btn-primary">Call me back</button>
