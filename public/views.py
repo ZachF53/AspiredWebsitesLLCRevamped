@@ -1153,6 +1153,12 @@ def _push_lead_to_ghl(lead, cleaned):
         'fbclid': cleaned.get('fbclid', ''),
         'landing_page': cleaned.get('landing_page', ''),
         'referrer': cleaned.get('referrer', ''),
+        # Business qualifiers (Sept 2026, plan M-4.06) — describe the
+        # business calling in, as opposed to the project_type/etc.
+        # block below which describes the website project itself.
+        'trade': cleaned.get('trade', ''),
+        'trucks': cleaned.get('trucks', ''),
+        'software': (cleaned.get('software') or '').strip(),
         'project_type': cleaned.get('project_type', ''),
         'budget_range': cleaned.get('budget_range', ''),
         'timeline': cleaned.get('timeline', ''),

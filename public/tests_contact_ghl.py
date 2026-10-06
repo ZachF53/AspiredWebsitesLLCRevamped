@@ -154,6 +154,22 @@ class ContactGhlIntegrationTests(TestCase):
 
     @patch('public.views._form_age_seconds', return_value=(10, True))
     @patch('outreach.ghl.sync_lead_to_ghl')
+    def test_trade_trucks_software_forwarded_as_custom_fields(
+            self, mock_sync, mock_age):
+        """Regression: these three (Sept 2026, plan M-4.06) were being
+        folded into Lead.inquiry_text but never reached the GHL
+        customFields list — caught 2026-10-05."""
+        mock_sync.return_value = ('ghl-contact-6', 'trace-6')
+        self.client.post(reverse('public:contact'), data=self._payload(
+            trade='HVAC', trucks='2-5', software='ServiceTitan',
+        ))
+        custom_fields = mock_sync.call_args.kwargs['custom_fields']
+        self.assertEqual(custom_fields['trade'], 'HVAC')
+        self.assertEqual(custom_fields['trucks'], '2-5')
+        self.assertEqual(custom_fields['software'], 'ServiceTitan')
+
+    @patch('public.views._form_age_seconds', return_value=(10, True))
+    @patch('outreach.ghl.sync_lead_to_ghl')
     def test_honeypot_submission_never_reaches_ghl(self, mock_sync, mock_age):
         """Spam layers run before the GHL push — a bot must never
         consume a GHL API call or create a FailedLeadSubmission."""
