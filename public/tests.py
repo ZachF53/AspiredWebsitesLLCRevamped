@@ -414,7 +414,7 @@ class AnalyticsPIIGuardTests(TestCase):
     def test_phone_param_is_refused(self):
         from core.analytics import PIIInEventError, queue_event
         with self.assertRaises(PIIInEventError):
-            queue_event(self._request(), 'x', who='210-896-2536')
+            queue_event(self._request(), 'x', who='210-201-0375')
 
     def test_ordinary_values_pass(self):
         from core.analytics import pop_events, queue_event

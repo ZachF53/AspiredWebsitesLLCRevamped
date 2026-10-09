@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         # Account.visible_plan_tiers (per-client plan visibility) and
         # touches none of the legacy owner FKs dropped below. Promoting
         # this against a stale parent would branch the migration graph.
-        ('clients', '0075_account_visible_plan_tiers'),
+        ('clients', '0076_aspired_own_account_phone'),
     ]
 
     operations = [

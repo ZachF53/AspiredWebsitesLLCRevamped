@@ -49,7 +49,7 @@ ASPIRED_REGISTRANT = {
     'state_province': 'GA',
     'postal_code': '30350',
     'country': 'US',
-    'phone': '+1.2108962536',
+    'phone': '+1.2102010375',
     'email_address': 'zacherylong@aspiredwebsites.com',
 }
 

@@ -105,8 +105,8 @@ BUILD_GUARANTEE_SHORT = '30-Day Guarantee'
 
 # Phone. A San Antonio number that rings in Warner Robins; explained
 # wherever it is shown so the 210 area code doesn't read as a Texas office.
-PHONE_DISPLAY = '(210) 896-2536'
-PHONE_TEL = '+12108962536'
+PHONE_DISPLAY = '(210) 201-0375'
+PHONE_TEL = '+12102010375'
 PHONE_NOTE = 'A San Antonio number that rings in Warner Robins, GA'
 
 

@@ -1021,7 +1021,7 @@ class SettingsFormFieldsTests(TestCase):
         self.assertEqual(ASPIRED_REGISTRANT['state_province'], 'GA')
         self.assertEqual(ASPIRED_REGISTRANT['postal_code'], '30350')
         self.assertEqual(ASPIRED_REGISTRANT['country'], 'US')
-        self.assertEqual(ASPIRED_REGISTRANT['phone'], '+1.2108962536')
+        self.assertEqual(ASPIRED_REGISTRANT['phone'], '+1.2102010375')
         self.assertEqual(
             ASPIRED_REGISTRANT['email_address'],
             'zacherylong@aspiredwebsites.com')

@@ -540,7 +540,7 @@ class StructuredDataTests(TestCase):
     def test_organization_uses_master_record_nap(self):
         org = next(n for n in self._blocks('/')[0]['@graph']
                    if n['@type'] == 'ProfessionalService')
-        self.assertEqual(org['telephone'], '+1-210-896-2536')
+        self.assertEqual(org['telephone'], '+1-210-201-0375')
         self.assertEqual(org['email'], 'zacherylong@aspiredwebsites.com')
         self.assertEqual(org['address']['addressLocality'], 'Warner Robins')
         self.assertEqual(org['address']['addressRegion'], 'GA')

@@ -971,7 +971,7 @@ def contact(request):
             form.add_error(
                 None,
                 'You’ve sent too many messages from this network in the last hour. '
-                'Please try again later or call/text us directly at 210-896-2536.',
+                'Please try again later or call/text us directly at 210-201-0375.',
             )
         elif form.is_valid():
             # Layer 3 — content classifier. Runs on validated form
@@ -1267,7 +1267,7 @@ def _send_lead_auto_reply(lead):
         f'Hi {lead.attorney_name},\n\n'
         f'Thanks for reaching out. I got your message and will be back in touch '
         f'within 24 hours.\n\n'
-        f'In the meantime, feel free to call or text me directly at 210-896-2536.\n\n'
+        f'In the meantime, feel free to call or text me directly at 210-201-0375.\n\n'
         f'Zachery Long\n'
         f'Aspired Websites LLC\n'
         f'aspiredwebsites.com\n'
@@ -1329,7 +1329,7 @@ def audit(request):
             form.add_error(
                 None,
                 'You’ve run too many audits in the last hour. '
-                'Please try again later or call us at 210-896-2536 for a manual review.',
+                'Please try again later or call us at 210-201-0375 for a manual review.',
             )
         elif form.is_valid():
             url = form.cleaned_data['url']
@@ -1517,7 +1517,7 @@ def _run_pagespeed_audit(url):
     except requests.Timeout:
         raise _PageSpeedError(
             'The audit took too long. Try again in a moment, '
-            'or send us the URL directly at 210-896-2536.'
+            'or send us the URL directly at 210-201-0375.'
         )
     except requests.RequestException:
         raise _PageSpeedError(
@@ -1751,7 +1751,7 @@ def login_page(request):
         if rate_limited:
             error = (
                 'Too many login attempts. Please try again later, '
-                'or call 210-896-2536 if you’re locked out.'
+                'or call 210-201-0375 if you’re locked out.'
             )
         else:
             email = (request.POST.get('email') or '').strip()

@@ -221,7 +221,7 @@ def proposal_send(request, proposal_id):
         f"<strong>{business}</strong>. You can also view it online:</p>"
         f"<p><a href='{view_url}'>View proposal</a></p>"
         f"<p>It's good for 30 days. Reply to this email or "
-        f"call/text 210-896-2536 with any questions.</p>"
+        f"call/text 210-201-0375 with any questions.</p>"
         f"<p>— Zachery Long<br>"
         f"Aspired Websites LLC</p>"
     )

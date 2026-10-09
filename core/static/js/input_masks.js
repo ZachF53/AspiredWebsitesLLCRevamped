@@ -24,7 +24,7 @@
     function formatPhone(value) {
         var digits = (value || '').replace(/\D/g, '');
         // Drop a leading US country code (autofill often hands us
-        // "+12108962536") so it doesn't get mistaken for the area code.
+        // "+12102010375") so it doesn't get mistaken for the area code.
         if (digits.length === 11 && digits.charAt(0) === '1') {
             digits = digits.slice(1);
         }
