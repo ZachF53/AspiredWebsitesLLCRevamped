@@ -11,11 +11,13 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Re-pointed at the current leaf. 0075 added
-        # Account.visible_plan_tiers (per-client plan visibility) and
-        # touches none of the legacy owner FKs dropped below. Promoting
-        # this against a stale parent would branch the migration graph.
-        ('clients', '0076_aspired_own_account_phone'),
+        # Re-pointed at the current leaf. 0076/0077 are the Oct 2026
+        # phone-number change (Account.phone, then the legacy
+        # ClientProfile.phone mirror); 0075 added
+        # Account.visible_plan_tiers. None of them touch the legacy owner
+        # FKs dropped below. Promoting this against a stale parent would
+        # branch the migration graph.
+        ('clients', '0077_legacy_profile_phone'),
     ]
 
     operations = [
