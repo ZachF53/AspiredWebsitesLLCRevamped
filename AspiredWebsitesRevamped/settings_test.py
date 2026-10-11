@@ -107,5 +107,16 @@ INSTANTLY_TOKEN = ''
 # real contact in the live sub-account. Caught when a routine full-suite
 # run logged 5 live "GHL upsert ok" lines with real GHL trace ids.
 GHL_API_KEY = ''
+# 2026-10-10 — same class of bug, and this one bills per call. Apify is
+# pay-per-event: a test that reaches the live API starts a real actor run
+# and spends real money off a $29/month plan. tests_apify.py happened to
+# override the token per-test, so nothing had leaked yet, but that was a
+# property of those tests rather than of the settings — any new test that
+# forgot would have paid for the lesson.
+APIFY_TOKEN = ''
+EMAIL_VERIFY_API_KEY = ''
+EMAIL_VERIFY_PROVIDER = ''
+BRAVE_SEARCH_API_KEY = ''
+GOOGLE_PAGESPEED_API_KEY = ''
 MOONIEFUL_SYNC_SECRET = 'test-moonieful-sync-secret'
 VAULT_SERVER_SECRET = 'test-vault-server-secret'

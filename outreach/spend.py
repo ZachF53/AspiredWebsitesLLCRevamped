@@ -126,7 +126,34 @@ def check_spend_allowed(now=None):
 # before the ledger exists to bound it.
 
 def apify_runs_today(now=None):
-    """Apify actor runs started today. 0 until the §3 ledger exists."""
+    """Billable Apify actor runs started today.
+
+    Counts only rows that represent a real actor run. Two kinds of
+    ``ApifyRun`` row do not, and counting them was wrong in opposite
+    directions of harmless:
+
+    ``refused``
+        The guard rejected the run before any HTTP call. Nothing started
+        and nothing was billed, but the row still consumed a slot — which
+        is self-reinforcing, because once the cap is hit every further
+        refusal writes another row and pushes the counter further past
+        it. ``apify_source._month_to_date_cost()`` already excludes these
+        from the DOLLAR ledger; the count ledger disagreeing with it was
+        simply an oversight.
+
+    ``billable=False``
+        A free dataset import — ``import_from_dataset`` reads an existing
+        dataset, which Apify does not bill and which starts no actor.
+
+    ``billable`` is a stored flag rather than something inferred from the
+    row. An earlier version of this fix guessed at it ("no run id and no
+    estimated cost"), which also matched a real run still in flight and
+    would have let an extra run past the cap. A money guard should not
+    guess.
+
+    Observed 2026-10-10: 6 rows for the day, of which 3 were billable
+    runs, and a $0.44 authorised scrape was blocked by the other 3.
+    """
     try:
         from outreach.models import ApifyRun  # §3 builds this
     except ImportError:
@@ -141,6 +168,9 @@ def apify_runs_today(now=None):
         return ApifyRun.objects.filter(
             started_at__gte=start,
             started_at__lt=start + datetime.timedelta(days=1),
+            billable=True,
+        ).exclude(
+            status='refused',
         ).count()
     except Exception:  # noqa: BLE001
         logger.exception('apify_runs_today: could not read ApifyRun')
