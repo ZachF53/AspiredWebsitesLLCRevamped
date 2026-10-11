@@ -286,6 +286,9 @@ def import_from_dataset(dataset_id, label='', target_state=None,
         # at zero so this import does not double-count against the
         # monthly budget.
         estimated_cost_usd=Decimal('0'),
+        # Reading a dataset starts no actor, so it must not consume a
+        # slot in the runs-per-day quota either.
+        billable=False,
     )
     try:
         items = _fetch_dataset(token, dataset_id)

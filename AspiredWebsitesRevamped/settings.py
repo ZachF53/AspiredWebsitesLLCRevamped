@@ -584,7 +584,41 @@ APIFY_MAX_TOTAL_CHARGE_USD = float(env('APIFY_MAX_TOTAL_CHARGE_USD', 0.50))
 # The account's whole plan allowance. The FREE plan is $5/month; this is
 # the ceiling apify_source refuses to cross, independent of the per-day
 # run quota in OutreachSettings.
+#
+# NOTE: the live account (aspired-domains) is on STARTER / tier BRONZE at
+# $29/month as of 2026-10-10, so this default is conservative on purpose —
+# the .env value is what actually applies.
 APIFY_MONTHLY_BUDGET_USD = float(env('APIFY_MONTHLY_BUDGET_USD', 5.00))
+
+# ── Apify — Google Maps sourcing (outreach/apify_maps.py) ──────────────
+# compass/crawler-google-places, "Google Maps Scraper". A DIFFERENT actor
+# from APIFY_LEADS_ACTOR_ID above and a different kind of source: it
+# returns a BUSINESS per row (name, address, phone, rating, reviews) and
+# NEVER an email address. It exists to reach the one segment the contact
+# database structurally cannot — businesses with no website at all.
+APIFY_MAPS_ACTOR_ID = env(
+    'APIFY_MAPS_ACTOR_ID', 'compass~crawler-google-places')
+
+# Pay-per-event, tier BRONZE, read off the live actor 2026-10-10:
+#   place-scraped    $0.003  per place returned
+#   filter-applied   $0.001  per place, PER FILTER applied
+#   apify-actor-start $0.00005
+# So 1,000 places with the no-website filter ~= $3.00 + $1.00 = $4.00.
+# A 10-place probe run on 2026-10-10 billed $0.0152 against a $0.05
+# estimate, so these rates over-estimate slightly — which is the safe
+# direction for a budget guard.
+APIFY_MAPS_COST_PER_PLACE_USD = float(
+    env('APIFY_MAPS_COST_PER_PLACE_USD', 0.003))
+APIFY_MAPS_COST_PER_FILTER_USD = float(
+    env('APIFY_MAPS_COST_PER_FILTER_USD', 0.001))
+
+# The Maps actor REFUSES a run whose maxTotalChargeUsd is below this, with
+# HTTP 400 max-total-charge-usd-below-minimum. It is a ceiling, not a
+# charge — a 10-place run still bills ~$0.015 under a $0.50 cap — but the
+# request fails outright if we send less, so it is a floor we must respect
+# rather than a number we are free to tune down.
+APIFY_MAPS_MIN_MAX_CHARGE_USD = float(
+    env('APIFY_MAPS_MIN_MAX_CHARGE_USD', 0.50))
 # Monthly quota for the usage banner on /admin-dashboard/leads/ —
 # Brave's free tier is 1000 queries/month at 1 req/sec, then $5
 # per 1000. Override per env if you upgrade to a paid plan.
@@ -787,6 +821,50 @@ CELERY_TIMEZONE = TIME_ZONE
 # you ever need cache-side pool caps too.
 CELERY_BROKER_POOL_LIMIT = 4
 CELERY_REDIS_MAX_CONNECTIONS = 4
+
+# ── Connection budget, corrected 2026-10-10 ────────────────────────────
+#
+# The comments above describe DigitalOcean Managed Redis (18 / 65 client
+# caps). That is NOT what REDIS_URL points at any more. The live broker
+# is Redis Cloud, and its cap is harder and lower:
+#
+#     maxclients = 30        (verified against the live server)
+#
+# Measured distribution at the time, with prod and a dev laptop sharing
+# the one instance:
+#
+#     celery-worker   17  <- here
+#     daphne           3
+#     celery-beat      3
+#     gunicorn x3      3
+#     dev laptop       3
+#     ----------------------
+#     total           29 / 30
+#
+# At 26 connections for prod alone there is no headroom, and exhaustion
+# does not degrade gracefully — every `.delay()` raises
+# kombu OperationalError and the task is simply never queued.
+#
+# The worker's 17 is mostly the RESULT BACKEND: a prefork child writes
+# its result on its own connection. Nothing in this codebase reads a
+# task result. `celery_task_id` is stored only so `app.control.revoke()`
+# can cancel a scan, and revoke travels on the broker's control channel,
+# not the result backend. So every one of those connections is spent
+# storing values no code ever reads.
+CELERY_TASK_IGNORE_RESULT = True
+
+# Belt and braces: even with results ignored, a task that explicitly
+# asks for one would re-open the backend. Expire anything stored fast so
+# it cannot accumulate.
+CELERY_RESULT_EXPIRES = 300
+
+# Single-worker deployment, so the inter-worker protocols are pure cost:
+# gossip, mingle and the heartbeat each hold their own connection and
+# exist to coordinate workers that do not exist here. The matching
+# supervisor flags are --without-gossip --without-mingle
+# --without-heartbeat; these settings are the programmatic equivalent
+# for anything that starts a worker without them.
+CELERY_WORKER_SEND_TASK_EVENTS = False
 
 # Redis has no native delayed-delivery, so an `apply_async(countdown=...)`
 # message is delivered to a worker immediately and parked in memory until

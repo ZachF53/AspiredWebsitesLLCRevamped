@@ -882,6 +882,19 @@ class ApifyRun(models.Model):
     label = models.CharField(max_length=200, blank=True)
     search_input = models.JSONField(default=dict, blank=True)
 
+    # Did this row start a real, billable actor run?
+    #
+    # False for a free dataset import, which reads an existing dataset,
+    # starts no actor and is not billed. The daily runs-per-day quota in
+    # spend.apify_runs_today() counts only billable rows, and it needs to
+    # know that EXPLICITLY: inferring it from "no run id and no estimated
+    # cost" also matched a real run that was still in flight, and a money
+    # guard that guesses is the bug this field exists to prevent.
+    billable = models.BooleanField(
+        default=True,
+        help_text=('False for free dataset imports — they start no actor '
+                   'and do not count against the daily run quota.'))
+
     results_requested = models.IntegerField(default=0)
     results_returned = models.IntegerField(default=0)
     # Rows the actor billed us for and the ICP screen then discarded —
