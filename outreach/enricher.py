@@ -111,6 +111,22 @@ DIRECTORY_DOMAINS = frozenset({
     'healthgrades.com', 'zocdoc.com', 'webmd.com', 'vitals.com',
     'avvo.com', 'justia.com', 'findlaw.com', 'lawyers.com',
     'martindale.com', 'super-lawyers.com',
+    # Added 2026-10-10 after a 25-lead HVAC sample put ALL of these in
+    # Lead.website as if they were the business's own site. Mapping /
+    # data-broker / contractor-directory / lead-aggregator pages, every
+    # one of which legitimately carries the business's real name AND
+    # real phone — which is exactly why _matches_business confirmed them.
+    'mapquest.com', 'zoominfo.com', 'centralindex.com', 'procore.com',
+    'ibegin.com', 'mykukun.com', 'contractorsjunction.com',
+    'americanhomequotes.com', 'austintexaspermitsearch.com',
+    'homeadvisor.com', 'porch.com', 'houzz.com', 'nextdoor.com',
+    'buildzoom.com', 'networx.com', 'modernize.com', 'craftjack.com',
+    'dexknows.com', 'superpages.com', 'citysearch.com', 'chamberofcommerce.com',
+    'alignable.com', 'crunchbase.com', 'dnb.com', 'bizapedia.com',
+    'opencorporates.com', 'apollo.io', 'rocketreach.co', 'signalhire.com',
+    'trustpilot.com', 'birdeye.com', 'expertise.com', 'yellowbook.com',
+    'local.com', 'merchantcircle.com', 'hotfrog.com', 'brownbook.net',
+    'cylex.us.com', 'ezlocal.com', 'showmelocal.com', 'elocal.com',
 })
 
 # Free email providers — finding info@gmail.com on a business site
@@ -810,23 +826,39 @@ def _web_search_fallback(lead, log_lines):
                 # Capture the social profile in passing — match on
                 # base domain so e.g. m.facebook.com still counts.
                 base = _base_domain(domain)
+                # The handle must carry the business name too - an
+                # aggregator's own page quotes the business's name and
+                # phone, so `why` above is not enough on its own.
+                named, nwhy = _social_matches_name(url, lead.firm_name)
+                if base in ('facebook.com', 'instagram.com',
+                            'linkedin.com') and not named:
+                    log_lines.append(f'    rejected {base} {url[:48]}: {nwhy}')
+                    continue
                 if base == 'facebook.com' and not lead.facebook_url:
                     lead.facebook_url = url
-                    log_lines.append(f'    facebook ✓ ({why})')
+                    log_lines.append(f'    facebook ✓ ({why}; {nwhy})')
                 elif base == 'instagram.com' and not lead.instagram_url:
                     lead.instagram_url = url
-                    log_lines.append(f'    instagram ✓ ({why})')
+                    log_lines.append(f'    instagram ✓ ({why}; {nwhy})')
                 elif base == 'linkedin.com' and not lead.linkedin_url:
                     lead.linkedin_url = url
-                    log_lines.append(f'    linkedin ✓ ({why})')
+                    log_lines.append(f'    linkedin ✓ ({why}; {nwhy})')
                 continue
             if not ok:
                 log_lines.append(f'    rejected website {domain}: {why}')
                 continue
+            # The blocklist can never be complete, so require the domain
+            # to actually look like this business's own domain. See
+            # _domain_matches_name for why this is the real guard.
+            named, name_why = _domain_matches_name(domain, lead.firm_name)
+            if not named:
+                log_lines.append(
+                    f'    rejected website {domain}: {name_why}')
+                continue
             # First VERIFIED non-directory hit becomes the website.
             found_website = url
             lead.website = url
-            log_lines.append(f'    website ✓ {domain} ({why})')
+            log_lines.append(f'    website ✓ {domain} ({why}; {name_why})')
             break
 
     # Query 2: Facebook (only if we haven't found one yet).
@@ -846,8 +878,12 @@ def _web_search_fallback(lead, log_lines):
                 if not ok:
                     log_lines.append(f'    rejected {url[:60]}: {why}')
                     continue
+                named, nwhy = _social_matches_name(url, lead.firm_name)
+                if not named:
+                    log_lines.append(f'    rejected {url[:60]}: {nwhy}')
+                    continue
                 lead.facebook_url = url
-                log_lines.append(f'    facebook ✓ ({why})')
+                log_lines.append(f'    facebook ✓ ({why}; {nwhy})')
                 break
 
     # Query 3: Instagram (only if we haven't found one yet).
@@ -865,8 +901,12 @@ def _web_search_fallback(lead, log_lines):
                 if not ok:
                     log_lines.append(f'    rejected {url[:60]}: {why}')
                     continue
+                named, nwhy = _social_matches_name(url, lead.firm_name)
+                if not named:
+                    log_lines.append(f'    rejected {url[:60]}: {nwhy}')
+                    continue
                 lead.instagram_url = url
-                log_lines.append(f'    instagram ✓ ({why})')
+                log_lines.append(f'    instagram ✓ ({why}; {nwhy})')
                 break
 
     log_lines.append(
@@ -1076,6 +1116,72 @@ def _base_domain(domain):
     if len(parts) <= 2:
         return domain
     return '.'.join(parts[-2:])
+
+
+def _domain_matches_name(domain, firm_name):
+    """Does ``domain`` plausibly belong to ``firm_name``?
+
+    Returns ``(bool, reason)``.
+
+    THE PROBLEM THIS SOLVES
+    -----------------------
+    ``_matches_business`` asks "is this hit ABOUT the right business",
+    and a directory listing passes that test perfectly — MapQuest's page
+    for Cool Air Supply really does carry Cool Air Supply's name and
+    phone number. The phone test, the strongest signal there, actively
+    CONFIRMS it. So verification designed to catch the wrong business
+    cannot catch the wrong KIND of page.
+
+    Measured 2026-10-10 on 25 HVAC leads: 15 "websites" were found and
+    roughly 12 were directory, mapping or data-broker pages. Storing one
+    is worse than storing nothing — these leads were selected for having
+    NO website, so a false site silently drops the lead 4 scoring points
+    and invites copy that references a site the owner does not have.
+
+    THE TEST
+    --------
+    A small local business's domain is almost always built from its own
+    name: goldenservicecooling.com, eliteaustinac.com. A directory's
+    never is. So require at least one distinctive token of the business
+    name (generic trade words like "air"/"hvac"/"services" stripped by
+    ``_name_tokens``) to appear in the domain.
+
+    Deliberately fails CLOSED. A real business whose domain looks
+    nothing like its name is rare; a directory that outranks a tiny
+    business for its own name is routine. Losing a few true sites costs
+    some enrichment detail — storing a false one corrupts both the score
+    and the pitch.
+    """
+    tokens = _name_tokens(firm_name)
+    if not tokens:
+        return False, 'no distinctive tokens in the business name'
+    # Compare against the domain with punctuation stripped so
+    # "elite-austin-ac.com" and "eliteaustinac.com" behave the same.
+    blob = re.sub(r'[^a-z0-9]', '', (domain or '').lower())
+    for t in tokens:
+        if len(t) >= 4 and t in blob:
+            return True, f'domain carries name token {t!r}'
+    return False, (
+        f'domain does not carry any name token '
+        f'({", ".join(sorted(tokens)[:4])})')
+
+
+def _social_matches_name(url, firm_name):
+    """Does a social URL's handle belong to this business?
+
+    The same failure as ``_domain_matches_name``, one level down. A
+    lead-aggregator's OWN Facebook page carries the business's name and
+    phone in its post text, so ``_matches_business`` confirms it and we
+    store ``facebook.com/americanhomequotes`` as White's Heating & Air
+    Conditioning's page. Observed on 2 of 12 pages found in the
+    2026-10-10 HVAC sample.
+
+    The domain is always facebook.com here, so the handle is what has to
+    carry the name: ``CoolAirSupplySA`` does, ``mykukun`` does not.
+    """
+    from urllib.parse import urlparse
+    path = (urlparse(url).path or '')
+    return _domain_matches_name(path, firm_name)
 
 
 def _is_directory_domain(domain):
