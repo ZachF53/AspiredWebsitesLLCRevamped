@@ -97,6 +97,22 @@ def import_leads(scraped_data, source, business_type_override=None):
                 source=source,
                 founded_year=raw.get('founded_year'),
                 practice_areas=(raw.get('practice_areas') or '').strip(),
+                # Both mappers build these and neither was persisted.
+                # Silent, because a dict key this never reads looks
+                # identical to a source that did not supply one.
+                #
+                # apify_maps._place_note carries the Google category,
+                # rating summary, unclaimed-profile flag, 24-hour flag,
+                # placeId and the Maps URL -- i.e. every checkable fact
+                # the opener and the call script are meant to draw on.
+                # 532 leads were imported on 2026-10-11 with all of it
+                # discarded.
+                #
+                # apify_source._contact_note carries job title, practice
+                # areas, tenure and company size, and that path also
+                # supplies linkedin_url.
+                notes=(raw.get('notes') or '').strip(),
+                linkedin_url=(raw.get('linkedin_url') or '').strip(),
             )
             results['imported'] += 1
 

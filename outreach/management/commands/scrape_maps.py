@@ -58,6 +58,13 @@ class Command(BaseCommand):
             '--dataset-id', default='',
             help='Import an existing Apify dataset instead of scraping. Free.')
         parser.add_argument(
+            '--category', default='hvac',
+            help=("Google business-category filter. 'hvac' uses the "
+                  "built-in HVAC list, 'none' disables it, or pass a "
+                  "comma-separated list of exact Google categories. "
+                  "Filtering on Google's own category is what stops a "
+                  "free-text niche bleeding into another trade."))
+        parser.add_argument(
             '--fallback-city', default='',
             help=('City stamped on service-area businesses, which Maps '
                   'returns with no address at all. Defaults to the first '
@@ -78,6 +85,15 @@ class Command(BaseCommand):
             raise CommandError(
                 '--business-type cannot be blank: import_leads would stamp '
                 'these leads "Law Firm".')
+
+        cat = (opts['category'] or '').strip().lower()
+        if cat in ('none', 'off', ''):
+            categories = None
+        elif cat == 'hvac':
+            categories = apify_maps.HVAC_CATEGORIES
+        else:
+            categories = [c.strip() for c in opts['category'].split(',')
+                          if c.strip()]
 
         if opts['with_website'] and opts['all_places']:
             raise CommandError(
@@ -101,7 +117,8 @@ class Command(BaseCommand):
                     business_type=business_type,
                     website_filter=website_filter,
                     fallback_city=fallback_city,
-                    fallback_state=opts['state'])
+                    fallback_state=opts['state'],
+                    categories=categories)
             except ApifyError as exc:
                 raise CommandError(str(exc))
             self._import(leads, ledger, business_type)
@@ -115,7 +132,8 @@ class Command(BaseCommand):
         # ── Cost preview, always ──────────────────────────────────────
         _, n_filters = apify_maps.build_actor_input(
             niche=opts['niche'], city=cities[0], state=opts['state'],
-            max_places=opts['max_results'], website_filter=website_filter)
+            max_places=opts['max_results'], website_filter=website_filter,
+            categories=categories)
         per_city = apify_maps.estimate_cost_usd(
             opts['max_results'], n_filters)
         total_est = per_city * len(cities)
@@ -127,6 +145,8 @@ class Command(BaseCommand):
         w(f'  state          : {opts["state"]}')
         w(f'  business_type  : {business_type}')
         w(f'  website filter : {website_filter}')
+        w(f'  category filter: '
+          f'{", ".join(categories)[:60] if categories else "(none)"}')
         w(f'  max per city   : {opts["max_results"]}')
         w(f'  filters applied: {n_filters}  '
           f'(billed per place, per filter)')
@@ -159,7 +179,8 @@ class Command(BaseCommand):
                     niche=opts['niche'], city=city, state=opts['state'],
                     max_results=opts['max_results'],
                     website_filter=website_filter,
-                    business_type=business_type)
+                    business_type=business_type,
+                    categories=categories)
             except ApifyQuotaReached as exc:
                 w(warn(f'  quota reached: {exc}'))
                 w(warn('  stopping — later cities would hit the same gate.'))

@@ -349,3 +349,64 @@ class FindPagesTests(TestCase):
     def test_missing_brave_key_is_a_clear_error(self):
         with self.assertRaises(fb.FacebookContactError):
             fb.find_facebook_pages([make_lead()])
+
+
+class BatchingTests(TestCase):
+    """The actor silently truncates a large input list.
+
+    Measured 2026-10-12: 194 pages submitted, run finished in 11
+    seconds, 54 rows returned, no error reported anywhere. Nothing in
+    the response distinguishes "no contact info on this page" from
+    "this page was never looked at", so the truncation reads downstream
+    as a poor hit rate rather than a failure.
+    """
+
+    @override_settings(APIFY_TOKEN='tok', APIFY_MAX_TOTAL_CHARGE_USD=0.5)
+    def test_large_input_is_split_into_batches(self):
+        urls = [f'https://www.facebook.com/page{i}/' for i in range(120)]
+        sizes = []
+
+        def fake_start(token, batch, timeout):
+            sizes.append(len(batch))
+            return {'id': f'r{len(sizes)}', 'status': 'SUCCEEDED',
+                    'defaultDatasetId': 'd1', 'usageTotalUsd': 0.01}
+
+        with patch.object(fb, '_start_and_wait', fake_start), \
+                patch.object(fb, '_fetch_dataset', return_value=[]):
+            fb.fetch_page_contacts(urls)
+
+        self.assertEqual(sizes, [50, 50, 20])
+        self.assertTrue(all(s <= fb.FB_MAX_PAGES_PER_RUN for s in sizes))
+
+    @override_settings(APIFY_TOKEN='tok', APIFY_MAX_TOTAL_CHARGE_USD=0.5)
+    def test_rows_from_every_batch_are_returned(self):
+        urls = [f'https://www.facebook.com/page{i}/' for i in range(75)]
+        calls = {'n': 0}
+
+        def fake_fetch(token, ds):
+            calls['n'] += 1
+            return [{'pageUrl': f'https://www.facebook.com/b{calls["n"]}/',
+                     'title': 'x', 'email': 'a@b.com'}]
+
+        with patch.object(fb, '_start_and_wait', return_value={
+                    'id': 'r', 'status': 'SUCCEEDED',
+                    'defaultDatasetId': 'd', 'usageTotalUsd': 0.01}), \
+                patch.object(fb, '_fetch_dataset', fake_fetch):
+            items, _ = fb.fetch_page_contacts(urls)
+        # Two batches, one row each -- not just the last batch's rows.
+        self.assertEqual(len(items), 2)
+
+    @override_settings(APIFY_TOKEN='tok', APIFY_MAX_TOTAL_CHARGE_USD=0.5)
+    def test_small_input_still_runs_as_one_batch(self):
+        sizes = []
+
+        def fake_start(token, batch, timeout):
+            sizes.append(len(batch))
+            return {'id': 'r', 'status': 'SUCCEEDED',
+                    'defaultDatasetId': 'd', 'usageTotalUsd': 0.01}
+
+        with patch.object(fb, '_start_and_wait', fake_start), \
+                patch.object(fb, '_fetch_dataset', return_value=[]):
+            fb.fetch_page_contacts(
+                [f'https://www.facebook.com/p{i}/' for i in range(10)])
+        self.assertEqual(sizes, [10])

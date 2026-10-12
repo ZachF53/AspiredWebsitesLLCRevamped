@@ -45,7 +45,22 @@ class DomainMatchesNameTests(TestCase):
             ok, why = _domain_matches_name(domain, firm)
             self.assertFalse(ok, f'{domain} should not match {firm}: {why}')
 
-    def test_known_limitation_a_trade_word_in_the_domain_fools_it(self):
+    def test_trade_word_directories_are_now_rejected(self):
+        """The 2026-10-11 fix. Each of these was stored as a lead's own
+        website by the previous version, which rejected 0 of 30."""
+        for domain, firm in (
+            ('autorepairscore.com', 'Santiago Auto Repair'),
+            ('simpletire.com', 'CPS Tire & Muffler Shop'),
+            ('automd.com', 'Budget Auto Repair'),
+            ('mysanantonio.com', 'San Antonio AC Repair'),
+            ('tireshopnearme.net', 'Menchaca Tire Shop'),
+            ('maps.roadtrippers.com', 'On The Road Again'),
+            ('heating-equipment-cleaning.com', 'Top Shot AC and Heating'),
+        ):
+            ok, why = _domain_matches_name(domain, firm)
+            self.assertFalse(ok, f'{domain} should not match {firm}: {why}')
+
+    def test_superseded_limitation_trade_word_in_the_domain(self):
         """The name guard alone is NOT sufficient. This is why the
         blocklist still exists.
 
@@ -62,9 +77,11 @@ class DomainMatchesNameTests(TestCase):
         So the two mechanisms are complementary, and a directory that
         slips past this one must be caught by DIRECTORY_DOMAINS.
         """
+        # Superseded: 'contractor' is now in _DOMAIN_GENERIC_TOKENS, so
+        # this is rejected rather than merely blocklisted.
         ok, _ = _domain_matches_name(
             'contractorsjunction.com', 'B7 Contractor Services LLC')
-        self.assertTrue(ok, 'documents the limitation; see the blocklist')
+        self.assertFalse(ok)
 
     def test_the_blocklist_covers_what_the_name_guard_misses(self):
         from outreach.enricher import _is_directory_domain
@@ -73,16 +90,42 @@ class DomainMatchesNameTests(TestCase):
         self.assertTrue(_is_directory_domain('zoominfo.com'))
 
     def test_accepts_a_genuine_business_domain(self):
+        # The surname is what identifies the business.
         ok, why = _domain_matches_name(
-            'eliteaustinac.com', 'Austin HVAC Repair Experts-HVAC')
+            'whitehvac.com', "White's Heating & Air Conditioning")
         self.assertTrue(ok, why)
-        self.assertIn('austin', why)
+        self.assertIn('white', why)
 
     def test_ignores_punctuation_in_the_domain(self):
-        # elite-austin-ac.com and eliteaustinac.com are the same claim.
+        # blue-sky-hvac.com and blueskyhvac.com are the same claim.
         ok, _ = _domain_matches_name(
-            'elite-austin-ac.com', 'Austin HVAC Repair Experts')
+            'blue-sky-heating.com', 'Blue Sky Heating and Air')
         self.assertTrue(ok)
+
+    def test_the_cost_of_strictness_is_real_false_negatives(self):
+        """Documents what the 2026-10-11 tightening gives up.
+
+        Both of these are GENUINE business domains that are now
+        rejected, because every token of the business name is a trade
+        word, a qualifier or a city:
+
+            eliteaustinac.com   <- "Austin HVAC Repair Experts"
+            thompsonshvac.com   <- "Thomson Heating and Air" (and the
+                                   spelling differs besides)
+
+        That is the accepted trade: before tightening, the guard
+        rejected 0 of 30 directory domains, including a NEWS SITE
+        (mysanantonio.com) stored as a lead's own website. For leads
+        sourced precisely BECAUSE they have no website, a guessed one
+        is pure downside -- losing a real site costs some enrichment
+        detail, keeping a false one corrupts the score and the pitch.
+        """
+        for domain, firm in (
+            ('eliteaustinac.com', 'Austin HVAC Repair Experts'),
+            ('thompsonshvac.com', 'Thomson Heating and Air'),
+        ):
+            ok, _ = _domain_matches_name(domain, firm)
+            self.assertFalse(ok, f'{domain} is a known false negative')
 
     def test_unrelated_domain_is_rejected_for_a_trade_named_business(self):
         # thecoolestservice.com was stored for a business literally named
@@ -91,18 +134,29 @@ class DomainMatchesNameTests(TestCase):
         ok, _ = _domain_matches_name('thecoolestservice.com', 'Hvac services')
         self.assertFalse(ok)
 
-    def test_business_whose_every_token_is_too_short_fails_closed(self):
-        # 'Air Services' -> 'services' is generic, 'air' is 3 chars and
-        # the floor is 4, so nothing is left to match on and the guard
-        # refuses rather than accepting anything.
+    def test_business_whose_every_token_is_generic_fails_closed(self):
+        # 'Air Services' -> both words are trade vocabulary, so nothing
+        # identifying is left and the guard refuses rather than
+        # accepting whatever domain happened to rank first.
         ok, why = _domain_matches_name('anything.com', 'Air Services')
         self.assertFalse(ok)
-        self.assertIn('does not carry any name token', why)
+        self.assertIn('entirely generic', why)
+
+    def test_short_distinctive_token_still_cannot_match(self):
+        # A surviving token under 4 chars is too collision-prone to
+        # confirm a domain on.
+        ok, why = _domain_matches_name('b7cps.com', 'B7 Cooling')
+        self.assertFalse(ok)
 
     def test_business_with_only_generic_tokens_fails_closed(self):
         ok, why = _domain_matches_name('anything.com', 'The Law Firm LLC')
         self.assertFalse(ok)
-        self.assertIn('no distinctive tokens', why)
+        self.assertIn('generic', why)
+
+    def test_business_of_only_trade_words_fails_closed(self):
+        ok, why = _domain_matches_name('anything.com', 'Budget Auto Repair')
+        self.assertFalse(ok)
+        self.assertIn('entirely generic', why)
 
     def test_short_tokens_do_not_match(self):
         # A 2-3 char token like 'jp' or 'b7' appears inside unrelated

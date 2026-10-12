@@ -430,3 +430,152 @@ class RunsPerDayCountingTests(TestCase):
         self._row(status='failed', apify_run_id='REAL2',
                   estimated_cost_usd=Decimal('0.50'))
         self.assertEqual(spend.apify_runs_today(), 1)
+
+
+class CategoryFilterTests(TestCase):
+    """Filtering on Google's OWN category, not a free-text phrase.
+
+    2026-10-11: the phrase "air conditioning repair" returned AUTOMOTIVE
+    A/C shops. 42 of 66 imported leads were tyre places, transmissions,
+    collision repair and mobile mechanics -- all stamped HVAC because
+    the operator passed --business-type HVAC. Google categorises those
+    as "Auto repair shop", never as an HVAC trade, so the category
+    filter makes that failure impossible rather than merely unlikely.
+    """
+
+    def test_category_filter_is_sent_and_counted(self):
+        payload, n = apify_maps.build_actor_input(
+            niche='HVAC contractor', city='San Antonio', state='TX',
+            max_places=100, categories=apify_maps.HVAC_CATEGORIES)
+        self.assertIn('categoryFilterWords', payload)
+        self.assertIn('hvac contractor', payload['categoryFilterWords'])
+        # website + skipClosed + category. It costs $0.001/place more and
+        # the count must reflect that or the estimate under-reports.
+        self.assertEqual(n, 3)
+
+    def test_no_categories_means_no_filter_and_no_charge(self):
+        payload, n = apify_maps.build_actor_input(
+            niche='x', city='y', skip_closed=False, categories=None)
+        self.assertNotIn('categoryFilterWords', payload)
+        self.assertEqual(n, 1)   # website only
+
+    def test_screen_rejects_an_automotive_place(self):
+        # The exact shape that got through on 2026-10-11.
+        row = dict(PLACE_ROW, title='CD Tire and Auto Repair',
+                   categoryName='Auto repair shop',
+                   categories=['Auto repair shop', 'Tire shop'])
+        why = apify_maps.screen_place(
+            row, categories=apify_maps.HVAC_CATEGORIES)
+        self.assertIn('not an HVAC trade', why)
+
+    def test_screen_keeps_a_real_hvac_place(self):
+        self.assertEqual(
+            apify_maps.screen_place(
+                PLACE_ROW, categories=apify_maps.HVAC_CATEGORIES), '')
+
+    def test_screen_accepts_a_secondary_hvac_category(self):
+        # categoryName is the primary label; a place whose primary is
+        # something odd but which also lists an HVAC category is kept.
+        row = dict(PLACE_ROW, categoryName='Contractor',
+                   categories=['Contractor', 'Heating contractor'])
+        self.assertEqual(
+            apify_maps.screen_place(
+                row, categories=apify_maps.HVAC_CATEGORIES), '')
+
+    def test_category_screen_is_off_when_no_categories_requested(self):
+        row = dict(PLACE_ROW, categoryName='Auto repair shop',
+                   categories=['Auto repair shop'])
+        self.assertEqual(apify_maps.screen_place(row), '')
+
+    def test_missing_category_data_does_not_reject(self):
+        # Absence of a measurement is not evidence of a problem -- the
+        # same rule the state screen follows.
+        row = dict(PLACE_ROW, categoryName=None, categories=[])
+        self.assertEqual(
+            apify_maps.screen_place(
+                row, categories=apify_maps.HVAC_CATEGORIES), '')
+
+
+class CategoryEnumTests(TestCase):
+    """categoryFilterWords is a STRICT enum, not free text.
+
+    'HVAC contractor' in Title Case is rejected with HTTP 400
+    invalid-input before the run starts -- it failed all 7 cities on
+    2026-10-11. The validation is strict enough that a wrong value costs
+    nothing, but a typo silently costs a whole batch of work.
+    """
+
+    def test_every_category_is_lowercase(self):
+        for c in apify_maps.HVAC_CATEGORIES:
+            self.assertEqual(c, c.lower(), f'{c!r} must be lowercase')
+
+    def test_the_automotive_category_is_excluded(self):
+        # The enum offers 'auto air conditioning service'. Including it
+        # would re-import the tyre shops and transmission places that
+        # the category filter exists to exclude.
+        self.assertNotIn('auto air conditioning service',
+                         apify_maps.HVAC_CATEGORIES)
+        for c in apify_maps.HVAC_CATEGORIES:
+            self.assertNotIn('auto', c)
+
+    def test_the_core_trade_categories_are_present(self):
+        for want in ('hvac contractor', 'air conditioning contractor',
+                     'heating contractor'):
+            self.assertIn(want, apify_maps.HVAC_CATEGORIES)
+
+    def test_screen_accepts_the_lowercase_enum_values(self):
+        # The post-fetch re-check compares case-insensitively, so it must
+        # still pass with the enum spelling.
+        row = dict(PLACE_ROW, categoryName='HVAC contractor')
+        self.assertEqual(
+            apify_maps.screen_place(
+                row, categories=apify_maps.HVAC_CATEGORIES), '')
+
+    def test_screen_rejects_automotive_ac(self):
+        row = dict(PLACE_ROW, title='Joe Auto AC',
+                   categoryName='Auto air conditioning service',
+                   categories=['Auto air conditioning service'])
+        self.assertIn('not an HVAC trade', apify_maps.screen_place(
+            row, categories=apify_maps.HVAC_CATEGORIES))
+
+
+class NotesPersistenceTests(TestCase):
+    """import_leads must persist the mapper's notes and linkedin_url.
+
+    It did not, and the loss was silent: a dict key the creator never
+    reads looks exactly like a source that did not supply one. 532 leads
+    were imported on 2026-10-11 with every Google-Maps detail discarded
+    -- category, rating summary, unclaimed-profile flag, placeId and the
+    Maps URL -- which only surfaced because an export column came out
+    empty for every row.
+    """
+
+    def test_notes_survive_import(self):
+        from outreach.pipeline import import_leads
+        lead_dict = apify_maps.map_place_to_lead(
+            PLACE_ROW, business_type='HVAC')
+        self.assertTrue(lead_dict['notes'], 'mapper must build notes')
+        import_leads([lead_dict], source='google_maps',
+                     business_type_override='HVAC')
+        saved = Lead.objects.get()
+        self.assertEqual(saved.notes, lead_dict['notes'])
+        self.assertIn('Maps:', saved.notes)
+        self.assertIn('Category:', saved.notes)
+
+    def test_linkedin_url_survives_import(self):
+        from outreach.pipeline import import_leads
+        import_leads([{
+            'firm_name': 'Someone LLC',
+            'linkedin_url': 'https://www.linkedin.com/company/someone',
+            'notes': 'Title: Owner',
+        }], source='apify', business_type_override='HVAC')
+        saved = Lead.objects.get()
+        self.assertEqual(saved.linkedin_url,
+                         'https://www.linkedin.com/company/someone')
+        self.assertEqual(saved.notes, 'Title: Owner')
+
+    def test_missing_notes_is_blank_not_an_error(self):
+        from outreach.pipeline import import_leads
+        import_leads([{'firm_name': 'No Notes Co'}], source='google_maps',
+                     business_type_override='HVAC')
+        self.assertEqual(Lead.objects.get().notes, '')
