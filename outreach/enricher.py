@@ -127,6 +127,16 @@ DIRECTORY_DOMAINS = frozenset({
     'trustpilot.com', 'birdeye.com', 'expertise.com', 'yellowbook.com',
     'local.com', 'merchantcircle.com', 'hotfrog.com', 'brownbook.net',
     'cylex.us.com', 'ezlocal.com', 'showmelocal.com', 'elocal.com',
+    # Added 2026-10-11. The homepage scrape harvested each of these
+    # sites' OWN support address and stored it as the lead's email:
+    # support.bestof@hearst.com (the San Antonio Express-News'
+    # publisher), help@nears.me, support@roadtrippers.com. Clearing the
+    # bogus website afterwards did NOT clear the email it had already
+    # taken, so a directory domain has to be blocked for both.
+    'hearst.com', 'nears.me', 'roadtrippers.com', 'wheree.com',
+    'localt.com', 'autostoday.com', 'autorepairscore.com', 'automd.com',
+    'autotechiq.com', 'simpletire.com', 'tireshopnearme.net',
+    'repair-auto.org', 'business.site', 'hub.biz', 'mysanantonio.com',
 })
 
 # Free email providers — finding info@gmail.com on a business site
@@ -808,8 +818,20 @@ def _web_search_fallback(lead, log_lines):
     # business rate on the Facebook path — see _matches_business.
 
     # Query 1: find the firm's website.
+    #
+    # OFF by default. For a lead sourced because Google Maps reports no
+    # website, Maps has already answered this authoritatively -- running
+    # the search can only overwrite a correct blank with a guess, and on
+    # 2026-10-11 it did exactly that 30 times out of 30 (MapQuest,
+    # ZoomInfo, a newspaper). Yield across the whole batch: 0 kept.
     q1 = f'{name} {location}'.strip()
-    if queries_made < WEB_SEARCH_MAX_PER_LEAD:
+    want_website = getattr(settings, 'BRAVE_SEARCH_WEBSITE_FALLBACK', False)
+    if not want_website:
+        log_lines.append(
+            '  Q1 website search: skipped '
+            '(BRAVE_SEARCH_WEBSITE_FALLBACK off - Maps already says '
+            'there is no website)')
+    if want_website and queries_made < WEB_SEARCH_MAX_PER_LEAD:
         results = _brave_search(q1, api_key)
         queries_made += 1
         log_lines.append(f'  Q1 "{q1}" → {len(results)} hits')
@@ -886,8 +908,13 @@ def _web_search_fallback(lead, log_lines):
                 log_lines.append(f'    facebook ✓ ({why}; {nwhy})')
                 break
 
-    # Query 3: Instagram (only if we haven't found one yet).
-    if (not lead.instagram_url
+    # Query 3: Instagram.
+    #
+    # OFF by default: 7 profiles found across the batch and not one
+    # produced an email or anything else actionable, against one paid
+    # query per lead.
+    if (getattr(settings, 'BRAVE_SEARCH_INSTAGRAM', False)
+            and not lead.instagram_url
             and queries_made < WEB_SEARCH_MAX_PER_LEAD):
         time.sleep(BRAVE_INTER_QUERY_DELAY)
         q3 = f'{name} {location} instagram'.strip()
@@ -1118,7 +1145,47 @@ def _base_domain(domain):
     return '.'.join(parts[-2:])
 
 
-def _domain_matches_name(domain, firm_name):
+# Words that identify a TRADE, a PLACE or a service, not a particular
+# business. Used ONLY by _domain_matches_name -- _matches_business needs
+# several of these to keep working, which is why the two lists are
+# separate rather than one widened list.
+#
+# Every entry below produced a real false match on 2026-10-11: generic
+# directory domains built from trade words ('autorepairscore.com',
+# 'simpletire.com', 'tireshopnearme.net') and city-named media sites
+# ('mysanantonio.com') were all accepted as a lead's own website.
+_DOMAIN_GENERIC_TOKENS = frozenset({
+    # trades and services
+    'auto', 'autos', 'automotive', 'tire', 'tires', 'muffler', 'brake',
+    'brakes', 'transmission', 'collision', 'mechanic', 'mechanical',
+    'truck', 'trucks', 'trailer', 'wheel', 'wheels', 'alignment',
+    'radiator', 'towing', 'detailing', 'hybrid', 'paint', 'body',
+    'heating', 'cooling', 'air', 'conditioning', 'conditioner', 'hvac',
+    'refrigeration', 'refrigerated', 'furnace', 'plumbing', 'plumber',
+    'electric', 'electrical', 'electrician', 'roofing', 'roofer',
+    'landscaping', 'lawn', 'cleaning', 'cleaners', 'construction',
+    'contractor', 'contractors', 'installer', 'installation', 'parts',
+    'maintenance', 'repair', 'repairs', 'shop', 'store', 'supply',
+    'equipment', 'mobile', 'home', 'homes', 'house', 'comfort',
+    'climate', 'temperature', 'energy', 'quality',
+    # qualifiers and filler
+    'best', 'top', 'pro', 'pros', 'expert', 'experts', 'master',
+    'masters', 'quick', 'fast', 'speedy', 'affordable', 'cheap',
+    'discount', 'budget', 'premier', 'premium', 'elite', 'superior',
+    'reliable', 'trusted', 'local', 'near', 'nearme', 'me', 'my',
+    'allstar', 'star', 'stars', '24', '247', 'hour', 'hours', 'day',
+    'night', 'emergency', 'residential', 'commercial', 'family',
+    'brothers', 'sons', 'team', 'crew', 'guys', 'men', 'road',
+    'roads', 'service', 'services', 'care', 'center', 'centre',
+    # places -- a city name in a domain says nothing about ownership,
+    # and mysanantonio.com is a newspaper
+    'texas', 'tx', 'usa', 'america', 'american', 'san', 'antonio',
+    'austin', 'houston', 'dallas', 'worth', 'bexar', 'alamo',
+    'georgia', 'atlanta', 'north', 'south', 'east', 'west', 'central',
+})
+
+
+def _domain_matches_name(domain, firm_name, stopwords=None):
     """Does ``domain`` plausibly belong to ``firm_name``?
 
     Returns ``(bool, reason)``.
@@ -1152,17 +1219,39 @@ def _domain_matches_name(domain, firm_name):
     some enrichment detail — storing a false one corrupts both the score
     and the pitch.
     """
-    tokens = _name_tokens(firm_name)
+    # _name_tokens strips law/dental/medical boilerplate only, which is
+    # nowhere near enough HERE. Measured 2026-10-11 against 30 stored
+    # websites: it rejected ZERO, because trade words read as
+    # distinctive. 'autorepairscore.com' matched "Santiago Auto Repair"
+    # on 'auto'; 'simpletire.com' matched "CPS Tire & Muffler" on
+    # 'tire'; and 'mysanantonio.com' -- a NEWS SITE -- matched "San
+    # Antonio AC Repair" on 'antonio'.
+    #
+    # So this uses its own, much wider stop list. It is NOT shared with
+    # _matches_business, which needs these words to keep working.
+    # Social handles are routinely BUILT from trade words
+    # ('hvacexpresscontracting', 'homeacrepairsa'), so
+    # _social_matches_name passes the narrow set instead. Using the wide
+    # list there rejected genuine pages.
+    stop = _DOMAIN_GENERIC_TOKENS if stopwords is None else stopwords
+    tokens = {t for t in _name_tokens(firm_name) if t not in stop}
     if not tokens:
-        return False, 'no distinctive tokens in the business name'
+        # Nothing identifying is left, so no domain can be confirmed.
+        # Fails CLOSED: for a lead sourced precisely BECAUSE it has no
+        # website, a guessed one is pure downside -- it destroys the
+        # premise, drops the score by 4, and invites copy referencing a
+        # site the owner does not have.
+        return False, (
+            'business name is entirely generic/trade words, so no '
+            'domain can be confirmed')
     # Compare against the domain with punctuation stripped so
     # "elite-austin-ac.com" and "eliteaustinac.com" behave the same.
     blob = re.sub(r'[^a-z0-9]', '', (domain or '').lower())
-    for t in tokens:
+    for t in sorted(tokens, key=len, reverse=True):
         if len(t) >= 4 and t in blob:
             return True, f'domain carries name token {t!r}'
     return False, (
-        f'domain does not carry any name token '
+        f'domain does not carry any distinctive name token '
         f'({", ".join(sorted(tokens)[:4])})')
 
 
@@ -1181,7 +1270,8 @@ def _social_matches_name(url, firm_name):
     """
     from urllib.parse import urlparse
     path = (urlparse(url).path or '')
-    return _domain_matches_name(path, firm_name)
+    # Narrow stop list on purpose -- see _domain_matches_name.
+    return _domain_matches_name(path, firm_name, stopwords=frozenset())
 
 
 def _is_directory_domain(domain):

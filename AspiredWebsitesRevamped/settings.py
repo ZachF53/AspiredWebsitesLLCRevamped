@@ -624,6 +624,25 @@ APIFY_MAPS_MIN_MAX_CHARGE_USD = float(
 # per 1000. Override per env if you upgrade to a paid plan.
 BRAVE_SEARCH_MONTHLY_LIMIT = int(env('BRAVE_SEARCH_MONTHLY_LIMIT', '1000'))
 
+# ── Which Brave queries the enricher actually runs ─────────────────────
+# The fallback used to fire three queries per lead (website, facebook,
+# instagram). Measured over 540 real queries on the HVAC batch:
+#
+#     Q1 website    0 kept   and every hit was a directory, data-broker
+#                            or news domain later purged. It is where
+#                            ALL of 2026-10-11's bad data came from.
+#     Q2 facebook  72 kept   every single email came from these
+#     Q3 instagram  7 kept   zero emails, ever
+#
+# So two thirds of the spend bought nothing and one third was harmful.
+#
+# Q1 is worse than useless for a lead sourced BECAUSE Google Maps says
+# it has no website: Maps already answered the question authoritatively,
+# so searching anyway can only overwrite a correct blank with a guess.
+BRAVE_SEARCH_WEBSITE_FALLBACK = env(
+    'BRAVE_SEARCH_WEBSITE_FALLBACK', 'False') == 'True'
+BRAVE_SEARCH_INSTAGRAM = env('BRAVE_SEARCH_INSTAGRAM', 'False') == 'True'
+
 
 # ── Instantly — the sending layer ──────────────────────────────────────
 #
