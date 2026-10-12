@@ -90,6 +90,9 @@ RUN_TIMEOUT_SECS = 900
 # Tier BRONZE, read off the live actor 2026-10-10.
 COST_PER_PAGE_USD = Decimal('0.01')
 COST_PER_RUN_START_USD = Decimal('0.001')
+# Largest input list the actor handles without silently dropping pages.
+# 60 was observed working in full; 194 returned 54 and ignored the rest.
+FB_MAX_PAGES_PER_RUN = 50
 
 # URL shapes that are never a business's own page. '/p/' IS the modern
 # business-page format (facebook.com/p/Name-123456) and is kept.
@@ -225,6 +228,26 @@ def fetch_page_contacts(urls, timeout_secs=RUN_TIMEOUT_SECS):
     urls = list(dict.fromkeys(u for u in urls if u))
     if not urls:
         return [], None
+
+    # The actor SILENTLY TRUNCATES a large input list. Measured
+    # 2026-10-12: 194 pages submitted, run finished in 11 seconds, 54
+    # rows returned and no error anywhere -- it simply ignored 140
+    # pages. A 60-page run the same day returned 60/60.
+    #
+    # Nothing in the response distinguishes "this page had no contact
+    # info" from "this page was never looked at", so a silent truncation
+    # reads downstream as a poor hit rate rather than as a failure. Hence
+    # batching, and hence the caller comparing rows-returned against
+    # pages-submitted.
+    if len(urls) > FB_MAX_PAGES_PER_RUN:
+        all_items, last = [], None
+        for i in range(0, len(urls), FB_MAX_PAGES_PER_RUN):
+            chunk = urls[i:i + FB_MAX_PAGES_PER_RUN]
+            items, last = fetch_page_contacts(chunk, timeout_secs)
+            all_items.extend(items)
+            logger.info('facebook contacts batch %s-%s: %s row(s)',
+                        i, i + len(chunk), len(items))
+        return all_items, last
 
     estimate = COST_PER_RUN_START_USD + (COST_PER_PAGE_USD * len(urls))
     ledger = ApifyRun.objects.create(

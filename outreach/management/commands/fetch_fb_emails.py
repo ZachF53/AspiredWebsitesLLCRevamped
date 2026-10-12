@@ -34,6 +34,12 @@ class Command(BaseCommand):
             '--find-only', action='store_true',
             help='Only search for pages (free). Skips the paid step.')
         parser.add_argument(
+            '--no-find', action='store_true',
+            help=('Skip Brave page discovery and only read pages already '
+                  'found. Brave is metered separately from Apify, so '
+                  'this runs the paid-but-cheap half when the Brave '
+                  'credit is nearly gone.'))
+        parser.add_argument(
             '--confirm', action='store_true',
             help='Required to run the billable extraction step.')
         parser.add_argument(
@@ -63,13 +69,20 @@ class Command(BaseCommand):
         w(f'  already have a page    : '
           f'{sum(1 for l in leads if l.facebook_url)}')
 
-        # ── Step 1: find pages (free) ─────────────────────────────────
-        w(bold('\n1. FINDING PAGES (Brave, free)'))
-        try:
-            found, checked = fb.find_facebook_pages(leads, log=w)
-        except fb.FacebookContactError as exc:
-            raise CommandError(str(exc))
-        w(f'\n  searched {checked}, found {found} new page(s)')
+        # ── Step 1: find pages (Brave — METERED, not free) ────────────
+        # Brave bills per query on its own credit, separate from Apify.
+        # --no-find runs only the extraction half, which is what you
+        # want once the Brave credit is nearly gone but pages have
+        # already been discovered.
+        if opts['no_find']:
+            w(bold('\n1. FINDING PAGES - SKIPPED (--no-find)'))
+        else:
+            w(bold('\n1. FINDING PAGES (Brave - METERED, ~$4.78/1000)'))
+            try:
+                found, checked = fb.find_facebook_pages(leads, log=w)
+            except fb.FacebookContactError as exc:
+                raise CommandError(str(exc))
+            w(f'\n  searched {checked}, found {found} new page(s)')
 
         for l in leads:
             l.refresh_from_db()
