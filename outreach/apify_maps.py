@@ -117,7 +117,7 @@ def estimate_cost_usd(n_places, n_filters=1):
 def run_maps_search(niche, city, state=None, max_results=None,
                     website_filter=WEBSITE_WITHOUT, business_type=None,
                     skip_closed=True, min_stars=None, label='',
-                    timeout_secs=RUN_TIMEOUT_SECS):
+                    timeout_secs=RUN_TIMEOUT_SECS, categories=None):
     """Scrape Google Maps via Apify, return dicts for ``import_leads``.
 
     Returns ``(leads, apify_run)``. Raises ``ApifyQuotaReached`` when a
@@ -164,7 +164,7 @@ def run_maps_search(niche, city, state=None, max_results=None,
     run_input, n_filters = build_actor_input(
         niche=niche, city=city, state=state, max_places=requested,
         website_filter=website_filter, skip_closed=skip_closed,
-        min_stars=min_stars)
+        min_stars=min_stars, categories=categories)
     estimate = estimate_cost_usd(requested, n_filters)
 
     # Guard 2 — dollars this month, against the SHARED Apify ledger.
@@ -203,7 +203,8 @@ def run_maps_search(niche, city, state=None, max_results=None,
         raise ApifyError(f'Apify Maps run failed: {exc}') from exc
 
     kept, rejected = screen_places(
-        items, target_state=state, website_filter=website_filter)
+        items, target_state=state, website_filter=website_filter,
+        categories=categories)
     for row, why in rejected:
         logger.info('Maps screen rejected %s: %s',
                     row.get('title') or '?', why)
@@ -239,7 +240,8 @@ def run_maps_search(niche, city, state=None, max_results=None,
 def import_from_dataset(dataset_id, label='', target_state=None,
                         business_type=None,
                         website_filter=WEBSITE_WITHOUT,
-                        fallback_city='', fallback_state=''):
+                        fallback_city='', fallback_state='',
+                        categories=None):
     """Import Maps places from an existing dataset — free.
 
     Dataset reads are not billed, so this is the way to re-import a run
@@ -277,7 +279,8 @@ def import_from_dataset(dataset_id, label='', target_state=None,
         raise
 
     kept, rejected = screen_places(
-        items, target_state=target_state, website_filter=website_filter)
+        items, target_state=target_state, website_filter=website_filter,
+        categories=categories)
     for row, why in rejected:
         logger.info('Maps screen rejected %s: %s',
                     row.get('title') or '?', why)
@@ -297,9 +300,47 @@ def import_from_dataset(dataset_id, label='', target_state=None,
     return leads, ledger
 
 
+# Google's OWN business categories for this trade. Filtering on these
+# is categorically safer than trusting a free-text search phrase.
+#
+# Measured 2026-10-11: the phrase "air conditioning repair" returned
+# AUTOMOTIVE A/C shops -- tire places, transmissions, collision repair,
+# mobile mechanics. 42 of 66 imported leads were auto businesses,
+# stamped business_type=HVAC because the operator passed that flag.
+# Google categorises those as "Auto repair shop", never as any of the
+# below, so a category filter makes that failure impossible rather than
+# merely unlikely.
+# EXACT values from the actor's categoryFilterWords enum, read off the
+# live build 2026-10-11. It is a strict enum: a value that is merely
+# plausible ('HVAC contractor' in Title Case) is rejected with HTTP 400
+# invalid-input before the run starts. That failed all 7 cities on the
+# first attempt -- at zero cost, which is the one mercy of strict
+# validation, but the lesson is to read the enum rather than guess it.
+#
+# NOTE what is deliberately ABSENT: the enum also offers
+# 'auto air conditioning service', which is the automotive trade that
+# polluted the 2026-10-11 run. Leaving it out is the whole point.
+HVAC_CATEGORIES = [
+    'hvac contractor',
+    'air conditioning contractor',
+    'air conditioning repair service',
+    'heating contractor',
+    'furnace repair service',
+    'central heating service',
+]
+
+# The same list, normalised, for the post-fetch re-check. The actor
+# applies the filter server-side; this confirms it held, exactly as
+# screen_place re-checks the website filter.
+_CATEGORY_OK = frozenset(c.lower() for c in HVAC_CATEGORIES) | {
+    'air conditioning system supplier', 'heating equipment supplier',
+    'air conditioning store', 'hvac contractor',
+}
+
+
 def build_actor_input(niche, city, state=None, max_places=50,
                       website_filter=WEBSITE_WITHOUT, skip_closed=True,
-                      min_stars=None):
+                      min_stars=None, categories=None):
     """Map our search terms onto the actor's input schema.
 
     Returns ``(payload, n_filters)`` — the filter count is needed for the
@@ -335,12 +376,18 @@ def build_actor_input(niche, city, state=None, max_places=50,
     if min_stars:
         payload['placeMinimumStars'] = min_stars
         n_filters += 1
+    if categories:
+        # Worth the extra $0.001/place: it is the difference between a
+        # list of HVAC contractors and a list that is 2/3 tyre shops.
+        payload['categoryFilterWords'] = list(categories)
+        n_filters += 1
     return payload, n_filters
 
 
 # ── Screen ─────────────────────────────────────────────────────────────
 
-def screen_place(item, target_state=None, website_filter=WEBSITE_WITHOUT):
+def screen_place(item, target_state=None, website_filter=WEBSITE_WITHOUT,
+                 categories=None):
     """Why this place is not wanted. '' means it is."""
     if not (item.get('title') or '').strip():
         return 'No business name.'
@@ -366,6 +413,20 @@ def screen_place(item, target_state=None, website_filter=WEBSITE_WITHOUT):
             or '').strip() and not website:
         return 'No phone and no website — no way to make contact.'
 
+    # Confirm the category filter held, the same way the website filter
+    # is re-checked above. A free-text niche that bleeds into another
+    # trade is the failure that cost 42 junk leads on 2026-10-11, and a
+    # server-side filter is only trustworthy if something verifies it.
+    if categories:
+        got = (item.get('categoryName') or '').strip().lower()
+        allc = {str(c).strip().lower()
+                for c in (item.get('categories') or []) if c}
+        if got:
+            allc.add(got)
+        if allc and not (allc & _CATEGORY_OK):
+            return (f'{item.get("title") or "Place"} is categorised '
+                    f'{got or sorted(allc)[0]!r}, not an HVAC trade.')
+
     # State is enforced when KNOWN and left to the other checks when not.
     #
     # Measured 2026-10-10 on a 100-place San Antonio run: 45 rows carried
@@ -390,14 +451,15 @@ def screen_place(item, target_state=None, website_filter=WEBSITE_WITHOUT):
 
 
 def screen_places(items, target_state=None,
-                  website_filter=WEBSITE_WITHOUT):
+                  website_filter=WEBSITE_WITHOUT, categories=None):
     """Split rows into (kept, [(row, reason), ...]). Never silent."""
     kept, rejected = [], []
     for it in items:
         if not isinstance(it, dict):
             continue
         why = screen_place(
-            it, target_state=target_state, website_filter=website_filter)
+            it, target_state=target_state, website_filter=website_filter,
+            categories=categories)
         (rejected.append((it, why)) if why else kept.append(it))
     return kept, rejected
 
