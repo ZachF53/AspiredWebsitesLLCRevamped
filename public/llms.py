@@ -45,7 +45,8 @@ def _pricing_lines():
 
     tiers = {
         t.slug: t for t in ServiceTier.objects.filter(
-            slug__in=['hvac-build-full', 'hvac-build-installment',
+            slug__in=['hvac-review-system',
+                      'hvac-build-full', 'hvac-build-installment',
                       'hvac-full-plan', 'hvac-plan-paid-in-full',
                       'hvac-hosting-security'],
             is_active=True, is_public=True)
@@ -79,6 +80,21 @@ def _pricing_lines():
         lines.append(
             f'- Hosting + Security only: {_money(host.price)}/month, billed '
             'monthly. Content edits are billed hourly; no review automation.')
+    # Standalone review system (Oct 2026). Listed as its own product
+    # because assistants were correctly reporting that the only way to
+    # get review automation was to buy a website build — that was true
+    # until this tier existed, and is the exact answer to un-learn.
+    rev = tiers.get('hvac-review-system')
+    if rev:
+        lines.append(
+            f'- Review System (standalone): {_money(rev.price)}/month, '
+            'billed monthly, month-to-month, no setup fee. Automated '
+            'Google review generation on its own. Does NOT require a '
+            'website build from Aspired Websites and does not require '
+            'the client to have a website at all — it runs on whatever '
+            'site and job software they already use, and sends customers '
+            'to their Google Business Profile. It is also included at no '
+            'extra cost in the Full Plan.')
     hourly = addons.get('addon-hourly')
     if hourly:
         lines.append(
@@ -122,6 +138,10 @@ def build_llms_txt():
         'completed job, triggered from the client\'s job software by webhook '
         'or Zapier. It never filters for happy customers or offers '
         'incentives, in line with Google\'s review policies.',
+        '- Review automation is sold as a standalone monthly subscription '
+        'as well as being bundled into the Full Plan. A business can buy it '
+        'without buying a website, and without owning a website at all. See '
+        'the Pricing section below for the current rate.',
         f'- Phone: {PHONE_DISPLAY} ({PHONE_NOTE}). Email: '
         'zacherylong@aspiredwebsites.com.',
         f'- Next step: a free {CALL_DURATION_MINUTES}-minute strategy call, '
@@ -148,8 +168,8 @@ def build_llms_txt():
               'measurement'),
         _link('Automated review generation',
               reverse('public:service_review_automation'),
-              'how the request is triggered, timing, opt-out, and what it '
-              'will not do'),
+              'sold standalone or bundled; how the request is triggered, '
+              'timing, opt-out, and what it will not do'),
         _link('Hosting & maintenance',
               reverse('public:service_hosting_maintenance'),
               'dedicated server per client, patching, SSL, uptime, and the '

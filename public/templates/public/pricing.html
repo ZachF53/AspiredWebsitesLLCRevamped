@@ -138,6 +138,51 @@ visible answers and structured data cannot drift apart.
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
 
+{% comment %}
+Standalone review system (Oct 2026). Sits between the Full Plan and
+Hosting + Security on purpose: it reads as the cheapest way in rather
+than as a feature stripped out of the plan above it. The plan still
+bundles it at no extra cost, which is stated here so the two sections
+don't look like they contradict each other.
+{% endcomment %}
+{% comment %}
+Plain `section`, not `section--alt`: Hosting + Security directly below
+is already alt, and two alt sections in a row merge into one grey slab.
+The teal accent divider above carries the separation instead.
+{% endcomment %}
+{% if review_system %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">No Website Needed</span>
+            <h2>Just Want More Reviews? Buy the Review System On Its Own</h2>
+            <p>You don&rsquo;t need a website from us to use it. It runs on the site and the job software you already have, and it&rsquo;s the same system our Full Plan clients get.</p>
+        </div>
+
+        <article class="hosting-banner card card--teal">
+            <div class="hosting-banner__lead">
+                <h3 class="card__title">{{ review_system.name }}</h3>
+                {% include "core/_price.html" with tier=review_system %}
+                <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+            </div>
+            <ul class="feature-list hosting-banner__features">
+                {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+            </ul>
+            <div class="hosting-banner__cta">
+                <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Sign Up Now</a>
+                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
+            </div>
+        </article>
+
+        <div class="callout">
+            Already on the Full Plan? You have this included &mdash; don&rsquo;t buy it twice. Buy it standalone now and add a website later and it folds into the plan at no extra cost. <a href="{% url 'public:service_review_automation' %}">How the review system works</a>.
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
 {# ───────── Hosting + Security Only ───────── #}
 {% if hosting_security %}
 <section class="section section--alt">
@@ -163,7 +208,7 @@ visible answers and structured data cannot drift apart.
         </article>
 
         <div class="callout">
-            No content edits, no code changes, no review system: that&rsquo;s the Full Plan above.
+            No content edits and no code changes: those are the Full Plan above.{% if review_system %} Want the review system with this instead of the full plan? Add it for {{ review_system.get_price_display }}.{% else %} The review system is not included either.{% endif %}
         </div>
     </div>
 </section>
@@ -178,7 +223,7 @@ visible answers and structured data cannot drift apart.
         <div class="section-header">
             <span class="eyebrow">The Whole Number</span>
             <h2>What It Costs Over Time</h2>
-            <p>The same three paths, added up. Your domain (usually $12&ndash;$20 a year, paid to your registrar) is separate.</p>
+            <p>Every path above, added up. Your domain (usually $12&ndash;$20 a year, paid to your registrar) is separate.</p>
         </div>
 
         <details class="collapse-sm" open>

@@ -42,7 +42,7 @@
                 {% elif tier.reply_handling == 'full' %}
                     <li>✓ Full reply &amp; DM management</li>
                 {% endif %}
-                {% if tier.category == 'maintenance' or tier.category == 'hosting' %}
+                {% if tier.category == 'maintenance' or tier.category == 'hosting' or tier.category == 'addon' %}
                     <li>✓ Month-to-month &mdash; cancel anytime</li>
                 {% endif %}
             </ul>
@@ -76,6 +76,23 @@
                         <li>Your account is created right away. You&rsquo;ll set a password and a 4-digit PIN, then land in your client portal.</li>
                         <li>We contact you within 24 hours to plan moving your site onto our servers. If the move needs hands-on work, we quote it first{% if hourly_display %} ({{ hourly_display }}){% endif %} and nothing starts until you approve.</li>
                         <li>Once your site is running on our servers, your monthly security report arrives by email on the 1st of each month.</li>
+                    </ol>
+                </div>
+            {% endif %}
+            {% comment %}
+            Standalone Review System buyers (Oct 2026) are the one
+            self-checkout group who may have no website with us at all,
+            so the steps have to say what setup actually involves on
+            their side: Google profile access and one trigger wired into
+            whatever job software they already run.
+            {% endcomment %}
+            {% if tier.slug == 'hvac-review-system' %}
+                <div class="checkout-next">
+                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <ol class="checkout-next__steps">
+                        <li>Your account is created right away. You&rsquo;ll set a password and a 4-digit PIN, then land in your client portal.</li>
+                        <li>We contact you within 24 hours to connect your Google Business Profile and wire the trigger into your job software. You don&rsquo;t need a website from us.</li>
+                        <li>From then on, marking a job complete is the only thing your team does. The review request goes out on its own.</li>
                     </ol>
                 </div>
             {% endif %}

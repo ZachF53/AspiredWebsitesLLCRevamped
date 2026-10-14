@@ -34,7 +34,7 @@ Optional: pass hide_offer=True to drop the offer summary.
                 <div class="trust-block__offer">
                     <ul class="bullet-list">
                         <li>One custom-coded build{% if build_full %}: {{ build_full.get_price_display }}{% if build_installment %} or {{ build_installment.get_price_display }}{% endif %}{% endif %}</li>
-                        <li>Full Plan with automated review generation</li>
+                        <li>Automated review generation{% if review_system %}: {{ review_system.get_price_display }} on its own, or free in the Full Plan{% else %}, on its own or in the Full Plan{% endif %}</li>
                         <li>You own the code once it&rsquo;s paid off</li>
                     </ul>
                     <p class="trust-block__links">

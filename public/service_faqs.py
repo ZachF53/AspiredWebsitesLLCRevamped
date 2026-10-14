@@ -55,8 +55,30 @@ def web_design_faqs(build_full=None, build_installment=None):
     ]
 
 
-def review_automation_faqs():
+def review_automation_faqs(review_system=None, plan_paid_in_full=None):
+    """``review_system`` is the standalone hvac-review-system tier (Oct
+    2026). Its price is read live, never hardcoded, and every sentence
+    that quotes it degrades to a price-free version if the row is
+    missing — a half-rendered "on its own for /month" would be worse
+    than a vaguer true sentence."""
+    rev = money(review_system.price) if review_system else ''
+    ppf = money(plan_paid_in_full.price) if plan_paid_in_full else ''
     return [
+        ('How much does the review system cost?',
+         (f'{rev}/month on its own, month-to-month, cancel anytime. That '
+          'is the whole price: no setup fee and no contract. It is also '
+          'included at no extra cost in the Full Plan'
+          + (f' ({ppf}/month), ' if ppf else ', ')
+          + 'which adds the website, hosting and unlimited content '
+          'updates on top.') if rev else
+         ('Sold on its own month-to-month, and included at no extra cost '
+          'in the Full Plan. The pricing page has the current number.')),
+        ('Do I need a website from you to use it?',
+         'No. It runs on whatever website you already have, and it works '
+         'with no website at all: the request sends your customer straight '
+         'to your Google Business Profile, which is where the review gets '
+         'left either way. Plenty of good contractors have a dated site or '
+         'nothing but a Google listing. This still works for them.'),
         ('How do HVAC companies get more Google reviews?',
          'By asking every customer, every time, while the job is fresh, '
          'which is the step busy crews forget. Automating the request '
@@ -87,9 +109,23 @@ def review_automation_faqs():
          'Selective or paid-for asking is what gets profiles penalized; asking '
          'everyone consistently is what keeps you inside the rules.'),
         ('Is review automation sold on its own?',
-         'No. It is included in the Full Plan alongside hosting, maintenance '
-         'and unlimited content updates. The pricing page has the full '
-         'breakdown.'),
+         (f'Yes. {rev}/month, month-to-month, with no website build '
+          'required. It is also bundled into the Full Plan at no extra '
+          'cost, so if you buy a build later you stop paying for it '
+          'separately. The pricing page has the full breakdown.') if rev else
+         ('Yes, month-to-month, with no website build required. It is '
+          'also bundled into the Full Plan at no extra cost. The pricing '
+          'page has the full breakdown.')),
+        ('What do you need from me to get it running?',
+         'Access to your Google Business Profile so the request can link '
+         'to the right place, and one trigger wired into the job or '
+         'scheduling software you already use, which we set up with you in '
+         'the first week. After that, marking a job complete is the only '
+         'thing your team ever does.'),
+        ('Can I cancel?',
+         'Any time, month-to-month, 30 days’ notice. There is no contract '
+         'and no setup fee to write off, so there is nothing to argue '
+         'about on the way out.'),
     ]
 
 

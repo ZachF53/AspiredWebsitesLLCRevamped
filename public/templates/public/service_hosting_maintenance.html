@@ -116,7 +116,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
         <div class="section-header">
             <span class="eyebrow">Two Ways To Run It</span>
             <h2>Hosting Alone, Or The Full Plan</h2>
-            <p>Both are month-to-month. The difference is whether content updates and automated review generation are bundled in, or content edits are billed as needed.</p>
+            <p>Both are month-to-month. The difference is whether content updates and automated review generation are bundled in, or content edits are billed as needed.{% if review_system %} On Hosting + Security you can still add the review system on its own for {{ review_system.get_price_display }}.{% endif %}</p>
         </div>
 
         <div class="cards cards--2col">
@@ -129,6 +129,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
                         {% endfor %}
                     </ul>
                     {% if hourly_display %}<p>Content edits are quoted first at {{ hourly_display }}/hour and invoiced after the work is done. No surprise invoices.</p>{% endif %}
+                    {% if review_system %}<p>Want reviews running too? Add the <a href="{% url 'public:service_review_automation' %}">review system</a> for {{ review_system.get_price_display }} without moving to the Full Plan.</p>{% endif %}
                     <p><a class="btn-primary" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a></p>
                 </article>
             {% endif %}

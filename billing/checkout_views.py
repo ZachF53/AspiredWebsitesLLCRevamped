@@ -205,12 +205,22 @@ def _stripe_error_message(exc, fallback='Your payment could not be '
 # upsell on a maintenance checkout.
 SELF_CHECKOUT_HOSTING_SLUGS = ('hvac-hosting-security',)
 
+# The standalone $97/mo Review System (Oct 2026). Allowlisted by slug for
+# the same reason the hosting tiers are: 'addon' also covers the annual
+# domain-registration tiers, which are NOT self-checkout-able and must
+# stay on the schedule-a-call path.
+SELF_CHECKOUT_ADDON_SLUGS = ('hvac-review-system',)
+
 
 def _tier_allows_selfcheckout(tier):
     """Web design tiers DO NOT allow self-checkout — they go through
-    the Schedule a Call page. Monthly hosting does."""
+    the Schedule a Call page. Monthly hosting and the monthly standalone
+    add-ons do."""
     if tier.category == 'hosting':
         return (tier.slug in SELF_CHECKOUT_HOSTING_SLUGS
+                and tier.billing_interval == 'month')
+    if tier.category == 'addon':
+        return (tier.slug in SELF_CHECKOUT_ADDON_SLUGS
                 and tier.billing_interval == 'month')
     return tier.category in ('maintenance', 'social_media')
 
@@ -219,8 +229,14 @@ def _provision_product_type(tier):
     """Which onboarding / plan-row shape a self-checkout sale gets.
     Hosting + Security buyers bring a site they already have, so they
     get the maintenance onboarding (hosting-panel access etc.) and a
-    MaintenancePlan row carrying the hosting tier slug."""
-    return 'maintenance' if tier.category == 'hosting' else tier.category
+    MaintenancePlan row carrying the hosting tier slug.
+
+    Standalone Review System buyers bring even less — often no site of
+    ours at all — and ride the same maintenance shape: MaintenancePlan
+    already supports a null website plus an external_site_url, which is
+    exactly the record a reviews-only customer needs."""
+    return ('maintenance' if tier.category in ('hosting', 'addon')
+            else tier.category)
 
 
 def _legacy_hosting_tier():

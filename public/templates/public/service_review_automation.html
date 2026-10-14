@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Automated Review Generation for HVAC | Aspired Websites{% endblock %}
+{% block title %}Automated Google Review System for HVAC{% if review_system %} — {{ review_system.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
 
-{% block meta_description %}Every completed HVAC job triggers a Google review request by text and email, automatically. No technician or office manager has to remember to ask.{% endblock %}
+{% block meta_description %}Every completed HVAC job triggers a Google review request by text and email, automatically.{% if review_system %} {{ review_system.get_price_display }}, no website build required.{% else %} No technician or office manager has to remember to ask.{% endif %}{% endblock %}
 
-{% block og_title %}Automated Review Generation for HVAC | Aspired Websites{% endblock %}
-{% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% endblock %}
+{% block og_title %}Automated Google Review System for HVAC{% if review_system %} — {{ review_system.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
+{% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% if review_system %} Sold on its own at {{ review_system.get_price_display }}.{% endif %}{% endblock %}
 
 {% comment %}
 Organisation entity, canonical and og:image come from base.html (D8).
@@ -21,8 +21,27 @@ Organisation entity, canonical and og:image come from base.html (D8).
     "name": "Automated Review Generation for HVAC Contractors",
     "url": "{{ CANONICAL_URL }}",
     "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
-    "description": "Automated Google review request system for HVAC contractors, included with the Full Plan. Every completed job triggers a review request automatically.",
-    "offers": {% if plan_paid_in_full %}{
+    "description": "Automated Google review request system for HVAC contractors, sold on its own or included with the Full Plan. Every completed job triggers a review request automatically.",
+    {% comment %}
+    Oct 2026: the standalone tier is now the primary offer, so it leads
+    the array and the Full Plan follows as the bundled alternative.
+    Before this the only Offer was the plan price, which told Google the
+    cheapest way to buy this was the plan — no longer true.
+    {% endcomment %}
+    "offers": [{% if review_system %}{
+        "@type": "Offer",
+        "name": "{{ review_system.name }} (standalone)",
+        "price": "{{ review_system.price|floatformat:0 }}",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock",
+        "url": "{{ SITE_BASE_URL }}{% url 'billing:checkout_page' review_system.slug %}",
+        "priceSpecification": {
+            "@type": "UnitPriceSpecification",
+            "price": "{{ review_system.price|floatformat:0 }}",
+            "priceCurrency": "USD",
+            "unitText": "MONTH"
+        }
+    }{% endif %}{% if review_system and plan_paid_in_full %},{% endif %}{% if plan_paid_in_full %}{
         "@type": "Offer",
         "name": "Included in the Full Plan",
         "price": "{{ plan_paid_in_full.price|floatformat:0 }}",
@@ -33,7 +52,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
             "priceCurrency": "USD",
             "unitText": "MONTH"
         }
-    }{% else %}{ "@type": "Offer", "priceCurrency": "USD" }{% endif %}
+    }{% endif %}{% if not review_system and not plan_paid_in_full %}{ "@type": "Offer", "priceCurrency": "USD" }{% endif %}]
 }
 </script>
 <script type="application/ld+json">{{ faq_schema }}</script>
@@ -51,13 +70,31 @@ Organisation entity, canonical and og:image come from base.html (D8).
             <p class="hero__lead">
                 A completed job automatically triggers a review request. No
                 technician has to remember to ask, and no office manager has
-                to chase it down afterward.
+                to chase it down afterward.{% if review_system %} It runs on the website
+                and job software you already have, for {{ review_system.get_price_display }}.{% endif %}
             </p>
+            {% comment %}
+            Oct 2026: this page used to sell the Full Plan, because the
+            review system was only reachable by buying one. It is its own
+            $97/mo product now, so the primary CTA is checkout and the
+            plan became the secondary "or get it bundled" path.
+            {% endcomment %}
             <div class="hero__ctas">
-                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
-                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See the Full Plan</a>
+                {% if review_system %}
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start for {{ review_system.get_price_display }}</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Or Book a Free 30-Minute Call</a>
+                {% else %}
+                    <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+                {% endif %}
             </div>
-            <p class="hero__meta">Included in the Full Plan &middot; Not sold on its own</p>
+            <p class="hero__meta">
+                {% if review_system %}
+                    No website build required &middot; Month-to-month &middot; Also included free in the Full Plan
+                {% else %}
+                    No website build required &middot; Month-to-month
+                {% endif %}
+            </p>
         </div>
     </div>
 </section>
@@ -118,6 +155,65 @@ Organisation entity, canonical and og:image come from base.html (D8).
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+Pricing (Oct 2026). The review system is sold on its own here rather
+than only on /pricing/, because this is the page that ranks and gets
+linked for "automated review requests" — a visitor who has just read
+how it works should be able to buy it without first being routed
+through a website-build pricing page. Both prices come from the live
+ServiceTier rows; the whole section is skipped if the standalone row
+is missing, so the page never shows an empty price.
+{% endcomment %}
+{% if review_system %}
+<section class="section section--alt" id="pricing">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Pricing</span>
+            <h2>{{ review_system.get_price_display }}, On Its Own</h2>
+            <p>No website build required, no setup fee, no contract. It works with the site and the job software you already have.</p>
+        </div>
+
+        <div class="cards cards--2col">
+            <article class="card card--pricing card--featured">
+                <span class="card__badge">Standalone</span>
+                <h3 class="card__title">{{ review_system.name }}</h3>
+                {% include "core/_price.html" with tier=review_system %}
+                <p class="card__price-meta">Billed monthly &middot; cancel anytime</p>
+                <ul class="feature-list">
+                    {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                </ul>
+                <div class="hero__ctas">
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Sign Up Now</a>
+                    <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
+                </div>
+            </article>
+
+            <article class="card card--pricing">
+                <h3 class="card__title">Already Want a Website Too?</h3>
+                {% if plan_paid_in_full %}
+                    {% include "core/_price.html" with tier=plan_paid_in_full %}
+                    <p class="card__price-meta">The Full Plan &middot; review system included free</p>
+                {% endif %}
+                <ul class="feature-list">
+                    <li>Everything in the review system, at no extra cost</li>
+                    <li>A custom-coded website built for your trades</li>
+                    <li>Hosting on your own dedicated server</li>
+                    <li>Unlimited routine content updates</li>
+                    <li>Security patching and a monthly security report</li>
+                </ul>
+                <div class="hero__ctas">
+                    <a class="btn-secondary" href="{% url 'public:pricing' %}">See the Full Plan</a>
+                </div>
+            </article>
+        </div>
+
+        <p class="pricing-note">Buy the review system now and add a website later and you stop paying for reviews separately. It folds into the Full Plan at no extra cost.</p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
 
 {% comment %}
 "How it connects" (plan D-08 / M-5.06). Every row is owner-supplied in
@@ -230,11 +326,19 @@ requests fall under TCPA consent rules.
     <div class="container">
         <div class="cta-block">
             <h2>Want Reviews Building Up Without Chasing Them Down?</h2>
-            <p>A free 30-minute call to walk through how it fits with your build.</p>
-            <div class="hero__ctas">
-                <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
-                <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See the Full Plan</a>
-            </div>
+            {% if review_system %}
+                <p>Start for {{ review_system.get_price_display }} and have requests going out this week. Or book a free 30-minute call first and we&rsquo;ll check it works with your job software before you pay anything.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start for {{ review_system.get_price_display }}</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a>
+                </div>
+            {% else %}
+                <p>A free 30-minute call to walk through how it fits with your business.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+                </div>
+            {% endif %}
         </div>
     </div>
 </section>

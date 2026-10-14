@@ -99,7 +99,8 @@ quote it rather than guess:</p>
   <li><strong>Out-of-scope work.</strong> $85/hour, quoted and approved before it
   starts and invoiced after, for anything outside the original build.</li>
   <li><strong>Reviews.</strong> Being found first in the map pack comes from review
-  count and recency as much as the build. Automated review generation is included in
+  count and recency as much as the build. Automated review generation is $97/month
+  on its own, with no website build required, and it is included at no extra cost in
   the Full Plan; see <a href="/services/review-automation/">how it works</a>.</li>
 </ul>
 

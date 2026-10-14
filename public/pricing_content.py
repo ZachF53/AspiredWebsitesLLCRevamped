@@ -37,9 +37,14 @@ def _price(tier):
 
 
 def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
-               hosting_security):
+               hosting_security, review_system=None):
     """Rows for the "What it costs over time" table, or [] if a tier is
-    missing (a half-built table would be worse than none)."""
+    missing (a half-built table would be worse than none).
+
+    ``review_system`` is optional: when the standalone tier exists it
+    adds a fourth, build-free path (reviews only, no website from us)
+    and lets the Hosting + Security row name the price of adding it,
+    rather than only saying what that plan lacks."""
     full = _price(build_full)
     inst = _price(build_installment)
     fp = _price(full_plan)
@@ -47,6 +52,7 @@ def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
     host = _price(hosting_security)
     if None in (full, inst, fp, ppf, host):
         return {'rows': [], 'savings': None}
+    rev = _price(review_system)
 
     months = INSTALLMENT_MONTHS
     rows = [
@@ -78,19 +84,35 @@ def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
             'total_24': full + host * months,
             'total_36': full + host * (months + 12),
             'includes': 'Site, hosting, security patching, monthly security '
-                        'report. Content edits billed hourly; no review system',
+                        'report. Content edits billed hourly'
+                        + (f'. Review system can be added for {money(rev)}/mo'
+                           if rev else '; no review system'),
         },
     ]
+    # Savings is build-path-to-build-path, so it's computed before the
+    # reviews-only row is appended (that row has no build in it at all).
+    savings = rows[1]['total_24'] - rows[0]['total_24']
+    if rev:
+        rows.append({
+            'path': 'Review system only',
+            'at_signing': rev,
+            'at_signing_note': f'first {money(rev)} month',
+            'monthly': f'{money(rev)}/mo',
+            'total_24': rev * months,
+            'total_36': rev * (months + 12),
+            'includes': 'Automated Google review requests on the website '
+                        'and job system you already have. No build, no '
+                        'hosting, no website needed from us',
+        })
     for row in rows:
         for key in ('at_signing', 'total_24', 'total_36'):
             row[f'{key}_display'] = money(row[key])
-    savings = rows[1]['total_24'] - rows[0]['total_24']
     return {'rows': rows, 'savings': money(savings) if savings > 0 else None}
 
 
 def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
                  hosting_security, hourly_display, site_content=None,
-                 location_addon=None):
+                 location_addon=None, review_system=None):
     """[(question, answer)] in page order. Plain text: the same strings go
     into the FAQPage schema."""
     full = money(_price(build_full)) or 'the build price'
@@ -99,6 +121,7 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
     host = money(_price(hosting_security)) or 'the hosting rate'
     rate = hourly_display or 'our hourly rate'
     m = INSTALLMENT_MONTHS
+    rev = money(_price(review_system)) if review_system else ''
 
     faqs = [
         ('What happens at month 24?',
@@ -179,8 +202,28 @@ def pricing_faqs(build_full, build_installment, full_plan, plan_paid_in_full,
         ('Can I approve drafts and send photos from my phone?',
          'Yes. Staging links, approvals and photo uploads all work from a phone.'),
         ('Can I add review automation later?',
-         f'Yes. Hosting + Security clients can move to the Full Plan any time; '
-         'it’s month-to-month.'),
+         ('Yes, two ways. Hosting + Security clients can move to the Full '
+          'Plan any time, which bundles it in. Or add the review system on '
+          f'its own for {rev}/month and leave your plan alone. Both are '
+          'month-to-month.') if rev else
+         ('Yes. Hosting + Security clients can move to the Full Plan any '
+          'time; it’s month-to-month.')),
+    ]
+    # Standalone review system (Oct 2026). Only asked, and only
+    # answerable, when the tier actually exists — the answer quotes its
+    # price, and a missing row must not render "for /month".
+    if rev:
+        faqs.append((
+            'Can I buy the review system without a website?',
+            f'Yes. It’s {rev}/month on its own, month-to-month, and it runs '
+            'on whatever website and job software you already have. You do '
+            'not need a build from us, and you do not need a website at '
+            'all: the request points customers at your Google Business '
+            'Profile. Setup is one trigger wired into your job system, '
+            'which we do with you in the first week. It is also included '
+            'at no extra cost in the Full Plan, so if you later buy a '
+            'build you stop paying for it separately.'))
+    faqs += [
         ('Running several locations or a larger site?',
          'Multi-location work is quoted from a simple structure: one build, '
          'plus a set of location pages for each branch, review requests routed '

@@ -287,6 +287,44 @@ TIERS = [
             'summarized in a one-page PDF emailed to you on the 1st.',
         ],
     },
+    # ─── Review system, sold standalone (Oct 2026) ───
+    # Until now automated review generation was only reachable by buying
+    # the Full Plan, which meant it was only reachable by buying a build.
+    # That capped it at website clients. It is its own product now: the
+    # buyer keeps whatever site (or no site) they already have, and the
+    # Full Plan still bundles it at no extra cost, so this never
+    # undercuts the plan — it opens a second door into it.
+    #
+    # category='addon' rather than 'maintenance' on purpose. The portal's
+    # plan chooser (clients.views._maintenance_tiers) filters on
+    # category='maintenance' and is a SWITCH surface, so a maintenance
+    # row here would let a Full Plan client "switch" down to reviews-only
+    # and silently lose hosting. As an addon it is invisible there and
+    # absent from the admin Add Plan dropdown, and self-checkout is
+    # granted explicitly by slug in billing.checkout_views instead.
+    {
+        'slug': 'hvac-review-system', 'category': 'addon',
+        'name': 'Review System', 'price': Decimal('97.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'sort_order': 0, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_REVIEW_SYSTEM',
+        'tagline': 'The review system on its own. No website build required.',
+        'description': ('Automated Google review requests running on the '
+                        'website and job system you already have. Every '
+                        'completed job triggers a text and email asking '
+                        'for a review. Month-to-month, cancel anytime. '
+                        'Included at no extra cost in the Full Plan.'),
+        'features': [
+            'Every completed job triggers a Google review request',
+            'Sent by text and email while the work is still fresh',
+            'Connects to ServiceTitan, Housecall Pro, Jobber and most '
+            'others by webhook or Zapier',
+            'Works with the website you already have, or no website at all',
+            'Asks every customer the same way: no filtering, no incentives',
+            'Opt-out handled automatically on every message',
+            'Month-to-month: cancel anytime',
+        ],
+    },
     # ─── Domain registrations ───
     {
         'slug': 'domain-standard', 'category': 'addon',

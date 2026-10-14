@@ -474,6 +474,12 @@ class CustomWebsiteCostPriceConsistencyTests(TestCase):
                 slug='hvac-plan-paid-in-full'),
             'hosting + security': ServiceTier.objects.get(
                 slug='hvac-hosting-security'),
+            # Oct 2026 — the article's Reviews bullet now quotes the
+            # standalone review price, so it goes stale the same way the
+            # others can. See public/migrations/
+            # 0022_review_system_standalone_copy.py.
+            'review system (standalone)': ServiceTier.objects.get(
+                slug='hvac-review-system'),
         }
         for label, tier in tiers.items():
             price_string = f'${tier.price:,.0f}'

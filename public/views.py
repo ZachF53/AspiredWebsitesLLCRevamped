@@ -126,6 +126,12 @@ def home(request):
             slug='hvac-build-full', is_active=True).first(),
         'build_installment': ServiceTier.objects.filter(
             slug='hvac-build-installment', is_active=True).first(),
+        # The review system is sold standalone (Oct 2026), so the home
+        # page's review card carries its price — it is the one offer here
+        # a visitor can buy without commissioning a build.
+        'review_system': ServiceTier.objects.filter(
+            slug='hvac-review-system', is_active=True,
+            is_public=True).first(),
         'meta_title': 'Custom Websites for HVAC Contractors',
         'meta_description': (
             'Custom-coded websites and automated Google review generation '
@@ -309,16 +315,29 @@ def service_review_automation(request):
     from billing.pricing_models import ServiceTier
     from public.pricing_content import faq_schema
     from public.service_faqs import review_automation_faqs
-    faqs = review_automation_faqs()
+
+    # Oct 2026: the review system is its own product, so this page sells
+    # it rather than selling the plan that used to contain it. Both rows
+    # are loaded — the standalone tier is the headline offer, and the
+    # plan is the "or get it bundled" alternative — and every price on
+    # the page comes from these rows (CLAUDE.md: never hardcode a price).
+    tiers = {
+        t.slug: t for t in ServiceTier.objects.filter(
+            slug__in=['hvac-review-system', 'hvac-plan-paid-in-full'],
+            is_active=True, is_public=True,
+        ).prefetch_related('features')
+    }
+    review_system = tiers.get('hvac-review-system')
+    plan_paid_in_full = tiers.get('hvac-plan-paid-in-full')
+    faqs = review_automation_faqs(
+        review_system=review_system, plan_paid_in_full=plan_paid_in_full)
     return render(request, 'public/service_review_automation.html', {
         'active_nav': 'services',
         'active_service': 'review_automation',
         'faqs': faqs,
         'faq_schema': faq_schema(faqs),
-        # Review automation isn't sold alone; the Service offer is the plan
-        # that includes it, priced from the live row.
-        'plan_paid_in_full': ServiceTier.objects.filter(
-            slug='hvac-plan-paid-in-full', is_active=True).first(),
+        'review_system': review_system,
+        'plan_paid_in_full': plan_paid_in_full,
         'breadcrumbs': [
             ('Review Automation', None),
         ],
@@ -338,7 +357,8 @@ def service_hosting_maintenance(request):
 
     tiers = {
         t.slug: t for t in ServiceTier.objects.filter(
-            slug__in=['hvac-hosting-security', 'hvac-plan-paid-in-full'],
+            slug__in=['hvac-hosting-security', 'hvac-plan-paid-in-full',
+                      'hvac-review-system'],
             is_active=True, is_public=True,
         ).prefetch_related('features')
     }
@@ -355,6 +375,9 @@ def service_hosting_maintenance(request):
         'active_service': 'hosting_maintenance',
         'hosting_security': tiers.get('hvac-hosting-security'),
         'plan_paid_in_full': tiers.get('hvac-plan-paid-in-full'),
+        # Lets a Hosting + Security buyer add reviews without being told
+        # their only route is upgrading to the Full Plan (Oct 2026).
+        'review_system': tiers.get('hvac-review-system'),
         'hourly_display': hourly_display,
         'faqs': faqs,
         'faq_schema': faq_schema(faqs),
@@ -444,6 +467,10 @@ def location_city(request, slug):
         slug='hvac-build-full', is_active=True).first()
     build_installment = ServiceTier.objects.filter(
         slug='hvac-build-installment', is_active=True).first()
+    # Also for the trust block, which quotes the standalone review
+    # price when it is available (Oct 2026).
+    review_system = ServiceTier.objects.filter(
+        slug='hvac-review-system', is_active=True, is_public=True).first()
 
     hvac_studies = CaseStudy.objects.filter(
         is_published=True, is_hvac=True, city=city,
@@ -468,6 +495,7 @@ def location_city(request, slug):
         'city': city,
         'build_full': build_full,
         'build_installment': build_installment,
+        'review_system': review_system,
         'hvac_studies': hvac_studies,
         'other_studies': other_studies,
         'fallback_studies': fallback_studies,
@@ -513,6 +541,9 @@ def insight_detail(request, slug):
             slug='hvac-build-full', is_active=True).first(),
         'build_installment': ServiceTier.objects.filter(
             slug='hvac-build-installment', is_active=True).first(),
+        'review_system': ServiceTier.objects.filter(
+            slug='hvac-review-system', is_active=True,
+            is_public=True).first(),
         'breadcrumbs': [
             ('Insights', '/insights/'),
             (article.title, None),
@@ -639,7 +670,7 @@ def pricing(request):
             slug__in=[
                 'hvac-build-full', 'hvac-build-installment',
                 'hvac-full-plan', 'hvac-plan-paid-in-full',
-                'hvac-hosting-security',
+                'hvac-hosting-security', 'hvac-review-system',
             ],
             is_active=True, is_public=True,
         ).prefetch_related('features')
@@ -654,6 +685,9 @@ def pricing(request):
     full_plan = tiers.get('hvac-full-plan')
     plan_paid_in_full = tiers.get('hvac-plan-paid-in-full')
     hosting_security = tiers.get('hvac-hosting-security')
+    # Standalone review system (Oct 2026) — sold on its own, to buyers
+    # who may never want a build from us.
+    review_system = tiers.get('hvac-review-system')
     hourly = AddonPricing.objects.filter(
         slug='addon-hourly', is_active=True).first()
     hourly_display = hourly.get_price_display() if hourly else ''
@@ -663,10 +697,10 @@ def pricing(request):
     faqs = pricing_faqs(
         build_full, build_installment, full_plan, plan_paid_in_full,
         hosting_security, hourly_display, SiteContent.get_solo(),
-        location_addon=location_addon)
+        location_addon=location_addon, review_system=review_system)
     costs = cost_table(
         build_full, build_installment, full_plan, plan_paid_in_full,
-        hosting_security)
+        hosting_security, review_system=review_system)
 
     def _p(tier):
         return money(tier.price) if tier else ''
@@ -678,12 +712,23 @@ def pricing(request):
             'hosting and review automation, or hosting and security alone at '
             f'{_p(hosting_security)}/mo.'
         )
+        if review_system:
+            # Meta descriptions are length-checked (public/migrations/
+            # 0020 and public/tests_structured_data.py), so the
+            # standalone price replaces the hosting clause rather than
+            # being appended to a sentence that is already near the cap.
+            meta_description = (
+                f'HVAC website pricing: a {_p(build_full)} build or '
+                f'{_p(build_installment)}/mo, a {_p(full_plan)}/mo Full Plan, '
+                f'or the review system on its own for '
+                f'{_p(review_system)}/mo.'
+            )
     else:
         # A missing tier must not render "a  build (or /mo)".
         meta_description = (
             'HVAC website pricing: one custom-coded build, a Full Plan '
-            'with hosting and review automation, or hosting and security '
-            'alone.'
+            'with hosting and review automation, or the review system '
+            'on its own.'
         )
 
     return render(request, 'public/pricing.html', {
@@ -695,6 +740,7 @@ def pricing(request):
         'full_plan': full_plan,
         'plan_paid_in_full': plan_paid_in_full,
         'hosting_security': hosting_security,
+        'review_system': review_system,
         'hourly': hourly,
         'hourly_display': hourly_display or '$85/hour',
         'location_addon': location_addon,
