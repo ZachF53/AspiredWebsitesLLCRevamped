@@ -51,29 +51,16 @@ CSP_PUBLIC = (
     "object-src 'none'"
 )
 
-# Chat widget CSP — homepage only. The LeadConnector/GoHighLevel loader
-# (public/templates/public/home.html) loads its bootstrap script and default
-# avatar icon from widgets.leadconnectorhq.com, then fetches widget config
-# from services.leadconnectorhq.com and renders the actual chat UI as an
-# iframe from that same host. Because the chat UI is an iframe — a separate
-# document with its own CSP from leadconnectorhq's server — style-src stays
-# 'self' only; nothing here needs 'unsafe-inline'.
-# script-src keeps {GA_SCRIPT_SRC} first so it stays a prefix match of
-# CSP_PUBLIC's script-src (core/tests.py relies on that substring).
-CSP_CHAT = (
-    "default-src 'self'; "
-    f"script-src 'self' {GA_SCRIPT_SRC} https://widgets.leadconnectorhq.com; "
-    "style-src 'self'; "
-    f"img-src 'self' data: {GA_IMG_SRC} https://widgets.leadconnectorhq.com; "
-    "font-src 'self'; "
-    f"connect-src 'self' {GA_CONNECT_SRC} https://widgets.leadconnectorhq.com "
-    "https://services.leadconnectorhq.com; "
-    "frame-src https://services.leadconnectorhq.com; "
-    "frame-ancestors 'none'; "
-    "form-action 'self'; "
-    "base-uri 'self'; "
-    "object-src 'none'"
-)
+# CSP_CHAT removed Oct 2026 along with the LeadConnector/GoHighLevel chat
+# widget it existed for (see public/templates/public/home.html). It had
+# widened the homepage's policy with third-party script-src, img-src,
+# connect-src and frame-src allowances for widgets.leadconnectorhq.com and
+# services.leadconnectorhq.com; with the widget gone the homepage falls
+# through to CSP_PUBLIC and none of those hosts are permitted any more.
+#
+# Re-adding the widget requires re-adding a chat policy here AND the
+# script tag in home.html — the browser blocks the widget silently if
+# only one of the two is in place.
 
 # Terminal CSP — the SSH terminal page. Scripts stay strict ('self' only; all
 # terminal JS is external), but style-src allows inline because xterm.js
@@ -262,10 +249,10 @@ class SecurityHeadersMiddleware:
             # vault terminal and the recording replay above are more
             # specific and must keep their own policies.
             response['Content-Security-Policy'] = CSP_ADMIN_DASHBOARD
-        elif path == '/':
-            # Homepage only — carries the LeadConnector chat widget.
-            response['Content-Security-Policy'] = CSP_CHAT
         else:
+            # The homepage used to branch here for the LeadConnector chat
+            # widget's looser CSP_CHAT policy. Widget removed Oct 2026, so
+            # '/' takes the strict public policy like every other page.
             response['Content-Security-Policy'] = CSP_PUBLIC
 
         # Embedded admin tool pages (?embed=1) are lazy-loaded inside an

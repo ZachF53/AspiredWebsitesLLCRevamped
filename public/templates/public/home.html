@@ -6,6 +6,11 @@ one avatar: HVAC contractors. One offer, one avatar, one message.
 Social media and SEO stopped being standalone products (they're now
 just what's included in a build/maintenance plan); the homepage sells
 custom HVAC websites + automated review generation.
+
+Oct 2026: the review system went the other way and BECAME a standalone
+product at $97/mo, so it is no longer gated behind commissioning a
+build. The services card below carries its price for that reason — it
+is the only offer on this page a visitor can buy outright.
 {% endcomment %}
 {% block title %}Custom Websites for HVAC Contractors | Aspired{% endblock %}
 
@@ -67,8 +72,8 @@ stay as visible text, and the Google reviews link is the real proof.
                 <div class="card__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.4 8 10 4.5-.6 8-5 8-10V6l-8-4z"/><path d="m9 12 2 2 4-4"/></svg>
                 </div>
-                <h3>Automated Review Generation</h3>
-                <p>Every completed job automatically triggers a review request. More Google reviews, without a technician or office manager having to remember to ask.</p>
+                <h3>Automated Review Generation{% if review_system %} &mdash; {{ review_system.get_price_display }}{% endif %}</h3>
+                <p>Every completed job automatically triggers a review request. More Google reviews, without a technician or office manager having to remember to ask.{% if review_system %} Sold on its own, so you don&rsquo;t need a website from us to use it.{% endif %}</p>
                 <a class="card__link" href="{% url 'public:service_review_automation' %}">How it works </a>
             </article>
 
@@ -261,11 +266,15 @@ simply omitted if there were ever no published work at all.
 </section>
 
 {% comment %}
-GHL/LeadConnector chat widget — homepage only (per Zach, Oct 2026).
-Needs core/middleware.py CSP_CHAT (script-src/connect-src/frame-src for
-widgets.leadconnectorhq.com + services.leadconnectorhq.com) or the browser
-blocks it silently.
+The GHL/LeadConnector chat widget used to load here. Removed Oct 2026:
+it was carrying the SMS-consent capture that the A2P 10DLC campaign
+review needed, and the campaign is now verified. Removing the script
+also let core/middleware.py drop CSP_CHAT entirely, so the homepage is
+back on the strict CSP_PUBLIC policy with no third-party script-src,
+connect-src or frame-src allowances.
+
+Re-adding it means restoring BOTH this script tag and a chat CSP — the
+browser blocks the widget silently otherwise.
 {% endcomment %}
-<script src="https://widgets.leadconnectorhq.com/loader.js" data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js" data-widget-id="6ac3cd0a083698c05240d1a8" data-source="WEB_USER"></script>
 
 {% endblock %}
