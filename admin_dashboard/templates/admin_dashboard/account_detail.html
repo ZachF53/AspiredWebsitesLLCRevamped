@@ -97,10 +97,10 @@
                     <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Website Build</h3>
                     <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
                         Currently:
-                        {% if profile.comp_build_package %}
-                            <strong>{{ profile.get_comp_build_package_display }}</strong> (comped)
-                        {% elif profile.package == 'essential_build' or profile.package == 'premium_build' %}
-                            <strong>{{ profile.get_package_display }}</strong> (paid)
+                        {% if account.comp_build_package %}
+                            <strong>{{ account.get_comp_build_package_display }}</strong> (comped)
+                        {% elif account.package == 'essential_build' or account.package == 'premium_build' %}
+                            <strong>{{ account.get_package_display }}</strong> (paid)
                         {% else %}
                             <strong>None</strong>
                         {% endif %}
@@ -110,8 +110,8 @@
                         <input type="hidden" name="bucket" value="build">
                         <select name="comp_build_package" class="form-control">
                             <option value="">— No comp —</option>
-                            {% for value, label in profile.BUILD_COMP_CHOICES %}
-                                <option value="{{ value }}"{% if profile.comp_build_package == value %} selected{% endif %}>{{ label }}</option>
+                            {% for value, label in account.BUILD_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if account.comp_build_package == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                         <div style="margin-top:.75rem;">
@@ -125,10 +125,10 @@
                     <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Maintenance Plan</h3>
                     <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
                         Currently:
-                        {% if profile.comp_maintenance_package %}
-                            <strong>{{ profile.get_comp_maintenance_package_display }}</strong> (comped)
-                        {% elif profile.package == 'maintenance_essentials' or profile.package == 'maintenance_growth' or profile.package == 'maintenance_dominant' or profile.package == 'moonieful_referred' %}
-                            <strong>{{ profile.get_package_display }}</strong> (paid)
+                        {% if account.comp_maintenance_package %}
+                            <strong>{{ account.get_comp_maintenance_package_display }}</strong> (comped)
+                        {% elif account.package == 'maintenance_essentials' or account.package == 'maintenance_growth' or account.package == 'maintenance_dominant' or account.package == 'moonieful_referred' %}
+                            <strong>{{ account.get_package_display }}</strong> (paid)
                         {% else %}
                             <strong>None</strong>
                         {% endif %}
@@ -138,8 +138,8 @@
                         <input type="hidden" name="bucket" value="maintenance">
                         <select name="comp_maintenance_package" class="form-control">
                             <option value="">— No comp —</option>
-                            {% for value, label in profile.MAINTENANCE_COMP_CHOICES %}
-                                <option value="{{ value }}"{% if profile.comp_maintenance_package == value %} selected{% endif %}>{{ label }}</option>
+                            {% for value, label in account.MAINTENANCE_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if account.comp_maintenance_package == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                         <div style="margin-top:.75rem;">
@@ -153,8 +153,8 @@
                     <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Social Media</h3>
                     <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
                         Currently:
-                        {% if profile.comp_social_tier %}
-                            <strong>{{ profile.get_comp_social_tier_display }}</strong> (comped)
+                        {% if account.comp_social_tier %}
+                            <strong>{{ account.get_comp_social_tier_display }}</strong> (comped)
                         {% else %}
                             <strong>None</strong>
                         {% endif %}
@@ -164,10 +164,43 @@
                         <input type="hidden" name="bucket" value="social">
                         <select name="comp_social_tier" class="form-control">
                             <option value="">— No comp —</option>
-                            {% for value, label in profile.SOCIAL_COMP_CHOICES %}
-                                <option value="{{ value }}"{% if profile.comp_social_tier == value %} selected{% endif %}>{{ label }}</option>
+                            {% for value, label in account.SOCIAL_COMP_CHOICES %}
+                                <option value="{{ value }}"{% if account.comp_social_tier == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
+                        <div style="margin-top:.75rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </form>
+                </div>
+
+                {% comment %}
+                    ── Review System comp ──
+                    A checkbox, not a select: the $97 tier is an addon,
+                    so this is on or off rather than a choice of tier. It
+                    is also deliberately NOT part of the Maintenance Plan
+                    card above — that card answers "which plan are they
+                    on", and an addon answered there would tell the
+                    portal their plan IS the Review System.
+                {% endcomment %}
+                <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                    <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">Review System</h3>
+                    <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                        Currently:
+                        {% if account.comp_review_system %}
+                            <strong>Comped</strong> (no charge)
+                        {% else %}
+                            <strong>Not comped</strong> &mdash; a Full Plan already includes it.
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:.5rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="bucket" value="reviews">
+                        <label class="checkbox-row">
+                            <input type="checkbox" name="comp_review_system" value="1"
+                                   {% if account.comp_review_system %}checked{% endif %}>
+                            <span>Give the Review System at no charge</span>
+                        </label>
                         <div style="margin-top:.75rem;">
                             <button type="submit" class="btn-primary btn-sm">Save</button>
                         </div>
@@ -182,7 +215,7 @@
                 <label style="display:flex;flex-direction:column;gap:.2rem;">
                     <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Note (why) — shared across all comps</span>
                     <input type="text" name="comp_notes" class="form-control"
-                           value="{{ profile.comp_notes }}"
+                           value="{{ account.comp_notes }}"
                            placeholder="e.g. dogfood, free trial through 2026-12-31, friend">
                 </label>
                 <div style="margin-top:.75rem;">

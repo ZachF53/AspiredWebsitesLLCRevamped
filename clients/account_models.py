@@ -224,6 +224,20 @@ class Account(TimestampedModel):
         max_length=30, choices=MAINTENANCE_COMP_CHOICES, blank=True)
     comp_social_tier = models.CharField(
         max_length=30, choices=SOCIAL_COMP_CHOICES, blank=True)
+
+    # The Review System comp is its own flag rather than a value in
+    # comp_maintenance_package, which is where it superficially belongs.
+    # That field answers "which maintenance plan is this account on":
+    # clients.views.portal_maintenance reads it as `current_tier_slug`
+    # and the billing page renders it as a comped maintenance
+    # subscription. Putting an addon in it would tell the portal the
+    # client's plan IS the Review System — suppressing the Full Plan
+    # cards and showing "Your plan" on nothing. The $97 tier is
+    # category='addon' for exactly this reason; the comp has to be too.
+    comp_review_system = models.BooleanField(
+        default=False,
+        help_text='Grant the Review System at no charge. Independent of '
+                  'any plan — a Full Plan already includes it.')
     comp_notes = models.TextField(blank=True)
 
     # ── Per-client plan visibility override ──

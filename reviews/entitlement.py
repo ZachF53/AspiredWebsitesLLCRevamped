@@ -126,7 +126,10 @@ def review_entitlement(account, *, website=None):
         except Exception:
             pass
 
-    # 3 — an operator comp.
+    # 3 — an operator comp. Either the Review System comped directly, or
+    # a comped Full Plan, which bundles it the same way a paid one does.
+    if not source and getattr(account, 'comp_review_system', False):
+        source = 'comp'
     if not source and _comp_slug(account) in FULL_PLAN_SLUGS:
         source = 'comp'
 

@@ -3578,6 +3578,31 @@ def account_set_comp_tier(request, account_id):
                     request,
                     f'Cleared the social comp on {account.name}.')
 
+    elif bucket == 'reviews':
+        # A checkbox, so absence means off — this form is the only
+        # writer of the flag, unlike the select-backed buckets above.
+        on = bool(request.POST.get('comp_review_system'))
+        account.comp_review_system = on
+        account.save(update_fields=['comp_review_system', 'updated_at'])
+        if on:
+            # Give them the program row immediately. Without it the
+            # portal hub has nothing to show setup progress against and
+            # the sidebar badge cannot say what is owed.
+            try:
+                from reviews.entitlement import program_for
+                program_for(account, create=True)
+            except Exception:
+                pass
+            _messages.success(
+                request,
+                f'Comped {account.name} on the Review System. They can '
+                f'start onboarding in their portal now.')
+        else:
+            _messages.success(
+                request,
+                f'Cleared the Review System comp on {account.name}. '
+                f'Their setup and history are kept.')
+
     elif bucket == 'notes':
         account.comp_notes = (
             request.POST.get('comp_notes') or '').strip()

@@ -91,6 +91,49 @@ class EntitlementMatrixTests(TestCase):
         self.assertTrue(ent.has_access)
         self.assertEqual(ent.source, 'comp')
 
+    def test_review_system_comp_grants_access_on_its_own(self):
+        """Comping the addon directly, with no plan of any kind — how
+        an internal or beta account gets it free."""
+        account = _account(comp_review_system=True)
+        ent = review_entitlement(account)
+        self.assertTrue(ent.has_access)
+        self.assertEqual(ent.source, 'comp')
+        self.assertFalse(ent.can_buy_standalone, (
+            'a comped account was still offered the $97 add-on'))
+
+    def test_review_system_comp_does_not_fake_a_maintenance_plan(self):
+        """The reason this is its own field rather than a value in
+        comp_maintenance_package: that field is what the portal reads as
+        "which plan are they on". An addon answered there would show the
+        Review System as their plan and suppress the plan cards."""
+        account = _account(comp_review_system=True)
+        ent = review_entitlement(account)
+        self.assertEqual(account.comp_maintenance_package, '')
+        self.assertEqual(ent.current_plan_slug, '', (
+            'the review comp leaked into the account''s plan identity'))
+        self.assertFalse(account.maintenance_plans.exists(), (
+            'comping the Review System invented a MaintenancePlan row, '
+            'which billing surfaces will read as a subscription'))
+
+    def test_clearing_the_review_comp_removes_access(self):
+        account = _account(comp_review_system=True)
+        self.assertTrue(review_entitlement(account).has_access)
+        account.comp_review_system = False
+        account.save(update_fields=['comp_review_system'])
+        account.refresh_from_db()
+        ent = review_entitlement(account)
+        self.assertFalse(ent.has_access)
+        self.assertTrue(ent.can_buy_standalone)
+
+    def test_a_paid_plan_still_wins_the_source_label(self):
+        """Both comped and on a Full Plan — the plan is the real reason
+        they have it, so the label should say so."""
+        account = _account(comp_review_system=True)
+        _plan(account, 'hvac-full-plan')
+        ent = review_entitlement(account)
+        self.assertTrue(ent.has_access)
+        self.assertEqual(ent.source, 'full_plan')
+
     def test_standalone_purchase_has_access(self):
         account = _account()
         _plan(account, 'hvac-review-system')
