@@ -15,16 +15,29 @@ from django.shortcuts import redirect, render
 from admin_dashboard.decorators import admin_required
 from public.models import SiteContent
 
+# A group with more fields than this spans the full grid width and lays
+# its own fields out in columns, instead of becoming a single column
+# several screens tall next to a stack of near-empty cards.
+WIDE_GROUP_MIN = 4
+
 # Grouped so the form reads as sections rather than one 35-field wall.
+#
+# Order matters to the layout: the page renders as a card grid, and a
+# group with more than WIDE_GROUP_MIN fields gets a full-width row of
+# its own (see `wide` below). Review automation is eleven fields — the
+# next biggest is five — so it leads, otherwise its full-width row
+# punches a hole beside whatever single-field card preceded it. The
+# policy-FAQ group is the other wide one, and it trails for the same
+# reason: a full-width card between two normal ones strands the row.
 FIELD_GROUPS = (
-    ('Build scope (shows "What the $2,000 build includes" on /pricing/)', (
-        'build_scope',
-    )),
     ('Review automation: "How it connects" (/services/review-automation/)', (
         'review_platforms', 'review_manual_trigger', 'review_channel',
         'review_message_costs', 'review_consent_model', 'review_opt_out',
         'review_multi_location', 'review_setup_steps', 'review_live_at_launch',
         'review_reporting', 'review_sample_message',
+    )),
+    ('Build scope (shows "What the $2,000 build includes" on /pricing/)', (
+        'build_scope',
     )),
     ('Continuity and support (/about/ and /pricing/ fine print)', (
         'continuity_backups', 'continuity_outage_response',
@@ -80,7 +93,13 @@ def site_content_edit(request):
         form = SiteContentForm(instance=row)
 
     groups = [
-        (title, [form[name] for name in names])
+        {
+            'title': title,
+            'fields': [form[name] for name in names],
+            # Derived rather than declared so adding fields to a group
+            # keeps the layout honest without a second list to update.
+            'wide': len(names) > WIDE_GROUP_MIN,
+        }
         for title, names in FIELD_GROUPS
     ]
     return render(request, 'admin_dashboard/v2/site_content.html', {

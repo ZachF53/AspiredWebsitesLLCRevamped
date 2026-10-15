@@ -305,12 +305,27 @@ def checkout_page(request, tier_slug):
     hourly = AddonPricing.objects.filter(
         slug='addon-hourly', is_active=True).first()
 
+    # The summary card appends a "Month-to-month — cancel anytime"
+    # bullet for recurring tiers, but several tiers already say it in
+    # their own feature bullets ("Month-to-month: cancel anytime",
+    # "Month-to-month from day one: cancel anytime"), which printed two
+    # near-identical lines in a row. Suppress ours when theirs covers
+    # it, rather than editing the seeded features — the tier's own
+    # wording is the one an operator controls.
+    recurring_category = tier.category in ('maintenance', 'hosting', 'addon')
+    already_says_monthly = any(
+        'month-to-month' in (feature.text or '').lower()
+        for feature in tier.features.all()
+    )
+    show_monthly_note = recurring_category and not already_says_monthly
+
     return render(request, 'billing/checkout.html', {
         'tier': tier,
         'hourly_display': hourly.get_price_display() if hourly else '',
         'hosting_tier': hosting_tier,
         'show_hosting_upsell': show_hosting_upsell,
         'hosting_first_year_price': hosting_first_year_price,
+        'show_monthly_note': show_monthly_note,
         'stripe_publishable_key': getattr(
             settings, 'STRIPE_PUBLISHABLE_KEY', ''),
     })

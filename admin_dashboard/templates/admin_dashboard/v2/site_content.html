@@ -22,13 +22,21 @@
         {% endfor %}
     {% endif %}
 
-    <form method="post" class="pricing-form">
+    {% comment %}
+        .site-content-form, not .pricing-form: that class caps itself at
+        640px, which is right for the pricing editor and wrong here —
+        this page is eight sections wide and was rendering as a narrow
+        ribbon of flush-stacked cards. See the matching CSS block in
+        core/static/css/main.css.
+    {% endcomment %}
+    <form method="post" class="site-content-form">
         {% csrf_token %}
-        {% for title, fields in groups %}
-            <div class="admin-card">
-                <div class="admin-card__header"><h2 class="admin-card__title">{{ title }}</h2></div>
+        <div class="site-content-grid">
+        {% for group in groups %}
+            <div class="admin-card{% if group.wide %} site-content-card--wide{% endif %}">
+                <div class="admin-card__header"><h2 class="admin-card__title">{{ group.title }}</h2></div>
                 <div class="admin-card__body">
-                    {% for field in fields %}
+                    {% for field in group.fields %}
                         {% if field.field.widget.input_type == 'checkbox' %}
                             <label class="checkbox-row">
                                 {{ field }}
@@ -46,7 +54,10 @@
                 </div>
             </div>
         {% endfor %}
-        <button type="submit" class="btn-primary btn-sm">Save site content</button>
+        </div>
+        <div class="site-content-actions">
+            <button type="submit" class="btn-primary btn-sm">Save site content</button>
+        </div>
     </form>
 </div>
 {% endblock %}

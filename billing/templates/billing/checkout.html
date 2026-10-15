@@ -42,7 +42,16 @@
                 {% elif tier.reply_handling == 'full' %}
                     <li>✓ Full reply &amp; DM management</li>
                 {% endif %}
-                {% if tier.category == 'maintenance' or tier.category == 'hosting' or tier.category == 'addon' %}
+                {% comment %}
+                    Only when the tier's own feature bullets don't
+                    already say it — several do, in their own wording
+                    ("Month-to-month: cancel anytime", "Month-to-month
+                    from day one: cancel anytime"), and printing this
+                    line as well gave the Review System checkout two
+                    near-identical bullets in a row. `show_monthly_note`
+                    is computed in billing.checkout_views.checkout_page.
+                {% endcomment %}
+                {% if show_monthly_note %}
                     <li>✓ Month-to-month &mdash; cancel anytime</li>
                 {% endif %}
             </ul>
