@@ -15,50 +15,80 @@ from django.shortcuts import redirect, render
 from admin_dashboard.decorators import admin_required
 from public.models import SiteContent
 
-# A group with more fields than this spans the full grid width and lays
-# its own fields out in columns, instead of becoming a single column
-# several screens tall next to a stack of near-empty cards.
-WIDE_GROUP_MIN = 4
-
-# Grouped so the form reads as sections rather than one 35-field wall.
+# Eight sections, one visible at a time behind a section rail. They used
+# to render as eight cards down a single page, which is 35 fields of
+# scroll whatever the spacing — the problem is the volume, not the gaps.
 #
-# Order matters to the layout: the page renders as a card grid, and a
-# group with more than WIDE_GROUP_MIN fields gets a full-width row of
-# its own (see `wide` below). Review automation is eleven fields — the
-# next biggest is five — so it leads, otherwise its full-width row
-# punches a hole beside whatever single-field card preceded it. The
-# policy-FAQ group is the other wide one, and it trails for the same
-# reason: a full-width card between two normal ones strands the row.
+# `where` is the point of each section: every field here gates a block of
+# the public site, and the only question worth answering before you type
+# is "which page does this change?". It is rendered under the section
+# title, not buried in a title parenthesis.
 FIELD_GROUPS = (
-    ('Review automation: "How it connects" (/services/review-automation/)', (
-        'review_platforms', 'review_manual_trigger', 'review_channel',
-        'review_message_costs', 'review_consent_model', 'review_opt_out',
-        'review_multi_location', 'review_setup_steps', 'review_live_at_launch',
-        'review_reporting', 'review_sample_message',
-    )),
-    ('Build scope (shows "What the $2,000 build includes" on /pricing/)', (
-        'build_scope',
-    )),
-    ('Continuity and support (/about/ and /pricing/ fine print)', (
-        'continuity_backups', 'continuity_outage_response',
-    )),
-    ('Founding-client offer (/portfolio/ and /pricing/; hidden until enabled and filled)', (
-        'founding_client_enabled', 'founding_client_headline',
-        'founding_client_offer', 'founding_client_ask',
-    )),
-    ('Demonstration HVAC build (/portfolio/; always labelled "not a client site")', (
-        'demo_enabled', 'demo_title', 'demo_url', 'demo_description',
-    )),
-    ('Proof links and contact', (
-        'google_reviews_url', 'cissp_member_number', 'phone_accepts_sms',
-    )),
-    ('Retention (privacy policy; blank omits the sentence)', (
-        'session_recording_retention_days', 'audit_retention_days',
-    )),
-    ('Policy FAQs on /pricing/ (blank hides the question)', (
-        'faq_finance_with_hosting', 'faq_url_migration', 'faq_client_time',
-        'faq_travel_fee', 'faq_pause_plan',
-    )),
+    {
+        'key': 'build',
+        'title': 'Build scope',
+        'where': 'Shows as "What the $2,000 build includes" on /pricing/. '
+                 'Blank hides the whole list.',
+        'fields': ('build_scope',),
+    },
+    {
+        'key': 'reviews',
+        'title': 'Review automation',
+        'where': 'Fills the "How it connects" section of '
+                 '/services/review-automation/.',
+        'fields': (
+            'review_platforms', 'review_manual_trigger', 'review_channel',
+            'review_message_costs', 'review_consent_model', 'review_opt_out',
+            'review_multi_location', 'review_setup_steps',
+            'review_live_at_launch', 'review_reporting',
+            'review_sample_message',
+        ),
+    },
+    {
+        'key': 'continuity',
+        'title': 'Continuity and support',
+        'where': 'Fine print on /about/ and /pricing/.',
+        'fields': ('continuity_backups', 'continuity_outage_response'),
+    },
+    {
+        'key': 'founding',
+        'title': 'Founding-client offer',
+        'where': 'Appears on /portfolio/ and /pricing/. Stays hidden until '
+                 'it is both enabled and filled in.',
+        'fields': ('founding_client_enabled', 'founding_client_headline',
+                   'founding_client_offer', 'founding_client_ask'),
+    },
+    {
+        'key': 'demo',
+        'title': 'Demonstration build',
+        'where': 'Appears on /portfolio/, always labelled "not a client '
+                 'site".',
+        'fields': ('demo_enabled', 'demo_title', 'demo_url',
+                   'demo_description'),
+    },
+    {
+        'key': 'proof',
+        'title': 'Proof links and contact',
+        'where': 'Google reviews link, CISSP number and whether the listed '
+                 'phone accepts texts.',
+        'fields': ('google_reviews_url', 'cissp_member_number',
+                   'phone_accepts_sms'),
+    },
+    {
+        'key': 'retention',
+        'title': 'Retention periods',
+        'where': 'Privacy policy. Left blank, the sentence is omitted '
+                 'rather than guessed at.',
+        'fields': ('session_recording_retention_days', 'audit_retention_days'),
+    },
+    {
+        'key': 'faqs',
+        'title': 'Policy FAQs',
+        'where': 'The policy questions on /pricing/. A blank answer hides '
+                 'that question.',
+        'fields': ('faq_finance_with_hosting', 'faq_url_migration',
+                   'faq_client_time', 'faq_travel_fee', 'faq_pause_plan'),
+    },
 )
 
 
@@ -92,18 +122,51 @@ def site_content_edit(request):
     else:
         form = SiteContentForm(instance=row)
 
-    groups = [
-        {
-            'title': title,
-            'fields': [form[name] for name in names],
-            # Derived rather than declared so adding fields to a group
-            # keeps the layout honest without a second list to update.
-            'wide': len(names) > WIDE_GROUP_MIN,
-        }
-        for title, names in FIELD_GROUPS
-    ]
+    groups = [_build_group(spec, form) for spec in FIELD_GROUPS]
+    # Errors win over everything: land on the section that needs fixing
+    # rather than on a tab that looks fine while the message says
+    # nothing was saved.
+    active = next((g for g in groups if g['error_count']), groups[0])
     return render(request, 'admin_dashboard/v2/site_content.html', {
         'form': form,
         'groups': groups,
+        'active_key': active['key'],
+        'answered_total': sum(g['answered'] for g in groups),
+        'field_total': sum(g['total'] for g in groups),
         'row': row,
     })
+
+
+def _build_group(spec, form):
+    """Bind one section spec to the form, with its own progress count.
+
+    The count is what makes the rail useful: with one section on screen
+    the other seven are invisible, so each needs to say at a glance
+    whether anything is still owed.
+    """
+    fields = [form[name] for name in spec['fields']]
+    return {
+        'key': spec['key'],
+        'title': spec['title'],
+        'where': spec['where'],
+        'fields': fields,
+        'total': len(fields),
+        'answered': sum(1 for f in fields if _is_answered(f)),
+        'error_count': sum(1 for f in fields if f.errors),
+    }
+
+
+def _is_answered(bound_field):
+    """True when this field carries a real answer.
+
+    A checkbox is only counted when ticked. That is deliberate: every
+    boolean here gates a public block (`founding_client_enabled`,
+    `demo_enabled`, `phone_accepts_sms`), so unticked means the section
+    is off, not that the question has been dealt with.
+    """
+    value = bound_field.value()
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return bool(str(value).strip())

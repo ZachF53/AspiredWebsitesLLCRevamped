@@ -1,18 +1,19 @@
 """
 Checkout page: the mobile stacking bug and the duplicated bullet.
 
-On a phone the order-summary card and the Stripe payment form rendered
-on top of each other. The grid *did* collapse to one column at 880px —
-the cause was `position: sticky` on `.checkout-summary`, which is a
-two-column affordance. Stacked, it pins the card to the top of the
-viewport and the form scrolls straight over it.
+On a phone the order-summary card and the Stripe payment form painted
+on top of each other. The grid *did* collapse to one column at 880px;
+the cause was `position: sticky` on `.checkout-summary`, a two-column
+affordance. The card is taller than a phone screen, so stacked it
+pinned itself to the viewport and the form scrolled over its text.
 
-The CSS assertions below are deliberately structural rather than
-pixel-based: there is no browser in this suite, so what can be checked
-is that the override exists, is scoped to the stacked breakpoint, and
-is declared *after* the base rule. That last one is the whole fix — a
-media query carries no extra specificity, so the same block placed
-above `position: sticky` would lose to it and change nothing.
+The first fix un-stuck it only below 880px and still shipped broken,
+because `public.css` — the generated main.css subset that the public
+checkout page actually loads — was never rebuilt and kept serving the
+old rule. So these tests check BOTH bundles, and check for the absence
+of `position` rather than for the presence of an override: there is no
+width at which this card should be stuck, and an absent property
+cannot be beaten on source order by a stale copy.
 """
 
 import re
@@ -24,45 +25,57 @@ from django.test import TestCase, override_settings
 
 from billing.pricing_models import ServiceTier, TierFeature
 
-CSS = Path(settings.BASE_DIR) / 'core' / 'static' / 'css' / 'main.css'
+CSS_DIR = Path(settings.BASE_DIR) / 'core' / 'static' / 'css'
 
 
 class CheckoutStacksOnMobileTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.css = CSS.read_text(encoding='utf-8')
+        cls.bundles = {
+            name: (CSS_DIR / name).read_text(encoding='utf-8')
+            for name in ('main.css', 'public.css')
+        }
 
     def test_the_grid_collapses_to_one_column(self):
-        self.assertRegex(
-            self.css,
-            r'@media\s*\(max-width:\s*880px\)\s*\{[^}]*'
-            r'\.checkout-grid\s*\{\s*grid-template-columns:\s*1fr')
+        for name, css in self.bundles.items():
+            with self.subTest(bundle=name):
+                self.assertRegex(
+                    css,
+                    r'@media\s*\(max-width:\s*880px\)\s*\{[^}]*'
+                    r'\.checkout-grid\s*\{\s*grid-template-columns:\s*1fr',
+                    f'{name} does not stack the checkout grid')
 
-    def test_the_summary_is_unstuck_at_the_stacked_breakpoint(self):
-        """The actual fix. Without this the card stays pinned and the
-        payment form scrolls over it."""
-        block = self._mobile_block()
-        self.assertIsNotNone(block, 'no max-width: 880px block found')
-        self.assertIn('.checkout-summary', block)
-        self.assertRegex(block, r'position:\s*static')
+    def test_the_summary_is_never_positioned(self):
+        """The whole fix. `position: sticky` at any width lets the
+        payment form scroll over the summary card on a phone."""
+        for name, css in self.bundles.items():
+            for body in self._summary_rules(css):
+                with self.subTest(bundle=name, rule=body[:60]):
+                    self.assertNotRegex(
+                        body, r'position\s*:',
+                        f'.checkout-summary carries a position property '
+                        f'in {name}; the card must simply flow')
 
-    def test_the_override_comes_after_the_base_sticky_rule(self):
-        """Source order IS the fix. A media query adds no specificity,
-        so an override placed above the base rule silently does
-        nothing — which is exactly the mistake worth pinning."""
-        base = self.css.index('position: sticky')
-        override = self.css.index('position: static')
-        self.assertLess(base, override, (
-            'the stacked-layout override is declared before the base '
-            'sticky rule, so it loses on source order and the card will '
-            'pin on mobile again'))
+    def test_public_bundle_actually_contains_the_rule(self):
+        """Guards the assertion above from passing vacuously — if the
+        generator ever stops emitting .checkout-summary, the
+        never-positioned test would succeed on an empty list."""
+        self.assertTrue(
+            self._summary_rules(self.bundles['public.css']),
+            'public.css has no .checkout-summary rule at all; the '
+            'checkout page is on the public bundle and would render '
+            'the card unstyled')
 
-    def _mobile_block(self):
-        match = re.search(
-            r'@media\s*\(max-width:\s*880px\)\s*\{(.*?)\n\}',
-            self.css, re.DOTALL)
-        return match.group(1) if match else None
+    @staticmethod
+    def _summary_rules(css):
+        """Every rule body whose selector list includes .checkout-summary
+        exactly — not .checkout-summary__title and friends."""
+        return [
+            match.group(1)
+            for match in re.finditer(
+                r'\.checkout-summary\s*(?:,[^{]*)?\{([^}]*)\}', css)
+        ]
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)

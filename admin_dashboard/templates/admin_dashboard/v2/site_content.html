@@ -1,4 +1,5 @@
 {% extends "admin_dashboard/base.html" %}
+{% load static %}
 
 {% block title %}Site Content — Admin v2{% endblock %}
 
@@ -14,6 +15,9 @@
                 {% if row.updated_at %}Last saved {{ row.updated_at|date:"M j, Y g:i A" }}.{% endif %}
             </p>
         </div>
+        <p class="sc-overall">
+            <strong>{{ answered_total }}</strong> of {{ field_total }} answered
+        </p>
     </div>
 
     {% if messages %}
@@ -23,41 +27,76 @@
     {% endif %}
 
     {% comment %}
-        .site-content-form, not .pricing-form: that class caps itself at
-        640px, which is right for the pricing editor and wrong here —
-        this page is eight sections wide and was rendering as a narrow
-        ribbon of flush-stacked cards. See the matching CSS block in
-        core/static/css/main.css.
+        One form, eight panels, one panel visible at a time. Every field
+        stays in the DOM whichever section is showing — the hidden
+        panels are display:none, not detached — so a single submit still
+        posts the whole model and a partially-filled page can never
+        blank out a field the owner never looked at.
+
+        The rail and the panels are siblings rather than nested so the
+        rail can stay a fixed column while a panel scrolls.
     {% endcomment %}
-    <form method="post" class="site-content-form">
+    <form method="post" class="sc-form" id="site-content-form">
         {% csrf_token %}
-        <div class="site-content-grid">
-        {% for group in groups %}
-            <div class="admin-card{% if group.wide %} site-content-card--wide{% endif %}">
-                <div class="admin-card__header"><h2 class="admin-card__title">{{ group.title }}</h2></div>
-                <div class="admin-card__body">
-                    {% for field in group.fields %}
-                        {% if field.field.widget.input_type == 'checkbox' %}
-                            <label class="checkbox-row">
-                                {{ field }}
-                                <span>{{ field.label }}{% if field.help_text %} ({{ field.help_text }}){% endif %}</span>
-                            </label>
+
+        <nav class="sc-rail" aria-label="Site content sections">
+            {% for group in groups %}
+                <button type="button"
+                        class="sc-rail__item{% if group.key == active_key %} is-active{% endif %}{% if group.error_count %} has-error{% endif %}"
+                        data-sc-tab="{{ group.key }}"
+                        aria-controls="sc-panel-{{ group.key }}"
+                        aria-selected="{% if group.key == active_key %}true{% else %}false{% endif %}">
+                    <span class="sc-rail__title">{{ group.title }}</span>
+                    <span class="sc-rail__count">
+                        {% if group.error_count %}
+                            {{ group.error_count }} to fix
                         {% else %}
-                            <div class="form-group">
-                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.help_text %}<p class="form-hint">{{ field.help_text }}</p>{% endif %}
-                                {% if field.errors %}<div class="form-field-error">{{ field.errors|join:" " }}</div>{% endif %}
-                            </div>
+                            {{ group.answered }}/{{ group.total }}
                         {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-        {% endfor %}
-        </div>
-        <div class="site-content-actions">
-            <button type="submit" class="btn-primary btn-sm">Save site content</button>
+                    </span>
+                </button>
+            {% endfor %}
+        </nav>
+
+        <div class="sc-panels">
+            {% for group in groups %}
+                <section class="sc-panel{% if group.key == active_key %} is-active{% endif %}"
+                         id="sc-panel-{{ group.key }}"
+                         data-sc-panel="{{ group.key }}">
+                    <header class="sc-panel__head">
+                        <h2 class="sc-panel__title">{{ group.title }}</h2>
+                        <p class="sc-panel__where">{{ group.where }}</p>
+                    </header>
+
+                    <div class="sc-fields">
+                        {% for field in group.fields %}
+                            {% if field.field.widget.input_type == 'checkbox' %}
+                                <label class="sc-check">
+                                    {{ field }}
+                                    <span>{{ field.label }}{% if field.help_text %} <em>({{ field.help_text }})</em>{% endif %}</span>
+                                </label>
+                            {% else %}
+                                <div class="form-group sc-field">
+                                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                    {% if field.help_text %}<p class="form-hint">{{ field.help_text }}</p>{% endif %}
+                                    {{ field }}
+                                    {% if field.errors %}<div class="form-field-error">{{ field.errors|join:" " }}</div>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+
+                    <div class="sc-actions">
+                        <button type="submit" class="btn-primary btn-sm">Save site content</button>
+                        <span class="sc-actions__note">Saves every section, not just this one.</span>
+                    </div>
+                </section>
+            {% endfor %}
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'js/site_content_tabs.js' %}?v={{ STATIC_VERSION }}" defer></script>
 {% endblock %}

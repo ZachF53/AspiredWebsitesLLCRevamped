@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    Aspired Websites LLC — main.css
    Premium layered dark system. Mobile-first. Pure CSS.
    ============================================================ */
@@ -16900,34 +16900,25 @@ select.ob-question__input:focus {
     grid-template-columns: 360px 1fr;
     gap: 2rem;
 }
+/* No `position: sticky` here, at any width. It was a two-column
+   affordance — keep the order summary beside you while you fill a long
+   form — but the card is taller than a phone screen, so stacked it
+   pinned itself and the Stripe fields painted straight over its text.
+   The earlier fix un-stuck it only under 880px and still broke, because
+   public.css (the generated main.css subset that the public checkout
+   page actually loads) was never rebuilt and kept serving the old rule.
+   Removed outright: it is not worth a second regression. */
 .checkout-summary {
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1.5rem;
     align-self: start;
-    position: sticky;
-    top: 1.5rem;
 }
-/* Stacked layout. Declared AFTER the base rule on purpose: a media
-   query carries no extra specificity, so source order is what decides
-   — the same block placed above would simply lose to `position: sticky`
-   below it and change nothing.
-
-   Un-sticking matters more than it looks. `position: sticky` is a
-   two-column affordance: it keeps the order summary beside you while
-   you fill a long form. Once the grid stacks, it instead pins the card
-   to the top of the viewport and the payment form scrolls straight over
-   it, so the summary's text and the Stripe fields paint on top of each
-   other. Stacked content should just flow. */
 @media (max-width: 880px) {
     .checkout-grid { grid-template-columns: 1fr; }
-    .checkout-summary {
-        position: static;
-        top: auto;
-        /* The form follows underneath, not alongside. */
-        margin-bottom: 1.5rem;
-    }
+    /* The form follows underneath, not alongside. */
+    .checkout-summary { margin-bottom: 1.5rem; }
 }
 .checkout-summary__title { margin: 0 0 0.25rem; font-size: 1.2rem; }
 .checkout-summary__price { margin: 0 0 0.5rem; font-size: 1.5rem; color: var(--color-orange); }
@@ -18734,108 +18725,160 @@ button.is-loading { cursor: progress; opacity: 0.85; }
 }
 .checkout-next__steps li + li { margin-top: 0.4rem; }
 
-/* ── Admin v2: Site content (owner inputs) ───────────────────────
-   This page used `.pricing-form`, which caps itself at 640px. In a
-   1600px admin shell that left a narrow ribbon of fields beside a
-   wide empty gutter, and since `.admin-card` carries no margin and
-   `.pricing-form` is not a flex/grid parent, the eight section cards
-   stacked flush against each other and read as one continuous wall.
-   Its own class now, so the pricing editor's narrow column — which
-   is correct there — is untouched. */
-.site-content-form {
+
+/* ── Admin v2: Site content (owner inputs) ────────────────────────
+   35 fields across eight sections. Laying them all out at once is the
+   problem whatever the spacing — first as a 640px ribbon of flush
+   cards, then as a card grid that was merely a tidier wall. A fixed
+   section rail with one panel showing turns it into eight short
+   questionnaires. The rail counts carry the information the hidden
+   panels can no longer show for themselves. */
+.sc-overall {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.9375rem;
+}
+.sc-overall strong {
+    color: var(--color-text);
+    font-size: 1.25rem;
+}
+
+.sc-form {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+}
+
+.sc-rail {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: 2px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 0.5rem;
 }
 
-.site-content-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-    gap: var(--space-3);
-    /* Cards are wildly different heights (one field vs eleven).
-       Without this they all stretch to the tallest in the row. */
-    align-items: start;
+.sc-rail__item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    padding: 0.6rem 0.7rem;
+    color: var(--color-text-muted);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
 }
-
-/* The review-automation group is eleven fields. As one grid cell it is
-   a column several screens tall beside a stack of near-empty cards, so
-   it takes a full row and columns its own fields instead. `wide` is
-   derived from the field count in views_site_content.py. */
-.site-content-card--wide {
-    grid-column: 1 / -1;
-}
-
-/* Three classes, not two: `.site-content-grid .admin-card__body` below
-   sets flex at the same (0,2,0) weight, and a tie goes to whichever is
-   written last. Out-specify it rather than depend on source order. */
-.site-content-grid .site-content-card--wide .admin-card__body {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.25rem var(--space-3);
-    align-items: start;
-}
-
-.site-content-grid .admin-card__header {
-    padding-bottom: 0.75rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.site-content-grid .admin-card__title {
-    /* The group titles are full sentences with URLs in them, not the
-       short uppercase labels .admin-card__title was written for. */
-    text-transform: none;
-    letter-spacing: 0;
-    font-size: 0.875rem;
-    line-height: 1.45;
+.sc-rail__item:hover {
+    background: rgba(255, 255, 255, 0.04);
     color: var(--color-text);
 }
+.sc-rail__item.is-active {
+    background: var(--color-orange-fill);
+    color: #fff;
+    font-weight: 600;
+}
+.sc-rail__item.has-error:not(.is-active) { color: var(--color-danger); }
 
-.site-content-grid .admin-card__body {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
+.sc-rail__count {
+    flex: none;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
 }
 
-.site-content-grid .form-group { gap: 0.3rem; }
-
-.site-content-grid .form-hint {
-    margin-top: 0.1rem;
+.sc-panel { display: none; }
+.sc-panel.is-active {
+    display: block;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: var(--space-3);
 }
 
-/* These are short answers — one line per item, a URL, a number. The
-   global 140px floor turned every one into a near-empty slab and was
-   most of the page's length. */
-.site-content-grid textarea.form-control {
+.sc-panel__head {
+    padding-bottom: 0.9rem;
+    margin-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+.sc-panel__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.125rem;
+    color: var(--color-text);
+}
+.sc-panel__where {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    max-width: 70ch;
+}
+
+.sc-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-3);
+    align-items: start;
+}
+
+.sc-field { gap: 0.3rem; }
+.sc-field .form-hint { margin: 0 0 0.3rem; }
+
+/* Short answers — one line per item, a URL, a number. The global
+   140px floor on textareas turned every one into an empty slab. */
+.sc-fields textarea.form-control {
     min-height: 0;
     padding: 0.55rem 0.7rem;
     font-size: 0.9375rem;
     line-height: 1.5;
 }
-
-.site-content-grid input.form-control {
+.sc-fields input.form-control {
     padding: 0.55rem 0.7rem;
     font-size: 0.9375rem;
 }
 
-.site-content-grid .checkbox-row { margin: 0; }
-
-/* The save button used to sit alone, unlabelled, past several screens
-   of scroll. Deliberately NOT sticky: the grid's left column runs out
-   before the right one does, so a bar pinned to the viewport bottom
-   sits on top of live form fields rather than below them. */
-.site-content-actions {
+.sc-check {
     display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    padding: 0.875rem var(--space-3);
-    background: var(--color-bg-raised);
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-size: 0.9375rem;
+    /* A toggle gates the whole section it sits in, so it leads the
+       row rather than sharing a column with a text field. */
+    grid-column: 1 / -1;
+}
+.sc-check input { margin-top: 0.25rem; }
+.sc-check em {
+    color: var(--color-text-muted);
+    font-style: normal;
 }
 
-@media (max-width: 900px) {
-    .site-content-grid { grid-template-columns: 1fr; }
+.sc-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+.sc-actions__note {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 1000px) {
+    .sc-form { grid-template-columns: 1fr; }
+    .sc-rail {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .sc-rail__item { width: auto; }
 }
 
 /* A11y (Sept 2026 Lighthouse pass): in-prose links must not rely on
