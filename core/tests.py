@@ -617,6 +617,57 @@ class PublicCssBundleTests(TestCase):
         self.assertIn('css/public.css', html)
         self.assertNotIn('css/main.css', html)
 
+    def test_the_design_tokens_survive_the_split(self):
+        """
+        Regression, Oct 2026: the whole public site shipped to
+        production with no colours, no fonts and no spacing.
+
+        A UTF-8 BOM got added to main.css (a PowerShell
+        `Set-Content -Encoding UTF8` does this and shows nothing in a
+        diff). `_split_blocks` detects a comment with
+        `css.startswith('/*', i)`, which the BOM defeats at index 0, so
+        the header comment ran on into the `:root { --color-* }` block
+        and the pair was treated as one rule. Its "selector" contained
+        the words "main.css", the class matcher read `css` from that,
+        no public template uses a class called `css`, and the design
+        tokens were dropped. Every `var()` in the bundle then resolved
+        to nothing.
+
+        `--check` could not catch it: the bundle was perfectly in sync
+        with main.css, it was just missing the most important rule in
+        the file. So assert the tokens are actually present.
+        """
+        import os
+
+        from django.conf import settings as _settings
+
+        path = os.path.join(_settings.BASE_DIR, 'core', 'static', 'css',
+                            'public.css')
+        with open(path, encoding='utf-8') as fh:
+            public_css = fh.read()
+
+        self.assertIn(':root', public_css, (
+            'public.css has no :root rule — the design tokens were '
+            'dropped and every var() in the bundle resolves to nothing'))
+        for token in ('--color-bg-deep', '--color-orange', '--color-text',
+                      '--color-border', '--font-serif'):
+            with self.subTest(token=token):
+                self.assertIn(f'{token}:', public_css.replace(' ', ''), (
+                    f'{token} is never defined in public.css'))
+
+    def test_main_css_has_no_byte_order_mark(self):
+        """The generator now reads utf-8-sig so a BOM is survivable,
+        but it has no business being there — catch it at the source."""
+        import os
+
+        from django.conf import settings as _settings
+
+        path = os.path.join(_settings.BASE_DIR, 'core', 'static', 'css',
+                            'main.css')
+        with open(path, 'rb') as fh:
+            self.assertNotEqual(fh.read(3), b'\xef\xbb\xbf',
+                                'main.css starts with a UTF-8 BOM')
+
     def test_js_applied_classes_survive_the_split(self):
         """
         Regression: /design/schedule/ shipped unstyled to production.

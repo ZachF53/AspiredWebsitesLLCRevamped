@@ -295,7 +295,21 @@ def _minify(css: str) -> str:
 
 
 def build() -> str:
-    with open(SOURCE, encoding='utf-8') as handle:
+    # utf-8-sig, not utf-8: a BOM is one invisible character and it cost
+    # the whole public site its design tokens. `_split_blocks` decides a
+    # block is a comment with `css.startswith('/*', i)`. With a leading
+    # BOM that test fails on the very first character, so the file's
+    # header comment, the token-section comment and the entire
+    # `:root { --color-* }` block get swallowed into one pseudo-rule
+    # whose "selector" contains the words "main.css" — from which
+    # `_CLASS_RE` reads a class named `css`, finds it in no public
+    # template, and drops the lot. Every `var()` on the site then
+    # resolves to nothing: no colours, no fonts, no spacing.
+    #
+    # An editor (or a PowerShell `Set-Content -Encoding UTF8`) can add a
+    # BOM without showing anything in a diff. Reading it away here is
+    # the fix; CssTokensSurviveTheBundleTests pins the symptom.
+    with open(SOURCE, encoding='utf-8-sig') as handle:
         css = handle.read()
     public_classes = collect_public_classes()
     body = _filter(css, public_classes)
