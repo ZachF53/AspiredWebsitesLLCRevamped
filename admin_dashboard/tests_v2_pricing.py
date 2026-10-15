@@ -204,6 +204,17 @@ class SyncBadgeTests(TestCase):
     def setUp(self):
         self.admin = _admin()
         self.client.force_login(self.admin)
+        # Two tests below assert on the WHOLE page ("no NOT SYNCED badge
+        # anywhere"), which only held while the test database contained
+        # nothing but their own fixtures. Migrations now create real
+        # tiers, and `hvac-review-system` ships deliberately unsynced —
+        # its Stripe price is created by hand or by
+        # sync_stripe_products, so a blank stripe_price_id is its
+        # correct state on a fresh database. Give it a fake price here so
+        # these tests keep measuring what they are named after instead
+        # of failing on an unrelated, intended condition.
+        ServiceTier.objects.filter(stripe_price_id='').update(
+            stripe_price_id='price_fake_preexisting')
 
     def test_synced_tier_shows_synced_badge(self):
         tier = ServiceTier.objects.create(

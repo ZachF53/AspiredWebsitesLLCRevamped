@@ -184,13 +184,19 @@ class NavigationV2DefinitionTests(TestCase):
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(len(labels), len(set(labels)))
 
-    def test_exactly_ten_items_in_this_order(self):
-        """Subscriptions was added after Pricing (commit 157789a) and
-        the count moved from nine to ten."""
+    def test_exactly_eleven_items_in_this_order(self):
+        """Subscriptions was added after Pricing (commit 157789a), taking
+        the count from nine to ten; Review System was added before Vault
+        when the $97/mo review product shipped, taking it to eleven.
+
+        An exact-list assertion rather than a count: the order is the
+        contract, and a reordering is as much a change as an addition.
+        """
         labels = [item.label for item in all_items(NAVIGATION_V2)]
         self.assertEqual(labels, [
             'Dashboard', 'Accounts', 'Websites', 'Scans', 'Domains',
-            'Billing', 'Pricing', 'Subscriptions', 'Site Content', 'Vault',
+            'Billing', 'Pricing', 'Subscriptions', 'Site Content',
+            'Review System', 'Vault',
         ])
 
 

@@ -1,0 +1,59 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Entitled, but we have nothing to register with yet.
+
+Reached by two different people: someone who just bought the $97 add-on,
+and a Full Plan client who has always had the Review System bundled and
+has simply never set it up. The copy has to work for both, so it leads
+with what we need rather than with "welcome".
+{% endcomment %}
+
+{% block title %}Review System setup{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Finish setting up your Review System</h1>
+    <p class="portal-page-head__sub">About 8 minutes. You can stop and come back.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What we need, and why</h2>
+    <ul class="bullet-list">
+        <li><strong>Your business details.</strong> Phone carriers require every
+            business that sends texts to be registered first, and the details
+            have to match your IRS paperwork exactly.</li>
+        <li><strong>Your Google review link.</strong> Where customers get sent.</li>
+        <li><strong>Your job system.</strong> So a completed job can trigger the
+            request without anyone doing anything.</li>
+        <li><strong>The message wording.</strong> We give you a starting point you
+            can edit.</li>
+        <li><strong>A consent confirmation.</strong> Texting someone who never
+            agreed to hear from you is against federal law, so we need you to
+            confirm the basics in writing.</li>
+    </ul>
+
+    <p>
+        <a class="btn-primary" href="{{ onboarding_url }}">Start setup</a>
+    </p>
+
+    {% if ent.source == 'full_plan' or ent.source == 'comp' %}
+        <p class="muted mt-2">
+            The Review System is already included in your plan &mdash; there&rsquo;s
+            nothing more to pay.
+        </p>
+    {% endif %}
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What happens after</h2>
+    <ol class="schedule-next">
+        <li>We register your business and request a phone number with the
+            carriers. This usually takes 2 to 5 business days and is the one
+            part nobody can speed up.</li>
+        <li>We connect your job system so completed jobs trigger a request.</li>
+        <li>Requests start going out. You&rsquo;ll see every one of them on this
+            page.</li>
+    </ol>
+</section>
+{% endblock %}

@@ -192,6 +192,54 @@ def derive_server_key() -> bytes:
     )
 
 
+def server_encrypt(value: str) -> str:
+    """Encrypt under the server key. Hex out, '' for empty input.
+
+    The one implementation of "a secret this server must be able to read
+    back without an admin PIN session" — OAuth refresh tokens, per-client
+    API tokens, an EIN. Celery and webhook handlers have no PIN, so these
+    cannot use the PIN-derived key.
+
+    Raises RuntimeError (not ValueError) when VAULT_SERVER_SECRET is
+    unset, so a caller surfaces a configuration problem instead of
+    persisting a row it can never decrypt.
+
+    `reporting.google_gbp.encrypt_token` delegates here. Keep it that
+    way: three hand-rolled copies of these ten lines is how one of them
+    eventually loses the no-oracle property in `server_decrypt`.
+    """
+    if not value:
+        return ''
+    try:
+        key = derive_server_key()
+    except ValueError as exc:
+        raise RuntimeError(
+            'VAULT_SERVER_SECRET is not configured on this server. Add '
+            'it to .env and restart before storing server-encrypted '
+            'secrets.') from exc
+    return encrypt_value(value, key)
+
+
+def server_decrypt(encrypted_hex: str) -> str:
+    """Decrypt a `server_encrypt` value, or '' on any failure.
+
+    Never raises and never distinguishes "wrong key" from "corrupt
+    ciphertext" from "not configured" — there is no oracle to attack.
+    A caller that needs to tell "empty" from "failed" must track that
+    itself (e.g. a `*_set_at` timestamp alongside the field).
+    """
+    if not encrypted_hex:
+        return ''
+    try:
+        key = derive_server_key()
+    except ValueError:
+        return ''
+    plain = decrypt_value(encrypted_hex, key)
+    if plain == '[decryption failed]':
+        return ''
+    return plain
+
+
 # Encrypted fields on a VaultCredential — used by re-encryption.
 # NB: vault-level TOTP lives on VaultConfig now, not VaultCredential.
 _REENCRYPT_FIELDS = (

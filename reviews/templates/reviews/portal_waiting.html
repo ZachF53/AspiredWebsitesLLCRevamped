@@ -1,0 +1,74 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Setup is done; we're waiting on the phone carriers.
+
+This page exists because a 2-5 day silence after paying $97 reads as
+"nothing is happening". It shows what is already finished, names the one
+outstanding thing, and gives Pause as the only control — there is
+nothing to manage until requests are actually going out.
+{% endcomment %}
+
+{% block title %}Review System{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Your texting number is being registered</h1>
+    <p class="portal-page-head__sub">
+        Usually 2 to 5 business days. We&rsquo;ll email you the moment it clears.
+    </p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Where things stand</h2>
+    <ul class="bullet-list">
+        <li>&#10003; Business details received{% if program.legal_business_name %} &mdash; {{ program.legal_business_name }}{% endif %}</li>
+        <li>{% if program.google_review_url %}&#10003;{% else %}&#9675;{% endif %} Google review link{% if program.google_business_name %} &mdash; {{ program.google_business_name }}{% endif %}</li>
+        <li>&#10003; Message wording approved</li>
+        <li>&#10003; Consent confirmation signed</li>
+        <li>
+            {% if program.a2p_brand_status == 'approved' %}&#10003;{% else %}&#9675;{% endif %}
+            Carrier registration
+            {% if program.a2p_submitted_at %}
+                &mdash; submitted {{ program.a2p_submitted_at|date:"j M Y" }}
+            {% else %}
+                &mdash; we&rsquo;re preparing your submission
+            {% endif %}
+        </li>
+    </ul>
+
+    <p class="muted">
+        This step is a carrier requirement, not a choice on our side. Every
+        business that sends text messages in the US goes through it.
+    </p>
+</section>
+
+{% if program.sms_body_template %}
+<section class="portal-section">
+    <h2 class="portal-section__title">What your customers will get</h2>
+    <figure class="card pull-quote">
+        <figcaption>Your review request, as a customer will see it</figcaption>
+        <blockquote>{{ program.sms_body_template|linebreaks }}</blockquote>
+    </figure>
+    <p class="muted">You&rsquo;ll be able to edit this once sending is live.</p>
+</section>
+{% endif %}
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Sending</h2>
+    {% if program.sending_paused %}
+        <p>Sending is <strong>paused</strong>. Nothing will go out even once the
+            number clears.</p>
+        <form method="post" action="{% url 'reviews:resume' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Resume sending</button>
+        </form>
+    {% else %}
+        <p>Requests will start automatically once the carriers approve your number.</p>
+        <form method="post" action="{% url 'reviews:pause' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary">Pause before it starts</button>
+        </form>
+    {% endif %}
+</section>
+{% endblock %}

@@ -28,7 +28,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from vault.crypto import decrypt_value, derive_server_key, encrypt_value
+from vault.crypto import server_decrypt, server_encrypt
 
 logger = logging.getLogger(__name__)
 
@@ -52,31 +52,18 @@ LEGACY_API = 'https://mybusiness.googleapis.com/v4'
 def encrypt_token(plaintext: str) -> str:
     """Server-key-encrypted hex. Raises RuntimeError when
     VAULT_SERVER_SECRET is unset so the OAuth callback can surface a
-    friendly error before persisting a garbage row."""
-    if not plaintext:
-        return ''
-    try:
-        key = derive_server_key()
-    except ValueError as exc:
-        raise RuntimeError(
-            'VAULT_SERVER_SECRET is not configured on this server. '
-            'Add it to .env and restart gunicorn before connecting '
-            'Google Business Profile.') from exc
-    return encrypt_value(plaintext, key)
+    friendly error before persisting a garbage row.
+
+    Delegates to `vault.crypto.server_encrypt`, which is now the single
+    implementation shared with the reviews app. Kept as a named wrapper
+    because every call site here reads better as "token".
+    """
+    return server_encrypt(plaintext)
 
 
 def decrypt_token(ciphertext_hex: str) -> str:
     """Decrypt → '' on any failure (no oracle)."""
-    if not ciphertext_hex:
-        return ''
-    try:
-        key = derive_server_key()
-    except ValueError:
-        return ''
-    plain = decrypt_value(ciphertext_hex, key)
-    if plain == '[decryption failed]':
-        return ''
-    return plain
+    return server_decrypt(ciphertext_hex)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -107,6 +107,11 @@ INSTANTLY_TOKEN = ''
 # real contact in the live sub-account. Caught when a routine full-suite
 # run logged 5 live "GHL upsert ok" lines with real GHL trace ids.
 GHL_API_KEY = ''
+# Review System inbound-webhook secret. Blanked so the endpoint fails
+# closed by default in tests — a test that wants to exercise a valid
+# request must override it explicitly, which keeps "unset means 403"
+# honest rather than accidentally inherited from a developer's .env.
+REVIEW_GHL_EVENTS_SECRET = ''
 # 2026-10-10 — same class of bug, and this one bills per call. Apify is
 # pay-per-event: a test that reaches the live API starts a real actor run
 # and spends real money off a $29/month plan. tests_apify.py happened to

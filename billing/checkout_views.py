@@ -226,17 +226,39 @@ def _tier_allows_selfcheckout(tier):
 
 
 def _provision_product_type(tier):
-    """Which onboarding / plan-row shape a self-checkout sale gets.
-    Hosting + Security buyers bring a site they already have, so they
-    get the maintenance onboarding (hosting-panel access etc.) and a
-    MaintenancePlan row carrying the hosting tier slug.
+    """Which PLAN-ROW shape a self-checkout sale gets.
 
-    Standalone Review System buyers bring even less — often no site of
-    ours at all — and ride the same maintenance shape: MaintenancePlan
-    already supports a null website plus an external_site_url, which is
-    exactly the record a reviews-only customer needs."""
+    Hosting + Security buyers bring a site they already have, and
+    standalone Review System buyers often bring no site of ours at all.
+    Both ride the maintenance shape: MaintenancePlan already supports a
+    null website plus an external_site_url, which is exactly the record
+    those customers need.
+
+    Semantics unchanged on purpose — see `_onboarding_product_type` for
+    why this is now only half the question.
+    """
     return ('maintenance' if tier.category in ('hosting', 'addon')
             else tier.category)
+
+
+def _onboarding_product_type(tier):
+    """Which WIZARD this buyer gets.
+
+    Split out from `_provision_product_type` because one value was doing
+    two jobs. A Review System buyer needs the `review_system` wizard
+    (EIN, Google review link, job system, consent attestation), not the
+    maintenance one that asks for their hosting-panel password — but
+    they still need a `MaintenancePlan` row, and the plan-row branch in
+    `provision_self_checkout_account` keys off the OTHER function.
+    Returning 'review_system' from one function for both purposes would
+    skip that branch entirely, leaving someone who just paid $97 with no
+    plan row, no entitlement, and a portal offering to sell it to them
+    again.
+    """
+    from clients.contract_options import REVIEW_SYSTEM_SLUG
+    if tier.slug == REVIEW_SYSTEM_SLUG:
+        return 'review_system'
+    return _provision_product_type(tier)
 
 
 def _legacy_hosting_tier():
@@ -349,6 +371,7 @@ def checkout_confirm(request, tier_slug):
         tier.category == 'maintenance'
         and _legacy_hosting_tier() is not None)
     product_type = _provision_product_type(tier)
+    onboarding_product_type = _onboarding_product_type(tier)
 
     if not email or not payment_method_id:
         return JsonResponse({
@@ -402,6 +425,11 @@ def checkout_confirm(request, tier_slug):
         'metadata': {
             'tier_slug': tier.slug,
             'product_type': product_type,
+            # Carried so the webhook backstop reaches the same decision
+            # as this synchronous path. A subscription created BEFORE
+            # this key existed simply lacks it, and the reader falls
+            # back to product_type — the pre-deploy behaviour.
+            'onboarding_product_type': onboarding_product_type,
             'hosting_upsell': '1' if hosting_upsell else '0',
         },
     }
@@ -436,6 +464,7 @@ def checkout_confirm(request, tier_slug):
             customer_id=customer.id,
             tier_slug=tier.slug,
             product_type=product_type,
+            onboarding_product_type=onboarding_product_type,
             subscription_id=subscription.id,
             hosting_upsell=hosting_upsell,
             customer_name=getattr(customer, 'name', '') or '',

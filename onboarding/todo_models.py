@@ -11,11 +11,14 @@ the registry can import from `todo_models` without circular imports
 (registry uses these for the M5 / S4 conditional predicates).
 """
 
+import logging
 import uuid
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 TASK_TYPE_CHOICES = [
@@ -75,7 +78,7 @@ class SetupTodo(models.Model):
             'status', 'completed_at', 'auto_completed_by'])
 
 
-def build_todos_from_onboarding(onboarding):
+def build_todos_from_onboarding(onboarding, *, request=None):
     """
     Called from onboarding `complete()` view. Walks the onboarding's
     responses; for every `cred_access` question answered "share",
@@ -86,6 +89,12 @@ def build_todos_from_onboarding(onboarding):
 
     For social_media onboardings — also writes a SocialChannel row
     for each channel slot the customer filled in. D6.
+
+    For review_system onboardings — materialises the ReviewProgram and
+    the ReviewConsentAttestation. `request` is optional and exists for
+    that path: the attestation is a legal record and needs the signing
+    IP and user agent, which only the request carries. Every other
+    caller can keep omitting it.
     """
     from onboarding.registry import visible_sections
 
@@ -93,6 +102,21 @@ def build_todos_from_onboarding(onboarding):
     answers = {
         r.question_key: r for r in onboarding.responses.all()
     }
+
+    # ── Review System materialisation ───────────────────────────────
+    # Builds the ReviewProgram and writes the consent attestation.
+    # Wrapped like the social branch below so a failure here cannot cost
+    # the client their completion — but it is logged loudly, because a
+    # program with no attestation cannot be marked live (see
+    # ReviewProgram.blocking_reasons).
+    if onboarding.product_type == 'review_system':
+        try:
+            from reviews.materialise import apply_onboarding
+            apply_onboarding(onboarding, request=request)
+        except Exception:
+            logger.exception(
+                'build_todos: review_system materialisation failed for %s',
+                onboarding.pk)
 
     # ── D6 — social-channel materialisation ─────────────────────────
     if onboarding.product_type == 'social_media':

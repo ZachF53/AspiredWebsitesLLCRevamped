@@ -14,10 +14,12 @@ gate, the completed-intake skip, and the social channel-template flag.
 
 from django.db import models
 
+# NB: duplicated in onboarding/models.py. Both must be updated together.
 PRODUCT_TYPE_CHOICES = [
     ('maintenance', 'Maintenance'),
     ('social_media', 'Social Media'),
     ('website_design', 'Website Design'),
+    ('review_system', 'Review System'),
 ]
 
 QUESTION_TYPE_CHOICES = [
@@ -85,6 +87,15 @@ class OnboardingQuestionDef(models.Model):
         max_length=20, choices=QUESTION_TYPE_CHOICES, default='text')
     help = models.CharField(max_length=400, blank=True)
     placeholder = models.CharField(max_length=200, blank=True)
+    # Starter content pre-filled into the input when the client has no
+    # saved answer yet — distinct from `placeholder`, which is only grey
+    # hint text and is never submitted. Added for the Review System's
+    # message wording, where asking a contractor to compose a
+    # carrier-compliant SMS from an empty box is a guaranteed support
+    # ticket. Applied by onboarding.views.step and, because an untouched
+    # field saves no OnboardingResponse row, also by any materialiser
+    # reading the answers back.
+    default_value = models.TextField(blank=True)
     required = models.BooleanField(default=True)
     skip_allowed = models.BooleanField(default=True)
     rows = models.IntegerField(

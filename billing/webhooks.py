@@ -1775,6 +1775,12 @@ def _handle_self_checkout_subscription_created(event):
         customer_id=customer_id,
         tier_slug=tier_slug,
         product_type=product_type,
+        # Which wizard the buyer gets, split from the plan-row shape.
+        # A subscription created before this metadata key existed has no
+        # value for it, and falling back to product_type reproduces the
+        # pre-split behaviour exactly.
+        onboarding_product_type=(
+            metadata.get('onboarding_product_type') or product_type),
         subscription_id=(sub.get('id') or ''),
         hosting_upsell=(metadata.get('hosting_upsell') == '1'),
         customer_name=customer_name,

@@ -98,11 +98,17 @@ class PortalPagesRenderTests(TestCase):
     RedirectCycleError instead of a passing 302 assertion.
     """
 
+    # `reverse` is namespace-agnostic, so cross-namespace entries work.
+    # reviews:hub is reachable by every client — it is a management page
+    # for one who has the Review System and a sales page for one who
+    # doesn't — and reviews:manage redirects to the hub when they have no
+    # live program, which follow=True resolves to a terminal 200.
     PAGES = [
         'clients:dashboard', 'clients:project', 'clients:revisions',
         'clients:support', 'clients:portal_changelog',
         'clients:portal_reports', 'clients:invoices',
         'clients:portal_maintenance', 'clients:settings',
+        'reviews:hub', 'reviews:manage', 'reviews:signup',
     ]
 
     def setUp(self):

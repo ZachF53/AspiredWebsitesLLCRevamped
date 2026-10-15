@@ -114,7 +114,15 @@
                 </button>
             {% endif %}
 
-            <span class="ob-question__saved" data-q-saved="{{ q.key }}" {% if not q.value %}hidden{% endif %}>✓ saved</span>
+            {% comment %}
+            Validation message from onboarding.validators, rendered by
+            the wizard JS when save_answer returns 400. Without somewhere
+            to put it, a rejected answer just silently never shows
+            "✓ saved" and the client has no idea why.
+            {% endcomment %}
+            <p class="ob-question__error" data-q-error="{{ q.key }}" role="alert" hidden></p>
+
+            <span class="ob-question__saved" data-q-saved="{{ q.key }}" {% if not q.is_saved %}hidden{% endif %}>✓ saved</span>
         </div>
     {% endfor %}
 

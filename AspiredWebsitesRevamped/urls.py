@@ -104,6 +104,10 @@ urlpatterns = [
     path('admin-dashboard/social/',
          include('social.urls', namespace='social')),
     path('admin-dashboard/', include('admin_dashboard.urls', namespace='admin_dashboard')),
+    # Mounted before the broader portal/ include for readability — the
+    # Review System is its own product, not a clients/ utility.
+    path('portal/reviews/',
+         include('reviews.urls_portal', namespace='reviews')),
     path('portal/', include('clients.urls')),
     path('onboarding/', include('onboarding.urls', namespace='onboarding')),
     path('', include('scheduler.urls', namespace='scheduler')),
@@ -144,6 +148,21 @@ urlpatterns = [
          pay_plan_success, name='pay_plan_success'),
     path('maintenance/', include('sync.maintenance_urls')),
     path('api/sync/', include('sync.urls')),
+
+    # Review System machine endpoints. Both live under /api/, which is
+    # already in core.middleware.NOINDEX_PREFIXES and robots-disallowed.
+    #   - events: the client's GHL workflow reports what it sent/saw.
+    #   - status: the same workflow asks "may I send?" as its first step,
+    #     which is the only thing that makes the portal Pause button real.
+    path('api/reviews/ghl/events/<str:secret>/',
+         __import__('reviews.ghl_webhook',
+                    fromlist=['receive']).receive,
+         name='review_ghl_events'),
+    path('api/reviews/status/<uuid:public_key>/',
+         __import__('reviews.views_public',
+                    fromlist=['program_status']).program_status,
+         name='review_program_status'),
+
     path('api/', include('reporting.urls')),
 
     # Phase 7 Part 2 — public referral + proposal tracking endpoints

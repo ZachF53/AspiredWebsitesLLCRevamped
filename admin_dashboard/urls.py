@@ -185,6 +185,26 @@ urlpatterns = [
     path('pricing/<uuid:tier_id>/feature/add/', views.pricing_feature_add, name='pricing_feature_add'),
     path('pricing/<uuid:tier_id>/feature/<uuid:fid>/delete/', views.pricing_feature_delete, name='pricing_feature_delete'),
 
+    # Review System — the operator half of the $97/mo product. The app
+    # collects what the client can tell us; a human creates their GHL
+    # sub-account, submits the A2P brand/campaign and builds the
+    # workflow. These pages hold the credentials that produces.
+    path('reviews/', views.reviews_list, name='reviews_list'),
+    path('reviews/<uuid:program_id>/', views.review_program_detail,
+         name='review_program_detail'),
+    path('reviews/<uuid:program_id>/credentials/', views.save_credentials,
+         name='review_save_credentials'),
+    path('reviews/<uuid:program_id>/a2p/', views.save_a2p,
+         name='review_save_a2p'),
+    path('reviews/<uuid:program_id>/mark-live/', views.mark_live,
+         name='review_mark_live'),
+    path('reviews/<uuid:program_id>/suspend/', views.suspend,
+         name='review_suspend'),
+    path('reviews/<uuid:program_id>/wording-synced/',
+         views.mark_wording_synced, name='review_wording_synced'),
+    path('reviews/<uuid:program_id>/reveal-ein/', views.reveal_ein,
+         name='review_reveal_ein'),
+
     # Onboarding question manager (DB-backed intake builder)
     path('onboarding-questions/', views.onboarding_questions,
          name='onboarding_questions'),

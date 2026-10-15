@@ -27,6 +27,16 @@ BUILD_INSTALLMENT_SLUG = 'hvac-build-installment'
 FULL_PLAN_SLUG = 'hvac-full-plan'
 PLAN_PAID_IN_FULL_SLUG = 'hvac-plan-paid-in-full'
 HOSTING_SECURITY_SLUG = 'hvac-hosting-security'
+# The standalone $97/mo Review System. category='addon', so it is NOT a
+# plan in the maintenance sense — it never appears in the portal plan
+# chooser and has its own signup view.
+REVIEW_SYSTEM_SLUG = 'hvac-review-system'
+
+# Tiers that include automated review generation at no extra cost. Both
+# Full Plan variants bundle it, which is why review entitlement can never
+# be answered by looking for a single plan row.
+FULL_PLAN_SLUGS = (FULL_PLAN_SLUG, PLAN_PAID_IN_FULL_SLUG)
+REVIEWS_BUNDLED_PACKAGES = ('hvac_full_plan', 'hvac_plan_paid_in_full')
 
 INSTALLMENT_COUNT = 24
 GUARANTEE_DAYS = 30

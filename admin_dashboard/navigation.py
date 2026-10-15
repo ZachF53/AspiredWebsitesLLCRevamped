@@ -95,6 +95,7 @@ NAVIGATION = (
         NavItem('Websites', 'admin_dashboard:websites_list'),
         NavItem('Send Onboarding', 'admin_dashboard:send_onboarding'),
         NavItem('Intake Questions', 'admin_dashboard:onboarding_questions'),
+        NavItem('Review System', 'admin_dashboard:reviews_list'),
         NavItem('Domains', 'admin_dashboard:admin_domain_list'),
         NavItem('Deploy', 'admin_dashboard:deploy_home'),
         NavItem('Droplets', 'admin_dashboard:droplet_list'),
@@ -157,6 +158,10 @@ NAVIGATION_V2 = (
         # create/edit flow rather than a duplicate one.
         NavItem('Subscriptions', 'admin_dashboard:v2_pricing_list'),
         NavItem('Site Content', 'admin_dashboard:v2_site_content'),
+        # Points at the v1 page deliberately — there is no v2 variant,
+        # and the Review System queue is work the operator needs
+        # reachable from whichever dashboard they are using.
+        NavItem('Review System', 'admin_dashboard:reviews_list'),
         NavItem('Vault', 'vault:home'),
     )),
 )

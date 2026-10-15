@@ -1,0 +1,113 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% comment %}
+The operator work queue, sorted so what is owed comes first — see
+_STATUS_ORDER in views_reviews.py. "Awaiting carrier registration" means
+a client has finished their setup and is waiting on a human to create
+their GHL sub-account and submit the A2P brand.
+{% endcomment %}
+
+{% block title %}Review System — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">Delivery</span>
+            <h1 class="admin-page-title">Review System</h1>
+            <p class="admin-page-sub">
+                Per-client setup for the $97/mo review product. GoHighLevel does
+                the sending; this is where the credentials and the carrier
+                registration live.
+            </p>
+        </div>
+    </div>
+
+    <div class="droplet-stats">
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ awaiting_count }}</span>
+            <span class="droplet-stat__label">Awaiting your A2P submission</span>
+        </div>
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ programs|length }}</span>
+            <span class="droplet-stat__label">Programs</span>
+        </div>
+        <div class="droplet-stat">
+            <span class="droplet-stat__num">{{ unresolved_events }}</span>
+            <span class="droplet-stat__label">Events with an unknown location</span>
+        </div>
+    </div>
+
+    {% if unresolved_events %}
+        <div class="pricing-warning-banner" role="alert">
+            &#9888; {{ unresolved_events }} inbound event{{ unresolved_events|pluralize }}
+            could not be matched to a client. That is almost always a GHL
+            location ID that was never pasted in — check the Connection panel
+            on the program it belongs to.
+        </div>
+    {% endif %}
+
+    <div class="lead-table-wrapper">
+        <table class="pricing-table">
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Status</th>
+                    <th>A2P brand</th>
+                    <th>A2P campaign</th>
+                    <th>Sending number</th>
+                    <th>Sent (30d)</th>
+                    <th>Reviews (30d)</th>
+                    <th>Wording</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for program in programs %}
+                    <tr>
+                        <td>
+                            <a class="lead-table__firm"
+                               href="{% url 'admin_dashboard:review_program_detail' program.pk %}">
+                                {{ program.display_name }}
+                            </a>
+                            {% if program.needs_human %}
+                                <span class="v2-sync-badge v2-sync-badge--missing">{{ program.needs_human }} repl{{ program.needs_human|pluralize:"y,ies" }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ program.get_setup_status_display }}
+                            {% if program.sending_paused %}
+                                <span class="v2-sync-badge v2-sync-badge--missing">Paused</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ program.get_a2p_brand_status_display }}</td>
+                        <td>{{ program.get_a2p_campaign_status_display }}</td>
+                        <td>{{ program.sending_number|default:"—" }}</td>
+                        <td>{{ program.sent_30 }}</td>
+                        <td>{{ program.reviews_30 }}</td>
+                        <td>
+                            {% if program.wording_synced_to_ghl %}
+                                <span class="v2-sync-badge v2-sync-badge--ok">In sync</span>
+                            {% else %}
+                                <span class="v2-sync-badge v2-sync-badge--missing">Update GHL</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a class="btn-secondary btn-sm"
+                               href="{% url 'admin_dashboard:review_program_detail' program.pk %}">Open</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9">
+                            No review programs yet. One is created when a client
+                            buys the add-on or when a Full Plan client starts
+                            their review setup.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

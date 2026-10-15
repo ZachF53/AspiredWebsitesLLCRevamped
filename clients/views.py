@@ -3062,13 +3062,43 @@ def portal_payment_method_default(request, pm_id):
 
 # ── Maintenance upsell + signup ────────────────────────────────────────────
 
-# Slugs the client portal explicitly knows about — keeps this view safe
-# against arbitrary slug injection in the URL.
-_MAINTENANCE_TIER_SLUGS = (
+# Legacy hardcoded lineup, kept only as the fallback when the DB has no
+# maintenance tiers at all (a fresh dev database that never ran
+# seed_pricing). Everything real comes from _portal_plan_slugs() below.
+_LEGACY_MAINTENANCE_TIER_SLUGS = (
     'maintenance-essentials',
     'maintenance-growth',
     'maintenance-dominant',
 )
+
+
+def _portal_plan_slugs(account=None):
+    """Plan slugs the portal will let a client subscribe to or switch to.
+
+    Guards `portal_maintenance_start` against arbitrary slug injection in
+    the URL, which is why an allowlist exists at all.
+
+    It used to be the three hardcoded `maintenance-*` strings above, and
+    that silently broke the whole HVAC lineup: `portal_maintenance.html`
+    renders a Subscribe/Switch button for every tier `_maintenance_tiers`
+    returns, which includes `hvac-full-plan` and `hvac-plan-paid-in-full`,
+    but clicking one hit "Unknown maintenance plan." The buttons were
+    real and the destination rejected them. Reading the allowlist from the
+    same place the buttons come from means a new maintenance tier can
+    never again render a button that bounces.
+
+    Derived from `_maintenance_tiers(account)` so the per-client
+    `visible_plan_tiers` override is honoured here too — a negotiated
+    non-public tier shown to one account must also be purchasable by that
+    account.
+
+    Deliberately NOT included: `hvac-review-system`. It is
+    `category='addon'`, so `_maintenance_tiers` never returns it and
+    `get_maintenance_tier` would reject it anyway — it has its own portal
+    view (`reviews:signup`) and its own Stripe helper.
+    """
+    slugs = set(_maintenance_tiers(account).values_list('slug', flat=True))
+    return slugs or set(_LEGACY_MAINTENANCE_TIER_SLUGS)
 
 
 def _maintenance_tiers(account=None):
@@ -3252,7 +3282,7 @@ def portal_maintenance_start(request, slug):
         list_customer_payment_methods,
     )
 
-    if slug not in _MAINTENANCE_TIER_SLUGS:
+    if slug not in _portal_plan_slugs(getattr(request, 'account', None)):
         messages.error(request, 'Unknown maintenance plan.')
         return redirect('clients:portal_maintenance')
 
@@ -3361,7 +3391,7 @@ def portal_maintenance_success(request):
     """Thank-you page shown after a successful maintenance signup."""
     slug = request.GET.get('tier', '') or ''
     tier = None
-    if slug in _MAINTENANCE_TIER_SLUGS:
+    if slug in _portal_plan_slugs(getattr(request, 'account', None)):
         from billing.pricing_models import ServiceTier
         tier = ServiceTier.objects.filter(slug=slug).first()
     ctx = _portal_context(

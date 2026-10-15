@@ -31,10 +31,14 @@ from django.db import models
 from django.utils import timezone
 
 
+# NB: duplicated in onboarding/question_models.py — the DB-backed
+# registry has its own copy. Both must be updated together or the admin
+# question editor silently cannot see the new product's sections.
 PRODUCT_TYPE_CHOICES = [
     ('maintenance',    'Maintenance'),
     ('social_media',   'Social Media'),
     ('website_design', 'Website Design'),
+    ('review_system',  'Review System'),
 ]
 
 

@@ -73,7 +73,8 @@ def _drop_websiteless_twin(Model, account, subscription_id, keep):
 def provision_self_checkout_account(*, email, customer_id, tier_slug,
                                     product_type, subscription_id='',
                                     hosting_upsell=False, customer_name='',
-                                    website_id=''):
+                                    website_id='',
+                                    onboarding_product_type=None):
     """Idempotently create the account objects for a self-checkout sale.
 
     Returns the ``User`` (with a possibly-unusable password — the buyer
@@ -82,11 +83,22 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
     ``Account.onboarding_status`` is intentionally left at its default
     so a subscription buyer with no website build lands straight in the
     dashboard — they are NOT pushed through the website intake gate.
+
+    ``onboarding_product_type`` selects which wizard the buyer gets and
+    defaults to ``product_type``, which is the plan-row shape. They
+    differ for exactly one tier today: a standalone Review System sale
+    needs a ``MaintenancePlan`` row (``product_type='maintenance'``) but
+    the ``review_system`` wizard, because the maintenance wizard would
+    ask a reviews-only customer for their hosting-panel password. The
+    default keeps every existing caller — and every in-flight Stripe
+    subscription whose metadata predates the split — behaving exactly
+    as before.
     """
     User = get_user_model()
     email = (email or '').strip().lower()
     if not email:
         return None
+    onboarding_product_type = onboarding_product_type or product_type
 
     user, created = User.objects.get_or_create(
         email__iexact=email,
@@ -141,13 +153,30 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
             pass
 
     # Onboarding record — drives the in-dashboard onboarding checklist.
+    # Keyed on the WIZARD type, not the plan-row type.
     try:
         from onboarding.models import Onboarding
         Onboarding.objects.get_or_create(
-            user=user, product_type=product_type, tier_slug=tier_slug,
+            user=user, product_type=onboarding_product_type,
+            tier_slug=tier_slug,
         )
     except Exception:  # noqa: BLE001
         logger.exception('provision: Onboarding create failed for %s', user.pk)
+
+    # Review System: create the config row now so the onboarding wizard
+    # has somewhere to write and the admin has somewhere to paste the
+    # GHL credentials. Without it the buyer's portal has no program and
+    # the operator queue does not list them.
+    if onboarding_product_type == 'review_system':
+        try:
+            from clients.account_models import Account
+            from reviews.entitlement import program_for
+            account = Account.objects.filter(user=user).first()
+            if account is not None:
+                program_for(account, create=True)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                'provision: ReviewProgram create failed for %s', user.pk)
 
     # Phase-D service-plan row — the canonical record of what they bought.
     try:

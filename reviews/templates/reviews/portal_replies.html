@@ -1,0 +1,65 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+What customers wrote back.
+
+The durable record. A negative reply also fires an internal SMS and a
+notification email from the GHL workflow, so this page is the place to
+look things up rather than the first time anyone hears about it.
+
+Phone numbers are masked. The client needs to recognise the customer,
+not to be able to export a contact list from a web page — these are
+their customers' numbers, and we hold them only to make the product
+work.
+{% endcomment %}
+
+{% block title %}Review replies{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Replies</h1>
+    <p class="portal-page-head__sub">
+        What customers sent back after a review request.
+    </p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Recent replies</h2>
+    <div class="record-list">
+        {% for reply in replies %}
+            <article class="record-list__item {% if reply.needs_human %}rv-reply--flagged{% endif %}">
+                <div class="rv-reply__head">
+                    <strong>{{ reply.customer_name|default:"Customer" }}</strong>
+                    {% if reply.customer_phone_e164 %}
+                        <span class="muted">{{ reply.masked_phone }}</span>
+                    {% endif %}
+                    <span class="muted">{{ reply.occurred_at|date:"j M Y, H:i" }}</span>
+                    {% if reply.needs_human %}
+                        <span class="rv-pill">Needs a reply</span>
+                    {% endif %}
+                </div>
+                {% if reply.body %}
+                    <p class="rv-reply__body">{{ reply.body }}</p>
+                {% endif %}
+            </article>
+        {% empty %}
+            <p class="portal-empty">
+                No replies yet. When a customer texts back, it will show up here
+                and we&rsquo;ll email you.
+            </p>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Replying to a customer</h2>
+    <p>
+        Reply however you normally would &mdash; a call or a text from your own
+        phone. The number shown is the customer&rsquo;s.
+    </p>
+    <p class="muted">
+        A customer who replies STOP is removed automatically and permanently.
+        You don&rsquo;t need to do anything, and they will never be asked again.
+    </p>
+</section>
+{% endblock %}

@@ -28,6 +28,7 @@ _OB_PRODUCTS = [
     ('maintenance', 'Maintenance'),
     ('social_media', 'Social Media'),
     ('website_design', 'Website Design'),
+    ('review_system', 'Review System'),
 ]
 
 
@@ -253,6 +254,17 @@ def _derive_tier_slug(user, product_type):
             p = acc.maintenance_plans.order_by('-started_at').first()
         elif product_type == 'social_media':
             p = acc.social_media_plans.order_by('-started_at').first()
+        elif product_type == 'review_system':
+            # Reviews may be bundled into a Full Plan rather than bought
+            # standalone, in which case there is no review plan row to
+            # read a slug from. The onboarding row's tier_slug is only a
+            # label here, so fall back to the standalone slug.
+            from clients.contract_options import REVIEW_SYSTEM_SLUG
+            p = (acc.maintenance_plans
+                 .filter(tier_slug=REVIEW_SYSTEM_SLUG)
+                 .order_by('-started_at').first())
+            return (p.tier_slug if p and p.tier_slug
+                    else REVIEW_SYSTEM_SLUG)
         else:
             p = None
         return (p.tier_slug if p and p.tier_slug else 'legacy')

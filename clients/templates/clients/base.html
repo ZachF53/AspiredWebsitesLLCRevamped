@@ -112,6 +112,31 @@
                     {% endif %}
                     {% endif %}
 
+                    {% comment %}
+                        Review System. Unlike the service groups above
+                        there is no has_* gate: the link is always
+                        visible because it is a management page for a
+                        client who has the product and a sales page for
+                        one who doesn't. review_nav comes from the
+                        portal_services context processor and carries the
+                        state — "!" when they owe us their A2P details,
+                        "Setup" while the carrier registers their number,
+                        "Paused" when sending is off.
+                    {% endcomment %}
+                    <div class="portal-nav-group-label">Reviews</div>
+                    <a class="portal-nav__link {% if active_portal_nav == 'reviews' %}is-active{% endif %}" href="{% url 'reviews:hub' %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.3 9.4l6.1-.8z"/></svg>
+                        <span>Review System</span>
+                        {% if review_nav.badge %}<span class="portal-badge">{{ review_nav.badge }}</span>{% endif %}
+                    </a>
+                    {% if review_onboarding and not review_onboarding.complete %}
+                    <a class="portal-nav__link portal-nav__link--sub" href="{% url 'onboarding:welcome' review_onboarding.product_type review_onboarding.tier_slug %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 6h4m-4 4h4"/></svg>
+                        <span>Review Setup</span>
+                        <span class="portal-badge">!</span>
+                    </a>
+                    {% endif %}
+
                     {# ── SUPPORT ── #}
                     <div class="portal-nav-group-label">Support</div>
                     <a class="portal-nav__link {% if active_portal_nav == 'support' %}is-active{% endif %}" href="{% url 'clients:support' %}">

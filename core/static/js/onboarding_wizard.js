@@ -44,9 +44,31 @@
             },
             body: JSON.stringify(payload),
         }).then(function (r) {
-            if (!r.ok) throw new Error('save failed: ' + r.status);
-            return r.json();
+            if (r.ok) return r.json();
+            // A 400 from save_answer carries a validation message in
+            // {error}. Surface it rather than discarding the body —
+            // a mistyped EIN or a non-Google review link has to tell
+            // the client what is wrong, not just quietly fail to save.
+            return r.json().then(function (data) {
+                var err = new Error((data && data.error) || 'save failed');
+                err.validation = (data && data.error) || '';
+                throw err;
+            }, function () {
+                throw new Error('save failed: ' + r.status);
+            });
         });
+    }
+
+    function showError(key, message) {
+        var el = card.querySelector('[data-q-error="' + key + '"]');
+        if (!el) return;
+        if (message) {
+            el.textContent = message;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
     }
 
     function updateProgress(progress) {
@@ -81,11 +103,15 @@
                 question_key: key,
                 value: input.value,
             }).then(function (data) {
+                showError(key, '');
                 flashSaved(key);
                 updateProgress(data.progress);
-            }).catch(function () {
-                // Silent — leave the value in the field; user can blur
-                // again or hit save & continue to retry.
+            }).catch(function (err) {
+                // A validation rejection gets shown against the field.
+                // Anything else (offline, 500) stays silent as before —
+                // the value is still in the field and blurring again or
+                // "Save & continue" retries it.
+                showError(key, (err && err.validation) || '');
             });
         }
         // Save on 'change' only — for text/textarea it fires when the

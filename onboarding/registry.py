@@ -442,12 +442,291 @@ def _social_sections(channel_count):
     ]
 
 
+# ── Review System questions ────────────────────────────────────────
+#
+# This wizard has one job: collect everything needed to (a) submit the
+# client's A2P 10DLC brand and campaign and (b) build their GoHighLevel
+# workflow. GHL does the actual sending — see reviews/models.py for the
+# boundary.
+#
+# Two constraints shaped these questions:
+#
+#  1. Only text/textarea/select/bool/cred_access render properly in
+#     onboarding/templates/onboarding/step.html. There is no working
+#     'file' type, so nothing here needs an upload — the A2P brand match
+#     is on EIN digits plus the exact legal name, not a document.
+#  2. R5 is a legal record. Every question there is required with
+#     skip_allowed=False, and completing the wizard writes a
+#     ReviewConsentAttestation snapshotting what the client was shown.
+
+# Starter wording lives in reviews.templating alongside the guard that
+# validates it, so the default copy and the rules it must satisfy can
+# never drift apart. Safe to import at module level: templating.py pulls
+# in no models and no onboarding code.
+from reviews import templating as _rt  # noqa: E402
+
+_REVIEW_SYSTEM = [
+    {
+        'key': 'R1',
+        'title': 'Your business',
+        'intro': 'Phone carriers require every business that sends text '
+                 'messages to be registered first. These details go on that '
+                 'registration and have to match your IRS paperwork exactly '
+                 '— if they do not, it gets rejected and we start over, '
+                 'which costs about a week.',
+        'questions': [
+            {'key': 'legal_business_name',
+             'label': 'Legal business name',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'Johnson Heating & Cooling LLC',
+             'help': 'Exactly as it appears on your IRS EIN letter — not '
+                     'your trading name. "LLC" or "Inc" included if it is '
+                     'part of the registered name.'},
+            {'key': 'business_entity_type',
+             'label': 'Business type',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('sole_prop', 'Sole proprietor (no EIN)'),
+                 ('llc', 'LLC'),
+                 ('s_corp', 'S-Corporation'),
+                 ('c_corp', 'C-Corporation'),
+                 ('partnership', 'Partnership'),
+                 ('non_profit', 'Non-profit'),
+             ],
+             'help': 'Sole proprietors are registered differently and do '
+                     'not need an EIN.'},
+            {'key': 'ein',
+             'label': 'EIN (federal tax ID)',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'placeholder': '12-3456789',
+             'help': 'Skip this if you are a sole proprietor without one. '
+                     'Stored encrypted and used only for the carrier '
+                     'registration.'},
+            {'key': 'dba_name',
+             'label': 'Trading name, if different',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'placeholder': 'Johnson HVAC'},
+            {'key': 'business_street', 'label': 'Street address',
+             'type': 'text', 'required': True, 'skip_allowed': False},
+            {'key': 'business_city', 'label': 'City',
+             'type': 'text', 'required': True, 'skip_allowed': False},
+            {'key': 'business_state', 'label': 'State',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'TX'},
+            {'key': 'business_zip', 'label': 'ZIP code',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': '78205'},
+            {'key': 'business_phone',
+             'label': 'Your main business phone',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'help': 'The number your customers already know. We register a '
+                     'separate number for sending the review requests, and '
+                     'point any replies back to you.'},
+            {'key': 'business_website_url',
+             'label': 'Your website',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'https://...',
+             'help': 'Carriers check this page during registration. If you '
+                     'do not have one yet, tell us on the call.'},
+            {'key': 'support_email',
+             'label': 'Where customer replies should go',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'office@yourcompany.com'},
+            {'key': 'business_timezone',
+             'label': 'Your timezone',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('America/New_York', 'Eastern'),
+                 ('America/Chicago', 'Central'),
+                 ('America/Denver', 'Mountain'),
+                 ('America/Phoenix', 'Arizona (no daylight saving)'),
+                 ('America/Los_Angeles', 'Pacific'),
+                 ('America/Anchorage', 'Alaska'),
+                 ('Pacific/Honolulu', 'Hawaii'),
+             ],
+             'help': 'So requests never go out at nine at night.'},
+        ],
+    },
+    {
+        'key': 'R2',
+        'title': 'Where your reviews go',
+        'intro': 'This is the link your customers will be sent to. Getting '
+                 'it wrong means every request lands somewhere useless, so '
+                 'we check it.',
+        'questions': [
+            {'key': 'google_review_url',
+             'label': 'Your Google review link',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'https://g.page/r/.../review',
+             'help': 'In your Google Business Profile, click "Ask for '
+                     'reviews" and copy the link. Paste the whole thing.'},
+            {'key': 'google_business_name',
+             'label': 'The name on your Google listing',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'help': 'Can differ from your legal name — this is whatever '
+                     'customers see on Google.'},
+        ],
+    },
+    {
+        'key': 'R3',
+        'title': 'Your job system',
+        'intro': 'A review request goes out when a job is marked complete. '
+                 'We need to know what to listen to.',
+        'questions': [
+            {'key': 'job_system',
+             'label': 'What do you use to track jobs?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('servicetitan', 'ServiceTitan'),
+                 ('housecall_pro', 'Housecall Pro'),
+                 ('jobber', 'Jobber'),
+                 ('fieldedge', 'FieldEdge'),
+                 ('service_fusion', 'Service Fusion'),
+                 ('workiz', 'Workiz'),
+                 ('other', 'Something else'),
+                 ('none_paper', 'Nothing — paper or whiteboard'),
+             ]},
+            {'key': 'job_system_other',
+             'label': 'Which one?',
+             'type': 'text', 'required': False, 'skip_allowed': True},
+            {'key': 'job_trigger_method',
+             'label': 'How should we hear about completed jobs?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('native', 'My software can call a web address directly'),
+                 ('zapier', 'Through Zapier'),
+                 ('manual', 'I will mark them myself'),
+                 ('unsure', 'Not sure — help me work it out'),
+             ],
+             'help': '"Not sure" is a perfectly good answer; we will sort '
+                     'it out together on the setup call.'},
+            {'key': 'who_configures',
+             'label': 'Who sets that up?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('client', 'I will do it'),
+                 ('aspired_with_access', 'You do it — I will share access'),
+                 ('aspired_needs_call', 'You do it — let us get on a call'),
+             ]},
+            {'key': 'job_system_access',
+             'label': 'Job system login',
+             'type': 'cred_access', 'required': False, 'skip_allowed': True,
+             'cred_category': 'jobs', 'cred_type': 'job_system_admin',
+             'help': 'Only if you want us to configure it for you.'},
+            {'key': 'avg_jobs_per_week',
+             'label': 'Roughly how many jobs a week?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('lt_10', 'Under 10'),
+                 ('10_25', '10 to 25'),
+                 ('25_50', '25 to 50'),
+                 ('50_100', '50 to 100'),
+                 ('gt_100', 'More than 100'),
+             ],
+             'help': 'Carriers cap how many texts a new number can send '
+                     'per day. This tells us what to ask them for.'},
+        ],
+    },
+    {
+        'key': 'R4',
+        'title': 'What your customers will receive',
+        'intro': 'You can edit this any time later. The review link and '
+                 'the opt-out line are always included and cannot be '
+                 'removed — carriers require the opt-out, and the link is '
+                 'the whole point.',
+        'questions': [
+            {'key': 'sms_body_template',
+             'label': 'Text message wording',
+             'type': 'textarea', 'rows': 4,
+             'required': True, 'skip_allowed': False,
+             'default': _rt.DEFAULT_SMS,
+             'help': 'Available placeholders: {customer_first_name}, '
+                     '{business_name}, {job_type}, {technician}, '
+                     '{review_link}. No discounts or incentives — Google '
+                     'forbids offering anything in exchange for a review.'},
+            {'key': 'email_subject_template',
+             'label': 'Email subject',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'default': _rt.DEFAULT_EMAIL_SUBJECT},
+            {'key': 'email_body_template',
+             'label': 'Email wording',
+             'type': 'textarea', 'rows': 6,
+             'required': True, 'skip_allowed': False,
+             'default': _rt.DEFAULT_EMAIL_BODY},
+            {'key': 'reminder_enabled',
+             'label': 'Send one reminder 3 days later if they never opened '
+                      'the link?',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'send_delay',
+             'label': 'When should the request go out?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('immediate', 'As soon as the job is marked complete'),
+                 ('1_hour', 'About an hour afterwards'),
+                 ('2_hours', 'About two hours afterwards'),
+                 ('next_morning', 'The next morning'),
+             ]},
+            {'key': 'technician_name_in_message',
+             'label': 'Mention the technician by name?',
+             'type': 'bool', 'required': False, 'skip_allowed': True},
+        ],
+    },
+    {
+        'key': 'R5',
+        'title': 'Consent and authorisation',
+        'intro': 'Texting a customer who never agreed to hear from you is '
+                 'against federal law (the TCPA), and the penalties are '
+                 'per message. We need you to confirm the basics below '
+                 'before anything sends. None of this is optional.',
+        'questions': [
+            {'key': 'consent_work_order_discloses',
+             'label': 'Your work order, invoice, or service agreement tells '
+                      'the customer you may text them about their service.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'consent_numbers_lawful',
+             'label': 'Every number you send us was given to you by that '
+                      'customer for their own service, and you have the '
+                      'right to text it.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'consent_no_purchased_lists',
+             'label': 'You will never send us numbers from a purchased, '
+                      'rented, or scraped list.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'consent_no_gating',
+             'label': 'You understand we ask every customer the same way, '
+                      'with no filtering by expected rating and no '
+                      'incentives, because Google forbids both.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'consent_honor_stop',
+             'label': 'You understand that a customer replying STOP is '
+                      'permanent, and we will never text that number again.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'attestation_typed_name',
+             'label': 'Type your full legal name to sign',
+             'type': 'text', 'required': True, 'skip_allowed': False},
+            {'key': 'attestation_title',
+             'label': 'Your title at the business',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'placeholder': 'Owner'},
+        ],
+    },
+]
+
+
 # The registry is built dynamically when get_sections() is called for
 # social_media so the channel count matches the user's tier.
 ONBOARDING_QUESTIONS = {
     'maintenance':    _MAINTENANCE,
     'social_media':   _social_sections(3),  # default 3 — overridden below
     'website_design': [],
+    'review_system':  _REVIEW_SYSTEM,
 }
 
 
@@ -479,6 +758,8 @@ def _q_to_dict(q, channel_index=None):
         d['help'] = q.help
     if q.placeholder:
         d['placeholder'] = q.placeholder
+    if q.default_value:
+        d['default'] = q.default_value
     if q.rows:
         d['rows'] = q.rows
     if q.choices:
@@ -570,6 +851,12 @@ CONDITIONAL_RULES = {
             'S4': lambda ob: _has_completed_intake(ob.user),
         },
     },
+    # Every Review System section applies to every client — the A2P
+    # registration needs all of R1, the link needs R2, the trigger needs
+    # R3, and R4/R5 are the message and the legal record. Declared
+    # explicitly rather than omitted so it is clear this is a decision
+    # and not an oversight.
+    'review_system': {},
 }
 
 

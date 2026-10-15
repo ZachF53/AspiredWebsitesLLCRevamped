@@ -1,0 +1,277 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% comment %}
+One program, everything about it.
+
+Two deliberate omissions:
+
+  * The GHL token is never rendered back — only a hint, when it was set,
+    and who set it. A blank submit leaves the stored value alone. Same
+    convention as the vault.
+  * The EIN is not on the page at all. Reading a client's tax ID is a
+    deliberate act behind its own POST, which writes an audit alert.
+{% endcomment %}
+
+{% block title %}{{ program.display_name }} — Review System{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">
+                <a href="{% url 'admin_dashboard:reviews_list' %}">Review System</a>
+            </span>
+            <h1 class="admin-page-title">{{ program.display_name }}</h1>
+            <p class="admin-page-sub">
+                {{ program.get_setup_status_display }}
+                {% if program.sending_paused %}&middot; paused by the client{% endif %}
+                {% if program.account %}&middot; {{ program.account.name }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {# ── Go live ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">Readiness</h2>
+        {% if can_go_live %}
+            <p>Everything needed is on file.</p>
+            <form method="post" action="{% url 'admin_dashboard:review_mark_live' program.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary">Mark live</button>
+            </form>
+            <p class="muted mt-2">
+                The GHL workflow must call
+                <code>/api/reviews/status/{{ program.public_key }}/</code> as its
+                first step and exit when it reports paused — otherwise the
+                client&rsquo;s Pause button does nothing.
+            </p>
+        {% else %}
+            <p>Not ready yet:</p>
+            <ul class="bullet-list">
+                {% for reason in blocking_reasons %}<li>{{ reason }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if program.setup_status == 'live' %}
+            <form method="post" action="{% url 'admin_dashboard:review_suspend' program.pk %}" class="mt-2">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Suspend</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# ── Connection ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">GoHighLevel connection</h2>
+        <form method="post" action="{% url 'admin_dashboard:review_save_credentials' program.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="loc">Location ID</label>
+                <input id="loc" type="text" name="ghl_location_id"
+                       class="form-control" value="{{ program.ghl_location_id }}">
+                <p class="muted">Resolves inbound events to this client.</p>
+            </div>
+            <div class="form-group">
+                <label for="tok">Private Integration Token</label>
+                <input id="tok" type="password" name="ghl_token"
+                       class="form-control" autocomplete="new-password"
+                       placeholder="{% if program.ghl_token_hint %}{{ program.ghl_token_hint }} — leave blank to keep{% else %}not set{% endif %}">
+                <p class="muted">
+                    {% if program.ghl_token_set_at %}
+                        Set {{ program.ghl_token_set_at|date:"j M Y H:i" }}
+                        {% if program.ghl_token_set_by %}by {{ program.ghl_token_set_by.email|default:program.ghl_token_set_by }}{% endif %}.
+                        Leave blank to keep it.
+                    {% else %}
+                        Optional today — nothing calls GHL outbound yet.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="form-group">
+                <label for="num">Sending number</label>
+                <input id="num" type="text" name="sending_number"
+                       class="form-control" value="{{ program.sending_number }}"
+                       placeholder="+14785550134">
+            </div>
+            <button type="submit" class="btn-primary">Save connection</button>
+        </form>
+    </div>
+
+    {# ── A2P ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">Carrier registration (A2P 10DLC)</h2>
+        <p class="muted">
+            Legal name: <strong>{{ program.legal_business_name|default:"—" }}</strong>
+            &middot; {{ program.get_entity_type_display|default:"entity type not given" }}
+            &middot; EIN on file:
+            {% if program.ein_last4 %}&bull;&bull;&bull;&bull;&bull;{{ program.ein_last4 }}{% else %}none{% endif %}
+            {% if program.entity_type == 'sole_prop' and not program.ein_last4 %}
+                (sole proprietor — register as a sole-prop brand)
+            {% endif %}
+        </p>
+        <p class="muted">
+            {{ program.business_street }}, {{ program.business_city }}
+            {{ program.business_state }} {{ program.business_zip }}
+            &middot; {{ program.business_phone }}
+            &middot; {{ program.business_website_url }}
+        </p>
+
+        {% if program.ein_last4 %}
+            <form method="post" action="{% url 'admin_dashboard:review_reveal_ein' program.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary btn-sm">Reveal EIN (audited)</button>
+            </form>
+        {% endif %}
+
+        <form method="post" action="{% url 'admin_dashboard:review_save_a2p' program.pk %}" class="mt-2">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="brand">Brand status</label>
+                <select id="brand" name="a2p_brand_status" class="form-control">
+                    {% for value, label in program.A2P_CHOICES %}
+                        <option value="{{ value }}" {% if program.a2p_brand_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="camp">Campaign status</label>
+                <select id="camp" name="a2p_campaign_status" class="form-control">
+                    {% for value, label in program.A2P_CHOICES %}
+                        <option value="{{ value }}" {% if program.a2p_campaign_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="rej">Rejection reason (shown to the client)</label>
+                <textarea id="rej" name="a2p_rejection_reason" rows="3"
+                          class="form-control">{{ program.a2p_rejection_reason }}</textarea>
+                <p class="muted">
+                    Leave blank unless rejected. Anything here is shown on the
+                    client&rsquo;s portal with a link back to their business
+                    details, so write it for them.
+                </p>
+            </div>
+            <button type="submit" class="btn-primary">Save status</button>
+        </form>
+    </div>
+
+    {# ── Wording ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">
+            Approved wording
+            {% if program.wording_synced_to_ghl %}
+                <span class="v2-sync-badge v2-sync-badge--ok">In sync</span>
+            {% else %}
+                <span class="v2-sync-badge v2-sync-badge--missing">Update GHL</span>
+            {% endif %}
+        </h2>
+        <p class="muted">
+            Copy into the client&rsquo;s GHL workflow, then mark it in sync.
+            {% if program.wording_updated_at %}
+                Last changed {{ program.wording_updated_at|date:"j M Y H:i" }}.
+            {% endif %}
+        </p>
+        <h3>Text message</h3>
+        <pre class="code-block">{{ program.sms_body_template }}</pre>
+        <h3>Email subject</h3>
+        <pre class="code-block">{{ program.email_subject_template }}</pre>
+        <h3>Email body</h3>
+        <pre class="code-block">{{ program.email_body_template }}</pre>
+        <p class="muted">
+            Review link: {{ program.google_review_url|default:"not set" }}
+            &middot; reminder {% if program.reminder_enabled %}on{% else %}off{% endif %}
+            &middot; delay {{ program.send_delay|default:"not set" }}
+        </p>
+        {% if not program.wording_synced_to_ghl %}
+            <form method="post" action="{% url 'admin_dashboard:review_wording_synced' program.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">Mark GHL workflow updated</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# ── Consent attestations ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">Consent attestations</h2>
+        <p class="muted">
+            Append-only. This is the exhibit if a TCPA claim is ever made, and
+            the reason a program cannot go live without one.
+        </p>
+        {% for att in attestations %}
+            <article class="record-list__item">
+                <p>
+                    <strong>{{ att.typed_name }}</strong>
+                    {% if att.typed_title %}({{ att.typed_title }}){% endif %}
+                    &middot; {{ att.agreed_at|date:"j M Y H:i" }} UTC
+                    &middot; {{ att.ip_address|default:"no IP recorded" }}
+                    &middot; version {{ att.version }}
+                </p>
+                <pre class="code-block">{{ att.attestation_text }}</pre>
+                <p class="muted">{{ att.user_agent|default:"no user agent recorded" }}</p>
+            </article>
+        {% empty %}
+            <p class="muted">
+                None. The client has to complete the onboarding wizard
+                themselves — an operator cannot sign it for them.
+            </p>
+        {% endfor %}
+    </div>
+
+    {# ── Onboarding answers ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">Setup answers</h2>
+        {% for section in answers %}
+            <h3>{{ section.title }}</h3>
+            <div class="lead-table-wrapper">
+                <table class="pricing-table">
+                    <tbody>
+                        {% for row in section.rows %}
+                            <tr>
+                                <th style="width: 45%">{{ row.label }}</th>
+                                <td>{{ row.value|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% empty %}
+            <p class="muted">No answers yet.</p>
+        {% endfor %}
+    </div>
+
+    {# ── Activity ── #}
+    <div class="admin-card">
+        <h2 class="admin-card__title">Recent events</h2>
+        <div class="lead-table-wrapper">
+            <table class="pricing-table">
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Type</th>
+                        <th>Customer</th>
+                        <th>Body</th>
+                        <th>Problem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                        <tr>
+                            <td>{{ event.occurred_at|date:"j M H:i" }}</td>
+                            <td>
+                                {{ event.get_event_type_display }}
+                                {% if event.needs_human %}
+                                    <span class="v2-sync-badge v2-sync-badge--missing">needs a human</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ event.customer_name|default:"—" }} {{ event.masked_phone }}</td>
+                            <td>{{ event.body|truncatechars:80 }}</td>
+                            <td>{{ event.error|truncatechars:60 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5">Nothing yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

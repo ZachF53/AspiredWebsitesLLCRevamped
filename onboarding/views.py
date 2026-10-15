@@ -17,6 +17,7 @@ URL structure:
 """
 
 import json
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
@@ -37,6 +38,8 @@ from .registry import (
     visible_sections,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # Estimated time per product_type (Section 9 of the spec)
 TIME_ESTIMATES = {
@@ -46,6 +49,7 @@ TIME_ESTIMATES = {
     ('social_media',   'social-standard'): 22,
     ('social_media',   'social-full'): 30,
     ('website_design', 'any'): 15,
+    ('review_system',  'any'): 8,
 }
 
 
@@ -207,9 +211,23 @@ def step(request, product_type, tier_slug, section_key):
     questions = []
     for q in section['questions']:
         r = existing.get(q['key'])
+        # A question may carry a 'default' — starter copy the client is
+        # meant to edit rather than compose from nothing (the Review
+        # System's message wording). Shown only when there is no saved
+        # answer at all, so it can never overwrite what they typed, and
+        # an explicit skip still wins.
+        if r is not None:
+            value = r.value
+        else:
+            value = q.get('default', '') or ''
         questions.append({
             **q,
-            'value': r.value if r else '',
+            'value': value,
+            # Whether an answer is actually STORED, which is not the same
+            # as the field having content now that defaults exist. The
+            # template keys its "✓ saved" marker off this; using `value`
+            # would claim a pre-filled default had been saved.
+            'is_saved': r is not None,
             'skipped': r.skipped if r else False,
         })
 
@@ -251,6 +269,19 @@ def save_answer(request, product_type, tier_slug):
         valid_keys.update(q['key'] for q in sec['questions'])
     if key not in valid_keys:
         return HttpResponse('unknown question_key', status=400)
+
+    # Per-question validation. Opt-in by question key, so most answers
+    # are unaffected. Rejecting here is much cheaper than discovering a
+    # mistyped EIN when the carrier rejects the A2P brand five days
+    # later, or a bad Google link after a month of requests went
+    # nowhere. JSON (not a bare 400 body) so the wizard JS can show the
+    # message against the field.
+    from onboarding.validators import describe_answer_problems
+    problems = describe_answer_problems(key, value)
+    if problems:
+        return JsonResponse(
+            {'ok': False, 'error': problems[0], 'errors': problems},
+            status=400)
 
     OnboardingResponse.objects.update_or_create(
         onboarding=ob, question_key=key,
@@ -301,20 +332,31 @@ def complete(request, product_type, tier_slug):
         Onboarding, user=request.user,
         product_type=product_type, tier_slug=tier_slug,
     )
-    if ob.completed_at is None:
+    # A staff view-as session must not be able to finish a client's
+    # onboarding. `step()` has always guarded on this for the much
+    # smaller matter of moving a resume bookmark; `complete()` never did,
+    # so an operator browsing a client's wizard could mark it done on
+    # their behalf. That became unacceptable with the Review System,
+    # whose completion writes a ReviewConsentAttestation — a signed legal
+    # record of the client warranting they hold consent to text their
+    # customers. Zach must never be able to sign that for a client.
+    from clients.impersonation import is_read_only
+    if ob.completed_at is None and not is_read_only(request):
         ob.completed_at = timezone.now()
         ob.save(update_fields=['completed_at'])
-        # Phase 3 will hook in here to create SetupTodos from the
-        # responses. For now, just log.
         try:
             from onboarding.todo_models import build_todos_from_onboarding
-            build_todos_from_onboarding(ob)
+            # `request` is threaded through so a product that records an
+            # attestation can capture the signing IP and user agent.
+            build_todos_from_onboarding(ob, request=request)
         except Exception:
-            pass
+            logger.exception(
+                'onboarding.complete: build_todos failed for %s', ob.pk)
 
     return render(request, 'onboarding/complete.html', {
         'onboarding': ob,
         'progress': _progress(ob),
+        'read_only': is_read_only(request),
     })
 
 

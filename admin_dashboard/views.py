@@ -1005,6 +1005,21 @@ from .views_onboarding_questions import (  # noqa: E402,F401
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Extracted to views_reviews.py — the Review System operator surface
+# ──────────────────────────────────────────────────────────────────────────
+from .views_reviews import (  # noqa: E402,F401
+    mark_live,
+    mark_wording_synced,
+    reveal_ein,
+    review_program_detail,
+    reviews_list,
+    save_a2p,
+    save_credentials,
+    suspend,
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Extracted to views_deploy.py
 # ──────────────────────────────────────────────────────────────────────────
 from .views_deploy import (  # noqa: E402,F401

@@ -1,0 +1,78 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Two different suspensions, and they must not read the same.
+
+A carrier rejection is fixable by the client and says so, with the
+reason. A lapsed subscription is a billing matter. Showing "contact us"
+for both would send someone chasing support over a typo in their legal
+business name.
+{% endcomment %}
+
+{% block title %}Review System{% endblock %}
+
+{% block portal_content %}
+
+{% if program.a2p_rejection_reason %}
+    <header class="portal-page-head">
+        <h1>We need one thing from you</h1>
+        <p class="portal-page-head__sub">
+            The phone carriers turned down the registration. It&rsquo;s almost
+            always a small mismatch, and it&rsquo;s fixable.
+        </p>
+    </header>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">What they said</h2>
+        <article class="card card--accent-left">
+            <p>{{ program.a2p_rejection_reason }}</p>
+        </article>
+        <p class="muted mt-2">
+            The most common cause by far is a business name or EIN that
+            doesn&rsquo;t exactly match your IRS records &mdash; even
+            &ldquo;Inc&rdquo; versus &ldquo;Inc.&rdquo; will do it.
+        </p>
+        {% if ent.onboarding %}
+            <p>
+                <a class="btn-primary"
+                   href="{% url 'onboarding:step' ent.onboarding.product_type ent.onboarding.tier_slug 'R1' %}">
+                    Check your business details
+                </a>
+            </p>
+        {% endif %}
+        <p class="muted">
+            Not sure what to change? Open a
+            <a href="{% url 'clients:support' %}">support ticket</a> and
+            we&rsquo;ll work through it with you.
+        </p>
+    </section>
+
+{% else %}
+    <header class="portal-page-head">
+        <h1>Your Review System is inactive</h1>
+        <p class="portal-page-head__sub">Sending is stopped.</p>
+    </header>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Start it up again</h2>
+        <p>
+            Your setup details and your message wording are all still here
+            &mdash; nothing was deleted. Resubscribing picks up where you left
+            off.
+        </p>
+        {% if tier %}
+            <p>
+                <a class="btn-primary" href="{% url 'reviews:signup' %}">
+                    Restart for {{ tier.get_price_display }}
+                </a>
+            </p>
+        {% endif %}
+        <p class="muted">
+            If you think this is wrong, open a
+            <a href="{% url 'clients:support' %}">support ticket</a> &mdash;
+            we&rsquo;d rather fix it than have you pay twice.
+        </p>
+    </section>
+{% endif %}
+
+{% endblock %}

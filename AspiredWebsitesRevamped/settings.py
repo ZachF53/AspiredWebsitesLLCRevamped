@@ -104,6 +104,7 @@ LOCAL_APPS = [
     'domains',
     'onboarding',
     'scheduler',
+    'reviews',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -454,6 +455,16 @@ GHL_API_KEY = env('GHL_API_KEY', '')
 GHL_LOCATION_ID = env('GHL_LOCATION_ID', 'elhJFAz0ZPa2EmAqthti')
 GHL_API_BASE = env('GHL_API_BASE', 'https://services.leadconnectorhq.com')
 GHL_API_VERSION = env('GHL_API_VERSION', '2021-07-28')
+
+# Review System: the shared secret in the path of
+# /api/reviews/ghl/events/<secret>/, which the per-client GHL workflows
+# post review-request events to. GHL does not sign its webhooks, so an
+# unguessable path segment compared in constant time is the control —
+# same approach and same reasoning as INSTANTLY_WEBHOOK_SECRET.
+# Unset means the endpoint 403s everything (fails closed), so set it
+# before building any client's workflow.
+REVIEW_GHL_EVENTS_SECRET = env('REVIEW_GHL_EVENTS_SECRET', '')
+
 # Where the full submission goes when the GHL push fails for any reason
 # (outage, 4xx/5xx, timeout) — a GHL outage must never cost a lead.
 LEAD_FALLBACK_EMAIL = env('LEAD_FALLBACK_EMAIL', 'zacherylong@aspiredwebsites.com')

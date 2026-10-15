@@ -190,6 +190,190 @@ MAINTENANCE_TIER_TO_PACKAGE = {
 }
 
 
+def _record_maintenance_tier(client, tier, sub_id):
+    """Persist "this client is now on this maintenance tier" locally.
+
+    Replaces four writes to `client.stripe_subscription_id` and
+    `client.package` that raised `AttributeError` on an `Account`: neither
+    is a field or a property there (they moved to `MaintenancePlan` and
+    `Website` respectively when `Account` became canonical). The cancel
+    path was fixed via `_maintenance_sub_id`/`_maintenance_plan_for`; the
+    create and change-tier paths were missed, which is why the portal's
+    "Upgrade to the Full Plan" button 500'd the moment it got past the
+    slug allowlist.
+
+    Writes, in order of authority:
+      1. `MaintenancePlan` — the canonical row. Created if absent.
+      2. The account's `Website` rows — the per-site mirror the admin and
+         portal read (`package`, `maintenance_active`,
+         `stripe_maintenance_subscription_id`). Mirrored only when the
+         account owns exactly one site; with several there is no way to
+         tell which the plan belongs to, so it is left for a human rather
+         than attached to whichever happens to be oldest — the same rule
+         `billing/checkout_views` applies to the hosting upsell.
+      3. A legacy `ClientProfile`'s own flat fields, when it really has
+         them. `getattr`-guarded so an `Account` skips this entirely.
+
+    Returns the MaintenancePlan, or None if no account could be resolved.
+    """
+    from django.utils import timezone
+
+    package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, '')
+
+    # Legacy ClientProfile keeps its flat mirror; Account has no such
+    # fields and must not be written to.
+    legacy_fields = []
+    if hasattr(client, 'stripe_subscription_id'):
+        client.stripe_subscription_id = sub_id
+        legacy_fields.append('stripe_subscription_id')
+    if package and hasattr(client, 'package'):
+        client.package = package
+        legacy_fields.append('package')
+    if legacy_fields:
+        client.save(update_fields=legacy_fields + ['updated_at'])
+
+    account = getattr(getattr(client, 'user', None), 'account', None)
+    if account is None:
+        return None
+
+    from clients.service_models import MaintenancePlan
+
+    # Reuse an existing row wherever one plausibly belongs to this sale,
+    # in order of confidence. Creating a second row is the last resort:
+    # `start_website_plan` writes an `awaiting_payment` row with a BLANK
+    # subscription id when the client has no card on file, and
+    # `_maintenance_plan_for` excludes blank ids — so without the second
+    # and third lookups here, a client who then subscribed through the
+    # portal ended up with two MaintenancePlan rows for one plan, which
+    # is the duplicate `_drop_websiteless_twin` exists to clean up after.
+    plan = _maintenance_plan_for(client)
+    if plan is None:
+        plan = (MaintenancePlan.objects
+                .filter(account=account, tier_slug=tier.slug,
+                        status__in=('active', 'awaiting_payment'))
+                .order_by('-started_at', '-created_at').first())
+    if plan is None:
+        plan = (MaintenancePlan.objects
+                .filter(account=account,
+                        status__in=('active', 'awaiting_payment'))
+                .order_by('-started_at', '-created_at').first())
+    if plan is None:
+        plan = MaintenancePlan(account=account)
+
+    plan.stripe_subscription_id = sub_id
+    plan.tier_slug = tier.slug
+    plan.status = 'active'
+    if plan.started_at is None:
+        plan.started_at = timezone.now()
+    plan.pending_tier_slug = ''
+    plan.pending_tier_effective = None
+    # Field-by-field then save(), never update_or_create(defaults=...), so
+    # an operator-set discount_percent/discount_duration survives.
+    plan.save()
+
+    sites = list(account.websites.all()[:2])
+    if len(sites) == 1:
+        site = sites[0]
+        fields = ['maintenance_active', 'stripe_maintenance_subscription_id',
+                  'updated_at']
+        site.maintenance_active = True
+        site.stripe_maintenance_subscription_id = sub_id
+        if site.maintenance_started_at is None:
+            site.maintenance_started_at = timezone.now()
+            fields.append('maintenance_started_at')
+        if package:
+            site.package = package
+            fields.append('package')
+        site.save(update_fields=fields)
+    elif len(sites) > 1:
+        logger.info(
+            '_record_maintenance_tier: account %s owns %s sites — plan %s '
+            'not mirrored onto any of them', account.pk, len(sites), plan.pk)
+
+    return plan
+
+
+def create_addon_subscription(client, tier_slug):
+    """Subscribe an EXISTING logged-in client to a monthly add-on tier.
+
+    Separate from `create_maintenance_subscription` rather than a flag on
+    it: that function resolves its tier through `get_maintenance_tier`,
+    which filters `category='maintenance'` and would never find an
+    add-on, and its idempotency check looks for "the client's
+    maintenance subscription" — an add-on must be able to sit alongside
+    one, not be mistaken for it.
+
+    Used by the portal's Review System signup. The public
+    /billing/checkout/<slug>/ flow is for anonymous buyers and would
+    mint a second Stripe customer and a second Django user for someone
+    already signed in.
+
+    Idempotent on the add-on: an existing served plan row for the same
+    tier short-circuits rather than double-billing.
+
+    Raises:
+      StripeNotConfigured — STRIPE_SECRET_KEY missing
+      ValueError          — bad slug, no Stripe Price ID, or no card
+    """
+    _init()
+    from billing.pricing_models import ServiceTier
+    from clients.service_models import MaintenancePlan
+
+    tier = ServiceTier.objects.filter(
+        slug=tier_slug, is_active=True, category='addon',
+        is_recurring=True, billing_interval='month').first()
+    if tier is None:
+        raise ValueError(f'No active monthly add-on tier "{tier_slug}".')
+    if not tier.stripe_price_id:
+        raise ValueError(
+            f"No Stripe Price ID set for '{tier.name}'. Run "
+            f'`python manage.py sync_stripe_products` to bootstrap it.')
+
+    account = getattr(getattr(client, 'user', None), 'account', None) or client
+
+    existing = (MaintenancePlan.objects
+                .filter(account=account, tier_slug=tier.slug,
+                        status__in=('active', 'awaiting_payment'))
+                .exclude(stripe_subscription_id='')
+                .first())
+    if existing is not None:
+        logger.info(
+            'create_addon_subscription: account %s already on %s (sub %s)',
+            account.pk, tier.slug, existing.stripe_subscription_id)
+        return stripe.Subscription.retrieve(existing.stripe_subscription_id)
+
+    customer = create_or_get_customer(client)
+    if not get_customer_default_payment_method(customer.id):
+        raise ValueError(
+            'No default payment method on file. Add a card on the '
+            'subscriptions page before subscribing.')
+
+    subscription = stripe.Subscription.create(
+        customer=customer.id,
+        items=[{'price': tier.stripe_price_id}],
+        metadata={
+            'kind': 'addon',
+            'plan': tier.slug,
+            'account_id': str(account.pk),
+        },
+        payment_behavior='error_if_incomplete',
+    )
+
+    # Its own plan row, deliberately website-less: a reviews-only client
+    # may have no site of ours at all, which is exactly the shape
+    # MaintenancePlan's nullable website + external_site_url supports.
+    plan = MaintenancePlan(account=account)
+    plan.tier_slug = tier.slug
+    plan.stripe_subscription_id = subscription.id
+    plan.status = 'active'
+    plan.started_at = timezone.now()
+    plan.save()
+
+    logger.info('create_addon_subscription: account %s subscribed to %s '
+                '(sub %s)', account.pk, tier.slug, subscription.id)
+    return subscription
+
+
 def create_maintenance_subscription(client, plan_slug):
     """
     Create-or-return a recurring maintenance subscription for the client.
@@ -215,11 +399,13 @@ def create_maintenance_subscription(client, plan_slug):
     customer = create_or_get_customer(client)
 
     # If we already have a maintenance sub on file, return it (or its
-    # fresh state) rather than double-creating.
-    if client.stripe_subscription_id:
+    # fresh state) rather than double-creating. Resolved through
+    # MaintenancePlan — `Account` has no stripe_subscription_id field, so
+    # reading it directly raised AttributeError before anything else ran.
+    existing_sub_id, existing_plan = _maintenance_sub_id(client)
+    if existing_sub_id:
         try:
-            existing = stripe.Subscription.retrieve(
-                client.stripe_subscription_id)
+            existing = stripe.Subscription.retrieve(existing_sub_id)
             existing_status = getattr(existing, 'status', '')
             if existing_status not in ('canceled', 'incomplete_expired'):
                 logger.info(
@@ -228,7 +414,7 @@ def create_maintenance_subscription(client, plan_slug):
                     client.pk, existing.id, existing_status)
                 return existing
         except Exception:
-            client.stripe_subscription_id = ''
+            _forget_dead_maintenance_sub(client, existing_plan, existing_sub_id)
 
     # Confirm the customer has a default payment method on file.
     default_pm = get_customer_default_payment_method(customer.id)
@@ -250,11 +436,7 @@ def create_maintenance_subscription(client, plan_slug):
         # creating an `incomplete` subscription that just sits there.
         payment_behavior='error_if_incomplete',
     )
-    client.stripe_subscription_id = subscription.id
-    client.package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, client.package)
-    client.save(update_fields=[
-        'stripe_subscription_id', 'package', 'updated_at',
-    ])
+    _record_maintenance_tier(client, tier, subscription.id)
     logger.info(
         'create_maintenance_subscription: client %s subscribed to %s '
         '(sub %s)', client.pk, tier.slug, subscription.id)
@@ -406,40 +588,49 @@ def change_maintenance_subscription_tier(client, new_plan_slug):
     or the new slug is invalid.
     """
     _init()
-    if not client.stripe_subscription_id:
+    # Resolved through MaintenancePlan: `Account` has no
+    # stripe_subscription_id, so reading it directly raised
+    # AttributeError on the first line for every Account-based client.
+    sub_id, plan = _maintenance_sub_id(client)
+    if not sub_id:
         raise ValueError(
             'No active maintenance subscription to change. Subscribe '
             'first.')
 
     tier = get_maintenance_tier(new_plan_slug)
     result = _change_subscription_tier(
-        client.stripe_subscription_id,
+        sub_id,
         tier.stripe_price_id,
         _cents(tier.price),
         {'kind': 'maintenance', 'plan': tier.slug},
     )
-    _sync_local_maintenance_after_change(client, tier, result)
+    _sync_local_maintenance_after_change(client, tier, result, sub_id=sub_id,
+                                         plan=plan)
     logger.info(
         'change_maintenance_subscription_tier: client %s -> %s (%s)',
         client.pk, tier.slug, result['direction'])
     return result
 
 
-def _sync_local_maintenance_after_change(client, tier, result):
+def _sync_local_maintenance_after_change(client, tier, result, *, sub_id=None,
+                                         plan=None):
     """Mirror a tier change onto the local MaintenancePlan + package.
 
     Upgrade/same apply now: flip tier_slug + package and clear any pending
     downgrade. Downgrade is deferred: leave the current tier in place and
     record the queued tier + effective date so the portal can show it.
+
+    `sub_id`/`plan` are passed in by the caller, which has already
+    resolved them. They used to be re-derived here from
+    `client.stripe_subscription_id` and a `client.migrated_account`
+    fallback — neither exists on an `Account`, so this raised
+    AttributeError on the upgrade branch and silently found no plan on
+    the downgrade branch.
     """
-    from clients.service_models import MaintenancePlan
-    sub_id = client.stripe_subscription_id
-    plan = MaintenancePlan.objects.filter(
-        stripe_subscription_id=sub_id).first()
-    if plan is None:
-        account = getattr(client, 'migrated_account', None)
-        if account is not None:
-            plan = account.maintenance_plans.filter(status='active').first()
+    if sub_id is None or plan is None:
+        resolved_sub_id, resolved_plan = _maintenance_sub_id(client)
+        sub_id = sub_id or resolved_sub_id
+        plan = plan or resolved_plan
 
     if result['direction'] == 'downgrade':
         if plan is not None:
@@ -450,16 +641,10 @@ def _sync_local_maintenance_after_change(client, tier, result):
         # Package + tier stay on the current (paid) plan until it applies.
         return
 
-    # upgrade / same — effective immediately
-    client.package = MAINTENANCE_TIER_TO_PACKAGE.get(tier.slug, client.package)
-    client.save(update_fields=['package', 'updated_at'])
-    if plan is not None:
-        plan.tier_slug = tier.slug
-        plan.pending_tier_slug = ''
-        plan.pending_tier_effective = None
-        plan.save(update_fields=[
-            'tier_slug', 'pending_tier_slug', 'pending_tier_effective',
-            'updated_at'])
+    # upgrade / same — effective immediately. _record_maintenance_tier
+    # handles the plan row, the Website mirror and a legacy profile's own
+    # flat fields, so the Account case no longer writes `client.package`.
+    _record_maintenance_tier(client, tier, sub_id)
 
 
 def _maintenance_plan_for(client, website=None):

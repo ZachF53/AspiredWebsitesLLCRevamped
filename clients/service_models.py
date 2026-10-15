@@ -124,20 +124,42 @@ class MaintenancePlan(TimestampedModel):
         hardcode prices/tiers, always query ServiceTier); TIER_CHOICES is
         only a fallback for the handful of legacy tiers.
         """
+        return self._tier_name(self.tier_slug)
+
+    def _tier_name(self, slug):
+        """ServiceTier.name for `slug`, else a TIER_CHOICES label, else
+        the raw slug.
+
+        Tries the maintenance category first, then any category. A
+        MaintenancePlan row legitimately carries tiers whose
+        ServiceTier.category is NOT 'maintenance': billing.checkout_views
+        `_provision_product_type` maps both 'hosting' and 'addon' sales
+        onto this model, so `hvac-hosting-security` and
+        `hvac-review-system` live here. Filtering on category alone sent
+        both down to the TIER_CHOICES fallback, which doesn't list them
+        either, so the raw slug rendered in the portal.
+        """
+        if not slug:
+            return ''
         from billing.pricing_models import ServiceTier
-        tier = ServiceTier.objects.filter(
-            slug=self.tier_slug, category='maintenance').first()
+        tier = (ServiceTier.objects
+                .filter(slug=slug, category='maintenance').first()
+                or ServiceTier.objects.filter(slug=slug).first())
         if tier:
             return tier.name
-        return dict(self.TIER_CHOICES).get(self.tier_slug, self.tier_slug)
+        return dict(self.TIER_CHOICES).get(slug, slug)
 
     @property
     def pending_tier_display(self):
-        """Human label for a queued downgrade, or '' if none."""
-        if not self.pending_tier_slug:
-            return ''
-        return dict(self.TIER_CHOICES).get(
-            self.pending_tier_slug, self.pending_tier_slug)
+        """Human label for a queued downgrade, or '' if none.
+
+        Read TIER_CHOICES only, which lists just the three legacy
+        maintenance slugs — so a queued HVAC or custom tier rendered as
+        a raw slug ("hvac-plan-paid-in-full") in the portal's
+        "switching to X on Y" notice. Shares `_tier_name` with
+        get_tier_slug_display now so the two cannot disagree.
+        """
+        return self._tier_name(self.pending_tier_slug)
 
     @property
     def current_monthly_price(self):
@@ -253,20 +275,27 @@ class SocialMediaPlan(TimestampedModel):
     def get_tier_slug_display(self):
         """Human label for tier_slug — see MaintenancePlan's identical
         override for why the auto-generated version isn't enough."""
+        return self._tier_name(self.tier_slug)
+
+    def _tier_name(self, slug):
+        """ServiceTier.name for `slug`, else a TIER_CHOICES label, else
+        the raw slug. Social tier first, then any category."""
+        if not slug:
+            return ''
         from billing.pricing_models import ServiceTier
-        tier = ServiceTier.objects.filter(
-            slug=self.tier_slug, category='social_media').first()
+        tier = (ServiceTier.objects
+                .filter(slug=slug, category='social_media').first()
+                or ServiceTier.objects.filter(slug=slug).first())
         if tier:
             return tier.name
-        return dict(self.TIER_CHOICES).get(self.tier_slug, self.tier_slug)
+        return dict(self.TIER_CHOICES).get(slug, slug)
 
     @property
     def pending_tier_display(self):
-        """Human label for a queued downgrade, or '' if none."""
-        if not self.pending_tier_slug:
-            return ''
-        return dict(self.TIER_CHOICES).get(
-            self.pending_tier_slug, self.pending_tier_slug)
+        """Human label for a queued downgrade, or '' if none. Shares
+        `_tier_name` with get_tier_slug_display so a queued custom tier
+        can't render as a raw slug — see MaintenancePlan for the detail."""
+        return self._tier_name(self.pending_tier_slug)
 
     def get_pay_url(self):
         """Absolute URL of the on-site pay page for an awaiting_payment

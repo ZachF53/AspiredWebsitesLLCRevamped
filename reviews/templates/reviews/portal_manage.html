@@ -1,0 +1,259 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+The live dashboard: how many requests went out, how many turned into
+reviews, what customers said back, and the two controls the client owns
+(pause, and the message wording).
+
+Chart notes (dataviz): the two series are both counts of the same unit,
+so they share ONE axis — scaled to the largest monthly "sent" in the
+window by reviews.reporting.chart_bars. Grouped bars rather than lines
+because 12 monthly buckets is a comparison, not a trend to interpolate.
+Colours are the brand pair (#E8650A orange / #0D9488 teal), validated
+for CVD separation against the portal surface #0F172A. A legend is
+always present, the numbers sit in text tokens rather than the series
+colour, and the table below the chart IS the accessible view of the same
+data — not a duplicate to keep in sync, both render the same `series`.
+{% endcomment %}
+
+{% block title %}Review System{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Review System</h1>
+    <p class="portal-page-head__sub">
+        {% if program.sending_paused %}
+            Sending is paused.
+        {% else %}
+            Live &mdash; every completed job asks for a review.
+        {% endif %}
+        {% if program.sending_number %}
+            Sending from {{ program.sending_number }}.
+        {% endif %}
+    </p>
+</header>
+
+{% if program.sending_paused %}
+    <div class="portal-callout">
+        <p><strong>Sending is paused.</strong> Completed jobs are not triggering
+            review requests. Your subscription is unaffected.</p>
+        <form method="post" action="{% url 'reviews:resume' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Resume sending</button>
+        </form>
+    </div>
+{% endif %}
+
+{# ── Headline numbers ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">Last 30 days</h2>
+    {% with w=windows.d30 %}
+    <div class="rv-tiles">
+        <div class="rv-tile">
+            <span class="rv-tile__value">{{ w.sent }}</span>
+            <span class="rv-tile__label">Requests sent</span>
+        </div>
+        <div class="rv-tile">
+            <span class="rv-tile__value">{{ w.reviews }}</span>
+            <span class="rv-tile__label">Reviews left</span>
+        </div>
+        <div class="rv-tile">
+            <span class="rv-tile__value">{% if w.review_rate != None %}{{ w.review_rate }}%{% else %}&mdash;{% endif %}</span>
+            <span class="rv-tile__label">Became a review</span>
+        </div>
+        <div class="rv-tile">
+            <span class="rv-tile__value">{{ w.replies }}</span>
+            <span class="rv-tile__label">Replies</span>
+        </div>
+    </div>
+    {% endwith %}
+
+    <div class="table-scroll">
+        <table class="rv-table">
+            <caption class="visually-hidden">Requests sent and reviews left over four periods</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Period</th>
+                    <th scope="col">Requests sent</th>
+                    <th scope="col">Reviews left</th>
+                    <th scope="col">Became a review</th>
+                    <th scope="col">Opted out</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in windows.values %}
+                    <tr>
+                        <th scope="row">{{ w.label }}</th>
+                        <td>{{ w.sent }}</td>
+                        <td>{{ w.reviews }}</td>
+                        <td>{% if w.review_rate != None %}{{ w.review_rate }}%{% else %}&mdash;{% endif %}</td>
+                        <td>{{ w.opt_outs }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{# ── Month by month ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">Month by month</h2>
+
+    <p class="rv-legend">
+        <span class="rv-legend__item"><span class="rv-swatch rv-swatch--sent" aria-hidden="true"></span>Requests sent</span>
+        <span class="rv-legend__item"><span class="rv-swatch rv-swatch--reviews" aria-hidden="true"></span>Reviews left</span>
+    </p>
+
+    {% comment %}
+    aria-hidden on the plot: the table immediately below carries the
+    same numbers in a form a screen reader can actually navigate, so
+    announcing the bars too would just be noise.
+    {% endcomment %}
+    <div class="rv-chart" aria-hidden="true">
+        {% for row in series %}
+            <div class="rv-chart__col" title="{{ row.label }}: {{ row.sent }} sent, {{ row.reviews }} reviews">
+                <div class="rv-chart__bars">
+                    <div class="rv-bar rv-bar--sent" style="height: {{ row.sent_pct }}%"></div>
+                    <div class="rv-bar rv-bar--reviews" style="height: {{ row.reviews_pct }}%"></div>
+                </div>
+                <span class="rv-chart__label">{{ row.label|slice:":3" }}</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="table-scroll">
+        <table class="rv-table">
+            <caption class="visually-hidden">Requests sent and reviews left by month</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Month</th>
+                    <th scope="col">Requests sent</th>
+                    <th scope="col">Reviews left</th>
+                    <th scope="col">Became a review</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in series %}
+                    <tr>
+                        <th scope="row">{{ row.label }}</th>
+                        <td>{{ row.sent }}</td>
+                        <td>{{ row.reviews }}</td>
+                        <td>{% if row.review_rate != None %}{{ row.review_rate }}%{% else %}&mdash;{% endif %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="portal-empty">No activity yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{# ── Recent activity ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">
+        Recent activity
+        {% if replies_pending %}
+            <a class="rv-pill" href="{% url 'reviews:replies' %}">{{ replies_pending }} repl{{ replies_pending|pluralize:"y,ies" }} to read</a>
+        {% endif %}
+    </h2>
+    <div class="table-scroll">
+        <table class="rv-table">
+            <thead>
+                <tr>
+                    <th scope="col">When</th>
+                    <th scope="col">Customer</th>
+                    <th scope="col">What happened</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                    <tr>
+                        <td>{{ event.occurred_at|date:"j M, H:i" }}</td>
+                        <td>
+                            {{ event.customer_name|default:"&mdash;" }}
+                            {% if event.customer_phone_e164 %}
+                                <span class="muted">{{ event.masked_phone }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ event.get_event_type_display }}
+                            {% if event.review_rating %} &mdash; {{ event.review_rating }}&#9733;{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3" class="portal-empty">Nothing yet. Requests will appear here as they go out.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{# ── The message ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">What your customers receive</h2>
+
+    {% if not program.wording_synced_to_ghl %}
+        <div class="portal-callout">
+            <p>Your latest wording is saved and we&rsquo;re rolling it out. Messages
+                going out right now still use the previous version.</p>
+        </div>
+    {% endif %}
+
+    <p class="muted">
+        The review link and the opt-out line are always included and can&rsquo;t
+        be removed &mdash; carriers require the opt-out, and the link is the
+        whole point. No discounts or incentives: Google forbids offering
+        anything in exchange for a review.
+    </p>
+
+    <form method="post" action="{% url 'reviews:wording_save' %}">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="rv-sms">Text message</label>
+            <textarea id="rv-sms" name="sms_body_template" rows="4"
+                      class="form-control">{{ program.sms_body_template }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="rv-subject">Email subject</label>
+            <input id="rv-subject" type="text" name="email_subject_template"
+                   class="form-control" value="{{ program.email_subject_template }}">
+        </div>
+        <div class="form-group">
+            <label for="rv-email">Email message</label>
+            <textarea id="rv-email" name="email_body_template" rows="7"
+                      class="form-control">{{ program.email_body_template }}</textarea>
+        </div>
+        <p class="muted">
+            Placeholders you can use: <code>{{ "{customer_first_name}" }}</code>,
+            <code>{{ "{business_name}" }}</code>, <code>{{ "{job_type}" }}</code>,
+            <code>{{ "{technician}" }}</code>, <code>{{ "{review_link}" }}</code>.
+        </p>
+        <button type="submit" class="btn-primary">Save wording</button>
+    </form>
+</section>
+
+{# ── Controls ── #}
+<section class="portal-section">
+    <h2 class="portal-section__title">Settings</h2>
+
+    <form method="post" action="{% url 'reviews:settings_save' %}">
+        {% csrf_token %}
+        <label class="rv-check">
+            <input type="checkbox" name="reminder_enabled"
+                   {% if program.reminder_enabled %}checked{% endif %}>
+            <span>Send one reminder 3 days later if the customer never opened the link</span>
+        </label>
+        <button type="submit" class="btn-secondary">Save setting</button>
+    </form>
+
+    {% if not program.sending_paused %}
+        <hr class="rv-rule">
+        <p><strong>Need to stop asking for a while?</strong> Pausing stops
+            requests going out. It does not cancel your subscription.</p>
+        <form method="post" action="{% url 'reviews:pause' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary">Pause sending</button>
+        </form>
+    {% endif %}
+</section>
+{% endblock %}

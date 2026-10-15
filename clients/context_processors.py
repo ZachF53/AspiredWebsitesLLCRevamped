@@ -26,6 +26,9 @@ def portal_services(request):
         'has_droplet': False,
         'maintenance_onboarding': None,
         'social_onboarding': None,
+        'review_onboarding': None,
+        'review_nav': {'has': False, 'setup_status': '', 'paused': False,
+                       'badge': ''},
     }
     user = getattr(request, 'user', None)
     if not user or not user.is_authenticated:
@@ -56,6 +59,16 @@ def portal_services(request):
                 'complete': ob.completed_at is not None,
             }
 
+        # The Review System nav link is always visible — it is a
+        # management page for clients who have it and a sales page for
+        # those who don't — so unlike the other services there is no
+        # has_* boolean gating the group. `review_nav.badge` carries the
+        # state instead. A context processor rather than
+        # `_portal_context` for the same reason the impersonation banner
+        # is one: a view that builds its context some other way would
+        # render the sidebar with no badge, silently hiding from the
+        # client that we are waiting on their A2P details.
+        from reviews.entitlement import nav_state
         return {
             'has_website':      account.websites.exists(),
             'has_maintenance':  account.maintenance_plans.exists(),
@@ -63,6 +76,8 @@ def portal_services(request):
             'has_droplet':      account.droplets.exists(),
             'maintenance_onboarding': _onboarding('maintenance'),
             'social_onboarding': _onboarding('social_media'),
+            'review_onboarding': _onboarding('review_system'),
+            'review_nav': nav_state(account),
         }
     except Exception:
         return blank

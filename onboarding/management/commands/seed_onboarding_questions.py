@@ -26,6 +26,7 @@ def _seed_question(section, q, order):
             'qtype': q.get('type', 'text'),
             'help': q.get('help', '') or '',
             'placeholder': q.get('placeholder', '') or '',
+            'default_value': q.get('default', '') or '',
             'required': q.get('required', True),
             'skip_allowed': q.get('skip_allowed', True),
             'rows': q.get('rows'),
@@ -89,6 +90,11 @@ class Command(BaseCommand):
                 flags['skip_if_completed_intake'] = True
             _seed_section(
                 'social_media', {**sec, 'questions': questions}, i, **flags)
+
+        # ── Review System ── no conditional flags: every section applies
+        # to every client (see CONDITIONAL_RULES['review_system']).
+        for i, sec in enumerate(reg._REVIEW_SYSTEM):
+            _seed_section('review_system', sec, i)
 
         sec_n = OnboardingSectionDef.objects.count()
         q_n = OnboardingQuestionDef.objects.count()

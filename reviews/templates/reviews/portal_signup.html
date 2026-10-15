@@ -1,0 +1,120 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Two jobs, one template:
+
+  * `confirm` unset — the sales page. Shown to a client with no review
+    access. Offers the $97 add-on and, when the entitlement says they
+    can, an upgrade to the Full Plan that bundles it.
+  * `confirm` set — the "charge my card on file" confirmation, which is
+    why signup never bounces through /billing/checkout/<slug>/ (that is
+    the anonymous flow and would mint a second Stripe customer).
+
+Every price comes from the live ServiceTier row — never a literal
+(CLAUDE.md).
+{% endcomment %}
+
+{% block title %}Review System{% endblock %}
+
+{% block portal_content %}
+
+{% if confirm %}
+    <header class="portal-page-head">
+        <h1>Add the Review System</h1>
+        <p class="portal-page-head__sub">
+            One more step and every finished job starts asking for a Google review.
+        </p>
+    </header>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Confirm</h2>
+        {% if tier %}
+            <p><strong>{{ tier.name }}</strong> &mdash; {{ tier.get_price_display }}, month-to-month. Cancel any time.</p>
+        {% endif %}
+
+        {% if default_card %}
+            <p class="muted">
+                Charged to {{ default_card.brand }} &bull;&bull;&bull;&bull; {{ default_card.last4 }}
+                (expires {{ default_card.exp_month }}/{{ default_card.exp_year }}).
+            </p>
+            <form method="post" action="{% url 'reviews:signup' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary">
+                    Start for {% if tier %}{{ tier.get_price_display }}{% else %}the monthly rate{% endif %}
+                </button>
+            </form>
+            <p class="muted mt-2">
+                Next you&rsquo;ll answer a few setup questions (about 8 minutes) so we
+                can register your texting number with the phone carriers.
+            </p>
+        {% else %}
+            <p class="portal-empty">
+                There&rsquo;s no payment method on your account yet.
+                <a href="{% url 'clients:portal_subscriptions' %}">Add a card</a>,
+                then come back here.
+            </p>
+        {% endif %}
+    </section>
+
+{% else %}
+    <header class="portal-page-head">
+        <h1>Review System</h1>
+        <p class="portal-page-head__sub">
+            Every finished job automatically asks the customer for a Google review.
+        </p>
+    </header>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">How it works</h2>
+        <ul class="bullet-list">
+            <li>A job is marked complete in whatever software you already use.</li>
+            <li>The customer gets a text and an email while the work is still fresh,
+                with a direct link to your Google profile.</li>
+            <li>Reviews build up without anyone on your team having to remember to ask.</li>
+        </ul>
+        <p class="muted">
+            Asked the same way every time, with no incentives and no filtering by
+            who you think will leave a good review &mdash; that&rsquo;s what keeps
+            you inside Google&rsquo;s rules.
+        </p>
+    </section>
+
+    <section class="portal-section">
+        <h2 class="portal-section__title">Add it to your account</h2>
+        <div class="cards cards--2col">
+            {% if tier %}
+                <article class="card card--accent-left">
+                    <h3>{{ tier.name }} &mdash; {{ tier.get_price_display }}</h3>
+                    <ul class="bullet-list">
+                        {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <p><a class="btn-primary" href="{% url 'reviews:signup' %}">Add for {{ tier.get_price_display }}</a></p>
+                </article>
+            {% endif %}
+
+            {% if full_plan_tier %}
+                <article class="card card--accent-left">
+                    <h3>Or the Full Plan &mdash; {{ full_plan_tier.get_price_display }}</h3>
+                    <p>
+                        {% if ent.is_hosting_only %}
+                            You&rsquo;re on Hosting + Security today. The Full Plan adds
+                            unlimited content updates and includes the Review System at
+                            no extra cost.
+                        {% else %}
+                            The Full Plan includes the Review System at no extra cost,
+                            plus hosting, unlimited content updates and security patching.
+                        {% endif %}
+                    </p>
+                    <p>
+                        <a class="btn-secondary"
+                           href="{% url 'clients:portal_maintenance_start' full_plan_tier.slug %}">
+                            Upgrade to the Full Plan
+                        </a>
+                    </p>
+                </article>
+            {% endif %}
+        </div>
+    </section>
+{% endif %}
+
+{% endblock %}
