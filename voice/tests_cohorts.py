@@ -142,6 +142,45 @@ class LadderTests(TestCase):
         cache.clear()
         self.assertEqual(cohort_mod.cohort_context(), {})
 
+    def test_opening_cohort_adopts_the_tier_price_id_once_it_exists(self):
+        """voice/0002 opens cohort 1 at deploy time, before
+        sync_stripe_products has ever run, so it copies a blank price id.
+        Without a backfill the first rung has no record of what it sold
+        at, and after an escalation there is no way to tell which Stripe
+        Price the grandfathered clients are on."""
+        cohort = VoiceCohort.objects.get(sequence=1)
+        cohort.stripe_price_id = ''
+        cohort.save(update_fields=['stripe_price_id'])
+
+        tier = _tier()
+        tier.stripe_price_id = 'price_live_abc123'
+        tier.save(update_fields=['stripe_price_id'])
+
+        refreshed = cohort_mod.current_cohort(create=False)
+        self.assertEqual(refreshed.stripe_price_id, 'price_live_abc123')
+
+    def test_adoption_never_rewrites_a_cohort_that_has_a_price(self):
+        """After an escalation the tier points at the NEXT rung's price.
+        Adopting that onto a closed rung would rewrite history and
+        mis-state what existing clients are grandfathered on."""
+        cohort = VoiceCohort.objects.get(sequence=1)
+        cohort.stripe_price_id = 'price_original'
+        cohort.save(update_fields=['stripe_price_id'])
+
+        tier = _tier()
+        tier.stripe_price_id = 'price_for_cohort_two'
+        tier.save(update_fields=['stripe_price_id'])
+
+        refreshed = cohort_mod.current_cohort(create=False)
+        self.assertEqual(refreshed.stripe_price_id, 'price_original')
+
+    def test_adoption_is_a_noop_when_the_tier_has_no_price_either(self):
+        cohort = VoiceCohort.objects.get(sequence=1)
+        cohort.stripe_price_id = ''
+        cohort.save(update_fields=['stripe_price_id'])
+        self.assertEqual(
+            cohort_mod.current_cohort(create=False).stripe_price_id, '')
+
     def test_cohort_context_names_the_next_price(self):
         ctx = cohort_mod.cohort_context()
         self.assertEqual(ctx['slots_remaining'], 10)

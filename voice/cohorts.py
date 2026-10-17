@@ -70,6 +70,32 @@ def _tier():
         slug=VOICE_RECEPTIONIST_SLUG).first()
 
 
+def _adopt_tier_price_id(cohort):
+    """Backfill a cohort's Stripe price id from the tier, once.
+
+    The opening cohort is created by ``voice/migrations/0002``, which
+    runs at deploy time — before ``sync_stripe_products`` has ever been
+    run, so the tier's ``stripe_price_id`` is still blank and the cohort
+    copies a blank. Without this the ladder's first rung has no record of
+    what it actually sold at, and the moment it escalates there is no way
+    to tell which Stripe Price the grandfathered clients are on.
+
+    Only ever fills a blank. A cohort that already names a price keeps
+    it, because after an escalation the tier points at the NEXT rung's
+    price and adopting that would rewrite history.
+    """
+    if cohort.stripe_price_id:
+        return cohort
+    tier = _tier()
+    if tier is None or not tier.stripe_price_id:
+        return cohort
+    cohort.stripe_price_id = tier.stripe_price_id
+    cohort.save(update_fields=['stripe_price_id', 'updated_at'])
+    logger.info('voice.cohorts: adopted tier price id for cohort %s',
+                cohort.sequence)
+    return cohort
+
+
 def current_cohort(*, create=True):
     """The rung new signups land on.
 
@@ -78,8 +104,11 @@ def current_cohort(*, create=True):
     would need its own "if the ladder isn't set up" branch.
     """
     cohort = VoiceCohort.objects.filter(is_current=True).first()
-    if cohort is not None or not create:
+    if cohort is not None:
+        _adopt_tier_price_id(cohort)
         return cohort
+    if not create:
+        return None
     # No ladder yet. Open rung 1 at whatever the tier currently says, so
     # an operator who edited the price in the admin dashboard before the
     # first sale gets the price they chose rather than a hardcoded $97.
