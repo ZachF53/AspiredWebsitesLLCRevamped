@@ -208,8 +208,8 @@ estimated.
 <section class="section section--alt case-deep-dive">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">{% if study.engagement_type == 'maintained' %}The Site Today{% else %}Under the Hood{% endif %}</span>
-            <h2>{% if study.engagement_type == 'maintained' %}What the Site Runs On{% else %}How It Was Built{% endif %}</h2>
+            <span class="eyebrow">{{ study.deep_dive_eyebrow }}</span>
+            <h2>{{ study.deep_dive_heading }}</h2>
         </div>
         <div class="cards cards--2col">
             {% for part in study.deep_dive %}

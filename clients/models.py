@@ -1686,6 +1686,28 @@ class CaseStudy(TimestampedModel):
         return dict(self.ENGAGEMENT_TYPE_CHOICES).get(
             self.engagement_type, '')
 
+    # The technical deep dive gets the same treatment as work_heading:
+    # its heading used to be "How It Was Built" for everything except a
+    # maintenance engagement, which put a build claim over T-Bear's
+    # section — a WordPress redesign whose own first line reads "not a
+    # hand-coded build". Same rule as everywhere else in this model: one
+    # place decides the wording so a heading can't contradict the copy
+    # underneath it.
+
+    @property
+    def deep_dive_eyebrow(self):
+        return {
+            'maintained': 'The Site Today',
+        }.get(self.engagement_type, 'Under the Hood')
+
+    @property
+    def deep_dive_heading(self):
+        return {
+            'maintained': 'What the Site Runs On',
+            'redesigned': 'How It Was Rebuilt',
+            'consulted': 'What the Site Runs On',
+        }.get(self.engagement_type, 'How It Was Built')
+
     @property
     def screenshot_srcset(self):
         from clients.screenshot_variants import srcset
