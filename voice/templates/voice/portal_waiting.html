@@ -33,19 +33,47 @@ control offered is the forwarding instruction once a number exists.
 </section>
 
 {% if program.answering_number %}
+{% comment %}
+"Point your number at it" was too vague to act on, and it hid the one
+thing the client actually has to do: call their carrier. Forwarding is
+a setup step at the phone company, not something we can switch on from
+here, and being woolly about it is how a client sits waiting for a
+receptionist that was never going to ring.
+
+Which forwarding they ask for depends on answer_mode, and the two are
+genuinely different requests, so the copy branches rather than giving
+one instruction that is half wrong.
+{% endcomment %}
 <section class="portal-section">
-    <h2 class="portal-section__title">Forward your line when you&rsquo;re ready</h2>
+    <h2 class="portal-section__title">One step left, and it&rsquo;s with your phone company</h2>
+    <p>Your receptionist is ready on <strong>{{ program.answering_number }}</strong>. It cannot answer anything until your business line forwards to it, and that switch lives at your carrier rather than with us.</p>
+
+    <p><strong>Call your carrier and ask for this:</strong></p>
+    {% if program.answer_mode == 'ring_you_first' %}
+        <div class="callout">
+            &ldquo;Please forward {{ program.business_phone|default:"my business line" }} to {{ program.answering_number }} <strong>when I don&rsquo;t answer</strong>, after about {{ program.ring_seconds }} seconds.&rdquo;
+        </div>
+        <p>That is called <em>conditional forwarding</em>. Your phone rings first exactly as it does now, and only the calls you miss reach the receptionist.</p>
+        <p class="muted">On the timing: we ask for {{ program.ring_seconds }} seconds, but that timer belongs to your carrier. Plenty of them hold it fixed nearer 20 to 25 seconds and a few will not change it at all. Whatever they say is what you will get, and we will tell you which once it is set.</p>
+    {% else %}
+        <div class="callout">
+            &ldquo;Please forward {{ program.business_phone|default:"my business line" }} to {{ program.answering_number }} <strong>for all calls</strong>.&rdquo;
+        </div>
+        <p>That is called <em>unconditional forwarding</em>. Worth knowing before you do it: your own handset will stop ringing for business calls. That is the point &mdash; it is what lets the receptionist screen the robocalls before they ever reach you &mdash; and real customers still get put straight through to {{ program.transfer_number|default:"you" }}.</p>
+    {% endif %}
+
     <p>
-        Point your business line at <strong>{{ program.answering_number }}</strong> and your receptionist starts answering.
         {% if program.coverage_mode == 'after_hours_only' %}
-            It will only pick up outside your business hours.
+            Once it is on, the receptionist only picks up outside your business hours.
         {% elif program.coverage_mode == 'business_hours_only' %}
-            It will only pick up during your business hours.
+            Once it is on, the receptionist only picks up during your business hours.
         {% else %}
-            It will pick up any time, day or night.
+            Once it is on, the receptionist picks up any time, day or night.
         {% endif %}
+        You can switch the forwarding off again whenever you want, and your number never leaves your carrier.
     </p>
-    <p>Your carrier can set that up in a couple of minutes, and you can switch it off again whenever you want. If you would rather we walked you through it, just reply to any of our emails.</p>
+
+    <p>Most carriers do this in a couple of minutes on the phone. If you would rather we walked you through it, or did it with you on a call, reply to any of our emails and we will book ten minutes.</p>
 </section>
 {% endif %}
 

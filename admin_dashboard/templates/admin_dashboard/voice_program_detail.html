@@ -92,6 +92,53 @@ already at their desk.
             </div>
         </form>
 
+        {% comment %}
+        The forwarding cheat-sheet lives here rather than in the client
+        portal on purpose: the client gets a plain "call your carrier and
+        ask for this" instruction, and the operator gets the codes to
+        read out if the client would rather do it themselves.
+
+        Codes are the common GSM ones (AT&T, T-Mobile and most MVNOs).
+        Verizon's legacy CDMA codes differ, which is why both are listed
+        and why neither is presented as definitive — always confirm with
+        the carrier rather than reading these out as gospel.
+        {% endcomment %}
+        <div style="margin-top:1.25rem;padding:.875rem 1rem;background:var(--color-bg-raised);border:1px solid var(--color-border);border-radius:.5rem;">
+            <strong style="font-size:.9rem;">Forwarding cheat-sheet</strong>
+            <p class="muted" style="font-size:.8rem;margin:.4rem 0 .6rem;">
+                This client wants
+                <strong>{% if program.answer_mode == 'ring_you_first' %}conditional{% else %}unconditional{% endif %}</strong>
+                forwarding from {{ program.business_phone|default:"their line" }}
+                &rarr; {{ program.answering_number|default:"their new number" }}{% if program.answer_mode == 'ring_you_first' %}, target {{ program.ring_seconds }}s{% endif %}.
+            </p>
+            <table class="pricing-table">
+                <thead><tr><th scope="col">Carrier family</th><th scope="col">All calls</th><th scope="col">On no answer</th><th scope="col">Cancel</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">GSM (AT&amp;T, T-Mobile, most MVNOs)</th>
+                        <td><code>*21*NUMBER#</code></td>
+                        <td><code>*61*NUMBER#</code><br><span class="muted">timer: <code>*61*NUMBER**SECS#</code></span></td>
+                        <td><code>##21#</code> / <code>##61#</code></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Verizon (legacy CDMA)</th>
+                        <td><code>*72</code> then the number</td>
+                        <td><code>*71</code> then the number</td>
+                        <td><code>*73</code></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="muted" style="font-size:.78rem;margin-top:.5rem;">
+                Confirm with the carrier rather than treating these as
+                definitive. The no-answer timer is theirs: many fix it
+                around 20&ndash;25s and some will not change it, so set
+                the client's expectation when you set the forwarding.
+                {% if program.number_strategy == 'port_existing' %}
+                    <strong>This client chose to port</strong>, so once the port completes none of the above applies and the ring timing is exactly {{ program.ring_seconds }}s.
+                {% endif %}
+            </p>
+        </div>
+
         <p class="muted" style="margin-top:1rem;font-size:.8rem;">
             Webhook to set on this sub-account:
             <code>{{ SITE_BASE_URL }}/api/voice/ghl/events/&lt;VOICE_GHL_EVENTS_SECRET&gt;/</code><br>

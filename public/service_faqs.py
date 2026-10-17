@@ -230,10 +230,22 @@ def ai_receptionist_faqs(voice_receptionist=None, plan_paid_in_full=None):
           'in your portal any time, and each one you add is a call it '
           'can finish without you.')),
         ('Can I keep my current phone number?',
-         ('Yes. The simplest setup is forwarding: you keep your number '
-          'and your carrier, and you can turn the forwarding off '
-          'whenever you want. We can also move the number over to us '
-          'completely if you prefer, which takes about two weeks.')),
+         ('Yes, and you keep your carrier too. The simplest setup is '
+          'forwarding: your number stays exactly where it is, stays on '
+          'your truck and your Google listing, and you can switch the '
+          'forwarding off whenever you want. There is one setup step, '
+          'which is a short call to your phone company asking them to '
+          'forward the line to us. We walk you through it, or do it with '
+          'you on a call. We can also move the number to us outright if '
+          'you prefer, which takes about two weeks.')),
+        ('If it rings me first, how long before it picks up?',
+         ('You pick a target, usually around 20 seconds, and we ask your '
+          'carrier for it. Being straight with you: that timer belongs '
+          'to your phone company, not to us. Most will set it where you '
+          'want, some hold it fixed nearer 20 to 25 seconds, and a few '
+          'will not move it at all. We tell you which yours is once the '
+          'forwarding is on. The only way to control it to the second is '
+          'to move your number over to us.')),
         ('How do I know what it actually did?',
          ('Every call shows up in your portal with a summary, who '
            'called, how long it took and whether it put them through, '

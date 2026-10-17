@@ -242,9 +242,27 @@ class VoiceProgram(TimestampedModel):
         max_length=24, choices=COVERAGE_CHOICES, default='all_hours')
     answer_mode = models.CharField(
         max_length=20, choices=ANSWER_CHOICES, default='ai_first')
+    # A TARGET, not a setting we control.
+    #
+    # Calls reach the agent by conditional call-forwarding from the
+    # client's existing line, and the no-answer timer that decides when
+    # a call forwards lives at their CARRIER. Some carriers let the
+    # timer be set (GSM `*61*<number>**<seconds>#`), some fix it around
+    # 20-25s, some will not expose it at all. We only control it exactly
+    # when the number has been ported to us (number_strategy='port_
+    # existing'), because then there is no upstream carrier in the path.
+    #
+    # Stored anyway: it is what we ask the carrier for, what we tell the
+    # client to expect, and the real value once a number is ported.
+    # Do not write copy that presents it as a guarantee — see the intake
+    # help text in onboarding/registry.py and
+    # voice/tests_ring_seconds.py, which pins that honesty.
     ring_seconds = models.PositiveIntegerField(
         default=20,
-        help_text='Only meaningful when answer_mode=ring_you_first.')
+        help_text='Target ring time before the agent picks up. Only '
+                  'meaningful when answer_mode=ring_you_first, and only '
+                  'exact when the number is ported to us — otherwise the '
+                  "carrier's own no-answer timer governs.")
     transfer_number = models.CharField(max_length=20, blank=True)
     transfer_conditions = models.TextField(
         blank=True,

@@ -771,9 +771,12 @@ _VOICE_RECEPTIONIST = [
              ],
              'help': 'Forwarding is what most shops pick. You keep your '
                      'number and your carrier, and you can switch the '
-                     'forwarding off whenever you want. Porting takes '
-                     'about two weeks and your number lives with us '
-                     'afterwards.'},
+                     'forwarding off whenever you want. It does mean one '
+                     'setup step with your phone company, which we walk '
+                     'you through. Porting takes about two weeks, after '
+                     'which your number lives with us: more work up '
+                     'front, but it is the only option where we control '
+                     'the ring timing exactly.'},
             {'key': 'business_timezone',
              'label': 'Your timezone',
              'type': 'select', 'required': True, 'skip_allowed': False,
@@ -876,7 +879,7 @@ _VOICE_RECEPTIONIST = [
                      'missed. Screening is included either way, it just '
                      'cannot do anything in the second mode.'},
             {'key': 'ring_seconds',
-             'label': 'How long should your phone ring first?',
+             'label': 'How long should your phone ring before it picks up?',
              'type': 'select', 'required': False, 'skip_allowed': True,
              'default': '20',
              'choices': [
@@ -885,7 +888,16 @@ _VOICE_RECEPTIONIST = [
                  ('25', '25 seconds (about 5 rings)'),
                  ('30', '30 seconds (about 6 rings)'),
              ],
-             'help': 'Only used if you picked "ring me first".'},
+             'help': 'Only used if you picked "ring me first", and treat '
+                     'it as a target rather than a dial. Your calls reach '
+                     'the receptionist by forwarding, and the timer that '
+                     'decides when a call counts as missed lives at your '
+                     'phone company, not with us. Most carriers let us set '
+                     'it, some have it fixed around 20 to 25 seconds, and '
+                     'a few will not change it at all. We will tell you '
+                     'which one yours is when we set up the forwarding. If '
+                     'you move your number over to us instead, we control '
+                     'it exactly.'},
             {'key': 'transfer_number',
              'label': 'Where should it put real customers through to?',
              'type': 'text', 'required': True, 'skip_allowed': False,

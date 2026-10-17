@@ -175,6 +175,11 @@ Three deliberate choices about what leads:
             <option value="25" {% if program.ring_seconds == 25 %}selected{% endif %}>25 seconds</option>
             <option value="30" {% if program.ring_seconds == 30 %}selected{% endif %}>30 seconds</option>
         </select>
+        {% if program.number_strategy == 'port_existing' %}
+            <p class="muted">Your number lives with us, so this is exact.</p>
+        {% else %}
+            <p class="muted">A target, not a dial. Your calls reach the receptionist by forwarding, and the timer that decides when a call counts as missed sits with your phone company. We ask them for this number; some carriers hold it fixed nearer 20 to 25 seconds. Changing it here tells us what to ask for.</p>
+        {% endif %}
         {% endif %}
 
         <label for="transfer_number">Put real customers through to</label>
