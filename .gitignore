@@ -6,8 +6,14 @@
 # ── AI & CLAUDE ─────────────────────────────────────────────
 CLAUDE.md
 AGENTS.md
-.claude/
+.claude/*
+# Skills are real tooling, not AI context — they belong in the repo.
+# (.claude/* rather than .claude/ so this negation can re-include a subtree.)
+!.claude/skills/
+.claude/skills/**/__pycache__/
 claude.json
+# .codex/config.toml holds live MCP credentials in plaintext - never commit it.
+.codex/
 .cursorrules
 AGENTS.md.backup
 
