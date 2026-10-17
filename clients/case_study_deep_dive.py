@@ -13,6 +13,21 @@ scans, or the project's source code. Nothing is estimated. Rules used:
   * Denis Law Group is a maintained WordPress site we did not build, so
     its section describes the site as it stands, not as our work.
 
+T-Bear Tool & Equipment Rental was added 2026-10-17 and checked against
+the live site that day: the catalog and its 15 machines, the seven job
+pages and seven category filters, the published rental terms and
+requirements, the response headers, and the platform the site runs on
+(WordPress with WooCommerce and a rental/booking layer). It is a
+`redesigned` engagement on WordPress, NOT a hand-coded build, so nothing
+in its section claims hand-coded markup, a content security policy, or
+the Django platform work the other studies describe. The operations
+layer behind it (calls, texts, agreements, review follow-up) is
+described by what it does; the vendor is deliberately not named, per
+owner direction.
+
+T-Bear has no scorecard: no Lighthouse run, uptime history or security
+scan of our own exists for it yet, and §15 forbids estimating one.
+
 Consumed by clients/migrations/0073_case_study_deep_dive_content.py
 (fills empty fields on existing rows) and seed_case_studies (fresh
 installs). Edit a live row in the admin; this module only seeds.
@@ -480,6 +495,172 @@ CONTENT = {
                     'Descriptive alt text on every homepage image.',
                     'Served over HTTPS on TLS 1.3, with plain-HTTP requests '
                     'redirected.',
+                ],
+            },
+        ],
+    },
+
+    # ──────────────── T-Bear Tool & Equipment Rental ────────────────
+    # Redesigned on WordPress, not hand-coded. See the module docstring.
+    't-bear-tool-equipment-rental': {
+        'scorecard': {},
+        'deep_dive': [
+            {
+                'eyebrow': 'The Storefront',
+                'heading': 'Fifteen machines, each with a page and a price',
+                'intro': (
+                    'The fleet is a real catalog rather than a photo gallery. '
+                    'Every machine has its own listing, and the reservation '
+                    'form knows which machine it is for.'),
+                'points': [
+                    'Fifteen machines listed by make and model, each with the '
+                    'nickname the business actually calls it: Sir Suds the '
+                    'Simpson pressure washer, Brutus the Bosch jackhammer, '
+                    'Rex the Husqvarna concrete saw, Hustler the zero-turn '
+                    'mower.',
+                    'Every listing publishes its daily rate, so nobody has to '
+                    'send a message to find out what something costs.',
+                    'Engine and power specifications sit on the listing, so a '
+                    'customer can confirm a machine will do the job before '
+                    'they request it.',
+                    'Seven filters group the fleet by the kind of work: '
+                    'cleaning, concrete and demo, cutting, demolition, lawn, '
+                    'lawn and landscape, and site prep.',
+                    'The site also carries T-Bear’s own pressure washing and '
+                    'lawn care services, for customers who would rather hire '
+                    'the job out than rent the machine.',
+                ],
+            },
+            {
+                'eyebrow': 'Start With The Job',
+                'heading': 'Browsing by the work, not the tool name',
+                'intro': (
+                    'Most customers know what they are trying to get done, '
+                    'not which machine does it.'),
+                'points': [
+                    'Seven job pages act as the front door: clean a driveway, '
+                    'break or remove concrete, install pavers, compact gravel '
+                    'or soil, cut concrete or metal, clear limbs or small '
+                    'trees, and mow an overgrown lot.',
+                    'Each one names the machine for that job and links '
+                    'straight to its reservation, so the path from problem to '
+                    'request is two clicks.',
+                    'Customers who already know what they want can skip it '
+                    'and go straight to the catalog.',
+                    'Reserving online takes no payment. The dates and the '
+                    'price are confirmed first, and the customer pays at '
+                    'pickup or delivery.',
+                ],
+            },
+            {
+                'eyebrow': 'Automated Communication',
+                'heading': 'The reservation tells the customer where it stands',
+                'intro': (
+                    'The work that used to be a string of Facebook replies is '
+                    'now a sequence the system runs on its own.'),
+                'points': [
+                    'A reservation moves through confirmation, rental '
+                    'agreement, pickup, return and review, with a message '
+                    'going out at the steps that need one.',
+                    'Agreement links are sent by text and email once the '
+                    'dates and price are confirmed.',
+                    'The team is alerted on the reservation activity that '
+                    'needs a person, so follow-up does not depend on someone '
+                    'remembering to check an inbox.',
+                    'A published messaging terms page covers consent for the '
+                    'text messages, alongside the site’s privacy policy.',
+                ],
+            },
+            {
+                'eyebrow': 'Rental Agreements',
+                'heading': 'Signed before the machine leaves',
+                'intro': (
+                    'Digital rental agreements are issued through Firma.dev '
+                    'once a reservation is confirmed.'),
+                'points': [
+                    'The customer signs from their phone instead of on a '
+                    'clipboard at the tailgate.',
+                    'The site tracks every agreement as pending or signed, so '
+                    'the state of each reservation is visible without anyone '
+                    'chasing paperwork.',
+                    'The full terms are published on the site rather than '
+                    'handed over at pickup: who can rent, deposits, payment, '
+                    'fuel and cleaning, damage and loss, late returns, '
+                    'cancellations, delivery, and liability.',
+                    'Requirements are deliberately short and stated up front: '
+                    'a valid photo ID, a card in the renter’s own name, and '
+                    'being 18 or older. No business license, no proof of '
+                    'insurance, no account application.',
+                    'Deposits are a card hold released on return, quoted '
+                    'before the reservation is made, so there is no surprise '
+                    'at the counter.',
+                ],
+            },
+            {
+                'eyebrow': 'Reviews',
+                'heading': 'Asking at the moment the job is still fresh',
+                'points': [
+                    'The review request is the last stage of the reservation, '
+                    'so it goes out after the machine comes back rather than '
+                    'weeks later.',
+                    'Follow-up runs on its own, so a good rental can become a '
+                    'public review without the owner having to ask in person.',
+                    'Because it is tied to the reservation and not to a '
+                    'manual list, every completed rental gets the same ask.',
+                ],
+            },
+            {
+                'eyebrow': 'Bear, On The Phone',
+                'heading': 'An AI receptionist that screens the junk',
+                'intro': (
+                    'Bear is T-Bear’s AI voice receptionist, and it answers '
+                    'first so the owner does not have to stop work for every '
+                    'ring.'),
+                'points': [
+                    'Bear answers the common rental questions and explains how '
+                    'the request process works.',
+                    'Likely spam and robocalls are screened at the first '
+                    'layer instead of ringing through.',
+                    'A caller who genuinely needs the owner is transferred '
+                    'straight to him. There is no phone tree to navigate.',
+                ],
+            },
+            {
+                'eyebrow': 'Bear, On The Site',
+                'heading': 'The same assistant, in the corner of the page',
+                'points': [
+                    'A chat assistant on every page answers questions about '
+                    'equipment, starting rates, pickup versus delivery, '
+                    'hours, and how renting works.',
+                    'Answers are specific to T-Bear rather than generic, and '
+                    'point visitors toward the right machine or the '
+                    'reservation form.',
+                    'Website chat is kept separate from the business text '
+                    'inbox, so a browsing question never lands in the same '
+                    'queue as a live rental.',
+                ],
+            },
+            {
+                'eyebrow': 'The Platform',
+                'heading': 'WordPress, set up to actually take reservations',
+                'intro': (
+                    'T-Bear is a WordPress site, not a hand-coded build. What '
+                    'changed is that the rental side is real functionality '
+                    'instead of a contact form next to some photos.'),
+                'points': [
+                    'The catalog runs on WooCommerce with a rental and '
+                    'booking layer on top, so dates and availability belong '
+                    'to the machine rather than to a message thread.',
+                    'Served over HTTPS with strict transport security, on '
+                    'managed hosting with page caching and a CDN in front '
+                    'of it.',
+                    'Titles, meta descriptions and structured data are '
+                    'managed deliberately rather than left to the theme '
+                    'defaults.',
+                    'The operations layer sits alongside the site and handles '
+                    'the calls, texts, agreements and review follow-up. The '
+                    'website is the storefront; that layer is the back '
+                    'office.',
                 ],
             },
         ],

@@ -1,5 +1,5 @@
 """
-Seed the five public case studies (Master Plan §11).
+Seed the public case studies (Master Plan §11).
 
 The portfolio page used to hardcode these as markup, which meant all
 four projects shared one URL. They are data now so each can have its
@@ -10,8 +10,10 @@ is idempotent — safe to re-run on every deploy.
     python manage.py seed_case_studies --force   # overwrite edits
 
 IMPORTANT — no invented numbers. Master Plan §15 forbids fabricated
-results, statistics and testimonials. None of these four have
-measured before/after data:
+results, statistics and testimonials. None of these have measured
+before/after data. Where a `metric_*` slot is filled, it holds a count
+off the live site (membership levels, machines in the catalog), never a
+performance or revenue figure:
 
   * Denis Law Group — SUPERSEDED 2026-08-16. This entry previously
     described a new practice launch that Aspired built from scratch,
@@ -31,10 +33,10 @@ Seeding a row is not a production fix. `--force` overwrites edits, and
 existing production rows keep their old copy until they are corrected
 explicitly — use `remediate_case_studies` (dry-run by default) for that.
 
-So every `metrics` slot is left empty and every `testimonial_quote` is
-blank until a real, attributable quote exists. The template renders
-those blocks only when populated, so an honest study simply shows
-fewer sections rather than placeholder numbers.
+So every `testimonial_quote` is blank until a real, attributable quote
+exists, and a study with no measurements carries no scorecard. The
+template renders those blocks only when populated, so an honest study
+simply shows fewer sections rather than placeholder numbers.
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -254,6 +256,79 @@ STUDIES = [
         'metric_3_label': 'Membership levels',
         'metric_3_value': '4',
     },
+    {
+        # Added Oct 2026. A `redesigned` engagement on WordPress, not a
+        # build: the copy, the deep dive and `platform` all say so, and
+        # nothing here claims hand-coded markup or the Django platform
+        # work the other studies describe. Facts checked against the
+        # live site 2026-10-17 — see clients/case_study_deep_dive.py.
+        #
+        # No scorecard: there is no Lighthouse run, uptime history or
+        # security scan of our own for this site yet, and §15 forbids
+        # estimating one. The metrics below are counts off the live
+        # catalog, not performance figures.
+        'slug': 't-bear-tool-equipment-rental',
+        'engagement_type': 'redesigned',
+        'platform': 'WordPress',
+        'title': 'T-Bear Tool & Equipment Rental',
+        'business_type': 'Equipment Rental',
+        'location': 'San Antonio & Austin, TX',
+        'live_url': 'https://tbearrental.com/',
+        'card_gradient': 'gradient-rust',
+        'summary': (
+            'An equipment rental business that ran on Facebook messages '
+            'now takes reservations online, with published rates and '
+            'agreements signed before pickup.'
+        ),
+        'challenge': (
+            'Renting tools out of a Facebook inbox works right up until it '
+            'doesn’t. Every request landed in the same place as everything '
+            'else, availability lived in the owner’s head, and the '
+            'paperwork happened on a clipboard at pickup. Spam and '
+            'robocalls took the rest of the day.\n\n'
+            'There was no page a customer could land on to see what T-Bear '
+            'has, what it costs, and how to get it. Every pricing question '
+            'had to be answered by hand, one message at a time, and a '
+            'message missed on a job site was a rental lost.'
+        ),
+        'solution': (
+            'The site was rebuilt as a working rental storefront: fifteen '
+            'machines, each with its own listing, photos, specifications, a '
+            'published daily rate, and an online reservation request. '
+            'Customers can browse the fleet, or start from the job they are '
+            'actually doing, with seven starting points from cleaning a '
+            'driveway to mowing an overgrown lot, each pointing at the '
+            'right tool.\n\n'
+            'Behind the storefront, a reservation moves through '
+            'confirmation, rental agreement, pickup, return and review, and '
+            'the updates go out on their own. Agreement links are sent by '
+            'text and email once dates and price are confirmed, signed '
+            'online, and tracked on the site as pending or signed.\n\n'
+            'Two assistants named Bear handle the first layer of contact. '
+            'Bear the voice receptionist answers the phone, covers the '
+            'common rental questions, screens the robocalls, and transfers '
+            'a real customer straight through instead of into a phone tree. '
+            'Bear the website chat answers questions about equipment, '
+            'starting rates, pickup versus delivery and hours, and points '
+            'visitors at the right machine. Chat is kept out of the '
+            'business text inbox, so a browsing question never buries a '
+            'live rental.'
+        ),
+        'results': (
+            'T-Bear runs on a website now instead of a Facebook inbox. '
+            'Reservations arrive as structured requests with a machine and '
+            'dates attached, customers are told where their rental stands '
+            'without anyone typing it out, agreements are signed before '
+            'pickup rather than at the tailgate, and the calls that get '
+            'through are from people who actually want to rent something.'
+        ),
+        'metric_1_label': 'Machines in the online catalog',
+        'metric_1_value': '15',
+        'metric_2_label': 'Job-based starting points',
+        'metric_2_value': '7',
+        'metric_3_label': 'Reservation stages with automatic updates',
+        'metric_3_value': '5',
+    },
 ]
 
 
@@ -269,7 +344,7 @@ for _study in STUDIES:
 
 
 class Command(BaseCommand):
-    help = 'Seed or refresh the five public portfolio case studies.'
+    help = 'Seed or refresh the public portfolio case studies.'
 
     def add_arguments(self, parser):
         parser.add_argument(

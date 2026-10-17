@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.html import escape
 
 
 
@@ -1163,7 +1164,10 @@ class CaseStudyScreenshotTests(TestCase):
         html = self.client.get('/portfolio/').content.decode()
         img = re.search(r'<img[^>]*/media/portfolio/[^>]*>', html).group(0)
         self.assertNotIn('alt=""', img)
-        self.assertIn(study.title, img)
+        # escape(): a client whose legal name contains "&" (T-Bear Tool &
+        # Equipment Rental) renders as "&amp;", so comparing the raw
+        # title against markup fails on the business name being correct.
+        self.assertIn(escape(study.title), img)
 
     def test_homepage_strip_is_database_driven(self):
         """
@@ -1186,7 +1190,7 @@ class CaseStudyScreenshotTests(TestCase):
             with self.subTest(slug=study.slug):
                 # Links to the case study, not a generic /portfolio/.
                 self.assertIn(study.get_absolute_url(), html)
-                self.assertIn(study.title, html)
+                self.assertIn(escape(study.title), html)
 
     def test_no_placeholder_visuals_remain_where_a_screenshot_exists(self):
         study = self._attach_screenshot(self._first_published())
