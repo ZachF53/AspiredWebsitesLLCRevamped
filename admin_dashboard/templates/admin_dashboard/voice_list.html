@@ -1,0 +1,133 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% comment %}
+The receptionist work queue. Sorted most-urgent-first by the view, so
+reading top to bottom is reading the to-do list.
+
+Three banners above the table, in order of how much they cost if
+ignored:
+  1. Unbilled overage — money we earned and have not invoiced.
+  2. Unattributed calls — minutes nobody is being billed for, caused by
+     a GHL location id that was never pasted in.
+  3. Unsynced config — a client changed something in their portal and
+     their agent does not know yet.
+{% endcomment %}
+
+{% block title %}AI Receptionist{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <span class="eyebrow">Delivery</span>
+    <h1 class="admin-page-title">AI Voice Receptionist</h1>
+    <p class="admin-page-sub">
+        {% if cohort %}
+            Cohort {{ cohort.sequence }} at ${{ cohort.price|floatformat:"0" }}/mo &middot;
+            {{ cohort.filled }} of {{ cohort.capacity }} slots used &middot;
+            next cohort ${{ cohort.next_price|floatformat:"0" }}
+        {% else %}
+            No price cohort configured &mdash; run migrations.
+        {% endif %}
+    </p>
+</div>
+
+<div class="droplet-stats">
+    <div class="droplet-stat">
+        <div class="droplet-stat__num">{{ programs|length }}</div>
+        <div class="droplet-stat__label">Programs</div>
+    </div>
+    <div class="droplet-stat">
+        <div class="droplet-stat__num">{{ awaiting_count }}</div>
+        <div class="droplet-stat__label">Waiting on us</div>
+    </div>
+    <div class="droplet-stat">
+        <div class="droplet-stat__num">{{ over_count }}</div>
+        <div class="droplet-stat__label">Over allowance</div>
+    </div>
+</div>
+
+{% if unbilled_overage %}
+<div class="pricing-warning-banner">
+    <strong>{{ unbilled_overage }} closed period(s) have overage that was never invoiced.</strong>
+    The invoice.created webhook missed them. The nightly sweep should clear this within a day &mdash; if the number stays up, the sweep is failing and that is revenue sitting on the floor.
+</div>
+{% endif %}
+
+{% if unattributed_calls %}
+<div class="pricing-warning-banner">
+    <strong>{{ unattributed_calls }} call(s) arrived for a GHL location we don&rsquo;t recognise.</strong>
+    Always a missing location id on a program below. Those minutes are not being billed to anyone.
+</div>
+{% endif %}
+
+{% if unsynced_count %}
+<div class="pricing-warning-banner">
+    <strong>{{ unsynced_count }} program(s) have config changes not pushed to GHL.</strong>
+    A client changed their hours, rules or wording and their agent is still running the old version.
+</div>
+{% endif %}
+
+<div class="lead-table-wrapper">
+    <table class="pricing-table">
+        <thead>
+            <tr>
+                <th scope="col">Business</th>
+                <th scope="col">Status</th>
+                <th scope="col">Minutes this period</th>
+                <th scope="col">30-day calls</th>
+                <th scope="col">Transferred</th>
+                <th scope="col">Cohort</th>
+                <th scope="col">GHL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for program in programs %}
+            <tr>
+                <th scope="row">
+                    <a href="{% url 'admin_dashboard:voice_program_detail' program_id=program.id %}">{{ program.display_name }}</a>
+                    {% if program.paused %}<span class="v2-sync-badge v2-sync-badge--missing">Client paused</span>{% endif %}
+                </th>
+                <td>
+                    {% if program.setup_status == 'live' %}
+                        <span class="v2-sync-badge v2-sync-badge--ok">Live</span>
+                    {% else %}
+                        <span class="v2-sync-badge v2-sync-badge--missing">{{ program.get_setup_status_display }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if program.usage %}
+                        {{ program.usage.minutes_used }} / {{ program.usage.included_minutes }}
+                        {% if program.usage.is_over %}
+                            <br><strong>+{{ program.usage.overage_minutes }} min = ${{ program.usage.overage_amount }}</strong>
+                        {% endif %}
+                    {% else %}
+                        <span class="muted">&mdash;</span>
+                    {% endif %}
+                </td>
+                <td>{{ program.calls_30 }}</td>
+                <td>{{ program.transferred_30 }}</td>
+                <td>
+                    {% if program.cohort %}
+                        #{{ program.cohort.sequence }} &middot; ${{ program.locked_price|floatformat:"0" }}
+                    {% else %}
+                        <span class="v2-sync-badge v2-sync-badge--missing">none</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if program.ghl_location_id and program.ghl_agent_id %}
+                        {% if program.config_synced_to_ghl %}
+                            <span class="v2-sync-badge v2-sync-badge--ok">Synced</span>
+                        {% else %}
+                            <span class="v2-sync-badge v2-sync-badge--missing">Push needed</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="v2-sync-badge v2-sync-badge--missing">Not connected</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="muted">No receptionist programs yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

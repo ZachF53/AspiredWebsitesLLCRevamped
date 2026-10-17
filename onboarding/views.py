@@ -50,6 +50,12 @@ TIME_ESTIMATES = {
     ('social_media',   'social-full'): 30,
     ('website_design', 'any'): 15,
     ('review_system',  'any'): 8,
+    # Longer than the review wizard because V4 asks for free-text the
+    # client has to actually think about (what they do, what counts as an
+    # emergency, their standing FAQs). Under-promising here is worse than
+    # over: someone who budgets 6 minutes and needs 12 abandons halfway
+    # and their phone stays uncovered.
+    ('voice_receptionist', 'any'): 12,
 }
 
 

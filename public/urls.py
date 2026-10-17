@@ -47,6 +47,8 @@ urlpatterns = [
          name='service_web_design'),
     path('services/review-automation/', views.service_review_automation,
          name='service_review_automation'),
+    path('services/ai-receptionist/', views.service_ai_receptionist,
+         name='service_ai_receptionist'),
     path('services/hosting-maintenance/', views.service_hosting_maintenance,
          name='service_hosting_maintenance'),
     path('services/hosting-maintenance/sample-report/',

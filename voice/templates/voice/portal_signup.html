@@ -1,0 +1,84 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Dual purpose, same as the review signup page: `confirm` unset renders
+the sales page, `confirm` set renders the charge-against-card-on-file
+confirmation.
+
+Prices come from `tier` and the scarcity numbers from `voice_cohort` —
+never hardcoded (CLAUDE.md), and every price-quoting sentence has a
+price-free fallback so a missing tier row degrades to a vaguer true
+sentence rather than "add it for /month".
+{% endcomment %}
+
+{% block title %}AI Voice Receptionist{% endblock %}
+
+{% block portal_content %}
+{% if confirm %}
+<header class="portal-page-head">
+    <h1>Add the AI receptionist</h1>
+    <p class="portal-page-head__sub">We&rsquo;ll charge the card already on your account.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What you&rsquo;re agreeing to</h2>
+    <ul class="bullet-list">
+        {% if tier %}<li><strong>{{ tier.get_price_display }}</strong>, starting today, month-to-month. Cancel any time.</li>{% endif %}
+        <li>300 talk minutes a month included. Past that it is 25 cents a minute and it keeps answering &mdash; we will not cut your phone off mid-season.</li>
+        <li>You get an email at 80% of your minutes and again if you pass them, so a bill never surprises you.</li>
+        {% if voice_cohort.slots_remaining %}<li>Your rate of ${{ voice_cohort.price|floatformat:"0" }}/mo is locked for as long as you stay, even when the price goes up for new customers.</li>{% endif %}
+    </ul>
+
+    <form method="post" action="{% url 'voice:signup' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary">
+            Start for {% if tier %}{{ tier.get_price_display }}{% else %}the monthly rate{% endif %}
+        </button>
+    </form>
+    <p><a class="btn-link" href="{% url 'voice:hub' %}">Not yet</a></p>
+</section>
+
+{% else %}
+<header class="portal-page-head">
+    <h1>Never miss another after-hours call</h1>
+    <p class="portal-page-head__sub">An AI receptionist that answers your line when you cannot.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What it does</h2>
+    <ul class="bullet-list">
+        <li><strong>Answers.</strong> Day or night, or only outside your hours. Your choice.</li>
+        <li><strong>Screens the junk.</strong> Extended warranties, solar, SEO cold calls. You never hear them, as long as it answers first.</li>
+        <li><strong>Takes the details.</strong> Name, number, address and what is actually wrong, texted to you as the call ends.</li>
+        <li><strong>Puts real customers through.</strong> You decide what counts as urgent. Those ring your cell directly, no phone tree.</li>
+    </ul>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Add it to your account</h2>
+    <div class="cards cards--2col">
+        {% if tier %}
+            <article class="card card--accent-left">
+                <h3>{{ tier.name }} &mdash; {{ tier.get_price_display }}</h3>
+                <ul class="bullet-list">
+                    {% for feature in tier.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                </ul>
+                {% include "core/_voice_scarcity.html" %}
+                <p><a class="btn-primary" href="{% url 'voice:signup' %}">Add for {{ tier.get_price_display }}</a></p>
+            </article>
+        {% endif %}
+
+        <article class="card card--accent-left">
+            <h3>Want to hear it first?</h3>
+            <p>Fair enough &mdash; it is your phone. Book a short call and we will let you hear it handle a no-heat call before you pay anything.</p>
+            <p><a class="btn-secondary" href="{% url 'scheduler:design_schedule' %}">Book a call</a></p>
+        </article>
+    </div>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Why it is not in your plan</h2>
+    <p>Everything else on your plan costs us the same whether you use it or not, so we bundle it. Every call the receptionist answers has a real cost attached, so it is priced on its own. That also means you are never paying for it in months you do not want it &mdash; switch it off and the charge stops.</p>
+</section>
+{% endif %}
+{% endblock %}

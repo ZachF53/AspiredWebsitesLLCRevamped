@@ -16,6 +16,13 @@ from django.core.management.base import BaseCommand
 from billing.pricing_models import AddonPricing, ServiceTier, TierFeature
 
 
+# Tiers whose price is managed by a cohort ladder rather than by the
+# literal in TIERS below. For these, the seed literal is the OPENING
+# price only: once the row exists, a re-seed must not touch `price`, or
+# it would undo every escalation. See the guard in handle().
+_COHORT_PRICED_SLUGS = frozenset({'hvac-voice-receptionist'})
+
+
 # ── Seed data ────────────────────────────────────────────────────────────────
 
 TIERS = [
@@ -325,6 +332,54 @@ TIERS = [
             'Month-to-month: cancel anytime',
         ],
     },
+    # ─── AI Voice Receptionist, sold standalone (Oct 2026) ───
+    # category='addon' for the same plan-chooser reason as the Review
+    # System above. The difference, and it is the whole commercial point:
+    # the Full Plan bundles the Review System at no cost but DOES NOT
+    # bundle this. See clients/contract_options.VOICE_RECEPTIONIST_SLUG
+    # for why — per-minute vendor cost on every call, and it is the only
+    # thing we can sell to a lead who has a phone and no website.
+    #
+    # The 300-minute allowance and the $0.25/min overage are material
+    # terms of the sale, so they are feature bullets rather than fine
+    # print. Both numbers come from settings (VOICE_INCLUDED_MINUTES /
+    # VOICE_OVERAGE_RATE) everywhere they are enforced; this copy is the
+    # one place they are written out for the buyer.
+    #
+    # price is the CURRENT cohort price. The first 10 accounts pay $97,
+    # then it steps +$50 per 10. voice.cohorts.maybe_escalate() rewrites
+    # this row's price and stripe_price_id when a cohort fills, which is
+    # how every public and portal surface stays correct without knowing
+    # cohorts exist. Re-seeding will NOT drag the price back down to $97:
+    # update_or_create would, so the escalation guard lives in the loop
+    # below — see the `_PRICE_OWNED_BY_COHORTS` note in handle().
+    {
+        'slug': 'hvac-voice-receptionist', 'category': 'addon',
+        'name': 'AI Voice Receptionist', 'price': Decimal('97.00'),
+        'is_recurring': True, 'billing_interval': 'month',
+        'sort_order': 1, 'is_featured': False,
+        'env': 'STRIPE_PRICE_HVAC_VOICE_RECEPTIONIST',
+        'tagline': 'Answers your phone when you cannot. No website '
+                   'required.',
+        'description': ('An AI receptionist that answers your business '
+                        'line, screens the robocalls, answers the '
+                        'questions you get asked every day, takes the '
+                        'job details and texts them to you. 300 minutes '
+                        'of talk time a month included, then 25 cents a '
+                        'minute. Month-to-month, cancel anytime. This is '
+                        'an add-on: it is not included in any plan.'),
+        'features': [
+            'Answers every call, day or night, or only after hours: '
+            'your choice',
+            'Screens spam and robocalls before your phone ever rings',
+            'Takes the name, number, address and the actual problem',
+            'Transfers a real customer straight to you, no phone tree',
+            'Texts you the details the moment the call ends',
+            '300 talk minutes a month included, then 25 cents a minute',
+            'Works with the phone number you already have',
+            'Month-to-month: cancel anytime',
+        ],
+    },
     # ─── Domain registrations ───
     {
         'slug': 'domain-standard', 'category': 'addon',
@@ -452,6 +507,16 @@ class Command(BaseCommand):
             # choice to hide one survives a re-seed.
             if not data.get('is_active', True):
                 defaults['is_public'] = False
+            # Cohort-priced tiers own their own price and Stripe price id
+            # after first seed. The AI Voice Receptionist steps +$50 every
+            # 10 accounts (voice.cohorts.maybe_escalate), so the literal
+            # above is only ever the OPENING price — re-seeding a live
+            # system would otherwise reset a $197 tier back to $97 and
+            # start selling at a price three cohorts stale. Everything
+            # else in `defaults` (copy, features, ordering) still updates,
+            # which is the point of being able to re-seed at all.
+            if existing is not None and data['slug'] in _COHORT_PRICED_SLUGS:
+                defaults.pop('price', None)
             tier, _ = ServiceTier.objects.update_or_create(
                 slug=data['slug'], defaults=defaults)
             tier_count += 1

@@ -29,6 +29,9 @@ def portal_services(request):
         'review_onboarding': None,
         'review_nav': {'has': False, 'setup_status': '', 'paused': False,
                        'badge': ''},
+        'voice_onboarding': None,
+        'voice_nav': {'has': False, 'setup_status': '', 'paused': False,
+                      'badge': ''},
     }
     user = getattr(request, 'user', None)
     if not user or not user.is_authenticated:
@@ -69,6 +72,12 @@ def portal_services(request):
         # render the sidebar with no badge, silently hiding from the
         # client that we are waiting on their A2P details.
         from reviews.entitlement import nav_state
+        # Same for the receptionist nav link, with one extra badge the
+        # review one does not have: 'Over' when the client has passed
+        # their included minutes and is accruing billable overage. That
+        # has to be visible on every page, not only if they happen to
+        # open the receptionist tab, because it is costing them money.
+        from voice.entitlement import nav_state as voice_nav_state
         return {
             'has_website':      account.websites.exists(),
             'has_maintenance':  account.maintenance_plans.exists(),
@@ -78,6 +87,8 @@ def portal_services(request):
             'social_onboarding': _onboarding('social_media'),
             'review_onboarding': _onboarding('review_system'),
             'review_nav': nav_state(account),
+            'voice_onboarding': _onboarding('voice_receptionist'),
+            'voice_nav': voice_nav_state(account),
         }
     except Exception:
         return blank

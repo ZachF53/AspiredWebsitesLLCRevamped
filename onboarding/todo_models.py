@@ -118,6 +118,22 @@ def build_todos_from_onboarding(onboarding, *, request=None):
                 'build_todos: review_system materialisation failed for %s',
                 onboarding.pk)
 
+    # ── AI Voice Receptionist materialisation ───────────────────────
+    # Builds the VoiceProgram, parses the business hours into windows and
+    # writes the recording attestation. Wrapped for the same reason as
+    # the review branch above, and with the same consequence if it fails:
+    # VoiceProgram.blocking_reasons refuses to mark a recording-enabled
+    # program live without an attestation, so a silent failure here shows
+    # up as a program the operator cannot activate.
+    if onboarding.product_type == 'voice_receptionist':
+        try:
+            from voice.materialise import apply_onboarding
+            apply_onboarding(onboarding, request=request)
+        except Exception:
+            logger.exception(
+                'build_todos: voice_receptionist materialisation failed '
+                'for %s', onboarding.pk)
+
     # ── D6 — social-channel materialisation ─────────────────────────
     if onboarding.product_type == 'social_media':
         try:

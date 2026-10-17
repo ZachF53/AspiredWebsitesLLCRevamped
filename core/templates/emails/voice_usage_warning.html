@@ -1,0 +1,94 @@
+{% extends 'emails/base.html' %}
+
+{% comment %}
+Shared by the 80% and the 100% warning — `is_over` switches between them
+rather than there being two near-identical templates to keep in sync.
+
+The tone is deliberately calm in both cases. The owner chose "keep
+answering and bill the overage" over a hard cap, so nothing is broken
+when this arrives and nothing is being asked of the client. The only
+failure mode being prevented is an unexplained invoice, so the job of
+this email is to state the rate and the running total plainly.
+
+Styling is inline and table-based because this is email: the base
+template establishes the dark shell and these rules match the other
+transactional templates rather than importing anything.
+{% endcomment %}
+
+{% block title %}{% if is_over %}All {{ included_minutes }} minutes used{% else %}{{ percent_used }}% of your minutes used{% endif %}{% endblock %}
+
+{% block content %}
+{% if is_over %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ first_name }} — you've used this month's minutes.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your AI receptionist has now used all {{ included_minutes }} of this month's included talk minutes.
+</p>
+
+<p style="margin:0 0 20px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    <strong>Nothing stops.</strong> It keeps answering every call exactly as before. Minutes from here until {{ period_end_label }} are billed at {{ rate_cents }} cents each, and they'll show up as one line on your next invoice.
+</p>
+{% else %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ first_name }} — quick heads up.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    Your AI receptionist has used {{ minutes_used }} of its {{ included_minutes }} included talk minutes this month, with {{ minutes_remaining }} left until {{ period_end_label }}.
+</p>
+
+<p style="margin:0 0 20px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    No action needed and nothing changes. If you do go past the allowance the receptionist keeps answering, and the extra minutes are billed at {{ rate_cents }} cents each on your next invoice.
+</p>
+{% endif %}
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 24px;border-collapse:collapse;">
+    <tr>
+        <td style="padding:14px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                    <td style="color:#94A3B8;font-size:13px;line-height:1.8;">Minutes used</td>
+                    <td align="right" style="color:#F8FAFC;font-size:13px;font-weight:600;line-height:1.8;">{{ minutes_used }} of {{ included_minutes }}</td>
+                </tr>
+                {% if is_over %}
+                <tr>
+                    <td style="color:#94A3B8;font-size:13px;line-height:1.8;">Extra minutes so far</td>
+                    <td align="right" style="color:#FBBF24;font-size:13px;font-weight:600;line-height:1.8;">{{ overage_minutes }}</td>
+                </tr>
+                <tr>
+                    <td style="color:#94A3B8;font-size:13px;line-height:1.8;">Added to your next invoice</td>
+                    <td align="right" style="color:#FBBF24;font-size:13px;font-weight:600;line-height:1.8;">${{ overage_amount }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td style="color:#94A3B8;font-size:13px;line-height:1.8;">Remaining</td>
+                    <td align="right" style="color:#F8FAFC;font-size:13px;font-weight:600;line-height:1.8;">{{ minutes_remaining }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td style="color:#94A3B8;font-size:13px;line-height:1.8;">Resets</td>
+                    <td align="right" style="color:#F8FAFC;font-size:13px;font-weight:600;line-height:1.8;">{{ period_end_label }}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ portal_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                See every call &rarr;
+            </a>
+        </td>
+    </tr>
+</table>
+
+{% if is_over %}
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    If this is becoming a normal month for you, reply to this email and we'll talk about a larger allowance that works out cheaper than the per-minute rate.
+</p>
+{% else %}
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions about any of these calls? Just reply to this email.
+</p>
+{% endif %}
+{% endblock %}

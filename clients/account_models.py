@@ -238,6 +238,22 @@ class Account(TimestampedModel):
         default=False,
         help_text='Grant the Review System at no charge. Independent of '
                   'any plan — a Full Plan already includes it.')
+
+    # Same shape and the same reasoning as comp_review_system above: an
+    # addon comp cannot live in comp_maintenance_package without telling
+    # the portal the client's plan IS the receptionist.
+    #
+    # One difference worth knowing when reading billing reports: a comped
+    # receptionist still consumes a slot in the current price cohort
+    # (owner's decision, Oct 2026), so comping is not free in the way
+    # comping the Review System is — it moves the ladder for the next
+    # paying customer. voice.cohorts.maybe_escalate() is called from the
+    # comp view for exactly this reason.
+    comp_voice_receptionist = models.BooleanField(
+        default=False,
+        help_text='Grant the AI Voice Receptionist at no charge. No plan '
+                  'includes it, so this is the only way to give it away. '
+                  'Consumes a slot in the current price cohort.')
     comp_notes = models.TextField(blank=True)
 
     # ── Per-client plan visibility override ──

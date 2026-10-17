@@ -104,6 +104,22 @@
                         <li>From then on, marking a job complete is the only thing your team does. The review request goes out on its own.</li>
                     </ol>
                 </div>
+            {% elif tier.slug == 'hvac-voice-receptionist' %}
+                {% comment %}
+                The receptionist's setup is a short form plus a phone
+                change, so the steps say both. Step 3 states the minute
+                allowance on the payment page deliberately: it is a
+                material term, and a buyer reading "300 minutes" for the
+                first time on an invoice is a refund request.
+                {% endcomment %}
+                <div class="checkout-next">
+                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <ol class="checkout-next__steps">
+                        <li>Your account is created right away. You&rsquo;ll set a password, then answer about ten minutes of questions: your hours, what you do, and what counts as an emergency.</li>
+                        <li>We build your receptionist and send you the number to forward your line to. You keep your existing number and your carrier, and you can switch the forwarding off whenever you want.</li>
+                        <li>300 talk minutes a month are included. Past that it is 25 cents a minute and it keeps answering &mdash; we don&rsquo;t cut your phone off. You get an email at 80% so nothing is a surprise.</li>
+                    </ol>
+                </div>
             {% endif %}
         </aside>
 

@@ -96,6 +96,12 @@ class Command(BaseCommand):
         for i, sec in enumerate(reg._REVIEW_SYSTEM):
             _seed_section('review_system', sec, i)
 
+        # ── AI Voice Receptionist ── also unconditional: V2's hours are
+        # needed even on 24/7 coverage (a later switch to after-hours is
+        # a portal toggle, not a new wizard), so nothing is hidden.
+        for i, sec in enumerate(reg._VOICE_RECEPTIONIST):
+            _seed_section('voice_receptionist', sec, i)
+
         sec_n = OnboardingSectionDef.objects.count()
         q_n = OnboardingQuestionDef.objects.count()
         self.stdout.write(self.style.SUCCESS(

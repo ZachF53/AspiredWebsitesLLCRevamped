@@ -209,7 +209,8 @@ SELF_CHECKOUT_HOSTING_SLUGS = ('hvac-hosting-security',)
 # the same reason the hosting tiers are: 'addon' also covers the annual
 # domain-registration tiers, which are NOT self-checkout-able and must
 # stay on the schedule-a-call path.
-SELF_CHECKOUT_ADDON_SLUGS = ('hvac-review-system',)
+SELF_CHECKOUT_ADDON_SLUGS = ('hvac-review-system',
+                             'hvac-voice-receptionist')
 
 
 def _tier_allows_selfcheckout(tier):
@@ -255,9 +256,13 @@ def _onboarding_product_type(tier):
     plan row, no entitlement, and a portal offering to sell it to them
     again.
     """
-    from clients.contract_options import REVIEW_SYSTEM_SLUG
+    from clients.contract_options import (
+        REVIEW_SYSTEM_SLUG, VOICE_RECEPTIONIST_SLUG,
+    )
     if tier.slug == REVIEW_SYSTEM_SLUG:
         return 'review_system'
+    if tier.slug == VOICE_RECEPTIONIST_SLUG:
+        return 'voice_receptionist'
     return _provision_product_type(tier)
 
 

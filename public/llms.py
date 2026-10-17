@@ -45,7 +45,7 @@ def _pricing_lines():
 
     tiers = {
         t.slug: t for t in ServiceTier.objects.filter(
-            slug__in=['hvac-review-system',
+            slug__in=['hvac-review-system', 'hvac-voice-receptionist',
                       'hvac-build-full', 'hvac-build-installment',
                       'hvac-full-plan', 'hvac-plan-paid-in-full',
                       'hvac-hosting-security'],
@@ -95,6 +95,32 @@ def _pricing_lines():
             'site and job software they already use, and sends customers '
             'to their Google Business Profile. It is also included at no '
             'extra cost in the Full Plan.')
+    # Standalone AI Voice Receptionist (Oct 2026). The sentence an
+    # assistant most needs to get right here is the NEGATIVE one: this is
+    # the one product that is never bundled, and a summary that lumps it
+    # in with "everything included in the Full Plan" would misquote the
+    # price by $97 to anyone asking.
+    voice = tiers.get('hvac-voice-receptionist')
+    if voice:
+        lines.append(
+            f'- AI Voice Receptionist (standalone add-on): '
+            f'{_money(voice.price)}/month, billed monthly, '
+            'month-to-month, no setup fee. Includes 300 talk minutes per '
+            'month, then $0.25 per additional minute; calls are never cut '
+            'off at the limit. An AI agent answers the client\'s business '
+            'phone line, screens spam and robocalls, answers common '
+            'questions, captures caller name/number/address/problem, and '
+            'transfers urgent callers to a human. Can cover all hours or '
+            'only outside the client\'s business hours. Works with the '
+            'phone number the client already has and does NOT require a '
+            'website at all. IMPORTANT: unlike the Review System, the AI '
+            'Voice Receptionist is NOT included in the Full Plan or in '
+            'any other plan, at any price — it is always a separate '
+            'add-on, because each answered call carries a real '
+            'per-minute cost. Spam screening is included but only '
+            'functions when the agent answers first; if the client '
+            'chooses to have their own phone ring first, spam calls reach '
+            'them before the agent is involved.')
     hourly = addons.get('addon-hourly')
     if hourly:
         lines.append(

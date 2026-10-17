@@ -65,6 +65,8 @@ def stripe_webhook(request):
             _handle_payment_intent_succeeded(event)
         elif event_type == 'invoice.upcoming':
             _handle_invoice_upcoming(event)
+        elif event_type == 'invoice.created':
+            _handle_invoice_created(event)
         elif event_type == 'invoice.paid':
             _handle_invoice_paid(event)
         elif event_type == 'invoice.payment_failed':
@@ -1204,6 +1206,36 @@ def _handle_subscription_deleted(event):
 
 
 # ── invoice.upcoming ────────────────────────────────────────────────────────
+
+def _handle_invoice_created(event):
+    """
+    Stripe fires this when a subscription renews, then holds the invoice
+    as a draft for roughly an hour before finalising it.
+
+    That draft window is the only moment we can attach AI Voice
+    Receptionist overage to the invoice that closes the period the
+    minutes were used in. The flat monthly fee bills in advance and the
+    minutes bill in arrears, so this invoice carries next month's $97 and
+    last month's extra talk time.
+
+    Deliberately NOT invoice.upcoming, which fires ~3 days early: it
+    would miss the last three days of calls every single month.
+
+    Non-receptionist invoices fall straight through —
+    ``voice.billing.handle_invoice_created`` returns '' for anything
+    whose subscription is not on the receptionist tier.
+    """
+    invoice = event.get('data', {}).get('object', {}) or {}
+    try:
+        from voice.billing import handle_invoice_created
+        handle_invoice_created(invoice)
+    except Exception:
+        # Never re-raise: Stripe would redeliver an event whose side
+        # effect is a charge, and the daily sweep_unbilled_overage task
+        # is the designed backstop for a miss here.
+        logger.exception('voice overage: invoice.created handling failed '
+                         'for invoice %s', invoice.get('id'))
+
 
 def _handle_invoice_upcoming(event):
     """

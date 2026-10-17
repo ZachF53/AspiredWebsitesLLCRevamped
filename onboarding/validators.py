@@ -115,6 +115,66 @@ def _email_template(value):
     return describe_template_problems(value, channel='email', subject='x')
 
 
+def validate_us_phone(value):
+    """A number we will actually have to dial.
+
+    The receptionist's transfer number is the one answer where a typo is
+    silent and expensive: the agent takes the call, tries to put the
+    customer through, and the transfer fails every time. Nobody finds out
+    until the client asks why they never get handed a live caller.
+    """
+    raw = (value or '').strip()
+    if not raw:
+        return []
+    digits = re.sub(r'\D', '', raw)
+    if digits.startswith('1'):
+        digits = digits[1:]
+    if len(digits) != 10:
+        return ['That does not look like a 10-digit US phone number, '
+                'e.g. (210) 555-0142.']
+    if digits[0] in '01':
+        return ['US area codes do not start with 0 or 1 — check the '
+                'first three digits.']
+    return []
+
+
+# "closed" is a first-class answer, not a missing one: most HVAC shops
+# are shut at the weekend and that is exactly when the receptionist
+# earns its keep.
+_CLOSED_WORDS = {'closed', 'none', 'n/a', 'na', '-', 'shut'}
+_TIME_RANGE_RE = re.compile(
+    r'^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*'
+    r'(?:-|to|–|—)\s*'
+    r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$',
+    re.IGNORECASE)
+
+
+def validate_business_hours(value):
+    """A day's trading hours, as a range or the word "closed".
+
+    Parsed rather than free-text because the after-hours schedule is
+    computed as the inverse of these windows. An unparseable answer means
+    we cannot work out when the agent should be live, and the failure
+    would show up as the receptionist covering the wrong half of the day.
+    """
+    raw = (value or '').strip()
+    if not raw or raw.lower() in _CLOSED_WORDS:
+        return []
+    match = _TIME_RANGE_RE.match(raw)
+    if not match:
+        return ['Write it as a range like "8:00am - 5:00pm", or just '
+                '"closed".']
+    start_h, _, start_ap, end_h, _, end_ap = match.groups()
+    if not start_ap and not end_ap:
+        return ['Add am or pm so we know which 8 you mean — "8:00am - '
+                '5:00pm".']
+    for hour in (int(start_h), int(end_h)):
+        if hour == 0 or hour > 12:
+            return ['Use 12-hour times with am or pm, like "8:00am - '
+                    '5:00pm".']
+    return []
+
+
 VALIDATORS = {
     'ein': validate_ein,
     'google_review_url': validate_google_review_url,
@@ -123,6 +183,12 @@ VALIDATORS = {
     'support_email': validate_email,
     'sms_body_template': _sms_template,
     'email_body_template': _email_template,
+    # AI Voice Receptionist
+    'business_phone': validate_us_phone,
+    'transfer_number': validate_us_phone,
+    'hours_mon_fri': validate_business_hours,
+    'hours_saturday': validate_business_hours,
+    'hours_sunday': validate_business_hours,
 }
 
 

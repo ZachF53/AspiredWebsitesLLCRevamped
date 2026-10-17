@@ -11,7 +11,12 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('billing', '0014_review_system_standalone_tier'),
+        # Re-pointed at the current leaf. 0015 creates the AI Voice
+        # Receptionist ServiceTier row; like 0014 before it, it only
+        # inserts pricing data and does not touch MiniInvoice or the
+        # legacy owner FKs dropped below. Promoting this against a stale
+        # parent would branch the migration graph.
+        ('billing', '0015_voice_receptionist_tier'),
     ]
 
     operations = [

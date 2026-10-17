@@ -1,0 +1,65 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Setup is done; we owe them an agent and a number.
+
+This page exists because silence after paying reads as "nothing is
+happening". It names what is finished, what is outstanding, and who is
+holding it — us, not them. There is nothing to manage yet, so the only
+control offered is the forwarding instruction once a number exists.
+{% endcomment %}
+
+{% block title %}AI Receptionist{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>We&rsquo;re building your receptionist</h1>
+    <p class="portal-page-head__sub">
+        Usually one business day. We&rsquo;ll email you the moment it can answer.
+    </p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Where things stand</h2>
+    <ul class="bullet-list">
+        <li>&check; Your answers are in, and we have what we need.</li>
+        <li>&check; Your hours and transfer rules are recorded.</li>
+        {% if program.answering_number %}
+            <li>&check; Your receptionist has a number: <strong>{{ program.answering_number }}</strong></li>
+        {% else %}
+            <li>&middot; We&rsquo;re setting up your agent and getting it a phone number. This is on us, not you.</li>
+        {% endif %}
+    </ul>
+</section>
+
+{% if program.answering_number %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Forward your line when you&rsquo;re ready</h2>
+    <p>
+        Point your business line at <strong>{{ program.answering_number }}</strong> and your receptionist starts answering.
+        {% if program.coverage_mode == 'after_hours_only' %}
+            It will only pick up outside your business hours.
+        {% elif program.coverage_mode == 'business_hours_only' %}
+            It will only pick up during your business hours.
+        {% else %}
+            It will pick up any time, day or night.
+        {% endif %}
+    </p>
+    <p>Your carrier can set that up in a couple of minutes, and you can switch it off again whenever you want. If you would rather we walked you through it, just reply to any of our emails.</p>
+</section>
+{% endif %}
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What it will do on day one</h2>
+    <ul class="bullet-list">
+        <li>Answer as &ldquo;{{ program.legal_business_name|default:"your business" }}&rdquo;</li>
+        {% if program.screens_spam %}
+            <li>Screen out the robocalls before your phone rings</li>
+        {% else %}
+            <li>Pick up the calls you miss after {{ program.ring_seconds }} seconds of ringing</li>
+        {% endif %}
+        <li>Take the caller&rsquo;s name, number and the actual problem</li>
+        <li>Put the urgent ones straight through to {{ program.transfer_number|default:"you" }}</li>
+    </ul>
+</section>
+{% endblock %}

@@ -77,6 +77,21 @@ TWILIO_ACCOUNT_SID = ''
 TWILIO_AUTH_TOKEN = ''
 GOOGLE_PLACES_API_KEY = ''
 NAMECHEAP_API_KEY = ''
+# These were missing until Oct 2026 and are the same class of bug as the
+# block above — a rehearsal with a populated .env would write to the live
+# GHL sub-account and start billable Apify actor runs. Added with the
+# voice secret below because that is when the gap was noticed.
+GHL_API_KEY = ''
+APIFY_TOKEN = ''
+INSTANTLY_TOKEN = ''
+BRAVE_SEARCH_API_KEY = ''
+EMAIL_VERIFY_API_KEY = ''
+TWILIO_PHONE_NUMBER = ''
+# Inbound-webhook secrets: blanked so both endpoints fail closed. The
+# voice one gates events that overage is billed from, so a rehearsal run
+# must never be able to accept one.
+REVIEW_GHL_EVENTS_SECRET = ''
+VOICE_GHL_EVENTS_SECRET = ''
 
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 

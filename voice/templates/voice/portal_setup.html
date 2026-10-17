@@ -1,0 +1,39 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Entitled, but they have not finished the wizard.
+
+Reached by two different people: someone who just bought the add-on, and
+a comped client who has had it granted and never set it up. The copy
+leads with what we need rather than with "welcome", because both of them
+already know they have it.
+{% endcomment %}
+
+{% block title %}AI Receptionist setup{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Finish setting up your receptionist</h1>
+    <p class="portal-page-head__sub">About 10 minutes. Your answers save as you go, so you can stop and come back.</p>
+</header>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What we need, and why</h2>
+    <ul class="bullet-list">
+        <li><strong>Your hours and your timezone.</strong> If you only want it covering after hours, we work that out from when you are open, so we need the hours either way.</li>
+        <li><strong>Who picks up first.</strong> Whether it answers every call, or your phone rings first and it catches what you miss. This one changes what it can do for you, so there is a note next to each option.</li>
+        <li><strong>Where to put real customers through.</strong> Usually your cell.</li>
+        <li><strong>What you do and what counts as an emergency.</strong> In your words. This is the answer that decides whether a 9pm no-heat call reaches you or waits until morning.</li>
+        <li><strong>The questions you get asked constantly.</strong> Optional, and the single highest-value thing you can add. Every one is a call it can finish without you.</li>
+    </ul>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">What happens after that</h2>
+    <p>We build your receptionist and send you a number to forward your line to. You keep your existing number and your carrier, and you can switch the forwarding off whenever you want. Nothing answers your phone until you point it at us.</p>
+</section>
+
+<p>
+    <a class="btn-primary" href="{{ onboarding_url }}">Finish setup</a>
+</p>
+{% endblock %}

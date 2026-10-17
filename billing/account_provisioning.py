@@ -178,6 +178,22 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
             logger.exception(
                 'provision: ReviewProgram create failed for %s', user.pk)
 
+    # AI Voice Receptionist: same reasoning as the Review System above,
+    # plus one of its own — program_for(create=True) is what puts the
+    # buyer on a price cohort. A paid account with no cohort row would be
+    # invisible to the "spots remaining" counter, so the next buyer could
+    # get the opening price after the opening cohort was actually full.
+    if onboarding_product_type == 'voice_receptionist':
+        try:
+            from clients.account_models import Account
+            from voice.entitlement import program_for
+            account = Account.objects.filter(user=user).first()
+            if account is not None:
+                program_for(account, create=True)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                'provision: VoiceProgram create failed for %s', user.pk)
+
     # Phase-D service-plan row — the canonical record of what they bought.
     try:
         from clients.account_models import Account

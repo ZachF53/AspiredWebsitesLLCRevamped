@@ -150,3 +150,93 @@ def hosting_faqs(hourly_display=''):
          f'{edit} On the Full Plan, routine content updates are unlimited and '
          'included.'),
     ]
+
+
+def ai_receptionist_faqs(voice_receptionist=None, plan_paid_in_full=None):
+    """``voice_receptionist`` is the standalone hvac-voice-receptionist
+    tier (Oct 2026). Price read live, never hardcoded, and every sentence
+    quoting it degrades to a price-free version if the row is missing.
+
+    Note the asymmetry with ``review_automation_faqs``: that one can say
+    "included at no extra cost in the Full Plan". This one must say the
+    opposite, because the receptionist bills real per-minute vendor cost
+    on every call and is never bundled. The "is it included in the Full
+    Plan?" question is answered honestly and up front rather than left
+    for the buyer to discover on an invoice.
+    """
+    price = money(voice_receptionist.price) if voice_receptionist else ''
+    plan = money(plan_paid_in_full.price) if plan_paid_in_full else ''
+    return [
+        ('How much does the AI receptionist cost?',
+         (f'{price}/month, month-to-month, cancel anytime. That includes '
+          '300 minutes of talk time a month, which covers most shops. '
+          'Past that it is 25 cents a minute and it keeps answering: '
+          'we do not cut your phone off mid-season.'
+          if price else
+          'One monthly price, month-to-month, cancel anytime. It '
+          'includes 300 minutes of talk time a month, then 25 cents a '
+          'minute after that.')),
+        ('Is it included in the Full Plan?',
+         ('No, and that is deliberate. Everything else in the plan '
+          'costs us the same whether you use it or not, so we can bundle '
+          'it. Every call the receptionist answers has a real cost '
+          'attached, so it is a separate add-on. You can have it with a '
+          'plan, with just hosting, or on its own with no website from '
+          'us at all.')),
+        ('Do I need a website from you to use it?',
+         ('No. It answers your phone, so it works whether your website '
+          'came from us, from someone else, or does not exist. If you '
+          'later want a site, the receptionist carries over unchanged.'
+          + (f' A full website plan is {plan}/month on top.'
+             if plan else ''))),
+        ('Can it just cover after hours?',
+         ('Yes, and that is what most shops start with. You tell us your '
+          'hours and it only answers outside them, including weekends. '
+          'Plenty of owners move it to all day once they hear the first '
+          'few calls back.')),
+        ('Will it stop the robocalls?',
+         ('If it answers first, yes: it screens the call before your '
+          'phone ever rings, and that is included at no extra charge. If '
+          'you choose to have your own phone ring first and the '
+          'receptionist only pick up what you miss, then the robocall '
+          'has already reached you before it gets involved, so there is '
+          'nothing for it to screen. Both setups are available; only the '
+          'first one can filter spam.')),
+        ('Does it put real customers through to me?',
+         ('Yes. You tell it what counts as urgent, in your words, and it '
+          'transfers those straight to your cell with no phone tree. If '
+          'you do not pick up, it goes back to the caller and takes the '
+          'details rather than dumping them in voicemail.')),
+        ('What happens on a no-heat call at 9pm?',
+         ('Whatever you tell it to do. Most shops have it transfer those '
+          'immediately, whatever the hour, because a no-heat call in '
+          'January is the most valuable call of the week. If you would '
+          'rather it take the details and text you, it will do that '
+          'instead.')),
+        ('Does it sound like a robot?',
+         ('It sounds like a calm receptionist reading from your notes. '
+          'It is not pretending to be a person and it will say it is an '
+          'assistant if asked. What callers actually notice is that '
+          'somebody picked up on the second ring at nine at night.')),
+        ('Are calls recorded?',
+         ('By default yes, because the recording is what gives you the '
+          'summary and the transcript in your portal. Callers are told '
+          'at the start of the call, which is what keeps you right in '
+          'states that require it. You can switch recording off and keep '
+          'everything else.')),
+        ('What if it cannot answer a question?',
+         ('It takes the details and hands the call to you rather than '
+          'guessing. You can add the questions you get asked constantly '
+          'in your portal any time, and each one you add is a call it '
+          'can finish without you.')),
+        ('Can I keep my current phone number?',
+         ('Yes. The simplest setup is forwarding: you keep your number '
+          'and your carrier, and you can turn the forwarding off '
+          'whenever you want. We can also move the number over to us '
+          'completely if you prefer, which takes about two weeks.')),
+        ('How do I know what it actually did?',
+         ('Every call shows up in your portal with a summary, who '
+           'called, how long it took and whether it put them through, '
+           'plus the full transcript if recording is on. You also get a '
+           'summary emailed to you as each call ends.')),
+    ]

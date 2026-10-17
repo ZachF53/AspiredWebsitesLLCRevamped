@@ -18890,3 +18890,109 @@ main .section-note a,
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+
+
+/* ── AI Voice Receptionist scarcity bar ──────────────────────────────
+   Sits inside the receptionist card on /pricing/ and the service page.
+   Hidden entirely by the template when there is no open cohort, so this
+   never has to represent a "0 spots left" state.
+
+   Spots REMAINING, not accounts enrolled: at a real count of two,
+   "2 of 10 clients have this" reads as an unpopular product, while
+   "8 of 10 spots left" reads as scarcity. Same number, opposite effect.
+
+   The meter deliberately empties left-to-right as spots are taken, so
+   a nearly-full cohort looks nearly-full at a glance. */
+.voice-scarcity {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.voice-scarcity__meter {
+    height: 0.375rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    overflow: hidden;
+}
+
+.voice-scarcity__fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-orange);
+    /* Transition rather than animation: the width is server-rendered and
+       only changes between page loads, so there is nothing to animate on
+       arrival and a keyframe would just be motion for its own sake. */
+    transition: width 0.3s ease;
+}
+
+.voice-scarcity__text {
+    margin: 0.625rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.voice-scarcity__text strong {
+    font-weight: 700;
+}
+
+.voice-scarcity__lock {
+    display: block;
+    margin-top: 0.1875rem;
+    opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-scarcity__fill {
+        transition: none;
+    }
+}
+
+
+/* ── AI Voice Receptionist: minutes gauge ────────────────────────────
+   Portal dashboard. Sits above the value metrics because it is the one
+   thing on that page that can cost the client money they did not plan
+   for, and burying it next to the nice numbers would be the wrong kind
+   of quiet.
+
+   Three states, matching the two warning emails: normal, warn at 80%,
+   over past 100%. The fill is capped at 100% width in the template so a
+   client at 400% does not blow out the layout. */
+.voice-gauge__meter {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    overflow: hidden;
+}
+
+.voice-gauge__fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-teal);
+    transition: width 0.3s ease;
+}
+
+.voice-gauge--warn .voice-gauge__fill {
+    background: #FBBF24;
+}
+
+.voice-gauge--over .voice-gauge__fill {
+    background: var(--color-orange);
+}
+
+.voice-gauge__text {
+    margin: 0.625rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.voice-gauge--over .voice-gauge__text strong {
+    color: var(--color-orange);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-gauge__fill {
+        transition: none;
+    }
+}

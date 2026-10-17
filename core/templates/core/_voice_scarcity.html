@@ -1,0 +1,32 @@
+{% comment %}
+Scarcity bar for the AI Voice Receptionist card.
+
+Expects `voice_cohort` from voice.cohorts.cohort_context() — an empty
+dict hides the whole thing, which is the correct behaviour for a missing
+or already-full cohort. Rendering "0 spots left at $97" because a
+migration had not run would cost a sale outright.
+
+Framing is SPOTS REMAINING, not accounts enrolled. Identical data, but
+at a real count of 2 "2 of 10 clients have this" advertises an unpopular
+product on the pricing page, while "8 of 10 spots left" reads as
+scarcity. It converts to genuine social proof on its own as the number
+falls.
+
+The locked-for-life line is the important half: it is a real promise
+(Stripe keeps each subscription on the price it was created at) and it
+is what makes acting now rational rather than merely urgent.
+{% endcomment %}
+{% if voice_cohort.slots_remaining %}
+<div class="voice-scarcity" role="note">
+    <div class="voice-scarcity__meter" aria-hidden="true">
+        {% widthratio voice_cohort.slots_remaining voice_cohort.capacity 100 as pct_left %}
+        <div class="voice-scarcity__fill" style="width:{{ pct_left }}%"></div>
+    </div>
+    <p class="voice-scarcity__text">
+        <strong>{{ voice_cohort.slots_remaining }} of {{ voice_cohort.capacity }} spots left</strong>
+        at ${{ voice_cohort.price|floatformat:"0" }}/mo. After that it goes to
+        ${{ voice_cohort.next_price|floatformat:"0" }}.
+        <span class="voice-scarcity__lock">Lock your rate and it never changes, for as long as you stay.</span>
+    </p>
+</div>
+{% endif %}

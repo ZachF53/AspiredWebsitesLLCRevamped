@@ -1,0 +1,61 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+The full call log with transcripts.
+
+Caller numbers are masked the same way review events mask them —
+(210) •••-0134. The client already knows who called from the summary and
+the transfer, and a full log of complete phone numbers on a page is a
+bigger liability than it is a convenience.
+
+Trial calls are excluded upstream in the view. They are our own test
+calls while building the agent, and showing them would make a brand-new
+client's first week look like it had traffic it did not have.
+{% endcomment %}
+
+{% block title %}Call log{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Every call it answered</h1>
+    <p class="portal-page-head__sub">Most recent first. Transcripts are included when recording is on.</p>
+</header>
+
+<section class="portal-section">
+    {% if calls %}
+        {% for call in calls %}
+        <article class="card card--accent-left">
+            <h3 class="card__title">
+                {{ call.started_at|date:"l j F, g:ia" }}
+                {% if call.after_hours %}<span class="portal-badge">After hours</span>{% endif %}
+            </h3>
+            <p class="muted">
+                {{ call.masked_number }} &middot; {{ call.duration_seconds }} seconds &middot;
+                {% if call.transferred %}put through to you{% elif call.booked_appointment %}booked an appointment{% else %}took a message{% endif %}
+            </p>
+
+            {% if call.summary %}
+            <p>{{ call.summary }}</p>
+            {% endif %}
+
+            {% if call.extracted_data %}
+            <ul class="bullet-list">
+                {% for key, value in call.extracted_data.items %}
+                    {% if value %}<li><strong>{{ key|title }}:</strong> {{ value }}</li>{% endif %}
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if call.transcript %}
+            <details>
+                <summary>Read the transcript</summary>
+                <p class="muted">{{ call.transcript|linebreaksbr }}</p>
+            </details>
+            {% endif %}
+        </article>
+        {% endfor %}
+    {% else %}
+        <p class="muted">No calls yet. Once your line is forwarded here, every call shows up with a summary and the details it collected.</p>
+    {% endif %}
+</section>
+{% endblock %}

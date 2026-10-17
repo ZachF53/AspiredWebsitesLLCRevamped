@@ -96,6 +96,7 @@ NAVIGATION = (
         NavItem('Send Onboarding', 'admin_dashboard:send_onboarding'),
         NavItem('Intake Questions', 'admin_dashboard:onboarding_questions'),
         NavItem('Review System', 'admin_dashboard:reviews_list'),
+        NavItem('AI Receptionist', 'admin_dashboard:voice_list'),
         NavItem('Domains', 'admin_dashboard:admin_domain_list'),
         NavItem('Deploy', 'admin_dashboard:deploy_home'),
         NavItem('Droplets', 'admin_dashboard:droplet_list'),
@@ -162,6 +163,8 @@ NAVIGATION_V2 = (
         # and the Review System queue is work the operator needs
         # reachable from whichever dashboard they are using.
         NavItem('Review System', 'admin_dashboard:reviews_list'),
+        # Also v1-only, same reasoning as the Review System above.
+        NavItem('AI Receptionist', 'admin_dashboard:voice_list'),
         NavItem('Vault', 'vault:home'),
     )),
 )

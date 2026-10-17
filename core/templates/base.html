@@ -150,6 +150,7 @@
                             <ul class="nav-submenu" id="services-submenu" role="menu">
                                 <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
                                 <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'review_automation' %}is-active{% endif %}" href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
+                                <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'ai_receptionist' %}is-active{% endif %}" href="{% url 'public:service_ai_receptionist' %}">AI Voice Receptionist</a></li>
                                 <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'hosting_maintenance' %}is-active{% endif %}" href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
                             </ul>
                         </li>
@@ -233,6 +234,7 @@
                     <ul>
                         <li><a href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
                         <li><a href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
+                        <li><a href="{% url 'public:service_ai_receptionist' %}">AI Voice Receptionist</a></li>
                         <li><a href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
                         <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
                     </ul>

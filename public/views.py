@@ -344,6 +344,53 @@ def service_review_automation(request):
     })
 
 
+def service_ai_receptionist(request):
+    """
+    /services/ai-receptionist/ — Oct 2026.
+
+    The AI Voice Receptionist's own page. Built the same way as the
+    review-automation page (hero, Service + FAQ schema, FAQ section,
+    CTA), with two differences that both come from the product rules:
+
+    1. **It is never bundled.** The review page can say "or get it free
+       in the Full Plan"; this page must say the opposite, plainly,
+       because the receptionist carries per-minute vendor cost. The plan
+       tier is still loaded, but as a cross-sell for the website rather
+       than as an alternative way to get the receptionist.
+    2. **Scarcity.** The price steps +$50 every 10 accounts and the
+       buyer's rate is locked for life, so the cohort context drives a
+       "spots left" line. It degrades to nothing if the ladder is
+       unavailable.
+    """
+    from billing.pricing_models import ServiceTier
+    from public.pricing_content import faq_schema
+    from public.service_faqs import ai_receptionist_faqs
+
+    tiers = {
+        t.slug: t for t in ServiceTier.objects.filter(
+            slug__in=['hvac-voice-receptionist', 'hvac-plan-paid-in-full'],
+            is_active=True, is_public=True,
+        ).prefetch_related('features')
+    }
+    voice_receptionist = tiers.get('hvac-voice-receptionist')
+    plan_paid_in_full = tiers.get('hvac-plan-paid-in-full')
+    faqs = ai_receptionist_faqs(
+        voice_receptionist=voice_receptionist,
+        plan_paid_in_full=plan_paid_in_full)
+    return render(request, 'public/service_ai_receptionist.html', {
+        'active_nav': 'services',
+        'active_service': 'ai_receptionist',
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
+        'voice_receptionist': voice_receptionist,
+        'voice_cohort': _voice_cohort_context(),
+        'plan_paid_in_full': plan_paid_in_full,
+        'breadcrumbs': [
+            ('AI Receptionist', None),
+        ],
+    })
+
+
 def service_hosting_maintenance(request):
     """
     /services/hosting-maintenance/ — Sept 2026 buyer-persona review,
@@ -650,6 +697,21 @@ def service_website_redesign(request):
     })
 
 
+def _voice_cohort_context():
+    """Scarcity data for the receptionist card, or {} to hide the bar.
+
+    Returns {} rather than zeroes on any failure. The bar is a conversion
+    device, and "0 spots left at $97" rendered because a migration had
+    not run would actively cost a sale — silence is the safe default.
+    """
+    try:
+        from voice.cohorts import cohort_context
+        return cohort_context()
+    except Exception:
+        logger.exception('pricing: voice cohort context failed')
+        return {}
+
+
 def pricing(request):
     """
     /pricing/ — HVAC pricing (Sept 2026 repositioning, Change 8).
@@ -671,6 +733,7 @@ def pricing(request):
                 'hvac-build-full', 'hvac-build-installment',
                 'hvac-full-plan', 'hvac-plan-paid-in-full',
                 'hvac-hosting-security', 'hvac-review-system',
+                'hvac-voice-receptionist',
             ],
             is_active=True, is_public=True,
         ).prefetch_related('features')
@@ -688,6 +751,10 @@ def pricing(request):
     # Standalone review system (Oct 2026) — sold on its own, to buyers
     # who may never want a build from us.
     review_system = tiers.get('hvac-review-system')
+    # Standalone AI Voice Receptionist (Oct 2026). Unlike the review
+    # system this is never bundled into a plan, so the card has to say
+    # so — see clients/contract_options.VOICE_RECEPTIONIST_SLUG.
+    voice_receptionist = tiers.get('hvac-voice-receptionist')
     hourly = AddonPricing.objects.filter(
         slug='addon-hourly', is_active=True).first()
     hourly_display = hourly.get_price_display() if hourly else ''
@@ -741,6 +808,8 @@ def pricing(request):
         'plan_paid_in_full': plan_paid_in_full,
         'hosting_security': hosting_security,
         'review_system': review_system,
+        'voice_receptionist': voice_receptionist,
+        'voice_cohort': _voice_cohort_context(),
         'hourly': hourly,
         'hourly_display': hourly_display or '$85/hour',
         'location_addon': location_addon,

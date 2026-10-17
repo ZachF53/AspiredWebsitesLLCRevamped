@@ -82,7 +82,18 @@
         independently. Used to grant a paid product without billing:
         dogfood, free trial, comp a friend, internal QA.
     {% endcomment %}
-    {% if account.legacy_client_profile %}
+    {% comment %}
+        BUG FIX (Oct 2026): this block used to be wrapped in
+        `{% if account.legacy_client_profile %}`. The comp commit
+        repointed every field READ from profile.* to account.*, but left
+        that outer gate in place — so an Account with no legacy profile
+        rendered no comp UI at all, and the whole feature was invisible
+        for every Account-native client.
+
+        The gate is gone. `profile` is still bound below because a few
+        non-comp panels further down this template read it, and it is
+        now allowed to be None.
+    {% endcomment %}
     {% with profile=account.legacy_client_profile %}
     <div class="admin-card" style="margin-top: 2rem;">
         <div class="admin-card__header">
@@ -206,9 +217,48 @@
                         </div>
                     </form>
                 </div>
+
+                {% comment %}
+                    ── AI Voice Receptionist comp ──
+                    A checkbox for the same reason as the Review System
+                    card above: it is an addon, so it is on or off rather
+                    than a choice of tier, and it cannot live in
+                    comp_maintenance_package without telling the portal
+                    the client's PLAN is the receptionist.
+
+                    The difference worth reading before you tick it: a
+                    comp here CONSUMES a slot in the current price
+                    cohort, so it moves the ladder for the next paying
+                    customer. The flash message after saving says how
+                    many slots are left.
+                {% endcomment %}
+                <div class="admin-card admin-card--nested" style="background:var(--color-bg-raised);padding:1rem;border:1px solid var(--color-border);border-radius:.5rem;">
+                    <h3 class="admin-card__title" style="font-size:1rem;margin-top:0;">AI Voice Receptionist</h3>
+                    <p class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                        Currently:
+                        {% if account.comp_voice_receptionist %}
+                            <strong>Comped</strong> (no charge)
+                        {% else %}
+                            <strong>Not comped</strong> &mdash; no plan includes it, so this is the only way to give it away.
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:.5rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="bucket" value="voice">
+                        <label class="checkbox-row">
+                            <input type="checkbox" name="comp_voice_receptionist" value="1"
+                                   {% if account.comp_voice_receptionist %}checked{% endif %}>
+                            <span>Give the AI Voice Receptionist at no charge</span>
+                        </label>
+                        <p class="muted" style="font-size:.75rem;margin-top:.35rem;">Uses one of the 10 slots at the current price.</p>
+                        <div style="margin-top:.75rem;">
+                            <button type="submit" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
-            {% comment %} Shared note — applies to all three buckets. {% endcomment %}
+            {% comment %} Shared note — applies to every bucket. {% endcomment %}
             <form method="post" action="{% url 'admin_dashboard:account_set_comp_tier' account_id=account.id %}" style="margin-top:1.25rem;">
                 {% csrf_token %}
                 <input type="hidden" name="bucket" value="notes">
@@ -225,7 +275,6 @@
         </div>
     </div>
     {% endwith %}
-    {% endif %}
 
     {% comment %}
         Contracts — create + send a combined services agreement covering

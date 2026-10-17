@@ -32,6 +32,27 @@ HOSTING_SECURITY_SLUG = 'hvac-hosting-security'
 # chooser and has its own signup view.
 REVIEW_SYSTEM_SLUG = 'hvac-review-system'
 
+# The standalone AI Voice Receptionist. Also category='addon', for the
+# same plan-chooser reason as the Review System above — but with one
+# extra rule that the Review System does not have:
+#
+#   IT IS NEVER BUNDLED INTO ANY PLAN, AT ANY PRICE.
+#
+# The Review System is free inside the Full Plan because it costs us
+# almost nothing to run (a few cents of SMS per job). The receptionist
+# bills real per-minute vendor cost on every call, and it is the only
+# product sellable to the no-website segment, where the lead has a phone
+# and nothing else. Folding it into the $145 plan would both erode that
+# plan's margin per call and cap the phone channel's revenue.
+#
+# Concretely, that means this slug is deliberately absent from:
+#   * FULL_PLAN_SLUGS        — it is not a plan
+#   * SLUG_TO_PACKAGE        — it never becomes a Website.package code
+#   * every *_BUNDLED_* tuple — nothing includes it for free
+# clients/tests_never_bundled.py asserts all three, so a future change
+# cannot quietly give it away.
+VOICE_RECEPTIONIST_SLUG = 'hvac-voice-receptionist'
+
 # Tiers that include automated review generation at no extra cost. Both
 # Full Plan variants bundle it, which is why review entitlement can never
 # be answered by looking for a single plan row.

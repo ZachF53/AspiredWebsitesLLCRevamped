@@ -1,0 +1,247 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+The live dashboard.
+
+Three deliberate choices about what leads:
+
+1. **The minutes gauge is first.** It is the only thing on this page
+   that can cost the client money they did not expect, so it goes above
+   the value metrics rather than being buried next to them.
+2. **"Handled on its own" is the headline stat, not call volume.** Total
+   calls answered says nothing — the owner's own phone could have taken
+   those. Calls it finished without ringing them is the number that
+   answers "is this worth $97".
+3. **The table under the chart IS the accessible view of the chart.**
+   Same approach as the review dashboard: the bars are pure CSS with no
+   charting library, and the table carries the same data in text.
+{% endcomment %}
+
+{% block title %}AI Receptionist{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Your AI receptionist</h1>
+    <p class="portal-page-head__sub">
+        {% if program.paused %}
+            Paused &mdash; calls are ringing through to you as normal.
+        {% elif program.coverage_mode == 'all_hours' %}
+            Answering, 24 hours a day.
+        {% elif next_transition %}
+            {% if program.coverage_mode == 'after_hours_only' %}Covering you outside your business hours{% else %}Answering during your business hours{% endif %} &middot; next change {{ next_transition|date:"g:ia" }}
+        {% else %}
+            {{ program.get_coverage_mode_display }}
+        {% endif %}
+    </p>
+</header>
+
+{% comment %} ── Minutes: the only thing here that can cost them money ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Talk minutes this month</h2>
+    <div class="voice-gauge {% if usage.is_over %}voice-gauge--over{% elif usage.percent_used >= 80 %}voice-gauge--warn{% endif %}">
+        <div class="voice-gauge__meter" aria-hidden="true">
+            <div class="voice-gauge__fill" style="width:{% if usage.percent_used > 100 %}100{% else %}{{ usage.percent_used }}{% endif %}%"></div>
+        </div>
+        <p class="voice-gauge__text">
+            <strong>{{ usage.minutes_used }} of {{ usage.included_minutes }} minutes</strong> used
+            {% if usage.is_over %}
+                &mdash; {{ usage.overage_minutes }} extra {% if usage.overage_minutes == 1 %}minute{% else %}minutes{% endif %}
+                at {{ usage.overage_rate|floatformat:"2" }} each, so <strong>${{ usage.overage_amount }}</strong> will be added to your next invoice.
+                Your receptionist is still answering every call.
+            {% else %}
+                &middot; {{ usage.minutes_remaining }} left
+                {% if usage.period %}until {{ usage.period.period_end|date:"F j" }}{% endif %}
+            {% endif %}
+        </p>
+    </div>
+</section>
+
+{% comment %} ── What it actually did ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">What it handled</h2>
+    <div class="rv-tiles">
+        {% for window in windows %}
+        <div class="rv-tile">
+            <div class="rv-tile__value">{{ window.handled_alone }}</div>
+            <div class="rv-tile__label">{{ window.label }} &mdash; handled without you</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% with recent=windows.0 %}
+    <p class="muted">
+        In the last 30 days it answered {{ recent.calls }} {% if recent.calls == 1 %}call{% else %}calls{% endif %},
+        put {{ recent.transferred }} through to you, and took
+        {{ recent.after_hours }} outside your business hours.
+        {% if recent.booked %}It booked {{ recent.booked }} {% if recent.booked == 1 %}appointment{% else %}appointments{% endif %}.{% endif %}
+    </p>
+    {% endwith %}
+</section>
+
+{% comment %} ── Twelve-month trend ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Calls over the last year</h2>
+    <div class="rv-legend">
+        <span class="rv-swatch rv-swatch--sent" aria-hidden="true"></span> All calls
+        <span class="rv-swatch rv-swatch--reviews" aria-hidden="true"></span> After hours
+    </div>
+    <div class="rv-chart" role="img" aria-label="Monthly calls answered, with the after-hours share.">
+        {% for row in series %}
+        <div class="rv-chart__col">
+            <div class="rv-chart__bars">
+                <div class="rv-bar rv-bar--sent" style="height:{{ row.calls_pct }}%"></div>
+                <div class="rv-bar rv-bar--reviews" style="height:{{ row.after_hours_pct }}%"></div>
+            </div>
+            <div class="rv-chart__label">{{ row.label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <table class="rv-table">
+        <caption class="sr-only">Calls answered each month, and how many came in after hours.</caption>
+        <thead>
+            <tr><th scope="col">Month</th><th scope="col">Calls</th><th scope="col">After hours</th><th scope="col">Minutes</th></tr>
+        </thead>
+        <tbody>
+            {% for row in series %}
+            <tr>
+                <th scope="row">{{ row.label }} {{ row.year }}</th>
+                <td>{{ row.calls }}</td>
+                <td>{{ row.after_hours }}</td>
+                <td>{{ row.minutes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% comment %} ── Recent calls ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">Recent calls</h2>
+    {% if calls %}
+    <table class="rv-table">
+        <thead>
+            <tr><th scope="col">When</th><th scope="col">From</th><th scope="col">Length</th><th scope="col">What happened</th></tr>
+        </thead>
+        <tbody>
+            {% for call in calls %}
+            <tr>
+                <th scope="row">{{ call.started_at|date:"M j, g:ia" }}</th>
+                <td>{{ call.masked_number }}</td>
+                <td>{{ call.duration_seconds }}s</td>
+                <td>
+                    {% if call.transferred %}Put through to you{% elif call.booked_appointment %}Booked an appointment{% else %}Took a message{% endif %}
+                    {% if call.after_hours %} &middot; after hours{% endif %}
+                    {% if call.summary %}<br><span class="muted">{{ call.summary|truncatechars:120 }}</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p><a class="btn-link" href="{% url 'voice:calls' %}">See every call and its transcript</a></p>
+    {% else %}
+    <p class="muted">No calls yet. Once your line is forwarded, every call it answers shows up here with a summary.</p>
+    {% endif %}
+</section>
+
+{% comment %} ── How it answers ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">How it answers</h2>
+    <form method="post" action="{% url 'voice:settings_save' %}">
+        {% csrf_token %}
+
+        <label for="coverage_mode">When should it answer?</label>
+        <select id="coverage_mode" name="coverage_mode">
+            {% for value, label in program.COVERAGE_CHOICES %}
+            <option value="{{ value }}" {% if program.coverage_mode == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="answer_mode">Who picks up first?</label>
+        <select id="answer_mode" name="answer_mode">
+            {% for value, label in program.ANSWER_CHOICES %}
+            <option value="{{ value }}" {% if program.answer_mode == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <p class="muted">
+            Spam screening only works when the receptionist answers first &mdash; it is the only way it can hear a robocall before you do.
+            {% if not program.screens_spam %}Right now your phone rings first, so screening is off.{% endif %}
+        </p>
+
+        {% if program.answer_mode == 'ring_you_first' %}
+        <label for="ring_seconds">How long should your phone ring first?</label>
+        <select id="ring_seconds" name="ring_seconds">
+            <option value="15" {% if program.ring_seconds == 15 %}selected{% endif %}>15 seconds</option>
+            <option value="20" {% if program.ring_seconds == 20 %}selected{% endif %}>20 seconds</option>
+            <option value="25" {% if program.ring_seconds == 25 %}selected{% endif %}>25 seconds</option>
+            <option value="30" {% if program.ring_seconds == 30 %}selected{% endif %}>30 seconds</option>
+        </select>
+        {% endif %}
+
+        <label for="transfer_number">Put real customers through to</label>
+        <input type="text" id="transfer_number" name="transfer_number" value="{{ program.transfer_number }}">
+
+        <label for="after_transfer_fail">If it tries you and you don&rsquo;t answer</label>
+        <select id="after_transfer_fail" name="after_transfer_fail">
+            {% for value, label in program.TRANSFER_FAIL_CHOICES %}
+            <option value="{{ value }}" {% if program.after_transfer_fail == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <label class="checkbox-row">
+            <input type="checkbox" name="recording_enabled" value="1" {% if program.recording_enabled %}checked{% endif %}>
+            <span>Record and transcribe calls</span>
+        </label>
+        <p class="muted">Recording is what gives you the summaries and transcripts above. Callers are told at the start of the call, which is what keeps you right in states that require it.</p>
+
+        <button type="submit" class="btn-primary">Save</button>
+    </form>
+</section>
+
+{% comment %} ── What it says and knows ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">What it says and knows</h2>
+    <form method="post" action="{% url 'voice:knowledge_save' %}">
+        {% csrf_token %}
+
+        <label for="greeting">How it answers the phone</label>
+        <textarea id="greeting" name="greeting" rows="2">{{ program.greeting }}</textarea>
+        {% if program.recording_enabled %}<p class="muted">We keep the &ldquo;this call may be recorded&rdquo; line on the end for you. You do not need to write it, and you cannot accidentally delete it.</p>{% endif %}
+
+        <label for="emergency_handling">What counts as an emergency, and what to do</label>
+        <textarea id="emergency_handling" name="emergency_handling" rows="3">{{ program.emergency_handling }}</textarea>
+
+        <label for="transfer_conditions">When to put someone through instead of taking a message</label>
+        <textarea id="transfer_conditions" name="transfer_conditions" rows="3">{{ program.transfer_conditions }}</textarea>
+
+        <label for="services_offered">What you do</label>
+        <textarea id="services_offered" name="services_offered" rows="3">{{ program.services_offered }}</textarea>
+
+        <label for="service_area">Where you work</label>
+        <textarea id="service_area" name="service_area" rows="2">{{ program.service_area }}</textarea>
+
+        <label for="faq_text">Questions you get asked constantly</label>
+        <textarea id="faq_text" name="faq_text" rows="6">{{ program.faq_text }}</textarea>
+        <p class="muted">One per line, question then answer. Every one you add here is a call it can finish without calling you.</p>
+
+        <button type="submit" class="btn-primary">Save</button>
+    </form>
+</section>
+
+{% comment %} ── Pause ── {% endcomment %}
+<section class="portal-section">
+    <h2 class="portal-section__title">{% if program.paused %}Paused{% else %}Pause it{% endif %}</h2>
+    {% if program.paused %}
+        <p>Your receptionist is not answering. Calls are ringing through to you as they did before.</p>
+        <form method="post" action="{% url 'voice:resume' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Start answering again</button>
+        </form>
+    {% else %}
+        <p>Stops it answering without cancelling. Your setup, your rules and your call history all stay exactly as they are, and you can start it again in one click.</p>
+        <form method="post" action="{% url 'voice:pause' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary">Pause answering</button>
+        </form>
+    {% endif %}
+</section>
+{% endblock %}

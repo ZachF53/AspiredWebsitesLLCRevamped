@@ -1020,6 +1020,24 @@ from .views_reviews import (  # noqa: E402,F401
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Extracted to views_voice.py — the AI Voice Receptionist operator surface
+#
+# Aliased on import because three names collide with the review ones
+# above (mark_live, save_credentials, suspend). The review imports stay
+# unprefixed so no existing url name changes meaning.
+# ──────────────────────────────────────────────────────────────────────────
+from .views_voice import (  # noqa: E402,F401
+    mark_config_synced as voice_mark_config_synced,
+    mark_live as voice_mark_live,
+    recompute_usage as voice_recompute_usage,
+    save_credentials as voice_save_credentials,
+    suspend as voice_suspend,
+    voice_list,
+    voice_program_detail,
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Extracted to views_deploy.py
 # ──────────────────────────────────────────────────────────────────────────
 from .views_deploy import (  # noqa: E402,F401
@@ -3602,6 +3620,45 @@ def account_set_comp_tier(request, account_id):
                 request,
                 f'Cleared the Review System comp on {account.name}. '
                 f'Their setup and history are kept.')
+
+    elif bucket == 'voice':
+        # Same checkbox shape as the review comp above, with one extra
+        # consequence: a comped receptionist CONSUMES a slot in the
+        # current price cohort (owner's decision, Oct 2026). So comping
+        # is not free here the way comping reviews is — it moves the
+        # ladder for the next paying customer, which is why
+        # maybe_escalate has to run.
+        on = bool(request.POST.get('comp_voice_receptionist'))
+        account.comp_voice_receptionist = on
+        account.save(update_fields=[
+            'comp_voice_receptionist', 'updated_at'])
+        if on:
+            slots_note = ''
+            try:
+                from voice.cohorts import cohort_context, maybe_escalate
+                from voice.entitlement import program_for
+                # program_for(create=True) also assigns the cohort slot.
+                program_for(account, create=True)
+                maybe_escalate()
+                ctx = cohort_context()
+                if ctx:
+                    slots_note = (
+                        f' {ctx["slots_remaining"]} of {ctx["capacity"]} '
+                        f'slots left at ${ctx["price"]:,.0f}.')
+            except Exception:
+                logger.exception(
+                    'comp: voice program/cohort setup failed for %s',
+                    account.pk)
+            _messages.success(
+                request,
+                f'Comped {account.name} on the AI Voice Receptionist. '
+                f'They can start setup in their portal now.{slots_note}')
+        else:
+            _messages.success(
+                request,
+                f'Cleared the AI Voice Receptionist comp on '
+                f'{account.name}. Their setup and call history are kept, '
+                f'and their cohort slot is released.')
 
     elif bucket == 'notes':
         account.comp_notes = (

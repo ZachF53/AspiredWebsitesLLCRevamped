@@ -205,6 +205,27 @@ urlpatterns = [
     path('reviews/<uuid:program_id>/reveal-ein/', views.reveal_ein,
          name='review_reveal_ein'),
 
+    # AI Voice Receptionist — the operator half. Same division of labour
+    # as the Review System above: the app collects the client's answers,
+    # a human builds their GHL Voice AI agent and attaches a number.
+    # The extra endpoint versus reviews is recompute-usage, because this
+    # product bills by the minute and an operator on the phone to a
+    # client disputing an overage needs the number to be provably
+    # current.
+    path('voice/', views.voice_list, name='voice_list'),
+    path('voice/<uuid:program_id>/', views.voice_program_detail,
+         name='voice_program_detail'),
+    path('voice/<uuid:program_id>/credentials/',
+         views.voice_save_credentials, name='voice_save_credentials'),
+    path('voice/<uuid:program_id>/mark-live/', views.voice_mark_live,
+         name='voice_mark_live'),
+    path('voice/<uuid:program_id>/suspend/', views.voice_suspend,
+         name='voice_suspend'),
+    path('voice/<uuid:program_id>/config-synced/',
+         views.voice_mark_config_synced, name='voice_config_synced'),
+    path('voice/<uuid:program_id>/recompute-usage/',
+         views.voice_recompute_usage, name='voice_recompute_usage'),
+
     # Onboarding question manager (DB-backed intake builder)
     path('onboarding-questions/', views.onboarding_questions,
          name='onboarding_questions'),

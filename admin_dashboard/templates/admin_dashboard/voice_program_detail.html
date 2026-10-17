@@ -1,0 +1,269 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% comment %}
+Everything about one receptionist program.
+
+Card order follows the order an operator actually works in: what is
+blocking go-live, then the GHL connection they need to fill in, then the
+schedule to paste, then usage (the money), then what the client told us,
+then the call history.
+
+The working-hours card shows COMPUTED agent windows, not the client's
+business hours. For after-hours coverage those are inverses of each
+other, and asking an operator to do that inversion by hand at 11pm is
+how a receptionist ends up covering exactly the hours the owner is
+already at their desk.
+{% endcomment %}
+
+{% block title %}{{ program.display_name }} — AI Receptionist{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <span class="eyebrow"><a href="{% url 'admin_dashboard:voice_list' %}">AI Receptionist</a></span>
+    <h1 class="admin-page-title">{{ program.display_name }}</h1>
+    <p class="admin-page-sub">
+        {{ program.get_setup_status_display }}
+        {% if program.paused %} &middot; paused by the client{% endif %}
+        {% if program.cohort %} &middot; cohort #{{ program.cohort.sequence }} at ${{ program.locked_price|floatformat:"0" }}/mo{% endif %}
+        &middot; <a href="{% url 'admin_dashboard:account_detail' account_id=program.account_id %}">account</a>
+    </p>
+</div>
+
+{% comment %} ── Readiness ── {% endcomment %}
+<div class="admin-card">
+    <div class="admin-card__header"><h2 class="admin-card__title">Readiness</h2></div>
+    <div class="admin-card__body">
+        {% if blocking_reasons %}
+            <ul class="bullet-list">
+                {% for reason in blocking_reasons %}<li>{{ reason }}</li>{% endfor %}
+            </ul>
+        {% else %}
+            <p>Nothing outstanding. Ready to go live.</p>
+        {% endif %}
+
+        <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+            {% if can_go_live and program.setup_status != 'live' %}
+            <form method="post" action="{% url 'admin_dashboard:voice_mark_live' program_id=program.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary btn-sm">Mark live</button>
+            </form>
+            {% endif %}
+            {% if program.setup_status != 'suspended' %}
+            <form method="post" action="{% url 'admin_dashboard:voice_suspend' program_id=program.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary btn-sm">Suspend</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% comment %} ── GHL connection ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header">
+        <h2 class="admin-card__title">GoHighLevel connection</h2>
+        <span class="muted" style="font-size:.85rem;">Build the Voice AI agent in GHL, then paste its ids here</span>
+    </div>
+    <div class="admin-card__body">
+        <form method="post" action="{% url 'admin_dashboard:voice_save_credentials' program_id=program.id %}">
+            {% csrf_token %}
+            <label style="display:flex;flex-direction:column;gap:.2rem;margin-bottom:.75rem;">
+                <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Sub-account (location) id</span>
+                <input type="text" name="ghl_location_id" class="form-control" value="{{ program.ghl_location_id }}">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:.2rem;margin-bottom:.75rem;">
+                <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Voice AI agent id</span>
+                <input type="text" name="ghl_agent_id" class="form-control" value="{{ program.ghl_agent_id }}">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:.2rem;margin-bottom:.75rem;">
+                <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Answering number</span>
+                <input type="text" name="answering_number" class="form-control" value="{{ program.answering_number }}">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:.2rem;">
+                <span class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">
+                    Private Integration Token
+                    {% if program.ghl_token_hint %}&mdash; on file ({{ program.ghl_token_hint }}){% endif %}
+                </span>
+                <input type="password" name="ghl_token" class="form-control" autocomplete="off"
+                       placeholder="{% if program.ghl_token_hint %}leave blank to keep the existing token{% else %}paste the token{% endif %}">
+            </label>
+            <div style="margin-top:.75rem;">
+                <button type="submit" class="btn-primary btn-sm">Save</button>
+            </div>
+        </form>
+
+        <p class="muted" style="margin-top:1rem;font-size:.8rem;">
+            Webhook to set on this sub-account:
+            <code>{{ SITE_BASE_URL }}/api/voice/ghl/events/&lt;VOICE_GHL_EVENTS_SECRET&gt;/</code><br>
+            Status check the agent must call at the start of every call:
+            <code>{{ SITE_BASE_URL }}/api/voice/status/{{ program.public_key }}/</code>
+            &mdash; it must hang up politely when <code>answer</code> is false, or the client&rsquo;s Pause button is a lie.
+        </p>
+    </div>
+</div>
+
+{% comment %} ── Schedule to push ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header">
+        <h2 class="admin-card__title">Working hours to set in GHL</h2>
+        <span class="muted" style="font-size:.85rem;">Computed agent coverage, not the client&rsquo;s opening hours</span>
+    </div>
+    <div class="admin-card__body">
+        <p>
+            Coverage: <strong>{{ program.get_coverage_mode_display }}</strong> &middot;
+            timezone <strong>{{ program.timezone }}</strong>
+            {% if program.coverage_mode == 'after_hours_only' %}
+                <br><span class="muted">These windows are the INVERSE of the client&rsquo;s business hours. Set the sub-account timezone to match above, because GHL&rsquo;s working hours have no timezone field of their own.</span>
+            {% endif %}
+        </p>
+
+        {% if working_hours.mode == 'all_hours' %}
+            <p>Set availability to <strong>All Hours</strong>.</p>
+        {% else %}
+            <table class="pricing-table">
+                <thead><tr><th scope="col">Day</th><th scope="col">Agent active</th></tr></thead>
+                <tbody>
+                    {% for day, windows in working_hours.days.items %}
+                    <tr>
+                        <th scope="row">{{ day|title }}</th>
+                        <td>{% for w in windows %}{{ w.start }}&ndash;{{ w.end }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="muted">No windows computed — the client has no business hours on file.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        <p class="muted" style="margin-top:1rem;font-size:.8rem;">
+            Client&rsquo;s stated business hours:
+            {% for window in hours %}{{ window }}{% if not forloop.last %} &middot; {% endif %}{% empty %}none recorded{% endfor %}
+        </p>
+
+        {% if not program.config_synced_to_ghl %}
+        <form method="post" action="{% url 'admin_dashboard:voice_config_synced' program_id=program.id %}" style="margin-top:1rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary btn-sm">I&rsquo;ve pushed this to GHL</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% comment %} ── Usage and money ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header">
+        <h2 class="admin-card__title">Minutes and overage</h2>
+        <span class="muted" style="font-size:.85rem;">Lifetime: {{ totals.calls }} calls, {{ totals.minutes }} minutes</span>
+    </div>
+    <div class="admin-card__body">
+        <p>
+            This period: <strong>{{ usage.minutes_used }} / {{ usage.included_minutes }} minutes</strong>
+            {% if usage.is_over %}
+                &mdash; <strong>{{ usage.overage_minutes }} over = ${{ usage.overage_amount }}</strong>
+            {% endif %}
+        </p>
+
+        <table class="pricing-table">
+            <thead>
+                <tr><th scope="col">Period</th><th scope="col">Minutes</th><th scope="col">Overage</th><th scope="col">Invoiced</th><th scope="col">Reconciled</th></tr>
+            </thead>
+            <tbody>
+                {% for period in usage_history %}
+                <tr>
+                    <th scope="row">{{ period.period_start|date:"M j" }} &ndash; {{ period.period_end|date:"M j" }}</th>
+                    <td>{{ period.minutes_used }} / {{ period.included_minutes }}</td>
+                    <td>{% if period.overage_minutes %}{{ period.overage_minutes }} min &middot; ${{ period.overage_amount }}{% else %}&mdash;{% endif %}</td>
+                    <td>
+                        {% if period.stripe_invoice_item_id %}
+                            <span class="v2-sync-badge v2-sync-badge--ok">Billed</span>
+                        {% elif period.overage_minutes %}
+                            <span class="v2-sync-badge v2-sync-badge--missing">Not billed</span>
+                        {% else %}&mdash;{% endif %}
+                    </td>
+                    <td>{% if period.reconciled_at %}{{ period.reconciled_at|date:"M j, g:ia" }}{% else %}<span class="muted">webhook only</span>{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="muted">No usage periods yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <form method="post" action="{% url 'admin_dashboard:voice_recompute_usage' program_id=program.id %}" style="margin-top:1rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary btn-sm">Reconcile against GHL now</button>
+        </form>
+        <p class="muted" style="font-size:.8rem;margin-top:.35rem;">Use this when a client is on the phone disputing an overage line and the number needs to be provably current.</p>
+    </div>
+</div>
+
+{% comment %} ── Recording attestations ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header">
+        <h2 class="admin-card__title">Recording disclosure</h2>
+        <span class="muted" style="font-size:.85rem;">Append-only legal record</span>
+    </div>
+    <div class="admin-card__body">
+        {% for att in attestations %}
+        <div style="padding:.75rem 0;border-bottom:1px solid var(--color-border);">
+            <p><strong>{{ att.typed_name }}</strong>{% if att.typed_title %}, {{ att.typed_title }}{% endif %}
+               &middot; {{ att.agreed_at|date:"j M Y, g:ia" }}
+               {% if att.ip_address %}&middot; {{ att.ip_address }}{% endif %}
+               &middot; <span class="muted">{{ att.version }}</span></p>
+            <details><summary>What they agreed to</summary><p class="muted">{{ att.attestation_text|linebreaksbr }}</p></details>
+        </div>
+        {% empty %}
+        <p class="muted">None. A recording-enabled program cannot be marked live without one.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{% comment %} ── Client's wizard answers ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header"><h2 class="admin-card__title">Setup answers</h2></div>
+    <div class="admin-card__body">
+        {% for section in answers %}
+        <h3 style="font-size:.95rem;margin-top:1rem;">{{ section.title }}</h3>
+        <table class="pricing-table">
+            <tbody>
+                {% for row in section.rows %}
+                <tr><th scope="row" style="width:40%;">{{ row.label }}</th><td>{{ row.value|default:"—"|linebreaksbr }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% empty %}
+        <p class="muted">The client has not started the wizard.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{% comment %} ── Calls ── {% endcomment %}
+<div class="admin-card" style="margin-top:2rem;">
+    <div class="admin-card__header"><h2 class="admin-card__title">Recent calls</h2></div>
+    <div class="admin-card__body">
+        <table class="pricing-table">
+            <thead>
+                <tr><th scope="col">When</th><th scope="col">From</th><th scope="col">Secs</th><th scope="col">Outcome</th><th scope="col">Summary</th></tr>
+            </thead>
+            <tbody>
+                {% for call in calls %}
+                <tr>
+                    <th scope="row">{{ call.started_at|date:"M j, g:ia" }}</th>
+                    <td>{{ call.masked_number }}</td>
+                    <td>{{ call.duration_seconds }}</td>
+                    <td>
+                        {% if call.trial_call %}<span class="v2-sync-badge v2-sync-badge--missing">trial, unbilled</span>
+                        {% elif call.transferred %}transferred
+                        {% elif call.booked_appointment %}booked
+                        {% else %}message{% endif %}
+                        {% if call.after_hours %}<br><span class="muted">after hours</span>{% endif %}
+                    </td>
+                    <td class="muted">{{ call.summary|truncatechars:90 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="muted">No calls yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

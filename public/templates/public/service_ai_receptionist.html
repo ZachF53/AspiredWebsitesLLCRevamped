@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}AI Voice Receptionist for HVAC{% if voice_receptionist %} — {{ voice_receptionist.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
+
+{% block meta_description %}An AI receptionist that answers your HVAC business line day or night, screens robocalls and texts you the job details.{% if voice_receptionist %} {{ voice_receptionist.get_price_display }}, no website required.{% else %} Works with the number you already have.{% endif %}{% endblock %}
+
+{% block og_title %}AI Voice Receptionist for HVAC{% if voice_receptionist %} — {{ voice_receptionist.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
+{% block og_description %}It answers when you cannot. Screens the robocalls, takes the name, address and the actual problem, and puts the urgent ones straight through to you.{% if voice_receptionist %} From {{ voice_receptionist.get_price_display }}.{% endif %}{% endblock %}
+
+{% comment %}
+Organisation entity, canonical and og:image come from base.html (D8).
+
+Only ONE Offer here, unlike the review-automation page which lists a
+standalone offer and a bundled one. The receptionist is never bundled,
+so a second offer would be a lie in structured data. The bare fallback
+Offer keeps the JSON valid when the tier row is missing.
+{% endcomment %}
+{% block extra_head %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": "{{ CANONICAL_URL }}#service",
+    "serviceType": "AI Voice Receptionist",
+    "provider": { "@id": "{{ SITE_BASE_URL }}/#organization" },
+    "areaServed": ["Texas", "Georgia"],
+    "description": "An AI receptionist that answers a contractor's business phone line, screens spam calls, answers common questions, captures job details and transfers urgent callers to a human.",
+    "offers": [
+        {% if voice_receptionist %}
+        {
+            "@type": "Offer",
+            "name": "{{ voice_receptionist.name }}",
+            "priceCurrency": "USD",
+            "price": "{{ voice_receptionist.price|floatformat:'2' }}",
+            "url": "{{ SITE_BASE_URL }}{% url 'billing:checkout_page' voice_receptionist.slug %}",
+            "priceSpecification": {
+                "@type": "UnitPriceSpecification",
+                "price": "{{ voice_receptionist.price|floatformat:'2' }}",
+                "priceCurrency": "USD",
+                "unitText": "MONTH"
+            }
+        }
+        {% else %}
+        { "@type": "Offer", "priceCurrency": "USD" }
+        {% endif %}
+    ]
+}
+</script>
+<script type="application/ld+json">{{ faq_schema }}</script>
+{% endblock %}
+
+{% block content %}
+
+{# ───────── Hero ───────── #}
+<section class="hero">
+    <div class="container">
+        <div class="hero__inner">
+            <span class="eyebrow">AI Voice Receptionist</span>
+            <h1>Your Phone Gets Answered. <span class="accent">Even at Nine at Night.</span></h1>
+            <hr class="accent-line hero__divider">
+            {% if voice_receptionist %}
+                <p class="hero__lead">A missed call is a missed job. This answers your business line when you are under a house, on a roof, or asleep. It screens the robocalls, takes the name, address and what is actually wrong, and puts the urgent ones straight through to your cell.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Hear It First</a>
+                </div>
+                <p class="hero__meta">{{ voice_receptionist.get_price_display }} &middot; 300 talk minutes included &middot; month-to-month &middot; works with your current number</p>
+            {% else %}
+                <p class="hero__lead">A missed call is a missed job. An AI receptionist answers your business line when you cannot, screens the robocalls, and puts the urgent callers straight through to you.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── Why it matters ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Why It Matters</span>
+            <h2>The Call You Miss Goes to Whoever Picks Up</h2>
+        </div>
+        <div class="cards cards--3col">
+            <article class="card card--accent-left">
+                <h3 class="card__title">No heat, 9pm, January</h3>
+                <p>That caller is not leaving a voicemail and waiting until Tuesday. They are dialling the next three numbers on Google until somebody answers. That job was worth anywhere from three hundred dollars to a full system.</p>
+            </article>
+            <article class="card card--accent-left">
+                <h3 class="card__title">You are already busy</h3>
+                <p>You cannot answer the phone with your hands inside a condenser, and the office is closed at six. The receptionist does not need a lunch break, does not call in sick, and does not mind the fourth call about the same thermostat.</p>
+            </article>
+            <article class="card card--accent-left">
+                <h3 class="card__title">Half your calls are junk</h3>
+                <p>Extended warranties, solar, SEO cold calls. If the receptionist answers first, you never hear them. Only real customers reach your phone, which is the part owners tell us they notice in week one.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── How it works ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">How It Works</span>
+            <h2>Set Up Once, in About Ten Minutes</h2>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step__num">1</div>
+                <h3>Tell us your hours and your rules</h3>
+                <p>When you are open, what you do, where you work, and what counts as an emergency worth waking you for. Plain English, in your words.</p>
+            </div>
+            <div class="step">
+                <div class="step__num">2</div>
+                <h3>Point your number at it</h3>
+                <p>Forward your existing line and nothing else changes: same number on your truck, same carrier, and you can switch the forwarding off whenever you want.</p>
+            </div>
+            <div class="step">
+                <div class="step__num">3</div>
+                <h3>It answers, you get the text</h3>
+                <p>Name, number, address and the actual problem, in your pocket before the caller has put their phone down. Urgent ones ring you directly instead.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Answer mode — the honest version ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Your Choice</span>
+            <h2>Should It Answer First, or Should You?</h2>
+            <p>Both work. They are not equivalent, and we would rather tell you that here than have you find out later.</p>
+        </div>
+        <div class="cards cards--2col">
+            <article class="card card--pricing card--featured">
+                <span class="card__badge">Recommended</span>
+                <h3 class="card__title">It answers first</h3>
+                <ul class="feature-list">
+                    <li>Every call gets picked up on the second ring</li>
+                    <li>Robocalls are screened out before your phone rings</li>
+                    <li>Real customers get transferred straight to you</li>
+                    <li>You stop hearing the junk entirely</li>
+                </ul>
+                <p class="card__price-meta">Spam screening is included, and this is the only setup where it can do anything.</p>
+            </article>
+            <article class="card card--pricing">
+                <h3 class="card__title">Your phone rings first</h3>
+                <ul class="feature-list">
+                    <li>You get first crack at every call, as you do now</li>
+                    <li>The receptionist picks up only what you miss</li>
+                    <li>Nothing changes about how you work</li>
+                    <li><strong>No spam screening.</strong> The robocall has already rung your phone before the receptionist is involved, so there is nothing left for it to filter.</li>
+                </ul>
+                <p class="card__price-meta">Same price. Pick this if you would rather not hand over your phone yet.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── Pricing ───────── #}
+{% if voice_receptionist %}
+<section class="section section--alt" id="pricing">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Pricing</span>
+            <h2>One Price, and Your Rate Is Locked</h2>
+        </div>
+        <div class="cards cards--2col">
+            <article class="card card--pricing card--featured">
+                <span class="card__badge">Add-On</span>
+                <h3 class="card__title">{{ voice_receptionist.name }}</h3>
+                {% include "core/_price.html" with tier=voice_receptionist %}
+                <p class="card__price-meta">Billed monthly &middot; no setup fee &middot; cancel anytime</p>
+                <ul class="feature-list">
+                    {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                </ul>
+                <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                {% include "core/_voice_scarcity.html" %}
+            </article>
+            <article class="card card--pricing">
+                <h3 class="card__title">Want a Website Too?</h3>
+                {% if plan_paid_in_full %}
+                    {% include "core/_price.html" with tier=plan_paid_in_full %}
+                    <p class="card__price-meta">Our full website plan, separately</p>
+                {% endif %}
+                <ul class="feature-list">
+                    <li>Hosting, security patching and unlimited content updates</li>
+                    <li>The automated review system included at no extra cost</li>
+                    <li>A custom-coded site, not a template</li>
+                    <li><strong>The receptionist is not part of this plan.</strong> Every call it answers has a cost attached, so it stays a separate add-on at any plan level.</li>
+                </ul>
+                <a class="btn-secondary" href="{% url 'public:pricing' %}">See All Pricing</a>
+            </article>
+        </div>
+        <p class="pricing-note">300 talk minutes a month are included, which covers most shops. Past that it is 25 cents a minute and the receptionist keeps answering: we will never cut your phone off in the middle of a heat wave to protect our own margin. You get an email at 80% and again when you pass the allowance, so a bill never surprises you.</p>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{# ───────── What it is and isn't ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Straight Answers</span>
+            <h2>What It Is, and What It Is Not</h2>
+        </div>
+        <div class="cards cards--2col">
+            <article class="card card--accent-left">
+                <h3 class="card__title">What it is</h3>
+                <ul class="bullet-list">
+                    <li>A receptionist that answers from your notes, not from guesswork</li>
+                    <li>Honest about being an assistant if a caller asks</li>
+                    <li>A way to capture the calls you are currently losing</li>
+                    <li>Yours to switch off at any time, with no contract</li>
+                </ul>
+            </article>
+            <article class="card card--accent-left">
+                <h3 class="card__title">What it is not</h3>
+                <ul class="bullet-list">
+                    <li>Not pretending to be a person, and it will not claim to be one</li>
+                    <li>Not a replacement for your office manager during the day</li>
+                    <li>Not quoting prices or committing to arrival times unless you tell it to</li>
+                    <li>Not included in any plan, at any price, because every call costs real money to answer</li>
+                </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── FAQ ───────── #}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Questions</span>
+            <h2>Things Owners Ask Before They Buy</h2>
+        </div>
+        <div class="faq-grid">
+            {% for question, answer in faqs %}
+            <article class="faq-item">
+                <h3 class="faq-item__q">{{ question }}</h3>
+                <p class="faq-item__a">{{ answer }}</p>
+            </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>How Many Calls Did You Miss Last Week?</h2>
+            {% if voice_receptionist %}
+                <p>Start for {{ voice_receptionist.get_price_display }} and have your phone covered tonight. Or book a free 30-minute call and hear it answer before you pay anything.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a>
+                </div>
+            {% else %}
+                <p>A free 30-minute call to walk through how it would handle your phone.</p>
+                <div class="hero__ctas">
+                    <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+                    <a class="btn-secondary btn-lg" href="{% url 'public:pricing' %}">See Pricing</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -108,6 +108,11 @@ urlpatterns = [
     # Review System is its own product, not a clients/ utility.
     path('portal/reviews/',
          include('reviews.urls_portal', namespace='reviews')),
+    # Same placement reasoning as the review mount above: before the
+    # broader portal/ include, because the receptionist is its own
+    # product rather than a clients/ utility.
+    path('portal/voice/',
+         include('voice.urls_portal', namespace='voice')),
     path('portal/', include('clients.urls')),
     path('onboarding/', include('onboarding.urls', namespace='onboarding')),
     path('', include('scheduler.urls', namespace='scheduler')),
@@ -162,6 +167,22 @@ urlpatterns = [
          __import__('reviews.views_public',
                     fromlist=['program_status']).program_status,
          name='review_program_status'),
+
+    # AI Voice Receptionist machine endpoints, same /api/ noindex shelter
+    # as the review ones above.
+    #   - events: VoiceAiCallEnd, one per completed call. This is what
+    #     overage is billed from, so the path secret is its own
+    #     (VOICE_GHL_EVENTS_SECRET) and the endpoint fails closed.
+    #   - status: the agent asks "am I allowed to answer right now?",
+    #     which is what makes the portal Pause button real.
+    path('api/voice/ghl/events/<str:secret>/',
+         __import__('voice.ghl_webhook',
+                    fromlist=['voice_events']).voice_events,
+         name='voice_ghl_events'),
+    path('api/voice/status/<uuid:public_key>/',
+         __import__('voice.views_public',
+                    fromlist=['program_status']).program_status,
+         name='voice_program_status'),
 
     path('api/', include('reporting.urls')),
 

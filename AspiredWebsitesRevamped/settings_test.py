@@ -112,6 +112,11 @@ GHL_API_KEY = ''
 # request must override it explicitly, which keeps "unset means 403"
 # honest rather than accidentally inherited from a developer's .env.
 REVIEW_GHL_EVENTS_SECRET = ''
+# AI Voice Receptionist inbound-webhook secret. Same fail-closed reason
+# as the review one above, and one more: these events are what overage is
+# billed from, so a test that could reach a live-configured endpoint
+# could also write billable minutes onto a real client's usage period.
+VOICE_GHL_EVENTS_SECRET = ''
 # 2026-10-10 — same class of bug, and this one bills per call. Apify is
 # pay-per-event: a test that reaches the live API starts a real actor run
 # and spends real money off a $29/month plan. tests_apify.py happened to

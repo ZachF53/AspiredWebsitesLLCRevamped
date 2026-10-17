@@ -137,6 +137,35 @@
                     </a>
                     {% endif %}
 
+                    {% comment %}
+                        AI Voice Receptionist. Same always-visible rule
+                        as the Review System above and for the same
+                        reason: it is a management page for a client who
+                        has it and a sales page for one who doesn't, so
+                        there is no has_* gate. voice_nav comes from the
+                        portal_services context processor.
+
+                        One badge the review nav does not have: "Over",
+                        when the client has passed their included talk
+                        minutes and is accruing billable overage. That
+                        outranks the setup badges because it is costing
+                        them money right now, and it has to be visible
+                        on every page rather than only on this tab.
+                    {% endcomment %}
+                    <div class="portal-nav-group-label">Phone</div>
+                    <a class="portal-nav__link {% if active_portal_nav == 'voice' %}is-active{% endif %}" href="{% url 'voice:hub' %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2 11.4 11.4 0 0 0 3.6.6 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.4a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .6 3.6 1 1 0 0 1-.2 1z"/></svg>
+                        <span>AI Receptionist</span>
+                        {% if voice_nav.badge %}<span class="portal-badge">{{ voice_nav.badge }}</span>{% endif %}
+                    </a>
+                    {% if voice_onboarding and not voice_onboarding.complete %}
+                    <a class="portal-nav__link portal-nav__link--sub" href="{% url 'onboarding:welcome' voice_onboarding.product_type voice_onboarding.tier_slug %}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 6h4m-4 4h4"/></svg>
+                        <span>Receptionist Setup</span>
+                        <span class="portal-badge">!</span>
+                    </a>
+                    {% endif %}
+
                     {# ── SUPPORT ── #}
                     <div class="portal-nav-group-label">Support</div>
                     <a class="portal-nav__link {% if active_portal_nav == 'support' %}is-active{% endif %}" href="{% url 'clients:support' %}">

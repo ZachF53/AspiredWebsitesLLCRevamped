@@ -722,11 +722,325 @@ _REVIEW_SYSTEM = [
 
 # The registry is built dynamically when get_sections() is called for
 # social_media so the channel count matches the user's tier.
+# ── AI Voice Receptionist questions ─────────────────────────────────
+#
+# Two notes before editing this list.
+#
+#  1. Every answer here becomes GHL Voice AI agent configuration. The
+#     mapping is in voice/materialise.py and the push payload shape is in
+#     voice/schedule.py. A new question that nothing reads is dead weight
+#     on a form the client has to fill in before their phone is covered,
+#     so add questions only when something consumes them.
+#  2. V3 is the question clients get wrong. "Should it answer first, or
+#     ring you first?" sounds like a preference and is actually a
+#     capability choice: spam screening is only possible when the agent
+#     answers, because in ring-you-first the robocall has already reached
+#     the owner's phone. The help text says so on both options rather
+#     than burying it, and ai_first is the default.
+#  3. V5 is a legal record. Completing the wizard writes a
+#     VoiceConsentAttestation snapshotting what the client was shown.
+
+_VOICE_RECEPTIONIST = [
+    {
+        'key': 'V1',
+        'title': 'Your business and your number',
+        'intro': 'The basics your receptionist needs before it can pick up '
+                 'a call, plus how we get calls to it.',
+        'questions': [
+            {'key': 'legal_business_name',
+             'label': 'Business name',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'Johnson Heating & Cooling',
+             'help': 'What you want the receptionist to say when it '
+                     'answers.'},
+            {'key': 'business_phone',
+             'label': 'The number your customers call now',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': '(210) 555-0142'},
+            {'key': 'number_strategy',
+             'label': 'How should we handle that number?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('forward_existing',
+                  'Forward it to us (easiest, nothing changes for you)'),
+                 ('new_number',
+                  'Give me a new number to advertise'),
+                 ('port_existing',
+                  'Move my number over to you completely'),
+             ],
+             'help': 'Forwarding is what most shops pick. You keep your '
+                     'number and your carrier, and you can switch the '
+                     'forwarding off whenever you want. Porting takes '
+                     'about two weeks and your number lives with us '
+                     'afterwards.'},
+            {'key': 'business_timezone',
+             'label': 'Your timezone',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'choices': [
+                 ('', '— pick —'),
+                 ('America/New_York', 'Eastern'),
+                 ('America/Chicago', 'Central'),
+                 ('America/Denver', 'Mountain'),
+                 ('America/Phoenix', 'Arizona (no daylight saving)'),
+                 ('America/Los_Angeles', 'Pacific'),
+                 ('America/Anchorage', 'Alaska'),
+                 ('Pacific/Honolulu', 'Hawaii'),
+             ],
+             'help': 'Required, not optional: every "after hours" rule '
+                     'below is calculated against this.'},
+            {'key': 'business_city', 'label': 'City',
+             'type': 'text', 'required': True, 'skip_allowed': False},
+            {'key': 'business_state', 'label': 'State',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'TX'},
+            {'key': 'support_email',
+             'label': 'Where call summaries should go',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': 'office@yourcompany.com',
+             'help': 'Every call gets summarised and sent here. Usage '
+                     'notices go here too.'},
+        ],
+    },
+    {
+        'key': 'V2',
+        'title': 'When it answers',
+        'intro': 'You can have it cover everything, or only the hours you '
+                 'are not there. Most shops start with after hours and '
+                 'move to all day once they trust it.',
+        'questions': [
+            {'key': 'coverage_mode',
+             'label': 'When should the receptionist be answering?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'default': 'after_hours_only',
+             'choices': [
+                 ('all_hours', 'All day, every day (24/7)'),
+                 ('after_hours_only',
+                  'Only outside my business hours, including weekends'),
+                 ('business_hours_only',
+                  'Only during my business hours'),
+             ],
+             'help': 'After hours is where the money usually is: a '
+                     'no-heat call at 9pm goes to whoever answers.'},
+            {'key': 'hours_mon_fri',
+             'label': 'Your weekday hours',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'default': '8:00am - 5:00pm',
+             'placeholder': '8:00am - 5:00pm',
+             'help': 'We need these even if you chose "after hours only" '
+                     '— that schedule is worked out from when you are '
+                     'open. Put "closed" if you do not work weekdays.'},
+            {'key': 'hours_saturday',
+             'label': 'Saturday hours',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'default': 'closed',
+             'placeholder': 'closed, or 9:00am - 1:00pm'},
+            {'key': 'hours_sunday',
+             'label': 'Sunday hours',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'default': 'closed',
+             'placeholder': 'closed'},
+            {'key': 'holiday_handling',
+             'label': 'Public holidays',
+             'type': 'select', 'required': False, 'skip_allowed': True,
+             'default': 'treat_as_closed',
+             'choices': [
+                 ('treat_as_closed',
+                  'Treat them as closed, so it answers all day'),
+                 ('treat_as_normal', 'Treat them like a normal day'),
+             ]},
+        ],
+    },
+    {
+        'key': 'V3',
+        'title': 'Who picks up first',
+        'intro': 'This one changes what the receptionist can do for you, '
+                 'so it is worth thirty seconds of thought.',
+        'questions': [
+            {'key': 'answer_mode',
+             'label': 'Should it answer first, or ring you first?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'default': 'ai_first',
+             'choices': [
+                 ('ai_first',
+                  'It answers first, and puts real customers through '
+                  '(recommended)'),
+                 ('ring_you_first',
+                  'Ring my phone first, and it picks up if I miss it'),
+             ],
+             'help': 'Spam screening only works if it answers first — '
+                     'that is the only way it can hear a robocall before '
+                     'you do. If you choose "ring me first", every '
+                     'robocall still rings your phone, and the '
+                     'receptionist only sees the calls you already '
+                     'missed. Screening is included either way, it just '
+                     'cannot do anything in the second mode.'},
+            {'key': 'ring_seconds',
+             'label': 'How long should your phone ring first?',
+             'type': 'select', 'required': False, 'skip_allowed': True,
+             'default': '20',
+             'choices': [
+                 ('15', '15 seconds (about 3 rings)'),
+                 ('20', '20 seconds (about 4 rings)'),
+                 ('25', '25 seconds (about 5 rings)'),
+                 ('30', '30 seconds (about 6 rings)'),
+             ],
+             'help': 'Only used if you picked "ring me first".'},
+            {'key': 'transfer_number',
+             'label': 'Where should it put real customers through to?',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'placeholder': '(210) 555-0142',
+             'help': 'Usually your cell. This is the number it dials when '
+                     'someone needs a human.'},
+            {'key': 'transfer_conditions',
+             'label': 'When should it put someone through instead of '
+                      'taking a message?',
+             'type': 'textarea', 'rows': 3,
+             'required': False, 'skip_allowed': True,
+             'default': 'Anyone with no heat or no cooling. Anyone who '
+                        'asks to speak to a person. Anyone calling about '
+                        'a job already booked.',
+             'help': 'Plain English is fine — this is read as '
+                     'instructions, not a form.'},
+            {'key': 'after_transfer_fail',
+             'label': 'If it tries you and you do not answer?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'default': 'ai_takes_message',
+             'choices': [
+                 ('ai_takes_message',
+                  'It goes back to the caller and takes the details'),
+                 ('voicemail', 'Send them to voicemail'),
+                 ('sms_followup', 'Text the caller to say you will ring '
+                                  'back'),
+             ]},
+        ],
+    },
+    {
+        'key': 'V4',
+        'title': 'What it says and what it knows',
+        'intro': 'The more it knows, the fewer calls it has to hand over. '
+                 'You can change any of this later from your portal.',
+        'questions': [
+            {'key': 'greeting',
+             'label': 'How should it answer the phone?',
+             'type': 'textarea', 'rows': 2,
+             'required': True, 'skip_allowed': False,
+             'placeholder': 'Thanks for calling Johnson Heating and '
+                            'Cooling, this is the after-hours line. How '
+                            'can I help?',
+             'help': 'If call recording is on, we add the "this call may '
+                     'be recorded" line for you — you do not need to '
+                     'write it.'},
+            {'key': 'services_offered',
+             'label': 'What do you do?',
+             'type': 'textarea', 'rows': 3,
+             'required': True, 'skip_allowed': False,
+             'placeholder': 'AC repair and replacement, heating repair, '
+                            'duct cleaning, maintenance plans. '
+                            'Residential only.',
+             'help': 'Also say what you do NOT do, so it stops wasting '
+                     'your time on jobs you would turn down.'},
+            {'key': 'service_area',
+             'label': 'Where do you work?',
+             'type': 'textarea', 'rows': 2,
+             'required': True, 'skip_allowed': False,
+             'placeholder': 'San Antonio and 30 miles out. Not Austin.'},
+            {'key': 'emergency_handling',
+             'label': 'What counts as an emergency, and what should it do?',
+             'type': 'textarea', 'rows': 3,
+             'required': True, 'skip_allowed': False,
+             'default': 'No heat in winter or no cooling in summer is an '
+                        'emergency. Put those through to me straight '
+                        'away, whatever time it is.',
+             'help': 'This is the single most valuable answer on the '
+                     'form. Be specific about what wakes you up.'},
+            {'key': 'faq_text',
+             'label': 'Questions you get asked constantly',
+             'type': 'textarea', 'rows': 5,
+             'required': False, 'skip_allowed': True,
+             'placeholder': 'Do you charge for a quote? No, estimates '
+                            'are free.\nHow soon can you come out? '
+                            'Usually same day.\nDo you take cards? Yes.',
+             'help': 'One per line, question then answer. Every one you '
+                     'add is a call it can finish without you.'},
+            {'key': 'collect_fields',
+             'label': 'What should it always get before hanging up?',
+             'type': 'select', 'required': True, 'skip_allowed': False,
+             'default': 'name_phone_address_issue',
+             'choices': [
+                 ('name_phone',
+                  'Name and phone number'),
+                 ('name_phone_issue',
+                  'Name, phone and what is wrong'),
+                 ('name_phone_address_issue',
+                  'Name, phone, address and what is wrong '
+                  '(recommended)'),
+                 ('name_phone_address_issue_urgency',
+                  'All of that plus how urgent it is'),
+             ]},
+            {'key': 'max_call_minutes',
+             'label': 'Cut a call off after how long?',
+             'type': 'select', 'required': False, 'skip_allowed': True,
+             'default': '10',
+             'choices': [
+                 ('5', '5 minutes'),
+                 ('10', '10 minutes (recommended)'),
+                 ('15', '15 minutes'),
+                 ('20', '20 minutes'),
+             ],
+             'help': 'A safety net against a caller who will not hang '
+                     'up. Your 300 included minutes are shared across '
+                     'all calls in a month.'},
+        ],
+    },
+    {
+        'key': 'V5',
+        'title': 'Call recording',
+        'intro': 'Recording is what gives you the summaries and the '
+                 'transcripts in your portal. It also comes with one '
+                 'obligation, which we handle for you but you need to '
+                 'know about.',
+        'questions': [
+            {'key': 'recording_enabled',
+             'label': 'Record and transcribe calls?',
+             'type': 'bool', 'required': True, 'skip_allowed': False,
+             'default': 'true',
+             'help': 'If you turn this off you still get the receptionist '
+                     'and the call summaries, but no transcripts and no '
+                     'recordings to go back to.'},
+            {'key': 'consent_recording_disclosure',
+             'label': 'I understand that callers will be told the call may '
+                      'be recorded, and that Aspired Websites adds that '
+                      'line to the greeting automatically.',
+             'type': 'bool', 'required': True, 'skip_allowed': False,
+             'help': 'Texas and Georgia only need one party to consent, '
+                     'but your callers may be in states that need both. '
+                     'The disclosure in the greeting is what covers you '
+                     'for all of them.'},
+            {'key': 'consent_numbers_lawful',
+             'label': 'I confirm the number being forwarded is my '
+                      'business line and I am authorised to route it.',
+             'type': 'bool', 'required': True, 'skip_allowed': False},
+            {'key': 'attestation_typed_name',
+             'label': 'Type your full name',
+             'type': 'text', 'required': True, 'skip_allowed': False,
+             'help': 'This is your signature on the two statements '
+                     'above.'},
+            {'key': 'attestation_title',
+             'label': 'Your title at the business',
+             'type': 'text', 'required': False, 'skip_allowed': True,
+             'placeholder': 'Owner'},
+        ],
+    },
+]
+
+
 ONBOARDING_QUESTIONS = {
     'maintenance':    _MAINTENANCE,
     'social_media':   _social_sections(3),  # default 3 — overridden below
     'website_design': [],
     'review_system':  _REVIEW_SYSTEM,
+    'voice_receptionist': _VOICE_RECEPTIONIST,
 }
 
 
@@ -857,6 +1171,17 @@ CONDITIONAL_RULES = {
     # explicitly rather than omitted so it is clear this is a decision
     # and not an oversight.
     'review_system': {},
+    # Same reasoning for the receptionist: V1 is the number and the
+    # timezone, V2/V3 are the whole behaviour, V4 is what it knows and
+    # V5 is the recording record. Nothing is tier-dependent because
+    # there is only one tier.
+    #
+    # Note what is deliberately NOT here: V2's hours are required even
+    # when coverage_mode is 'all_hours'. They look redundant in that
+    # case, but a client who later switches to after-hours would
+    # otherwise have no hours on file and the schedule could not be
+    # computed — and the switch is a portal toggle, not a new wizard.
+    'voice_receptionist': {},
 }
 
 

@@ -1,0 +1,30 @@
+{% extends "clients/base.html" %}
+
+{% comment %}
+Suspended by us, not paused by them.
+
+Deliberately does not speculate about why. The real reasons are a
+billing problem or a compliance issue, and guessing wrong in the copy is
+worse than asking them to get in touch. No Resume button: this state is
+ours to clear, and offering a control that would fail is worse than
+offering none.
+{% endcomment %}
+
+{% block title %}AI Receptionist{% endblock %}
+
+{% block portal_content %}
+<header class="portal-page-head">
+    <h1>Your receptionist is switched off</h1>
+    <p class="portal-page-head__sub">It is not answering calls right now.</p>
+</header>
+
+<section class="portal-section">
+    <p>Your calls are ringing through to you as they did before, so nothing is being lost. We have paused the receptionist at our end and we need to sort something out with you before it goes back on.</p>
+    <p>Email <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a> or call <a href="tel:+12102010375">210-201-0375</a> and we will get it running again, usually the same day.</p>
+</section>
+
+<section class="portal-section">
+    <h2 class="portal-section__title">Your setup is safe</h2>
+    <p>Your hours, your rules, your FAQs and your whole call history are all still here. Nothing has to be set up again when this clears.</p>
+</section>
+{% endblock %}

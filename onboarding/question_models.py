@@ -20,6 +20,7 @@ PRODUCT_TYPE_CHOICES = [
     ('social_media', 'Social Media'),
     ('website_design', 'Website Design'),
     ('review_system', 'Review System'),
+    ('voice_receptionist', 'AI Voice Receptionist'),
 ]
 
 QUESTION_TYPE_CHOICES = [

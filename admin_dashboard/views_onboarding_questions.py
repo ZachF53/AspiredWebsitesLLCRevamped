@@ -29,6 +29,7 @@ _OB_PRODUCTS = [
     ('social_media', 'Social Media'),
     ('website_design', 'Website Design'),
     ('review_system', 'Review System'),
+    ('voice_receptionist', 'AI Voice Receptionist'),
 ]
 
 
@@ -265,6 +266,16 @@ def _derive_tier_slug(user, product_type):
                  .order_by('-started_at').first())
             return (p.tier_slug if p and p.tier_slug
                     else REVIEW_SYSTEM_SLUG)
+        elif product_type == 'voice_receptionist':
+            # Simpler than reviews: nothing bundles the receptionist, so
+            # a standalone plan row is the only way to have bought it.
+            # The comped case still has no row, hence the same fallback.
+            from clients.contract_options import VOICE_RECEPTIONIST_SLUG
+            p = (acc.maintenance_plans
+                 .filter(tier_slug=VOICE_RECEPTIONIST_SLUG)
+                 .order_by('-started_at').first())
+            return (p.tier_slug if p and p.tier_slug
+                    else VOICE_RECEPTIONIST_SLUG)
         else:
             p = None
         return (p.tier_slug if p and p.tier_slug else 'legacy')

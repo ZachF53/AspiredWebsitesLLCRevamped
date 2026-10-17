@@ -6,6 +6,7 @@ All secrets are read from .env via python-dotenv. Never hardcode credentials.
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -105,6 +106,7 @@ LOCAL_APPS = [
     'onboarding',
     'scheduler',
     'reviews',
+    'voice',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -464,6 +466,28 @@ GHL_API_VERSION = env('GHL_API_VERSION', '2021-07-28')
 # Unset means the endpoint 403s everything (fails closed), so set it
 # before building any client's workflow.
 REVIEW_GHL_EVENTS_SECRET = env('REVIEW_GHL_EVENTS_SECRET', '')
+
+# AI Voice Receptionist: the shared secret in the path of
+# /api/voice/ghl/events/<secret>/, which each client's GHL sub-account
+# posts VoiceAiCallEnd events to. Same control and same fail-closed
+# posture as REVIEW_GHL_EVENTS_SECRET above, but the stakes are higher:
+# these events are what we BILL from, so a forged post is a fabricated
+# overage charge. Separate secret from the review one so rotating either
+# does not take the other's webhook down.
+VOICE_GHL_EVENTS_SECRET = env('VOICE_GHL_EVENTS_SECRET', '')
+
+# Included talk minutes per month, then the per-minute overage rate.
+# Settings rather than literals because they are quoted in four places
+# (public copy, portal gauge, warning emails, the invoice line item) and
+# a drift between any two of them is a billing dispute.
+#
+# The allowance is NOT advisory. GHL Voice AI costs us roughly $0.13-0.16
+# a minute all-in, so an uncapped $97 client turns unprofitable somewhere
+# around 700 minutes. 300 included at ~$39 of cost leaves a workable
+# margin, and the overage rate is set above our cost so heavy users pay
+# for themselves rather than being subsidised by light ones.
+VOICE_INCLUDED_MINUTES = int(env('VOICE_INCLUDED_MINUTES', '300'))
+VOICE_OVERAGE_RATE = Decimal(env('VOICE_OVERAGE_RATE', '0.25'))
 
 # Where the full submission goes when the GHL push fails for any reason
 # (outage, 4xx/5xx, timeout) — a GHL outage must never cost a lead.
@@ -1064,6 +1088,25 @@ CELERY_BEAT_SCHEDULE = {
     'send-onboarding-reminders': {
         'task': 'clients.tasks.send_onboarding_reminders',
         'schedule': crontab(hour='*/12', minute=0),
+    },
+    # AI Voice Receptionist minute reconciliation. The VoiceAiCallEnd
+    # webhook is the fast path; this asks GHL what it thinks happened
+    # over the last two days and inserts anything the webhook lost.
+    # Nightly and early, so a period is reconciled before any invoice
+    # that closes it can be created.
+    'reconcile-voice-usage': {
+        'task': 'voice.tasks.reconcile_voice_usage',
+        'schedule': crontab(hour=3, minute=20),
+    },
+    # Backstop for overage the invoice.created webhook did not attach —
+    # a missed delivery, or a subscription that ended mid-period still
+    # owing minutes. Runs after reconciliation so it bills a recounted
+    # number. A daily sweep rather than per-period scheduled work: never
+    # schedule Celery tasks days ahead on this project (broker
+    # visibility timeout), billing/dunning.py is the reference pattern.
+    'sweep-voice-overage': {
+        'task': 'voice.tasks.sweep_unbilled_overage',
+        'schedule': crontab(hour=4, minute=10),
     },
     # Subscription reconciliation — daily safety net catching drift
     # between Stripe-subscription state and the underlying resource

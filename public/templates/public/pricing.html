@@ -183,9 +183,61 @@ The teal accent divider above carries the separation instead.
 <hr class="section-divider" aria-hidden="true">
 {% endif %}
 
+{% comment %}
+───────── AI Voice Receptionist (Oct 2026) ─────────
+
+Placed after the review system and before Hosting + Security so the two
+"no website needed" products sit together — a visitor who has a site
+already reads both standalone offers in one pass.
+
+`section--alt` here is correct even though Hosting + Security below is
+also alt, because this block ends with a section-divider and the review
+block above it is plain. Checked against its neighbours rather than
+assumed: two adjacent alt sections merge into one grey slab.
+
+The copy does the OPPOSITE of the review card's callout on purpose. That
+one says "already on the Full Plan? you have this, don't buy it twice."
+This one has to say the receptionist is never included in any plan,
+because it is not, and discovering that on an invoice would be worse
+than reading it here. See clients/contract_options for why.
+{% endcomment %}
+{% if voice_receptionist %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">No Website Needed</span>
+            <h2>Never Miss Another After-Hours Call</h2>
+            <p>An AI receptionist that answers your business line, screens the robocalls, takes the job details and texts them to you. It works with the phone number you already have.</p>
+        </div>
+
+        <article class="hosting-banner card card--teal">
+            <div class="hosting-banner__lead">
+                <h3 class="card__title">{{ voice_receptionist.name }}</h3>
+                {% include "core/_price.html" with tier=voice_receptionist %}
+                <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+            </div>
+            <ul class="feature-list hosting-banner__features">
+                {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+            </ul>
+            <div class="hosting-banner__cta">
+                <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Sign Up Now</a>
+                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
+            </div>
+            {% include "core/_voice_scarcity.html" %}
+        </article>
+
+        <div class="callout">
+            This one is an add-on, not part of a plan: every call it answers costs us money to run, so it is priced on its own and never bundled. Have it with a plan, with hosting only, or with no website from us at all. <a href="{% url 'public:service_ai_receptionist' %}">How the receptionist works</a>.
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
 {# ───────── Hosting + Security Only ───────── #}
 {% if hosting_security %}
-<section class="section section--alt">
+<section class="section">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">Hosting</span>
