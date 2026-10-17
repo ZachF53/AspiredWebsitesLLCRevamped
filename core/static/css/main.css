@@ -18996,3 +18996,47 @@ main .section-note a,
         transition: none;
     }
 }
+
+
+/* ── Two-column FAQ accordion (pricing page, Oct 2026) ───────────────
+   /pricing/ carries 23 questions. In the default narrow single column
+   that is 1,847px — 15% of the page — even with every one collapsed.
+
+   Two columns above 960px halves it without dropping an answer, which
+   matters because each of these is a real objection somebody actually
+   phoned in about; trimming the list would just move the question to
+   the phone.
+
+   Deliberately NOT a CSS `columns` multi-column: that would flow a
+   single opened <details> across the column break and reflow every
+   item below it on click. An explicit grid keeps each item whole and
+   each column independent.
+
+   Single column below 960px — two columns of accordion on a phone is
+   unreadable, and the narrow container is what makes the answers
+   scan. */
+@media (min-width: 960px) {
+    .faq-list--2col {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem 1.25rem;
+        max-width: var(--container);
+        align-items: start;
+    }
+}
+
+
+/* Pricing plan grid: hold 3-up until there is room for it.
+   The global `.cards` rule (§17) goes 3-up at 720px, which is right for
+   service cards and wrong for these. At 768px three pricing cards get
+   224px each: the headings wrap to three lines, every feature bullet
+   wraps to four, and the CTA breaks across two. One column until
+   1024px reads far better on a tablet than a cramped three. */
+.cards.cards--plans {
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+    .cards.cards--plans {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}

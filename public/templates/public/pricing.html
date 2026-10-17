@@ -73,17 +73,35 @@ visible answers and structured data cannot drift apart.
 
         <p class="pricing-note">Aspired Websites LLC retains ownership of the website until it&rsquo;s paid in full. It&rsquo;s live and working for you the whole time.</p>
 
-        {% if SITE_CONTENT.build_scope_items %}
-            <article class="card card--accent-left pricing-scope">
-                <h3>What the build includes</h3>
-                <ul class="bullet-list">
-                    {% for item in SITE_CONTENT.build_scope_items %}<li>{{ item }}</li>{% endfor %}
-                </ul>
-            </article>
-        {% endif %}
+        {% comment %}
+        These two reference blocks were 796px of open prose directly
+        under the build cards — the single densest thing on the page and
+        the last thing a buyer reads before deciding.
 
-        <article class="card card--accent-left pricing-billing">
-            <h3>How billing works</h3>
+        `.collapse-sm` was the obvious wrapper and is the wrong one: it
+        is `open` by default and main.js only collapses it below 768px,
+        so on desktop it would have saved nothing. The faq-item pattern
+        is genuinely closed until clicked, which is what was needed.
+
+        Closed by default is also the right call on the merits: anyone
+        comparing $2,000 against $105/month wants the two prices next to
+        each other, not a scroll of scope bullets wedged between them.
+        {% endcomment %}
+        <div class="faq-list">
+            {% if SITE_CONTENT.build_scope_items %}
+                <details class="faq-item">
+                    <summary class="faq-item__q">What the build includes</summary>
+                    <div class="faq-item__a">
+                        <ul class="bullet-list">
+                            {% for item in SITE_CONTENT.build_scope_items %}<li>{{ item }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                </details>
+            {% endif %}
+
+            <details class="faq-item">
+                <summary class="faq-item__q">How billing works</summary>
+                <div class="faq-item__a">
             <ul class="bullet-list">
                 <li><strong>At signing:</strong> the build payment (in full, or the first of 24 monthly installments) and the first month of the Full Plan or Hosting + Security, if you chose one.</li>
                 <li><strong>Before launch:</strong> we set up your dedicated server the day you pay, and your site is built and hosted on it from the start, so the plan is working for you before the site goes live.</li>
@@ -92,22 +110,61 @@ visible answers and structured data cannot drift apart.
                 <li><strong>Full Plan and Hosting + Security:</strong> billed monthly, month-to-month, 30 days&rsquo; notice to cancel. Always billed monthly.</li>
                 <li><strong>Anything out of scope:</strong> {{ hourly_display }}, quoted and approved before work starts, invoiced after it&rsquo;s done.</li>
             </ul>
-        </article>
+                </div>
+            </details>
+        </div>
     </div>
 </section>
 
 <hr class="section-divider" aria-hidden="true">
 
-{# ───────── Full Plan: financed build, plus the paid-upfront variant ───────── #}
+{% comment %}
+───────── Monthly plans + add-ons (restructured Oct 2026) ─────────
+
+This replaced four stacked full-width sections — Full Plan, Review
+System, AI Receptionist, Hosting + Security — which between them ate
+3,733px, 30% of the page, of which 928px was nothing but repeated
+section headers and callouts.
+
+Two problems with the old shape, and the second is the expensive one:
+
+ 1. A buyer choosing between $145, $97, $97 and $45 could only ever see
+    one at a time. A pricing page exists to be compared.
+ 2. The review and receptionist blocks were visually identical — same
+    teal banner, same $97, same "No Website Needed" eyebrow — so
+    scrolling past them felt like the page had repeated itself.
+
+Split by what the things ARE, not by what they cost. PLANS are mutually
+exclusive (you pick one); ADD-ONS are additive (you can have both, with
+any plan or with none). That split also carries the awkward message
+cleanly: the review card says "already in your Full Plan" and the
+receptionist card says "never in any plan", which read as a
+contradiction 1,000px apart and read as a deliberate contrast when they
+sit side by side.
+
+`.cards` is already 3-up at >=720px (main.css §17), so the plan grid
+needs no modifier and the add-on grid takes cards--2col.
+{% endcomment %}
+
+{# ───────── Monthly plans ───────── #}
+{% if full_plan or plan_paid_in_full or hosting_security %}
 <section class="section">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Most Popular</span>
-            <h2>The Full Plan</h2>
-            <p>Hosting, maintenance, unlimited content updates, security patching, a monthly security report, and automated review generation. Priced by how you paid for the build.</p>
+            <span class="eyebrow">Monthly</span>
+            <h2>Pick Your Monthly Plan</h2>
+            <p>One plan, month-to-month, cancel any time. Which one you want depends on whether we built the site and how you paid for it.</p>
         </div>
 
-        <div class="cards cards--2col">
+        {% comment %}
+        cards--plans, not bare cards: the global `.cards` rule goes 3-up
+        at 720px, which gives these three 224px each on a tablet. Service
+        cards survive that width; dense pricing cards do not — the
+        headings wrap to three lines, every feature bullet wraps to four,
+        and "Sign Up Now" breaks in two. Held at one column until 1024px,
+        where each card gets a real 368px.
+        {% endcomment %}
+        <div class="cards cards--plans">
             {% if full_plan %}
                 <article class="card card--pricing card--featured">
                     <span class="card__badge">Most Popular</span>
@@ -132,135 +189,70 @@ visible answers and structured data cannot drift apart.
                     <a class="btn-secondary" href="{% url 'scheduler:design_schedule' %}">Get Started</a>
                 </article>
             {% endif %}
+
+            {% if hosting_security %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ hosting_security.name }}</h3>
+                    {% include "core/_price.html" with tier=hosting_security %}
+                    <p class="card__price-meta">Already have a site? Start here</p>
+                    <ul class="feature-list">
+                        {% for feature in hosting_security.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <a class="btn-secondary" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a>
+                </article>
+            {% endif %}
         </div>
+
+        {% if hosting_security %}
+        <div class="callout">
+            Hosting + Security covers the server, not the site: no content edits and no code changes, those are the Full Plan.{% if review_system %} You can still add the review system to it for {{ review_system.get_price_display }}.{% endif %}
+        </div>
+        {% endif %}
     </div>
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
-
-{% comment %}
-Standalone review system (Oct 2026). Sits between the Full Plan and
-Hosting + Security on purpose: it reads as the cheapest way in rather
-than as a feature stripped out of the plan above it. The plan still
-bundles it at no extra cost, which is stated here so the two sections
-don't look like they contradict each other.
-{% endcomment %}
-{% comment %}
-Plain `section`, not `section--alt`: Hosting + Security directly below
-is already alt, and two alt sections in a row merge into one grey slab.
-The teal accent divider above carries the separation instead.
-{% endcomment %}
-{% if review_system %}
-<section class="section">
-    <div class="container">
-        <div class="section-header">
-            <span class="eyebrow">No Website Needed</span>
-            <h2>Just Want More Reviews? Buy the Review System On Its Own</h2>
-            <p>You don&rsquo;t need a website from us to use it. It runs on the site and the job software you already have, and it&rsquo;s the same system our Full Plan clients get.</p>
-        </div>
-
-        <article class="hosting-banner card card--teal">
-            <div class="hosting-banner__lead">
-                <h3 class="card__title">{{ review_system.name }}</h3>
-                {% include "core/_price.html" with tier=review_system %}
-                <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
-            </div>
-            <ul class="feature-list hosting-banner__features">
-                {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-            </ul>
-            <div class="hosting-banner__cta">
-                <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Sign Up Now</a>
-                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
-            </div>
-        </article>
-
-        <div class="callout">
-            Already on the Full Plan? You have this included &mdash; don&rsquo;t buy it twice. Buy it standalone now and add a website later and it folds into the plan at no extra cost. <a href="{% url 'public:service_review_automation' %}">How the review system works</a>.
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider" aria-hidden="true">
 {% endif %}
 
-{% comment %}
-───────── AI Voice Receptionist (Oct 2026) ─────────
-
-Placed after the review system and before Hosting + Security so the two
-"no website needed" products sit together — a visitor who has a site
-already reads both standalone offers in one pass.
-
-`section--alt` here is correct even though Hosting + Security below is
-also alt, because this block ends with a section-divider and the review
-block above it is plain. Checked against its neighbours rather than
-assumed: two adjacent alt sections merge into one grey slab.
-
-The copy does the OPPOSITE of the review card's callout on purpose. That
-one says "already on the Full Plan? you have this, don't buy it twice."
-This one has to say the receptionist is never included in any plan,
-because it is not, and discovering that on an invoice would be worse
-than reading it here. See clients/contract_options for why.
-{% endcomment %}
-{% if voice_receptionist %}
+{# ───────── Add-ons ───────── #}
+{% if review_system or voice_receptionist %}
 <section class="section section--alt">
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">No Website Needed</span>
-            <h2>Never Miss Another After-Hours Call</h2>
-            <p>An AI receptionist that answers your business line, screens the robocalls, takes the job details and texts them to you. It works with the phone number you already have.</p>
+            <h2>Add-Ons You Can Buy On Their Own</h2>
+            <p>Neither of these needs a website from us. Put them on a plan, on hosting only, or run them with no website from us at all.</p>
         </div>
 
-        <article class="hosting-banner card card--teal">
-            <div class="hosting-banner__lead">
-                <h3 class="card__title">{{ voice_receptionist.name }}</h3>
-                {% include "core/_price.html" with tier=voice_receptionist %}
-                <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
-            </div>
-            <ul class="feature-list hosting-banner__features">
-                {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-            </ul>
-            <div class="hosting-banner__cta">
-                <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Sign Up Now</a>
-                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
-            </div>
-            {% include "core/_voice_scarcity.html" %}
-        </article>
+        <div class="cards cards--2col">
+            {% if review_system %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ review_system.name }}</h3>
+                    {% include "core/_price.html" with tier=review_system %}
+                    <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+                    <ul class="feature-list">
+                        {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <p class="card__price-note"><strong>Already on the Full Plan? You have this.</strong> Don&rsquo;t buy it twice. Buy it on its own now, add a website later, and it folds into the plan at no extra cost.</p>
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Sign Up Now</a>
+                    <a class="btn-link" href="{% url 'public:service_review_automation' %}">How the review system works</a>
+                </article>
+            {% endif %}
 
-        <div class="callout">
-            This one is an add-on, not part of a plan: every call it answers costs us money to run, so it is priced on its own and never bundled. Have it with a plan, with hosting only, or with no website from us at all. <a href="{% url 'public:service_ai_receptionist' %}">How the receptionist works</a>.
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider" aria-hidden="true">
-{% endif %}
-
-{# ───────── Hosting + Security Only ───────── #}
-{% if hosting_security %}
-<section class="section">
-    <div class="container">
-        <div class="section-header">
-            <span class="eyebrow">Hosting</span>
-            <h2>Already Have a Site? Hosting + Security Only</h2>
-        </div>
-
-        <article class="hosting-banner card card--teal">
-            <div class="hosting-banner__lead">
-                <h3 class="card__title">{{ hosting_security.name }}</h3>
-                {% include "core/_price.html" with tier=hosting_security %}
-                <p class="card__price-meta">Billed monthly</p>
-            </div>
-            <ul class="feature-list hosting-banner__features">
-                {% for feature in hosting_security.features.all %}<li>{{ feature.text }}</li>{% endfor %}
-            </ul>
-            <div class="hosting-banner__cta">
-                <a class="btn-secondary" href="{% url 'billing:checkout_page' hosting_security.slug %}">Sign Up Now</a>
-                <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
-            </div>
-        </article>
-
-        <div class="callout">
-            No content edits and no code changes: those are the Full Plan above.{% if review_system %} Want the review system with this instead of the full plan? Add it for {{ review_system.get_price_display }}.{% else %} The review system is not included either.{% endif %}
+            {% if voice_receptionist %}
+                <article class="card card--pricing">
+                    <h3 class="card__title">{{ voice_receptionist.name }}</h3>
+                    {% include "core/_price.html" with tier=voice_receptionist %}
+                    <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+                    <ul class="feature-list">
+                        {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
+                    </ul>
+                    <p class="card__price-note"><strong>This one is never bundled, with any plan.</strong> Every call it answers costs us money to run, so it stays priced on its own at every plan level.</p>
+                    {% include "core/_voice_scarcity.html" %}
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Sign Up Now</a>
+                    <a class="btn-link" href="{% url 'public:service_ai_receptionist' %}">How the receptionist works</a>
+                </article>
+            {% endif %}
         </div>
     </div>
 </section>
@@ -342,19 +334,30 @@ than reading it here. See clients/contract_options for why.
 <hr class="section-divider" aria-hidden="true">
 
 {% comment %}
-Ownership block, kept from the pre-repositioning page. Still the
-cleanest argument against a vendor-locked platform, and still true.
+Ownership and fine print, merged into one section (Oct 2026).
+
+They were two full-width sections in a row, 1,558px between them, both
+doing the same job: reassuring someone who has decided on a price and
+is now looking for the catch. Two headers, two eyebrows, two dividers
+to say "here is the catch, there isn't one" twice.
+
+Merged under one heading with the ownership bullets collapsed. The fine
+print keeps `collapse-sm open` because it is the legally material half
+and should stay visible on desktop; ownership is the reassuring half and
+is fine behind a click. #fine-print stays on this section so existing
+links to it still land.
 {% endcomment %}
-<section class="section">
+<section class="section" id="fine-print">
     <div class="container">
         <div class="section-header">
-            <span class="eyebrow">Ownership</span>
-            <h2>Your Website Should Belong to You</h2>
-            <p>The most expensive thing about a cheap website is usually not being able to leave it.</p>
+            <span class="eyebrow">Ownership &amp; Fine Print</span>
+            <h2>What You Own, and What the Terms Actually Say</h2>
+            <p>The most expensive thing about a cheap website is usually not being able to leave it. Here is both halves of that, in plain English.</p>
         </div>
 
-        <article class="card card--accent-left">
-            <h3>What You Own Once Paid Off, and What Happens If You Leave</h3>
+        <details class="faq-item">
+            <summary class="faq-item__q">What you own once paid off, and what happens if you leave</summary>
+            <div class="faq-item__a">
             <ul class="bullet-list">
                 <li><strong>The source code.</strong> Every file. Yours to take, host anywhere, or hand to another developer.</li>
                 <li><strong>The content.</strong> Copy, images, structure, including anything we wrote for you.</li>
@@ -363,20 +366,8 @@ cleanest argument against a vendor-locked platform, and still true.
                 <li><strong>The site keeps working if you leave.</strong> Once the build is paid off, cancelling the Full Plan stops updates and support, not your website. Files and database are handed over free.</li>
                 <li><strong>No lock-in.</strong> Month-to-month after the build term, no annual contract, no exit fee. Leaving is a support ticket, not a dispute.</li>
             </ul>
-        </article>
-    </div>
-</section>
-
-<hr class="section-divider section-divider--teal" aria-hidden="true">
-
-{# ───────── The fine print ───────── #}
-<section class="section section--alt" id="fine-print">
-    <div class="container">
-        <div class="section-header">
-            <span class="eyebrow">Fine Print</span>
-            <h2>The Fine Print, Summarized</h2>
-            <p>Everything the Terms of Service say that affects your money, in one place.</p>
-        </div>
+            </div>
+        </details>
 
         <details class="collapse-sm" open>
         <summary class="collapse-sm__summary">Read the fine print</summary>
@@ -409,7 +400,17 @@ cleanest argument against a vendor-locked platform, and still true.
             <p>If something isn&rsquo;t answered here, ask and we&rsquo;ll add it.</p>
         </div>
 
-        <div class="faq-list">
+        {% comment %}
+        23 questions in a single narrow column ran 1,847px — 15% of the
+        page — even fully collapsed. Two columns on wide screens halves
+        that without dropping a single answer, which matters because
+        every one of these is a real objection somebody phoned in about.
+
+        faq-list--2col only applies above 960px and only widens the
+        container; below that it is the normal narrow single column,
+        because two columns of accordion on a phone is unreadable.
+        {% endcomment %}
+        <div class="faq-list faq-list--2col">
             {% for question, answer in faqs %}
                 <details class="faq-item">
                     <summary class="faq-item__q">{{ question }}</summary>

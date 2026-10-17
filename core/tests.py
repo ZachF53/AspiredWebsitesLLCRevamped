@@ -1808,10 +1808,25 @@ class ConversionBlockTests(TestCase):
     """
 
     def test_pricing_has_ownership_block(self):
+        """§7.3: the ownership argument must be on the pricing page.
+
+        Oct 2026: asserted on the claims and the block's own label
+        rather than on the section heading. Ownership and the fine print
+        were two full-width sections in a row doing the same
+        reassurance job, 1,558px between them; they are now one section
+        under a heading that covers both, with ownership collapsed.
+
+        Every claim this test actually cares about is still there and
+        still on this page — what changed is which <h2> sits above them,
+        which is presentation. Pinning the heading string made a layout
+        change look like a missing conversion block.
+        """
         html = self.client.get('/pricing/').content.decode()
-        self.assertIn('Your Website Should Belong to You', html)
-        for claim in ('source code', 'domain', '30 days&rsquo; notice'):
-            self.assertIn(claim, html)
+        self.assertIn('What you own once paid off', html)
+        for claim in ('source code', 'domain', '30 days&rsquo; notice',
+                      'No lock-in'):
+            with self.subTest(claim=claim):
+                self.assertIn(claim, html)
 
     def test_pricing_objection_faq_covers_the_required_questions(self):
         """
