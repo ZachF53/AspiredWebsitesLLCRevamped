@@ -510,6 +510,19 @@ class VoiceUsagePeriod(TimestampedModel):
     stripe_invoice_id = models.CharField(max_length=80, blank=True)
     billed_at = models.DateTimeField(null=True, blank=True)
 
+    # Set when this period's overage will never be charged — today that
+    # means the client is comped. Comping the receptionist has to comp
+    # the minutes too: an operator who grants the product free and then
+    # invoices $12 of overage has broken the deal they offered.
+    #
+    # A real column rather than just skipping the charge, for two
+    # reasons. The sweep looks for periods with overage and no invoice
+    # item, so a silent skip would re-examine the same rows every night
+    # forever. And "we chose not to bill this" is different from "this
+    # has not been billed yet" — the admin usage table shows which.
+    billing_waived = models.BooleanField(default=False)
+    billing_waived_reason = models.CharField(max_length=40, blank=True)
+
     # Idempotency for the threshold warnings — set once, checked before
     # sending, so a burst of calls crossing 80% cannot send five emails.
     warned_80_at = models.DateTimeField(null=True, blank=True)

@@ -49,6 +49,27 @@ def _stripe():
     return stripe
 
 
+def _is_comped(program):
+    """Is this program's access a comp rather than a purchase?
+
+    Reads the entitlement resolver rather than the account flag alone,
+    so it stays correct if a second comp path is ever added. Fails
+    toward NOT billing: if we cannot tell, we do not invoice. An
+    unbilled overage is a conversation; a wrong one is a refund and a
+    dented relationship.
+    """
+    if program is None:
+        return True
+    try:
+        from voice.entitlement import voice_entitlement
+        return voice_entitlement(program.account).source == 'comp'
+    except Exception:
+        logger.exception(
+            'voice.billing: could not resolve entitlement for program %s; '
+            'treating as comped and not billing', program.pk)
+        return True
+
+
 def period_to_bill(program, invoice_period_start):
     """The usage period an invoice created at `invoice_period_start` closes.
 
@@ -83,6 +104,23 @@ def attach_overage(period, *, invoice_id=None, subscription_id=''):
         logger.info('voice.billing: period %s already billed as %s',
                     period.pk, period.stripe_invoice_item_id)
         return period.stripe_invoice_item_id
+    if period.billing_waived:
+        return ''
+
+    # A comped client is comped on the minutes too. Granting the
+    # receptionist free and then invoicing for overage breaks the deal
+    # the operator actually offered, and both comped accounts today
+    # carry a stripe_customer_id from other products — so without this
+    # guard the charge would go through cleanly and look legitimate.
+    if _is_comped(period.program):
+        period.billing_waived = True
+        period.billing_waived_reason = 'comped'
+        period.save(update_fields=[
+            'billing_waived', 'billing_waived_reason', 'updated_at'])
+        logger.info(
+            'voice.billing: waived %s overage minutes on period %s — '
+            'account is comped', period.overage_minutes, period.pk)
+        return ''
 
     # Final recount. The nightly sweep may have added calls the webhook
     # missed, and this is the last moment the number can still change.

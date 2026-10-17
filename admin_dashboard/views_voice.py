@@ -114,6 +114,10 @@ def _unbilled_overage_count():
     return VoiceUsagePeriod.objects.filter(
         period_end__lt=timezone.now() - timedelta(days=1),
         stripe_invoice_item_id='',
+        # Waived periods are a decision, not a backlog. Counting them
+        # here would show a permanent non-zero "unbilled" figure that an
+        # operator learns to ignore, which is how a real one gets missed.
+        billing_waived=False,
         overage_minutes__gt=0,
     ).count()
 

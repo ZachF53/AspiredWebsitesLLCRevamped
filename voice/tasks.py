@@ -204,9 +204,12 @@ def sweep_unbilled_overage():
     from voice.models import VoiceUsagePeriod
 
     cutoff = timezone.now() - timedelta(days=1)
+    # billing_waived excluded, or every comped client's old periods come
+    # back through here every single night forever.
     stale = (VoiceUsagePeriod.objects
              .filter(period_end__lt=cutoff,
                      stripe_invoice_item_id='',
+                     billing_waived=False,
                      overage_minutes__gt=0)
              .select_related('program', 'program__account'))
 

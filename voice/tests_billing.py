@@ -180,6 +180,61 @@ class AttachOverageTests(_NoLiveStripeMixin, TestCase):
         self.assertEqual(period.stripe_invoice_item_id, '')
         self.assertIsNone(period.billed_at)
 
+    def test_a_comped_client_is_never_billed_overage(self):
+        """Comping the receptionist comps the minutes.
+
+        This is not theoretical: both comped accounts in production carry
+        a stripe_customer_id from other products, so without the guard
+        the charge goes through cleanly and looks entirely legitimate on
+        the invoice. The operator granted the product free and would be
+        invoicing for it.
+        """
+        _, period = _program_with_usage(400)
+        account = period.program.account
+        account.comp_voice_receptionist = True
+        account.save(update_fields=['comp_voice_receptionist'])
+
+        with patch('stripe.InvoiceItem.create') as create:
+            self.assertEqual(voice_billing.attach_overage(
+                period, invoice_id='in_comped'), '')
+        create.assert_not_called()
+
+        period.refresh_from_db()
+        self.assertTrue(period.billing_waived)
+        self.assertEqual(period.billing_waived_reason, 'comped')
+
+    def test_a_waived_period_is_not_reconsidered(self):
+        """Waived is a decision, not a backlog. Re-examining it nightly
+        forever is how a real unbilled period gets lost in the noise."""
+        _, period = _program_with_usage(400)
+        period.billing_waived = True
+        period.save(update_fields=['billing_waived'])
+        with patch('stripe.InvoiceItem.create') as create:
+            voice_billing.attach_overage(period, invoice_id='in_x')
+        create.assert_not_called()
+
+    def test_a_paying_client_is_still_billed(self):
+        """The guard must not have been bought by making nobody pay."""
+        _, period = _program_with_usage(400)
+        with patch('stripe.InvoiceItem.create',
+                   return_value=_FakeItem('ii_paid')) as create:
+            self.assertEqual(voice_billing.attach_overage(
+                period, invoice_id='in_paid'), 'ii_paid')
+        create.assert_called_once()
+        period.refresh_from_db()
+        self.assertFalse(period.billing_waived)
+
+    def test_an_unresolvable_entitlement_fails_toward_not_billing(self):
+        """An unbilled overage is a conversation; a wrong one is a refund
+        and a dented relationship."""
+        _, period = _program_with_usage(400)
+        with patch('voice.entitlement.voice_entitlement',
+                   side_effect=RuntimeError('db down')), \
+                patch('stripe.InvoiceItem.create') as create:
+            self.assertEqual(voice_billing.attach_overage(
+                period, invoice_id='in_err'), '')
+        create.assert_not_called()
+
     def test_recount_happens_before_billing(self):
         """A call inserted by the nightly sweep after the period was last
         computed must be included in the charge."""

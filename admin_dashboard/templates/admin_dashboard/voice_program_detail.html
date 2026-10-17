@@ -223,6 +223,8 @@ already at their desk.
                     <td>
                         {% if period.stripe_invoice_item_id %}
                             <span class="v2-sync-badge v2-sync-badge--ok">Billed</span>
+                        {% elif period.billing_waived %}
+                            <span class="v2-sync-badge v2-sync-badge--ok">Waived &middot; {{ period.billing_waived_reason|default:"comped" }}</span>
                         {% elif period.overage_minutes %}
                             <span class="v2-sync-badge v2-sync-badge--missing">Not billed</span>
                         {% else %}&mdash;{% endif %}
