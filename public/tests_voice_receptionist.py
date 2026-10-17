@@ -98,6 +98,26 @@ class PricingIsVisibleTests(TestCase):
         response = self.client.get('/pricing/')
         self.assertContains(response, '/services/ai-receptionist/')
 
+    def test_step_numbers_are_not_doubled(self):
+        """REGRESSION: `.step__num` gets its digit from CSS
+        (`counter-reset`/`counter-increment` + `::before { content:
+        counter(step) }`). A literal digit in the div renders on top of
+        the generated one, so the steps read 11, 22, 33.
+
+        Asserted on the markup rather than the rendered digits because
+        the doubling only happens in a browser — the server-side HTML
+        looks fine, which is exactly why it shipped.
+        """
+        import re
+        body = self.client.get(
+            '/services/ai-receptionist/').content.decode('utf-8')
+        filled = re.findall(r'<div class="step__num"[^>]*>\s*\S+\s*</div>',
+                            body)
+        self.assertEqual(filled, [], (
+            'step__num must be empty — CSS supplies the number, so '
+            f'content here renders twice: {filled}'))
+        self.assertEqual(body.count('class="step__num"'), 3)
+
 
 @override_settings(ALLOWED_HOSTS=['testserver'], SECURE_SSL_REDIRECT=False)
 class NeverClaimsToBeBundledTests(TestCase):
