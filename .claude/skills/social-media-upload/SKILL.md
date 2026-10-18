@@ -65,11 +65,50 @@ chat. All output passes through a redaction filter; keep it that way.
 scope. Say so and let the user fix the scopes. URLs already uploaded are saved,
 so a re-run resumes rather than duplicating.
 
+## CSV format: Advanced is canonical
+
+Two formats exist and the script detects which it is looking at. The
+authoritative spec is `brand/ghl-csv-format.md` in the **aspired-brand-repo**
+(confirmed 2026-10-17 against GHL's own `advance-sample.csv`).
+
+| | Advanced | Basic |
+|---|---|---|
+| Status | **canonical — build this** | legacy, do not build again |
+| Columns | 39 | 6 |
+| Header rows | **2** (platform grouping, then names) | 1 |
+
+**Row 1 is how GHL detects Advanced.** Without it the file is parsed as Basic
+no matter which radio button is selected in the UI, and every
+platform-specific column is silently ignored — no error. That is what cost
+five rounds of debugging on the GBP Call button.
+
+**The UI flips the radio back to Basic** when you click Advanced then Upload.
+Ignore it; detection comes from row 1 of the file, not the radio.
+
+Basic is still accepted by this script so older batches can be filled in, but
+it prints a warning. Rebuild those with the upstream generator:
+
+```bash
+python3 render/ghl_csv.py --captions <captions.json> --media <media-registry.json>
+```
+
+**Three Advanced header names differ from GHL's help article.** The template
+wins: `OGmetaUrl (url)` not `link (OGmetaUrl)`, `imageUrls (comma-separated)`
+not `imageUrls`, `videoUrls (comma-separated)` not `videoUrls`, `category` not
+`Category`.
+
+**For GBP posts:** `eventType=call_to_action`, `actionType=call`, and
+`actionUrl` **empty** — lowercase in CSV even though the JSON API docs show
+uppercase. The button pulls the phone number off the Business Profile, so a URL
+is neither needed nor accepted.
+
 ## Non-obvious things that will bite
 
-**The CSV headers are exact strings, parentheses included.** GHL's import
-validator rejects a bare `postAtSpecificTime`, and rejects omitting a column
-you don't use — all six must be present, empty where unused. Never "tidy" them.
+**The headers are exact strings, parentheses included.** GHL rejects a bare
+`postAtSpecificTime`, and rejects omitting a column you don't use — every
+column must be present, empty where unused. Never "tidy" them. Four Advanced
+columns are named `title` and three are named `type`, so Advanced files must be
+read and written **positionally**; `csv.DictWriter` cannot represent that shape.
 
 **Never hand-edit the CSVs, and never open them in Excel.** Excel rewrites the
 date format on save and the import then fails or misschedules. Files are
@@ -117,19 +156,40 @@ clobbers an existing entry.
 
 The script asserts all of this and prints PASS/FAIL per line — relay it:
 
-- header is the six required columns, in order, with the parentheses
+- format detected per file, printed as `[advanced format]` / `[basic format]`
+- Advanced: row 1 is the 39-column grouping, row 2 the 39 names in order,
+  every data row 39 wide
+- Basic: the six legacy columns in order, plus a deprecation warning
 - UTF-8 BOM present
-- every `imageUrls` is `https://`, no duplicates
-- no `<<MEDIA_URL:` token anywhere in either file
+- every row carries an image URL; every one is `https://`, no duplicates
+- no `<<MEDIA_URL:` token anywhere in any file
 - every date is `YYYY-MM-DD HH:mm:ss`
-- both files agree on row count
 - each newly uploaded URL returns 200 / `image/png` with **no auth header**,
   byte length matching the local PNG
+
+Columns are located **by name**, not by hardcoded index, since the two formats
+disagree on position for some columns.
 
 Exit code is non-zero if anything fails.
 
 ## Upstream
 
-The PNGs and the token CSVs come from a separate render step
-(`make_csv.py` + a `*-captions.json` schedule). That step is outside this
-skill; this skill starts from the zipped batch it produces.
+Images and token CSVs come from the **aspired-brand-repo**, which is a separate
+repo from this Django project:
+
+```
+brand/ghl-csv-format.md   the authoritative CSV spec
+brand/social-images.md    canvas sizes, layout anatomy, per-platform rules
+render/render.py          renders the PNGs from posts.json
+render/ghl_csv.py         builds Advanced CSVs from a captions file
+render/out/               rendered PNGs + generated CSVs
+```
+
+Images are `<id>-<canvas>.png`; this skill handles the `-portrait` canvas
+(1080x1350, Instagram and Facebook). Square (1080x1080) is for LinkedIn and X,
+landscape (1200x628) for link posts. Portrait is never cropped to square —
+re-render instead, since a centre crop takes the eyebrow and the handle.
+
+That render step is outside this skill; this skill starts from the zipped batch
+it produces. When the format spec there changes, update `ADV_HEAD` /
+`ADV_GROUP` in the script to match — they are a verbatim copy.

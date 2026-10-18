@@ -33,10 +33,48 @@ import requests
 API = "https://services.leadconnectorhq.com/medias/upload-file"
 VERSION = "2021-07-28"
 
+# Two CSV formats exist. ADVANCED is canonical as of 2026-10-17; see
+# brand/ghl-csv-format.md in the aspired-brand-repo. BASIC is legacy and is
+# still accepted here only so older batches can be filled in.
+#
 # The parentheticals are PART OF THE HEADER NAME, not documentation. GHL's
-# import validator rejects a bare "postAtSpecificTime", and rejects omitting a
-# column you do not use - all six must be present, empty where unused.
-COLUMNS = [
+# import validator rejects a bare "postAtSpecificTime".
+
+# Row 1 of an Advanced file: the platform grouping. This row is how GHL
+# detects Advanced; without it the file is parsed as Basic no matter which
+# radio button is selected, and every platform-specific column is silently
+# ignored.
+ADV_GROUP = (["All Social"] * 11 + ["Facebook"] + ["Instagram"] + ["LinkedIn"] * 2
+             + ["Google (GBP)"] * 10 + ["YouTube"] * 3 + ["TikTok"] * 7
+             + ["Community"] * 2 + ["Pinterest"] * 2)
+
+# Row 2: the 39 column names, verbatim from GHL's own advance-sample.csv.
+# Four columns are named "title" and three "type", so files must be read and
+# written positionally - csv.DictWriter cannot represent this shape.
+ADV_HEAD = [
+    "postAtSpecificTime (YYYY-MM-DD HH:mm:ss)", "content", "OGmetaUrl (url)",
+    "imageUrls (comma-separated)", "gifUrl", "videoUrls (comma-separated)",
+    "mediaOptimization (true/false)", "applyWatermark (true/false)",
+    "tags (comma-separated)", "category", "followUpComment",
+    "type (post/story/reel)", "type (post/story/reel)",
+    "pdfTitle", "postAsPdf (true/false)",
+    "eventType (call_to_action/event/offer)",
+    "actionType (none/order/book/shop/learn_more/call/sign_up)",
+    "title", "offerTitle", "startDate (YYYY-MM-DD HH:mm:ss)",
+    "endDate (YYYY-MM-DD HH:mm:ss)", "termsConditions", "couponCode",
+    "redeemOnlineUrl", "actionUrl",
+    "title", "privacyLevel (private/public/unlisted)", "type (video/short)",
+    "privacyLevel (everyone/friends/only_me)", "promoteOtherBrand (true/false)",
+    "enableComment (true/false)", "enableDuet (true/false)",
+    "enableStitch (true/false)", "videoDisclosure (true/false)",
+    "promoteYourBrand (true/false)",
+    "title", "notifyAllGroupMembers (true/false)", "title", "link",
+]
+
+# Legacy 6-column format. Note the header names differ from Advanced beyond
+# just the count: "link (OGmetaUrl)" vs "OGmetaUrl (url)", and bare
+# "imageUrls" vs "imageUrls (comma-separated)".
+BASIC_HEAD = [
     "postAtSpecificTime (YYYY-MM-DD HH:mm:ss)",
     "content",
     "link (OGmetaUrl)",
@@ -44,6 +82,8 @@ COLUMNS = [
     "gifUrl",
     "videoUrls",
 ]
+
+assert len(ADV_GROUP) == len(ADV_HEAD) == 39
 
 TOKEN_RE = re.compile(r"<<MEDIA_URL:([^>]+)>>")
 
@@ -158,8 +198,33 @@ def patch_csv(path: Path, media: dict) -> int:
     return n
 
 
+def read_table(path: Path):
+    """Return (fmt, group_row, header, data_rows).
+
+    Advanced files carry TWO header rows: a platform grouping then the column
+    names. Basic carries one. Row 1 being "All Social" is the signature GHL
+    itself keys off.
+    """
+    import csv as _csv
+    with path.open(newline="", encoding="utf-8-sig") as fh:
+        rows = [r for r in _csv.reader(fh) if any(c.strip() for c in r)]
+    if not rows:
+        return "empty", [], [], []
+    if rows[0] and rows[0][0].strip() == "All Social":
+        return "advanced", rows[0], (rows[1] if len(rows) > 1 else []), rows[2:]
+    return "basic", [], rows[0], rows[1:]
+
+
+def col_index(header, prefix):
+    for i, h in enumerate(header):
+        if h.strip().startswith(prefix):
+            return i
+    return None
+
+
 def verify(csvs, media, folder, uploaded_ids):
     ok = True
+    warned_basic = False
 
     def chk(cond, label):
         nonlocal ok
@@ -169,30 +234,55 @@ def verify(csvs, media, folder, uploaded_ids):
     say("\n=== CSV structure ===")
     counts = []
     for path in csvs:
-        import csv as _csv
         raw = path.read_bytes()
         text = raw.decode("utf-8-sig")
-        with path.open(newline="", encoding="utf-8-sig") as fh:
-            rd = _csv.reader(fh)
-            hdr = next(rd)
-            rows = [r for r in rd if any(c.strip() for c in r)]
+        fmt, group, hdr, rows = read_table(path)
         counts.append(len(rows))
-        say(path.name)
+        say(f"{path.name}   [{fmt} format]")
         chk(raw[:3] == b"\xef\xbb\xbf", "utf-8 BOM present")
-        chk(hdr == COLUMNS, "header = the six required columns, in order")
+
+        if fmt == "advanced":
+            chk(group == ADV_GROUP, "row 1 = the 39-column platform grouping")
+            chk(hdr == ADV_HEAD, "row 2 = the 39 column names, in order")
+            chk(all(len(r) == 39 for r in rows), "every data row is 39 columns wide")
+        elif fmt == "basic":
+            chk(hdr == BASIC_HEAD, "header = the six legacy Basic columns, in order")
+            warned_basic = True
+        else:
+            chk(False, f"unrecognised format in {path.name}")
+            continue
+
         chk(len(rows) > 0, f"has rows ({len(rows)})")
-        imgs = [r[3] for r in rows]
+
+        # look the columns up by name - index differs between the formats for
+        # some columns, and hardcoding positions is how the GBP bug happened
+        i_img = col_index(hdr, "imageUrls")
+        i_when = col_index(hdr, "postAtSpecificTime")
+        if i_img is None or i_when is None:
+            chk(False, "could not locate imageUrls / postAtSpecificTime columns")
+            continue
+
+        imgs = [r[i_img] for r in rows if len(r) > i_img and r[i_img].strip()]
+        chk(len(imgs) == len(rows), "every row carries an image url")
         chk(all(u.startswith("https://") for u in imgs), "every imageUrls starts with https://")
         chk("<<MEDIA_URL:" not in text, "no <<MEDIA_URL: token anywhere in file")
         chk(len(set(imgs)) == len(imgs), "no duplicate image urls")
-        bad = [r[0] for r in rows
-               if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", r[0])]
+        bad = [r[i_when] for r in rows
+               if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", r[i_when])]
         chk(not bad, "every date is YYYY-MM-DD HH:mm:ss" + (f" (bad: {bad})" if bad else ""))
 
     if len(set(counts)) == 1:
-        chk(True, f"both files agree on row count ({counts[0]})")
+        chk(True, f"all files agree on row count ({counts[0]})")
     else:
-        chk(False, f"row counts differ between files: {counts}")
+        say(f"  note  row counts differ between files: {counts}")
+        say("        (expected when platforms carry different post sets)")
+
+    if warned_basic:
+        say("\n  WARNING: Basic format detected.")
+        say("  Advanced is canonical as of 2026-10-17 (brand/ghl-csv-format.md).")
+        say("  Basic silently drops every platform-specific column - a GBP post")
+        say("  imports with its action button set to None and GHL reports no error.")
+        say("  Rebuild with: python3 render/ghl_csv.py --captions <f> --media <registry>")
 
     # Every URL uploaded this run must serve the image it claims to. Byte size
     # is the fingerprint; this is what catches a mis-wired id -> url mapping.
@@ -225,7 +315,8 @@ def main():
         die(f"not a directory: {folder}")
 
     pngs = sorted(folder.glob("*-portrait.png"))
-    csvs = sorted(p for p in folder.glob("ghl-*.csv") if p.suffix == ".csv")
+    csvs = sorted(p for p in folder.glob("ghl-*.csv")
+                  if p.suffix == ".csv" and "template" not in p.name)
     if not pngs:
         die(f"no *-portrait.png in {folder}")
     if not csvs:
