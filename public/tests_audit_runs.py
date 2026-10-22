@@ -120,3 +120,61 @@ class AuditRunsPageTests(TestCase):
         r = self.client.get(
             reverse('admin_dashboard:v2_audit_runs_list') + '?internal=0')
         self.assertNotContains(r, 'https://aspiredwebsites.com/')
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    COMPANY_POSTAL_ADDRESS='1 Test St',
+)
+class DetailedReportEmailTests(TestCase):
+    def _lead(self, **kw):
+        defaults = dict(
+            url='https://example.com/', performance_score=62, seo_score=91,
+            best_practices_score=100, accessibility_score=45,
+            email='v@example.com',
+            details={
+                'performance': {
+                    'failed': [{'id': 'unused-javascript',
+                                'title': 'Reduce unused JavaScript',
+                                'display_value': 'Est savings of 200 KiB',
+                                'learn_more': 'https://developer.chrome.com/x',
+                                'description': 'x', 'score': 0.3}],
+                    'passed': [{'id': 'font-display', 'title': 'Font display'}],
+                },
+                'seo': {'failed': [], 'passed': [{'id': 'x', 'title': 'Has a `<title>`'}]},
+                'accessibility': {
+                    'failed': [{'id': 'some-new-check', 'title': 'New check',
+                                'description': 'Google says why.',
+                                'learn_more': '', 'score': 0}],
+                    'passed': [],
+                },
+                'best_practices': {'failed': [], 'passed': []},
+                'metrics': [{'id': 'largest-contentful-paint',
+                             'title': 'Largest Contentful Paint',
+                             'display_value': '4.1 s', 'score': 0.2}],
+            },
+        )
+        defaults.update(kw)
+        return AuditLead.objects.create(**defaults)
+
+    def test_report_is_html_with_full_detail(self):
+        from django.core import mail
+        from public.audit_sequence import send_report
+        self.assertTrue(send_report(self._lead()))
+        msg = mail.outbox[0]
+        html = msg.alternatives[0][0]
+        for text in ('Reduce unused JavaScript', 'Why it matters',
+                     'How to fix it', 'What passed', 'Font display',
+                     'Largest Contentful Paint', 'Google says why.',
+                     'Unsubscribe', 'Has a &lt;title&gt;'):
+            self.assertIn(text, html)
+        self.assertIn('How to fix it:', msg.body)
+        self.assertIn('+ Font display', msg.body)
+
+    def test_legacy_lead_without_details_still_sends(self):
+        from django.core import mail
+        from public.audit_sequence import send_report
+        lead = self._lead(details={}, issues={
+            'performance': [{'title': 'Old issue', 'description': 'd'}]})
+        self.assertTrue(send_report(lead))
+        self.assertIn('Old issue', mail.outbox[0].alternatives[0][0])

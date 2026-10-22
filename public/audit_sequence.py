@@ -94,8 +94,8 @@ CATEGORY_CONSEQUENCE = {
     'accessibility': (
         'Beyond the people it shuts out, this one carries legal weight. '
         'ADA website claims against small businesses have been rising '
-        'for years, and law firms are a favoured target precisely '
-        'because they should know better.'
+        'for years, and contractors are a frequent target because '
+        'their sites are rarely checked.'
     ),
     'best_practices': (
         'This covers the things a visitor never sees but a browser '
@@ -196,28 +196,54 @@ def _score_line(audit_lead):
 
 
 def build_report(audit_lead):
-    """Email 1 — the results they asked for, plus the headline finding."""
+    """Email 1 — the results they asked for, plus the headline finding.
+
+    This is the plain-text alternative; the HTML version
+    (emails/audit_report.html) carries the same detail with styling.
+    """
+    from public.audit_report import build_report_context
+
     key, score = audit_lead.worst_category
     label = CATEGORY_LABELS[key]
+    ctx = build_report_context(audit_lead)
 
     body = [
         f'Here are the full results for {audit_lead.url}.',
         '',
         _score_line(audit_lead),
         '',
+        ctx['summary']['text'],
+        '',
     ]
+    for para in ctx['ai_paragraphs']:
+        body += [para, '']
 
-    issues = audit_lead.issues if isinstance(audit_lead.issues, dict) else {}
-    for cat in ('performance', 'seo', 'accessibility', 'best_practices'):
-        found = issues.get(cat) or []
-        if not found:
-            continue
-        body.append(f'{CATEGORY_LABELS[cat]}:')
-        for issue in found[:5]:
-            title = (issue.get('title') or '').strip()
-            if title:
-                body.append(f'  - {title}')
+    for cat in ctx['categories']:
+        body.append(f"== {cat['label']}: {cat['score']}/100 "
+                    f"({cat['tier_label']}) ==")
+        body.append(cat['impact'])
         body.append('')
+        if cat['key'] == 'performance':
+            for m in ctx['metrics']:
+                body.append(f"  {m['title']}: {m['display_value']}")
+            if ctx['metrics']:
+                body.append('')
+        if cat['failed']:
+            body.append(f"What can be improved ({len(cat['failed'])}):")
+            for item in cat['failed']:
+                extra = (f" ({item['display_value']})"
+                         if item['display_value'] else '')
+                body.append(f"  - {item['title']}{extra}")
+                body.append(f"    Why it matters: {item['why']}")
+                body.append(f"    How to fix it: {item['fix']}")
+                if item['learn_more']:
+                    body.append(f"    Guide: {item['learn_more']}")
+            body.append('')
+        if cat['passed']:
+            body.append(f"What passed ({len(cat['passed'])}):")
+            for p in cat['passed']:
+                body.append(f"  + {p['title']}")
+            body.append('')
 
     if audit_lead.is_healthy:
         body += [
@@ -284,7 +310,7 @@ def build_followup_1(audit_lead):
         'me. If your developer handles it, forward them this email.',
         '',
         'If you would rather not think about it, I build and maintain '
-        'websites for small firms in Texas and Georgia, and my '
+        'websites for HVAC and home-service contractors, and my '
         'background is security -- Masters in Cybersecurity and a '
         'CISSP. Reply and I will tell you what it would take.',
         '',
@@ -306,8 +332,8 @@ def build_followup_2(audit_lead):
             f'needs fixing, so I am not going to pretend otherwise.',
             '',
             'The only thing I would offer someone in your position is '
-            'keeping it that way. I maintain sites for small firms in '
-            'Texas and Georgia -- updates, backups, uptime monitoring, '
+            'keeping it that way. I maintain sites for HVAC and '
+            'home-service contractors -- updates, backups, uptime monitoring, '
             'and a check on exactly the scores you just saw, so a slow '
             'slide gets caught while it is still small. My background '
             'is security: Masters in Cybersecurity and a CISSP.',
@@ -376,6 +402,36 @@ def _may_send(audit_lead):
     return True, ''
 
 
+def _absolute(path):
+    site = getattr(settings, 'PRODUCTION_HOST', 'aspiredwebsites.com')
+    return f'https://{site}{path}'
+
+
+def _send_report_html(audit_lead, subject, body):
+    """The report as a branded HTML email, with `body` as its text part."""
+    from clients.emails import send_branded
+    from public.audit_report import build_report_context
+
+    context = build_report_context(audit_lead)
+    context.update({
+        'preheader': context['summary']['text'],
+        'schedule_url': _absolute(reverse('scheduler:design_schedule')),
+        'audit_page_url': _absolute(reverse('public:audit')),
+        'unsubscribe_url': _absolute(reverse(
+            'public:audit_unsubscribe',
+            args=[unsubscribe_token(audit_lead)])),
+    })
+    send_branded(
+        subject=subject,
+        template='audit_report',
+        context=context,
+        recipient_list=[audit_lead.email],
+        text_body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        fail_silently=False,
+    )
+
+
 def _send(audit_lead, subject, body):
     send_mail(
         subject=subject,
@@ -406,7 +462,7 @@ def send_report(audit_lead):
             'going out without the physical address CAN-SPAM requires. '
             'Set it in .env on this server.')
     subject, body = build_report(audit_lead)
-    _send(audit_lead, subject, body)
+    _send_report_html(audit_lead, subject, body)
     audit_lead.report_sent_at = timezone.now()
     audit_lead.save(update_fields=['report_sent_at'])
     return True

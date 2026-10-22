@@ -229,6 +229,15 @@ class AuditLead(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Every check Lighthouse ran, passed and failed, per category -- the
+    # detail the emailed report is built from (public/audit_report.py).
+    # `issues` above stays as the top-2-per-category summary the
+    # follow-up emails read.
+    details = models.JSONField(default=dict, blank=True)
+    # The Aspired AI plain-English review shown on the results page, if
+    # it had loaded by the time the visitor asked for the email.
+    ai_review = models.TextField(blank=True)
+
     # ── Follow-up sequence (public/audit_sequence.py) ──────────────────
     #
     # These people ASKED for the report, so this is a warm sequence and

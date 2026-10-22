@@ -1456,6 +1456,7 @@ def audit(request):
                 request.session['audit_url'] = url
                 request.session['audit_scores'] = result['scores']
                 request.session['audit_issues'] = result['issues_by_category']
+                request.session['audit_details'] = result.get('details') or {}
                 request.session.pop('audit_email_submitted', None)
                 # Drop any AI review cached from a previous audit run.
                 request.session.pop('audit_ai_review', None)
@@ -1537,6 +1538,8 @@ def audit_results(request):
                 best_practices_score=scores['best_practices'],
                 accessibility_score=scores['accessibility'],
                 issues=issues_by_category,
+                details=request.session.get('audit_details') or {},
+                ai_review=request.session.get('audit_ai_review') or '',
                 email=email_form.cleaned_data['email'],
                 ip_address=_client_ip(request),
             )
@@ -1709,7 +1712,13 @@ def _run_pagespeed_audit(url):
         for key, lh_key in _CATEGORY_KEYS.items()
     }
 
-    return {'scores': scores, 'issues_by_category': issues_by_category}
+    from public.audit_report import collect_details
+    return {
+        'scores': scores,
+        'issues_by_category': issues_by_category,
+        # Every passed and failed check, for the emailed report.
+        'details': collect_details(lighthouse),
+    }
 
 
 def _category_issues(category, audits):

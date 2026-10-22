@@ -1,0 +1,130 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your website audit: {{ audit_url }}{% endblock %}
+
+{% block content %}
+{% comment %}
+Detailed audit report (public/audit_sequence.send_report). Mirrors the
+results page: score tiles, the summary card and the four category cards,
+then the full breakdown per category: what failed, why it matters, how
+to fix it, and every check that passed. Context comes from
+public.audit_report.build_report_context. Inline styles only (Gmail
+strips <style>); no SVG (Gmail strips it), so scores are plain numbers.
+{% endcomment %}
+
+<p style="margin:0 0 6px;color:#14B8A6;font-size:12px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Your Website Audit</p>
+<h1 style="margin:0 0 10px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Full results for {{ audit_url }}</h1>
+<p style="margin:0 0 24px;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Here is everything the audit checked: {{ total_passed }} check{{ total_passed|pluralize }} passed{% if total_failed %} and {{ total_failed }} can be improved{% endif %}. Each issue below explains why it matters and how to fix it. Scores are from Google PageSpeed Insights on the mobile version of your page.
+</p>
+
+{# Score tiles #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
+    <tr>
+        {% for c in categories %}
+        <td width="25%" align="center" valign="top" style="padding:0 {% if not forloop.last %}6px{% else %}0{% endif %} 0 0;">
+            <div style="background:#070614;border:2px solid {{ c.color }};border-radius:10px;padding:14px 4px;">
+                <div style="color:#94A3B8;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;line-height:1.3;">{{ c.label }}</div>
+                <div style="color:{{ c.color }};font-size:30px;font-weight:800;line-height:1.2;margin-top:6px;">{{ c.score }}</div>
+            </div>
+        </td>
+        {% endfor %}
+    </tr>
+</table>
+
+{# Summary card #}
+<div style="margin:0 0 24px;padding:18px 20px;background:#070614;border:1px solid #1E293B;border-left:4px solid {{ summary.color }};border-radius:8px;">
+    <p style="margin:0;color:{{ summary.color }};font-size:16px;font-weight:700;line-height:1.45;">{{ summary.text }}</p>
+    {% if ai_paragraphs %}
+        <p style="margin:14px 0 6px;color:#14B8A6;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Aspired AI review</p>
+        {% for p in ai_paragraphs %}
+            <p style="margin:0 0 10px;color:#CBD5E1;font-size:14px;line-height:1.6;">{{ p }}</p>
+        {% endfor %}
+    {% endif %}
+</div>
+
+{# Category cards #}
+{% for c in categories %}
+<div style="margin:0 0 14px;padding:18px 20px;background:#070614;border:1px solid {{ c.color }};border-radius:10px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td style="color:#F8FAFC;font-size:17px;font-weight:700;">{{ c.label }}</td>
+            <td align="right"><span style="display:inline-block;padding:3px 10px;border:1px solid {{ c.color }};border-radius:999px;color:{{ c.color }};font-size:12px;font-weight:700;">{{ c.tier_label }}</span></td>
+        </tr>
+    </table>
+    <p style="margin:8px 0 4px;color:{{ c.color }};font-size:34px;font-weight:800;line-height:1.1;">{{ c.score }}<span style="color:#64748B;font-size:16px;font-weight:700;">/100</span></p>
+    <p style="margin:0 0 8px;color:#CBD5E1;font-size:14px;line-height:1.55;">{{ c.impact }}</p>
+    <p style="margin:0;color:#94A3B8;font-size:13px;">
+        <span style="color:#10B981;">&#10003; {{ c.passed|length }} passed</span>{% if c.failed %} &nbsp;&middot;&nbsp; <span style="color:{{ c.issue_color }};">{{ c.failed|length }} to improve</span>{% endif %}
+    </p>
+</div>
+{% endfor %}
+
+{# Detailed breakdown per category #}
+{% for c in categories %}
+<div style="height:1px;background:#1E293B;margin:30px 0 22px;font-size:0;line-height:0;">&nbsp;</div>
+
+<p style="margin:0 0 4px;color:#14B8A6;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Detailed breakdown</p>
+<h2 style="margin:0 0 14px;color:#F8FAFC;font-size:20px;font-weight:700;line-height:1.3;">{{ c.label }} <span style="color:{{ c.color }};">{{ c.score }}/100</span></h2>
+
+{% if c.key == 'performance' and metrics %}
+    <p style="margin:0 0 8px;color:#F8FAFC;font-size:14px;font-weight:700;">Key speed measurements</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;border:1px solid #1E293B;border-radius:8px;">
+        {% for m in metrics %}
+        <tr>
+            <td style="padding:9px 14px;color:#CBD5E1;font-size:13px;{% if not forloop.last %}border-bottom:1px solid #1E293B;{% endif %}">{{ m.title }}</td>
+            <td align="right" style="padding:9px 14px;color:{{ m.color }};font-size:13px;font-weight:700;{% if not forloop.last %}border-bottom:1px solid #1E293B;{% endif %}">{{ m.display_value }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endif %}
+
+{% if c.failed %}
+    <p style="margin:0 0 10px;color:#F8FAFC;font-size:14px;font-weight:700;">What can be improved ({{ c.failed|length }})</p>
+    {% for item in c.failed %}
+    <div style="margin:0 0 12px;padding:14px 16px;background:#070614;border:1px solid #1E293B;border-left:3px solid {{ c.issue_color }};border-radius:8px;">
+        <p style="margin:0 0 8px;color:#F8FAFC;font-size:14px;font-weight:700;line-height:1.4;">{{ item.title }}{% if item.display_value %} <span style="color:{{ c.issue_color }};font-weight:600;font-size:12px;">({{ item.display_value }})</span>{% endif %}</p>
+        <p style="margin:0 0 6px;color:#CBD5E1;font-size:13px;line-height:1.55;"><strong style="color:#F8FAFC;">Why it matters:</strong> {{ item.why }}</p>
+        <p style="margin:0;color:#CBD5E1;font-size:13px;line-height:1.55;"><strong style="color:#F8FAFC;">How to fix it:</strong> {{ item.fix }}</p>
+        {% if item.learn_more %}<p style="margin:8px 0 0;font-size:12px;"><a href="{{ item.learn_more }}" style="color:#E8650A;text-decoration:none;">Google's guide to this check &rarr;</a></p>{% endif %}
+    </div>
+    {% endfor %}
+{% else %}
+    <p style="margin:0 0 14px;color:#10B981;font-size:14px;">&#10003; Nothing to fix here. Every check in this category passed.</p>
+{% endif %}
+
+{% if c.passed %}
+    <p style="margin:16px 0 8px;color:#F8FAFC;font-size:14px;font-weight:700;">What passed ({{ c.passed|length }})</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        {% for p in c.passed %}
+        <tr>
+            <td width="20" valign="top" style="padding:3px 0;color:#10B981;font-size:13px;">&#10003;</td>
+            <td style="padding:3px 0;color:#94A3B8;font-size:13px;line-height:1.45;">{{ p.title }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% elif not has_details %}
+    <p style="margin:8px 0 0;color:#64748B;font-size:12px;">This audit was run before full check lists were saved, so only the top issues are shown. Run the audit again for the complete list.</p>
+{% endif %}
+{% endfor %}
+
+{# Next steps #}
+<div style="height:1px;background:#1E293B;margin:30px 0 22px;font-size:0;line-height:0;">&nbsp;</div>
+<h2 style="margin:0 0 10px;color:#F8FAFC;font-size:20px;font-weight:700;">Want help with any of this?</h2>
+<p style="margin:0 0 18px;color:#CBD5E1;font-size:14px;line-height:1.6;">
+    Everything above can be fixed by whoever manages your site, so feel free to forward this email to them. If you would rather hand it off, we build fast, custom-coded websites for HVAC and home-service contractors. Reply to this email with any question, or book a free call and we will walk through your results together.
+</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
+    <tr>
+        <td align="center" style="background:#C45508;border-radius:8px;">
+            <a href="{{ schedule_url }}" style="display:inline-block;padding:13px 26px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;">Book a free 30-minute call &rarr;</a>
+        </td>
+    </tr>
+</table>
+<p style="margin:0 0 6px;color:#94A3B8;font-size:13px;line-height:1.6;">
+    Want to check again after making changes? <a href="{{ audit_page_url }}" style="color:#E8650A;text-decoration:none;">Run the free audit again</a>.
+</p>
+<p style="margin:18px 0 0;color:#64748B;font-size:12px;line-height:1.6;">
+    You are getting this because you asked for your audit results at aspiredwebsites.com. <a href="{{ unsubscribe_url }}" style="color:#94A3B8;text-decoration:underline;">Unsubscribe</a>
+</p>
+{% endblock %}
