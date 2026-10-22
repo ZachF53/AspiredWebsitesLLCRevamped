@@ -91,6 +91,11 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
     profile.stage = new_stage
     profile.save(update_fields=['stage', 'updated_at'])
 
+    # Legacy deposit contracts: Pre-Launch raises the remaining balance.
+    # No-op for builds paid in full or on installments.
+    if new_stage == 'pre_launch':
+        issue_final_invoice(profile)
+
     log = ProjectStageLog.objects.create(
         website_new=profile,
         from_stage=from_stage,
@@ -118,6 +123,46 @@ def change_client_stage(profile, new_stage, *, set_by='AI assistant',
             'client_notified', 'notification_sent_at', 'updated_at'])
 
     return log, notified
+
+
+def issue_final_invoice(website):
+    """On → Pre-Launch: set up the remaining-balance payment on OUR own
+    /pay/ page (not a Stripe-hosted page), store the on-site pay link for the
+    portal button, and email our branded notice. Best-effort."""
+    from billing.stripe_helpers import start_contract_final_payment
+    from clients.models import Contract
+
+    # Nothing is owed at Pre-Launch on current terms: the build was paid
+    # in full at signing, or its installments keep billing monthly.
+    if website.payment_status in ('fully_paid', 'installments_active'):
+        return
+    # The signed contract is the only thing this needs. It also required a
+    # legacy ClientProfile and returned early without one, so moving a
+    # canonical-only client to Pre-Launch raised no final invoice, left
+    # `final_invoice_url` empty, and sent no email — and the launch gate
+    # then blocks on a payment that was never asked for.
+    contract = (Contract.objects.filter(website_new=website, signed=True)
+                .order_by('-created_at').first())
+    if contract is None:
+        return
+    try:
+        invoice = start_contract_final_payment(contract)
+    except Exception:
+        logger.exception(
+            'final invoice failed for website %s', website.pk)
+        return
+    if invoice is None:
+        return
+    # On-site /pay/<token>/ link — everything stays on our domain.
+    pay_url = invoice.get_pay_url()
+    website.final_invoice_url = pay_url
+    website.save(update_fields=['final_invoice_url', 'updated_at'])
+    try:
+        from clients.emails import send_final_invoice_email
+        send_final_invoice_email(website, contract, pay_url)
+    except Exception:
+        logger.exception(
+            'final invoice email failed for website %s', website.pk)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

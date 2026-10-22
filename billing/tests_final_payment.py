@@ -97,6 +97,37 @@ class FinalPaymentForAccountContract(TestCase):
             'Pre-Launch must store the on-site pay link for the portal button')
         self.assertIn('/pay/', self.website.final_invoice_url)
 
+    def test_change_client_stage_to_pre_launch_raises_the_final(self):
+        """v2, the AI assistant and the legacy client page all move stages
+        through change_client_stage; it must raise the final invoice too,
+        not just v1's website stage view."""
+        from clients.services import change_client_stage
+        with patch('billing.stripe_helpers.stripe') as st:
+            st.Customer.create.return_value = _Cust()
+            st.PaymentIntent.create.return_value = _PI()
+            change_client_stage(self.website, 'pre_launch', set_by='test')
+
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'pre_launch')
+        self.assertIn('/pay/', self.website.final_invoice_url)
+        self.assertTrue(OnboardingInvoice.objects.filter(
+            website_new=self.website, is_deposit=False).exists())
+
+    def test_change_client_stage_to_pre_launch_raises_the_final(self):
+        """v2, the AI assistant and the legacy client page all move stages
+        through change_client_stage; it must raise the final invoice too."""
+        from clients.services import change_client_stage
+        with patch('billing.stripe_helpers.stripe') as st:
+            st.Customer.create.return_value = _Cust()
+            st.PaymentIntent.create.return_value = _PI()
+            change_client_stage(self.website, 'pre_launch', set_by='test')
+
+        self.website.refresh_from_db()
+        self.assertEqual(self.website.stage, 'pre_launch')
+        self.assertIn('/pay/', self.website.final_invoice_url)
+        self.assertTrue(OnboardingInvoice.objects.filter(
+            website_new=self.website, is_deposit=False).exists())
+
     def test_fully_paid_build_is_not_invoiced_again(self):
         from admin_dashboard.views import _issue_website_final_invoice
         self.website.payment_status = 'fully_paid'
