@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AuditLead, City
+from .models import AuditLead, AuditRun, City
 
 
 @admin.register(AuditLead)
@@ -12,6 +12,14 @@ class AuditLeadAdmin(admin.ModelAdmin):
     readonly_fields = ('url', 'performance_score', 'seo_score',
                        'best_practices_score', 'accessibility_score',
                        'issues', 'email', 'ip_address', 'created_at')
+    date_hierarchy = 'created_at'
+
+
+@admin.register(AuditRun)
+class AuditRunAdmin(admin.ModelAdmin):
+    list_display = ('url', 'created_at', 'by_staff', 'audit_lead', 'source')
+    list_filter = ('source', 'by_staff', 'created_at')
+    search_fields = ('url', 'domain')
     date_hierarchy = 'created_at'
 
 

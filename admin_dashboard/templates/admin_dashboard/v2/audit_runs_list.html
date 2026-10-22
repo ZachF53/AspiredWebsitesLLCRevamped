@@ -1,0 +1,99 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Audit Tool — Admin v2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-page-header">
+        <div>
+            <span class="eyebrow">v2</span>
+            <h1 class="admin-page-title">Audit Tool</h1>
+            <p class="admin-page-sub">
+                Every run of the free audit at /audit/.
+                {% if last_run %}Last outside run {{ last_run.created_at|timesince }} ago.{% else %}No outside runs on record yet.{% endif %}
+            </p>
+        </div>
+        <div>
+            {% if show_internal %}
+                <a class="btn-secondary btn-sm" href="?">Hide our own runs</a>
+            {% else %}
+                <a class="btn-secondary btn-sm" href="?internal=1">Show our own runs ({{ internal_count }})</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="lead-table-wrapper">
+        <table class="lead-table">
+            <thead>
+                <tr><th>Outside runs</th><th>Runs</th><th>Asked for the email report</th></tr>
+            </thead>
+            <tbody>
+                {% for s in stats %}
+                    <tr>
+                        <td>Last {{ s.days }} days</td>
+                        <td>{{ s.runs }}</td>
+                        <td>{{ s.emailed }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% comment %}
+    Backfilled rows predate the run log: recording rows have no scores,
+    and runs before the oldest session recording are not recoverable.
+    {% endcomment %}
+    {% if page.object_list %}
+        <div class="lead-table-wrapper">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Website</th>
+                        <th>Perf</th>
+                        <th>SEO</th>
+                        <th>Access.</th>
+                        <th>Best Pr.</th>
+                        <th>Emailed report</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page.object_list %}
+                        <tr>
+                            <td>{{ r.created_at|date:"M j, Y g:i A" }}</td>
+                            <td>
+                                {{ r.url }}
+                                {% if r.by_staff or r.is_own_site %}<span class="status-badge">Ours</span>{% endif %}
+                            </td>
+                            <td>{{ r.performance_score|default_if_none:"—" }}</td>
+                            <td>{{ r.seo_score|default_if_none:"—" }}</td>
+                            <td>{{ r.accessibility_score|default_if_none:"—" }}</td>
+                            <td>{{ r.best_practices_score|default_if_none:"—" }}</td>
+                            <td>
+                                {% if r.audit_lead %}
+                                    <span class="status-badge">Yes</span> {{ r.audit_lead.email }}
+                                    {% if r.audit_lead.unsubscribed %}<span class="muted">(unsubscribed)</span>{% endif %}
+                                {% else %}
+                                    <span class="muted">No</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="muted">{{ r.get_source_display }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page.has_other_pages %}
+            <p>
+                {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}{% if show_internal %}&internal=1{% endif %}">&larr; Newer</a>{% endif %}
+                Page {{ page.number }} of {{ page.paginator.num_pages }}
+                {% if page.has_next %}<a href="?page={{ page.next_page_number }}{% if show_internal %}&internal=1{% endif %}">Older &rarr;</a>{% endif %}
+            </p>
+        {% endif %}
+    {% else %}
+        <p class="admin-empty">No audit runs logged{% if not show_internal %} from outside visitors{% endif %}.</p>
+    {% endif %}
+</div>
+{% endblock %}

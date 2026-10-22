@@ -17,7 +17,7 @@ from outreach import ghl as ghl_client
 from outreach.models import FailedLeadSubmission
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
-from .models import AuditLead
+from .models import AuditLead, AuditRun, audit_domain
 
 logger = logging.getLogger(__name__)
 
@@ -1459,6 +1459,8 @@ def audit(request):
                 request.session.pop('audit_email_submitted', None)
                 # Drop any AI review cached from a previous audit run.
                 request.session.pop('audit_ai_review', None)
+                request.session['audit_run_id'] = _log_audit_run(
+                    request, url, result['scores'])
                 # §10 conversion — the audit actually ran and produced
                 # scores. A failed PageSpeed call takes the except
                 # branch above and queues nothing. The audited domain
@@ -1481,6 +1483,29 @@ def audit(request):
             'scores in under 30 seconds. No email required.'
         ),
     })
+
+
+def _log_audit_run(request, url, scores):
+    """Record a successful audit run for the v2 Audit Tool page.
+
+    Never allowed to break the audit itself: a logging failure returns
+    None and the visitor still gets their results.
+    """
+    try:
+        user = getattr(request, 'user', None)
+        run = AuditRun.objects.create(
+            url=url,
+            domain=audit_domain(url),
+            performance_score=scores.get('performance'),
+            seo_score=scores.get('seo'),
+            best_practices_score=scores.get('best_practices'),
+            accessibility_score=scores.get('accessibility'),
+            by_staff=bool(user and user.is_authenticated and user.is_staff),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception('could not log audit run for %s', url)
+        return None
+    return run.pk
 
 
 def audit_results(request):
@@ -1518,6 +1543,11 @@ def audit_results(request):
             except Exception:  # noqa: BLE001 - never break the capture
                 logger.exception(
                     'audit report send failed for %s', audit_lead.pk)
+            run_id = request.session.get('audit_run_id')
+            if run_id:
+                AuditRun.objects.filter(
+                    pk=run_id, audit_lead__isnull=True,
+                ).update(audit_lead=audit_lead)
             request.session['audit_email_submitted'] = True
             # §10 conversion — this one creates a contactable AuditLead,
             # so it is the audit funnel's real finish line. The visitor's

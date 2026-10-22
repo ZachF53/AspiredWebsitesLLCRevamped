@@ -151,6 +151,7 @@ NAVIGATION_V2 = (
         NavItem('Websites', 'admin_dashboard:v2_websites_list'),
         NavItem('Scans', 'admin_dashboard:v2_scans_list'),
         NavItem('Domains', 'admin_dashboard:v2_domains_list'),
+        NavItem('Audit Tool', 'admin_dashboard:v2_audit_runs_list'),
         NavItem('Billing', 'admin_dashboard:v2_billing_list'),
         NavItem('Pricing', 'admin_dashboard:v2_pricing_list'),
         # Create/edit a maintenance or social plan (ServiceTier). Same

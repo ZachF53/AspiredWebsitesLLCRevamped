@@ -290,6 +290,73 @@ class AuditLead(models.Model):
         )
 
 
+class AuditRun(models.Model):
+    """
+    One row per successful run of the public audit tool, whether or not
+    the visitor asked for the emailed report.
+
+    Exists to answer "is anyone using the audit tool?" -- AuditLead only
+    holds the runs where someone typed an email, which was two rows in
+    four months and said nothing about the runs in between.
+
+    Deliberately holds no visitor identifier: no IP, no session key, no
+    email. The audited address is a business website, not a person. When
+    the visitor does ask for the report, `audit_lead` links to the
+    AuditLead that holds their email (disclosed in the privacy policy).
+    """
+
+    SOURCE_CHOICES = [
+        ('live', 'Live'),
+        ('backfill_recording', 'Backfilled from session recordings'),
+        ('backfill_lead', 'Backfilled from an email request'),
+    ]
+
+    url = models.URLField(max_length=500)
+    domain = models.CharField(max_length=255, blank=True, db_index=True)
+    performance_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    seo_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    best_practices_score = models.PositiveSmallIntegerField(
+        null=True, blank=True)
+    accessibility_score = models.PositiveSmallIntegerField(
+        null=True, blank=True)
+    # Set when the run came from a logged-in staff member -- our own
+    # testing, which should not count as the tool being used.
+    by_staff = models.BooleanField(default=False)
+    audit_lead = models.ForeignKey(
+        AuditLead, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='runs')
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default='live')
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.url} @ {self.created_at:%Y-%m-%d %H:%M}'
+
+    @property
+    def is_own_site(self):
+        return self.domain in OWN_AUDIT_DOMAINS
+
+
+# Our own properties. Runs against these are testing, not usage.
+OWN_AUDIT_DOMAINS = frozenset({
+    'aspiredwebsites.com', 'staging.aspiredwebsites.com', 'aspired-ai.com',
+})
+
+
+def audit_domain(url):
+    """Bare lowercase hostname without www., or '' when unparseable."""
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(url if '://' in url else f'http://{url}').hostname
+    except ValueError:
+        return ''
+    host = (host or '').lower()
+    return host[4:] if host.startswith('www.') else host
+
+
 class SiteContent(models.Model):
     """
     Owner-supplied facts the public site may only state once they exist.

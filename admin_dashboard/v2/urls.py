@@ -9,6 +9,7 @@ is a session flag rather than a URL prefix.
 
 from django.urls import path
 
+from . import views_audit_tool
 from . import views_accounts, views_billing, views_dashboard, views_domains
 from . import views_pricing, views_scans, views_site_content, views_websites
 
@@ -114,6 +115,9 @@ urlpatterns = [
          name='v2_security_summary_download'),
 
     path('domains/', views_domains.domains_list, name='v2_domains_list'),
+
+    path('audit-tool/', views_audit_tool.audit_runs_list,
+         name='v2_audit_runs_list'),
 
     path('billing/', views_billing.billing_list, name='v2_billing_list'),
 
