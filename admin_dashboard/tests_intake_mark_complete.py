@@ -78,7 +78,7 @@ class V2IntakeMarkCompleteTests(TestCase):
             website_new=website, completed=True).exists())
         self.assertContains(r, 'Intake marked complete')
 
-    def test_blocked_for_live_subscription_website(self):
+    def test_allowed_for_live_subscription_website(self):
         _, website = _account_and_website(
             onboarding_status='pending_intake',
             stripe_hosting_subscription_id='sub_imc_live')
@@ -86,8 +86,8 @@ class V2IntakeMarkCompleteTests(TestCase):
                        args=[website.id])
         r = self.client.post(url, follow=True)
         website.refresh_from_db()
-        self.assertEqual(website.onboarding_status, 'pending_intake')
-        self.assertContains(r, 'live Stripe subscription')
+        self.assertNotEqual(website.onboarding_status, 'pending_intake')
+        self.assertNotContains(r, 'live Stripe subscription')
 
     def test_get_redirects_without_writing(self):
         _, website = _account_and_website(onboarding_status='pending_intake')

@@ -25,34 +25,6 @@ def _setter_name(request):
             or request.user.username or 'admin')
 
 
-def _has_live_subscription(website):
-    """True if this Website carries a live Stripe subscription id.
-
-    Hard constraint from the build brief: no write path in this build may
-    touch a Website row where stripe_maintenance_subscription_id or
-    stripe_hosting_subscription_id is non-null (Burgland Tech, Denis Law
-    Group — the two real paying clients). Every view in this module that
-    writes a field on the Website row itself checks this first.
-    stripe_build_installment_subscription_id is the same kind of live
-    money-moving Stripe subscription (just for a build-category tier
-    instead of hosting/maintenance) — same guard applies.
-    """
-    return bool(website.stripe_hosting_subscription_id
-                or website.stripe_maintenance_subscription_id
-                or website.stripe_build_installment_subscription_id)
-
-
-def _block_if_live_subscription(request, website):
-    if _has_live_subscription(website):
-        messages.error(
-            request,
-            'This website has a live Stripe subscription — v2 write '
-            'actions are disabled for it in this build. Use v1 if a '
-            'change is genuinely needed.')
-        return True
-    return False
-
-
 def _active_plan(website, service_type):
     """The website's existing active maintenance/social plan, if any.
 
@@ -630,7 +602,6 @@ def website_detail(request, website_id):
         'website': website,
         'account': website.account,
         'active_tab': active_tab,
-        'has_live_subscription': _has_live_subscription(website),
         'stage_choices': website._meta.get_field('stage').choices,
         # Onboarding
         'onboarding_steps': _onboarding_steps(website),
@@ -690,9 +661,7 @@ def website_document_upload(request, website_id):
     """Admin: attach a file to this website's client. Mirrors
     clients.views.file_upload's shape (form, commit=False, single .save()),
     but sets direction='to_client' and uploaded_by=request.user since this
-    is Zach uploading FOR the client, not the client uploading. Not gated
-    by _block_if_live_subscription — uploading a file touches no
-    money-moving state, same reasoning as website_rename."""
+    is Zach uploading FOR the client, not the client uploading."""
     from admin_dashboard.forms import AdminDocumentUploadForm
 
     redirect_to = reverse_v2_website_tab(website_id, 'documents')
@@ -733,9 +702,7 @@ def website_document_download(request, website_id, doc_id):
 
 @admin_required
 def website_rename(request, website_id):
-    """Rename a website's admin-facing label. Purely cosmetic — not
-    gated by _block_if_live_subscription, unlike stage/payment changes,
-    since renaming touches no money-moving state."""
+    """Rename a website's admin-facing label. Purely cosmetic."""
     if request.method != 'POST':
         return redirect('admin_dashboard:v2_website_detail',
                          website_id=website_id)
@@ -759,10 +726,6 @@ def website_stage(request, website_id):
                          website_id=website_id)
 
     website = get_object_or_404(Website, id=website_id)
-    if _block_if_live_subscription(request, website):
-        return redirect('admin_dashboard:v2_website_detail',
-                         website_id=website.id)
-
     action = request.POST.get('action')
 
     if action == 'payment_override':
@@ -891,10 +854,6 @@ def website_intake_mark_complete(request, website_id):
                          website_id=website_id)
 
     website = get_object_or_404(Website, id=website_id)
-    if _block_if_live_subscription(request, website):
-        return redirect('admin_dashboard:v2_website_detail',
-                         website_id=website.id)
-
     from clients.services import mark_intake_complete
 
     mark_intake_complete(
@@ -920,10 +879,6 @@ def contract_mark_signed(request, website_id):
                          website_id=website_id)
 
     website = get_object_or_404(Website, id=website_id)
-    if _block_if_live_subscription(request, website):
-        return redirect('admin_dashboard:v2_website_detail',
-                         website_id=website.id)
-
     contract = website.contracts.filter(signed=False).order_by(
         '-created_at').first()
     if contract is None:
@@ -963,10 +918,6 @@ def maintenance_onboarding_mark_complete(request, website_id):
                          website_id=website_id)
 
     website = get_object_or_404(Website, id=website_id)
-    if _block_if_live_subscription(request, website):
-        return redirect('admin_dashboard:v2_website_detail',
-                         website_id=website.id)
-
     from clients.services import admin_mark_maintenance_onboarding_complete
 
     ob = admin_mark_maintenance_onboarding_complete(
@@ -1077,8 +1028,6 @@ def website_toggle_auto_send_scan(request, website_id):
         return redirect('admin_dashboard:v2_website_detail',
                          website_id=website_id)
     website = get_object_or_404(Website, id=website_id)
-    if _block_if_live_subscription(request, website):
-        return redirect(f"{reverse_v2_website_tab(website.id, 'security')}")
     website.auto_send_scan_reports = not website.auto_send_scan_reports
     website.save(update_fields=['auto_send_scan_reports', 'updated_at'])
     messages.success(
@@ -1103,9 +1052,6 @@ def website_add_plan(request, website_id):
 
     website = get_object_or_404(Website, id=website_id)
     redirect_to = f"{reverse_v2_website_tab(website.id, 'billing')}"
-
-    if _block_if_live_subscription(request, website):
-        return redirect(redirect_to)
 
     service_type = (request.POST.get('service_type') or '').strip()
     tier_slug = (request.POST.get('tier_slug') or '').strip()
@@ -1245,11 +1191,7 @@ def website_guarantee_refund(request, website_id):
     """30-day guarantee: refund 75% of what was paid under the agreement,
     keep 25%, and cancel every remaining installment / plan payment now.
 
-    Thin caller over billing.guarantee.execute_guarantee_refund. It
-    DELIBERATELY skips _block_if_live_subscription: a live installment or
-    plan subscription is exactly what this action exists to cancel, and
-    the guarantee is a contractual right the client can exercise however
-    this site is billed.
+    Thin caller over billing.guarantee.execute_guarantee_refund.
     """
     redirect_to = f"{reverse_v2_website_tab(website_id, 'billing')}"
     if request.method != 'POST':

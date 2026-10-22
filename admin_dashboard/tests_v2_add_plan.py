@@ -298,7 +298,7 @@ class V2AddPlanTests(TestCase):
 
     # ── Safety net: live-subscription block ──
 
-    def test_add_plan_blocked_when_website_has_live_subscription(self):
+    def test_add_plan_allowed_when_website_has_live_subscription(self):
         # A dedicated Website (not the shared cls.website) so this
         # doesn't mutate a setUpTestData object other tests reuse.
         live_website = Website.objects.create(
@@ -314,5 +314,5 @@ class V2AddPlanTests(TestCase):
                 'tier_slug': self.maint_tier.slug,
                 'confirmed': 'yes',
             }, follow=True)
-        mock_start.assert_not_called()
-        self.assertContains(r, 'live Stripe subscription')
+        mock_start.assert_called_once()
+        self.assertNotContains(r, 'live Stripe subscription')

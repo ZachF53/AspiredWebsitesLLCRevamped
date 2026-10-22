@@ -143,11 +143,9 @@ class NoBuildWebsiteCreateTests(TestCase):
         self.assertNotIn(
             'admin-card__title">Droplet<', infra_resp.content.decode())
 
-    def test_no_build_shape_leaves_live_subscription_guards_intact(self):
-        """A freshly created no-build Website has no subscription id, so
-        v2 write actions must NOT be blocked for it — confirming the
-        guard still keys correctly off the (empty) subscription fields,
-        not off stage/payment_status/onboarding_status."""
+    def test_no_build_shape_allows_v2_writes(self):
+        """A freshly created no-build Website accepts v2 write actions,
+        before and after a subscription id appears on it."""
         r = self.client.post(
             reverse('admin_dashboard:v2_website_create'), {
                 'account_id': str(self.account.id),
@@ -158,27 +156,20 @@ class NoBuildWebsiteCreateTests(TestCase):
                 'onboarding_status': 'intake_complete',
             })
         site = Website.objects.get(account=self.account)
+        toggle_url = reverse('admin_dashboard:v2_website_toggle_auto_send_scan',
+                             args=[site.id])
 
-        # An ordinary v2 write action (toggle auto-send-scan) must go
-        # through, not get refused by the live-subscription guard.
-        toggle = self.client.post(
-            reverse('admin_dashboard:v2_website_toggle_auto_send_scan',
-                    args=[site.id]),
-            follow=True)
+        toggle = self.client.post(toggle_url, follow=True)
         self.assertEqual(toggle.status_code, 200)
-        self.assertNotIn(
-            'live Stripe subscription', toggle.content.decode())
+        site.refresh_from_db()
+        self.assertTrue(site.auto_send_scan_reports)
 
-        # And if a subscription id later appears on this same row, the
-        # guard must still block, proving this test didn't just disable
-        # the check.
         site.stripe_maintenance_subscription_id = 'sub_fake123'
         site.save(update_fields=['stripe_maintenance_subscription_id'])
-        blocked = self.client.post(
-            reverse('admin_dashboard:v2_website_toggle_auto_send_scan',
-                    args=[site.id]),
-            follow=True)
-        self.assertIn('live Stripe subscription', blocked.content.decode())
+        again = self.client.post(toggle_url, follow=True)
+        self.assertEqual(again.status_code, 200)
+        site.refresh_from_db()
+        self.assertFalse(site.auto_send_scan_reports)
 
     def test_invalid_lifecycle_value_is_rejected_creates_nothing(self):
         r = self.client.post(

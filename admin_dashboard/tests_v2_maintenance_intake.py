@@ -137,7 +137,7 @@ class MaintenanceOnboardingMarkCompleteTests(TestCase):
         r = self.client.post(url, follow=True)
         self.assertContains(r, 'No maintenance onboarding exists yet')
 
-    def test_blocked_for_live_subscription_website(self):
+    def test_allowed_for_live_subscription_website(self):
         account, website = _account_and_website()
         MaintenancePlan.objects.create(
             account=account, website=website, tier_slug='hvac-full-plan',
@@ -153,5 +153,5 @@ class MaintenanceOnboardingMarkCompleteTests(TestCase):
             args=[website.id])
         r = self.client.post(url, follow=True)
         ob.refresh_from_db()
-        self.assertIsNone(ob.completed_at)
-        self.assertContains(r, 'live Stripe subscription')
+        self.assertIsNotNone(ob.completed_at)
+        self.assertNotContains(r, 'live Stripe subscription')

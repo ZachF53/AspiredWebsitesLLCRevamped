@@ -62,24 +62,6 @@ def _live_subscription_block_message(blocking_websites, action='delete'):
     )
 
 
-def _block_if_live_subscription(request, account):
-    """Guard for the account field editor — same check, same helper as
-    the delete guard (_live_subscription_websites), just a different
-    action word in the message. Blocks the whole save (including the
-    user_is_active toggle) rather than a subset of fields: the editor
-    is one Save button writing one POST, so a per-field guard would
-    need its own whitelist to stay in sync with _ACCOUNT_EDIT_SECTIONS
-    and would leave an unclear rule about which fields are "safe".
-    """
-    blocking_websites = _live_subscription_websites(account)
-    if blocking_websites:
-        messages.error(
-            request,
-            _live_subscription_block_message(blocking_websites, action='edit'))
-        return True
-    return False
-
-
 def _account_is_set_up(account):
     """Whether this account has actually completed setup — a property of
     the User, not of Account.onboarding_status.
@@ -172,10 +154,6 @@ def account_detail(request, account_id):
     user = account.user
 
     if request.method == 'POST':
-        if _block_if_live_subscription(request, account):
-            return redirect('admin_dashboard:v2_account_detail',
-                             account_id=account.id)
-
         errors = services.apply_account_edit_fields(account, request.POST)
 
         if errors:
@@ -234,7 +212,6 @@ def account_detail(request, account_id):
         'domains': domains,
         'delete_impact': delete_impact,
         'delete_blocked_websites': blocking_websites,
-        'edit_blocked_websites': blocking_websites,
         'onboarding_invoice': onboarding_invoice,
         'mini_invoices': mini_invoices,
         'token': token,

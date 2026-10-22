@@ -72,7 +72,7 @@ class ContractMarkSignedViewTests(TestCase):
         r = self.client.post(url, {'reason': 'x'}, follow=True)
         self.assertContains(r, 'No unsigned contract exists')
 
-    def test_blocked_for_live_subscription_website(self):
+    def test_allowed_for_live_subscription_website(self):
         website = _website_with_unsigned_contract()
         website.stripe_hosting_subscription_id = 'sub_csign_live'
         website.save(update_fields=['stripe_hosting_subscription_id'])
@@ -80,8 +80,8 @@ class ContractMarkSignedViewTests(TestCase):
                        args=[website.id])
         r = self.client.post(url, {'reason': 'x'}, follow=True)
         contract = website.contracts.first()
-        self.assertFalse(contract.signed)
-        self.assertContains(r, 'live Stripe subscription')
+        self.assertTrue(contract.signed)
+        self.assertNotContains(r, 'live Stripe subscription')
 
     def test_onboarding_tab_shows_mark_signed_form_when_unsigned_contract_exists(self):
         website = _website_with_unsigned_contract()

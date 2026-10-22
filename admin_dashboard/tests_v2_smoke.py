@@ -315,21 +315,18 @@ class V2SmokeTests(TestCase):
         self.assertIsNotNone(self.website_new_site.payment_verified_at)
         self.assertIn('Zelle', self.website_new_site.payment_verification_note)
 
-    def test_live_subscription_website_stage_write_is_blocked(self):
-        """Hard constraint: no write path may touch a Website row with a
-        non-null Stripe subscription id (the two real paying clients)."""
+    def test_live_subscription_website_stage_write_is_allowed(self):
         self.website_live.stripe_hosting_subscription_id = 'sub_live123'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
-        original_stage = self.website_live.stage
 
         r = self.client.post(
             f'/admin-dashboard/v2/websites/{self.website_live.id}/stage/',
             {'new_stage': 'revisions'})
         self.assertEqual(r.status_code, 302)
         self.website_live.refresh_from_db()
-        self.assertEqual(self.website_live.stage, original_stage)
+        self.assertEqual(self.website_live.stage, 'revisions')
 
-    def test_live_subscription_website_payment_override_is_blocked(self):
+    def test_live_subscription_website_payment_override_is_allowed(self):
         self.website_live.stripe_maintenance_subscription_id = 'sub_maint123'
         self.website_live.payment_status = 'deposit_paid'
         self.website_live.save(update_fields=[
@@ -340,7 +337,7 @@ class V2SmokeTests(TestCase):
             {'action': 'payment_override', 'override_reason': 'test'})
         self.assertEqual(r.status_code, 302)
         self.website_live.refresh_from_db()
-        self.assertEqual(self.website_live.payment_status, 'deposit_paid')
+        self.assertEqual(self.website_live.payment_status, 'fully_paid')
 
     def test_rename_website(self):
         r = self.client.post(
@@ -360,8 +357,7 @@ class V2SmokeTests(TestCase):
         self.assertEqual(self.website_live.name, original)
 
     def test_rename_allowed_even_with_live_subscription(self):
-        """Unlike stage/payment/auto-send, renaming touches no money-
-        moving state, so it isn't gated by _block_if_live_subscription."""
+        """Renaming works on a website with a live subscription."""
         self.website_live.stripe_hosting_subscription_id = 'sub_live789'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
 
@@ -372,7 +368,7 @@ class V2SmokeTests(TestCase):
         self.website_live.refresh_from_db()
         self.assertEqual(self.website_live.name, 'Renamed Despite Live Sub')
 
-    def test_live_subscription_website_auto_send_toggle_is_blocked(self):
+    def test_live_subscription_website_auto_send_toggle_is_allowed(self):
         self.website_live.stripe_hosting_subscription_id = 'sub_live456'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
         before = self.website_live.auto_send_scan_reports
@@ -382,7 +378,7 @@ class V2SmokeTests(TestCase):
             'toggle-auto-send-scan/')
         self.assertEqual(r.status_code, 302)
         self.website_live.refresh_from_db()
-        self.assertEqual(before, self.website_live.auto_send_scan_reports)
+        self.assertNotEqual(before, self.website_live.auto_send_scan_reports)
 
     def test_toggle_auto_send_scan(self):
         before = self.website_live.auto_send_scan_reports
@@ -480,25 +476,22 @@ class V2SmokeTests(TestCase):
 
     # ── Account field editor — live-subscription guard ──
 
-    def test_account_edit_refused_when_website_has_live_subscription(self):
+    def test_account_edit_allowed_when_website_has_live_subscription(self):
         self.website_live.stripe_hosting_subscription_id = 'sub_edit_guard1'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
-        original_name = self.account_live.name
 
         r = self.client.post(
             f'/admin-dashboard/v2/accounts/{self.account_live.id}/', {
-                'name': 'Renamed While Blocked',
-                'contact_name': 'Should Not Save',
+                'name': 'Renamed With Live Sub',
+                'contact_name': 'New Contact',
                 'status': 'active',
             })
 
         self.assertEqual(r.status_code, 302)
         self.account_live.refresh_from_db()
-        self.assertEqual(self.account_live.name, original_name)
+        self.assertEqual(self.account_live.name, 'Renamed With Live Sub')
 
-    def test_account_edit_login_toggle_refused_when_live_subscription(self):
-        """The user_is_active toggle writes via the same POST handler —
-        confirm the guard blocks it too, not just the Account fields."""
+    def test_account_edit_login_toggle_allowed_when_live_subscription(self):
         self.website_live.stripe_maintenance_subscription_id = 'sub_edit_guard2'
         self.website_live.save(
             update_fields=['stripe_maintenance_subscription_id'])
@@ -513,33 +506,19 @@ class V2SmokeTests(TestCase):
 
         self.assertEqual(r.status_code, 302)
         self.account_live.user.refresh_from_db()
-        self.assertFalse(self.account_live.user.is_active)
+        self.assertTrue(self.account_live.user.is_active)
 
-    def test_account_edit_message_names_website_and_subscription(self):
-        self.website_live.stripe_hosting_subscription_id = 'sub_edit_named_1'
-        self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
-
-        r = self.client.post(
-            f'/admin-dashboard/v2/accounts/{self.account_live.id}/',
-            {'name': 'Attempted Rename'}, follow=True)
-
-        messages = [str(m) for m in r.context['messages']]
-        joined = ' '.join(messages)
-        self.assertIn(self.website_live.name, joined)
-        self.assertIn('sub_edit_named_1', joined)
-
-    def test_account_edit_controls_disabled_when_live_subscription(self):
+    def test_account_edit_controls_enabled_when_live_subscription(self):
         self.website_live.stripe_hosting_subscription_id = 'sub_edit_disabled1'
         self.website_live.save(update_fields=['stripe_hosting_subscription_id'])
 
         r = self.client.get(
             f'/admin-dashboard/v2/accounts/{self.account_live.id}/')
         html = r.content.decode()
-        self.assertIn('sub_edit_disabled1', html)
         save_start = html.index('Save Account')
         save_tag_start = html.rindex('<button', 0, save_start)
         save_tag = html[save_tag_start:html.index('>', save_tag_start)]
-        self.assertIn('disabled', save_tag)
+        self.assertNotIn('disabled', save_tag)
 
     def test_account_edit_controls_enabled_when_no_live_subscription(self):
         r = self.client.get(
