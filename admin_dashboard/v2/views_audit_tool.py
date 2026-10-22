@@ -19,7 +19,9 @@ from admin_dashboard.decorators import admin_required
 def audit_runs_list(request):
     from public.models import OWN_AUDIT_DOMAINS, AuditRun
 
-    show_internal = request.GET.get('internal') == '1'
+    # Everything by default -- at this volume our own test runs are
+    # most of the list, and hiding them made a real run look missing.
+    hide_internal = request.GET.get('internal') == '0'
     internal = Q(by_staff=True) | Q(domain__in=OWN_AUDIT_DOMAINS)
     external = AuditRun.objects.exclude(internal)
 
@@ -33,14 +35,14 @@ def audit_runs_list(request):
             'emailed': window.filter(audit_lead__isnull=False).count(),
         })
 
-    qs = AuditRun.objects.all() if show_internal else external
+    qs = external if hide_internal else AuditRun.objects.all()
     qs = qs.select_related('audit_lead')
     page = Paginator(qs, 50).get_page(request.GET.get('page', 1))
 
     return render(request, 'admin_dashboard/v2/audit_runs_list.html', {
         'page': page,
         'stats': stats,
-        'show_internal': show_internal,
+        'hide_internal': hide_internal,
         'internal_count': AuditRun.objects.filter(internal).count(),
         'last_run': external.first(),
     })

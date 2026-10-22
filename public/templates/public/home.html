@@ -43,6 +43,7 @@ stay as visible text, and the Google reviews link is the real proof.
                 {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a> &middot; You own the code
             </p>
             <p class="hero__meta">No annual maintenance contracts · 2 weeks free post-launch support · Month-to-month after the build</p>
+            <p class="hero__meta">Already have a website? <a href="{% url 'public:audit' %}">Run a free website audit</a> and see how it scores in about 30 seconds.</p>
         </div>
     </div>
 </section>
@@ -172,6 +173,35 @@ stay as visible text, and the Google reviews link is the real proof.
 </section>
 
 <hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+Free audit band. Posts straight to public:audit with the same field
+name (url) as the audit page, so the visitor lands on their results.
+The .audit-form class picks up the "Analyzing..." loading state from
+main.js (initAuditFormLoading).
+{% endcomment %}
+<section class="section" id="free-audit">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Free Website Audit</span>
+            <h2>How Does Your Current Website Score?</h2>
+            <p>Check your site&rsquo;s speed, SEO, accessibility and best practices for free. Results in about 30 seconds, no email required.</p>
+        </div>
+        <article class="card audit-form-card">
+            <form method="post" action="{% url 'public:audit' %}" class="form audit-form" novalidate>
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="home-audit-url">Your Website URL</label>
+                    <input type="url" name="url" id="home-audit-url" class="form-control" placeholder="https://yourbusiness.com" autocomplete="url" inputmode="url" required>
+                </div>
+                <button type="submit" class="btn-primary btn-block">Run My Free Audit &rarr;</button>
+                <p class="audit-note">Powered by Google PageSpeed checks plus a plain-English summary from Aspired AI.</p>
+            </form>
+        </article>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
 
 {# ───────── Testimonials ───────── #}
 <section class="section section--alt">

@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Free Website Audit | Aspired Websites{% endblock %}
+{% block title %}Free Website Audit Tool: Speed, SEO &amp; Accessibility | Aspired Websites{% endblock %}
+
+{% block extra_head %}
+{% comment %}
+FAQPage JSON-LD built from public.service_faqs.audit_faqs, the same list
+rendered as the visible FAQ cards below, so the two can't drift.
+{% endcomment %}
+<script type="application/ld+json">{{ faq_schema }}</script>
+{% endblock %}
 
 {% block content %}
 
@@ -8,10 +16,10 @@
 <section class="hero">
     <div class="container">
         <div class="hero__inner">
-            <span class="eyebrow">Free Website Audit</span>
+            <span class="eyebrow">Free Website Audit Tool</span>
             <h1>Free Website Audit: Find Out What&rsquo;s <span class="accent">Holding Your Site Back</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">Enter your URL. Get a real audit in about 30 seconds. No email required to see your results.</p>
+            <p class="hero__lead">Check your website&rsquo;s speed, SEO, accessibility and best practices in about 30 seconds. Real Google PageSpeed data, explained in plain English. No email required to see your results.</p>
             <p class="hero__meta">No website yet? <a href="{% url 'public:service_web_design' %}#just-starting">Start here</a>.</p>
         </div>
     </div>
@@ -44,10 +52,80 @@
                 <button type="submit" class="btn-primary btn-block">Analyze My Site &rarr;</button>
 
                 <p class="audit-note">
-                    The audit runs Google&rsquo;s speed, SEO-fundamentals, accessibility and best-practice checks on your page, then summarizes what they found in a few sentences. It takes about 30 seconds; please don&rsquo;t refresh while it runs. We keep your URL with your results only for this visit, unless you ask us to email you the full report.
+                    The audit runs Google&rsquo;s speed, SEO, accessibility and best-practice checks on the mobile version of your page, then Aspired AI summarizes what they found in a few sentences. It takes about 30 seconds; please don&rsquo;t refresh while it runs.
                 </p>
             </form>
         </article>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+
+{# ───────── What it checks ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">What We Check</span>
+            <h2>Four Scores That Decide Whether Your Website Gets Calls</h2>
+        </div>
+        <div class="cards cards--2col">
+            <article class="card">
+                <h3>Performance</h3>
+                <p>How fast your page loads on a phone. Slow sites lose visitors before they ever see your phone number, and Google ranks slow pages lower.</p>
+            </article>
+            <article class="card">
+                <h3>SEO</h3>
+                <p>The basics search engines read: page titles, meta descriptions, crawlable links and mobile-friendly text. Miss these and good pages stay hard to find.</p>
+            </article>
+            <article class="card">
+                <h3>Accessibility</h3>
+                <p>Color contrast, image alt text, form labels and buttons a screen reader can use. It affects real customers and carries legal risk under the ADA.</p>
+            </article>
+            <article class="card">
+                <h3>Best Practices</h3>
+                <p>HTTPS on every request, no browser errors, no outdated libraries with known security holes. The closest public measure of how carefully a site was built.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider section-divider--teal" aria-hidden="true">
+
+{% comment %}
+Visible FAQ. Same list as the FAQPage schema in extra_head.
+{% endcomment %}
+{% if faqs %}
+<section class="section section--alt">
+    <div class="container">
+        <div class="section-header">
+            <span class="eyebrow">Common Questions</span>
+            <h2>Website Audit Questions, Answered</h2>
+        </div>
+        <div class="cards cards--2col">
+            {% for question, answer in faqs %}
+                <article class="card">
+                    <h3>{{ question }}</h3>
+                    <p>{{ answer }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider" aria-hidden="true">
+{% endif %}
+
+{# ───────── CTA ───────── #}
+<section class="section">
+    <div class="container">
+        <div class="cta-block">
+            <h2>Want a Website Built to Score Well on All Four?</h2>
+            <p>We build custom-coded websites for HVAC and home-service contractors: hand-coded, fast on a phone, and security-hardened from day one.</p>
+            <div class="hero__ctas">
+                <a class="btn-primary btn-lg" href="{% url 'public:service_web_design' %}">See How We Build</a>
+                <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
+            </div>
+        </div>
     </div>
 </section>
 

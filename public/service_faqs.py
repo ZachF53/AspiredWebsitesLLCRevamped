@@ -252,3 +252,43 @@ def ai_receptionist_faqs(voice_receptionist=None, plan_paid_in_full=None):
            'plus the full transcript if recording is on. You also get a '
            'summary emailed to you as each call ends.')),
     ]
+
+
+def audit_faqs():
+    """FAQ for the free audit page (/audit/). Every answer must stay true
+    to what public.views.audit actually does: Google PageSpeed on the
+    mobile strategy, four categories, an Aspired AI summary, and the
+    run log disclosed in the privacy policy."""
+    return [
+        ('Is the website audit really free?',
+         'Yes. You see your full results on the page without giving us an '
+         'email address. If you want the report sent to your inbox, you can '
+         'enter your email on the results page, but it is optional.'),
+        ('What does the free website audit check?',
+         'It runs Google PageSpeed Insights on your page and scores four '
+         'areas out of 100: performance (how fast the page loads), SEO '
+         '(the basics search engines read, like page titles and '
+         'descriptions), accessibility (contrast, image alt text, form '
+         'labels) and best practices (HTTPS, browser errors, outdated '
+         'code). Aspired AI then sums up what the scores mean in plain '
+         'English.'),
+        ('Does the audit test the mobile version of my site?',
+         'Yes. The audit scores the mobile version, because most people '
+         'looking for a contractor are on a phone. Mobile scores usually '
+         'come in lower than desktop, so that is the number worth watching.'),
+        ('What is a good website audit score?',
+         '90 to 100 is good. 50 to 89 needs work. Below 50 means real '
+         'problems that are likely costing you visitors and calls.'),
+        ('How long does the audit take?',
+         'About 30 seconds. Keep the tab open while it runs.'),
+        ('What happens to the website address I enter?',
+         'We keep a log of the addresses run through the tool and their '
+         'scores so we can see how it is used, with nothing that identifies '
+         'who ran them. If you ask for the emailed report, we also keep '
+         'your email address so we can send it.'),
+        ('Can you fix the problems the audit finds?',
+         'Yes. We build custom-coded websites for HVAC and home-service '
+         'contractors, built to be fast on a phone and to pass these same '
+         'checks. Reply to the emailed report or '
+         'book a free call and we will tell you what it would take.'),
+    ]

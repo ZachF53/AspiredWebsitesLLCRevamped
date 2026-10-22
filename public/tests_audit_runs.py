@@ -105,7 +105,7 @@ class BackfillAuditRunsTests(TestCase):
 
 
 class AuditRunsPageTests(TestCase):
-    def test_page_renders_and_hides_own_runs_by_default(self):
+    def test_page_shows_all_runs_and_can_hide_own(self):
         admin = get_user_model().objects.create_user(
             'boss', 'b@example.com', 'pw', is_staff=True, is_superuser=True)
         self.client.force_login(admin)
@@ -116,7 +116,7 @@ class AuditRunsPageTests(TestCase):
         r = self.client.get(reverse('admin_dashboard:v2_audit_runs_list'))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'outside.com')
-        self.assertNotContains(r, 'https://aspiredwebsites.com/')
-        r = self.client.get(
-            reverse('admin_dashboard:v2_audit_runs_list') + '?internal=1')
         self.assertContains(r, 'https://aspiredwebsites.com/')
+        r = self.client.get(
+            reverse('admin_dashboard:v2_audit_runs_list') + '?internal=0')
+        self.assertNotContains(r, 'https://aspiredwebsites.com/')

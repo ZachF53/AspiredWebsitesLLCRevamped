@@ -1474,13 +1474,20 @@ def audit(request):
     else:
         form = AuditForm()
 
+    from public.pricing_content import faq_schema
+    from public.service_faqs import audit_faqs
+    faqs = audit_faqs()
     return render(request, 'public/audit.html', {
         'active_nav': 'audit',
         'form': form,
-        'meta_title': 'Free Website Audit | Aspired Websites',
+        'faqs': faqs,
+        'faq_schema': faq_schema(faqs),
+        'meta_title': 'Free Website Audit Tool: Speed, SEO and Accessibility',
         'meta_description': (
-            'Free website audit. Speed, SEO, accessibility, best-practices '
-            'scores in under 30 seconds. No email required.'
+            'Free website audit tool. Check your site speed, SEO, '
+            'accessibility and best practices with Google PageSpeed data '
+            'and a plain-English Aspired AI summary. Results in 30 '
+            'seconds, no email required.'
         ),
     })
 

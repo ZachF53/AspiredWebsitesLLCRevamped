@@ -87,7 +87,7 @@
             if (note) {
                 note.classList.add('audit-note--running');
                 note.textContent =
-                    'Running PageSpeed audit + AI review — about 30 seconds. ' +
+                    'Running PageSpeed audit + Aspired AI review — about 30 seconds. ' +
                     'Please don’t refresh or close this tab.';
             }
         });
