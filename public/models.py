@@ -442,6 +442,14 @@ class SiteContent(models.Model):
         max_digits=2, decimal_places=1, null=True, blank=True,
         help_text='Aspired\'s own Google rating, e.g. 5.0. Shown only with '
                   'a review count.')
+    # Live Google reviews (public/google_reviews.py). When set, the daily
+    # sync overwrites google_review_count / google_review_rating above
+    # and refreshes the GoogleReview rows shown on the home page.
+    google_place_id = models.CharField(
+        max_length=200, blank=True,
+        help_text='Google Places ID of the Aspired Websites listing. '
+                  'Set = review count, rating and reviews sync daily.')
+    google_reviews_synced_at = models.DateTimeField(null=True, blank=True)
     cissp_member_number = models.CharField(
         max_length=40, blank=True,
         help_text='(ISC)2 member number. Blank shows "member number on request".')
@@ -560,3 +568,32 @@ class SiteContent(models.Model):
             ('Can I pause the Full Plan in slow months?', self.faq_pause_plan),
         ]
         return [(q, a) for q, a in pairs if (a or '').strip()]
+
+
+class GoogleReview(models.Model):
+    """One review from Aspired's own Google Business Profile, as last
+    returned by the Places API. Replaced wholesale by each daily sync
+    (public/google_reviews.py); never edited by hand -- the text is the
+    reviewer's, word for word."""
+
+    review_name = models.CharField(max_length=300, unique=True)
+    author_name = models.CharField(max_length=200)
+    author_uri = models.URLField(max_length=500, blank=True)
+    rating = models.PositiveSmallIntegerField()
+    text = models.TextField(blank=True)
+    relative_time = models.CharField(max_length=60, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    # False when the text names a discontinued service the public-site
+    # content gate forbids; still counted in the total, just not quoted.
+    displayable = models.BooleanField(default=True)
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-published_at']
+
+    def __str__(self):
+        return f'{self.author_name} ({self.rating})'
+
+    @property
+    def stars(self):
+        return range(self.rating)

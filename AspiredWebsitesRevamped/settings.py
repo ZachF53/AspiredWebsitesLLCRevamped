@@ -1201,6 +1201,12 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'public.tasks.send_audit_followups_task',
         'schedule': crontab(hour=9, minute=10),
     },
+    # Aspired's own Google rating/count/reviews for the public site
+    # (public/google_reviews.py). One Places call a day.
+    'sync-google-reviews': {
+        'task': 'public.tasks.sync_google_reviews_task',
+        'schedule': crontab(hour=5, minute=15),
+    },
     'poll-instantly-replies': {
         'task': 'outreach.tasks.poll_instantly_replies_task',
         'schedule': crontab(minute='*/15'),

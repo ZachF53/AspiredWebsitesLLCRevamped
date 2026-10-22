@@ -79,3 +79,16 @@ def send_audit_followups_task():
               f'skipped={skipped} failed={failed}')
     logger.info('send_audit_followups_task: %s', result)
     return result
+
+
+@shared_task
+def sync_google_reviews_task():
+    """Daily — refresh Aspired's own Google rating, count and reviews."""
+    from public import google_reviews
+    try:
+        result = google_reviews.sync()
+    except google_reviews.GoogleReviewsError as err:
+        logger.warning('sync_google_reviews_task failed: %s', err)
+        return f'failed: {err}'
+    logger.info('sync_google_reviews_task: %s', result)
+    return result

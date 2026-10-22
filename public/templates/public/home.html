@@ -211,6 +211,29 @@ main.js (initAuditFormLoading).
             <h2>Built by Word of Mouth</h2>
         </div>
 
+        {% comment %}
+        Live Google reviews (public/google_reviews.py, synced daily), word
+        for word. The two hand-typed testimonials below are the fallback
+        for when the sync has not run yet. Miki's material connection
+        (Moonieful refers clients to us) stays disclosed either way.
+        {% endcomment %}
+        {% if google_reviews %}
+        <div class="testimonials">
+            {% for review in google_reviews %}
+            <article class="testimonial">
+                <div class="testimonial__stars" role="img" aria-label="{{ review.rating }} out of 5 stars">
+                    {% for _ in review.stars %}<svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>{% endfor %}
+                </div>
+                <p class="testimonial__quote">&ldquo;{{ review.text|truncatewords:70 }}&rdquo;</p>
+                <div class="testimonial__author">
+                    <div class="testimonial__name">{% if review.author_uri %}<a href="{{ review.author_uri }}" target="_blank" rel="noopener">{{ review.author_name }}</a>{% else %}{{ review.author_name }}{% endif %}</div>
+                    <div class="testimonial__title">Google review{% if review.relative_time %}, {{ review.relative_time }}{% endif %}</div>
+                    {% if review.author_name == "Miki Roberts" %}<div class="testimonial__note"><a href="https://moonieful.com/" target="_blank" rel="noopener">Moonieful Designs</a> also refers clients to us, and still chose us to build their own site.</div>{% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
         <div class="testimonials">
             <article class="testimonial">
                 <div class="testimonial__stars" role="img" aria-label="5 out of 5 stars">
@@ -244,8 +267,10 @@ main.js (initAuditFormLoading).
             </article>
         </div>
 
+        {% endif %}
+
         {% if SITE_CONTENT.google_reviews_url %}
-            <p class="text-center mt-4"><a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">{% if SITE_CONTENT.google_review_count %}Read our {{ SITE_CONTENT.google_review_count }} Google review{{ SITE_CONTENT.google_review_count|pluralize }}{% if SITE_CONTENT.google_review_rating %} ({{ SITE_CONTENT.google_review_rating }}&nbsp;&#9733;){% endif %}{% else %}Read our Google reviews{% endif %} &rarr;</a></p>
+            <p class="text-center mt-4">{% if google_reviews %}Reviews from Google. {% endif %}<a href="{{ SITE_CONTENT.google_reviews_url }}" target="_blank" rel="noopener">{% if SITE_CONTENT.google_review_count %}Read our {{ SITE_CONTENT.google_review_count }} Google review{{ SITE_CONTENT.google_review_count|pluralize }}{% if SITE_CONTENT.google_review_rating %} ({{ SITE_CONTENT.google_review_rating }}&nbsp;&#9733;){% endif %}{% else %}Read our Google reviews{% endif %} &rarr;</a></p>
         {% endif %}
     </div>
 </section>

@@ -117,8 +117,12 @@ def home(request):
     # block that implied work that doesn't exist.
     from billing.pricing_models import ServiceTier
     from clients.models import CaseStudy
+    from public.models import GoogleReview
     return render(request, 'public/home.html', {
         'active_nav': 'home',
+        # Live from Google (public/google_reviews.py, synced daily).
+        'google_reviews': GoogleReview.objects.filter(
+            displayable=True, rating__gte=4)[:3],
         'studies': CaseStudy.objects.filter(
             is_published=True, is_concept=False,
         ).order_by('-published_at')[:6],
