@@ -5515,6 +5515,20 @@ button.htmx-request {
     }
 }
 
+/* 1024-1199px: eight nav items plus the CTA and phone button don't fit at
+   the default padding, so "Free Audit" and "Client Login" wrapped onto two
+   lines. Tighter padding and no wrapping keeps the bar a single row. */
+@media (min-width: 1024px) and (max-width: 1199px) {
+    .nav-link {
+        padding: 0.625rem 0.6rem;
+        white-space: nowrap;
+    }
+
+    .nav-link--cta {
+        padding: 0.625rem 0.9rem;
+    }
+}
+
 /* ══ 20. Client portal ══════════════════════════════════════ */
 .portal-body {
     background-color: var(--color-bg-deep);
