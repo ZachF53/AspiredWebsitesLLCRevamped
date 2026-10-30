@@ -344,6 +344,31 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
+        # The public site and the shared core helpers. Missing until
+        # 2026-10-30, and the omission was not harmless: there is no
+        # 'root' logger here, so anything under `public.*` or `core.*`
+        # found no handler at all and Python's lastResort fallback only
+        # emits WARNING and above. Every logger.info in the public app
+        # was silently discarded in production -- the audit API's
+        # one-line-per-request log, the audit task's requested/final/
+        # verified trace, and the contact form's SPAM BLOCKED lines
+        # among them. Verified on staging: `grep -c "audit api:"`
+        # returned 0 against a server that had just served four
+        # requests.
+        #
+        # 'public' also carries the audit machine API, which is the only
+        # way to see what a GHL voice agent asked for and whether it hit
+        # cache, so this is load-bearing rather than cosmetic.
+        'public': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'core': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 

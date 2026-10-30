@@ -121,6 +121,30 @@ class CheckRedisCommandTests(SimpleTestCase):
         with patch('django.core.cache.cache', _PlainCache()):
             call_command('check_redis')
 
+    def test_logging_config_routes_public_and_core_to_a_handler(self):
+        """Regression guard, found on staging 2026-10-30.
+
+        LOGGING has no 'root' logger, so an app not listed in
+        LOGGING['loggers'] gets no handler at all and Python's lastResort
+        fallback only emits WARNING and above. 'public' and 'core' were
+        both missing, which silently discarded every logger.info in the
+        public app in production -- including the audit API's
+        one-line-per-request log, which is the only record of what a
+        voice agent asked for.
+        """
+        from django.conf import settings
+
+        loggers = settings.LOGGING['loggers']
+        self.assertNotIn(
+            'root', loggers,
+            'A root logger would change this guard\'s reasoning — if one '
+            'is added, this test should assert on it instead.')
+        for name in ('public', 'core'):
+            with self.subTest(logger=name):
+                self.assertIn(name, loggers)
+                self.assertEqual(loggers[name]['level'], 'INFO')
+                self.assertTrue(loggers[name]['handlers'])
+
     def test_password_is_masked_in_the_reported_location(self):
         from core.management.commands.check_redis import _safe_location
         with override_settings(CACHES={'default': {
