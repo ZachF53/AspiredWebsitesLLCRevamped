@@ -771,8 +771,7 @@ def _run_pagespeed(lead):
 
     # First 5 high-impact audits → website_issues for the lead detail
     # page. Keep it short — admin glances, they don't read.
-    audits = (data.get('lheighthouseResult') or
-              data.get('lighthouseResult') or {}).get('audits', {})
+    audits = (data.get('lighthouseResult') or {}).get('audits', {})
     issues = []
     for slug, audit in audits.items():
         score = audit.get('score')
