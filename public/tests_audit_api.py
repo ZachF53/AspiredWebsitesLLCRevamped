@@ -562,6 +562,9 @@ class AuditLoggingTests(TestCase):
 
         line = next(m for m in logs.output if 'raw=' in m)
         self.assertIn("raw='https://www.Example.com/'", line)
+        # Normalised form AND the key it hashes to: the key alone is
+        # opaque, the normalised URL alone does not identify the entry.
+        self.assertIn('norm=example.com', line)
         self.assertIn(f'key={audit_cache_key("https://www.example.com")}',
                       line)
         self.assertIn('cache=miss', line)

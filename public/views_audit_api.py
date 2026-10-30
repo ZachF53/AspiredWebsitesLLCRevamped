@@ -112,16 +112,22 @@ def _ratelimit_url_key(group, request):
 def _log_request(raw_url, cache_key, cache_outcome, status, http_status):
     """
     One line per request to /api/audit/request/, always the same shape so
-    it greps cleanly: what the caller sent, what we keyed it to, whether
-    that was a hit, and what we returned.
+    it greps cleanly: what the caller sent, what it normalised to, the
+    key that was looked up, whether that was a hit, and what we returned.
+
+    Both the normalised URL and the key are logged. The key alone is a
+    hash and tells you nothing by eye; the normalised URL alone does not
+    let you confirm which cache entry was consulted. Together they make a
+    cache miss on a URL you expected to be warm actually diagnosable.
 
     ``%r`` on the raw URL deliberately — it may be whatever a voice agent
-    transcribed, including spaces and quotes, and the repr keeps the
-    field boundaries readable when it is garbage.
+    transcribed, spaces and quotes included, and the repr keeps the field
+    boundaries readable when it is garbage.
     """
     logger.info(
-        'audit api: raw=%r key=%s cache=%s status=%s http=%s',
-        raw_url, cache_key or '-', cache_outcome, status, http_status,
+        'audit api: raw=%r norm=%s key=%s cache=%s status=%s http=%s',
+        raw_url, normalized_audit_url(raw_url) or '-', cache_key or '-',
+        cache_outcome, status, http_status,
     )
 
 
