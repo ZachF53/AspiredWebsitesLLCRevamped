@@ -182,6 +182,35 @@ p {
     background-color: var(--color-bg-raised);
 }
 
+/* A section that continues the block above it rather than starting a
+   new one -- used for the receptionist demo-line strip, which sits
+   directly under the hero with no divider between them. */
+.section--tight {
+    padding-block: var(--space-3);
+}
+
+/* Demo-line strip (AI receptionist page). Centred, slightly larger than
+   body copy, and capped in width so the sentence breaks in a readable
+   place rather than running the full 1200px container. */
+.demo-strip {
+    max-width: 62ch;
+    margin-inline: auto;
+    text-align: center;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+}
+
+.demo-strip a {
+    color: var(--color-orange);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.demo-strip a:hover {
+    color: var(--color-orange-light);
+}
+
 .text-center { text-align: center; }
 .sr-only {
     position: absolute;
@@ -1676,6 +1705,17 @@ textarea.form-control {
     grid-template-columns: 1fr;
 }
 
+/* Card grid variant: exactly four cards, no orphan row at any width.
+   The homepage "Four Services" section used the global .cards rule,
+   which goes 3-up at 720px (§17) and left the fourth card alone on a
+   second row at two-thirds width -- the "looks broken" case. This
+   steps 1 -> 2 -> 4 instead, so the row is always full: four singles
+   on a phone, two pairs on a tablet, one row of four on a desktop.
+   Three-up is deliberately skipped. */
+.cards.cards--4col {
+    grid-template-columns: 1fr;
+}
+
 /* Card grid variant: dense compact strip — 1 col mobile, 2 col tablet,
    4 col desktop (breakpoints match .portfolio-strip). Pairs with
    .card--compact below for the homepage "Selected Work" section and
@@ -2128,6 +2168,13 @@ textarea.form-control {
     }
 
     .cards.cards--compact-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Two pairs on a tablet. Beats the global 3-up `.cards` rule in
+       §17 on specificity (0,2,0 vs 0,1,0), so source order does not
+       matter here -- same mechanism .cards--2col above relies on. */
+    .cards.cards--4col {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .bullet-list {
@@ -5511,6 +5558,12 @@ button.htmx-request {
     }
 
     .cards.cards--compact-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    /* One full row of four. See the .cards--4col note at §page
+       utilities for why 3-up is skipped entirely. */
+    .cards.cards--4col {
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }

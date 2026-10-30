@@ -187,6 +187,16 @@ def home(request):
         'review_system': ServiceTier.objects.filter(
             slug='hvac-review-system', is_active=True,
             is_public=True).first(),
+        # The receptionist leads the services grid and carries a second
+        # hero CTA (Oct 2026): at $97/mo with no website required it is
+        # the lowest-friction thing on this page, and the only product
+        # sellable to the phone-first Maps segment that has no site to
+        # redesign. Same is_public gate as the review system, so
+        # switching the tier off in the pricing admin removes the card
+        # and the hero line together rather than half of each.
+        'voice_receptionist': ServiceTier.objects.filter(
+            slug='hvac-voice-receptionist', is_active=True,
+            is_public=True).first(),
         'meta_title': 'Custom Websites for HVAC Contractors',
         'meta_description': (
             'Custom-coded websites and automated Google review generation '

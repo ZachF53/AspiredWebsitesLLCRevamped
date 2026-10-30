@@ -39,6 +39,17 @@ stay as visible text, and the Google reviews link is the real proof.
                 <a class="btn btn--primary btn--lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
                 <a class="btn btn--outline-light btn--lg" href="{% url 'public:pricing' %}">See Pricing</a>
             </div>
+            {% comment %}
+            Second entry point under the buttons (Oct 2026). The hero
+            sells the build, which is a four-figure decision; the
+            receptionist is $97/mo and needs nothing from us, so it is
+            the cheapest way for a visitor who is not ready to commission
+            a website to start. Gated on the tier existing so the line
+            never promises a product the DB has switched off.
+            {% endcomment %}
+            {% if voice_receptionist %}
+                <p class="hero__meta">Or start with the <a href="{% url 'public:service_ai_receptionist' %}">AI receptionist at {{ voice_receptionist.get_price_display }}</a>, no website needed.</p>
+            {% endif %}
             <p class="hero__trust">
                 {% if build_full %}From {{ build_full.get_price_display }}{% if build_installment %} (or {{ build_installment.get_price_display }}){% endif %} &middot; {% endif %}<a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a> &middot; You own the code
             </p>
@@ -55,18 +66,30 @@ stay as visible text, and the Google reviews link is the real proof.
     <div class="container">
         <div class="section-header">
             <span class="eyebrow">What We Do</span>
-            <h2>Three Services. One Goal: Book More Jobs.</h2>
+            <h2>Four Services. One Goal: Book More Jobs.</h2>
             <p>Built for HVAC first. Plumbers, electricians and other home-service trades get the same build, the same price, and the same review automation. Not a generic template with your logo on it.</p>
         </div>
 
-        <div class="cards">
+        {% comment %}
+        Oct 2026: was three cards led by the website build. Reordered so
+        the two things a visitor can buy today without commissioning
+        anything come first — the receptionist and the review system are
+        both $97/mo and need no website from us, so they are the only
+        offers on this page reachable by the phone-first Maps segment.
+        The build and hosting follow.
+
+        .cards--4col rather than bare .cards: the global rule goes 3-up
+        at 720px, which would strand the fourth card alone on a second
+        row. See the .cards--4col note in main.css.
+        {% endcomment %}
+        <div class="cards cards--4col">
             <article class="card">
                 <div class="card__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M9 14h6"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                 </div>
-                <h3>Custom HVAC Website</h3>
-                <p>Hand-coded, not built from a theme, and designed around how homeowners search for and book HVAC work. SEO fundamentals (clean markup, schema, fast load) are built in, not sold separately.</p>
-                <a class="card__link" href="{% url 'public:service_web_design' %}">Web design services </a>
+                <h3>AI Voice Receptionist{% if voice_receptionist %} &mdash; {{ voice_receptionist.get_price_display }}{% endif %}</h3>
+                <p>Answers your line day or night, screens robocalls, texts you the name, address and problem, and puts urgent calls straight through to your cell. Works with your current number. No website required.</p>
+                <a class="card__link" href="{% url 'public:service_ai_receptionist' %}">How it works </a>
             </article>
 
             <article class="card">
@@ -80,11 +103,20 @@ stay as visible text, and the Google reviews link is the real proof.
 
             <article class="card">
                 <div class="card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M9 14h6"/></svg>
+                </div>
+                <h3>Custom HVAC Website</h3>
+                <p>Hand-coded, not built from a theme, and designed around how homeowners search for and book HVAC work. SEO fundamentals (clean markup, schema, fast load) are built in, not sold separately.</p>
+                <a class="card__link" href="{% url 'public:service_web_design' %}">Web design services </a>
+            </article>
+
+            <article class="card">
+                <div class="card__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
                 </div>
                 <h3>Hosting &amp; Maintenance</h3>
                 <p>Your own isolated server, security patching, a monthly security report, unlimited content updates, and a real person who answers. Not a ticket queue.</p>
-                <a class="card__link" href="{% url 'public:pricing' %}">Hosting &amp; maintenance pricing </a>
+                <a class="card__link" href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; maintenance </a>
             </article>
         </div>
     </div>
@@ -185,7 +217,7 @@ main.js (initAuditFormLoading).
         <div class="section-header">
             <span class="eyebrow">Free Website Audit</span>
             <h2>How Does Your Current Website Score?</h2>
-            <p>Check your site&rsquo;s speed, SEO, accessibility and best practices for free. Results in about 30 seconds, no email required.</p>
+            <p>See your scores free. Enter your email for the full plain-English report.</p>
         </div>
         <article class="card audit-form-card">
             <form method="post" action="{% url 'public:audit' %}" class="form audit-form" novalidate>

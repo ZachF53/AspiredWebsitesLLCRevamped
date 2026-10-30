@@ -61,10 +61,22 @@ Offer keeps the JSON valid when the tier row is missing.
             <hr class="accent-line hero__divider">
             {% if voice_receptionist %}
                 <p class="hero__lead">A missed call is a missed job. This answers your business line when you are under a house, on a roof, or asleep. It screens the robocalls, takes the name, address and what is actually wrong, and puts the urgent ones straight through to your cell.</p>
+                {% comment %}
+                Oct 2026: "Hear It First" used to point at the booking
+                calendar, which is the one thing it cannot do — someone
+                who wants to hear the receptionist will not wait three
+                days for a meeting to do it. It is now a tel: link to the
+                live line. Booking stays available as the smaller
+                secondary path for people who want to talk to a human.
+
+                Number and "#1" come from core/site_facts.py
+                (VOICE_DEMO_*), never written literally here.
+                {% endcomment %}
                 <div class="hero__ctas">
                     <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
-                    <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Hear It First</a>
+                    <a class="btn-secondary btn-lg" href="tel:{{ VOICE_DEMO_TEL }}">Call the demo line: {{ VOICE_DEMO_DISPLAY }}</a>
                 </div>
+                <p class="hero__meta"><a href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a></p>
                 <p class="hero__meta">{{ voice_receptionist.get_price_display }} &middot; 300 talk minutes included &middot; month-to-month &middot; works with your current number</p>
             {% else %}
                 <p class="hero__lead">A missed call is a missed job. An AI receptionist answers your business line when you cannot, screens the robocalls, and puts the urgent callers straight through to you.</p>
@@ -74,6 +86,27 @@ Offer keeps the JSON valid when the tier row is missing.
                 </div>
             {% endif %}
         </div>
+    </div>
+</section>
+
+{% comment %}
+Try-before-you-buy strip. Sits immediately under the hero with no
+divider above it on purpose: it is a continuation of the hero's offer,
+not a new section.
+
+The wording is the owner's, approved verbatim 2026-10-30. It says "our
+own line" rather than naming a fictional demo shop, because this is the
+real Aspired business number and describing it as a demo HVAC company
+would be untrue of the line a visitor actually reaches.
+{% endcomment %}
+<section class="section section--tight">
+    <div class="container">
+        <p class="demo-strip">
+            Want to hear it before you buy? Call
+            <a href="tel:{{ VOICE_DEMO_TEL }}">{{ VOICE_DEMO_DISPLAY }}</a>
+            and press {{ VOICE_DEMO_EXT }} any time, day or night. That&rsquo;s our
+            own line, answered by the AI receptionist. Try to stump it.
+        </p>
     </div>
 </section>
 

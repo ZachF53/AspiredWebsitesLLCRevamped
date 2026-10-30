@@ -109,6 +109,26 @@ PHONE_DISPLAY = '(210) 201-0375'
 PHONE_TEL = '+12102010375'
 PHONE_NOTE = 'A San Antonio number that rings in Warner Robins, GA'
 
+# The AI-receptionist demo line (Oct 2026). Owner's decision: it is the
+# main business line, reached by pressing #1 at the menu — there is no
+# separate demo DID.
+#
+# Deliberately its OWN pair of constants rather than a template reusing
+# PHONE_TEL, even though the digits are identical today. The demo line is
+# a product surface and the main line is a contact detail: if a dedicated
+# demo DID is ever provisioned, this is the one place that changes, and
+# the nav tap-to-call, footer contact block and schema telephone stay put.
+#
+# VOICE_DEMO_EXT is rendered as a separate sentence rather than baked into
+# the tel: href on purpose. "#1" is a menu choice the caller makes after
+# the line answers, not a dialable extension, and tel: wait/pause syntax
+# (,,1 / ;ext=) is honoured inconsistently across iOS, Android and
+# desktop handlers. Keeping the href a bare E.164 number means the call
+# always connects; the instruction lives in the copy next to it.
+VOICE_DEMO_DISPLAY = PHONE_DISPLAY
+VOICE_DEMO_TEL = PHONE_TEL
+VOICE_DEMO_EXT = '#1'
+
 
 # Routes where the visitor tracker and session recorder never load:
 # anything carrying a credential, a token in the URL, payment details or
@@ -161,6 +181,9 @@ def site_facts(request):
         'PHONE_DISPLAY': PHONE_DISPLAY,
         'PHONE_TEL': PHONE_TEL,
         'PHONE_NOTE': PHONE_NOTE,
+        'VOICE_DEMO_DISPLAY': VOICE_DEMO_DISPLAY,
+        'VOICE_DEMO_TEL': VOICE_DEMO_TEL,
+        'VOICE_DEMO_EXT': VOICE_DEMO_EXT,
         'SITE_CONTENT': SimpleLazyObject(_site_content),
         'TRACKING_ALLOWED': tracking_allowed(getattr(request, 'path', '') or ''),
         'CALL_NAME': CALL_NAME,
