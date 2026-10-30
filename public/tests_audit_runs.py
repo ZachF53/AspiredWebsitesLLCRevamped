@@ -40,8 +40,15 @@ class AuditRunLoggingTests(TestCase):
         mock_run.return_value = _fake_pagespeed_result()
         self.client.post(reverse('public:audit'),
                          data={'url': 'https://example.com'})
-        self.client.post(reverse('public:audit_results'),
-                         data={'email': 'visitor@example.com'})
+        # name/phone/company joined the form in Oct 2026 (phone stays
+        # optional); name and company are required, so an email-only
+        # POST no longer validates and would link no lead to the run.
+        self.client.post(reverse('public:audit_results'), data={
+            'name': 'A Visitor',
+            'email': 'visitor@example.com',
+            'phone': '',
+            'company': 'Visitor HVAC',
+        })
         run = AuditRun.objects.get()
         self.assertEqual(run.audit_lead.email, 'visitor@example.com')
 

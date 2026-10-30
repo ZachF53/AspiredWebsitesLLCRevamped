@@ -189,16 +189,25 @@ class AuditToolTests(TestCase):
 
     @patch('public.views._run_pagespeed_audit')
     def test_audit_email_capture_creates_auditlead(self, mock_run):
-        """Email capture on the audit results page creates an AuditLead
-        row + emails the report. (The CLAUDE.md spec for Lead conversion
-        on audit_tool is NOT YET implemented in views.audit_results — see
-        commit notes; this test pins the actual current behaviour.)"""
+        """Capture on the audit results page creates an AuditLead row and
+        emails the report.
+
+        Oct 2026: the form grew name/phone/company, so the POST carries
+        them. The CLAUDE.md spec for Lead conversion on audit_tool IS
+        now implemented -- this test still pins only the AuditLead half;
+        the Lead half and the GHL push are covered in
+        public/tests_audit_lead_capture.py.
+        """
         from public.models import AuditLead
         mock_run.return_value = _fake_pagespeed_result()
         self.client.post(reverse('public:audit'),
                          data={'url': 'https://example.com'})
-        r = self.client.post(reverse('public:audit_results'),
-                             data={'email': 'visitor@example.com'})
+        r = self.client.post(reverse('public:audit_results'), data={
+            'name': 'A Visitor',
+            'email': 'visitor@example.com',
+            'phone': '',
+            'company': 'Visitor HVAC',
+        })
         self.assertIn(r.status_code, (200, 302))
         self.assertEqual(
             AuditLead.objects.filter(
