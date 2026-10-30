@@ -897,6 +897,21 @@ CACHES = {
             'socket_connect_timeout': 2,
             'socket_timeout': 2,
         },
+        # Namespace separator between environments sharing one Redis.
+        #
+        # Local dev and prod both point REDIS_URL at the same managed
+        # instance (confirmed 2026-10-30; staging is the exception, on
+        # its own localhost Redis). With no prefix, Django keys
+        # everything as ':1:<key>' in one namespace, so a local run and
+        # production read and write each other's entries. The audit API
+        # made that concrete: it caches a result for 24h, so an audit run
+        # on a laptop would be served to a live voice call.
+        #
+        # Defaults to '' so production keeps the exact keyspace it has
+        # today — setting this is not a cache-invalidating change for any
+        # environment that leaves it unset. Set CACHE_KEY_PREFIX=dev in
+        # the LOCAL .env only.
+        'KEY_PREFIX': env('CACHE_KEY_PREFIX', ''),
     }
 }
 
