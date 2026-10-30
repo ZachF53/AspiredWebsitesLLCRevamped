@@ -37,14 +37,21 @@ def _price(tier):
 
 
 def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
-               hosting_security, review_system=None):
+               hosting_security, review_system=None,
+               voice_receptionist=None):
     """Rows for the "What it costs over time" table, or [] if a tier is
     missing (a half-built table would be worse than none).
 
     ``review_system`` is optional: when the standalone tier exists it
     adds a fourth, build-free path (reviews only, no website from us)
     and lets the Hosting + Security row name the price of adding it,
-    rather than only saying what that plan lacks."""
+    rather than only saying what that plan lacks.
+
+    ``voice_receptionist`` adds the same shape of build-free row. Its
+    ``includes`` text names the 300-minute allowance explicitly because,
+    unlike every other row in this table, its real monthly cost is not
+    capped at the subscription price — see the note where it is
+    appended."""
     full = _price(build_full)
     inst = _price(build_installment)
     fp = _price(full_plan)
@@ -53,6 +60,7 @@ def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
     if None in (full, inst, fp, ppf, host):
         return {'rows': [], 'savings': None}
     rev = _price(review_system)
+    voice = _price(voice_receptionist)
 
     months = INSTALLMENT_MONTHS
     rows = [
@@ -92,6 +100,29 @@ def cost_table(build_full, build_installment, full_plan, plan_paid_in_full,
     # Savings is build-path-to-build-path, so it's computed before the
     # reviews-only row is appended (that row has no build in it at all).
     savings = rows[1]['total_24'] - rows[0]['total_24']
+    # Receptionist before reviews, matching the card order in the
+    # Add-Ons section above it.
+    #
+    # The totals here are subscription-only and the `includes` text says
+    # so. 300 talk minutes a month are included and overage is 25c a
+    # minute, so a busy shop's actual 24-month spend can exceed the
+    # figure in this column. Every other row in this table is a true
+    # ceiling; this one is a floor, and quoting it without the allowance
+    # next to it would read as a cap it is not.
+    if voice:
+        rows.append({
+            'path': 'AI receptionist only',
+            'at_signing': voice,
+            'at_signing_note': f'first {money(voice)} month',
+            'monthly': f'{money(voice)}/mo',
+            'total_24': voice * months,
+            'total_36': voice * (months + 12),
+            'includes': 'Answers your existing line, screens spam, texts '
+                        'you the job details. No build, no hosting, no '
+                        'website needed from us. Includes 300 talk '
+                        'minutes a month; extra minutes are billed at 25 '
+                        'cents each on top of these totals',
+        })
     if rev:
         rows.append({
             'path': 'Review system only',

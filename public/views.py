@@ -832,7 +832,8 @@ def pricing(request):
         location_addon=location_addon, review_system=review_system)
     costs = cost_table(
         build_full, build_installment, full_plan, plan_paid_in_full,
-        hosting_security, review_system=review_system)
+        hosting_security, review_system=review_system,
+        voice_receptionist=voice_receptionist)
 
     def _p(tier):
         return money(tier.price) if tier else ''
@@ -844,11 +845,33 @@ def pricing(request):
             'hosting and review automation, or hosting and security alone at '
             f'{_p(hosting_security)}/mo.'
         )
-        if review_system:
-            # Meta descriptions are length-checked (public/migrations/
-            # 0020 and public/tests_structured_data.py), so the
-            # standalone price replaces the hosting clause rather than
-            # being appended to a sentence that is already near the cap.
+        if review_system and voice_receptionist:
+            # Google truncates around 155-160 characters (see
+            # public/migrations/0020_meta_description_lengths), so the
+            # two add-ons replace the hosting clause rather than being
+            # appended to a sentence already near the cap. 155 chars at
+            # current prices.
+            #
+            # "two $97/mo add-ons" is one shared figure rather than two
+            # prices because they happen to cost the same; if the
+            # receptionist cohort ladder moves it off $97 (see
+            # voice/cohorts.py) this sentence stops being true, which is
+            # what the branch below covers.
+            if _p(review_system) == _p(voice_receptionist):
+                meta_description = (
+                    f'HVAC website pricing: a {_p(build_full)} build or '
+                    f'{_p(build_installment)}/mo, a {_p(full_plan)}/mo Full '
+                    f'Plan, or two {_p(review_system)}/mo add-ons that need '
+                    'no website: an AI receptionist and review automation.'
+                )
+            else:
+                meta_description = (
+                    f'HVAC website pricing: a {_p(build_full)} build or '
+                    f'{_p(build_installment)}/mo, a {_p(full_plan)}/mo Full '
+                    f'Plan, an AI receptionist at {_p(voice_receptionist)}/mo '
+                    f'or review automation at {_p(review_system)}/mo.'
+                )
+        elif review_system:
             meta_description = (
                 f'HVAC website pricing: a {_p(build_full)} build or '
                 f'{_p(build_installment)}/mo, a {_p(full_plan)}/mo Full Plan, '
