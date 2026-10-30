@@ -860,6 +860,18 @@ CACHES = {
         # failing open.
         'BACKEND': 'core.cache_backend.ResilientRedisCache',
         'LOCATION': REDIS_URL,
+        # Bounded waits. ResilientRedisCache can only fall back on an
+        # error, and an unreachable-but-not-refusing Redis (firewalled,
+        # blackholed, a hung managed instance) raises nothing -- it just
+        # never answers. Without these, that blocks the request and, now
+        # that core.apps probes the cache in ready(), worker boot too.
+        # Verified these are honoured: ConnectionPool.from_url receives
+        # them and a dead endpoint raises redis TimeoutError, which
+        # core/cache_backend.py already counts as a connection failure.
+        'OPTIONS': {
+            'socket_connect_timeout': 2,
+            'socket_timeout': 2,
+        },
     }
 }
 
