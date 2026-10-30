@@ -14,7 +14,7 @@ from django_ratelimit.decorators import ratelimit
 from core.analytics import queue_event
 from core.site_facts import LOCATION_PHRASE, LOCATION_STATEMENT
 from outreach import ghl as ghl_client
-from outreach.models import FailedLeadSubmission
+from outreach.models import FailedLeadSubmission, Lead
 
 from .forms import AuditEmailForm, AuditForm, ContactForm
 from .models import AuditLead, AuditRun, audit_domain
@@ -1439,6 +1439,93 @@ def _push_callback_to_ghl(lead, cleaned, source_page):
     lead.save(update_fields=['ghl_contact_id', 'pushed_to_ghl_at'])
 
 
+def _audit_lead_to_crm(request, audit_lead):
+    """Turn a results-page capture into a real Lead and push it to GHL.
+
+    Never raises. The visitor has already been shown their report and
+    the AuditLead row is already saved, so nothing here is allowed to
+    turn a successful capture into an error page.
+
+    GoHighLevel is the existing outbound CRM integration (outreach/ghl.py,
+    already carrying the contact and callback forms), so audit leads go
+    there too rather than to a second, parallel webhook. No new env var
+    was added for this: GHL_AUDIT_WEBHOOK_URL already exists but belongs
+    to the machine audit API's mid-call callback (public/tasks.py), and
+    reusing it would mix a voice-agent callback with web form leads.
+    """
+    scores = {
+        'performance': audit_lead.performance_score,
+        'seo': audit_lead.seo_score,
+        'best_practices': audit_lead.best_practices_score,
+        'accessibility': audit_lead.accessibility_score,
+    }
+    try:
+        lead = Lead.objects.create(
+            firm_name=audit_lead.company,
+            attorney_name=audit_lead.name,
+            business_type='HVAC',
+            email=audit_lead.email,
+            phone=audit_lead.phone,
+            website=audit_lead.url[:200],
+            inquiry_text=(
+                f'Requested the full audit report for {audit_lead.url}. '
+                f'Scores: performance {scores["performance"]}, '
+                f'SEO {scores["seo"]}, '
+                f'best practices {scores["best_practices"]}, '
+                f'accessibility {scores["accessibility"]}.'
+            ),
+            source='audit_tool',
+            status='new',
+            score=0,
+            website_performance_score=scores['performance'],
+            website_seo_score=scores['seo'],
+            website_best_practices_score=scores['best_practices'],
+            ip_address=audit_lead.ip_address,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'could not create Lead from audit lead id=%s', audit_lead.pk)
+        return None
+
+    first_name, last_name = ghl_client.split_name(audit_lead.name)
+    try:
+        contact_id, _trace_id = ghl_client.sync_lead_to_ghl(
+            first_name=first_name,
+            last_name=last_name,
+            email=audit_lead.email,
+            phone_raw=audit_lead.phone,
+            company_name=audit_lead.company,
+            custom_fields={
+                'audited_url': audit_lead.url,
+                'audit_performance_score': str(scores['performance']),
+                'audit_seo_score': str(scores['seo']),
+                'audit_best_practices_score': str(scores['best_practices']),
+                'audit_accessibility_score': str(scores['accessibility']),
+                'landing_page': (request.POST.get('landing_page') or '')[:500],
+                'referrer': (request.POST.get('referrer') or '')[:500],
+            },
+            source='website-audit-tool',
+            tag='audit-lead',
+        )
+    except ghl_client.GHLError as exc:
+        logger.error('GHL audit push failed for lead id=%s: %s', lead.id, exc)
+        FailedLeadSubmission.objects.create(
+            lead=lead,
+            payload=getattr(exc, 'payload', {}),
+            error=str(exc)[:2000],
+        )
+        _send_ghl_fallback_email(lead, str(exc))
+        return lead
+    except Exception:  # noqa: BLE001
+        logger.exception('unexpected GHL audit push failure id=%s', lead.id)
+        return lead
+
+    lead.ghl_contact_id = contact_id
+    lead.pushed_to_ghl_at = timezone.now()
+    lead.save(update_fields=['ghl_contact_id', 'pushed_to_ghl_at'])
+    return lead
+
+
 def _send_ghl_fallback_email(lead, error):
     body = (
         f'The GoHighLevel push failed for a new contact-form lead — '
@@ -1575,8 +1662,8 @@ def audit(request):
         'meta_description': (
             'Free website audit tool. Check your site speed, SEO, '
             'accessibility and best practices with Google PageSpeed data '
-            'and a plain-English Aspired AI summary. Results in 30 '
-            'seconds, no email required.'
+            'and a plain-English Aspired AI summary. Free scores in 30 '
+            'seconds, full report by email.'
         ),
     })
 
@@ -1629,8 +1716,21 @@ def audit_results(request):
                 details=request.session.get('audit_details') or {},
                 ai_review=request.session.get('audit_ai_review') or '',
                 email=email_form.cleaned_data['email'],
+                name=email_form.cleaned_data.get('name', ''),
+                phone=email_form.cleaned_data.get('phone', ''),
+                company=email_form.cleaned_data.get('company', ''),
                 ip_address=_client_ip(request),
             )
+            # CLAUDE.md "AuditLead Model": a visitor who submits contact
+            # details on the results page becomes a real Lead with
+            # source='audit_tool', scores copied across, and the
+            # AuditLead kept for analytics. That was specified but never
+            # built -- until now these people existed only as AuditLead
+            # rows, so they were invisible to the CRM and to GHL.
+            #
+            # Anonymous audits still create no Lead: no contact details
+            # means nothing actionable, which is the same rule.
+            _audit_lead_to_crm(request, audit_lead)
             # Email 1 of the follow-up sequence, sent immediately.
             # Was an inline sender with no unsubscribe link, which made
             # the message this business sends most often the one message
@@ -1896,6 +1996,19 @@ def audit_ai_review(request):
     if not (scores and audit_url):
         return render(request, 'public/_audit_ai_review.html', {
             'fallback': 'Run an audit first to see your AI review.',
+        })
+
+    # Gated on the lead capture (Oct 2026). The four scores stay free and
+    # ungated on the results page; this summary is what the form buys.
+    #
+    # Checked here and not only in the template because this is a real
+    # URL: the template could hide the HTMX trigger and anyone could
+    # still GET /audit/ai-review/ and read the summary, which would also
+    # burn an Anthropic call per request. Returning the prompt instead of
+    # the review keeps the gate on the server where it belongs.
+    if not request.session.get('audit_email_submitted'):
+        return render(request, 'public/_audit_ai_review.html', {
+            'gated': True,
         })
 
     cached = request.session.get('audit_ai_review')

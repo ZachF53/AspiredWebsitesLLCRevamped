@@ -346,8 +346,34 @@ class AuditForm(forms.Form):
 
 
 class AuditEmailForm(forms.Form):
-    """Email capture on the audit results page."""
+    """Lead capture on the audit results page.
 
+    Oct 2026: was email-only. The four scores stay visible with no form
+    (that is the thing people link to and the reason the page converts at
+    all); the plain-English Aspired AI summary and the emailed report are
+    what this unlocks.
+
+    Phone is the only optional field. Someone who just watched their own
+    site score badly will give an email to see why; demanding a phone
+    number at the same moment loses the lead, and the audit funnel's
+    whole value is that it produces contactable ones. Company is
+    required because it is what makes the lead workable in the CRM --
+    an email alone does not tell you who to call.
+    """
+
+    name = forms.CharField(
+        label='Name',
+        max_length=120,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your name',
+            'autocomplete': 'name',
+            'required': True,
+        }),
+        error_messages={
+            'required': 'Enter your name so we know who to address it to.',
+        },
+    )
     email = forms.EmailField(
         label='Email',
         widget=forms.EmailInput(attrs={
@@ -361,3 +387,42 @@ class AuditEmailForm(forms.Form):
             'required': 'Enter your email to receive the full report.',
         },
     )
+    phone = forms.CharField(
+        label='Phone (optional)',
+        required=False,
+        max_length=30,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '(210) 555-0123',
+            'autocomplete': 'tel',
+            'inputmode': 'tel',
+        }),
+    )
+    company = forms.CharField(
+        label='Company',
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your company',
+            'autocomplete': 'organization',
+            'required': True,
+        }),
+        error_messages={
+            'required': 'Enter your company name.',
+        },
+    )
+
+    def clean_phone(self):
+        """Normalize if given, but never reject.
+
+        Deliberately unlike CallbackForm.clean_phone, which demands 10
+        digits because a callback request with no reachable number is
+        useless. Here the phone is optional, so a half-typed number must
+        not block a lead whose email already arrived -- it is stored as
+        typed if it cannot be normalized.
+        """
+        raw = (self.cleaned_data.get('phone') or '').strip()
+        if not raw:
+            return ''
+        from core.phone_utils import normalize_phone
+        return normalize_phone(raw) or raw

@@ -1,4 +1,23 @@
-{% if fallback %}
+{% comment %}
+HTMX partial for the plain-English audit summary.
+
+Three states, in order of precedence:
+  gated    — no contact details submitted yet; point at the form above
+             rather than rendering the summary. The server decides this
+             (public.views.audit_ai_review), not the template, so the
+             endpoint cannot be read directly by skipping the page.
+  fallback — a sentence explaining why there is no summary (no audit in
+             session, missing API key, generation failed).
+  review   — the summary itself.
+{% endcomment %}
+{% if gated %}
+    <div class="ai-review-fallback">
+        <p>Your four scores are above, free. The plain-English summary of
+        what they mean, and what we would fix first, comes with the full
+        report.</p>
+        <p><a class="btn-primary" href="#audit-report-form">Email me the full report</a></p>
+    </div>
+{% elif fallback %}
     <div class="ai-review-fallback">{{ fallback }}</div>
 {% else %}
     <div class="ai-review-body">

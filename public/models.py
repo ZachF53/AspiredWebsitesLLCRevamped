@@ -226,6 +226,15 @@ class AuditLead(models.Model):
     accessibility_score = models.PositiveSmallIntegerField()
     issues = models.JSONField(default=list, blank=True)
     email = models.EmailField(blank=True)
+    # Oct 2026: the results-page form collects name/phone/company
+    # alongside the email so the capture produces a workable CRM lead
+    # rather than a bare address. All three are blank=True, not just
+    # phone: every AuditLead created before this change has none of
+    # them, and the machine audit API (public/views_audit_api.py) still
+    # creates rows with the email alone.
+    name = models.CharField(max_length=120, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    company = models.CharField(max_length=200, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

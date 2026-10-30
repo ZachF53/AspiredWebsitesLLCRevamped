@@ -19,7 +19,7 @@ rendered as the visible FAQ cards below, so the two can't drift.
             <span class="eyebrow">Free Website Audit Tool</span>
             <h1>Free Website Audit: Find Out What&rsquo;s <span class="accent">Holding Your Site Back</span></h1>
             <hr class="accent-line hero__divider" aria-hidden="true">
-            <p class="hero__lead">Check your website&rsquo;s speed, SEO, accessibility and best practices in about 30 seconds. Real Google PageSpeed data, explained in plain English. No email required to see your results.</p>
+            <p class="hero__lead">Check your website&rsquo;s speed, SEO, accessibility and best practices in about 30 seconds. Real Google PageSpeed data, explained in plain English. See your scores free. Enter your email for the full plain-English report.</p>
             <p class="hero__meta">No website yet? <a href="{% url 'public:service_web_design' %}#just-starting">Start here</a>.</p>
         </div>
     </div>
@@ -53,6 +53,17 @@ rendered as the visible FAQ cards below, so the two can't drift.
 
                 <p class="audit-note">
                     The audit runs Google&rsquo;s speed, SEO, accessibility and best-practice checks on the mobile version of your page, then Aspired AI summarizes what they found in a few sentences. It takes about 30 seconds; please don&rsquo;t refresh while it runs.
+                </p>
+                {% comment %}
+                Privacy line, revised Oct 2026 for the lead capture. The
+                scores alone store nothing identifying; the URL and the
+                contact details are only persisted if the visitor asks
+                for the report, which is also when a CRM lead is created
+                and pushed to GoHighLevel. Said plainly here because the
+                form two pages later is where it actually happens.
+                {% endcomment %}
+                <p class="audit-note">
+                    Seeing your scores stores nothing about you. If you ask for the full report, we store the URL you audited along with your name, email, company and phone so we can send it and follow up. Two short notes at most, unsubscribe in one click. See our <a href="{% url 'core:privacy_policy' %}">privacy policy</a>.
                 </p>
             </form>
         </article>

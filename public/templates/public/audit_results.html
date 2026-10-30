@@ -89,8 +89,21 @@
 
 <hr class="section-divider" aria-hidden="true">
 
-{# ───────── Email Capture ───────── #}
-<section class="section">
+{% comment %}
+Lead capture (Oct 2026). Stays ABOVE the plain-English summary section
+below, because it is now what unlocks it — the four scores higher up the
+page are free and ungated, this is the gate.
+
+The anchor id is linked from _audit_ai_review.html's gated state, so the
+"Email me the full report" button inside the locked summary card scrolls
+here instead of going nowhere.
+
+Errors are rendered per-field via the loop rather than email-only. The
+old markup printed email_form.email.errors and nothing else, so with
+name/company now required a missing company silently re-rendered the
+form with no message at all.
+{% endcomment %}
+<section class="section" id="audit-report-form">
     <div class="container">
         <article class="card audit-form-card">
             <span class="eyebrow">Want The Full Report?</span>
@@ -103,14 +116,23 @@
             {% else %}
                 <p class="muted">We&rsquo;ll email you the full report: every check that passed, everything that can be improved, why it matters and how to fix it. After that, two short follow-up notes at most, and you can unsubscribe in one click.</p>
 
-                <form method="post" class="audit-email-form" novalidate>
+                <form method="post" class="audit-email-form audit-lead-form" novalidate>
                     {% csrf_token %}
-                    {{ email_form.email }}
-                    <button type="submit" class="btn-primary">Email Me the Report</button>
+                    {% if email_form.non_field_errors %}
+                        <div class="form-field-error">{{ email_form.non_field_errors|join:" " }}</div>
+                    {% endif %}
+                    {% for field in email_form %}
+                        <div class="form-group">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="form-field-error">{{ field.errors|join:" " }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    <button type="submit" class="btn-primary btn-block">Email me the full report</button>
                 </form>
-                {% if email_form.email.errors %}
-                    <div class="form-field-error">{{ email_form.email.errors|join:" " }}</div>
-                {% endif %}
+                <p class="audit-note">We&rsquo;ll also tell you what we&rsquo;d fix first. No spam, unsubscribe anytime.</p>
             {% endif %}
         </article>
     </div>
