@@ -1,0 +1,98 @@
+{% load static %}
+{% comment %}
+Primary site header + nav. Extracted verbatim from base.html (Oct 2026).
+
+This is the ONE definition of the site nav. It used to live inline in
+base.html, which was already single-source, but a reported symptom of
+"some pages show an older nav" is cheap to make structurally impossible
+rather than merely true-right-now: there is now exactly one file to edit
+and nothing to keep in sync.
+
+Do not copy this markup into a page template to tweak one link. Add the
+link here, or gate it with `active_nav` / `active_service`, which every
+public view already sets.
+{% endcomment %}
+<header class="site-header">
+    <div class="container">
+        <nav class="nav" aria-label="Primary">
+            <a class="logo" href="{% url 'public:home' %}" aria-label="Aspired Websites Home">
+                {% comment %}
+                logo.png was a 600x277 / 54 KB source scaled down by
+                the browser to 87x40. Now served at 2x (173x80) as
+                WebP (6 KB) with a PNG fallback (10 KB) — §5.2
+                requires AVIF/WebP with explicit width/height.
+                {% endcomment %}
+                <picture>
+                    <source srcset="{% static 'images/logo.webp' %}" type="image/webp">
+                    <img src="{% static 'images/logo-2x.png' %}" alt="Aspired Websites" class="logo-img" width="87" height="40">
+                </picture>
+            </a>
+
+            {% comment %}
+            Tap-to-call (plan M-4.01). Outside .nav-menu on purpose:
+            on a phone the menu is collapsed behind the hamburger, and
+            the number has to be one thumb away on every page without
+            opening anything. .nav-phone keeps a 44px tap target.
+            {% endcomment %}
+            <a class="nav-phone" href="tel:{{ PHONE_TEL }}" aria-label="Call or text Aspired Websites at {{ PHONE_DISPLAY }}">
+                <svg class="nav-phone__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <span class="nav-phone__number">{{ PHONE_DISPLAY }}</span>
+            </a>
+
+            <button class="nav-toggle"
+                    type="button"
+                    aria-label="Toggle navigation menu"
+                    aria-expanded="false"
+                    aria-controls="primary-nav">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <div class="nav-menu" id="primary-nav">
+                <ul>
+                    <li><a class="nav-link {% if active_nav == 'home' %}is-active{% endif %}" href="{% url 'public:home' %}">Home</a></li>
+                    <li class="nav-item nav-item--has-children">
+                        <button type="button"
+                                class="nav-link nav-link--toggle {% if active_nav == 'services' %}is-active{% endif %}"
+                                aria-expanded="false"
+                                aria-controls="services-submenu"
+                                aria-haspopup="true">
+                            Services
+                            <span class="nav-caret" aria-hidden="true">&#9662;</span>
+                        </button>
+                        {% comment %}
+                        Sept 2026 repositioning cut this from a 9-item,
+                        3-group mega-menu (Web Design / SEO / More) down
+                        to the three things Aspired actually sells now —
+                        a flat list, so the plain .nav-submenu is enough;
+                        .nav-submenu--grouped's multi-column layout would
+                        be overkill for 3 items. The old law-firm/SEO/
+                        social pages 301 to service_web_design (see
+                        public/urls.py) rather than living in this menu.
+                        {% endcomment %}
+                        <ul class="nav-submenu" id="services-submenu" role="menu">
+                            <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'web_design' %}is-active{% endif %}" href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
+                            <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'review_automation' %}is-active{% endif %}" href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
+                            <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'ai_receptionist' %}is-active{% endif %}" href="{% url 'public:service_ai_receptionist' %}">AI Voice Receptionist</a></li>
+                            <li role="none"><a role="menuitem" class="nav-sublink {% if active_service == 'hosting_maintenance' %}is-active{% endif %}" href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
+                        </ul>
+                    </li>
+                    <li><a class="nav-link {% if active_nav == 'portfolio' %}is-active{% endif %}" href="{% url 'public:portfolio' %}">Portfolio</a></li>
+                    <li><a class="nav-link {% if active_nav == 'insights' %}is-active{% endif %}" href="{% url 'public:insights' %}">Insights</a></li>
+                    <li><a class="nav-link {% if active_nav == 'pricing' %}is-active{% endif %}" href="{% url 'public:pricing' %}">Pricing</a></li>
+                    <li><a class="nav-link {% if active_nav == 'audit' %}is-active{% endif %}" href="{% url 'public:audit' %}">Free Audit</a></li>
+                    <li><a class="nav-link {% if active_nav == 'contact' %}is-active{% endif %}" href="{% url 'public:contact' %}">Contact</a></li>
+                    {% if request.user.is_authenticated and request.user.is_staff %}
+                        <li><a class="nav-link nav-link--admin" href="/admin-dashboard/">Admin</a></li>
+                    {% endif %}
+                    {% if request.user.is_authenticated %}
+                        <li><a class="nav-link nav-link--cta" href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
+                    {% else %}
+                        <li><a class="nav-link nav-link--cta" href="{% url 'public:login' %}">Client Login</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </nav>
+    </div>
+</header>

@@ -1,0 +1,129 @@
+{% comment %}
+Site footer. Extracted verbatim from base.html (Oct 2026).
+
+This is the ONE definition of the footer — service list, locations,
+contact block and legal row. Same reasoning as core/_nav.html: one file
+to edit, nothing to keep in sync, so a page cannot drift onto a stale
+copy of the footer.
+
+The phone number is NEVER written literally here. It comes from
+PHONE_TEL / PHONE_DISPLAY in core/site_facts.py, which is also what the
+nav, the schema block and llms.txt read. Changing the business number is
+a one-line edit there.
+{% endcomment %}
+<footer class="site-footer" role="contentinfo">
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-col footer-brand">
+                <a class="logo" href="{% url 'public:home' %}">
+                    <span class="logo-mark" aria-hidden="true"></span>
+                    <span class="logo-text">Aspired Websites</span>
+                </a>
+                <p>Custom-coded websites and automated review generation for HVAC and home-service contractors.</p>
+                {% comment %}
+                NAP block — Master Plan §1.1.
+
+                City/state only, no street. Aspired is a service-area
+                business operating out of Warner Robins; the Atlanta
+                suite on the LLC's registration is a registered-agent
+                address, not a staffed office, and publishing it as a
+                PostalAddress asserted a physical presence that does
+                not exist — while splitting the geo signal between two
+                metros 100 miles apart. Removed Aug 2026 (Zach).
+
+                The legal address of record is unchanged and still
+                appears where it is actually required: email
+                signatures (CAN-SPAM), invoices and receipts, and the
+                domain registrant record. Do not "tidy" those.
+
+                This name / city / phone / email format must match
+                every external profile (GBP, Bing Places, Apple,
+                LinkedIn, Alignable, Nextdoor, Yelp, BBB). GBP keeps
+                its street address hidden — service-area business.
+                {% endcomment %}
+                <address class="footer-nap">
+                    <span class="footer-nap__name">Aspired Websites LLC</span>
+                    Warner Robins, GA
+                </address>
+                <p class="footer-locations">Serving Warner Robins &nbsp;·&nbsp; Macon &amp; Middle Georgia &nbsp;·&nbsp; Atlanta &nbsp;·&nbsp; San Antonio &nbsp;·&nbsp; Remote nationwide</p>
+            </div>
+
+            {% comment %}
+            4 columns here plus brand = 5 total, matching
+            .footer-grid's grid-template-columns (5 explicit
+            tracks). Adding a 6th without widening that CSS rule
+            wraps it to a new row and leaves a gap under the
+            shorter columns above it — the bug this replaced.
+
+            The old law-firm/SEO/social service pages 301 to
+            service_web_design now (Sept 2026 repositioning, see
+            public/urls.py), so they're gone from here rather than
+            linking to a redirect. /portfolio/other/ was merged into
+            /portfolio/ (plan M-5.01) and 301s there, so the
+            Portfolio link under Company covers it.
+            {% endcomment %}
+            <div class="footer-col">
+                <h3>Services</h3>
+                <ul>
+                    <li><a href="{% url 'public:service_web_design' %}">Custom HVAC Website</a></li>
+                    <li><a href="{% url 'public:service_review_automation' %}">Automated Review Generation</a></li>
+                    <li><a href="{% url 'public:service_ai_receptionist' %}">AI Voice Receptionist</a></li>
+                    <li><a href="{% url 'public:service_hosting_maintenance' %}">Hosting &amp; Maintenance</a></li>
+                    <li><a href="{% url 'public:audit' %}">Free Website Audit</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>Locations</h3>
+                <ul>
+                    <li><a href="{% url 'public:location_warner_robins' %}">Warner Robins Web Design</a></li>
+                    <li><a href="{% url 'public:location_atlanta' %}">Atlanta Web Design</a></li>
+                    <li><a href="{% url 'public:location_san_antonio' %}">San Antonio Web Design</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>Company</h3>
+                <ul>
+                    <li><a href="{% url 'public:portfolio' %}">Portfolio</a></li>
+                    <li><a href="{% url 'public:insights' %}">Insights</a></li>
+                    <li><a href="{% url 'public:about' %}">About</a></li>
+                    <li><a href="{% url 'public:contact' %}">Contact</a></li>
+                    {% if request.user.is_authenticated %}
+                        <li><a href="{% if request.user.is_staff %}/admin-dashboard/{% else %}{% url 'clients:dashboard' %}{% endif %}">Go to Dashboard</a></li>
+                    {% else %}
+                        <li><a href="{% url 'public:login' %}">Client Login</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>Contact</h3>
+                <ul>
+                    <li><a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@<wbr>aspiredwebsites.com</a></li>
+                    <li><a href="tel:{{ PHONE_TEL }}">{{ PHONE_DISPLAY }}</a>{% if SITE_CONTENT.phone_accepts_sms %} <span class="footer-note">(call or text)</span>{% endif %}</li>
+                    <li class="footer-note">{{ PHONE_NOTE }}</li>
+                    <li class="footer-hours">Open any time: we answer within 24&nbsp;hours</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div>&copy; {% now "Y" %} Aspired Websites LLC. All rights reserved.</div>
+            <nav class="footer-legal" aria-label="Legal">
+                <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a>
+                <span aria-hidden="true">·</span>
+                <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>
+                <span aria-hidden="true">·</span>
+                <a href="{% url 'core:refund_policy' %}">Refund Policy</a>
+            </nav>
+            {% comment %}
+            TEMPORARY — see core/site_facts.py site_facts() for the
+            full note. Remove this block (and A2P_FOOTER_ADDRESS)
+            once the A2P 10DLC campaign is approved.
+            {% endcomment %}
+            {% if A2P_FOOTER_ADDRESS %}<div class="footer-note">{{ A2P_FOOTER_ADDRESS }}</div>{% endif %}
+            <div>Hand-coded in Georgia. Serving clients nationwide.</div>
+        </div>
+    </div>
+</footer>
