@@ -92,6 +92,10 @@ TWILIO_PHONE_NUMBER = ''
 # must never be able to accept one.
 REVIEW_GHL_EVENTS_SECRET = ''
 VOICE_GHL_EVENTS_SECRET = ''
+# Audit API: same fail-closed reason, plus a populated callback URL would
+# POST rehearsal audit payloads into the live GHL sub-account.
+AUDIT_API_SECRET = ''
+GHL_AUDIT_WEBHOOK_URL = ''
 
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 

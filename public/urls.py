@@ -2,7 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 from django.views.generic import RedirectView
 
-from . import views
+from . import views, views_audit_api
 
 app_name = 'public'
 
@@ -112,6 +112,15 @@ urlpatterns = [
     path('audit/unsubscribe/<str:token>/', views.audit_unsubscribe,
          name='audit_unsubscribe'),
     path('audit/ai-review/', views.audit_ai_review, name='audit_ai_review'),
+
+    # Audit machine API — what a GHL Voice AI agent calls mid-call. Under
+    # /api/ for the same reason the review and voice endpoints are: it is
+    # the path robots.txt disallows, so none of it is crawlable. Async
+    # only; see public/views_audit_api.py for why there is no sync path.
+    path('api/audit/request/', views_audit_api.audit_request,
+         name='audit_api_request'),
+    path('api/audit/status/<str:job_id>/', views_audit_api.audit_status,
+         name='audit_api_status'),
     path('login/', views.login_page, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('portal/coming-soon/', views.portal_coming_soon, name='portal_coming_soon'),

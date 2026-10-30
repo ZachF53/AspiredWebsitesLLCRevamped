@@ -35,6 +35,57 @@ def _domain_of(url):
     return (host or '').lower().removeprefix('www.')
 
 
+# A hostname we are willing to audit: dotted labels, letters/digits/
+# hyphens only, no leading or trailing hyphen, 253 chars max.
+#
+# urlparse is far too permissive to use as a validator on its own --
+# urlparse('https://not a url at all').hostname returns the whole phrase,
+# spaces included. Without this check that phrase reaches the cache as a
+# key (invalid: Django warns, memcached would reject it) and gets handed
+# to a worker as a real 15-second PageSpeed job.
+_AUDITABLE_HOSTNAME = re.compile(
+    r'^(?=.{1,253}$)'
+    r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
+    r'(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
+)
+
+
+def normalized_audit_url(url):
+    """
+    Canonical cache-key form of an audit URL: ``host/path``, lowercased,
+    ``www.`` stripped, no scheme, no trailing slash, no query, no
+    fragment. Returns '' when the input is not a plausible website
+    address.
+
+    Scheme is deliberately dropped rather than normalised to https:
+    ``http://x.com`` and ``https://x.com`` audit to the same final page,
+    so they must share one cache entry. Path is kept because /services
+    and /contact are genuinely different audits.
+
+    Built on _domain_of so there is one place that decides what the host
+    part of a URL is. Public (no underscore) because the audit API and
+    its Celery task both need it.
+    """
+    raw = (url or '').strip()
+    if not raw:
+        return ''
+    if '://' not in raw:
+        raw = f'https://{raw}'
+    host = _domain_of(raw)
+    if not _AUDITABLE_HOSTNAME.match(host or ''):
+        return ''
+    try:
+        path = urlparse(raw).path or ''
+    except ValueError:
+        return ''
+    normalized = f'{host}{path.rstrip("/")}'
+    # Whitespace or control characters anywhere means this was never a
+    # real URL, whatever urlparse made of it.
+    if any(ch.isspace() or ord(ch) < 32 for ch in normalized):
+        return ''
+    return normalized
+
+
 PAGESPEED_API_URL = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 PAGESPEED_TIMEOUT_SECONDS = 45
 
@@ -1645,14 +1696,32 @@ def _audit_summary(audit_url, scores):
 # ── PageSpeed Insights helpers ──────────────────────────────────────────────
 
 class _PageSpeedError(Exception):
-    """User-facing error for audit failures."""
+    """User-facing error for audit failures.
+
+    ``code`` is a short machine tag ('timeout', 'unreachable',
+    'bad_status', 'bad_json') for callers that need to branch on *why*
+    rather than show the message. The audit form never reads it — it
+    renders ``str(err)`` — but the voice API needs its own phrasing,
+    because these messages are web copy that cite a phone number and
+    tell the reader to open a browser. Neither works read aloud.
+    """
+
+    def __init__(self, message, code=''):
+        super().__init__(message)
+        self.code = code
 
 
-def _run_pagespeed_audit(url):
+def _run_pagespeed_audit(url, include_raw=False):
     """
     Run the website audit and return
     {'scores': {...}, 'issues_by_category': {...}}.
     Raises _PageSpeedError with a user-facing message on failure.
+
+    ``include_raw=True`` additionally returns the untouched PSI payload
+    under 'raw'. Off by default because it is ~800 KB and the form flow
+    has no use for it; the voice API turns it on because the fields it
+    needs (requestedUrl/finalUrl for the redirect guard, LCP, CrUX) are
+    all dropped by the parsing below.
     """
     # PageSpeed returns only the Performance category by default — request
     # all four explicitly. The `category` param accepts multiple values.
@@ -1676,24 +1745,30 @@ def _run_pagespeed_audit(url):
     except requests.Timeout:
         raise _PageSpeedError(
             'The audit took too long. Try again in a moment, '
-            'or send us the URL directly at 210-201-0375.'
+            'or send us the URL directly at 210-201-0375.',
+            code='timeout',
         )
     except requests.RequestException:
         raise _PageSpeedError(
-            'Couldn’t reach the audit service. Please try again in a minute.'
+            'Couldn’t reach the audit service. Please try again in a minute.',
+            code='unreachable',
         )
 
     if response.status_code != 200:
         # Google returns 400 for unreachable URLs, 429 for rate-limit.
         raise _PageSpeedError(
             'We couldn’t analyze that URL. Double-check it loads in a browser '
-            'and try again.'
+            'and try again.',
+            code='bad_status',
         )
 
     try:
         data = response.json()
     except ValueError:
-        raise _PageSpeedError('Got an unexpected response from the audit service.')
+        raise _PageSpeedError(
+            'Got an unexpected response from the audit service.',
+            code='bad_json',
+        )
 
     lighthouse = data.get('lighthouseResult') or {}
     categories = lighthouse.get('categories') or {}
@@ -1717,12 +1792,15 @@ def _run_pagespeed_audit(url):
     }
 
     from public.audit_report import collect_details
-    return {
+    result = {
         'scores': scores,
         'issues_by_category': issues_by_category,
         # Every passed and failed check, for the emailed report.
         'details': collect_details(lighthouse),
     }
+    if include_raw:
+        result['raw'] = data
+    return result
 
 
 def _category_issues(category, audits):

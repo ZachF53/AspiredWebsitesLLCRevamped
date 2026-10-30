@@ -128,5 +128,12 @@ EMAIL_VERIFY_API_KEY = ''
 EMAIL_VERIFY_PROVIDER = ''
 BRAVE_SEARCH_API_KEY = ''
 GOOGLE_PAGESPEED_API_KEY = ''
+# Audit API shared secret + its outbound callback. Blanked for the same
+# two reasons as the webhook secrets above: the endpoint must fail closed
+# by default so "unset means 403" is proved rather than inherited from a
+# developer's .env, and a populated GHL_AUDIT_WEBHOOK_URL would POST test
+# audit payloads into the live sub-account's workflow.
+AUDIT_API_SECRET = ''
+GHL_AUDIT_WEBHOOK_URL = ''
 MOONIEFUL_SYNC_SECRET = 'test-moonieful-sync-secret'
 VAULT_SERVER_SECRET = 'test-vault-server-secret'

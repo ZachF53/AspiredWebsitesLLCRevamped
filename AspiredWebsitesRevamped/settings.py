@@ -515,6 +515,21 @@ GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', '')
 # use. Free tier is 25k queries/day. Create at:
 #   https://console.cloud.google.com/apis/credentials
 GOOGLE_PAGESPEED_API_KEY = env('GOOGLE_PAGESPEED_API_KEY', '')
+
+# Audit API — the machine surface a GHL Voice AI agent calls mid-call to
+# get a website's scores. Shared secret in the X-Audit-Secret header,
+# compared in constant time, fails closed when unset: same posture and
+# same reasoning as VOICE_GHL_EVENTS_SECRET above. Unset means every
+# request 403s, which is the correct default for an endpoint that spends
+# PageSpeed quota and enqueues worker time.
+AUDIT_API_SECRET = env('AUDIT_API_SECRET', '')
+# Where the finished audit payload is POSTed once the Celery task has it.
+# GHL owns delivery to the caller from there (SMS, workflow, whatever the
+# sub-account is wired to do). Empty means "cache the result and skip the
+# callback" rather than an error — a missing webhook must not fail an
+# audit that otherwise succeeded.
+GHL_AUDIT_WEBHOOK_URL = env('GHL_AUDIT_WEBHOOK_URL', '')
+
 # Places API — powers the Google Maps lead scraper. See CLAUDE.md →
 # External APIs & Costs.
 GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', '')
