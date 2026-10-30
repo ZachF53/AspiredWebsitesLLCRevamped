@@ -334,7 +334,7 @@ def lead_detail(request, pk):
         ('Has Google Business Profile', lead.has_google_business),
         ('PageSpeed performance', lead.website_performance_score),
         ('PageSpeed SEO', lead.website_seo_score),
-        ('PageSpeed mobile', lead.website_mobile_score),
+        ('PageSpeed best practices', lead.website_best_practices_score),
         # Enrichment-derived
         ('SSL / HTTPS', lead.has_ssl),
         ('Generic email domain', lead.has_generic_email),

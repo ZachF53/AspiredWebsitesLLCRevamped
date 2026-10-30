@@ -1631,7 +1631,7 @@ def _lead_detail(tool_input, report=_noop_report):
         # is impossible without the numbers it claims to describe.
         'measured': {
             'pagespeed_performance': lead.website_performance_score,
-            'pagespeed_mobile': lead.website_mobile_score,
+            'pagespeed_best_practices': lead.website_best_practices_score,
             'pagespeed_seo': lead.website_seo_score,
             'has_ssl': lead.has_ssl,
             'site_status': lead.site_status or 'live',

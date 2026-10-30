@@ -377,10 +377,17 @@ def _user_prompt_for_step(lead, step, angle_instructions):
         facts.append(f'- Location: {", ".join(loc_parts)}')
     if lead.website:
         facts.append(f'- Website: {lead.website}')
-    if lead.website_mobile_score is not None:
+    # The performance score, not best-practices. This fact block used to
+    # label the best-practices score "PageSpeed (mobile)", which handed
+    # the generator a false claim to build a cold email around. The
+    # performance score IS a mobile measurement -- every PageSpeed call
+    # here passes strategy=mobile -- so this is both true and the more
+    # useful number, since performance scores run well below
+    # best-practices ones (72 vs 96 on a real HVAC site).
+    if lead.website_performance_score is not None:
         facts.append(
-            f'- Their site PageSpeed (mobile): '
-            f'{lead.website_mobile_score}/100')
+            f'- Their site PageSpeed (mobile performance): '
+            f'{lead.website_performance_score}/100')
     if lead.has_ssl is False:
         facts.append('- Their site is NOT served over HTTPS (security issue).')
 

@@ -69,7 +69,7 @@ class LeadAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
             'fields': (
                 'website_performance_score', 'website_seo_score',
-                'website_mobile_score', 'website_issues', 'audit_run_at',
+                'website_best_practices_score', 'website_issues', 'audit_run_at',
             ),
         }),
         ('Outreach', {

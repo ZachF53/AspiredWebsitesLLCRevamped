@@ -100,7 +100,7 @@ class Lead(models.Model):
     # Website audit results (from PageSpeed)
     website_performance_score = models.IntegerField(null=True, blank=True)
     website_seo_score = models.IntegerField(null=True, blank=True)
-    website_mobile_score = models.IntegerField(null=True, blank=True)
+    website_best_practices_score = models.IntegerField(null=True, blank=True)
     website_issues = models.JSONField(default=list, blank=True)
     audit_run_at = models.DateTimeField(null=True, blank=True)
 

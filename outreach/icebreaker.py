@@ -180,12 +180,19 @@ def observations(lead):
             found.append((
                 'slow',
                 f"Google PageSpeed scores their site "
-                f"{lead.website_performance_score}/100 on performance."))
+                f"{lead.website_performance_score}/100 on mobile "
+                f"performance."))
 
-    if lead.website_mobile_score is not None and lead.website_mobile_score <= 50:
-        found.append((
-            'mobile',
-            f"Their site scores {lead.website_mobile_score}/100 on mobile."))
+    # There was a second 'mobile' observation here reading
+    # website_mobile_score (now website_best_practices_score) and saying
+    # "Their site scores X/100 on mobile". It was false -- that field
+    # holds the best-practices category -- and it is also redundant: the
+    # performance score above is the mobile measurement, because every
+    # PageSpeed call this project makes passes strategy=mobile. Removed
+    # rather than reworded, since "scores 96/100 on best practices" is
+    # not an observation worth opening an email with, and it fired
+    # almost never anyway (the threshold was <= 50 and real sites score
+    # in the 90s on that category).
 
     if lead.copyright_year:
         age = timezone.now().year - lead.copyright_year
@@ -398,7 +405,7 @@ def describe_problems(line, lead):
             break
 
     # Any number presented as a score must match a real measurement.
-    scores = {lead.website_performance_score, lead.website_mobile_score,
+    scores = {lead.website_performance_score, lead.website_best_practices_score,
               lead.website_seo_score, lead.google_review_count}
     for match in re.findall(r'\b(\d{1,3})\s*/\s*100\b', text):
         if int(match) not in {s for s in scores if s is not None}:

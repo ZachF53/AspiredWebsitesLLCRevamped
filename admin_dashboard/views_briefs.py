@@ -295,7 +295,7 @@ def _enrichment_recent_activity(limit=30):
     )
     for r in rows:
         r.got_website = bool(r.website)
-        r.got_pagespeed = r.website_mobile_score is not None
+        r.got_pagespeed = r.website_best_practices_score is not None
         r.got_social = bool(
             r.facebook_url or r.instagram_url or r.linkedin_url)
         r.got_ssl_check = r.has_ssl is not None

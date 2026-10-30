@@ -17,7 +17,7 @@ Two passes:
   2. Google PageSpeed Insights run (free, requires
      ``GOOGLE_PAGESPEED_API_KEY``). Writes
      ``website_performance_score``, ``website_seo_score``,
-     ``website_mobile_score`` (PageSpeed reports four categories;
+     ``website_best_practices_score`` (PageSpeed reports four categories;
      mobile-strategy is what real users see, so we always request
      mobile).
 
@@ -221,7 +221,7 @@ def enrich_lead(lead):
             log_lines.append(
                 f'  PageSpeed: perf={lead.website_performance_score} '
                 f'seo={lead.website_seo_score} '
-                f'mobile={lead.website_mobile_score}')
+                f'best_practices={lead.website_best_practices_score}')
         except Exception as exc:  # noqa: BLE001
             log_lines.append(f'  PageSpeed: FAILED ({exc})')
             logger.exception('enrich_lead PageSpeed failed for %s', lead.pk)
@@ -765,8 +765,7 @@ def _run_pagespeed(lead):
 
     lead.website_performance_score = _pct('performance')
     lead.website_seo_score = _pct('seo')
-    # Best practices is the closest to "mobile" in our 3-column slot.
-    lead.website_mobile_score = _pct('best-practices')
+    lead.website_best_practices_score = _pct('best-practices')
     lead.audit_run_at = timezone.now()
 
     # First 5 high-impact audits → website_issues for the lead detail
