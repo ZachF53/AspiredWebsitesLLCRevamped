@@ -440,6 +440,30 @@ STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', '')
 # Stripe Price IDs now live in the database (billing.ServiceTier.stripe_price_id),
 # managed at /admin-dashboard/pricing/. The STRIPE_PRICE_* vars in .env are
 # legacy seed values only — see `seed_pricing` and `sync_stripe_products`.
+#
+# Deliberately NOT adding STRIPE_PRICE_VOICE_RECEPTIONIST /
+# STRIPE_PRICE_REVIEW_AUTOMATION for the trial products. The voice
+# receptionist price is a cohort ladder: voice/cohorts.py mints a new
+# Stripe Price per rung and repoints ServiceTier at it, so an env var
+# would pin new signups to the opening price forever and quietly sell a
+# $147 product for $97.
+
+
+# ── Free trial + Terms of Service ───────────────────────────────────────────
+# The two $97/mo add-ons (AI Voice Receptionist, Review System) start as
+# a 14-day free trial with the card collected up front. Stripe owns the
+# trial clock and the conversion; this is only how long it runs.
+#
+# Changing this changes what NEW checkouts disclose and create. It does
+# not touch a trial already running — Stripe keeps trial_end on the
+# subscription it was created with.
+TRIAL_DAYS = int(env('TRIAL_DAYS', '14'))
+
+# Version stamped onto every TermsAcceptance row and shown at the top of
+# /terms/. Bump it (and the terms copy) together; the stored value is
+# what a given buyer agreed to, which is the version that matters in a
+# dispute, not whatever is live later.
+TERMS_VERSION = env('TERMS_VERSION', '2026-11-01')
 
 
 # ── DigitalOcean ────────────────────────────────────────────────────────────

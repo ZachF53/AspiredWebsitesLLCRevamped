@@ -11,6 +11,7 @@ import json
 import logging
 from datetime import date
 
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -21,6 +22,12 @@ from django_ratelimit.decorators import ratelimit
 LEGAL_EFFECTIVE_DATE = date(2026, 9, 25)
 # The refund policy was revised on its own (first-month vs 30-day guarantee).
 REFUND_EFFECTIVE_DATE = date(2026, 9, 26)
+
+# How long AI Voice Receptionist call recordings and transcripts are kept
+# before deletion. Disclosed in the terms' data section. Here rather than
+# in settings because it is a stated policy, not a per-environment knob:
+# staging and production must not be able to disagree about it.
+CALL_RECORDING_RETENTION_DAYS = 90
 
 
 csp_logger = logging.getLogger('security.csp')
@@ -39,9 +46,31 @@ def privacy_policy(request):
 
 
 def terms_of_service(request):
+    # Prices are read from the database like everywhere else on the site
+    # (CLAUDE.md: never hardcode prices). The terms quote the two $97
+    # trial products by name, and a terms page quoting a price the
+    # checkout no longer charges is worse than one quoting none —
+    # especially for the receptionist, whose price moves up a rung every
+    # 10 accounts via voice/cohorts.py.
+    from billing.pricing_models import ServiceTier
+    from clients.contract_options import (
+        REVIEW_SYSTEM_SLUG, VOICE_RECEPTIONIST_SLUG,
+    )
+
+    tiers = {
+        t.slug: t for t in ServiceTier.objects.filter(
+            slug__in=[VOICE_RECEPTIONIST_SLUG, REVIEW_SYSTEM_SLUG])
+    }
     return render(request, 'core/terms.html', {
         'active_nav': '',
         'effective_date': LEGAL_EFFECTIVE_DATE,
+        'terms_version': settings.TERMS_VERSION,
+        'trial_days': settings.TRIAL_DAYS,
+        'voice_tier': tiers.get(VOICE_RECEPTIONIST_SLUG),
+        'review_tier': tiers.get(REVIEW_SYSTEM_SLUG),
+        'voice_included_minutes': settings.VOICE_INCLUDED_MINUTES,
+        'voice_overage_rate': settings.VOICE_OVERAGE_RATE,
+        'call_recording_retention_days': CALL_RECORDING_RETENTION_DAYS,
         'meta_title': 'Terms of Service | Aspired Websites',
         'meta_description': (
             'Terms governing the use of aspiredwebsites.com and '

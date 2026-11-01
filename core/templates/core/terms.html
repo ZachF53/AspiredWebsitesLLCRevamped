@@ -19,22 +19,72 @@
 <section class="section">
     <div class="container">
         <article class="legal-doc">
-            <p class="legal-doc__effective">Effective Date: {{ effective_date|date:"F j, Y" }}</p>
+            <p class="legal-doc__effective">Version {{ terms_version }}<br>
+            Effective Date: {{ effective_date|date:"F j, Y" }}</p>
 
-            <h2>1. Agreement to Terms</h2>
+            <h2>1. Who We Are</h2>
+            <address class="legal-doc__address">
+                <strong>Aspired Websites LLC</strong><br>
+                8735 Dunwoody Place, Ste R<br>
+                Atlanta, GA 30350
+            </address>
+            <p>In these terms, "we," "us," and "our" mean Aspired Websites LLC. "You" and "the client" mean the person or business agreeing to them.</p>
+
+            <h2>2. Agreement to Terms</h2>
             <p>By using aspiredwebsites.com or engaging Aspired Websites LLC ("we," "us," or "our") for any services, you ("you," the "client") agree to these Terms of Service. If you do not agree, please do not use our website or services.</p>
 
-            <h2>2. Services</h2>
+            <h2>3. Services</h2>
             <p>Aspired Websites LLC provides:</p>
             <ul>
                 <li>Custom website design and development</li>
                 <li>Website hosting and security</li>
                 <li>Website maintenance plans (the Full Plan, billed monthly)</li>
                 <li>Automated review generation (available as a standalone monthly subscription, and included at no extra cost in the Full Plan)</li>
+                <li>The AI Voice Receptionist, a standalone monthly subscription that answers calls forwarded to a number we provide. It is never included in any plan at any price.</li>
             </ul>
             <p>Service details, deliverables, and timelines are specified in the individual project agreement or invoice you receive at the start of a project. The specific terms of that agreement take precedence over the general terms here when they conflict.</p>
 
-            <h2>3. Payment Terms</h2>
+            {% comment %}
+            Sections 4 and 5 describe the two products sold on a free
+            trial. They carry the material limits (what the service is
+            not, and what we do not guarantee) because those limits are
+            the difference between a refund request and an informed
+            buyer. Minute allowance, overage rate and price all come
+            from the database and settings rather than being typed here,
+            so a terms page can never quote a number the checkout is not
+            charging. The receptionist price in particular moves up a
+            rung every 10 accounts.
+            {% endcomment %}
+            <h2>4. AI Voice Receptionist</h2>
+            <ul>
+                <li>The receptionist answers calls that you forward to a phone number we provide. You keep your existing number and your existing carrier, and you can switch the forwarding off at any time.</li>
+                <li>It takes caller details and transfers calls according to the settings you give us during setup.</li>
+                <li>{{ voice_included_minutes }} talk minutes per month are included. Past that, additional minutes are ${{ voice_overage_rate }} per minute, billed to the card on file on your next invoice. Your usage is visible in your portal, and we will send it to you on request.</li>
+                <li><strong>It is a software service. It is not an emergency dispatch service and it is not an answering service staffed by people.</strong> We do not guarantee that any given call will be answered, transferred, or transcribed correctly.</li>
+                <li>Callers are told they are speaking to an automated assistant.</li>
+                <li>Do not use the receptionist as the only way to reach you for anything time critical or safety critical. If you handle emergency calls, keep a human path open.</li>
+            </ul>
+
+            <h2>5. Automated Review Generation</h2>
+            <ul>
+                <li>The service sends a review request to customers that you, or the field software you use, mark as complete.</li>
+                <li><strong>It sends to every completed customer. It does not filter by expected rating</strong> and it does not screen out customers who might leave a negative review. Selectively asking only happy customers for reviews violates Google's policies, so the service is built not to do it.</li>
+                <li>You are responsible for having the right to contact the customers you send review requests to, and for your own compliance with Google's review policies.</li>
+                <li>We handle opt-outs on every message. A customer who opts out is not contacted again.</li>
+            </ul>
+
+            <h2>6. Free Trial and Billing</h2>
+            <ul>
+                <li><strong>The AI Voice Receptionist and the standalone Review System both start with a {{ trial_days }}-day free trial.</strong> A valid payment card is collected when you sign up.</li>
+                <li><strong>Nothing is charged during the trial.</strong> The first charge happens on day {{ trial_days|add:1 }}, and monthly on that date afterwards. The amount is {% if voice_tier %}{{ voice_tier.get_price_display }} for the receptionist{% endif %}{% if voice_tier and review_tier %} and {% endif %}{% if review_tier %}{{ review_tier.get_price_display }} for the Review System{% endif %}, at the price shown to you at signup.</li>
+                <li>The exact date of your first charge is shown to you before you enter your card, again on the page you land on after signing up, and again in a reminder email Stripe sends you before the charge.</li>
+                <li><strong>Cancel before the trial ends and you are not charged anything at all.</strong> You can cancel yourself from <a href="{% url 'billing:portal_home' %}">your billing portal</a> at any time, during the trial or after it, without talking to anyone. Cancelling takes as few steps as signing up did. You can also cancel by emailing us at the address in section 21.</li>
+                <li>Your subscription price is the price you signed up at. The receptionist price rises as spots fill, but a subscription stays on the price it started at for as long as you keep it.</li>
+                <li>Month to month, with no minimum term. Cancelling takes effect at the end of the billing period you have already paid for, and the service keeps running until then.</li>
+                <li>A month that has already been billed is not refunded. The 30-day guarantee in section 7 applies to website builds, not to these monthly subscriptions, because the trial serves the same purpose.</li>
+            </ul>
+
+            <h2>7. Payment Terms</h2>
             <ul>
                 <li><strong>Website builds:</strong> paid either in full at signing, or in 24 monthly installments with the first installment charged at signing. On the installment option, Aspired Websites LLC retains ownership of the website until the build is paid in full; the site remains live and in service throughout.</li>
                 <li><strong>Full Plan, Hosting + Security, and the standalone Review System:</strong> billed monthly via Stripe from the day you sign, auto-renewing on the same date each month. All are month-to-month; either party may cancel with 30 days&rsquo; written notice. Every recurring plan is billed monthly.</li>
@@ -43,7 +93,7 @@
                 <li><strong>30-day guarantee:</strong> within 30 days of signing your agreement you may cancel a website build for any reason. We refund 75% of all amounts you have paid under the agreement, retain 25% for work already performed, and cancel any remaining installments or subscriptions. After 30 days, fees are non-refundable once work has begun, except as required by law, and our fix-it commitment applies. See the <a href="{% url 'core:refund_policy' %}">Refund Policy</a>.</li>
             </ul>
 
-            <h2>4. Project Terms</h2>
+            <h2>8. Project Terms</h2>
             <ul>
                 <li>Client provides content (text, images, logos, brand assets) unless the project agreement includes copywriting; the cost of writing copy is discussed before the agreement is signed.</li>
                 <li>Projects include 2 rounds of revisions. Additional revisions are billed at our standard hourly rate, quoted in writing before the work starts.</li>
@@ -51,7 +101,15 @@
                 <li>Final files are delivered when the build is paid in full. On the installment option the site is live and in service before then.</li>
             </ul>
 
-            <h2>5. Intellectual Property</h2>
+            <h2>9. Your Responsibilities</h2>
+            <ul>
+                <li><strong>Your phone number and forwarding.</strong> You own your phone number and your account with your carrier. Setting up or removing call forwarding to the receptionist is done by you, on your line. We can walk you through it, but we cannot do it for you and we are not responsible for your carrier's charges or configuration.</li>
+                <li><strong>Transfer rules and business hours.</strong> You tell us when you are open, who calls should transfer to, and what counts as an emergency. The receptionist follows the rules you give us. If those rules are wrong or out of date, tell us and we will change them.</li>
+                <li><strong>Accurate business details.</strong> The business name, address, hours, services and pricing you give us are what the receptionist tells your callers and what review requests carry. You are responsible for keeping them accurate.</li>
+                <li><strong>Consent to contact your customers.</strong> You confirm you have the right to contact the customers you send review requests to. We do not verify that for you.</li>
+            </ul>
+
+            <h2>10. Intellectual Property</h2>
             <ul>
                 <li>Once the build is paid in full, the client owns the website design, code, and content created specifically for them. The client&rsquo;s domain is registered in the client&rsquo;s name at all times.</li>
                 <li>Aspired Websites LLC retains the right to display completed work in our portfolio, case studies, and marketing materials, unless the client requests in writing that we not do so.</li>
@@ -59,7 +117,7 @@
                 <li>Third-party software, fonts, plugins, or libraries used in your site remain subject to their own licenses.</li>
             </ul>
 
-            <h2>6. Hosting and Maintenance</h2>
+            <h2>11. Hosting and Maintenance</h2>
             <ul>
                 <li>Hosting is provided on DigitalOcean infrastructure.</li>
                 <li>We target 99.9% uptime, but uptime is not guaranteed. Downtime caused by third-party providers, DNS issues, force majeure events, or client-requested changes is excluded from this target.</li>
@@ -69,37 +127,86 @@
                 <li>Upon cancellation, once the build is paid in full, the client receives all website files and database exports free of charge and is free to host elsewhere. Hands-on migration help is billed hourly.</li>
             </ul>
 
-            <h2>7. Limitation of Liability</h2>
+            {% comment %}
+            Data, acceptable use and availability are stated for the two
+            trial products specifically. The receptionist records and
+            transcribes real phone calls with the client's customers,
+            which is the most sensitive data this business touches, so
+            what we keep and for how long is said plainly rather than
+            left to the privacy policy alone. The retention figure comes
+            from core.views so the policy exists in exactly one place.
+            {% endcomment %}
+            <h2>12. Data We Store</h2>
+            <p>To deliver these two services we store:</p>
+            <ul>
+                <li><strong>For the AI Voice Receptionist:</strong> recordings and transcripts of calls answered by the receptionist, and the caller details it collects (name, phone number, address, and what the caller said they needed).</li>
+                <li><strong>For Automated Review Generation:</strong> the names and contact details of the customers you or your job software mark as complete, and whether a review request was sent, delivered, or opted out of.</li>
+            </ul>
+            <p>We use this data only to deliver the service you are paying for. We do not sell it, and we do not use it to train anything or to market to your customers.</p>
+            <p>Call recordings and transcripts are kept for {{ call_recording_retention_days }} days and then deleted. Caller details that became a lead or a job stay in your portal until you delete them or close your account.</p>
+            <p>Our <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a> covers how we handle data across the whole site, including what our third-party telephony and AI providers receive in order to make the receptionist work.</p>
+
+            <h2>13. Acceptable Use</h2>
+            <ul>
+                <li>Do not use these services for anything illegal, abusive, harassing, or deceptive.</li>
+                <li>Do not use the receptionist to impersonate another business, and do not configure it to mislead callers about who they have reached or about the fact that they are speaking to an automated assistant.</li>
+                <li>Do not use review generation to solicit fake reviews, to contact people who have not done business with you, or to contact people who have opted out.</li>
+                <li>We may suspend or terminate either service for abuse. Where it is practical to do so safely, we will contact you first and give you a chance to fix it.</li>
+            </ul>
+
+            <h2>14. Service Changes and Availability</h2>
+            <ul>
+                <li>We may add, change, or remove features. If a change materially reduces what you are paying for, we will tell you before it takes effect and you can cancel.</li>
+                <li><strong>There is no uptime guarantee on either service.</strong> We work to keep them running and we fix problems as fast as we can, but neither is sold with a service level commitment.</li>
+                <li>Both services depend on third parties outside our control, including telephony carriers, our voice platform, AI model providers, Google, and email and SMS delivery networks. An outage or a policy change at any of them can interrupt the service, and that is not something we can guarantee against.</li>
+            </ul>
+
+            <h2>15. Limitation of Liability</h2>
             <p>To the maximum extent permitted by law, Aspired Websites LLC is not liable for:</p>
             <ul>
                 <li>Loss of business, revenue, or profits due to website downtime, performance issues, or any other cause.</li>
+                <li><strong>Missed, dropped, misrouted, or incorrectly transcribed calls</strong>, or any business lost as a result. The receptionist is software and it will sometimes get things wrong.</li>
+                <li>Review requests that are not delivered, or the content of reviews your customers choose to leave.</li>
                 <li>Data loss beyond what our reasonable backup procedures can recover.</li>
-                <li>Outages or failures of third-party services (hosting provider, payment processors, email delivery, DNS, etc.).</li>
+                <li>Outages or failures of third-party services (hosting provider, telephony carriers, AI providers, payment processors, email delivery, DNS, etc.).</li>
                 <li>Any indirect, incidental, special, consequential, or punitive damages.</li>
             </ul>
             <p>Our total cumulative liability for any claim related to our services is limited to the amount you paid us in the 3 months immediately preceding the claim.</p>
+            <!-- TODO: attorney review -->
 
-            <h2>8. Confidentiality</h2>
+            <h2>16. Confidentiality</h2>
             <p>We treat all client information as confidential and do not share it with third parties except as necessary to provide services (see our <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a> for details). This obligation survives termination of the engagement.</p>
 
-            <h2>9. Termination</h2>
+            <h2>17. Termination</h2>
             <p>We reserve the right to terminate services for non-payment, breach of these terms, or conduct that creates legal or reputational risk for us. We will provide written notice and a reasonable opportunity to cure when practical. Upon termination, any work completed and any data we hold for you will be delivered to you within 30 days, subject to payment of any outstanding invoices.</p>
 
-            <h2>10. Governing Law</h2>
-            <p>These Terms are governed by the laws of the State of Georgia, without regard to its conflict-of-laws principles. Any disputes will be resolved in the state or federal courts located in the State of Georgia, and you consent to that jurisdiction.</p>
+            <h2>18. Governing Law</h2>
+            <p>These Terms are governed by the laws of the State of Georgia, without regard to its conflict-of-laws principles. Any disputes will be resolved in the state or federal courts located in Fulton County, Georgia, and you consent to that jurisdiction and venue.</p>
+            <!-- TODO: attorney review -->
 
-            <h2>11. Changes to Terms</h2>
-            <p>We may update these Terms from time to time. Active clients will receive at least 30 days written notice before material changes take effect. Continued use of our services after the effective date constitutes acceptance of the updated Terms.</p>
+            <h2>19. Changes to Terms</h2>
+            <p>We may update these Terms from time to time. Each revision is posted on this page with a new version number and effective date, shown at the top. Active clients will receive at least 30 days written notice before material changes take effect. Continued use of our services after the effective date constitutes acceptance of the updated Terms.</p>
+            <p>The version you agreed to at signup is the version we recorded, and that is the one that governs your agreement until a change takes effect under this section.</p>
 
-            <h2>12. Text Message Communications</h2>
+            <h2>20. Text Message Communications</h2>
             <p>If you provide your phone number to us &mdash; through our contact form, our chat widget, or during a project &mdash; you consent to receive operational and informational text messages from Aspired Websites LLC related to our services. This includes things like appointment confirmations and reminders, project status updates, and replies to a chat conversation you started with us. These messages are transactional, not marketing or promotional, and sending them does not require a separate marketing opt-in.</p>
             <p>Message and data rates may apply. Message frequency may vary based on your interactions with us. Text <strong>STOP</strong> to (210) 201-0375 to unsubscribe at any time. Text <strong>HELP</strong> to (210) 201-0375 or email <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a> for assistance. Opting out of texts does not opt you out of phone calls or email, and does not affect the services you've engaged us for. Carriers are not liable for delayed or undelivered messages. See our <a href="{% url 'core:privacy_policy' %}">Privacy Policy</a> for details on how we handle your phone number.</p>
 
-            <h2>13. Contact</h2>
+            <h2>21. Contact</h2>
+            {% comment %}
+            Billing email is a placeholder until Zachery supplies the
+            address he wants subscription questions going to. It is
+            deliberately conspicuous rather than quietly defaulted to
+            zacherylong@: section 6 promises cancellation by email, and
+            pointing that promise at an unconfirmed inbox is worse than
+            showing an obvious gap.
+            {% endcomment %}
             <address class="legal-doc__address">
                 <strong>Aspired Websites LLC</strong><br>
-                Warner Robins, Georgia<br>
-                Email: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
+                8735 Dunwoody Place, Ste R<br>
+                Atlanta, GA 30350<br>
+                Billing and subscriptions: <a href="mailto:[YOUR EMAIL HERE]">[YOUR EMAIL HERE]</a><br>
+                Everything else: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
                 Phone: <a href="tel:+12102010375">(210) 201-0375</a><br>
                 Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>
             </address>

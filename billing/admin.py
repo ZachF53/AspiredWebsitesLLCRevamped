@@ -3,7 +3,52 @@
 from django.contrib import admin, messages
 from django.utils.html import format_html
 
-from .models import AddonPricing, MiniInvoice, ServiceTier, TierFeature
+from .models import (
+    AddonPricing, MiniInvoice, ServiceTier, TermsAcceptance, TierFeature,
+)
+
+
+@admin.register(TermsAcceptance)
+class TermsAcceptanceAdmin(admin.ModelAdmin):
+    """Evidence, so deliberately not editable from here.
+
+    The whole value of this table is that a row says what the buyer's
+    browser actually did. An admin who can retype the version or the
+    timestamp turns it from evidence into an assertion, which is exactly
+    what it would need to stop being in a chargeback or a regulator
+    enquiry. Rows are created by the checkout view and completed by the
+    Stripe webhook; nothing else should write them.
+
+    Delete is left off too. A trial signup that someone wants erased is
+    a data-subject request, which goes through the normal deletion path
+    with a record of why, not a quiet row removal.
+    """
+
+    list_display = ('email', 'product_slug', 'terms_version', 'accepted_at',
+                    'ip_address', 'stripe_subscription_id')
+    list_filter = ('product_slug', 'terms_version', 'accepted_at')
+    search_fields = ('email', 'stripe_customer_id', 'stripe_subscription_id',
+                     'stripe_checkout_session_id')
+    date_hierarchy = 'accepted_at'
+    ordering = ('-accepted_at',)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # False would hide the row entirely on some Django versions.
+        # View permission plus an all-readonly fieldset is what makes it
+        # inspectable but not writable.
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        return True
 
 
 @admin.register(MiniInvoice)
