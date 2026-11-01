@@ -74,7 +74,8 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
                                     product_type, subscription_id='',
                                     hosting_upsell=False, customer_name='',
                                     website_id='',
-                                    onboarding_product_type=None):
+                                    onboarding_product_type=None,
+                                    trial=False):
     """Idempotently create the account objects for a self-checkout sale.
 
     Returns the ``User`` (with a possibly-unusable password — the buyer
@@ -189,7 +190,12 @@ def provision_self_checkout_account(*, email, customer_id, tier_slug,
             from voice.entitlement import program_for
             account = Account.objects.filter(user=user).first()
             if account is not None:
-                program_for(account, create=True)
+                # A free trial joins the cohort (locking the price it
+                # signed up at) but does not occupy a slot until it
+                # pays, so trialists cannot move the ladder for paying
+                # customers. The invoice.paid webhook flips it.
+                program_for(account, create=True,
+                            consume_slot=not trial)
         except Exception:  # noqa: BLE001
             logger.exception(
                 'provision: VoiceProgram create failed for %s', user.pk)

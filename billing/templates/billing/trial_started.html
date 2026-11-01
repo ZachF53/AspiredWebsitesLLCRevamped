@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
+{% block title %}Your free trial has started{% endblock %}
+
+{% block content %}
+<div class="checkout-shell">
+    <div class="checkout-success">
+        <h1>Your {{ trial_days }} free days have started.</h1>
+
+        <p class="checkout-success__lead">
+            <strong>{{ tier.name }}</strong> is active. You have not been charged.
+        </p>
+
+        {% comment %}
+        This box is the post-signup half of the trial disclosure: the
+        amount, the exact date of the first charge, and how to cancel
+        before it. It repeats what the checkout page said on purpose. A
+        buyer who skimmed the checkout page is exactly the buyer who
+        disputes the first charge, and "it was on the previous page" is
+        not a defence anyone wants to run.
+
+        The date comes from trial_end on the Stripe subscription where
+        we could read it, falling back to the date computed from
+        TRIAL_DAYS. Either way the page always names a date, because
+        "you will be charged" without a date is the disclosure gap the
+        trial rules exist to close.
+        {% endcomment %}
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">What happens next</h3>
+            <ol class="checkout-next__steps">
+                <li>
+                    <strong>Nothing is charged until
+                    {{ trial_ends|date:"F j, Y" }}.</strong>
+                    On that date your card is charged
+                    {{ tier.get_price_display }}, and monthly on that date
+                    after it.
+                </li>
+                <li>
+                    Stripe emails you a reminder before that first charge, so
+                    the date does not arrive as a surprise.
+                </li>
+                <li>
+                    <strong>Cancel before {{ trial_ends|date:"F j, Y" }} and you
+                    pay nothing at all.</strong>
+                    You can do it yourself from
+                    <a href="{{ billing_portal_url }}">your billing portal</a>,
+                    in one step, without talking to anyone.
+                </li>
+            </ol>
+        </div>
+
+        {% comment %}
+        TODO: Zachery to supply the onboarding copy for this block. It
+        needs to say what the client does next to get the product
+        running during the trial, which differs per product (the
+        receptionist needs a forwarding change, review automation needs
+        Google Business Profile access and a job-software trigger).
+
+        Left as a visible placeholder rather than guessed at, because
+        the trial clock is already running by the time anyone reads
+        this: a wrong instruction here costs the client days of their
+        free period.
+        {% endcomment %}
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">Getting set up</h3>
+            <p class="muted">
+                [TODO: onboarding copy for {{ tier.name }} goes here.]
+            </p>
+        </div>
+
+        <p class="muted">
+            Check your email for a link to set your password. Don't see it?
+            Check spam, or email
+            <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>.
+        </p>
+
+        <a class="btn-primary btn-lg" href="/portal/">Go to your portal &rarr;</a>
+
+        <p class="muted checkout-secure">
+            Questions about billing or cancelling? See the
+            <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>
+            {% if acceptance %}(version {{ acceptance.terms_version }},
+            which you accepted on
+            {{ acceptance.accepted_at|date:"F j, Y" }}){% endif %}.
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -169,22 +169,63 @@ def cohort_context():
     }
 
 
-def assign_to_current(program):
+def assign_to_current(program, *, consume_slot=True):
     """Put a newly entitled program on the current rung.
 
     Idempotent: a program that already has a cohort keeps it. That
     matters because this is called from both the purchase path and the
     comp path, and a comp toggled off and on again must not silently
     reprice the client.
+
+    ``consume_slot=False`` is the free-trial case. The program still
+    joins the current cohort and still locks its price, because that is
+    what grandfathers the trialist onto the price they were shown and
+    what Stripe will actually bill them. It just does not occupy a slot
+    until it pays. See ``VoiceCohort.filled``.
+
+    The price is locked at SIGNUP, not at conversion, and that is the
+    whole reason the cohort is assigned here rather than on first
+    payment. Stripe keeps a subscription on the Price object it was
+    created with, so a trialist who converts after the ladder has moved
+    is still billed the old amount. Assigning them to whatever cohort
+    happened to be current at conversion would record a price we are
+    not charging.
     """
     if program.cohort_id is not None:
         return program.cohort
     cohort = current_cohort()
     program.cohort = cohort
     program.locked_price = cohort.price
-    program.save(update_fields=['cohort', 'locked_price', 'updated_at'])
-    bust_slots_cache()
+    program.slot_consumed = bool(consume_slot)
+    program.save(update_fields=['cohort', 'locked_price', 'slot_consumed',
+                                'updated_at'])
+    if consume_slot:
+        bust_slots_cache()
     return cohort
+
+
+def consume_slot(program):
+    """Turn a trial program into real cohort occupancy. Idempotent.
+
+    Called from the invoice.paid webhook when a trial converts. Returns
+    True only when this call is what flipped it, so the caller can tell
+    a first conversion apart from a webhook redelivery or an ordinary
+    monthly renewal and avoid escalating the ladder twice.
+
+    Does NOT reassign the cohort or re-lock the price. The program has
+    been on its cohort since signup and is billed that cohort's price;
+    moving it now would reprice a customer mid-subscription.
+    """
+    if program is None or program.slot_consumed:
+        return False
+    program.slot_consumed = True
+    program.save(update_fields=['slot_consumed', 'updated_at'])
+    bust_slots_cache()
+    logger.info(
+        'voice.cohorts: program %s converted, now occupies a slot in '
+        'cohort %s', program.pk,
+        getattr(program.cohort, 'sequence', '?'))
+    return True
 
 
 def _mint_stripe_price(tier, amount):

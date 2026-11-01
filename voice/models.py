@@ -114,8 +114,21 @@ class VoiceCohort(TimestampedModel):
 
     @property
     def filled(self):
-        """Accounts occupying a slot in this cohort."""
-        return self.programs.count()
+        """Accounts occupying a slot in this cohort.
+
+        Counts programs with ``slot_consumed=True``, which from Nov 2026
+        means "has paid at least once, or is comped". A program on a
+        free trial is attached to this cohort — that is how it is
+        grandfathered onto the price it signed up at — but does NOT
+        occupy a slot until its first invoice is paid.
+
+        Owner's decision: a trial is not a sale and must not move the
+        ladder for paying customers. Ten people trialling simultaneously
+        would otherwise escalate $97 to $147 before a single dollar
+        arrived, and anyone who cancelled in their free 14 days would
+        have raised the price for a real buyer on the way out.
+        """
+        return self.programs.filter(slot_consumed=True).count()
 
     @property
     def slots_remaining(self):
@@ -206,6 +219,15 @@ class VoiceProgram(TimestampedModel):
     # and it must not move when the cohort row is edited.
     locked_price = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True)
+    # Whether this program occupies a slot in its cohort. See
+    # VoiceCohort.filled for why a trial does not.
+    #
+    # Defaults True so every row that existed before free trials shipped
+    # keeps counting, and so both comp paths and the operator-initiated
+    # signup path need no change: all of those are real occupancy the
+    # moment they are created. Only the trial checkout opts out, and
+    # billing/webhooks.py flips it on the first paid invoice.
+    slot_consumed = models.BooleanField(default=True, db_index=True)
 
     # ── Business identity ────────────────────────────────────────────
     legal_business_name = models.CharField(max_length=200, blank=True)

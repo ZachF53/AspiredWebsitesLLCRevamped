@@ -17012,6 +17012,47 @@ select.ob-question__input:focus {
     font-weight: 600;
 }
 .checkout-total-note { font-size: 0.75rem; margin: 0.4rem 0 0; }
+/* Free trial: the "From <date>  $97/mo" line under a $0.00 Today.
+   Dimmer than .checkout-total so the $0.00 reads as the headline and
+   this reads as the consequence, without hiding it. */
+.checkout-total--secondary {
+    color: var(--color-text-muted);
+    font-weight: 500;
+    margin-top: 0.3rem;
+}
+/* Free trial: the required Terms checkbox. Mirrors .checkout-upsell's
+   shape so the two opt-ins on this page look like siblings, in neutral
+   grey rather than orange because this one is a condition of sale, not
+   an offer being sold. */
+.checkout-terms {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0 0 0.75rem;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.checkout-terms input { margin-top: 0.15rem; flex-shrink: 0; }
+/* Free trial: the pre-purchase disclosure above the button. Full
+   body-text contrast on purpose, NOT .muted — this states the amount,
+   the first-charge date and how to cancel, and it has to be as legible
+   as the button it sits above. Styling it as fine print would defeat
+   the reason it is there. */
+.checkout-trial-disclosure {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--color-text);
+    background: rgba(13, 148, 136, 0.08);
+    border-left: 3px solid var(--color-teal);
+    border-radius: 4px;
+    padding: 0.7rem 0.85rem;
+    margin: 0 0 1rem;
+}
 .checkout-upsell {
     display: flex;
     gap: 0.6rem;

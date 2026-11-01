@@ -147,7 +147,7 @@ def _onboarding_row(account):
         return None
 
 
-def program_for(account, *, website=None, create=False):
+def program_for(account, *, website=None, create=False, consume_slot=True):
     """The account's VoiceProgram, optionally creating it.
 
     Resolves a website-specific row first, then the account-level row, so
@@ -157,6 +157,12 @@ def program_for(account, *, website=None, create=False):
     a program with no cohort has no locked price and would be invisible
     to the "spots remaining" counter — which would then let an 11th
     account buy at the 10-account price.
+
+    ``consume_slot=False`` is passed by the free-trial checkout. The
+    program still joins the cohort and locks its price; it just does not
+    count toward "spots remaining" until it pays. Defaulting to True
+    keeps every existing caller (both comp paths, the operator signup
+    path) behaving exactly as before.
     """
     if account is None:
         return None
@@ -174,7 +180,12 @@ def program_for(account, *, website=None, create=False):
         program = VoiceProgram.objects.create(account=account)
         try:
             from voice.cohorts import assign_to_current, maybe_escalate
-            assign_to_current(program)
+            assign_to_current(program, consume_slot=consume_slot)
+            # A trial consumed no slot, so the ladder cannot have filled
+            # and this is a no-op. Called unconditionally anyway rather
+            # than branched on, because maybe_escalate already
+            # self-checks and a branch here would be one more place for
+            # the two conditions to drift apart.
             maybe_escalate()
         except Exception:
             logger.exception(

@@ -22,10 +22,27 @@ urlpatterns = [
          checkout_views.checkout_email_check, name='checkout_email_check'),
     path('checkout/<slug:tier_slug>/confirm/',
          checkout_views.checkout_confirm, name='checkout_confirm'),
+    # Free-trial only: called by the browser after it completes a 3DS
+    # challenge on the SetupIntent, to create the trialing subscription.
+    # The charge-now path has no equivalent because there the browser
+    # confirms a PaymentIntent that is already attached to a
+    # subscription.
+    path('checkout/<slug:tier_slug>/finalize/',
+         checkout_views.checkout_finalize, name='checkout_finalize'),
     path('checkout/<slug:tier_slug>/success/',
          checkout_views.checkout_success, name='checkout_success'),
-    # Phase 7 — portal billing management (custom UI, no Customer Portal)
+    # Post-signup disclosure for a free trial: what gets charged, when,
+    # and how to cancel first. Keyed on the TermsAcceptance UUID.
+    path('trial-started/<slug:tier_slug>/',
+         checkout_views.trial_started, name='trial_started'),
+    # Phase 7 — portal billing management (custom UI)
     path('portal/', portal_views.billing_home, name='portal_home'),
+    # Stripe's hosted Customer Portal, added Nov 2026 alongside the free
+    # trial. The custom UI above stays; this is the one-click cancel path
+    # the trial disclosure promises, and it works for a buyer who has
+    # not set a password yet (?ref=<TermsAcceptance uuid>).
+    path('portal/stripe/',
+         portal_views.stripe_customer_portal, name='stripe_portal'),
     path('portal/subs/<str:sub_id>/cancel/',
          portal_views.subscription_cancel, name='subscription_cancel'),
     path('portal/subs/<str:sub_id>/change/',

@@ -26,6 +26,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -37,6 +38,16 @@ from billing.account_provisioning import (
     provision_self_checkout_account,
 )
 from billing.pricing_models import ServiceTier
+from billing.trials import (
+    confirm_card_setup,
+    record_acceptance,
+    start_trial_subscription,
+    subscription_metadata,
+    subscription_trial_end,
+    tier_is_trial_eligible,
+    trial_days,
+    trial_end_date,
+)
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -324,6 +335,14 @@ def checkout_page(request, tier_slug):
     )
     show_monthly_note = recurring_category and not already_says_monthly
 
+    # Free-trial disclosure. The date is computed server-side from
+    # TRIAL_DAYS, the same setting handed to Stripe, so the date the
+    # buyer is shown before entering a card cannot drift from the date
+    # Stripe actually bills. It is the "before the card is taken" half
+    # of the trial disclosure rules; the reminder email is a Stripe
+    # setting and the easy cancellation is the billing portal.
+    is_trial = tier_is_trial_eligible(tier)
+
     return render(request, 'billing/checkout.html', {
         'tier': tier,
         'hourly_display': hourly.get_price_display() if hourly else '',
@@ -331,6 +350,14 @@ def checkout_page(request, tier_slug):
         'show_hosting_upsell': show_hosting_upsell,
         'hosting_first_year_price': hosting_first_year_price,
         'show_monthly_note': show_monthly_note,
+        'is_trial': is_trial,
+        'trial_days': trial_days() if is_trial else 0,
+        'trial_ends': trial_end_date() if is_trial else None,
+        'terms_version': getattr(settings, 'TERMS_VERSION', ''),
+        # Pre-purchase, there is no customer yet, so this points at the
+        # client portal rather than a Stripe portal session. It is a
+        # "here is where you will cancel" reference, not a live link.
+        'billing_portal_url': reverse('billing:portal_home'),
         'stripe_publishable_key': getattr(
             settings, 'STRIPE_PUBLISHABLE_KEY', ''),
     })
@@ -385,6 +412,16 @@ def checkout_confirm(request, tier_slug):
 
     email = (payload.get('email') or '').strip().lower()
     payment_method_id = (payload.get('payment_method_id') or '').strip()
+
+    # The two $97/mo add-ons start as a free trial instead of charging
+    # now. Branched here rather than threaded through the charge-now
+    # path below, because that path's coupon handling, hosting upsell
+    # and PaymentIntent confirmation are all meaningless on a $0 first
+    # invoice, and interleaving the two produced a function where every
+    # other line was an `if trial`.
+    if tier_is_trial_eligible(tier):
+        return _confirm_trial(request, tier, payload)
+
     # The upsell only exists on a maintenance checkout while the legacy
     # annual hosting tier is sold; ignore a stale flag otherwise.
     hosting_upsell = bool(payload.get('hosting_upsell')) and (
@@ -578,6 +615,331 @@ def checkout_confirm(request, tier_slug):
         'subscription_id': subscription.id,
         'status': status,
         'redirect': setup_redirect,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Free trial path (AI Voice Receptionist, Review System)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _trial_provision(stripe, *, acceptance, tier, subscription,
+                     payment_method_id):
+    """Create the Django account for a trial buyer. Returns (user, redirect).
+
+    Same synchronous-provisioning reasoning as the charge-now path: the
+    webhook is a backstop, not the primary route, and a buyer who has
+    just handed over a card should land on the set-password screen
+    rather than wait for an async event that may be minutes behind.
+
+    Never raises. A provisioning failure must not leave the buyer
+    believing their trial did not start, because in Stripe it did.
+    """
+    product_type = _provision_product_type(tier)
+    onboarding_product_type = _onboarding_product_type(tier)
+    setup_redirect = reverse('billing:trial_started',
+                             kwargs={'tier_slug': tier.slug})
+    setup_redirect = f'{setup_redirect}?ref={acceptance.pk}'
+
+    buyer = None
+    try:
+        buyer = provision_self_checkout_account(
+            email=acceptance.email,
+            customer_id=acceptance.stripe_customer_id,
+            tier_slug=tier.slug,
+            product_type=product_type,
+            onboarding_product_type=onboarding_product_type,
+            subscription_id=subscription['id'],
+            hosting_upsell=False,
+            customer_name='',
+            # Marks the voice cohort slot unconsumed until the first
+            # invoice is paid. A trial must not move the price ladder.
+            trial=True,
+        )
+        if buyer is not None and not buyer.has_usable_password():
+            # Still send the buyer to the trial-started page first, not
+            # straight to set-password: the disclosure of what gets
+            # charged and when is the thing they need to see, and the
+            # password email is already in their inbox.
+            issue_password_setup_link(buyer, send_email=True)
+    except Exception:  # noqa: BLE001
+        logger.exception('checkout: trial provisioning failed for %s',
+                         acceptance.email)
+    return buyer, setup_redirect
+
+
+def _confirm_trial(request, tier, payload):
+    """Start a free trial: terms gate, SetupIntent, then subscription.
+
+    Returns the same JSON shapes as the charge-now path so checkout.js
+    needs no branch of its own, with one addition: `requires_action`
+    here means "confirm this SetupIntent then POST to finalize_url",
+    not "confirm this PaymentIntent and navigate".
+    """
+    email = (payload.get('email') or '').strip().lower()
+    payment_method_id = (payload.get('payment_method_id') or '').strip()
+
+    if not email or not payment_method_id:
+        return JsonResponse({
+            'error': 'email and payment_method_id required'}, status=400)
+
+    # ── The terms gate. Server-side, before anything else happens. ──
+    # A disabled button is a courtesy, not a control: the browser can
+    # POST whatever it likes. This is the check that actually prevents a
+    # subscription existing without a recorded acceptance, which is the
+    # thing we would need to produce in a chargeback.
+    if not payload.get('terms_accepted'):
+        return JsonResponse({
+            'error': 'Please accept the Terms of Service to continue.',
+        }, status=400)
+
+    acceptance = record_acceptance(request, email=email, tier=tier)
+
+    stripe = _stripe()
+
+    # 1) Customer, card, default payment method. Unchanged from the
+    #    charge-now path — a trial still collects a real card.
+    try:
+        existing = stripe.Customer.list(email=email, limit=1).data
+        customer = existing[0] if existing else stripe.Customer.create(
+            email=email)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('checkout: trial customer lookup/create failed')
+        return JsonResponse({'error': _stripe_error_message(exc)}, status=400)
+
+    acceptance.stripe_customer_id = customer.id
+    acceptance.save(update_fields=['stripe_customer_id', 'updated_at'])
+
+    try:
+        stripe.PaymentMethod.attach(payment_method_id, customer=customer.id)
+        stripe.Customer.modify(
+            customer.id,
+            invoice_settings={'default_payment_method': payment_method_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('checkout: trial payment method attach failed')
+        return JsonResponse({'error': _stripe_error_message(exc)}, status=400)
+
+    # 2) Confirm a SetupIntent. This is what makes the trial safe: it
+    #    authenticates the card and records the off-session mandate NOW,
+    #    while the buyer is here, instead of discovering on day 15 that
+    #    the card needed 3DS.
+    metadata = subscription_metadata(
+        acceptance, tier=tier,
+        product_type=_provision_product_type(tier),
+        onboarding_product_type=_onboarding_product_type(tier))
+    try:
+        intent = confirm_card_setup(
+            stripe, customer_id=customer.id,
+            payment_method_id=payment_method_id, metadata=metadata)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('checkout: trial SetupIntent failed')
+        return JsonResponse({'error': _stripe_error_message(exc)}, status=400)
+
+    status = intent['status'] if 'status' in intent else None
+    if status == 'requires_action':
+        # Hand the browser the 3DS challenge. No subscription exists
+        # yet and none will until the SetupIntent succeeds.
+        return JsonResponse({
+            'requires_action': True,
+            'setup_intent': True,
+            'client_secret': (intent['client_secret']
+                              if 'client_secret' in intent else ''),
+            'finalize_url': reverse('billing:checkout_finalize',
+                                    kwargs={'tier_slug': tier.slug}),
+            'acceptance_ref': str(acceptance.pk),
+        })
+    if status != 'succeeded':
+        logger.warning('checkout: trial SetupIntent status=%s for %s',
+                       status, email)
+        return JsonResponse({
+            'error': 'We could not verify your card. Please try another '
+                     'card, or email zacherylong@aspiredwebsites.com.',
+        }, status=400)
+
+    return _finish_trial(stripe, acceptance=acceptance, tier=tier,
+                         payment_method_id=payment_method_id)
+
+
+def _finish_trial(stripe, *, acceptance, tier, payment_method_id):
+    """Create the trialing subscription and provision. Shared by both
+    the direct path and the post-SCA finalize path."""
+    try:
+        subscription = start_trial_subscription(
+            stripe, acceptance=acceptance, tier=tier,
+            payment_method_id=payment_method_id,
+            product_type=_provision_product_type(tier),
+            onboarding_product_type=_onboarding_product_type(tier))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('checkout: trial subscription create failed')
+        return JsonResponse({'error': _stripe_error_message(exc)}, status=400)
+
+    _buyer, redirect_to = _trial_provision(
+        stripe, acceptance=acceptance, tier=tier, subscription=subscription,
+        payment_method_id=payment_method_id)
+
+    return JsonResponse({
+        'ok': True,
+        'subscription_id': subscription['id'],
+        'status': (subscription['status']
+                   if 'status' in subscription else None),
+        'redirect': redirect_to,
+    })
+
+
+@csrf_exempt
+@require_POST
+def checkout_finalize(request, tier_slug):
+    """Create the trial subscription after the browser completed 3DS.
+
+    Body: { acceptance_ref: uuid, payment_method_id: str }
+
+    Email and Stripe customer are re-read from the TermsAcceptance row
+    rather than taken from the request. The browser has already proved
+    it holds the acceptance ref; letting it also name the customer would
+    let a tampered POST attach a subscription to someone else's Stripe
+    customer.
+    """
+    tier = get_object_or_404(ServiceTier, slug=tier_slug, is_active=True)
+    if not tier_is_trial_eligible(tier):
+        return JsonResponse({'error': 'tier is not on a trial'}, status=400)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    ref = (payload.get('acceptance_ref') or '').strip()
+    payment_method_id = (payload.get('payment_method_id') or '').strip()
+    if not ref or not payment_method_id:
+        return JsonResponse({
+            'error': 'acceptance_ref and payment_method_id required'},
+            status=400)
+
+    acceptance = _acceptance_by_ref(ref, product_slug=tier.slug)
+    if acceptance is None:
+        return JsonResponse({'error': 'unknown acceptance'}, status=404)
+    if acceptance.stripe_subscription_id:
+        # Already finalized — a double-submit or a retried fetch. Send
+        # them to the page rather than starting a second trial on the
+        # same card.
+        target = reverse('billing:trial_started',
+                         kwargs={'tier_slug': tier.slug})
+        return JsonResponse({'ok': True,
+                             'redirect': f'{target}?ref={acceptance.pk}'})
+    if not acceptance.stripe_customer_id:
+        return JsonResponse({'error': 'acceptance has no customer'},
+                            status=400)
+
+    stripe = _stripe()
+
+    # Verify the card really was set up. Without this check, a client
+    # could skip the 3DS challenge and POST straight here to get a
+    # trial on an unauthenticated card.
+    try:
+        intents = stripe.SetupIntent.list(
+            customer=acceptance.stripe_customer_id, limit=10)
+        confirmed = any(
+            si['status'] == 'succeeded'
+            and si['payment_method'] == payment_method_id
+            for si in intents.data
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception('checkout: trial SetupIntent verify failed')
+        return JsonResponse({
+            'error': 'We could not verify your card. Please try again.'},
+            status=400)
+    if not confirmed:
+        logger.warning(
+            'checkout: finalize called with no succeeded SetupIntent for %s',
+            acceptance.email)
+        return JsonResponse({
+            'error': 'Your card was not confirmed. Please try again.'},
+            status=400)
+
+    return _finish_trial(stripe, acceptance=acceptance, tier=tier,
+                         payment_method_id=payment_method_id)
+
+
+def _acceptance_by_ref(ref, *, product_slug=None):
+    """A TermsAcceptance by UUID, or None on anything malformed.
+
+    Scoped to the product when given, so a ref minted on one checkout
+    cannot be replayed against the other product's page.
+
+    The ref is parsed as a UUID before it reaches the ORM. A garbage
+    value passed to .filter(pk=...) raises ValidationError on a
+    UUIDField, which on the trial-started page would be a 500 on a
+    mistyped URL rather than the "we could not find that" the visitor
+    should get.
+    """
+    import uuid as _uuid
+
+    from billing.terms_models import TermsAcceptance
+
+    if not ref:
+        return None
+    try:
+        parsed = _uuid.UUID(str(ref))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+    qs = TermsAcceptance.objects.filter(pk=parsed)
+    if product_slug:
+        qs = qs.filter(product_slug=product_slug)
+    try:
+        return qs.first()
+    except DjangoValidationError:
+        return None
+
+
+def trial_started(request, tier_slug):
+    """The post-signup disclosure page.
+
+    Shows the authoritative trial end date read back off the Stripe
+    subscription, not the one computed from TRIAL_DAYS, because that is
+    the date the card will actually be charged.
+
+    Keyed on the TermsAcceptance UUID rather than a Stripe subscription
+    id. A bare `sub_...` in a query string is close enough to guessable
+    that it would let anyone holding one enumerate other buyers; a
+    UUID4 is not enumerable, and what it unlocks is only the product
+    name and a date.
+    """
+    tier = get_object_or_404(ServiceTier, slug=tier_slug, is_active=True)
+
+    acceptance = _acceptance_by_ref(
+        (request.GET.get('ref') or '').strip(), product_slug=tier.slug)
+
+    trial_ends = None
+    if acceptance is not None and acceptance.stripe_subscription_id:
+        try:
+            stripe = _stripe()
+            sub = stripe.Subscription.retrieve(
+                acceptance.stripe_subscription_id)
+            trial_ends = subscription_trial_end(sub)
+        except Exception:  # noqa: BLE001
+            logger.exception('trial_started: subscription retrieve failed')
+
+    # Fall back to the computed date so the page always states a date.
+    # A page that says "you will be charged" without saying when is the
+    # exact disclosure gap the trial rules are about.
+    if trial_ends is None:
+        trial_ends = trial_end_date(
+            start=acceptance.accepted_at if acceptance else None)
+
+    # The cancel link carries the acceptance ref so it works for a buyer
+    # who has not set a password yet. Cancellation has to be at least as
+    # easy as signup, and signup required no login.
+    portal_url = reverse('billing:stripe_portal')
+    if acceptance is not None:
+        portal_url = f'{portal_url}?ref={acceptance.pk}'
+
+    return render(request, 'billing/trial_started.html', {
+        'tier': tier,
+        'acceptance': acceptance,
+        'trial_days': trial_days(),
+        'trial_ends': trial_ends,
+        'billing_portal_url': portal_url,
     })
 
 

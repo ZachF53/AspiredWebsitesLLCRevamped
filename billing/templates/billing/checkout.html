@@ -68,19 +68,42 @@
             {% endif %}
 
             <hr class="checkout-divider">
+            {% comment %}
+            On a free trial "Today" is $0.00 and the real number is the
+            one next to the date. Showing the monthly price under a
+            heading that says Today, on a page whose button says the
+            card will not be charged, is the kind of contradiction that
+            produces a chargeback rather than a sale.
+            {% endcomment %}
             <div class="checkout-totals">
-                <div class="checkout-total">
-                    <span>Today</span>
-                    <span id="checkout-total-today">{{ tier.get_price_display }}</span>
-                </div>
-                <p class="muted checkout-total-note">
-                    You can cancel anytime in your portal. See
-                    <a href="/refund-policy/">refund policy</a>.
-                </p>
+                {% if is_trial %}
+                    <div class="checkout-total">
+                        <span>Today</span>
+                        <span id="checkout-total-today">$0.00</span>
+                    </div>
+                    <div class="checkout-total checkout-total--secondary">
+                        <span>From {{ trial_ends|date:"F j, Y" }}</span>
+                        <span>{{ tier.get_price_display }}</span>
+                    </div>
+                    <p class="muted checkout-total-note">
+                        Cancel before {{ trial_ends|date:"F j, Y" }} and you pay nothing.
+                        You can cancel yourself from
+                        <a href="{{ billing_portal_url }}">your billing portal</a> at any time.
+                    </p>
+                {% else %}
+                    <div class="checkout-total">
+                        <span>Today</span>
+                        <span id="checkout-total-today">{{ tier.get_price_display }}</span>
+                    </div>
+                    <p class="muted checkout-total-note">
+                        You can cancel anytime in your portal. See
+                        <a href="/refund-policy/">refund policy</a>.
+                    </p>
+                {% endif %}
             </div>
             {% if tier.category == 'hosting' %}
                 <div class="checkout-next">
-                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <h3 class="checkout-next__title">{% if is_trial %}What happens next{% else %}What happens after you pay{% endif %}</h3>
                     <ol class="checkout-next__steps">
                         <li>Your account is created right away. You&rsquo;ll set a password and a 4-digit PIN, then land in your client portal.</li>
                         <li>We contact you within 24 hours to plan moving your site onto our servers. If the move needs hands-on work, we quote it first{% if hourly_display %} ({{ hourly_display }}){% endif %} and nothing starts until you approve.</li>
@@ -97,7 +120,7 @@
             {% endcomment %}
             {% if tier.slug == 'hvac-review-system' %}
                 <div class="checkout-next">
-                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <h3 class="checkout-next__title">{% if is_trial %}What happens next{% else %}What happens after you pay{% endif %}</h3>
                     <ol class="checkout-next__steps">
                         <li>Your account is created right away. You&rsquo;ll set a password and a 4-digit PIN, then land in your client portal.</li>
                         <li>We contact you within 24 hours to connect your Google Business Profile and wire the trigger into your job software. You don&rsquo;t need a website from us.</li>
@@ -113,7 +136,7 @@
                 first time on an invoice is a refund request.
                 {% endcomment %}
                 <div class="checkout-next">
-                    <h3 class="checkout-next__title">What happens after you pay</h3>
+                    <h3 class="checkout-next__title">{% if is_trial %}What happens next{% else %}What happens after you pay{% endif %}</h3>
                     <ol class="checkout-next__steps">
                         <li>Your account is created right away. You&rsquo;ll set a password, then answer about ten minutes of questions: your hours, what you do, and what counts as an emergency.</li>
                         <li>We build your receptionist and send you the number to forward your line to. You keep your existing number and your carrier, and you can switch the forwarding off whenever you want.</li>
@@ -125,7 +148,9 @@
 
         {# ── RIGHT: payment form ────────────────────────────────── #}
         <section class="checkout-form">
-            <h1 class="checkout-form__title">Complete your purchase</h1>
+            <h1 class="checkout-form__title">
+                {% if is_trial %}Start your free trial{% else %}Complete your purchase{% endif %}
+            </h1>
 
             <form id="checkout-form" novalidate>
                 <div class="form-group">
@@ -151,15 +176,63 @@
 
                 <div id="checkout-error" class="checkout-error" hidden></div>
 
+                {% if is_trial %}
+                    {% comment %}
+                    The terms checkbox and the disclosure below it are
+                    both required, and both have to sit ABOVE the
+                    button. A free trial that converts to a paid
+                    subscription has to disclose the amount, the date of
+                    the first charge and how to cancel BEFORE the card
+                    is taken. After the button is too late, and a link
+                    to a policy page is not a disclosure.
+
+                    The date is rendered server-side from TRIAL_DAYS,
+                    the same value handed to Stripe as
+                    trial_period_days, so the page cannot promise one
+                    date while Stripe bills another.
+                    {% endcomment %}
+                    <label class="checkout-terms">
+                        <input type="checkbox" id="terms-accept" required>
+                        <span>
+                            I have read and agree to the
+                            <a href="{% url 'core:terms_of_service' %}"
+                               target="_blank" rel="noopener">Terms of Service</a>.
+                        </span>
+                    </label>
+
+                    <p class="checkout-trial-disclosure">
+                        {{ trial_days }} days free. Your card will not be charged until
+                        <strong>{{ trial_ends|date:"F j, Y" }}</strong>.
+                        Then {{ tier.get_price_display }}, cancel any time from
+                        <a href="{{ billing_portal_url }}">your billing portal</a>
+                        or by emailing
+                        {% comment %}
+                        TODO: Zachery to supply the billing address. Kept
+                        as a visible placeholder rather than defaulted to
+                        zacherylong@ because this line is a cancellation
+                        promise, and pointing it at an unconfirmed inbox
+                        is worse than an obvious gap. Same placeholder as
+                        section 21 of /terms/.
+                        {% endcomment %}
+                        <a href="mailto:[YOUR EMAIL HERE]">[YOUR EMAIL HERE]</a>.
+                    </p>
+                {% endif %}
+
                 <button type="submit" id="checkout-submit"
                         class="btn-primary btn-lg checkout-submit"
                         data-tier-slug="{{ tier.slug }}"
                         data-base-amount="{{ tier.price|stringformat:'.2f' }}"
                         data-publishable-key="{{ stripe_publishable_key }}"
+                        data-is-trial="{% if is_trial %}1{% else %}0{% endif %}"
                         data-confirm-url="{% url 'billing:checkout_confirm' tier.slug %}"
                         data-email-check-url="{% url 'billing:checkout_email_check' tier.slug %}"
-                        data-success-url="{% url 'billing:checkout_success' tier.slug %}">
-                    Pay <span id="checkout-submit-amount">{{ tier.get_price_display }}</span>
+                        data-success-url="{% url 'billing:checkout_success' tier.slug %}"
+                        {% if is_trial %}disabled{% endif %}>
+                    {% if is_trial %}
+                        Start {{ trial_days }}-Day Free Trial
+                    {% else %}
+                        Pay <span id="checkout-submit-amount">{{ tier.get_price_display }}</span>
+                    {% endif %}
                 </button>
 
                 <p class="muted checkout-secure">

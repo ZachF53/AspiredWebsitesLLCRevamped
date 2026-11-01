@@ -81,6 +81,22 @@
     var submitAmount = document.getElementById('checkout-submit-amount');
     var errorEl = document.getElementById('checkout-error');
     var form = document.getElementById('checkout-form');
+    // Presence of the checkbox is what marks a trial checkout, so there
+    // is no need to read data-is-trial here. The attribute stays on the
+    // button for the tests and for anything that needs to know without
+    // depending on a specific element existing.
+    var termsEl = document.getElementById('terms-accept');
+
+    // Terms gate. The button ships disabled from the server on a trial
+    // checkout and only this listener enables it, so a buyer with JS
+    // broken gets a dead button rather than a live one that skips the
+    // acceptance. checkout_confirm re-checks server-side regardless —
+    // this is the courtesy, not the control.
+    if (termsEl) {
+        termsEl.addEventListener('change', function () {
+            btn.disabled = !termsEl.checked;
+        });
+    }
 
     // Format a number as USD, dropping ".00" on whole-dollar amounts so
     // it matches the server's get_price_display ("$1,199").
@@ -166,6 +182,49 @@
         stopLoading();
     }
 
+    // Free trial, 3DS branch: confirm the SetupIntent, then ask the
+    // server to create the trialing subscription. Two steps because the
+    // card has to be proven before a subscription is created against
+    // it, not after.
+    function confirmTrialSetup(data, paymentMethodId) {
+        return stripe.confirmCardSetup(data.client_secret).then(
+            function (result) {
+                if (result.error) {
+                    showError(result.error.message);
+                    return;
+                }
+                return fetch(data.finalize_url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrf(),
+                    },
+                    body: JSON.stringify({
+                        acceptance_ref: data.acceptance_ref,
+                        payment_method_id: paymentMethodId,
+                    }),
+                }).then(function (r) { return r.json(); })
+                  .then(function (done) {
+                      if (done.error) {
+                          showError(done.error);
+                          return;
+                      }
+                      if (done.ok && done.redirect) {
+                          window.location.href = done.redirect;
+                      } else {
+                          // Card proved but the trial did not start.
+                          // Say so rather than show a success page: the
+                          // buyer needs to know nothing is running.
+                          showError('Your card was confirmed but we could '
+                              + 'not start your trial. Nothing has been '
+                              + 'charged. Please email '
+                              + 'zacherylong@aspiredwebsites.com.');
+                      }
+                  });
+            });
+    }
+
     form.addEventListener('submit', function (e) {
         e.preventDefault();
         errorEl.hidden = true;
@@ -174,6 +233,10 @@
         var email = emailEl.value.trim();
         if (!email) {
             showError('Please enter your email.');
+            return;
+        }
+        if (termsEl && !termsEl.checked) {
+            showError('Please accept the Terms of Service to continue.');
             return;
         }
 
@@ -205,6 +268,7 @@
                     email: email,
                     payment_method_id: pmResult.paymentMethod.id,
                     hosting_upsell: hostingEl ? hostingEl.checked : false,
+                    terms_accepted: termsEl ? termsEl.checked : false,
                 }),
             }).then(function (r) { return r.json(); })
               .then(function (data) {
@@ -212,7 +276,20 @@
                       showError(data.error);
                       return;
                   }
+                  if (data.requires_action && data.setup_intent) {
+                      // Free-trial 3DS. The subscription does not exist
+                      // yet: confirming the SetupIntent only proves the
+                      // card, so we have to call back to finalize/ to
+                      // actually start the trial. Navigating straight to
+                      // the success page here would show someone a
+                      // "your trial started" page with no trial behind
+                      // it.
+                      return confirmTrialSetup(data,
+                                               pmResult.paymentMethod.id);
+                  }
                   if (data.requires_action) {
+                      // Charge-now 3DS, unchanged: the PaymentIntent is
+                      // already attached to a created subscription.
                       return stripe.confirmCardPayment(data.client_secret).then(
                           function (result) {
                               if (result.error) {
