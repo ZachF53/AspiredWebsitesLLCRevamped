@@ -18,6 +18,7 @@ for the site to boot.
 | Variable | Default | What it does |
 |---|---|---|
 | `TRIAL_DAYS` | `14` | Length of the free trial on the two $97/mo add-ons. Passed to Stripe as `subscription_data.trial_period_days` and used to compute the first-charge date shown at checkout. Changing it affects new checkouts only; a running trial keeps the `trial_end` Stripe gave it. |
+| `TRIAL_REMINDER_DAYS` | `3` | How many days before the first charge our own pre-charge reminder email goes out. Read by the daily Celery sweep, so changing it needs the **celery and celerybeat** workers restarted, not just gunicorn. |
 | `TERMS_VERSION` | `2026-11-01` | Stamped onto every `billing.TermsAcceptance` row and shown at the top of `/terms/`. Bump it together with the terms copy. |
 | `BILLING_SUPPORT_EMAIL` | `zacherylong@aspiredwebsites.com` | Where "cancel by emailing us" points, on the checkout disclosure and in section 21 of `/terms/`. Set this if subscription and cancellation mail should go somewhere other than the main inbox. It must be an address that actually receives mail: it sits inside a cancellation promise, and `public/content_gate.py` rule "J placeholders" will fail the test suite if a bracketed placeholder reaches a public page. |
 
@@ -34,11 +35,11 @@ opening price forever and sell a $147 product for $97.
 
 ## The trial cancel link and nginx access logs
 
-`/billing/portal/stripe/?ref=<uuid>` is the no-password cancel link on
-the trial-started page. The `ref` is a credential for the length of the
+`/billing/trial/<slug>/manage/?ref=<uuid>` is the no-password cancel
+page, linked from the trial-started page and the reminder email. The `ref` is a credential for the length of the
 trial, and the application never logs it: Django's own 4xx logging
 records `request.path`, which excludes the query string, and no logger
-call in `billing/portal_views.py` carries it.
+call in `billing/checkout_views.py` carries it. A test asserts that.
 
 **nginx does log it.** The default `combined` log format records the
 full request line including the query string, so these refs land in
@@ -46,6 +47,9 @@ full request line including the query string, so these refs land in
 trial, so the exposure is bounded, but if the access log is shipped
 anywhere off-box that is worth knowing. To strip it, log `$uri` instead
 of `$request` for that location.
+
+The page it reaches is ours, on our domain. There is deliberately no
+link into Stripe's hosted Customer Portal anywhere on this site.
 
 ## Per-environment values
 

@@ -16,12 +16,33 @@ that change customer-visible behaviour.
 
 | # | Where | What | Why |
 |---|---|---|---|
-| 1 | Settings → Business → Public details | Set **Terms of Service URL** to `https://aspiredwebsites.com/terms/` and **Privacy URL** to `https://aspiredwebsites.com/privacy-policy/` | Stripe shows these in the Customer Portal and on receipts. Required if you ever move to Stripe-hosted Checkout with `consent_collection`. |
-| 2 | Settings → Billing → Subscriptions and emails | Enable **"Send emails about upcoming trial expirations"** | This is the legally required reminder before the first charge. It is the one piece of the three-part trial-disclosure requirement that we cannot do in code. **Do not skip this one.** |
-| 3 | Settings → Billing → Customer portal | Enable it. Allow **cancellation**, set to **cancel at end of billing period**, and turn OFF any extra confirmation or retention offers | This is the "cancellation at least as easy as signup" requirement. The trial-started page links straight into it. |
-| 4 | Products | Confirm both recurring **$97/month** prices exist in test mode | |
-| 5 | Admin dashboard → `/admin-dashboard/pricing/` | Paste each test price id onto its `ServiceTier` row (`hvac-voice-receptionist`, `hvac-review-system`) | **Not an env var.** `ServiceTier.stripe_price_id` is the source of truth, and the receptionist price moves up a rung every 10 accounts via `voice/cohorts.py`. An env var would pin new signups to the opening price. |
-| 6 | Developers → Webhooks → your endpoint | Confirm these events are enabled: `customer.subscription.created`, `customer.subscription.trial_will_end`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `invoice.created` | `trial_will_end` is new. `invoice.created` was already required for voice overage billing (CLAUDE.md) and still is. |
+| 1 | Products | Confirm both recurring **$97/month** prices exist in test mode | |
+| 2 | Admin dashboard → `/admin-dashboard/pricing/` | Paste each test price id onto its `ServiceTier` row (`hvac-voice-receptionist`, `hvac-review-system`), or run `python manage.py sync_stripe_products` to create and write them back automatically | **Not an env var.** `ServiceTier.stripe_price_id` is the source of truth, and the receptionist price moves up a rung every 10 accounts via `voice/cohorts.py`. An env var would pin new signups to the opening price. |
+| 3 | Developers → Webhooks → your endpoint | Confirm these events are enabled: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.trial_will_end`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `invoice.created` | `trial_will_end` and `subscription.updated` are the new ones. `invoice.created` was already required for voice overage billing (CLAUDE.md) and still is. |
+
+### What you do NOT have to configure
+
+Two Stripe Dashboard settings an earlier draft of this document asked
+for are no longer needed, because the application does both jobs
+itself:
+
+- **"Send emails about upcoming trial expirations"** — leave it OFF. We
+  send our own pre-charge reminder from `DEFAULT_FROM_EMAIL`, in the
+  same branded template as every other email, carrying our own cancel
+  link. See `billing/trial_reminders.py`. Relying on a dashboard
+  checkbox was the worse design: nothing in the code could verify it
+  was ticked, and the failure mode was a customer charged with no
+  warning.
+- **Customer portal** — leave it off entirely. There is no link into
+  Stripe's hosted portal anywhere on this site. Cancelling happens at
+  `/billing/trial/<slug>/manage/` for a trial and in the client portal
+  after that. A test asserts nothing on the manage page points at
+  stripe.com.
+
+Terms of Service and Privacy URLs under Business → Public details are
+optional now too: they were only needed for Stripe-hosted Checkout's
+`consent_collection` and for the hosted portal, and we use neither.
+Setting them is still reasonable, since they show on Stripe receipts.
 
 ### 1.2 GoHighLevel custom fields
 
@@ -59,6 +80,7 @@ breaks if you skip them, but set them so the environments agree.
 
 ```bash
 TRIAL_DAYS=14
+TRIAL_REMINDER_DAYS=3
 TERMS_VERSION=2026-11-01
 BILLING_SUPPORT_EMAIL=zacherylong@aspiredwebsites.com
 ```
@@ -69,17 +91,22 @@ BILLING_SUPPORT_EMAIL=zacherylong@aspiredwebsites.com
 | Staging `167.99.154.2` | `/var/www/aspired/app/.env` |
 | Prod `161.35.108.209` | `/var/www/aspired/app/.env` |
 
-`.env` never arrives via `git pull`. None of these are read by Celery,
-so `supervisorctl restart aspiredwebsites` is sufficient.
+`.env` never arrives via `git pull`. `TRIAL_REMINDER_DAYS` IS read by
+Celery (the daily reminder sweep), so changing that one needs
+`supervisorctl restart aspiredwebsites aspiredwebsites-celery
+aspiredwebsites-celerybeat`. The others only need gunicorn.
+
+**Staging runs with celerybeat stopped**, so the reminder sweep will not
+fire there on its own. Run `python manage.py send_trial_reminders` by
+hand to test it.
 
 ### 1.4 Still outstanding, needs a decision from you
 
-- **`BILLING_SUPPORT_EMAIL`** currently defaults to your main inbox. You
-  asked for the literal placeholder `[YOUR EMAIL HERE]`; that is not
-  shippable on `/terms/` because `public/content_gate.py` rule
-  "J placeholders" fails the suite on any bracketed placeholder on a
-  public page, and the address sits inside a cancellation promise. Set
-  the env var if cancellation mail should go elsewhere.
+- **`BILLING_SUPPORT_EMAIL`** currently defaults to your main inbox. Set
+  the env var if cancellation mail should go elsewhere. It cannot be a
+  bracketed placeholder: `public/content_gate.py` rule "J placeholders"
+  fails the suite on any of those reaching a public page, and this
+  address sits inside a cancellation promise.
 - **Attorney review** on terms sections 15 (limitation of liability) and
   18 (governing law). Both carry `<!-- TODO: attorney review -->`.
 - **Onboarding copy** for the trial-started page. There is a marked
@@ -259,6 +286,43 @@ stripe subscriptions update sub_XXXX --trial-end=$(date -d '+1 hour' +%s)
 Or from the Dashboard: subscription → Actions → Update trial end.
 
 - [ ] GHL contact gains `trial-ending-<slug>`.
+- [ ] `TermsAcceptance.trial_end` has moved to match, and because the
+      date moved LATER, `reminder_sent_at` was cleared so a fresh
+      reminder goes out quoting the new date.
+
+### 4.1b Our reminder email
+
+This is the pre-charge reminder, and it is ours rather than Stripe's.
+Point a trial at the reminder window and run the sweep:
+
+```bash
+python manage.py shell -c "
+from billing.terms_models import TermsAcceptance
+from django.utils import timezone
+from datetime import timedelta
+row = TermsAcceptance.objects.latest('accepted_at')
+row.trial_end = timezone.now() + timedelta(days=2)
+row.reminder_sent_at = None
+row.save()
+print('due:', row.email, row.trial_end)
+"
+
+python manage.py send_trial_reminders --dry-run   # who is due
+python manage.py send_trial_reminders             # actually send
+```
+
+- [ ] The email arrives from **your** address, in the site's branded
+      template, not from Stripe.
+- [ ] It states `$97/mo` and the exact charge date.
+- [ ] It says nothing has been charged yet.
+- [ ] The button goes to `aspiredwebsites.com/billing/trial/.../manage/`,
+      **not** to stripe.com.
+- [ ] `reminder_sent_at` is now stamped.
+- [ ] Running the command again sends **nothing** (it is a daily job and
+      must be safe to run twice).
+
+Celery beat runs this daily at 8am in production. **Staging has
+celerybeat stopped**, so there it only runs by hand.
 
 ### 4.2 Conversion
 
@@ -279,13 +343,27 @@ Then resend that same `invoice.paid` event from the Dashboard:
 
 - [ ] Skipped by the ledger. The counter does **not** move twice.
 
-### 4.3 Cancellation via the portal
+### 4.3 Cancellation on our own page
 
-From the trial-started page, click the cancel link.
+From the trial-started page or the reminder email, click the cancel
+link. It goes to `/billing/trial/<slug>/manage/?ref=<uuid>`.
 
-- [ ] It opens the Stripe Customer Portal with no login.
-- [ ] Cancelling takes **one click** with no retention interstitial.
-- [ ] Stripe shows `cancel_at_period_end`.
+- [ ] The page is **ours**: site header, site footer, our branding. No
+      redirect to stripe.com anywhere.
+- [ ] It opens with **no login**, which is the point: a buyer from ten
+      minutes ago has no password yet.
+- [ ] It restates the amount and the charge date.
+- [ ] Cancelling is **one click**, no retention interstitial.
+- [ ] The confirmed page says you will not be charged AND that it keeps
+      working until the trial end date.
+- [ ] Stripe shows `cancel_at_period_end` (not deleted, so they keep
+      the free days they have left).
+- [ ] `TermsAcceptance.cancelled_at` is set.
+- [ ] Reloading the page shows the confirmed state, and the cancel
+      button is gone.
+- [ ] `python manage.py send_trial_reminders --dry-run` no longer lists
+      them. Somebody who cancelled must never get a "you are about to be
+      charged" email.
 - [ ] GHL gains `cancelled-<slug>` once the subscription actually ends
       (use `stripe trigger customer.subscription.deleted`, or delete the
       subscription in the Dashboard, to see it now).
@@ -305,9 +383,10 @@ print('aged', row.pk)
 "
 ```
 
-- [ ] `/billing/portal/stripe/?ref=<uuid>` now returns **410** with
-      "sign in to manage billing".
-- [ ] No Stripe portal session was created.
+- [ ] `/billing/trial/<slug>/manage/?ref=<uuid>` now returns **410**
+      and a page saying the link expired, with a sign-in button.
+- [ ] POSTing to that same URL also 410s, so the expiry is not just
+      cosmetic on the GET.
 
 ### 4.5 Payment failure
 
@@ -354,6 +433,7 @@ python manage.py test billing public outreach voice clients.tests_never_bundled
 python manage.py test billing.tests_trial_checkout \
                       billing.tests_trial_webhooks \
                       billing.tests_trial_portal \
+                      billing.tests_trial_reminders \
                       public.tests_site_consistency
 ```
 

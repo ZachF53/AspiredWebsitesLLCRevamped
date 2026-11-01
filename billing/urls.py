@@ -35,14 +35,16 @@ urlpatterns = [
     # and how to cancel first. Keyed on the TermsAcceptance UUID.
     path('trial-started/<slug:tier_slug>/',
          checkout_views.trial_started, name='trial_started'),
+    # Manage or cancel a free trial, on our own domain and in our own
+    # branding. There is deliberately NO route into Stripe's hosted
+    # Customer Portal anywhere on this site (CLAUDE.md: custom UI, no
+    # Customer Portal). Reachable with ?ref=<TermsAcceptance uuid> for
+    # the length of the trial, so a buyer who has not set a password can
+    # still cancel in one click.
+    path('trial/<slug:tier_slug>/manage/',
+         checkout_views.trial_manage, name='trial_manage'),
     # Phase 7 — portal billing management (custom UI)
     path('portal/', portal_views.billing_home, name='portal_home'),
-    # Stripe's hosted Customer Portal, added Nov 2026 alongside the free
-    # trial. The custom UI above stays; this is the one-click cancel path
-    # the trial disclosure promises, and it works for a buyer who has
-    # not set a password yet (?ref=<TermsAcceptance uuid>).
-    path('portal/stripe/',
-         portal_views.stripe_customer_portal, name='stripe_portal'),
     path('portal/subs/<str:sub_id>/cancel/',
          portal_views.subscription_cancel, name='subscription_cancel'),
     path('portal/subs/<str:sub_id>/change/',

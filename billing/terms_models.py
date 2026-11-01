@@ -80,6 +80,24 @@ class TermsAcceptance(TimestampedModel):
     stripe_subscription_id = models.CharField(
         max_length=255, blank=True, db_index=True)
 
+    # Trial end, copied off the Stripe subscription at signup.
+    #
+    # Stored rather than fetched because the reminder sweep runs daily
+    # over every open trial, and asking Stripe for each one would be a
+    # network call per row per day to learn a date that cannot change
+    # without us hearing about it on a webhook. Stripe stays
+    # authoritative: the trial-started page reads it live, and
+    # subscription.updated refreshes this column.
+    trial_end = models.DateTimeField(null=True, blank=True, db_index=True)
+    # When our own "your trial ends soon" email went out. Also the
+    # idempotency guard for the sweep: a daily job that re-sent on every
+    # pass would mail the customer three times before the charge.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    # Set from customer.subscription.deleted. The sweep skips these, so
+    # somebody who cancelled on day 2 never gets a day-11 email telling
+    # them they are about to be charged.
+    cancelled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
     # When the first REAL (non-zero) invoice was paid. The marker for
     # "this trial converted", and deliberately ours rather than
     # Stripe's: it makes "first paid invoice" precise and idempotent

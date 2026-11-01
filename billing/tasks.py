@@ -217,3 +217,24 @@ def send_maintenance_upsell_nudges_task():
     last_line = summary[-1] if summary else ''
     logger.info('send_maintenance_upsell_nudges: %s', last_line)
     return last_line
+
+
+@shared_task
+def run_trial_reminder_sweep_task():
+    """Daily — email every free trial whose first charge is near.
+
+    A daily sweep rather than a task scheduled per signup, for the same
+    reason the dunning chain above is: a Celery countdown eleven days
+    out does not survive a worker restart or a deploy, and losing one
+    would mean charging a customer with no warning. See
+    billing/trial_reminders.py.
+
+    Nothing between this decorator and the function. Inserting a helper
+    here would capture @shared_task for the helper and silently
+    unregister the beat job.
+    """
+    from billing.trial_reminders import run_trial_reminder_sweep
+
+    sent, failed = run_trial_reminder_sweep()
+    logger.info('run_trial_reminder_sweep: %s sent, %s failed', sent, failed)
+    return {'sent': sent, 'failed': failed}

@@ -263,14 +263,44 @@ def start_trial_subscription(stripe, *, acceptance, tier, payment_method_id,
     # webhook does this too, but it is async and may be seconds or
     # minutes behind, and the trial-started page needs the subscription
     # id the moment the buyer lands on it.
+    #
+    # trial_end is stored here as well, because the daily reminder
+    # sweep reads it for every open trial and should not have to ask
+    # Stripe once per row per day for a date that only changes on a
+    # webhook we already handle.
     acceptance.stripe_subscription_id = subscription['id']
-    acceptance.save(update_fields=['stripe_subscription_id', 'updated_at'])
+    acceptance.trial_end = subscription_trial_end(subscription)
+    acceptance.save(update_fields=['stripe_subscription_id', 'trial_end',
+                                   'updated_at'])
 
     logger.info(
         'trials: started %s-day trial for %s on %s (sub=%s acceptance=%s)',
         trial_days(), acceptance.email, tier.slug, subscription['id'],
         acceptance.pk)
     return subscription
+
+
+def ref_window_expired(acceptance):
+    """Whether a trial-started ref link has aged out.
+
+    The ref exists so a buyer who signed up minutes ago can manage and
+    cancel without first setting a password: making them reset a
+    password to cancel would make cancelling strictly harder than
+    signing up was. That need lasts exactly as long as the trial. Once
+    they are a paying customer they have had a fortnight of emails
+    inviting them to set a password, and billing management sits behind
+    that password like everyone else's.
+
+    So the link is NOT a permanent bearer token. Tied to TRIAL_DAYS
+    rather than a separate literal so the window cannot drift out of
+    step with the trial it is meant to cover.
+    """
+    from datetime import timedelta
+
+    if acceptance is None or acceptance.accepted_at is None:
+        return True
+    return timezone.now() > acceptance.accepted_at + timedelta(
+        days=trial_days())
 
 
 def subscription_trial_end(subscription):

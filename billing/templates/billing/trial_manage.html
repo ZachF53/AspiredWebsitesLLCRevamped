@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
+{% block title %}{% if cancelled %}Trial cancelled{% else %}Manage your free trial{% endif %} — {{ tier.name }}{% endblock %}
+
+{% block content %}
+<div class="checkout-shell">
+    <div class="checkout-success">
+
+    {% if cancelled %}
+        {% comment %}
+        Confirmed state. The two things this has to say, in this order,
+        are "you will not be charged" and "it keeps working until the
+        date". Leaving the second one out is what generates the "I
+        cancelled but it's still answering my phone, did it work?"
+        email, and that email arrives on the day someone is already
+        annoyed enough to have cancelled.
+        {% endcomment %}
+        <h1>Cancelled. You will not be charged.</h1>
+
+        <p class="checkout-success__lead">
+            Your <strong>{{ tier.name }}</strong> trial is cancelled and no
+            payment will be taken. Nothing has been charged to your card at
+            any point.
+        </p>
+
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">What happens now</h3>
+            <ol class="checkout-next__steps">
+                <li>
+                    It keeps working until
+                    <strong>{{ trial_ends|date:"F j, Y" }}</strong>, the end of
+                    your free period. You do not lose the days you have left.
+                </li>
+                <li>
+                    After that it switches off on its own. There is nothing
+                    else for you to do and nothing to pay.
+                </li>
+                <li>
+                    Changed your mind? Email
+                    <a href="mailto:{{ billing_support_email }}">{{ billing_support_email }}</a>
+                    or call (210) 201-0375 and we will turn it back on.
+                </li>
+            </ol>
+        </div>
+
+        <p class="muted">
+            If you have a moment, we would genuinely like to know what was
+            missing. Reply to any of our emails and it comes straight to
+            Zachery.
+        </p>
+
+    {% else %}
+        <h1>Your free trial of {{ tier.name }}</h1>
+
+        <p class="checkout-success__lead">
+            Nothing has been charged to your card.
+        </p>
+
+        {% comment %}
+        The amount and date are repeated here rather than assumed known.
+        This page is reached from the reminder email, which is the one
+        place a customer lands specifically to find out what is about to
+        happen to their card.
+        {% endcomment %}
+        <div class="checkout-trial-disclosure">
+            Your card will be charged <strong>{{ tier.get_price_display }}</strong>
+            on <strong>{{ trial_ends|date:"F j, Y" }}</strong>, then
+            {{ tier.get_price_display }} on that date each month.
+            Cancel before then and you pay nothing at all.
+        </div>
+
+        {% if error %}
+            <div class="checkout-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">Keep it</h3>
+            <p class="muted">
+                Nothing to do. It carries on and the first payment comes out
+                on {{ trial_ends|date:"F j, Y" }}.
+            </p>
+            <p><a class="btn-primary" href="/portal/">Go to your portal &rarr;</a></p>
+        </div>
+
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">Cancel it</h3>
+            <p class="muted">
+                One click, no phone call, and you keep the service for the
+                rest of your free days. You will not be charged.
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary">
+                    Cancel my free trial
+                </button>
+            </form>
+        </div>
+
+        <p class="muted checkout-secure">
+            Questions first? Email
+            <a href="mailto:{{ billing_support_email }}">{{ billing_support_email }}</a>
+            or call (210) 201-0375. See the
+            <a href="{% url 'core:terms_of_service' %}">Terms of Service</a>.
+        </p>
+    {% endif %}
+
+    </div>
+</div>
+{% endblock %}

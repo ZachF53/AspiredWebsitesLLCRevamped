@@ -257,6 +257,8 @@ def _handle_trial_lifecycle(event_type, event):
         _on_trial_payment_failed(obj)
     elif event_type == 'customer.subscription.deleted':
         _on_trial_cancelled(obj)
+    elif event_type == 'customer.subscription.updated':
+        _on_trial_subscription_updated(obj)
 
 
 def _on_trial_started(sub):
@@ -428,8 +430,61 @@ def _on_trial_cancelled(sub):
     acceptance = _acceptance_for_subscription(sub.get('id'))
     if acceptance is None:
         return
+    # Stamped so the reminder sweep skips this row. Without it, someone
+    # who cancelled on day 2 would still receive the day-11 "you are
+    # about to be charged" email. Self-serve cancellation already sets
+    # this; a cancellation made in the Stripe dashboard or by us only
+    # arrives here.
+    if acceptance.cancelled_at is None:
+        acceptance.cancelled_at = timezone.now()
+        acceptance.save(update_fields=['cancelled_at', 'updated_at'])
     trial_ghl.push_cancelled(email=acceptance.email,
                              product_slug=acceptance.product_slug)
+
+
+def _on_trial_subscription_updated(sub):
+    """Keep our stored trial_end in step with Stripe's.
+
+    The reminder sweep reads `trial_end` off our own row rather than
+    asking Stripe once per trial per day. That is only safe if an
+    extended or shortened trial updates the column, which is what this
+    does. Stripe stays authoritative; this is the mirror.
+
+    Without it, extending a trial by a week in the Stripe dashboard
+    would send the reminder on the original schedule and the customer
+    would be told a charge date that had moved.
+    """
+    acceptance = _acceptance_for_subscription(sub.get('id'))
+    if acceptance is None:
+        return
+    from billing.trials import subscription_trial_end
+
+    previous = acceptance.trial_end
+    fresh = subscription_trial_end(sub)
+    if fresh == previous:
+        return
+
+    fields = ['trial_end', 'updated_at']
+    acceptance.trial_end = fresh
+    # An already-sent reminder quoted the OLD date, so a trial that got
+    # extended needs a fresh one. Compared against the previous
+    # trial_end, not against when the mail went out.
+    #
+    # Only when the date moved LATER. Shortening a trial is how a
+    # conversion is forced (trial_end=now), and re-mailing "you have 3
+    # days left" to somebody we are about to charge would be worse than
+    # sending nothing.
+    extended = (fresh is not None and previous is not None
+                and fresh > previous)
+    if (extended and acceptance.reminder_sent_at is not None
+            and acceptance.converted_at is None
+            and acceptance.cancelled_at is None):
+        acceptance.reminder_sent_at = None
+        fields.append('reminder_sent_at')
+        logger.info(
+            'trial lifecycle: trial_end moved %s -> %s for %s, reminder '
+            'reset', previous, fresh, acceptance.email)
+    acceptance.save(update_fields=fields)
 
 
 # ── payment_intent.succeeded ────────────────────────────────────────────────

@@ -1,0 +1,55 @@
+{% extends 'emails/base.html' %}
+
+{% block title %}Your {{ product_name }} trial ends {{ trial_end|date:"F j" }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 14px;color:#F8FAFC;font-size:24px;font-weight:700;line-height:1.25;">Hi {{ first_name }}, your free trial ends {{ trial_end|date:"l, F j" }}.</h1>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    This is the heads up before anything is charged. Your
+    <strong>{{ product_name }}</strong> trial has {{ days_left }} day{{ days_left|pluralize }} left.
+</p>
+
+{% comment %}
+The amount and the date sit in a bordered block rather than in the
+prose because this email IS the pre-charge reminder. Someone skimming
+on a phone has to be able to see what gets charged and when without
+reading a paragraph. That is the whole job of the message.
+{% endcomment %}
+<div style="margin:0 0 24px;padding:16px 18px;background:rgba(13,148,136,0.10);border-left:3px solid #0D9488;border-radius:6px;">
+    <p style="margin:0 0 6px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+        <strong>On {{ trial_end|date:"F j, Y" }}</strong> your card is charged
+        <strong>{{ price_display }}</strong>.
+    </p>
+    <p style="margin:0;color:#94A3B8;font-size:14px;line-height:1.6;">
+        Then {{ price_display }} on that date each month. Nothing has been
+        charged so far.
+    </p>
+</div>
+
+<p style="margin:0 0 16px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    If it is working for you, do nothing. It carries on and the first
+    payment comes out on the date above.
+</p>
+
+<p style="margin:0 0 24px;color:#F8FAFC;font-size:15px;line-height:1.6;">
+    If you would rather stop, cancel before {{ trial_end|date:"F j" }} and you
+    will not be charged anything at all. One click, no phone call, and you keep
+    the service for the rest of your free days.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    <tr>
+        <td align="center" style="background:#E8650A;border-radius:8px;">
+            <a href="{{ manage_url }}" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;text-decoration:none;">
+                Manage or cancel my trial &rarr;
+            </a>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:24px 0 0;color:#94A3B8;font-size:14px;line-height:1.6;">
+    Questions about any of this? Reply to this email and it comes straight to
+    me, or call {{ support_phone }}.
+</p>
+{% endblock %}

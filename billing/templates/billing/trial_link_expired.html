@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block robots %}{% include "_meta_noindex.html" %}{% endblock %}
+{% block canonical %}{% endblock %}
+
+{% block title %}This billing link has expired{% endblock %}
+
+{% block content %}
+<div class="checkout-shell">
+    <div class="checkout-success">
+        <h1>This link has expired.</h1>
+
+        {% comment %}
+        Served with HTTP 410, not 404: the link was real and has aged
+        out. The distinction matters to the person reading it, because
+        "not found" reads as "cancelling is broken" and sends them to
+        the phone, while "expired, sign in instead" sends them one click
+        further on. The free-trial link is only valid for the length of
+        the trial by design, after which billing lives behind a
+        password like every other account's.
+        {% endcomment %}
+        <p class="checkout-success__lead">
+            The cancel link from your trial email is only good while the
+            trial is running. Yours has run its course, so billing now lives
+            in your account.
+        </p>
+
+        <div class="checkout-next">
+            <h3 class="checkout-next__title">Manage your subscription</h3>
+            <ol class="checkout-next__steps">
+                <li>
+                    Sign in and go to Subscription and Billing. You can cancel
+                    there in one click, any time.
+                </li>
+                <li>
+                    Not set a password yet? Use the forgotten-password link on
+                    the sign-in page and it will email you one.
+                </li>
+                <li>
+                    Would rather not deal with it? Email
+                    <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a>
+                    or call (210) 201-0375 and we will cancel it for you the
+                    same day.
+                </li>
+            </ol>
+        </div>
+
+        <a class="btn-primary btn-lg" href="/login/">Sign in to manage billing &rarr;</a>
+    </div>
+</div>
+{% endblock %}

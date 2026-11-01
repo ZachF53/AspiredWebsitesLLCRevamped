@@ -404,8 +404,14 @@ class TrialStartedPageTests(TestCase):
         # Trial end read off the Stripe subscription (1794000000 is
         # 2026-11-15), not recomputed from TRIAL_DAYS.
         self.assertIn('2026', html)
-        self.assertIn('/billing/portal/stripe/', html)
+        # Our own manage/cancel page, never Stripe's hosted portal.
+        self.assertIn('/billing/trial/', html)
+        self.assertIn('/manage/', html)
         self.assertIn(str(self.row.pk), html)
+        self.assertNotIn('stripe.com', html)
+        # The reminder is ours now, so the page must not credit Stripe
+        # with sending it.
+        self.assertIn('We email you a reminder', html)
 
     def test_still_names_a_date_when_stripe_is_unreachable(self):
         """No date is the disclosure gap; a computed date is acceptable."""

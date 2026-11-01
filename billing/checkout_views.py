@@ -30,8 +30,10 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django_ratelimit.decorators import ratelimit
 
 from billing.account_provisioning import (
     issue_password_setup_link,
@@ -41,6 +43,7 @@ from billing.pricing_models import ServiceTier
 from billing.trials import (
     confirm_card_setup,
     record_acceptance,
+    ref_window_expired,
     start_trial_subscription,
     subscription_metadata,
     subscription_trial_end,
@@ -929,12 +932,13 @@ def trial_started(request, tier_slug):
         trial_ends = trial_end_date(
             start=acceptance.accepted_at if acceptance else None)
 
-    # The cancel link carries the acceptance ref so it works for a buyer
-    # who has not set a password yet. Cancellation has to be at least as
-    # easy as signup, and signup required no login.
-    portal_url = reverse('billing:stripe_portal')
+    # Our own manage/cancel page, never Stripe's hosted portal. The ref
+    # makes it work for a buyer who has not set a password yet, because
+    # cancellation has to be at least as easy as signup and signup
+    # required no login.
+    portal_url = reverse('clients:portal_subscriptions')
     if acceptance is not None:
-        portal_url = f'{portal_url}?ref={acceptance.pk}'
+        portal_url = _trial_manage_url(acceptance)
 
     return render(request, 'billing/trial_started.html', {
         'tier': tier,
@@ -943,6 +947,138 @@ def trial_started(request, tier_slug):
         'trial_ends': trial_ends,
         'billing_portal_url': portal_url,
     })
+
+
+def _trial_manage_url(acceptance):
+    """Relative URL of the customer-facing manage/cancel page."""
+    path = reverse('billing:trial_manage',
+                   kwargs={'tier_slug': acceptance.product_slug})
+    return f'{path}?ref={acceptance.pk}'
+
+
+@ratelimit(key='ip', rate='10/h', method='POST', block=False)
+def trial_manage(request, tier_slug):
+    """Manage or cancel a free trial, on our own domain.
+
+    This is the cancel path the checkout disclosure and the reminder
+    email promise, and it is deliberately NOT a redirect into Stripe's
+    hosted Customer Portal. Every billing screen a customer sees is
+    ours: our domain, our branding, our wording. CLAUDE.md has said
+    "custom UI, no Customer Portal" since Phase 7 and this honours it.
+
+    Reachable two ways, for the same reason the page exists at all:
+
+    * ``?ref=<TermsAcceptance uuid>``, valid for the length of the
+      trial. Someone who signed up ten minutes ago has no password, and
+      requiring a password reset before they can cancel would make
+      cancelling harder than signing up was.
+    * Signed in, from the portal, forever.
+
+    Cancelling sets ``cancel_at_period_end`` rather than deleting the
+    subscription outright. During a trial that means the customer keeps
+    the service for the rest of their free days and is never charged,
+    which is strictly better for them than losing access the moment
+    they click. Saying so on the page is what stops the "I cancelled
+    and it's still working, did it work?" email.
+    """
+    tier = get_object_or_404(ServiceTier, slug=tier_slug, is_active=True)
+    acceptance = _acceptance_by_ref(
+        (request.GET.get('ref') or '').strip(), product_slug=tier.slug)
+
+    if acceptance is not None and ref_window_expired(acceptance):
+        # 410 rather than 404: the link was real and has aged out, and
+        # saying so is what sends the customer to sign in instead of
+        # assuming cancellation is broken.
+        return render(request, 'billing/trial_link_expired.html',
+                      {'tier': tier}, status=410)
+
+    if acceptance is None:
+        # No valid ref. A signed-in client manages billing in the
+        # portal; anyone else gets sent to sign in.
+        return redirect('clients:portal_subscriptions')
+
+    cancelled = acceptance.cancelled_at is not None
+    error = ''
+
+    if request.method == 'POST' and not cancelled:
+        if getattr(request, 'limited', False):
+            error = ('Too many attempts. Please wait a few minutes, or '
+                     'call us and we will cancel it for you.')
+        else:
+            ok, error = _cancel_trial(acceptance)
+            if ok:
+                cancelled = True
+                acceptance.refresh_from_db()
+
+    trial_ends = acceptance.trial_end or trial_end_date(
+        start=acceptance.accepted_at)
+
+    return render(request, 'billing/trial_manage.html', {
+        'tier': tier,
+        'acceptance': acceptance,
+        'trial_ends': trial_ends,
+        'trial_days': trial_days(),
+        'cancelled': cancelled,
+        'error': error,
+        'billing_support_email': getattr(
+            settings, 'BILLING_SUPPORT_EMAIL', ''),
+    })
+
+
+def _cancel_trial(acceptance):
+    """Cancel at period end. Returns (ok, error_message).
+
+    Stamps ``cancelled_at`` on success, which does two jobs beyond
+    recording the fact: it flips this page into its confirmed state, and
+    it takes the row out of the reminder sweep immediately, so somebody
+    who cancels on day 2 never receives a day-11 email telling them
+    they are about to be charged.
+    """
+    if not acceptance.stripe_subscription_id:
+        return False, ('We could not find an active subscription for this '
+                       'link. Please email us and we will sort it out.')
+    try:
+        stripe = _stripe()
+        stripe.Subscription.modify(
+            acceptance.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('trial_manage: cancel failed for %s',
+                         acceptance.stripe_subscription_id)
+        return False, _stripe_error_message(
+            exc, 'We could not cancel it just now. Nothing has been '
+                 'charged to you. Please call (210) 201-0375 and we will '
+                 'cancel it the same day.')
+
+    acceptance.cancelled_at = timezone.now()
+    acceptance.save(update_fields=['cancelled_at', 'updated_at'])
+
+    # Log the churn reason against the buyer's User. CancellationReason.user
+    # is NOT NULL, so the row is only written when the account resolves —
+    # passing None raises IntegrityError, and an IntegrityError swallowed
+    # inside a request's atomic block poisons the transaction, which would
+    # turn this bookkeeping nicety into a failed cancellation. The
+    # cancellation itself has already happened at Stripe by this point and
+    # must not be undone by anything below.
+    try:
+        buyer = User.objects.filter(email__iexact=acceptance.email).first()
+        if buyer is not None:
+            from billing.cancellation_models import CancellationReason
+            CancellationReason.objects.create(
+                user=buyer,
+                subscription_id=acceptance.stripe_subscription_id,
+                reason='Cancelled during free trial (self-serve)',
+            )
+        else:
+            logger.info(
+                'trial_manage: no user for %s, churn reason not logged',
+                acceptance.email)
+    except Exception:  # noqa: BLE001
+        logger.exception('trial_manage: reason log failed')
+    logger.info('trial_manage: %s cancelled %s during trial',
+                acceptance.email, acceptance.stripe_subscription_id)
+    return True, ''
 
 
 def checkout_success(request, tier_slug):

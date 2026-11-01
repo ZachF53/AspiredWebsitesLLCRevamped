@@ -1,10 +1,18 @@
 """
-The cancellation path: Stripe Customer Portal, and the custom cancel fix.
+The cancellation path: our own manage/cancel page, and the portal fix.
 
 Cancellation is the compliance-critical half of a free trial that
 converts. A trial has to be at least as easy to get out of as it was to
-get into, which is why there are two ways in here and why the broken
-custom cancel view mattered enough to fix alongside.
+get into, which is why the page here is reachable without a password for
+the length of the trial, and why the broken custom portal cancel view
+mattered enough to fix alongside.
+
+This page replaced a redirect into Stripe's hosted Customer Portal.
+Every billing screen a customer sees has to be ours: our domain, our
+branding, our wording. CLAUDE.md has said "custom UI, no Customer
+Portal" since Phase 7. There is a test below asserting nothing on the
+page points at stripe.com, because that is the regression that would
+quietly undo it.
 
 Stripe is mocked throughout.
 """
@@ -26,10 +34,10 @@ User = get_user_model()
 TRIAL_SLUG = 'hvac-voice-receptionist'
 
 
-def _tier():
+def _tier(slug=TRIAL_SLUG, name='AI Voice Receptionist'):
     tier, _ = ServiceTier.objects.update_or_create(
-        slug=TRIAL_SLUG, defaults=dict(
-            category='addon', name='AI Voice Receptionist',
+        slug=slug, defaults=dict(
+            category='addon', name=name,
             price=Decimal('97.00'), is_recurring=True,
             billing_interval='month', is_active=True,
             stripe_price_id='price_test_voice'))
@@ -42,128 +50,212 @@ def _acceptance(*, accepted_at=None, customer='cus_test123'):
         terms_version='2026-11-01',
         accepted_at=accepted_at or timezone.now(),
         stripe_customer_id=customer,
-        stripe_subscription_id='sub_test123')
+        stripe_subscription_id='sub_test123',
+        trial_end=timezone.now() + timedelta(days=14))
 
 
 @override_settings(TRIAL_DAYS=14, STRIPE_SECRET_KEY='sk_test_fake',
                    SECURE_SSL_REDIRECT=False)
-class StripePortalRefTests(TestCase):
-    """The no-password cancel link, and the window it lives in."""
+class TrialManagePageTests(TestCase):
+    """The custom manage/cancel page, and the window its link lives in."""
 
     def setUp(self):
         _tier()
-        self.url = reverse('billing:stripe_portal')
+        self.url = reverse('billing:trial_manage',
+                           kwargs={'tier_slug': TRIAL_SLUG})
 
     def _stripe(self):
         stripe = MagicMock()
-        stripe.billing_portal.Session.create.return_value = {
-            'url': 'https://billing.stripe.com/session/test123'}
+        stripe.Subscription.modify.return_value = {
+            'id': 'sub_test123', 'status': 'trialing',
+            'cancel_at_period_end': True}
         return stripe
 
-    def test_fresh_ref_redirects_into_the_stripe_portal(self):
-        row = _acceptance()
-        stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={row.pk}')
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'],
-                         'https://billing.stripe.com/session/test123')
-        stripe.billing_portal.Session.create.assert_called_once()
-        self.assertEqual(
-            stripe.billing_portal.Session.create.call_args.kwargs['customer'],
-            'cus_test123')
+    # -- The page itself ---------------------------------------------
 
-    def test_ref_works_through_the_whole_trial(self):
+    def test_fresh_ref_renders_our_own_page(self):
+        row = _acceptance()
+        resp = self.client.get(f'{self.url}?ref={row.pk}')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn('AI Voice Receptionist', html)
+        self.assertIn('Cancel my free trial', html)
+        self.assertIn('$97/mo', html)
+        # Our form, so it needs CSRF.
+        self.assertIn('csrfmiddlewaretoken', html)
+
+    def test_nothing_on_the_page_links_to_stripe(self):
+        """The whole reason this page exists instead of a redirect."""
+        row = _acceptance()
+        html = self.client.get(f'{self.url}?ref={row.pk}').content.decode()
+        self.assertNotIn('stripe.com', html)
+        self.assertNotIn('billing.stripe', html)
+
+    def test_it_states_the_amount_and_the_charge_date(self):
+        row = _acceptance()
+        row.trial_end = timezone.now() + timedelta(days=3)
+        row.save()
+        html = self.client.get(f'{self.url}?ref={row.pk}').content.decode()
+        self.assertIn('$97/mo', html)
+        self.assertIn(f'{row.trial_end:%B} {row.trial_end.day},', html)
+
+    # -- The link window ---------------------------------------------
+
+    def test_link_works_through_the_whole_trial(self):
         """Day 13 is exactly when someone cancels to avoid the charge."""
         row = _acceptance(
             accepted_at=timezone.now() - timedelta(days=13, hours=23))
-        stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={row.pk}')
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn('billing.stripe.com', resp['Location'])
+        resp = self.client.get(f'{self.url}?ref={row.pk}')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('Cancel my free trial', resp.content.decode())
 
-    def test_ref_is_gone_after_the_trial_window(self):
+    def test_link_is_gone_after_the_trial_window(self):
         """Not a permanent bearer token."""
         row = _acceptance(
             accepted_at=timezone.now() - timedelta(days=14, minutes=1))
-        stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={row.pk}')
+        resp = self.client.get(f'{self.url}?ref={row.pk}')
         self.assertEqual(resp.status_code, 410)
         body = resp.content.decode()
-        self.assertIn('expired', body)
-        self.assertIn('sign in to manage billing', body.lower())
-        # The whole point: no session is minted for an expired ref.
-        stripe.billing_portal.Session.create.assert_not_called()
+        self.assertIn('expired', body.lower())
+        self.assertIn('Sign in to manage billing', body)
 
-    def test_long_expired_ref_is_still_only_a_410(self):
-        row = _acceptance(accepted_at=timezone.now() - timedelta(days=400))
+    def test_expired_link_cannot_cancel_either(self):
+        """A 410 on GET would be cosmetic if POST still worked."""
+        row = _acceptance(accepted_at=timezone.now() - timedelta(days=30))
         stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={row.pk}')
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            resp = self.client.post(f'{self.url}?ref={row.pk}')
         self.assertEqual(resp.status_code, 410)
-        stripe.billing_portal.Session.create.assert_not_called()
+        stripe.Subscription.modify.assert_not_called()
+        row.refresh_from_db()
+        self.assertIsNone(row.cancelled_at)
+
+    def test_long_expired_link_is_still_only_a_410(self):
+        row = _acceptance(accepted_at=timezone.now() - timedelta(days=400))
+        self.assertEqual(
+            self.client.get(f'{self.url}?ref={row.pk}').status_code, 410)
 
     def test_the_window_follows_trial_days(self):
         """A longer trial must not leave a dead cancel link mid-trial."""
         row = _acceptance(accepted_at=timezone.now() - timedelta(days=20))
-        stripe = self._stripe()
         with override_settings(TRIAL_DAYS=30):
-            with patch('billing.portal_views._stripe', return_value=stripe):
-                resp = self.client.get(f'{self.url}?ref={row.pk}')
-        self.assertEqual(resp.status_code, 302)
+            resp = self.client.get(f'{self.url}?ref={row.pk}')
+        self.assertEqual(resp.status_code, 200)
 
-    def test_unknown_ref_mints_nothing(self):
+    def test_unknown_ref_is_sent_to_the_portal(self):
         import uuid
-        stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={uuid.uuid4()}')
+        resp = self.client.get(f'{self.url}?ref={uuid.uuid4()}')
         self.assertEqual(resp.status_code, 302)
-        self.assertNotIn('billing.stripe.com', resp['Location'])
-        stripe.billing_portal.Session.create.assert_not_called()
 
     def test_garbage_ref_is_not_a_500(self):
-        stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref=not-a-uuid')
+        resp = self.client.get(f'{self.url}?ref=not-a-uuid')
         self.assertIn(resp.status_code, (302, 410))
-        stripe.billing_portal.Session.create.assert_not_called()
+
+    def test_a_ref_for_the_other_product_is_not_honoured(self):
+        _tier(slug='hvac-review-system', name='Review System')
+        row = _acceptance()
+        other = reverse('billing:trial_manage',
+                        kwargs={'tier_slug': 'hvac-review-system'})
+        resp = self.client.get(f'{other}?ref={row.pk}')
+        self.assertEqual(resp.status_code, 302)
 
     def test_ref_never_reaches_the_logs(self):
         """The ref is a credential for the length of the trial."""
         row = _acceptance()
         stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            with self.assertLogs('billing.portal_views', level='DEBUG') as cm:
-                # Something has to be logged for assertLogs to pass, so
-                # force the no-customer branch alongside.
-                logging_probe = _acceptance(customer='')
-                self.client.get(f'{self.url}?ref={logging_probe.pk}')
-                self.client.get(f'{self.url}?ref={row.pk}')
-        joined = '\n'.join(cm.output)
-        self.assertNotIn(str(row.pk), joined)
-        self.assertNotIn(str(logging_probe.pk), joined)
+        with self.assertLogs('billing', level='INFO') as cm:
+            with patch('billing.checkout_views._stripe', return_value=stripe):
+                self.client.post(f'{self.url}?ref={row.pk}')
+        self.assertNotIn(str(row.pk), '\n'.join(cm.output))
 
-    def test_stripe_failure_on_a_ref_does_not_dead_end(self):
-        """A ref holder has no password, so a login bounce is a dead end."""
+    # -- Cancelling --------------------------------------------------
+
+    def test_cancel_sets_cancel_at_period_end_not_delete(self):
+        """They keep the free days they have left."""
+        row = _acceptance()
+        stripe = self._stripe()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            resp = self.client.post(f'{self.url}?ref={row.pk}')
+        self.assertEqual(resp.status_code, 200)
+        stripe.Subscription.modify.assert_called_once_with(
+            'sub_test123', cancel_at_period_end=True)
+        stripe.Subscription.delete.assert_not_called()
+
+    def test_cancel_confirms_no_charge_and_names_the_end_date(self):
+        row = _acceptance()
+        row.trial_end = timezone.now() + timedelta(days=5)
+        row.save()
+        stripe = self._stripe()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            html = self.client.post(
+                f'{self.url}?ref={row.pk}').content.decode()
+        self.assertIn('will not be charged', html)
+        self.assertIn('keeps working until', html)
+        self.assertIn(f'{row.trial_end:%B} {row.trial_end.day},', html)
+
+    def test_cancel_stamps_cancelled_at(self):
+        row = _acceptance()
+        stripe = self._stripe()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            self.client.post(f'{self.url}?ref={row.pk}')
+        row.refresh_from_db()
+        self.assertIsNotNone(row.cancelled_at)
+
+    def test_cancelling_takes_the_row_out_of_the_reminder_sweep(self):
+        """Nobody who cancelled on day 2 gets a day-11 charge warning."""
+        from billing.trial_reminders import due_reminders
+
+        row = _acceptance()
+        row.trial_end = timezone.now() + timedelta(days=2)
+        row.save()
+        self.assertIn(row, list(due_reminders()))
+
+        stripe = self._stripe()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            self.client.post(f'{self.url}?ref={row.pk}')
+        self.assertNotIn(row, list(due_reminders()))
+
+    def test_an_already_cancelled_trial_shows_the_confirmed_state(self):
+        row = _acceptance()
+        row.cancelled_at = timezone.now()
+        row.save()
+        resp = self.client.get(f'{self.url}?ref={row.pk}')
+        html = resp.content.decode()
+        self.assertIn('will not be charged', html)
+        self.assertNotIn('Cancel my free trial', html)
+
+    def test_double_cancel_does_not_call_stripe_again(self):
+        row = _acceptance()
+        row.cancelled_at = timezone.now()
+        row.save()
+        stripe = self._stripe()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            self.client.post(f'{self.url}?ref={row.pk}')
+        stripe.Subscription.modify.assert_not_called()
+
+    def test_a_stripe_failure_gives_a_phone_number_not_a_dead_end(self):
         row = _acceptance()
         stripe = MagicMock()
-        stripe.billing_portal.Session.create.side_effect = Exception(
-            'portal not configured')
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(f'{self.url}?ref={row.pk}')
-        self.assertEqual(resp.status_code, 503)
-        body = resp.content.decode()
-        self.assertIn('210) 201-0375', body)
-        self.assertIn('Nothing has been charged', body)
+        stripe.Subscription.modify.side_effect = Exception('stripe down')
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            html = self.client.post(
+                f'{self.url}?ref={row.pk}').content.decode()
+        self.assertIn('210) 201-0375', html)
+        row.refresh_from_db()
+        self.assertIsNone(row.cancelled_at)
+        # Still offering the button, since it did not work.
+        self.assertIn('Cancel my free trial', html)
 
-    def test_no_ref_and_anonymous_is_sent_to_sign_in(self):
+    def test_cancel_with_no_subscription_id_is_handled(self):
+        row = _acceptance()
+        row.stripe_subscription_id = ''
+        row.save()
         stripe = self._stripe()
-        with patch('billing.portal_views._stripe', return_value=stripe):
-            resp = self.client.get(self.url)
-        self.assertEqual(resp.status_code, 302)
-        stripe.billing_portal.Session.create.assert_not_called()
+        with patch('billing.checkout_views._stripe', return_value=stripe):
+            html = self.client.post(
+                f'{self.url}?ref={row.pk}').content.decode()
+        self.assertIn('could not find an active subscription', html)
+        stripe.Subscription.modify.assert_not_called()
 
 
 @override_settings(STRIPE_SECRET_KEY='sk_test_fake', SECURE_SSL_REDIRECT=False)

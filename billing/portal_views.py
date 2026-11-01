@@ -4,6 +4,13 @@ Custom subscription-management UI for the client portal.
 Replaces Stripe Customer Portal screen-for-screen — every page lives
 on aspiredwebsites.com. Stripe is API-only.
 
+There is deliberately NO link into Stripe's hosted Customer Portal
+anywhere on this site. A Nov 2026 revision added one for the free
+trial cancel path and it was removed again: every billing screen a
+customer sees has to be ours, on our domain, in our branding. The
+trial cancel flow lives at billing.checkout_views.trial_manage and
+is reachable without a password for the length of the trial.
+
 Pages:
     /portal/billing/                       hub — list active subs + cards
     /portal/billing/subs/<id>/cancel/      cancel at period end
@@ -23,9 +30,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models  # noqa: F401
-from django.http import (
-    HttpResponse, HttpResponseBadRequest, HttpResponseGone, JsonResponse,
-)
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -177,109 +182,6 @@ def subscription_cancel(request, sub_id):
         f'{when.strftime("%B %d, %Y") if when else "your next billing date"}.'
     )
     return redirect('billing:portal_home')
-
-
-def _ref_window_expired(acceptance):
-    """Whether a trial-started ref link has aged out.
-
-    The ref exists so a buyer who signed up minutes ago can cancel
-    without first setting a password: making them reset a password to
-    cancel would make cancelling strictly harder than signing up was.
-    That need lasts exactly as long as the trial. Once they are a paying
-    customer they have had a fortnight of emails inviting them to set a
-    password, and billing management should sit behind that password
-    like everyone else's.
-
-    So the link is NOT a permanent bearer token. Tied to TRIAL_DAYS
-    rather than a separate literal so the window cannot drift out of
-    step with the trial it is meant to cover.
-    """
-    from datetime import timedelta
-
-    from billing.trials import trial_days
-
-    if acceptance is None or acceptance.accepted_at is None:
-        return True
-    return timezone.now() > acceptance.accepted_at + timedelta(
-        days=trial_days())
-
-
-def stripe_customer_portal(request):
-    """Redirect into Stripe's hosted Customer Portal.
-
-    Two ways in, because cancellation has to be at least as easy as
-    signup was and signup required no login:
-
-    * An authenticated client, from the portal billing page.
-    * A ``ref`` matching a TermsAcceptance row, which is the link on the
-      trial-started page, valid for the length of the trial only.
-
-    On the ref path this view does exactly two things: mint a
-    short-lived Stripe Billing Portal session and redirect to it. It
-    deliberately exposes nothing else, renders no account data, and
-    accepts no other parameters, so the only thing the ref can be
-    traded for is the one screen it exists to reach. Stripe's session
-    URLs are themselves short-lived and single-use.
-
-    The ref is never logged. It is a credential for the duration of the
-    trial, and an exception traceback or an info line carrying it would
-    put it in a log file that outlives the window. (Django's own 4xx
-    logging records ``request.path``, which excludes the query string.
-    The nginx access log does not — see docs/env_reference.md.)
-    """
-    ref = (request.GET.get('ref') or '').strip()
-    customer_id = None
-
-    if ref:
-        from billing.checkout_views import _acceptance_by_ref
-        acceptance = _acceptance_by_ref(ref)
-        if acceptance is not None and _ref_window_expired(acceptance):
-            # Deliberately 410 rather than 404: the link was real and is
-            # now gone, and saying so is what tells the customer to go
-            # and sign in instead of assuming cancellation is broken.
-            return HttpResponseGone(
-                'This billing link has expired. Please sign in to manage '
-                'billing: https://aspiredwebsites.com/login/'
-            )
-        if acceptance is not None and acceptance.stripe_customer_id:
-            customer_id = acceptance.stripe_customer_id
-
-    if customer_id is None and request.user.is_authenticated:
-        customer_id = _customer_id_for_request(request)
-
-    if not customer_id:
-        # No ref identifier in this message — see docstring.
-        logger.info('portal: no Stripe customer resolved for portal session')
-        return redirect('clients:portal_subscriptions')
-
-    return_url = request.build_absolute_uri(
-        reverse('clients:portal_subscriptions'))
-    stripe = _stripe()
-    try:
-        session = stripe.billing_portal.Session.create(
-            customer=customer_id, return_url=return_url)
-    except Exception:  # noqa: BLE001
-        # Most likely cause is the Customer Portal not being configured
-        # in the Stripe Dashboard yet (it is a hand step).
-        #
-        # logger.exception, not logger.exception(... ref ...): a Stripe
-        # traceback carries the arguments it was called with, which is
-        # the customer id, never the ref.
-        logger.exception('portal: Stripe billing portal session failed')
-        if ref:
-            # A ref holder has no password, so bouncing them to a
-            # login-gated page is a dead end, and cancellation is the
-            # one journey that must never dead-end.
-            return HttpResponse(
-                'We could not open the billing portal just now. Nothing '
-                'has been charged to you yet. To cancel immediately, '
-                'call (210) 201-0375 or email '
-                'zacherylong@aspiredwebsites.com and we will stop it '
-                'the same day.',
-                status=503, content_type='text/plain; charset=utf-8')
-        return redirect('clients:portal_subscriptions')
-
-    return redirect(session['url'])
 
 
 @login_required

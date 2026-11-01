@@ -463,6 +463,20 @@ STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', '')
 # subscription it was created with.
 TRIAL_DAYS = int(env('TRIAL_DAYS', '14'))
 
+# How many days before the first charge our own reminder email goes out.
+#
+# We send this ourselves, from DEFAULT_FROM_EMAIL in the branded
+# template, rather than relying on Stripe's "upcoming trial expirations"
+# setting. It is the legally required pre-charge reminder, so it should
+# come from the address the customer already corresponds with, carry our
+# own cancel link rather than a Stripe-hosted one, and be visible in
+# code instead of depending on a dashboard checkbox nothing here can
+# verify. See billing/trial_reminders.py.
+#
+# Three matches when Stripe would have fired trial_will_end, so the GHL
+# trial-ending tag and this email land together.
+TRIAL_REMINDER_DAYS = int(env('TRIAL_REMINDER_DAYS', '3'))
+
 # Version stamped onto every TermsAcceptance row and shown at the top of
 # /terms/. Bump it (and the terms copy) together; the stored value is
 # what a given buyer agreed to, which is the version that matters in a
@@ -1156,6 +1170,14 @@ CELERY_BEAT_SCHEDULE = {
     'dunning-sweep': {
         'task': 'billing.tasks.run_dunning_sweep_task',
         'schedule': crontab(hour=7, minute=30),                   # daily 7:30am
+    },
+    # Pre-charge reminder for free trials. Ours, from our own address,
+    # rather than Stripe's generic trial-expiry email. 8:00am so it
+    # lands in a working-hours inbox and after the dunning sweep rather
+    # than alongside it.
+    'send-trial-reminders': {
+        'task': 'billing.tasks.run_trial_reminder_sweep_task',
+        'schedule': crontab(hour=8, minute=0),                    # daily 8am
     },
     'calculate-health-scores': {
         'task': 'clients.tasks.calculate_all_health_scores',
