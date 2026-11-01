@@ -57,6 +57,53 @@ REVIEW_CONTEXT_PHRASES = [
 ]
 CONTEXT_CHARS = 180
 
+# Nov 2026: both $97/mo products are sold on a 14-day free trial, so a
+# call-to-action quoting the price without the trial beside it is a
+# disclosure problem, not just stale copy. A buyer has to be told the
+# amount, that a card is required, and when the first charge lands
+# BEFORE they reach the card form.
+#
+# Scoped to CTA ELEMENTS rather than any occurrence of "$97", because
+# the price appears legitimately in prose all over the site (the terms,
+# the pricing table, the plan comparison) where a trial mention next to
+# it would be noise. A button is a different thing: it is the last
+# sentence someone reads before committing.
+#
+# The current CTAs say "Start 14-Day Free Trial" and carry no price at
+# all, so this passes trivially today. It exists to catch the
+# regression of someone reinstating "Start for $97/mo".
+_CTA_ELEMENT = re.compile(
+    r'<(?:a|button)\b[^>]*>(.*?)</(?:a|button)>',
+    re.IGNORECASE | re.DOTALL)
+_TRIAL_WORDS = 'free trial'
+CTA_CONTEXT_CHARS = 400
+
+
+def _strip_tags(fragment):
+    return ' '.join(re.sub(r'<[^>]+>', ' ', fragment).split())
+
+
+def _price_ctas_missing_the_trial(html):
+    """CTAs quoting $97 with no 'free trial' in or near them.
+
+    Returns the offending button text, so a failure names the control a
+    visitor would actually click rather than asserting something is
+    wrong somewhere in 40KB of markup.
+    """
+    problems = []
+    for match in _CTA_ELEMENT.finditer(html):
+        text = _strip_tags(match.group(1))
+        if '$97' not in text:
+            continue
+        if _TRIAL_WORDS in text.lower():
+            continue
+        start, end = match.span()
+        window = html[max(0, start - CTA_CONTEXT_CHARS):
+                      end + CTA_CONTEXT_CHARS].lower()
+        if _TRIAL_WORDS not in window:
+            problems.append(text[:120])
+    return problems
+
 
 def _talks_about_reviews_near(html, phrase):
     """Occurrences of `phrase` whose surrounding text mentions reviews.
@@ -216,7 +263,48 @@ class SiteConsistencyTests(TestCase):
         for needle, why in REVIEW_CONTEXT_PHRASES:
             for snippet in _talks_about_reviews_near(html, needle):
                 problems.append(f'{path}: {needle!r} ({why}) in: {snippet}')
+        for cta in _price_ctas_missing_the_trial(html):
+            problems.append(
+                f'{path}: CTA quotes $97 with no "free trial" beside it: '
+                f'{cta!r}')
         return problems
+
+    def test_the_trial_cta_rule_catches_a_regression(self):
+        """The rule itself must keep working.
+
+        Every page passing is also what a broken rule looks like, so the
+        rule is tested against markup that must fail and markup that
+        must pass.
+        """
+        bad = '<a class="btn-primary" href="/x/">Start for $97/mo</a>'
+        self.assertTrue(_price_ctas_missing_the_trial(bad))
+
+        # Trial named inside the button.
+        ok_inside = ('<a class="btn-primary" href="/x/">'
+                     '$97/mo after a free trial</a>')
+        self.assertFalse(_price_ctas_missing_the_trial(ok_inside))
+
+        # Trial named next to the button, which is how the real pages
+        # read: the button says "Start 14-Day Free Trial" and the price
+        # line sits directly above it.
+        ok_nearby = ('<p>$97/mo after a 14-day free trial. Card required.</p>'
+                     '<a class="btn-primary" href="/x/">Start for $97/mo</a>')
+        self.assertFalse(_price_ctas_missing_the_trial(ok_nearby))
+
+        # A price in prose is not a CTA and must not trip the rule.
+        prose = '<p>The Full Plan is $97/mo and includes reviews.</p>'
+        self.assertFalse(_price_ctas_missing_the_trial(prose))
+
+    def test_both_product_pages_lead_with_the_free_trial(self):
+        """The positive side of the rule: the CTA actually says it."""
+        for path in ('/services/ai-receptionist/',
+                     '/services/review-automation/',
+                     '/pricing/'):
+            with self.subTest(path=path):
+                html = self._get(path).content.decode()
+                self.assertIn('Free Trial', html)
+                self.assertIn('free trial', html.lower())
+                self.assertIn('not charged until day', html.lower())
 
     def test_no_page_carries_a_stale_fact(self):
         hits = []
