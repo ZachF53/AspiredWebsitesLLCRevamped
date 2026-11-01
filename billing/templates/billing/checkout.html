@@ -207,14 +207,12 @@
                         <a href="{{ billing_portal_url }}">your billing portal</a>
                         or by emailing
                         {% comment %}
-                        TODO: Zachery to supply the billing address. Kept
-                        as a visible placeholder rather than defaulted to
-                        zacherylong@ because this line is a cancellation
-                        promise, and pointing it at an unconfirmed inbox
-                        is worse than an obvious gap. Same placeholder as
+                        settings.BILLING_SUPPORT_EMAIL, defaulted to the
+                        canonical inbox. This is a cancellation promise,
+                        so it has to reach a real mailbox. Same value as
                         section 21 of /terms/.
                         {% endcomment %}
-                        <a href="mailto:[YOUR EMAIL HERE]">[YOUR EMAIL HERE]</a>.
+                        <a href="mailto:{{ billing_support_email }}">{{ billing_support_email }}</a>.
                     </p>
                 {% endif %}
 

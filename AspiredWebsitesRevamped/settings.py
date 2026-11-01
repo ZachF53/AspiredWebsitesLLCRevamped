@@ -160,6 +160,10 @@ TEMPLATES = [
                 # CANONICAL_URL + SITE_BASE_URL for the self-referencing
                 # canonical, og:url and schema. Master Plan §8.
                 'core.context_processors.canonical',
+                # TRIAL_DAYS, so the free-trial CTA and price line on
+                # the two $97/mo products read the same number the
+                # checkout hands to Stripe.
+                'core.context_processors.trial',
                 # Operator-facing system alerts banner on /admin-dashboard/
                 'core.context_processors.system_alerts',
                 # Owner-approved statements of business fact (location,
@@ -464,6 +468,22 @@ TRIAL_DAYS = int(env('TRIAL_DAYS', '14'))
 # what a given buyer agreed to, which is the version that matters in a
 # dispute, not whatever is live later.
 TERMS_VERSION = env('TERMS_VERSION', '2026-11-01')
+
+# Where "cancel by emailing us" points, on the checkout disclosure and
+# in section 21 of /terms/.
+#
+# TODO (Zachery): set BILLING_SUPPORT_EMAIL in .env if subscription and
+# cancellation mail should go somewhere other than your main inbox.
+#
+# Defaulted to the canonical address rather than left as a literal
+# "[YOUR EMAIL HERE]" placeholder on purpose. Two reasons: the
+# public.content_gate rule "J placeholders" forbids bracketed
+# placeholders on any public page (and would fail the suite), and this
+# address sits inside a cancellation promise, so an unroutable value
+# there is the one kind of broken link that turns into a chargeback.
+# A working inbox is the safe default; a visibly fake one is not.
+BILLING_SUPPORT_EMAIL = env(
+    'BILLING_SUPPORT_EMAIL', 'zacherylong@aspiredwebsites.com')
 
 
 # ── DigitalOcean ────────────────────────────────────────────────────────────

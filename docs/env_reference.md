@@ -19,6 +19,7 @@ for the site to boot.
 |---|---|---|
 | `TRIAL_DAYS` | `14` | Length of the free trial on the two $97/mo add-ons. Passed to Stripe as `subscription_data.trial_period_days` and used to compute the first-charge date shown at checkout. Changing it affects new checkouts only; a running trial keeps the `trial_end` Stripe gave it. |
 | `TERMS_VERSION` | `2026-11-01` | Stamped onto every `billing.TermsAcceptance` row and shown at the top of `/terms/`. Bump it together with the terms copy. |
+| `BILLING_SUPPORT_EMAIL` | `zacherylong@aspiredwebsites.com` | Where "cancel by emailing us" points, on the checkout disclosure and in section 21 of `/terms/`. Set this if subscription and cancellation mail should go somewhere other than the main inbox. It must be an address that actually receives mail: it sits inside a cancellation promise, and `public/content_gate.py` rule "J placeholders" will fail the test suite if a bracketed placeholder reaches a public page. |
 
 Deliberately **not** added, despite being in the original brief:
 

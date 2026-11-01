@@ -3,10 +3,10 @@
 
 {% block title %}AI Voice Receptionist for HVAC{% if voice_receptionist %} — {{ voice_receptionist.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
 
-{% block meta_description %}An AI receptionist that answers your HVAC business line day or night, screens robocalls and texts you the job details.{% if voice_receptionist %} {{ voice_receptionist.get_price_display }}, no website required.{% else %} Works with the number you already have.{% endif %}{% endblock %}
+{% block meta_description %}An AI receptionist that answers your HVAC business line day or night, screens robocalls and texts you the job details.{% if voice_receptionist %} Free for {{ TRIAL_DAYS }} days, then {{ voice_receptionist.get_price_display }}. No website required.{% else %} Works with the number you already have.{% endif %}{% endblock %}
 
 {% block og_title %}AI Voice Receptionist for HVAC{% if voice_receptionist %} — {{ voice_receptionist.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
-{% block og_description %}It answers when you cannot. Screens the robocalls, takes the name, address and the actual problem, and puts the urgent ones straight through to you.{% if voice_receptionist %} From {{ voice_receptionist.get_price_display }}.{% endif %}{% endblock %}
+{% block og_description %}It answers when you cannot. Screens the robocalls, takes the name, address and the actual problem, and puts the urgent ones straight through to you.{% if voice_receptionist %} Free for {{ TRIAL_DAYS }} days, then {{ voice_receptionist.get_price_display }}.{% endif %}{% endblock %}
 
 {% comment %}
 Organisation entity, canonical and og:image come from base.html (D8).
@@ -73,11 +73,12 @@ Offer keeps the JSON valid when the tier row is missing.
                 (VOICE_DEMO_*), never written literally here.
                 {% endcomment %}
                 <div class="hero__ctas">
-                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-secondary btn-lg" href="tel:{{ VOICE_DEMO_TEL }}">Call the demo line: {{ VOICE_DEMO_DISPLAY }}</a>
                 </div>
                 <p class="hero__meta"><a href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a></p>
-                <p class="hero__meta">{{ voice_receptionist.get_price_display }} &middot; 300 talk minutes included &middot; month-to-month &middot; works with your current number</p>
+                <p class="hero__meta">{% include "core/_trial_price_line.html" with tier=voice_receptionist %}</p>
+                <p class="hero__meta">300 talk minutes included &middot; month-to-month &middot; works with your current number</p>
             {% else %}
                 <p class="hero__lead">A missed call is a missed job. An AI receptionist answers your business line when you cannot, screens the robocalls, and puts the urgent callers straight through to you.</p>
                 <div class="hero__ctas">
@@ -223,11 +224,12 @@ would be untrue of the line a visitor actually reaches.
                 <span class="card__badge">Add-On</span>
                 <h3 class="card__title">{{ voice_receptionist.name }}</h3>
                 {% include "core/_price.html" with tier=voice_receptionist %}
-                <p class="card__price-meta">Billed monthly &middot; no setup fee &middot; cancel anytime</p>
+                <p class="card__price-meta">{% include "core/_trial_price_line.html" with tier=voice_receptionist %}</p>
+                <p class="card__price-meta">No setup fee</p>
                 <ul class="feature-list">
                     {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                 </ul>
-                <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                 {% include "core/_voice_scarcity.html" %}
             </article>
             <article class="card card--pricing">
@@ -310,9 +312,9 @@ would be untrue of the line a visitor actually reaches.
         <div class="cta-block">
             <h2>How Many Calls Did You Miss Last Week?</h2>
             {% if voice_receptionist %}
-                <p>Start for {{ voice_receptionist.get_price_display }} and have your phone covered tonight. Or book a free 30-minute call and hear it answer before you pay anything.</p>
+                <p>Have your phone covered tonight, free for {{ TRIAL_DAYS }} days. Or book a free 30-minute call and hear it answer before you pay anything.</p>
                 <div class="hero__ctas">
-                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a>
                 </div>
             {% else %}

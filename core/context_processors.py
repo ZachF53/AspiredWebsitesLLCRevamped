@@ -134,3 +134,18 @@ def system_alerts(request):
         return {'system_alerts_unresolved': recent_unresolved_count()}
     except Exception:
         return {'system_alerts_unresolved': 0}
+
+
+def trial(request):
+    """
+    Expose ``TRIAL_DAYS`` so the free-trial CTA and price line read the
+    same number the checkout hands to Stripe.
+
+    A context processor rather than per-view context because the two
+    $97/mo products are sold from six templates (both service pages,
+    /pricing/, the home page, and the two checkout pages), and the one
+    thing worse than hardcoding "14" in six places is hardcoding it in
+    five and reading the setting in the sixth.
+    """
+    from django.conf import settings
+    return {'TRIAL_DAYS': getattr(settings, 'TRIAL_DAYS', 14)}

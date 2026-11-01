@@ -354,6 +354,8 @@ def checkout_page(request, tier_slug):
         'trial_days': trial_days() if is_trial else 0,
         'trial_ends': trial_end_date() if is_trial else None,
         'terms_version': getattr(settings, 'TERMS_VERSION', ''),
+        'billing_support_email': getattr(
+            settings, 'BILLING_SUPPORT_EMAIL', ''),
         # Pre-purchase, there is no customer yet, so this points at the
         # client portal rather than a Stripe portal session. It is a
         # "here is where you will cancel" reference, not a live link.

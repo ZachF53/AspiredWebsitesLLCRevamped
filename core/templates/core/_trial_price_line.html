@@ -1,0 +1,22 @@
+{% comment %}
+The standard free-trial price line for the two $97/mo add-ons.
+
+Expects `tier` (a ServiceTier). Include with:
+    {% include "core/_trial_price_line.html" with tier=voice_receptionist %}
+
+One file rather than the same four sentences typed into six templates.
+The wording is a disclosure, not marketing copy: it names the amount,
+says the card is required, says when the first charge lands, and says
+cancellation is available. Changing it here changes it everywhere, which
+is the point. If one surface ever needs to disagree with the others,
+that is a decision to make deliberately and not by editing one copy of
+six.
+
+Deliberately does NOT compute a calendar date. The service and pricing
+pages are cached and crawled, and a date rendered at request time would
+be wrong in the cache and wrong in Google's index. "Day {{ day }}" is
+true whenever it is read. The exact date belongs on the checkout page
+and the trial-started page, where it is computed per buyer and not
+cached.
+{% endcomment %}
+{% if tier %}{{ tier.get_price_display }} after a {{ TRIAL_DAYS }}-day free trial. Card required, not charged until day {{ TRIAL_DAYS|add:1 }}. Cancel any time.{% endif %}

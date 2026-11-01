@@ -71,6 +71,7 @@ def terms_of_service(request):
         'voice_included_minutes': settings.VOICE_INCLUDED_MINUTES,
         'voice_overage_rate': settings.VOICE_OVERAGE_RATE,
         'call_recording_retention_days': CALL_RECORDING_RETENTION_DAYS,
+        'billing_support_email': settings.BILLING_SUPPORT_EMAIL,
         'meta_title': 'Terms of Service | Aspired Websites',
         'meta_description': (
             'Terms governing the use of aspiredwebsites.com and '

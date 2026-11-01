@@ -239,14 +239,15 @@ needs no modifier and the add-on grid takes cards--2col.
                 <article class="card card--pricing">
                     <h3 class="card__title">{{ voice_receptionist.name }}</h3>
                     {% include "core/_price.html" with tier=voice_receptionist %}
-                    <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+                    <p class="card__price-meta">{% include "core/_trial_price_line.html" with tier=voice_receptionist %}</p>
+                    <p class="card__price-meta">No setup fee</p>
                     <ul class="feature-list">
                         {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
                     <p class="card__price-note"><strong>This one is never bundled, with any plan.</strong> Every call it answers costs us money to run, so it stays priced on its own at every plan level.</p>
                     <p class="card__price-note">Hear it: <a href="tel:{{ VOICE_DEMO_TEL }}">{{ VOICE_DEMO_DISPLAY }}</a>, press {{ VOICE_DEMO_EXT }}.</p>
                     {% include "core/_voice_scarcity.html" %}
-                    <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start for {{ voice_receptionist.get_price_display }}</a>
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-link" href="{% url 'public:service_ai_receptionist' %}">How the receptionist works</a>
                 </article>
             {% endif %}
@@ -255,12 +256,13 @@ needs no modifier and the add-on grid takes cards--2col.
                 <article class="card card--pricing">
                     <h3 class="card__title">{{ review_system.name }}</h3>
                     {% include "core/_price.html" with tier=review_system %}
-                    <p class="card__price-meta">Billed monthly &middot; no setup fee</p>
+                    <p class="card__price-meta">{% include "core/_trial_price_line.html" with tier=review_system %}</p>
+                    <p class="card__price-meta">No setup fee</p>
                     <ul class="feature-list">
                         {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
                     <p class="card__price-note"><strong>Already on the Full Plan? You have this.</strong> Don&rsquo;t buy it twice. Buy it on its own now, add a website later, and it folds into the plan at no extra cost.</p>
-                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Start for {{ review_system.get_price_display }}</a>
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-link" href="{% url 'public:service_review_automation' %}">How the review system works</a>
                 </article>
             {% endif %}

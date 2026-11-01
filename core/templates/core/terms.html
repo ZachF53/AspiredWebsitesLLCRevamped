@@ -194,19 +194,18 @@
 
             <h2>21. Contact</h2>
             {% comment %}
-            Billing email is a placeholder until Zachery supplies the
-            address he wants subscription questions going to. It is
-            deliberately conspicuous rather than quietly defaulted to
-            zacherylong@: section 6 promises cancellation by email, and
-            pointing that promise at an unconfirmed inbox is worse than
-            showing an obvious gap.
+            Billing address comes from settings.BILLING_SUPPORT_EMAIL,
+            defaulted to the canonical inbox until Zachery nominates a
+            separate one. Section 6 promises cancellation by email, so
+            this has to be an address that actually receives mail: a
+            bracketed placeholder here is both a content-gate failure
+            and the one kind of broken link that becomes a chargeback.
             {% endcomment %}
             <address class="legal-doc__address">
                 <strong>Aspired Websites LLC</strong><br>
                 8735 Dunwoody Place, Ste R<br>
                 Atlanta, GA 30350<br>
-                Billing and subscriptions: <a href="mailto:[YOUR EMAIL HERE]">[YOUR EMAIL HERE]</a><br>
-                Everything else: <a href="mailto:zacherylong@aspiredwebsites.com">zacherylong@aspiredwebsites.com</a><br>
+                Billing and subscriptions: <a href="mailto:{{ billing_support_email }}">{{ billing_support_email }}</a><br>
                 Phone: <a href="tel:+12102010375">(210) 201-0375</a><br>
                 Web: <a href="https://aspiredwebsites.com">aspiredwebsites.com</a>
             </address>

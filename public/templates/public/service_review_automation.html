@@ -3,10 +3,10 @@
 
 {% block title %}Automated Google Review System for HVAC{% if review_system %} — {{ review_system.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
 
-{% block meta_description %}Every completed HVAC job triggers a Google review request by text and email, automatically.{% if review_system %} {{ review_system.get_price_display }}, no website build required.{% else %} No technician or office manager has to remember to ask.{% endif %}{% endblock %}
+{% block meta_description %}Every completed HVAC job triggers a Google review request by text and email, automatically.{% if review_system %} Free for {{ TRIAL_DAYS }} days, then {{ review_system.get_price_display }}. No website build required.{% else %} No technician or office manager has to remember to ask.{% endif %}{% endblock %}
 
 {% block og_title %}Automated Google Review System for HVAC{% if review_system %} — {{ review_system.get_price_display }}{% endif %} | Aspired Websites{% endblock %}
-{% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% if review_system %} Sold on its own at {{ review_system.get_price_display }}.{% endif %}{% endblock %}
+{% block og_description %}Every completed HVAC job automatically triggers a review request. More Google reviews, without anyone having to remember to ask.{% if review_system %} Sold on its own, free for {{ TRIAL_DAYS }} days.{% endif %}{% endblock %}
 
 {% comment %}
 Organisation entity, canonical and og:image come from base.html (D8).
@@ -71,7 +71,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
                 A completed job automatically triggers a review request. No
                 technician has to remember to ask, and no office manager has
                 to chase it down afterward.{% if review_system %} It runs on the website
-                and job software you already have, for {{ review_system.get_price_display }}.{% endif %}
+                and job software you already have. {% include "core/_trial_price_line.html" with tier=review_system %}{% endif %}
             </p>
             {% comment %}
             Oct 2026: this page used to sell the Full Plan, because the
@@ -81,7 +81,7 @@ Organisation entity, canonical and og:image come from base.html (D8).
             {% endcomment %}
             <div class="hero__ctas">
                 {% if review_system %}
-                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start for {{ review_system.get_price_display }}</a>
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Or Book a Free 30-Minute Call</a>
                 {% else %}
                     <a class="btn-primary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Strategy Call</a>
@@ -179,12 +179,12 @@ is missing, so the page never shows an empty price.
                 <span class="card__badge">Standalone</span>
                 <h3 class="card__title">{{ review_system.name }}</h3>
                 {% include "core/_price.html" with tier=review_system %}
-                <p class="card__price-meta">Billed monthly &middot; cancel anytime</p>
+                <p class="card__price-meta">{% include "core/_trial_price_line.html" with tier=review_system %}</p>
                 <ul class="feature-list">
                     {% for feature in review_system.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                 </ul>
                 <div class="hero__ctas">
-                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Sign Up Now</a>
+                    <a class="btn-primary" href="{% url 'billing:checkout_page' review_system.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-link" href="{% url 'scheduler:design_schedule' %}">or book a call first</a>
                 </div>
             </article>
@@ -327,9 +327,9 @@ requests fall under TCPA consent rules.
         <div class="cta-block">
             <h2>Want Reviews Building Up Without Chasing Them Down?</h2>
             {% if review_system %}
-                <p>Start for {{ review_system.get_price_display }} and have requests going out this week. Or book a free 30-minute call first and we&rsquo;ll check it works with your job software before you pay anything.</p>
+                <p>Have requests going out this week, free for {{ TRIAL_DAYS }} days. Or book a free 30-minute call first and we&rsquo;ll check it works with your job software before you pay anything.</p>
                 <div class="hero__ctas">
-                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start for {{ review_system.get_price_display }}</a>
+                    <a class="btn-primary btn-lg" href="{% url 'billing:checkout_page' review_system.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-secondary btn-lg" href="{% url 'scheduler:design_schedule' %}">Book a Free 30-Minute Call</a>
                 </div>
             {% else %}
