@@ -60,6 +60,26 @@ def stripe_webhook(request):
         return HttpResponseBadRequest('Invalid Stripe webhook payload/signature')
 
     event_type = event.get('type', '')
+
+    # Idempotency gate. Stripe retries until it gets a 2xx and sends the
+    # same event more than once in normal operation. The handlers below
+    # are each individually idempotent against our own database, which
+    # is necessary but not sufficient: pushing a tag to GoHighLevel
+    # cannot be made idempotent on our side, and in GHL a tag landing is
+    # what fires a workflow. A redelivered subscription.created would
+    # send the welcome sequence twice; a redelivered invoice.paid would
+    # move the voice price ladder twice.
+    #
+    # Claimed BEFORE dispatch, so a handler that raises half way through
+    # does not get its side effects repeated. See
+    # billing/webhook_models.py for why that is the right trade.
+    event_id = event.get('id', '')
+    claim = _claim_event(event_id, event_type)
+    if claim is None:
+        logger.info('Stripe webhook: %s %s already processed, skipping',
+                    event_type, event_id)
+        return HttpResponse(status=200)
+
     try:
         if event_type == 'payment_intent.succeeded':
             _handle_payment_intent_succeeded(event)
@@ -79,11 +99,337 @@ def stripe_webhook(request):
             # Phase 6 — self-checkout subscriptions trigger account
             # creation + magic-link email.
             _handle_self_checkout_subscription_created(event)
+        elif event_type == 'customer.subscription.trial_will_end':
+            # Nov 2026 — free trials. Stripe fires this 3 days out and
+            # it has no other handler, so the trial block below is the
+            # whole of it.
+            pass
         else:
             logger.info('Stripe webhook: unhandled event type %s', event_type)
-    except Exception:
+    except Exception as exc:
         logger.exception('Stripe webhook handler error for %s', event_type)
+        _note_event_error(claim, exc)
+
+    # Trial lifecycle, deliberately AFTER and independent of the
+    # handlers above. Several of them early-return when they cannot
+    # resolve a ClientProfile (an ordinary situation for a brand-new
+    # trial buyer), and the GHL push must not inherit those exits. Kept
+    # separate also means a GHL outage cannot roll back billing state.
+    try:
+        _handle_trial_lifecycle(event_type, event)
+    except Exception as exc:
+        logger.exception('Stripe webhook trial-lifecycle error for %s',
+                         event_type)
+        _note_event_error(claim, exc)
     return HttpResponse(status=200)
+
+
+def _claim_event(event_id, event_type):
+    """Record this event id as ours to process, or None if seen before.
+
+    Relies on the unique constraint rather than an existence check, so
+    two workers handed the same redelivery race on the database instead
+    of both reading "not processed" and both proceeding.
+
+    An event with no id (only possible from a hand-rolled local payload)
+    is processed without a ledger row rather than refused, so
+    `stripe trigger` and the test suite keep working.
+    """
+    from billing.webhook_models import StripeWebhookEvent
+
+    if not event_id:
+        return StripeWebhookEvent()  # unsaved sentinel; truthy, not a skip
+    try:
+        row, created = StripeWebhookEvent.objects.get_or_create(
+            event_id=event_id, defaults={'event_type': event_type or ''})
+    except Exception:  # noqa: BLE001
+        # A ledger failure must not drop a real Stripe event on the
+        # floor. Process it; at worst a redelivery repeats a tag.
+        logger.exception('Stripe webhook: could not claim event %s', event_id)
+        return StripeWebhookEvent()
+    return row if created else None
+
+
+def _note_event_error(claim, exc):
+    """Stamp the failure onto the ledger row for a human to find."""
+    try:
+        if claim is not None and claim.pk:
+            claim.last_error = str(exc)[:4000]
+            claim.save(update_fields=['last_error'])
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Free-trial lifecycle → GoHighLevel (Nov 2026)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _acceptance_for_subscription(sub_id):
+    """The TermsAcceptance row behind a subscription id, or None.
+
+    This is the join key for every post-signup trial event. invoice.paid,
+    invoice.payment_failed, trial_will_end and subscription.deleted all
+    arrive carrying a subscription id and nothing else we can use, so
+    resolving the buyer's email and product through our own row avoids
+    an API round trip to Stripe on each one.
+
+    None means "not a trial we started", which is the correct outcome
+    for every pre-existing maintenance and hosting subscription flowing
+    through these same events.
+    """
+    if not sub_id:
+        return None
+    from billing.terms_models import TermsAcceptance
+    return (TermsAcceptance.objects
+            .filter(stripe_subscription_id=sub_id)
+            .order_by('-accepted_at')
+            .first())
+
+
+def _invoice_subscription(invoice):
+    """Subscription id off an invoice, across API shapes.
+
+    Stripe moved this: older invoices carry a top-level `subscription`,
+    newer ones put it under `parent.subscription_details.subscription`.
+    The existing `_invoice_subscription_id` helper handles the shapes
+    for its own callers; this reads the same places on a plain dict.
+    """
+    direct = invoice.get('subscription')
+    if isinstance(direct, str) and direct:
+        return direct
+    if isinstance(direct, dict) and direct.get('id'):
+        return direct['id']
+    parent = invoice.get('parent') or {}
+    details = (parent.get('subscription_details') or {}
+               if isinstance(parent, dict) else {})
+    nested = details.get('subscription')
+    if isinstance(nested, str) and nested:
+        return nested
+    if isinstance(nested, dict) and nested.get('id'):
+        return nested['id']
+    # Line items name it too, which is the only place it appears on
+    # some proration invoices.
+    for line in (invoice.get('lines') or {}).get('data') or []:
+        parent_line = line.get('parent') or {}
+        sub_item = (parent_line.get('subscription_item_details') or {}
+                    if isinstance(parent_line, dict) else {})
+        if sub_item.get('subscription'):
+            return sub_item['subscription']
+    return ''
+
+
+def _contact_details_for(acceptance):
+    """Name, phone and company for the GHL upsert.
+
+    Checkout collects only an email, so the richer fields come from the
+    Account that provisioning created moments earlier. Falling back to
+    the email's local part is handled in trial_ghl; what matters here is
+    not inventing a company name, because companyName overwrites
+    whatever the contact already had in GHL.
+    """
+    details = {'name': '', 'phone': '', 'company_name': ''}
+    try:
+        from clients.account_models import Account
+        account = (Account.objects
+                   .filter(user__email__iexact=acceptance.email)
+                   .first())
+        if account is not None:
+            details['name'] = (account.contact_name or '').strip()
+            details['phone'] = (getattr(account, 'phone', '') or '').strip()
+            details['company_name'] = (account.name or '').strip()
+    except Exception:  # noqa: BLE001
+        logger.exception('trial lifecycle: account lookup failed for %s',
+                         acceptance.email)
+    return details
+
+
+def _handle_trial_lifecycle(event_type, event):
+    """Push trial lifecycle changes to GHL. Never raises past itself."""
+    obj = (event.get('data') or {}).get('object') or {}
+
+    if event_type == 'customer.subscription.created':
+        _on_trial_started(obj)
+    elif event_type == 'customer.subscription.trial_will_end':
+        _on_trial_will_end(obj)
+    elif event_type == 'invoice.paid':
+        _on_trial_invoice_paid(obj)
+    elif event_type == 'invoice.payment_failed':
+        _on_trial_payment_failed(obj)
+    elif event_type == 'customer.subscription.deleted':
+        _on_trial_cancelled(obj)
+
+
+def _on_trial_started(sub):
+    """customer.subscription.created where the subscription is trialing."""
+    from billing import trial_ghl
+    from billing.trials import subscription_trial_end
+
+    metadata = sub.get('metadata') or {}
+    # Two conditions, both required. metadata marks it as ours; the
+    # status is what makes it a TRIAL rather than one of the many
+    # charge-now subscriptions flowing through this same event.
+    if metadata.get('trial_signup') != '1':
+        return
+    if sub.get('status') != 'trialing':
+        logger.info(
+            'trial lifecycle: subscription %s has trial_signup but '
+            'status=%s, not tagging trial-started',
+            sub.get('id'), sub.get('status'))
+        return
+
+    product_slug = metadata.get('product_slug') or metadata.get('tier_slug')
+    acceptance = _acceptance_for_subscription(sub.get('id'))
+    if acceptance is None:
+        # The subscription metadata carries the acceptance id, so a
+        # missing row means the id did not resolve: a replayed old
+        # event, or a database that lost the row. Nothing to attach the
+        # Stripe ids to, and no email to push.
+        logger.warning(
+            'trial lifecycle: no acceptance row for subscription %s',
+            sub.get('id'))
+        return
+
+    # Complete the acceptance record. The synchronous checkout path
+    # already stamped these; this is the backstop for a subscription
+    # created some other way, and it is cheap.
+    fields = []
+    if not acceptance.stripe_customer_id and sub.get('customer'):
+        acceptance.stripe_customer_id = sub['customer']
+        fields.append('stripe_customer_id')
+    if not acceptance.stripe_subscription_id and sub.get('id'):
+        acceptance.stripe_subscription_id = sub['id']
+        fields.append('stripe_subscription_id')
+    if fields:
+        acceptance.save(update_fields=fields + ['updated_at'])
+
+    details = _contact_details_for(acceptance)
+    contact_id = trial_ghl.push_trial_started(
+        email=acceptance.email,
+        product_slug=product_slug,
+        trial_start=acceptance.accepted_at,
+        trial_end=subscription_trial_end(sub),
+        customer_id=acceptance.stripe_customer_id,
+        subscription_id=acceptance.stripe_subscription_id,
+        **details)
+    if contact_id and contact_id != acceptance.ghl_contact_id:
+        acceptance.ghl_contact_id = contact_id
+        acceptance.save(update_fields=['ghl_contact_id', 'updated_at'])
+
+
+def _on_trial_will_end(sub):
+    from billing import trial_ghl
+
+    acceptance = _acceptance_for_subscription(sub.get('id'))
+    if acceptance is None:
+        return
+    metadata = sub.get('metadata') or {}
+    product_slug = (metadata.get('product_slug')
+                    or acceptance.product_slug)
+    trial_ghl.push_trial_ending(email=acceptance.email,
+                                product_slug=product_slug)
+
+
+def _on_trial_invoice_paid(invoice):
+    """First non-zero invoice: the trial converted.
+
+    Guarded three ways, because this is the event with the most
+    expensive double-fire. It both tags the customer as paying and
+    turns their voice program into real cohort occupancy, which moves
+    the price ladder for the next buyer.
+
+    1. amount_paid must be > 0. A trial's opening invoice is $0 and
+       Stripe marks it paid immediately, so without this the conversion
+       would fire at signup.
+    2. converted_at must be empty. This is what stops month 13's
+       renewal from re-firing it.
+    3. consume_slot is itself idempotent and reports whether it was the
+       call that flipped the flag.
+    """
+    from billing import trial_ghl
+
+    try:
+        amount_paid = int(invoice.get('amount_paid') or 0)
+    except (TypeError, ValueError):
+        amount_paid = 0
+    if amount_paid <= 0:
+        return
+
+    acceptance = _acceptance_for_subscription(_invoice_subscription(invoice))
+    if acceptance is None:
+        return
+    if acceptance.converted_at is not None:
+        # An ordinary monthly renewal on a long-standing customer.
+        return
+
+    acceptance.converted_at = timezone.now()
+    acceptance.save(update_fields=['converted_at', 'updated_at'])
+
+    # Cohort occupancy, per the owner's decision: a trial does not move
+    # the ladder, a payment does.
+    _consume_voice_slot_for(acceptance)
+
+    trial_ghl.push_converted(email=acceptance.email,
+                             product_slug=acceptance.product_slug)
+
+
+def _consume_voice_slot_for(acceptance):
+    """Flip the voice cohort slot on a converted trial, then escalate.
+
+    No-op for the Review System, which has no cohort ladder. Never
+    raises: a cohort bookkeeping failure must not fail the webhook that
+    also tags the customer as paying.
+    """
+    from clients.contract_options import VOICE_RECEPTIONIST_SLUG
+
+    if acceptance.product_slug != VOICE_RECEPTIONIST_SLUG:
+        return
+    try:
+        from clients.account_models import Account
+        from voice.cohorts import consume_slot, maybe_escalate
+        from voice.entitlement import program_for
+
+        account = (Account.objects
+                   .filter(user__email__iexact=acceptance.email)
+                   .first())
+        if account is None:
+            logger.warning(
+                'trial lifecycle: no account for %s, voice slot not '
+                'consumed', acceptance.email)
+            return
+        program = program_for(account)
+        if program is None:
+            logger.warning(
+                'trial lifecycle: no voice program for %s, slot not '
+                'consumed', acceptance.email)
+            return
+        if consume_slot(program):
+            # Only when this call is what flipped it, so a redelivery
+            # cannot escalate the ladder a second time.
+            maybe_escalate()
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            'trial lifecycle: voice slot consumption failed for %s',
+            acceptance.email)
+
+
+def _on_trial_payment_failed(invoice):
+    from billing import trial_ghl
+
+    acceptance = _acceptance_for_subscription(_invoice_subscription(invoice))
+    if acceptance is None:
+        return
+    trial_ghl.push_payment_failed(email=acceptance.email,
+                                  product_slug=acceptance.product_slug)
+
+
+def _on_trial_cancelled(sub):
+    from billing import trial_ghl
+
+    acceptance = _acceptance_for_subscription(sub.get('id'))
+    if acceptance is None:
+        return
+    trial_ghl.push_cancelled(email=acceptance.email,
+                             product_slug=acceptance.product_slug)
 
 
 # ── payment_intent.succeeded ────────────────────────────────────────────────

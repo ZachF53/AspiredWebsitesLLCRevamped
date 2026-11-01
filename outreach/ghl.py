@@ -148,12 +148,25 @@ def build_payload(*, first_name, last_name='', email='', phone_raw='',
     return payload
 
 
-def _post(path, json_body):
+def _request(method, path, json_body, *, allow_empty_response=False):
     """
-    One POST against the GHL API, with retry/error handling shared by
-    every endpoint this client calls. Retries HTTP 429 honouring
-    Retry-After, with jitter, up to MAX_ATTEMPTS. Raises GHLError on
-    any other failure — never returns a partial/ambiguous result.
+    One request against the GHL API, with the retry/error handling
+    shared by every endpoint this client calls. Retries HTTP 429
+    honouring Retry-After, with jitter, up to MAX_ATTEMPTS. Raises
+    GHLError on any other failure — never returns a partial or
+    ambiguous result.
+
+    ``method`` exists because tag REMOVAL is a DELETE with a body. This
+    was POST-only until the free-trial work needed to clear a
+    ``trial-*`` tag on conversion, which cannot be done by upserting
+    (the upsert replaces the whole tag array — see module docstring)
+    and cannot be done by adding (tags are additive).
+
+    ``allow_empty_response`` because GHL's tag-delete returns 200 with
+    no body on success, where every other endpoint here returns JSON.
+    Treating that as a failure would make a successful removal look
+    like an outage and send a converted customer to
+    FailedLeadSubmission.
     """
     base = (getattr(settings, 'GHL_API_BASE', '')
             or 'https://services.leadconnectorhq.com').rstrip('/')
@@ -165,12 +178,22 @@ def _post(path, json_body):
         'Accept': 'application/json',
     }
 
+    # Dispatched to requests.post / requests.delete by name rather than
+    # through requests.request, so the per-verb seam the existing tests
+    # patch (@patch('outreach.ghl.requests.post')) keeps working. A
+    # generic requests.request call would have silently bypassed every
+    # one of those mocks and sent real HTTP from the test suite.
+    send = getattr(requests, method.lower(), None)
+    if send is None:
+        raise GHLError(f'GHL: unsupported HTTP method {method}')
+
     attempt = 0
     while True:
         attempt += 1
         try:
-            resp = requests.post(
-                url, headers=headers, json=json_body, timeout=DEFAULT_TIMEOUT)
+            resp = send(
+                url, headers=headers, json=json_body,
+                timeout=DEFAULT_TIMEOUT)
         except requests.RequestException as exc:
             raise GHLError(f'GHL unreachable: {exc}') from exc
 
@@ -191,15 +214,26 @@ def _post(path, json_body):
             # in logs beyond a correlation id + GHL's traceId).
             detail = resp.text[:300]
             raise GHLError(
-                f'GHL POST {path} -> HTTP {resp.status_code}: {detail}')
+                f'GHL {method} {path} -> HTTP {resp.status_code}: {detail}')
 
         if not resp.content:
-            raise GHLError(f'GHL POST {path} returned an empty response body.')
+            if allow_empty_response:
+                return {}
+            raise GHLError(
+                f'GHL {method} {path} returned an empty response body.')
         try:
             return resp.json()
         except ValueError as exc:
+            if allow_empty_response:
+                return {}
             raise GHLError(
-                f'GHL POST {path} returned non-JSON: {resp.text[:200]}') from exc
+                f'GHL {method} {path} returned non-JSON: '
+                f'{resp.text[:200]}') from exc
+
+
+def _post(path, json_body):
+    """POST wrapper, kept so existing callers are untouched."""
+    return _request('POST', path, json_body)
 
 
 def push_contact(payload):
@@ -214,6 +248,28 @@ def add_tags(contact_id, tags):
     putting 'tags' on the upsert; see module docstring.
     """
     return _post(f'contacts/{contact_id}/tags', {'tags': list(tags)})
+
+
+def remove_tags(contact_id, tags):
+    """
+    DELETE /contacts/{contactId}/tags — removes just the named tags and
+    leaves the rest of the contact's array alone.
+
+    Needed because a converted trial has to stop looking like a trial:
+    the ``trial-started-*`` and ``trial-ending-*`` tags drive GHL
+    workflows, and a paying customer still carrying them keeps getting
+    "your trial is ending" messaging. The upsert cannot do this (it
+    would replace every other tag the contact has) and add_tags cannot
+    (it only adds).
+
+    Removing a tag the contact does not have is not an error at GHL,
+    which is what makes this safe to call on webhook redelivery.
+    """
+    tags = [t for t in tags if t]
+    if not tags:
+        return {}
+    return _request('DELETE', f'contacts/{contact_id}/tags',
+                    {'tags': list(tags)}, allow_empty_response=True)
 
 
 def sync_lead_to_ghl(*, first_name, last_name='', email='', phone_raw='',

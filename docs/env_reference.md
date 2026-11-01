@@ -31,6 +31,21 @@ cohort ladder: `voice/cohorts.py` mints a new Stripe Price per rung and
 repoints `ServiceTier` at it. An env var would pin new signups to the
 opening price forever and sell a $147 product for $97.
 
+## The trial cancel link and nginx access logs
+
+`/billing/portal/stripe/?ref=<uuid>` is the no-password cancel link on
+the trial-started page. The `ref` is a credential for the length of the
+trial, and the application never logs it: Django's own 4xx logging
+records `request.path`, which excludes the query string, and no logger
+call in `billing/portal_views.py` carries it.
+
+**nginx does log it.** The default `combined` log format records the
+full request line including the query string, so these refs land in
+`/var/log/nginx/access.log` on staging and prod. They expire with the
+trial, so the exposure is bounded, but if the access log is shipped
+anywhere off-box that is worth knowing. To strip it, log `$uri` instead
+of `$request` for that location.
+
 ## Per-environment values
 
 `TRIAL_DAYS` and `TERMS_VERSION` should be identical in all three

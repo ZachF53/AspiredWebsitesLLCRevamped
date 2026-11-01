@@ -17,6 +17,7 @@ from billing.cancellation_models import CancellationReason  # noqa: F401
 from billing.dunning_models import DunningEvent  # noqa: F401
 from billing.revenue_models import StripeRevenueSync  # noqa: F401
 from billing.terms_models import TermsAcceptance  # noqa: F401
+from billing.webhook_models import StripeWebhookEvent  # noqa: F401
 
 
 class MiniInvoice(TimestampedModel):

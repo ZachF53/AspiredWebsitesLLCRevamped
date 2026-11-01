@@ -72,8 +72,27 @@ class TermsAcceptance(TimestampedModel):
     # Filled by the customer.subscription.created webhook.
     stripe_customer_id = models.CharField(
         max_length=255, blank=True, db_index=True)
+    # Also the join key for every post-signup webhook. invoice.paid,
+    # invoice.payment_failed, trial_will_end and subscription.deleted
+    # all carry a subscription id and nothing else we can use, so
+    # resolving email and product through this row saves an API call
+    # to Stripe on every one of them.
     stripe_subscription_id = models.CharField(
         max_length=255, blank=True, db_index=True)
+
+    # When the first REAL (non-zero) invoice was paid. The marker for
+    # "this trial converted", and deliberately ours rather than
+    # Stripe's: it makes "first paid invoice" precise and idempotent
+    # without having to reason about billing_reason values or trust
+    # that an event is delivered exactly once. Also what stops a
+    # monthly renewal twelve months from now from re-firing the
+    # conversion tag and re-consuming a cohort slot.
+    converted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    # Learned on the first successful GHL push, stored so later events
+    # could address the contact directly. Blank is normal and not an
+    # error: it means GHL was unreachable at signup and the
+    # FailedLeadSubmission row has the details.
+    ghl_contact_id = models.CharField(max_length=64, blank=True)
 
     class Meta:
         ordering = ['-accepted_at']

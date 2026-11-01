@@ -4,8 +4,43 @@ from django.contrib import admin, messages
 from django.utils.html import format_html
 
 from .models import (
-    AddonPricing, MiniInvoice, ServiceTier, TermsAcceptance, TierFeature,
+    AddonPricing, MiniInvoice, ServiceTier, StripeWebhookEvent,
+    TermsAcceptance, TierFeature,
 )
+
+
+@admin.register(StripeWebhookEvent)
+class StripeWebhookEventAdmin(admin.ModelAdmin):
+    """The processed-event ledger. Read-only, with one exception.
+
+    Deleting a row is allowed, and it is the whole operational point of
+    having this in the admin: if an event was claimed and then failed
+    (last_error is set), removing the row is what lets a Stripe
+    "Resend" actually re-run it. Without that, a half-processed event
+    would be permanently un-replayable.
+
+    Adding and editing are not allowed. A hand-written event id would
+    silently suppress a real event the next time Stripe sent it.
+    """
+
+    list_display = ('event_type', 'event_id', 'processed_at', 'has_error')
+    list_filter = ('event_type', 'processed_at')
+    search_fields = ('event_id', 'event_type', 'last_error')
+    date_hierarchy = 'processed_at'
+    ordering = ('-processed_at',)
+
+    @admin.display(boolean=True, description='Errored')
+    def has_error(self, obj):
+        return bool(obj.last_error)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(TermsAcceptance)
