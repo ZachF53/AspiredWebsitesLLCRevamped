@@ -83,10 +83,23 @@
                         calls should reach first, and what counts as an
                         emergency. Your answers save as you go.
                     </li>
+                    {% comment %}
+                    24 hours, not business days. A2P 10DLC registration
+                    governs SMS on long codes, not inbound voice, so
+                    nothing about standing up a forwarding number waits
+                    on carrier review. The campaign is approved anyway
+                    (2026-10-14), so it would not gate this even if it
+                    applied.
+
+                    What actually bounds this is the agent build on our
+                    side, which is why it is a promise rather than a
+                    technical fact. Matches the 24 hours already
+                    promised on the review-automation steps.
+                    {% endcomment %}
                     <li>
                         We build your receptionist from those answers and
                         send you the number to forward your line to, within
-                        2 to 5 business days.
+                        24 hours.
                     </li>
                     <li>
                         You forward your existing number to the one we send.
