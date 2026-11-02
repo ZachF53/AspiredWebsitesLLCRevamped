@@ -11,12 +11,21 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Re-pointed at the current leaf. 0015 creates the AI Voice
-        # Receptionist ServiceTier row; like 0014 before it, it only
-        # inserts pricing data and does not touch MiniInvoice or the
-        # legacy owner FKs dropped below. Promoting this against a stale
-        # parent would branch the migration graph.
-        ('billing', '0015_voice_receptionist_tier'),
+        # Re-pointed at the current leaf (Nov 2026). The trial/terms work
+        # added 0016-0018 after this file was last touched, so the old
+        # dependency on 0015_voice_receptionist_tier had stopped being the
+        # leaf and promoting this would have branched the migration graph.
+        #
+        # Checked, not assumed: 0016 creates TermsAcceptance, 0017 creates
+        # StripeWebhookEvent plus two AddFields on termsacceptance, and
+        # 0018 is three more AddFields on termsacceptance. None of them
+        # references MiniInvoice or the legacy owner FKs dropped below, so
+        # this file's operations are unaffected by the new parent.
+        #
+        # This dependency goes stale every time a billing migration lands.
+        # clients.tests_planned_migrations catches it; re-point, re-verify
+        # the new parent is unrelated, and say so here.
+        ('billing', '0018_termsacceptance_cancelled_at_and_more'),
     ]
 
     operations = [
