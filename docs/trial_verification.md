@@ -134,22 +134,21 @@ hand to test it.
 
 ### 1.4 Still outstanding
 
-- **Confirm `billing@aspiredwebsites.com` receives mail.** It is set on
-  both servers and now renders in terms section 21, on the checkout
-  disclosure and on the trial manage page, all three of which promise
-  cancellation by email. If that mailbox or alias does not exist yet,
-  create it. This is the one open item that a customer could hit.
-- **Attorney-review markers.** Terms sections 15 and 18 still carry
-  `<!-- TODO: attorney review -->` in the HTML. They are invisible to
-  visitors. Zachery reported the review itself as done on 2026-11-01;
-  the markers were left in place rather than removed on an ambiguous
-  "done", since deleting a legal-review marker is not a thing to do by
-  inference. Say the word and they come out.
+Nothing. All hand steps are closed as of 2026-11-02:
 
-Closed: onboarding copy (written 2026-11-02, two steps answered from
-the seeded wizard in `onboarding/registry.py`), the receptionist
-turnaround time (2 to 5 business days), and the four GHL custom
-fields.
+- **`billing@aspiredwebsites.com`** confirmed by Zachery as receiving
+  mail. The domain's MX records point at Google Workspace, so the
+  address resolves. This was the one open item a customer could hit, as
+  it renders in terms section 21, on the checkout disclosure and on the
+  trial manage page, all three of which promise cancellation by email.
+- **Attorney review** of terms sections 15 (limitation of liability)
+  and 18 (governing law) confirmed complete. The
+  `<!-- TODO: attorney review -->` markers were removed. Only the
+  comments went; both clauses are byte-for-byte unchanged, so
+  `TERMS_VERSION` stays `2026-11-01` and nobody needs to re-accept.
+- **Onboarding copy** written, with the receptionist turnaround stated
+  as 2 to 5 business days.
+- **Four GHL custom fields** created and their ids pinned in settings.
 
 ---
 
