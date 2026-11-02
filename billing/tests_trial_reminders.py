@@ -130,9 +130,10 @@ class ReminderContentTests(TestCase):
         send_trial_ending_email(row)
         msg = mail.outbox[0]
         body = msg.body + msg.alternatives[0][0]
+        shown = timezone.localtime(row.trial_end)
         self.assertIn('$97/mo', body)
-        self.assertIn(f'{row.trial_end:%B}', body)
-        self.assertIn(str(row.trial_end.day), body)
+        self.assertIn(f'{shown:%B}', body)
+        self.assertIn(str(shown.day), body)
         self.assertIn('AI Voice Receptionist', body)
 
     def test_it_says_nothing_has_been_charged_yet(self):
@@ -154,8 +155,41 @@ class ReminderContentTests(TestCase):
         row = _acceptance()
         send_trial_ending_email(row)
         subject = mail.outbox[0].subject
+        shown = timezone.localtime(row.trial_end)
         self.assertIn('AI Voice Receptionist', subject)
-        self.assertIn(f'{row.trial_end:%B}', subject)
+        self.assertIn(f'{shown:%B}', subject)
+
+    def test_the_text_and_html_halves_agree_on_the_charge_date(self):
+        """They did not, every evening after 7pm Eastern.
+
+        trial_end is stored in UTC. Django's `|date:` filter localises
+        an aware datetime; an f-string does not. So the subject line and
+        plain-text body were built from the UTC date while the HTML body
+        rendered the localised one, and the two disagreed by a day for
+        five hours out of every twenty-four.
+
+        An email that is specifically the pre-charge disclosure cannot
+        state two different charge dates, so this pins it. The regression
+        is invisible in the morning, which is why it needs a test with a
+        deliberately late UTC instant rather than `now`.
+        """
+        from datetime import datetime, timezone as dt_tz
+
+        # 01:30 UTC on Nov 7 is 20:30 on Nov 6 in America/New_York.
+        row = _acceptance()
+        row.trial_end = datetime(2026, 11, 7, 1, 30, tzinfo=dt_tz.utc)
+        row.save()
+        send_trial_ending_email(row)
+
+        msg = mail.outbox[0]
+        html = msg.alternatives[0][0]
+        # The local date is the one to show, and both halves must agree.
+        self.assertIn('November 6', msg.subject)
+        self.assertIn('November 6', msg.body)
+        self.assertIn('November 6', html)
+        self.assertNotIn('November 7', msg.subject)
+        self.assertNotIn('November 7', msg.body)
+        self.assertNotIn('November 7', html)
 
     def test_click_tracking_is_suppressed(self):
         """The manage URL carries a token; SendGrid must not rewrite it."""

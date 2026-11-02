@@ -97,7 +97,9 @@ class TrialManagePageTests(TestCase):
         row.save()
         html = self.client.get(f'{self.url}?ref={row.pk}').content.decode()
         self.assertIn('$97/mo', html)
-        self.assertIn(f'{row.trial_end:%B} {row.trial_end.day},', html)
+        # localtime, because the template localises the datetime.
+        shown = timezone.localtime(row.trial_end)
+        self.assertIn(f'{shown:%B} {shown.day},', html)
 
     # -- The link window ---------------------------------------------
 
@@ -191,7 +193,9 @@ class TrialManagePageTests(TestCase):
                 f'{self.url}?ref={row.pk}').content.decode()
         self.assertIn('will not be charged', html)
         self.assertIn('keeps working until', html)
-        self.assertIn(f'{row.trial_end:%B} {row.trial_end.day},', html)
+        # localtime, because the template localises the datetime.
+        shown = timezone.localtime(row.trial_end)
+        self.assertIn(f'{shown:%B} {shown.day},', html)
 
     def test_cancel_stamps_cancelled_at(self):
         row = _acceptance()

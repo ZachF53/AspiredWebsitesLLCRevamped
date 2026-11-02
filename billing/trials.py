@@ -113,10 +113,17 @@ def trial_end_date(*, start=None):
     This is the expected date. The authoritative one is `trial_end` on
     the subscription Stripe actually creates, which is what the
     trial-started page reads back.
+
+    Localised before the date is taken. Django's `|date:` filter
+    localises an aware datetime but NOT a plain date, so returning a
+    UTC-derived date here while the trial-started page renders a
+    localised datetime would show the buyer one charge date before
+    purchase and a different one immediately after, every evening after
+    7pm Eastern.
     """
     from datetime import timedelta
     start = start or timezone.now()
-    return (start + timedelta(days=trial_days())).date()
+    return timezone.localtime(start + timedelta(days=trial_days())).date()
 
 
 def client_ip(request):

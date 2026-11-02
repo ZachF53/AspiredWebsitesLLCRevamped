@@ -60,6 +60,18 @@ CHANNEL_LAYERS = {
 }
 
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+
+# ── Free trial + terms, pinned ──────────────────────────────────────────
+#
+# settings.py reads these from .env, so without pinning them here the
+# suite's expectations would depend on whatever a given developer has in
+# their local .env and would drift between machines and CI. Tests that
+# care about a specific value use override_settings on top of these.
+TRIAL_DAYS = 14
+TRIAL_REMINDER_DAYS = 3
+TERMS_VERSION = '2026-11-01'
+BILLING_SUPPORT_EMAIL = 'billing@aspiredwebsites.com'
+
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = 'memory://'

@@ -121,14 +121,30 @@ def send_trial_ending_email(acceptance, *, now=None):
     # receptionist that is a cohort rung, so never hardcode it.
     price_display = tier.get_price_display() if tier else ''
 
-    trial_end = acceptance.trial_end
-    if trial_end is None:
+    if acceptance.trial_end is None:
         logger.warning(
             'trial reminder: no trial_end on acceptance %s, skipping',
             acceptance.pk)
         return False
 
-    days_left = max(0, (trial_end.date() - now.date()).days)
+    # LOCALISED ONCE, and the localised value is what goes to the
+    # template too. This is not a tidiness point.
+    #
+    # trial_end is stored in UTC. Django's `|date:` filter localises an
+    # aware datetime automatically, but an f-string does not. So
+    # formatting the raw value here while the HTML template formatted
+    # the same field put two DIFFERENT charge dates in one email
+    # whenever UTC and America/New_York disagreed about the date, which
+    # is every evening after 7pm Eastern. The subject line and the
+    # plain-text body said one day, the HTML said the day before.
+    #
+    # On a pre-charge disclosure that contradiction is a dispute waiting
+    # to happen, so both halves now read from the same localised
+    # datetime.
+    trial_end = timezone.localtime(acceptance.trial_end)
+    local_now = timezone.localtime(now)
+
+    days_left = max(0, (trial_end.date() - local_now.date()).days)
     first_name = _first_name_for(acceptance)
     manage_url = manage_url_for(acceptance)
     support_phone = '(210) 201-0375'

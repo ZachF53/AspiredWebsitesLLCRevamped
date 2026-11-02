@@ -360,7 +360,12 @@ class TrialCheckoutPageTests(TestCase):
             resp = self.client.get(reverse('billing:checkout_page',
                                            kwargs={'tier_slug': TRIAL_SLUG}))
         html = resp.content.decode()
-        expected = (timezone.now() + timedelta(days=21)).date()
+        # localtime, matching trials.trial_end_date(). A UTC-derived
+        # date would be a day ahead every evening after 7pm Eastern,
+        # and the buyer would see one charge date before purchase and
+        # another immediately after.
+        expected = timezone.localtime(
+            timezone.now() + timedelta(days=21)).date()
         # Matches the template's `date:"F j, Y"` format exactly.
         wanted = f'{expected:%B} {expected.day}, {expected.year}'
         self.assertIn(wanted, html)
