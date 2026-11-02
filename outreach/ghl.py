@@ -270,9 +270,37 @@ def _post(path, json_body):
     return _request('POST', path, json_body)
 
 
+def _put(path, json_body):
+    """PUT wrapper. Used for partial contact updates (custom fields)."""
+    return _request('PUT', path, json_body)
+
+
 def push_contact(payload):
     """POST /contacts/upsert."""
     return _post('contacts/upsert', payload)
+
+
+def update_contact_custom_fields(contact_id, fields):
+    """PUT custom fields onto an existing contact, by GHL field id.
+
+    For the voice-audit path, which already knows the contact id and
+    needs the audit facts ON the contact rather than only in a workflow
+    payload. Nothing else about the contact is touched: no name, no
+    email, and critically no tags — see the module docstring for why a
+    tags array on a contact write is destructive.
+
+    Empty values are dropped, so a metric PSI did not report stays
+    absent instead of arriving as 0.
+
+    Raises GHLError like every other call here; callers decide whether a
+    failure matters.
+    """
+    entries = [_custom_field_entry(key, value)
+               for key, value in (fields or {}).items()
+               if value not in (None, '')]
+    if not entries:
+        return None
+    return _put(f'contacts/{contact_id}', {'customFields': entries})
 
 
 def add_tags(contact_id, tags):

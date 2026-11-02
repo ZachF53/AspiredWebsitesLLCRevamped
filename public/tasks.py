@@ -9,6 +9,7 @@ import tldextract
 from celery import shared_task
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -143,10 +144,28 @@ _VOICE_REASON_FALLBACK = ('I could not analyze that site right now. I can '
 
 def _post_audit_callback(payload, contact_id, phone):
     """
-    POST the finished payload to GHL. No retries: the repo has no retry
-    infrastructure and a silently-retried audit would arrive after the
-    call it was for. An empty setting is a skip, not an error -- a
-    missing webhook must not fail an audit that otherwise succeeded.
+    POST the finished payload to GHL.
+
+    ONE immediate retry, no backoff, no queueing. The original reasoning
+    against retries still holds for *delayed* ones -- an audit that
+    arrives after the call it was for is worse than useless -- but a
+    transient 502 or a dropped connection silently meant the caller
+    never got their result at all. An immediate second attempt costs a
+    few hundred milliseconds and is still inside the window where the
+    answer is useful.
+
+    Deliberately NOT retried on a 4xx: that is a rejected payload or a
+    bad webhook URL, and sending it again produces the same answer.
+
+    The payload keys stay exactly as they are (url, summary,
+    performance_score...). GHL snapshots a workflow's field mapping when
+    the sample is fetched, so renaming them breaks the live SMS mapping
+    SILENTLY -- the text still sends, with blanks where the scores
+    should be. Canonical naming happens on the contact write instead,
+    see _write_audit_fields_to_contact.
+
+    An empty setting is a skip, not an error -- a missing webhook must
+    not fail an audit that otherwise succeeded.
     """
     endpoint = (getattr(settings, 'GHL_AUDIT_WEBHOOK_URL', '') or '').strip()
     if not endpoint:
@@ -157,12 +176,73 @@ def _post_audit_callback(payload, contact_id, phone):
         body['contact_id'] = contact_id
     if phone:
         body['phone'] = phone
+
+    for attempt in (1, 2):
+        try:
+            resp = requests.post(endpoint, json=body, timeout=10)
+        except requests.RequestException as exc:
+            logger.warning('audit callback attempt %s failed: %s',
+                           attempt, exc)
+            if attempt == 2:
+                logger.error('audit callback gave up after 2 attempts; '
+                             'caller will not receive this result')
+            continue
+        if resp.status_code < 400 or 400 <= resp.status_code < 500:
+            # 2xx/3xx is done. 4xx is a rejected body or a wrong URL --
+            # retrying sends the same thing and gets the same answer.
+            logger.info('audit callback -> %s returned %s (attempt %s)',
+                        endpoint, resp.status_code, attempt)
+            return
+        logger.warning('audit callback -> %s returned %s (attempt %s)',
+                       endpoint, resp.status_code, attempt)
+    return
+
+
+def _write_audit_fields_to_contact(contact_id, payload):
+    """Write the canonical audit fields onto an existing GHL contact.
+
+    Phase 3. The webhook-trigger above delivers the SMS; this persists
+    the same facts on the contact record, which the webhook cannot do.
+
+    Why a direct API write rather than extending the webhook payload and
+    mapping it in the workflow: a workflow's field mapping is a snapshot
+    taken when its sample was fetched, so new payload keys are not
+    available to it until someone re-fetches and re-maps by hand. Going
+    through the contacts API means adding a field needs no GHL-side
+    change at all, and there is exactly one writer for contact fields
+    (here and public.views._audit_lead_to_crm) using one set of ids.
+
+    No-ops without a contact_id -- a voice audit for an unknown caller
+    has no contact to write to. Never raises: the caller has already
+    been texted their result, so a CRM write failing must not surface.
+    """
+    if not contact_id:
+        return
+    from outreach import ghl as ghl_client
+
+    scores = payload.get('scores') or {}
+    fields = {
+        'audit_url': payload.get('url') or '',
+        'audit_final_url': payload.get('final_url') or '',
+        'audit_status': payload.get('status') or '',
+        'audit_summary': payload.get('summary') or '',
+        'audit_performance_score': _as_str(payload.get('performance_score')),
+        'audit_seo_score': _as_str(scores.get('seo')),
+        'audit_accessibility_score': _as_str(scores.get('accessibility')),
+        'audit_best_practices_score': _as_str(scores.get('best_practices')),
+        'audit_lcp_ms': _as_str(payload.get('lcp_ms')),
+        'audit_checked_at': timezone.now().date().isoformat(),
+    }
     try:
-        resp = requests.post(endpoint, json=body, timeout=10)
-        logger.info('audit callback -> %s returned %s',
-                    endpoint, resp.status_code)
-    except requests.RequestException as exc:
-        logger.warning('audit callback to %s failed: %s', endpoint, exc)
+        ghl_client.update_contact_custom_fields(contact_id, fields)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('could not write audit fields to contact %s: %s',
+                       contact_id, exc)
+
+
+def _as_str(value):
+    """'' for None so build_payload drops it, rather than sending 0."""
+    return '' if value is None else str(value)
 
 
 @shared_task
@@ -282,7 +362,11 @@ def run_audit_for_voice(self, url, contact_id=None, phone=None):
             cache.set(result_key, payload, ttl)
         if job_id:
             cache.set(job_cache_key(job_id), payload, AUDIT_JOB_TTL)
+        # SMS first, CRM second, and in that order on purpose: the
+        # caller is waiting on the text, and a slow contacts API call
+        # must not delay it. The contact write is best-effort.
         _post_audit_callback(payload, contact_id, phone)
+        _write_audit_fields_to_contact(contact_id, payload)
         return payload
 
     # ── 1. The audit itself ────────────────────────────────────────────
@@ -390,6 +474,17 @@ def run_audit_for_voice(self, url, contact_id=None, phone=None):
         {'status': 'ready',
          'final_url': verified_url,
          'performance_score': scores.get('performance'),
+         # The other three categories PSI already returned. NOT added to
+         # the webhook body's top level, where they would be invisible
+         # to the live workflow anyway until its sample is re-fetched --
+         # they ride in `scores` purely so
+         # _write_audit_fields_to_contact can persist them on the
+         # contact. The SMS keeps reading performance_score, unchanged.
+         'scores': {
+             'seo': scores.get('seo'),
+             'accessibility': scores.get('accessibility'),
+             'best_practices': scores.get('best_practices'),
+         },
          'lcp_ms': lcp_ms,
          'lcp_seconds': lcp_seconds,
          'crux': crux,

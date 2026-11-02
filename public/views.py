@@ -1444,7 +1444,7 @@ def _push_callback_to_ghl(lead, cleaned, source_page):
     lead.save(update_fields=['ghl_contact_id', 'pushed_to_ghl_at'])
 
 
-def _audit_lead_to_crm(request, audit_lead):
+def _audit_lead_to_crm(request, audit_lead, final_url='', lcp_ms=None):
     """Turn a results-page capture into a real Lead and push it to GHL.
 
     Never raises. The visitor has already been shown their report and
@@ -1506,15 +1506,17 @@ def _audit_lead_to_crm(request, audit_lead):
                 # GHL on 2026-10-31. 'audited_url' was the old name and
                 # matched nothing.
                 #
-                # Eight of the ten canonical fields. audit_final_url and
-                # audit_lcp_ms are deliberately absent, not forgotten:
-                # this path calls _run_pagespeed_audit() without
-                # include_raw, so it never sees PSI's finalUrl or the LCP
-                # numericValue. Sending empty strings would be worse than
-                # omitting (build_payload drops empties anyway, but an
-                # explicit blank reads as "measured zero"). Phase 3
-                # plumbs them through the same way the voice path does.
+                # All ten canonical fields as of Phase 3.
+                #
+                # final_url and lcp_ms come from the session, stashed by
+                # the audit view from psi_final_url_and_lcp(). Either can
+                # legitimately be missing — PSI sometimes omits LCP — and
+                # build_payload drops empty values, so a field we could
+                # not measure stays absent rather than arriving as 0,
+                # which would read as instant.
                 'audit_url': audit_lead.url,
+                'audit_final_url': final_url or '',
+                'audit_lcp_ms': '' if lcp_ms is None else str(lcp_ms),
                 'audit_performance_score': str(scores['performance']),
                 'audit_seo_score': str(scores['seo']),
                 'audit_best_practices_score': str(scores['best_practices']),
@@ -1655,6 +1657,12 @@ def audit(request):
                 request.session['audit_scores'] = result['scores']
                 request.session['audit_issues'] = result['issues_by_category']
                 request.session['audit_details'] = result.get('details') or {}
+                # Phase 3: carried so the GHL capture can fill
+                # audit_final_url and audit_lcp_ms. Two scalars, not the
+                # whole PSI payload — the session is DB/cache-backed and
+                # `raw` is hundreds of KB.
+                request.session['audit_final_url'] = result.get('final_url') or ''
+                request.session['audit_lcp_ms'] = result.get('lcp_ms')
                 request.session.pop('audit_email_submitted', None)
                 # Drop any AI review cached from a previous audit run.
                 request.session.pop('audit_ai_review', None)
@@ -1753,7 +1761,11 @@ def audit_results(request):
             #
             # Anonymous audits still create no Lead: no contact details
             # means nothing actionable, which is the same rule.
-            _audit_lead_to_crm(request, audit_lead)
+            _audit_lead_to_crm(
+                request, audit_lead,
+                final_url=request.session.get('audit_final_url') or '',
+                lcp_ms=request.session.get('audit_lcp_ms'),
+            )
             # Email 1 of the follow-up sequence, sent immediately.
             # Was an inline sender with no unsubscribe link, which made
             # the message this business sends most often the one message
@@ -1929,6 +1941,7 @@ def _run_pagespeed_audit(url, include_raw=False):
     lighthouse = data.get('lighthouseResult') or {}
     categories = lighthouse.get('categories') or {}
     audits = lighthouse.get('audits') or {}
+    final_url, lcp_ms = psi_final_url_and_lcp(data, url)
 
     def pct(key):
         cat = categories.get(key) or {}
@@ -1953,10 +1966,56 @@ def _run_pagespeed_audit(url, include_raw=False):
         'issues_by_category': issues_by_category,
         # Every passed and failed check, for the emailed report.
         'details': collect_details(lighthouse),
+        # Two small scalars pulled out of the PSI payload for every
+        # caller, not just include_raw ones (Phase 3). The web form used
+        # to discard them with the rest of `raw`, which is why an audit
+        # capture could only ever fill 8 of the 10 canonical GHL fields.
+        # Cheap to carry and keeps `raw` out of the session.
+        'final_url': final_url,
+        'lcp_ms': lcp_ms,
     }
     if include_raw:
         result['raw'] = data
     return result
+
+
+def psi_final_url_and_lcp(data, requested=''):
+    """``(final_url, lcp_ms)`` from a raw PageSpeed Insights payload.
+
+    One extractor for both audit paths. The voice task
+    (public.tasks.run_audit_for_voice) and the web form were reading the
+    same two values out of the same payload with their own copies of
+    this logic, and only the voice one actually kept them — the form
+    discarded `raw`, which is why a web capture could fill only 8 of the
+    10 canonical GHL audit fields.
+
+    Public (no underscore) because public.tasks imports it.
+
+    ``final_url`` falls back requestedUrl -> the url we asked for, so it
+    is never empty. It is PSI's own view of where it landed, NOT the
+    result of re-fetching the page: the voice path deliberately probes
+    separately (``_verify_url_loads``) because PSI returning 200 is not
+    evidence the page exists, and that probe's answer is the one it
+    guards on. Do not conflate the two.
+
+    ``lcp_ms`` is None when the metric is missing (PSI occasionally
+    omits it) or unparseable. None means "not measured" and must stay
+    distinguishable from 0, which would read as instant.
+    """
+    lighthouse = (data or {}).get('lighthouseResult') or {}
+    final_url = (lighthouse.get('finalUrl')
+                 or lighthouse.get('finalDisplayedUrl')
+                 or lighthouse.get('requestedUrl')
+                 or requested or '')
+
+    lcp = (lighthouse.get('audits') or {}).get(
+        'largest-contentful-paint') or {}
+    raw_lcp = lcp.get('numericValue')
+    try:
+        lcp_ms = int(round(float(raw_lcp))) if raw_lcp is not None else None
+    except (TypeError, ValueError):
+        lcp_ms = None
+    return final_url, lcp_ms
 
 
 def _category_issues(category, audits):
