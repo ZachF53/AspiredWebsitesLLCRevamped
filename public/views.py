@@ -1355,7 +1355,12 @@ def _push_lead_to_ghl(lead, cleaned):
         'utm_campaign': cleaned.get('utm_campaign', ''),
         'utm_term': cleaned.get('utm_term', ''),
         'utm_content': cleaned.get('utm_content', ''),
-        'gclid': cleaned.get('gclid', ''),
+        # GHL's field is 'ad_click_id' ("Google Ads Click ID"), NOT
+        # 'gclid'. This was sent as 'gclid' from the start, which
+        # matches no field in the location, so every Google Ads click
+        # id collected here was silently dropped. The form field and
+        # the Lead column keep their own name; only the GHL key changes.
+        'ad_click_id': cleaned.get('gclid', ''),
         'fbclid': cleaned.get('fbclid', ''),
         'landing_page': cleaned.get('landing_page', ''),
         'referrer': cleaned.get('referrer', ''),
@@ -1496,11 +1501,29 @@ def _audit_lead_to_crm(request, audit_lead):
             phone_raw=audit_lead.phone,
             company_name=audit_lead.company,
             custom_fields={
-                'audited_url': audit_lead.url,
+                # Canonical audit field names, matching the ids pinned in
+                # settings.GHL_CUSTOM_FIELD_IDS and the fields created in
+                # GHL on 2026-10-31. 'audited_url' was the old name and
+                # matched nothing.
+                #
+                # Eight of the ten canonical fields. audit_final_url and
+                # audit_lcp_ms are deliberately absent, not forgotten:
+                # this path calls _run_pagespeed_audit() without
+                # include_raw, so it never sees PSI's finalUrl or the LCP
+                # numericValue. Sending empty strings would be worse than
+                # omitting (build_payload drops empties anyway, but an
+                # explicit blank reads as "measured zero"). Phase 3
+                # plumbs them through the same way the voice path does.
+                'audit_url': audit_lead.url,
                 'audit_performance_score': str(scores['performance']),
                 'audit_seo_score': str(scores['seo']),
                 'audit_best_practices_score': str(scores['best_practices']),
                 'audit_accessibility_score': str(scores['accessibility']),
+                'audit_summary': _audit_summary(
+                    audit_lead.url, scores)['text'],
+                'audit_status': 'ready',
+                # DATE field — date only, no time component.
+                'audit_checked_at': audit_lead.created_at.date().isoformat(),
                 'landing_page': (request.POST.get('landing_page') or '')[:500],
                 'referrer': (request.POST.get('referrer') or '')[:500],
             },

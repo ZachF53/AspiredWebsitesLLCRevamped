@@ -56,6 +56,27 @@ def _token():
     return token
 
 
+def _location_id():
+    """The sub-account every contact is written into.
+
+    Fails closed when unset, exactly like _token() above, and for a
+    sharper reason: GHL_LOCATION_ID used to carry the production
+    location as a hardcoded default in settings.py, so any environment
+    that merely had an API key wrote contacts straight into the live
+    CRM. Staging has a valid key. An unset location must therefore mean
+    "do not push" and never "push to prod".
+
+    GHLNotConfigured is a GHLError, so callers already catch this: the
+    Lead row is saved, the fallback email goes out, and a
+    FailedLeadSubmission records it. Nothing is lost -- it just does not
+    reach GHL from an environment that was never meant to write there.
+    """
+    loc = (getattr(settings, 'GHL_LOCATION_ID', '') or '').strip()
+    if not loc:
+        raise GHLNotConfigured('GHL_LOCATION_ID is not set.')
+    return loc
+
+
 def to_e164(raw, region='US'):
     """
     Best-effort E.164 conversion (+1XXXXXXXXXX). Returns None — not ''
@@ -94,16 +115,29 @@ def split_name(full_name):
 
 def _custom_field_entry(key, value):
     """
-    customFields entries use a GHL field id when settings.GHL_CUSTOM_FIELD_IDS
-    has one for this key, else fall back to key. The id is the
-    documented-reliable route; key works today because the fields
-    don't exist in GHL yet (Zachery is creating them and will supply
-    ids — see CLAUDE.md / the spec's "Things that will bite you").
+    customFields entries use the GHL field id from
+    settings.GHL_CUSTOM_FIELD_IDS, falling back to the key.
+
+    As of 2026-11-01 every key this client sends has an id, read live
+    from GET /locations/{id}/customFields and pinned in settings. The
+    id is the documented-reliable route; the key fallback was only ever
+    a placeholder for fields that did not exist in GHL yet.
+
+    The fallback is KEPT rather than made an error, because a key that
+    happens to match a real fieldKey still works and dropping a field
+    is strictly worse than sending one GHL might ignore. But a miss
+    here is now a bug, not a waiting-on-Zachery -- so it is logged at
+    warning level. If this fires, the key is either misspelled or the
+    field needs creating in GHL and its id adding to settings.
     """
     field_ids = getattr(settings, 'GHL_CUSTOM_FIELD_IDS', {}) or {}
     field_id = field_ids.get(key)
     if field_id:
         return {'id': field_id, 'fieldValue': value}
+    logger.warning(
+        'GHL custom field %r has no id in GHL_CUSTOM_FIELD_IDS; sending '
+        'by key, which GHL may ignore. Create the field in GHL and add '
+        'its id to settings.GHL_CUSTOM_FIELD_IDS.', key)
     return {'key': key, 'fieldValue': value}
 
 
@@ -120,7 +154,7 @@ def build_payload(*, first_name, last_name='', email='', phone_raw='',
     custom_fields = dict(custom_fields or {})
 
     payload = {
-        'locationId': getattr(settings, 'GHL_LOCATION_ID', ''),
+        'locationId': _location_id(),
         'firstName': first_name,
         'source': source,
     }

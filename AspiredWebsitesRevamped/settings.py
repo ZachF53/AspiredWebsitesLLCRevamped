@@ -537,7 +537,17 @@ TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', '')
 # Private Integration Token, sub-account scoped. Server-side only — see
 # outreach/ghl.py docstring. Never log its value, never send to the client.
 GHL_API_KEY = env('GHL_API_KEY', '')
-GHL_LOCATION_ID = env('GHL_LOCATION_ID', 'elhJFAz0ZPa2EmAqthti')
+# NO DEFAULT, deliberately. This used to default to the production
+# location id, which meant any environment holding a valid API key wrote
+# contacts straight into the live CRM — and staging holds one. Same
+# class of bug as a cache with no KEY_PREFIX: the credential is correct,
+# the destination is not.
+#
+# Empty is not a silent no-op either: outreach.ghl._location_id() raises
+# GHLNotConfigured, which callers already catch, so an environment
+# missing this saves the Lead and sends the fallback email instead of
+# writing somewhere it shouldn't. Set it per-environment in .env.
+GHL_LOCATION_ID = env('GHL_LOCATION_ID', '')
 GHL_API_BASE = env('GHL_API_BASE', 'https://services.leadconnectorhq.com')
 GHL_API_VERSION = env('GHL_API_VERSION', '2021-07-28')
 
@@ -575,19 +585,104 @@ VOICE_OVERAGE_RATE = Decimal(env('VOICE_OVERAGE_RATE', '0.25'))
 # Where the full submission goes when the GHL push fails for any reason
 # (outage, 4xx/5xx, timeout) — a GHL outage must never cost a lead.
 LEAD_FALLBACK_EMAIL = env('LEAD_FALLBACK_EMAIL', 'zacherylong@aspiredwebsites.com')
-# key -> GHL custom-field id. outreach.ghl falls back to {"key": ...}
-# for any key not listed here. Verified live against the GHL API
-# 2026-10-06 — these five cover the callback form's custom fields
-# (also used by the contact form for landing_page/referrer/phone_raw,
-# which both forms share). The contact form's remaining custom fields
-# (utm_*, gclid, fbclid, project_type, etc.) don't have GHL field ids
-# yet and still go by key.
+# key -> GHL custom-field id, for every custom field on the contact
+# object. Read live from GET /locations/{id}/customFields on 2026-11-01
+# (all 48 returned; see the note on counting below).
+#
+# Previously only five ids were pinned and everything else went by key,
+# on the assumption that key-based addressing worked. It mostly did,
+# because most keys happened to match a real fieldKey — but `gclid` did
+# not. GHL's field is `ad_click_id` ("Google Ads Click ID"), so every
+# Google Ads click id the contact form collected was silently dropped.
+# Pinning ids removes the whole class of failure: a key typo now shows
+# up as a warning from outreach.ghl._custom_field_entry instead of a
+# field that quietly never arrives.
+#
+# Counting note, so nobody "fixes" this list to match the UI: the GHL
+# UI showed 63 contact fields while the API returns 48. The 15-field
+# gap is GHL's STANDARD fields (First Name, Email, Tags, Source...),
+# which the UI lists alongside custom ones and which are not
+# custom-field write targets. Verified 2026-11-01 — the API result
+# contains zero standard-field keys, and the endpoint is not paginated
+# (limit/offset/page all 422). Opportunity and Company have no custom
+# fields at all (model=opportunity and model=business both return 0),
+# so their UI counts are entirely standard fields too.
+#
+# Two keys are misspelled in GHL itself: `goggle_rating` and the
+# leading-underscore `_google_reviews`. Kept verbatim — the id is what
+# travels, and renaming in GHL would orphan the existing data.
+#
+# To refresh after creating fields in the GHL UI, see
+# docs/ghl_field_ids.md for the one-liner that regenerates this block.
 GHL_CUSTOM_FIELD_IDS = {
+    '_google_reviews': 'wbcmYqANNJKMZqiPADL2',
+    'ad_click_id': '7UNESOV58YWVXEoOjg6O',
     'best_time': 'E2gTC20sWQ16yws9grne',
-    'source_page': 'Y0cG2nqqaus15J1wCUw7',
+    'budget_range': 'IwFSUVgDm5JnbKvDwqIf',
+    'current_website': 'DHuMF1UvmGUFvI3iY0p2',
+    'fb_link': 'QX37XcnXgbYq4vmtgMiQ',
+    'fbclid': 'UZ8LgzeSnMhz6Idi04JG',
+    'goggle_rating': 'Kh4oMUrfhJzy48Hw5a8p',
+    'google_maps_link': 'gV6NEVHHYLhO00F9ULsb',
+    'hot_or_not': 'vb08eV26drXiUcrLzNJD',
+    'intake_brand_colors': 'CbUWWLtJOvbduPjA8VES',
+    'intake_competitor_sites': 'UMQuQrtO3Ujt5Tm0OpoY',
+    'intake_copy_status': 'wLYqIZoxWr1oeH8fnE1g',
+    'intake_current_platform': 'Lzl7dKiH5ftrBJ70QAoj',
+    'intake_domain_registrar': 'mjae4KFwjmK1bj4zu6wU',
+    'intake_logo_files': '1D5vuLVwrLj3WD0Kbiwa',
+    'intake_notes': 'Se4DeklfDLtxsskJjylr',
+    'intake_page_list': 'lMjJFVmxIep3rk5ogdgx',
+    'intake_photo_files': 'VBRHKuQV3hOIQz47bLT1',
+    'intake_target_launch_date': 'AMn4wBFs2qiKBZF4pK6d',
     'landing_page': 'H5m4yChjx6VA03ablgPJ',
-    'referrer': 'VWUKBnZWteaU1xWtYG0D',
+    'lead_message': 'gY3J6qb20SyfVtyX6g72',
     'phone_raw': '6EPNyqnrWd7XlkBRHKcH',
+    'project_background': 'wZMSwuqtDHLUQvGgG3dm',
+    'project_type': 'ztuQjB5IG8YuluWhFWNG',
+    'referrer': 'VWUKBnZWteaU1xWtYG0D',
+    'review_requested_on': '0doSV6H8YWaCDmfhRucC',
+    'sms_consent': '5bTcJU6irFxCvyVNpkQx',
+    'software': '4fzUXasQwmPhqKkcny3w',
+    'source_page': 'Y0cG2nqqaus15J1wCUw7',
+    'timeline': 'ch0hmF5ziJexvKcaxrfO',
+    'trade': 'oF7N1e5z9trBsxsIrbKi',
+    'trucks': 'DZC7CB4F3bHnnRgKMqGx',
+    'utm_campaign': 'QMOLIIXt3eJtGFjUJPdT',
+    'utm_content': 'aCEsFk3hHuCuCMXXo9Dw',
+    'utm_medium': '6QSOSBis17tNWFjVuLi2',
+    'utm_source': 'lpoGhuH4I1GOhAPsF7ES',
+    'utm_term': 'RDsJhZXupInTSzkr0gen',
+    # ── Free-trial fields, created in GHL 2026-11-01 ─────────────────
+    # Written by billing/trial_ghl.py on trial-started. Grouped here
+    # rather than merged alphabetically above so the batch stays
+    # identifiable, same as the audit block below.
+    #
+    # GHL's custom-fields table displays these as
+    # {{contact.trial_start}}. That is the merge-tag rendering, not the
+    # key: the bare key is what the API wants and what is listed here.
+    # Sending 'contact.trial_start' would silently miss the field.
+    'trial_start': 'KVpmT7NKL3j4B4fLAkzc',
+    'trial_end': 'ejqXTSGz2mfINduO6RSn',
+    'stripe_customer_id': '0mxfwXL0TErDkANhMsD3',
+    'stripe_subscription_id': '7NXWdlh3sh3bHn12tLDa',
+    # ── Audit fields, created in GHL 2026-10-31 ──────────────────────
+    # Canonical names for both audit paths (see Phase 3). The voice
+    # webhook-trigger body keeps its own bare transport keys (url,
+    # summary, performance_score...) because GHL snapshots a workflow's
+    # field mapping when the sample is fetched: renaming them breaks
+    # the live SMS mapping SILENTLY, still sending the text with blank
+    # scores. Translation happens at the contact-write layer only.
+    'audit_url': 'sn4b84RKpzoWroDcuqz6',
+    'audit_final_url': 'cNx8jXLIKOKIadrzztO1',
+    'audit_performance_score': 'jlSbiLhjOPx8JLIysi1B',
+    'audit_seo_score': 'ayDDiQp2GIHhCpirFicG',
+    'audit_accessibility_score': 'XDcMj4IdqQ8SXeD2IzMc',
+    'audit_best_practices_score': 'g7XXbvW8Viueq07R34Po',
+    'audit_lcp_ms': 'DWIjYLkciILzpHqxbfKy',
+    'audit_summary': 'huWAlWw4bIoDu2ID7tQA',
+    'audit_status': '6YHWQu6gQOo0nh1ZoBbr',
+    'audit_checked_at': 'LM9Ivunmel6hKBzuKNap',
 }
 
 
