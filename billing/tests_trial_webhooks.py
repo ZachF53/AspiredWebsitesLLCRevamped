@@ -215,22 +215,65 @@ class TrialWebhookTests(TestCase):
             self.assertNotIn('tags', payload,
                              'upsert would replace the whole tag array')
 
-    def test_trial_started_sets_the_four_custom_fields_with_bare_keys(self):
+    TRIAL_FIELD_KEYS = ('trial_start', 'trial_end', 'stripe_customer_id',
+                        'stripe_subscription_id')
+
+    def test_the_four_trial_fields_all_have_pinned_ghl_ids(self):
+        """Without an id, outreach.ghl sends the bare key and warns.
+
+        The fields were created in GHL on 2026-11-01 and their ids
+        pinned in settings. outreach.ghl._custom_field_entry falls back
+        to the bare key when an id is missing and logs a warning saying
+        GHL may ignore it, so a key dropping out of that dict is a
+        silent half-failure: the tag still lands and fires the workflow,
+        but trial_start, trial_end and the two Stripe ids arrive empty.
+        """
+        from django.conf import settings
+
+        pinned = settings.GHL_CUSTOM_FIELD_IDS
+        for key in self.TRIAL_FIELD_KEYS:
+            self.assertIn(key, pinned,
+                          f'{key} has no pinned GHL field id')
+            self.assertTrue(pinned[key], f'{key} id is blank')
+
+    def test_trial_started_sets_the_four_custom_fields(self):
+        """Sent by GHL field ID, which is the documented-reliable route.
+
+        Accepts either shape because outreach.ghl falls back to the bare
+        key when an id is absent, and this test should describe what
+        arrives at GHL rather than which branch produced it. What it
+        will NOT accept is the merge-tag spelling: GHL's UI displays
+        these as {{contact.trial_start}}, and sending
+        'contact.trial_start' silently misses the field.
+        """
+        from django.conf import settings
+
         _acceptance()
         _, spy = self._send(_event('customer.subscription.created',
                                    _trialing_sub()))
-        fields = {f['key']: f['fieldValue']
-                  for f in spy.upserts[0]['customFields'] if 'key' in f}
-        for key in ('trial_start', 'trial_end', 'stripe_customer_id',
-                    'stripe_subscription_id'):
-            self.assertIn(key, fields, f'{key} missing')
-            self.assertNotIn(f'contact.{key}', fields)
-        self.assertEqual(fields['stripe_customer_id'], 'cus_test123')
-        self.assertEqual(fields['stripe_subscription_id'], 'sub_test123')
-        # trial_end comes off the subscription as an ISO date, not a
-        # unix timestamp: GHL date fields silently accept rubbish.
-        self.assertRegex(fields['trial_end'], r'^\d{4}-\d{2}-\d{2}$')
-        self.assertRegex(fields['trial_start'], r'^\d{4}-\d{2}-\d{2}$')
+
+        entries = spy.upserts[0]['customFields']
+        by_id = {f['id']: f['fieldValue'] for f in entries if 'id' in f}
+        by_key = {f['key']: f['fieldValue'] for f in entries if 'key' in f}
+        pinned = settings.GHL_CUSTOM_FIELD_IDS
+
+        values = {}
+        for key in self.TRIAL_FIELD_KEYS:
+            field_id = pinned.get(key)
+            if field_id and field_id in by_id:
+                values[key] = by_id[field_id]
+            else:
+                self.assertIn(key, by_key, f'{key} missing entirely')
+                values[key] = by_key[key]
+            self.assertNotIn(f'contact.{key}', by_key,
+                             'merge-tag spelling would miss the field')
+
+        self.assertEqual(values['stripe_customer_id'], 'cus_test123')
+        self.assertEqual(values['stripe_subscription_id'], 'sub_test123')
+        # ISO dates, not unix timestamps: GHL date fields accept rubbish
+        # silently and then render a wrong date in the workflow email.
+        self.assertRegex(values['trial_end'], r'^\d{4}-\d{2}-\d{2}$')
+        self.assertRegex(values['trial_start'], r'^\d{4}-\d{2}-\d{2}$')
 
     def test_name_is_split_on_the_first_space(self):
         user = User.objects.create_user(
