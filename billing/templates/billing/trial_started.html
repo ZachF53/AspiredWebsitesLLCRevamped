@@ -52,23 +52,83 @@
         </div>
 
         {% comment %}
-        TODO: Zachery to supply the onboarding copy for this block. It
-        needs to say what the client does next to get the product
-        running during the trial, which differs per product (the
-        receptionist needs a forwarding change, review automation needs
-        Google Business Profile access and a job-software trigger).
+        Onboarding steps, per product. The trial clock is already
+        running by the time anyone reads this, so the lead says so:
+        every day spent waiting on setup is a day they do not get to
+        evaluate the thing they will be charged for.
 
-        Left as a visible placeholder rather than guessed at, because
-        the trial clock is already running by the time anyone reads
-        this: a wrong instruction here costs the client days of their
-        free period.
+        Step 1 links /onboarding/ rather than a specific wizard URL.
+        That view resolves the right wizard from the client's own
+        Onboarding rows, so it stays correct for someone who buys both
+        products and needs no product_type plumbed through here.
+
+        Every claim below is taken from the seeded wizard in
+        onboarding/registry.py (_VOICE_RECEPTIONIST and _REVIEW_SYSTEM,
+        5 sections each) or from the existing checkout copy. Nothing
+        here promises a turnaround time, because none is committed
+        anywhere else on the site.
         {% endcomment %}
-        <div class="checkout-next">
-            <h3 class="checkout-next__title">Getting set up</h3>
-            <p class="muted">
-                [TODO: onboarding copy for {{ tier.name }} goes here.]
-            </p>
-        </div>
+        {% if tier.slug == 'hvac-voice-receptionist' %}
+            <div class="checkout-next">
+                <h3 class="checkout-next__title">Getting set up</h3>
+                <p class="muted">
+                    Your {{ trial_days }} days started today, so the sooner
+                    the questions below are answered, the more of them you
+                    spend with your phone actually covered.
+                </p>
+                <ol class="checkout-next__steps">
+                    <li>
+                        <a href="{% url 'onboarding:dispatch' %}">Answer about ten minutes of questions</a>
+                        in your portal: your hours, the services you do, who
+                        calls should reach first, and what counts as an
+                        emergency. Your answers save as you go.
+                    </li>
+                    <li>
+                        We build your receptionist from those answers and
+                        send you the number to forward your line to.
+                    </li>
+                    <li>
+                        You forward your existing number to the one we send.
+                        You keep your number and your carrier, and you can
+                        switch the forwarding off any time you want.
+                    </li>
+                </ol>
+                <p class="muted">
+                    300 talk minutes a month are included. Past that it is 25
+                    cents a minute and it keeps answering. You get an email
+                    at 80 percent.
+                </p>
+            </div>
+        {% elif tier.slug == 'hvac-review-system' %}
+            <div class="checkout-next">
+                <h3 class="checkout-next__title">Getting set up</h3>
+                <p class="muted">
+                    Your {{ trial_days }} days started today, and once the
+                    trigger is connected every finished job asks for a Google
+                    review on its own. The sooner it is wired up, the more of
+                    your free period you spend watching it work.
+                </p>
+                <ol class="checkout-next__steps">
+                    <li>
+                        <a href="{% url 'onboarding:dispatch' %}">Answer the setup questions</a>
+                        in your portal. Have three things to hand: your Google
+                        review link, the name on your Google listing, and the
+                        login for whatever you track jobs in.
+                    </li>
+                    <li>
+                        We wire the trigger into your job system so a
+                        completed job sends the request on its own. You do not
+                        need a website from us for any of this.
+                    </li>
+                    <li>
+                        After that your team marks a job complete and nothing
+                        else. The request goes to every completed customer,
+                        with no sorting by who might leave a good review,
+                        because Google forbids that.
+                    </li>
+                </ol>
+            </div>
+        {% endif %}
 
         <p class="muted">
             Check your email for a link to set your password. Don't see it?
