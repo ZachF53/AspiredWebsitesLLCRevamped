@@ -305,6 +305,15 @@ class ReviewEvent(TimestampedModel):
         ('review_left', 'Review left'),
         ('opt_out', 'Opted out'),
         ('failed', 'Send failed'),
+        # A workflow step we were not told about. Added Nov 2026: the
+        # webhook's own docstring had always claimed unmapped events were
+        # typed 'unknown', but there was no such choice and the code
+        # defaulted them to 'sent' -- so an empty test POST from GHL
+        # recorded a review request that never went out, and inflated
+        # the one number a contractor reads. 'unknown' is excluded from
+        # every stat in reviews.reporting; it exists to be diagnosable,
+        # not counted.
+        ('unknown', 'Unrecognised event'),
     ]
 
     program = models.ForeignKey(

@@ -24,8 +24,8 @@ row and still answered 200.
 
 import hashlib
 import hmac
-import json
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -206,12 +206,26 @@ def receive(request, secret=''):
 
     raw_type = str(_first(payload, 'event_type', 'eventType', 'type',
                           'event') or '')
+    raw_location = _first(payload, 'locationId', 'location_id', 'location.id')
+
+    # A body with neither an event type nor a location is not an event.
+    # GHL's "test" button posts exactly this, and the old unmapped
+    # fallback typed it 'sent' -- so every test click recorded a review
+    # request that never went out. 200 so GHL does not retry; nothing
+    # stored, because there is nothing here to store.
+    if not raw_type and not raw_location:
+        logger.info('reviews ghl webhook: contentless payload; ignoring')
+        return JsonResponse({'status': 'ignored', 'reason': 'no content'})
+
     event_type = EVENT_MAP.get(raw_type.strip().lower(), '')
     if not event_type:
-        # Store it anyway — a workflow step we were not told about is a
-        # configuration problem to investigate, not data to throw away.
-        event_type = 'failed' if 'fail' in raw_type.lower() else 'sent'
-        logger.info('reviews ghl webhook: unmapped event type %r', raw_type)
+        # Store it, typed honestly. A workflow step nobody told us about
+        # is a configuration problem to investigate, not data to discard
+        # -- but calling it 'sent' (the old behaviour) invents a review
+        # request. 'unknown' is counted in no stat.
+        event_type = 'failed' if 'fail' in raw_type.lower() else 'unknown'
+        logger.info('reviews ghl webhook: unmapped event type %r -> %s',
+                    raw_type, event_type)
 
     program, location_id = _resolve_program(payload)
 
@@ -251,6 +265,37 @@ def receive(request, secret=''):
         rating = None
 
     from reviews.models import ReviewEvent
+
+    # ── One opt-out per person, not one per workflow ───────────────────
+    #
+    # A STOP from a review contact now arrives TWICE: once from the
+    # reply workflow (reclassified from its body) and once from the
+    # "Contact DND turned on" workflow. Different messageIds, so the
+    # dedupe_key cannot see they are the same act, and the portal would
+    # show two people opting out when one did.
+    #
+    # Matched on the person, not the message. Fifteen minutes because
+    # both workflows fire off the same carrier event and GHL's lag
+    # between them is seconds to minutes; a genuine second opt-out
+    # inside that window is meaningless anyway, since the first already
+    # suppressed them.
+    #
+    # Needs a phone to match on. An opt-out with no phone is stored as
+    # its own row rather than dropped -- better a duplicate we can see
+    # than a suppression we lost.
+    if event_type == 'opt_out' and phone:
+        window_start = timezone.now() - timedelta(minutes=15)
+        twin = (ReviewEvent.objects
+                .filter(program=program, event_type='opt_out',
+                        customer_phone_e164=phone,
+                        created_at__gte=window_start)
+                .first())
+        if twin is not None:
+            logger.info(
+                'reviews ghl webhook: opt_out for %s already recorded as '
+                '%s within 15 min; not duplicating', phone, twin.dedupe_key)
+            return JsonResponse({'status': 'duplicate',
+                                 'matched': 'opt_out_window'})
 
     try:
         with transaction.atomic():

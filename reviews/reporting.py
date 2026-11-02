@@ -27,14 +27,43 @@ SENT_TYPES = ('sent',)
 REVIEW_TYPES = ('review_left',)
 
 
-def _counts(qs):
-    """One query, four numbers."""
+def _counts(qs, program=None):
+    """One query, five numbers.
+
+    ``opt_outs`` counts only people who were actually sent a review
+    request. GHL's "Contact DND turned on" trigger cannot be filtered by
+    tag, so it fires for ANY contact in the sub-account who opts out of
+    texts -- a billing reply, a cold-outreach reply, anyone. Those are
+    real opt-outs and are stored, because consent applies to every
+    message from that number, but counting them here would tell a
+    contractor their review requests are driving opt-outs that have
+    nothing to do with reviews.
+
+    "Actually sent" is judged over the program's WHOLE history, not the
+    current window: a request sent 40 days ago still makes that person a
+    review contact when they opt out today.
+
+    An opt-out with no phone cannot be matched and so is not counted.
+    Conservative on purpose -- it stays visible in the event log, it
+    just does not move a number we cannot justify.
+
+    ``program=None`` keeps the unfiltered behaviour, for callers that
+    aggregate across programs.
+    """
+    opt_out_filter = Q(event_type='opt_out')
+    if program is not None:
+        review_contacts = (program.events
+                           .filter(event_type__in=SENT_TYPES)
+                           .exclude(customer_phone_e164='')
+                           .values('customer_phone_e164'))
+        opt_out_filter &= Q(customer_phone_e164__in=review_contacts)
+
     return qs.aggregate(
         sent=Count('id', filter=Q(event_type__in=SENT_TYPES)),
         reviews=Count('id', filter=Q(event_type__in=REVIEW_TYPES)),
         clicks=Count('id', filter=Q(event_type='click')),
         replies=Count('id', filter=Q(event_type='reply')),
-        opt_outs=Count('id', filter=Q(event_type='opt_out')),
+        opt_outs=Count('id', filter=opt_out_filter),
     )
 
 
@@ -74,7 +103,7 @@ def window_stats(program, *, now=None):
 
     out = {}
     for key, since in spans.items():
-        stats = _counts(base.filter(occurred_at__gte=since))
+        stats = _counts(base.filter(occurred_at__gte=since), program=program)
         stats['label'] = labels[key]
         stats['review_rate'] = _rate(stats['reviews'], stats['sent'])
         stats['click_rate'] = _rate(stats['clicks'], stats['sent'])
