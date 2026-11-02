@@ -245,7 +245,7 @@ needs no modifier and the add-on grid takes cards--2col.
                         {% for feature in voice_receptionist.features.all %}<li>{{ feature.text }}</li>{% endfor %}
                     </ul>
                     <p class="card__price-note"><strong>This one is never bundled, with any plan.</strong> Every call it answers costs us money to run, so it stays priced on its own at every plan level.</p>
-                    <p class="card__price-note">Hear it: <a href="tel:{{ VOICE_DEMO_TEL }}">{{ VOICE_DEMO_DISPLAY }}</a>, press {{ VOICE_DEMO_EXT }}.</p>
+                    <p class="card__price-note">Hear it: <a href="tel:{{ VOICE_DEMO_TEL }}">{{ VOICE_DEMO_DISPLAY }}</a></p>
                     {% include "core/_voice_scarcity.html" %}
                     <a class="btn-primary" href="{% url 'billing:checkout_page' voice_receptionist.slug %}">Start {{ TRIAL_DAYS }}-Day Free Trial</a>
                     <a class="btn-link" href="{% url 'public:service_ai_receptionist' %}">How the receptionist works</a>

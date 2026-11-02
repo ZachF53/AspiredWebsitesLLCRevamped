@@ -178,6 +178,13 @@ class ReplyClassificationTests(TestCase):
     client a keyword is a conversation that needs answering."""
 
     def _reply(self, body, index):
+        """Post a reply and return the stored event.
+
+        Looked up by messageId rather than by a `reply:` dedupe key,
+        because a stop keyword is now reclassified to `opt_out` (Nov
+        2026) and so carries an `opt_out:` key instead. The helper
+        should not care which type the classifier chose.
+        """
         _program(ghl_location_id=f'loc_{index}')
         self.client.post(
             _url(),
@@ -185,16 +192,30 @@ class ReplyClassificationTests(TestCase):
                              'locationId': f'loc_{index}',
                              'messageId': f'm{index}', 'body': body}),
             content_type='application/json')
-        return ReviewEvent.objects.get(dedupe_key=f'reply:m{index}')
+        return ReviewEvent.objects.get(dedupe_key__endswith=f':m{index}')
 
     def test_a_real_message_needs_a_human(self):
-        self.assertTrue(self._reply('my AC is still broken', 1).needs_human)
+        event = self._reply('my AC is still broken', 1)
+        self.assertTrue(event.needs_human)
+        self.assertEqual(event.event_type, 'reply')
 
     def test_stop_does_not_need_a_human(self):
-        self.assertFalse(self._reply('STOP', 2).needs_human)
+        """And is now typed opt_out, not reply — GHL has no DND trigger
+        wired, so this is the only place consent state gets recorded."""
+        event = self._reply('STOP', 2)
+        self.assertFalse(event.needs_human)
+        self.assertEqual(event.event_type, 'opt_out')
 
     def test_stop_with_punctuation_and_case_still_matches(self):
-        self.assertFalse(self._reply(' stop. ', 3).needs_human)
+        event = self._reply(' stop. ', 3)
+        self.assertFalse(event.needs_human)
+        self.assertEqual(event.event_type, 'opt_out')
+
+    def test_help_is_not_an_opt_out(self):
+        """HELP is an info request. It must not suppress a customer."""
+        event = self._reply('HELP', 41)
+        self.assertFalse(event.needs_human)
+        self.assertEqual(event.event_type, 'reply')
 
     def test_help_does_not_need_a_human(self):
         self.assertFalse(self._reply('HELP', 4).needs_human)

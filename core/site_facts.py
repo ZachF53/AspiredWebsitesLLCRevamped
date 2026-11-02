@@ -109,25 +109,33 @@ PHONE_DISPLAY = '(210) 201-0375'
 PHONE_TEL = '+12102010375'
 PHONE_NOTE = 'A San Antonio number that rings in Warner Robins, GA'
 
-# The AI-receptionist demo line (Oct 2026). Owner's decision: it is the
-# main business line, reached by pressing #1 at the menu — there is no
-# separate demo DID.
+# The AI-receptionist demo line.
 #
-# Deliberately its OWN pair of constants rather than a template reusing
-# PHONE_TEL, even though the digits are identical today. The demo line is
-# a product surface and the main line is a contact detail: if a dedicated
-# demo DID is ever provisioned, this is the one place that changes, and
-# the nav tap-to-call, footer contact block and schema telephone stay put.
+# Nov 2026: now a DEDICATED number with its own GHL Voice AI agent
+# ("Demo - Sample Trades Receptionist"), answering as a sample business
+# and disclosing that it is a demo. It is NOT the main business line.
 #
-# VOICE_DEMO_EXT is rendered as a separate sentence rather than baked into
-# the tel: href on purpose. "#1" is a menu choice the caller makes after
-# the line answers, not a dialable extension, and tel: wait/pause syntax
-# (,,1 / ;ext=) is honoured inconsistently across iOS, Android and
-# desktop handlers. Keeping the href a bare E.164 number means the call
-# always connects; the instruction lives in the copy next to it.
-VOICE_DEMO_DISPLAY = PHONE_DISPLAY
-VOICE_DEMO_TEL = PHONE_TEL
-VOICE_DEMO_EXT = '#1'
+# It briefly was: the first version of this pointed at PHONE_TEL with a
+# "press #1" instruction, on the understanding that the demo lived
+# behind a menu on the main line. It never did, and the live site spent
+# two days telling visitors to press an option that did not exist. The
+# separate constants are the reason the correction is one line here
+# rather than an edit to the nav, footer and schema blocks.
+#
+# Keep these distinct from PHONE_* permanently. The main line is a
+# contact detail that belongs in the NAP and schema; this is a product
+# surface that belongs only where the receptionist is being sold.
+#
+# Demo calls are metered with trialCall=true so they never bill a
+# client, but they still cost us real GHL minutes — see
+# VOICE_INCLUDED_MINUTES in settings for the economics.
+VOICE_DEMO_DISPLAY = '(210) 796-1342'
+VOICE_DEMO_TEL = '+12107961342'
+# Hank, the receptionist answering Aspired's OWN line (trialCall=false).
+# Not a public number: recorded here so the voice program's
+# answering_number has one source of truth.
+VOICE_HANK_DISPLAY = '(830) 251-4999'
+VOICE_HANK_TEL = '+18302514999'
 
 
 # Routes where the visitor tracker and session recorder never load:
@@ -183,7 +191,8 @@ def site_facts(request):
         'PHONE_NOTE': PHONE_NOTE,
         'VOICE_DEMO_DISPLAY': VOICE_DEMO_DISPLAY,
         'VOICE_DEMO_TEL': VOICE_DEMO_TEL,
-        'VOICE_DEMO_EXT': VOICE_DEMO_EXT,
+        'VOICE_HANK_DISPLAY': VOICE_HANK_DISPLAY,
+        'VOICE_HANK_TEL': VOICE_HANK_TEL,
         'SITE_CONTENT': SimpleLazyObject(_site_content),
         'TRACKING_ALLOWED': tracking_allowed(getattr(request, 'path', '') or ''),
         'CALL_NAME': CALL_NAME,

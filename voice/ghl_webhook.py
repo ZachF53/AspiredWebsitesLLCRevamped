@@ -28,8 +28,8 @@ billing period rather than once per call — see ``voice/usage.py``.
 """
 
 import hmac
-import json
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -49,22 +49,16 @@ ACTION_BOOKING = 'APPOINTMENT_BOOKING'
 
 
 def _first(payload, *keys):
-    """First present, non-empty value among `keys`, dotted paths allowed."""
-    for key in keys:
-        if '.' in key:
-            cur = payload
-            for part in key.split('.'):
-                if not isinstance(cur, dict):
-                    cur = None
-                    break
-                cur = cur.get(part)
-            if cur not in (None, ''):
-                return cur
-            continue
-        value = payload.get(key)
-        if value not in (None, ''):
-            return value
-    return None
+    """Delegates to core.ghl_payload.first.
+
+    Kept as a module-level name because the tests patch and call it, but
+    the implementation is now shared with reviews.ghl_webhook so the two
+    endpoints cannot drift in how they read a payload. The shared version
+    additionally checks ``customData`` first, which is what makes GHL's
+    standard (free, properly-serialised) Webhook action work here.
+    """
+    from core.ghl_payload import first
+    return first(payload, *keys)
 
 
 def _secret_ok(provided):
@@ -114,7 +108,7 @@ def _resolve_program(payload):
     """
     from voice.models import VoiceProgram
 
-    location_id = _first(payload, 'locationId', 'location_id')
+    location_id = _first(payload, 'locationId', 'location_id', 'location.id')
     if location_id:
         program = VoiceProgram.objects.filter(
             ghl_location_id=str(location_id)).first()
@@ -141,15 +135,18 @@ def voice_events(request, secret):
     if not _secret_ok(secret):
         return HttpResponseForbidden('forbidden')
 
-    try:
-        payload = json.loads(request.body.decode('utf-8') or '{}')
-    except Exception:
+    from core.ghl_payload import coerce_duration_seconds, parse_body
+
+    payload, _raw = parse_body(request, 'voice')
+    if payload is None:
         # Malformed JSON is not worth a retry — nothing we can store.
-        return HttpResponse('bad payload', status=400)
-    if not isinstance(payload, dict):
+        # The raw body has already been logged by parse_body, which is
+        # how a template that renders invalid JSON gets diagnosed rather
+        # than silently retried forever.
         return HttpResponse('bad payload', status=400)
 
-    call_id = _first(payload, 'id', 'callId', 'call_id', 'messageId')
+    call_id = _first(payload, 'id', 'callId', 'call_id', 'messageId',
+                     'eventId', 'event_id')
     if not call_id:
         # Without an id we cannot dedupe, and at-least-once delivery
         # would double-bill. Refuse rather than risk it.
@@ -157,18 +154,33 @@ def voice_events(request, secret):
         return JsonResponse({'status': 'ignored', 'reason': 'no id'})
 
     program = _resolve_program(payload)
+
+    raw_duration = _first(payload, 'duration', 'callDuration',
+                          'call_duration', 'voice_ai.duration')
+    duration, recognised = coerce_duration_seconds(raw_duration)
+    if not recognised:
+        # Non-empty but unparseable. Billing zero for a real call is a
+        # revenue loss with no symptom, so the raw value is logged at
+        # error level: this is the one number that has to be right.
+        logger.error(
+            'voice.webhook: unparseable duration %r on call %s; metered '
+            'as 0 seconds. Add this format to '
+            'core.ghl_payload.coerce_duration_seconds.',
+            raw_duration, call_id)
+
     started_at = parse_datetime(
-        str(_first(payload, 'createdAt', 'created_at', 'startedAt') or ''))
+        str(_first(payload, 'createdAt', 'created_at', 'startedAt',
+                   'dateAdded') or ''))
     if started_at is None:
-        started_at = timezone.now()
+        # GHL's post-call workflow exposes no start time, so the webhook
+        # arrives at the call's END. Reconstruct the start from the
+        # duration rather than stamping receipt time: after-hours
+        # coverage is computed from this, and a call that began at 19:58
+        # and ended at 20:02 is an in-hours call, not an after-hours one.
+        # Falls back to now when the duration is unknown too.
+        started_at = timezone.now() - timedelta(seconds=duration or 0)
     elif timezone.is_naive(started_at):
         started_at = timezone.make_aware(started_at)
-
-    try:
-        duration = int(float(_first(payload, 'duration') or 0))
-    except (TypeError, ValueError):
-        duration = 0
-    duration = max(0, duration)
 
     actions = _action_names(payload)
     trial = _as_bool(_first(payload, 'trialCall', 'trial_call'))
@@ -185,7 +197,8 @@ def voice_events(request, secret):
         program=program,
         ghl_call_id=str(call_id)[:255],
         ghl_location_id=str(
-            _first(payload, 'locationId', 'location_id') or '')[:64],
+            _first(payload, 'locationId', 'location_id',
+                   'location.id') or '')[:64],
         ghl_agent_id=str(_first(payload, 'agentId', 'agent_id') or '')[:64],
         started_at=started_at,
         duration_seconds=duration,
@@ -203,6 +216,42 @@ def voice_events(request, secret):
     )
 
     from voice.models import VoiceCallRecord
+
+    # ── Secondary dedupe, because the call id is SYNTHETIC ─────────────
+    #
+    # GHL's post-call workflow exposes no call id, so the body builds one
+    # from contact id + a `right_now` timestamp. GHL re-renders merge
+    # fields on retry, so a redelivery produces a DIFFERENT id, defeats
+    # the primary dedupe, and bills the same call twice.
+    #
+    # So: same agent, same caller, same duration, within two minutes is
+    # treated as a redelivery. Matched on existing columns (ghl_agent_id
+    # stands in for the destination number — one agent per number here),
+    # so this needs no migration.
+    #
+    # The trade is deliberate. Two genuinely distinct calls from one
+    # caller to one agent with an identical duration inside two minutes
+    # would be dropped. That is a callback of exactly equal length; far
+    # rarer than a webhook retry, and under-billing one freak call beats
+    # double-billing a real one.
+    if duration > 0 and fields['from_number']:
+        window_start = started_at - timedelta(seconds=120)
+        window_end = started_at + timedelta(seconds=120)
+        twin = (VoiceCallRecord.objects
+                .filter(from_number=fields['from_number'],
+                        ghl_agent_id=fields['ghl_agent_id'],
+                        duration_seconds=duration,
+                        started_at__gte=window_start,
+                        started_at__lte=window_end)
+                .exclude(ghl_call_id=fields['ghl_call_id'])
+                .first())
+        if twin is not None:
+            logger.info(
+                'voice.webhook: call %s looks like a redelivery of %s '
+                '(same caller/agent/duration within 120s); not accruing',
+                call_id, twin.ghl_call_id)
+            return JsonResponse({'status': 'duplicate',
+                                 'matched': 'secondary'})
 
     try:
         with transaction.atomic():

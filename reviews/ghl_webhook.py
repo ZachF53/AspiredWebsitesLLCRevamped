@@ -71,26 +71,17 @@ _KEYWORDS = {
 
 
 def _first(payload, *keys):
-    """First present, non-empty value among `keys`.
+    """Delegates to core.ghl_payload.first.
 
-    Supports dotted paths ('customer.phone') because a workflow may send
-    either nested or flat keys depending on how it was built.
+    Shared with voice.ghl_webhook so the two endpoints cannot drift in
+    how they read a payload. Still supports dotted paths, and now checks
+    ``customData`` first, which is what makes GHL's standard (free,
+    properly-serialised) Webhook action usable here — see that module's
+    docstring for why the custom webhook's raw template is the thing
+    losing review text today.
     """
-    for key in keys:
-        if '.' in key:
-            cur = payload
-            for part in key.split('.'):
-                if not isinstance(cur, dict):
-                    cur = None
-                    break
-                cur = cur.get(part)
-            if cur not in (None, ''):
-                return cur
-            continue
-        value = payload.get(key)
-        if value not in (None, ''):
-            return value
-    return None
+    from core.ghl_payload import first
+    return first(payload, *keys)
 
 
 def _secret_ok(provided):
@@ -134,7 +125,9 @@ def _resolve_program(payload):
     """
     from reviews.models import ReviewProgram
 
-    location_id = str(_first(payload, 'locationId', 'location_id') or '')
+    # 'location.id' is the standard Webhook action's nested shape.
+    location_id = str(_first(payload, 'locationId', 'location_id',
+                             'location.id') or '')
     if location_id:
         program = ReviewProgram.objects.filter(
             ghl_location_id=location_id).first()
@@ -201,11 +194,14 @@ def receive(request, secret=''):
             'secret')
         return HttpResponseForbidden('forbidden')
 
-    try:
-        payload = json.loads(request.body.decode('utf-8') or '{}')
-    except (ValueError, UnicodeDecodeError):
-        return HttpResponse('bad request', status=400)
-    if not isinstance(payload, dict):
+    from core.ghl_payload import is_stop_keyword, parse_body
+
+    payload, _raw = parse_body(request, 'reviews')
+    if payload is None:
+        # Raw body already logged by parse_body — which is how a custom
+        # webhook template rendering invalid JSON (an unescaped quote in
+        # a review comment) becomes diagnosable instead of an invisible
+        # retry loop.
         return HttpResponse('bad request', status=400)
 
     raw_type = str(_first(payload, 'event_type', 'eventType', 'type',
@@ -219,14 +215,32 @@ def receive(request, secret=''):
 
     program, location_id = _resolve_program(payload)
 
-    body = str(_first(payload, 'body', 'message', 'text') or '')[:4000]
+    body = str(_first(payload, 'body', 'message', 'text',
+                      'message.body') or '')[:4000]
+
+    # An inbound reply whose whole body is a stop keyword is an opt-out,
+    # not a conversation. GHL has no reliable DND trigger wired yet, so
+    # without this every STOP lands as a `reply` that the portal flags
+    # as needing a human answer — and consent state stays invisible.
+    #
+    # Reclassified only from `reply`: a `review_left` whose comment
+    # happens to read "cancel" is not an opt-out. An explicit
+    # event_type=opt_out from GHL is honoured by EVENT_MAP already and
+    # does not depend on the body arriving at all.
+    if event_type == 'reply' and is_stop_keyword(body):
+        logger.info('reviews ghl webhook: reply body %r is a stop keyword; '
+                    'recording as opt_out', body[:40])
+        event_type = 'opt_out'
+    # 'full_name' / 'contact_id' and the nested 'message.*' keys are the
+    # standard Webhook action's shape; the rest are the custom bodies.
     phone = _to_e164ish(_first(
         payload, 'phone', 'customer_phone', 'customer.phone', 'from',
-        'contact.phone'))
+        'contact.phone', 'message.phone'))
     email = str(_first(payload, 'email', 'customer_email', 'customer.email',
                        'contact.email') or '')[:254]
     name = str(_first(payload, 'name', 'customer_name', 'customer.name',
-                      'full_name', 'contact.name') or '')[:200]
+                      'full_name', 'contact.name', 'contact.full_name')
+               or '')[:200]
 
     rating = _first(payload, 'rating', 'review_rating', 'stars')
     try:
