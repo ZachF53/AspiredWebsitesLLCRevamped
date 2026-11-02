@@ -3,7 +3,39 @@
 Everything below is **Stripe TEST mode**. No step here touches live
 keys or live money.
 
-Branch: `stripe-trial-and-terms`. Not deployed anywhere.
+## Deployment record
+
+Shipped to **staging and production** on 2026-11-02 at commit `8b13a8a`,
+merged to `main` as a fast-forward (no history rewritten).
+
+| | Done |
+|---|---|
+| Migrations | `billing.0016`, `0017`, `0018`, `voice.0005` applied on both |
+| `collectstatic` | run on both (CSS and JS both changed) |
+| Env vars | `TRIAL_DAYS`, `TRIAL_REMINDER_DAYS`, `TERMS_VERSION`, `BILLING_SUPPORT_EMAIL` set on both. `.env` backed up first on each |
+| Services | gunicorn + celery restarted on both. celerybeat restarted on prod; **left stopped on staging** by design |
+| GHL custom fields | created, and their ids pinned in settings (commit `64f4556`) |
+| Stripe live webhook | all seven required events already enabled on `aspiredwebsites.com/billing/webhook/`, verified by API read |
+| Stripe live prices | both `$97/mo` Price objects already existed on the two tiers, so checkout works |
+
+Verified live after deploy: `/terms/` shows version 2026-11-01, the
+Atlanta entity address, Fulton County venue and `billing@`; both
+checkout pages show the trial CTA, the terms checkbox, the disclosure
+and `$0.00` due today; home, pricing, both service pages and contact
+all 200.
+
+**The two $97/mo products now take no payment for 14 days.** Anyone who
+signs up is charged on day 15.
+
+One log line worth knowing is benign: `core.cache_health` logs an ERROR
+at startup when several gunicorn workers write the same probe key at
+once and one reads back another's value. The cache round-trips fine.
+Pre-existing, unrelated to this work.
+
+---
+
+Branch merged to `main`. The old `stripe-trial-and-terms` branch was
+deleted after confirming it was fully contained in what shipped.
 
 ---
 
@@ -100,18 +132,24 @@ aspiredwebsites-celerybeat`. The others only need gunicorn.
 fire there on its own. Run `python manage.py send_trial_reminders` by
 hand to test it.
 
-### 1.4 Still outstanding, needs a decision from you
+### 1.4 Still outstanding
 
-- **`BILLING_SUPPORT_EMAIL`** currently defaults to your main inbox. Set
-  the env var if cancellation mail should go elsewhere. It cannot be a
-  bracketed placeholder: `public/content_gate.py` rule "J placeholders"
-  fails the suite on any of those reaching a public page, and this
-  address sits inside a cancellation promise.
-- **Attorney review** on terms sections 15 (limitation of liability) and
-  18 (governing law). Both carry `<!-- TODO: attorney review -->`.
-- **Onboarding copy** for the trial-started page. There is a marked
-  placeholder block per product. The trial clock is running by the time
-  anyone reads it, so a wrong instruction costs the client free days.
+- **Confirm `billing@aspiredwebsites.com` receives mail.** It is set on
+  both servers and now renders in terms section 21, on the checkout
+  disclosure and on the trial manage page, all three of which promise
+  cancellation by email. If that mailbox or alias does not exist yet,
+  create it. This is the one open item that a customer could hit.
+- **Attorney-review markers.** Terms sections 15 and 18 still carry
+  `<!-- TODO: attorney review -->` in the HTML. They are invisible to
+  visitors. Zachery reported the review itself as done on 2026-11-01;
+  the markers were left in place rather than removed on an ambiguous
+  "done", since deleting a legal-review marker is not a thing to do by
+  inference. Say the word and they come out.
+
+Closed: onboarding copy (written 2026-11-02, two steps answered from
+the seeded wizard in `onboarding/registry.py`), the receptionist
+turnaround time (2 to 5 business days), and the four GHL custom
+fields.
 
 ---
 
